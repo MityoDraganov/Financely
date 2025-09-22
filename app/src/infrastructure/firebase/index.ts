@@ -7,7 +7,7 @@ import { Functions, getFunctions } from "@firebase/functions";
 import { FirebaseStorage, getStorage } from "@firebase/storage";
 import config from "../../../../config.json";
 
-const firebaseConfig: FirebaseOptions = config.DEV_adminPortalFirebaseConfig;
+const firebaseConfig: FirebaseOptions = config.DEV_FirebaseConfig;
 
 const app = initializeApp(firebaseConfig);
 
