@@ -1,0 +1,11 @@
+{
+  "DEV_FirebaseConfig": {
+    "apiKey": "AIzaSyC5E4VmX41e2o6buhkU674stF7wnWmohZo",
+    "authDomain": "invoicegenerator-8d7ce.firebaseapp.com",
+    "projectId": "invoicegenerator-8d7ce",
+    "storageBucket": "invoicegenerator-8d7ce.firebasestorage.app",
+    "messagingSenderId": "838027233150",
+    "appId": "1:838027233150:web:304d185bffb4387093952f",
+    "measurementId": "G-RFCX4Y10MX"
+  }
+}
