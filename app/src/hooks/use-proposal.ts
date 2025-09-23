@@ -1,20 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { serviceHost } from "@/services";
-import { databaseService } from "@/infrastructure";
 import { getProposalRepository } from "@/repositories";
 import { CreateProposalParams, createProposalService } from "@/services/proposal-service";
 
 const functionsService = serviceHost.getFunctionsService();
 const proposalService = createProposalService(functionsService);
+const databaseService = serviceHost.getDatabaseService();
 const proposalRepository = getProposalRepository(databaseService);
 
 export const useCreateProposal = () => {
   const queryClient = useQueryClient();
   
-  return useMutation({
-    mutationFn: (params: CreateProposalParams) => proposalService.createProposal(params),
+  return useMutation<string, Error, CreateProposalParams>({
+    mutationKey: ["proposal", "create"],
+    mutationFn: async (params: CreateProposalParams) => {
+      return proposalService.createProposal(params);
+    },
     onSuccess: () => {
-      // Invalidate and refetch proposals
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
     },
   });

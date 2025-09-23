@@ -3,7 +3,7 @@ import { baseEntitySchema } from "./base";
 
 export const PROPOSAL_STATUSES = {
   DRAFT: "DRAFT",
-  SENT: "SENT", 
+  SENT: "SENT",
   ACCEPTED: "ACCEPTED",
   REJECTED: "REJECTED",
   EXPIRED: "EXPIRED",
@@ -27,8 +27,6 @@ export const proposalApprovalSchema = z.object({
 });
 
 export const proposalDataSchema = z.object({
-  orgId: z.string().min(1),
-  customerId: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),
   status: z.nativeEnum(PROPOSAL_STATUSES),
@@ -54,4 +52,3 @@ export const calculateTotals = (items: ProposalItem[], vatRatePct?: number) => {
   const total = subtotal + taxTotal;
   return { subtotal, taxTotal, total };
 };
-

@@ -71,3 +71,4 @@ export const ApprovalPage: React.FC<Props> = ({ orgId, proposalId, token, apiBas
 
 export default ApprovalPage;
 
+

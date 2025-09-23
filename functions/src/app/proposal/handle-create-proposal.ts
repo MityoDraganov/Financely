@@ -1,5 +1,10 @@
-import { firestore } from "../../infrastructure/firebase";
-import { ProposalData, calculateTotals } from "../../core";
+import { LoggerService, ProposalData, ProposalRepository, calculateTotals } from "../../core";
+
+
+interface Dependencies {
+  loggerService: LoggerService;
+  proposalRepository: ProposalRepository;
+}
 
 export interface CreateProposalParams {
   orgId: string;
@@ -18,7 +23,20 @@ export interface CreateProposalParams {
   vatRatePct?: number;
 }
 
-export const handleCreateProposal = async (params: CreateProposalParams): Promise<string> => {
+export const handleCreateProposal = async (
+  params: CreateProposalParams,
+  dependencies: Dependencies,
+): Promise<string> => {
+  const { loggerService, proposalRepository } = dependencies;
+
+  loggerService.info("createProposal:received", {
+    orgId: params.orgId,
+    customerId: params.customerId,
+    title: params.title,
+    itemCount: params.items.length,
+    hasDescription: Boolean(params.description),
+    hasNotes: Boolean(params.notes),
+  });
   const { subtotal, taxTotal, total } = calculateTotals(params.items, params.vatRatePct);
 
   const proposalData: ProposalData = {
@@ -36,6 +54,26 @@ export const handleCreateProposal = async (params: CreateProposalParams): Promis
     notes: params.notes,
   };
 
-  const docRef = await firestore.collection("proposals").add(proposalData);
-  return docRef.id;
+  try {
+    const proposalId = await proposalRepository.create({ data: proposalData });
+    loggerService.info("createProposal:success", {
+      proposalId,
+      orgId: proposalData.orgId,
+      customerId: proposalData.customerId,
+      currency: proposalData.currency,
+      subtotal,
+      taxTotal,
+      total,
+    });
+    return proposalId;
+  } catch (error) {
+    loggerService.error("createProposal:firestoreError", error, {
+      orgId: proposalData.orgId,
+      customerId: proposalData.customerId,
+      title: proposalData.title,
+      itemCount: proposalData.items.length,
+      total,
+    });
+    throw error;
+  }
 };
