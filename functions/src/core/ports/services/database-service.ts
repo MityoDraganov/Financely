@@ -1,7 +1,9 @@
-import { firestore } from "firebase-admin";
+// Minimal structural types to avoid depending on firebase-admin in the core layer
+type FieldPath = any;
+type WriteBatch = { set: (...args: unknown[]) => unknown };
 
 export interface QueryConstraint {
-  field: string | firestore.FieldPath;
+  field: string | FieldPath;
   operator:
     | "<"
     | "<="
@@ -26,7 +28,7 @@ export interface OrderByOptions {
   direction: "asc" | "desc";
 }
 
-export type BatchOperation = (batch: firestore.WriteBatch) => void;
+export type BatchOperation = (batch: WriteBatch) => void;
 
 export interface FieldNameAndValue {
   name: string;
