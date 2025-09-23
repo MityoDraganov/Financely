@@ -1,10 +1,10 @@
-import { firestore } from "firebase-admin";
+import { FieldPath as AdminFieldPath } from "firebase-admin/firestore";
 import { DatabaseService } from "../core";
 import {
   EmptyPayloadExtender,
   GenericRepository,
 } from "../core/ports/repositories/generic-repository";
-import FieldPath = firestore.FieldPath;
+// use FieldPath from firebase-admin/firestore
 
 export const getGenericRepository = <
   TEntity,
@@ -42,7 +42,7 @@ export const getGenericRepository = <
         getDatabaseCollection(payload),
         [
           {
-            field: FieldPath.documentId(),
+            field: AdminFieldPath.documentId(),
             operator: "==",
             value: payload.id,
           },

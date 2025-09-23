@@ -1,5 +1,5 @@
-import { firestore } from "firebase-admin";
-import "../infrastructure/firebase";
+import { DocumentData, DocumentSnapshot, FieldValue, Timestamp, Query, WriteBatch } from "firebase-admin/firestore";
+import { firestore as db } from "../infrastructure/firebase";
 
 import {
   BatchOperation,
@@ -9,10 +9,7 @@ import {
   PaginationOptions,
   QueryConstraint,
 } from "../core";
-import DocumentData = firestore.DocumentData;
-import Timestamp = firestore.Timestamp;
-import DocumentSnapshot = firestore.DocumentSnapshot;
-import FieldValue = firestore.FieldValue;
+// Types are imported directly above
 
 /**
  * Convert a timestamp fields to date fields
@@ -95,7 +92,7 @@ export const databaseService: DatabaseService = {
    * @return {Promise<T | null>}
    */
   async get<T>(collectionName: string, id: string) {
-    const documentSnapshot = await firestore()
+    const documentSnapshot = await db
       .collection(collectionName)
       .doc(id)
       .get();
@@ -123,8 +120,7 @@ export const databaseService: DatabaseService = {
     paginationOptions: PaginationOptions = {},
     orderByOptions?: OrderByOptions,
   ): Promise<T[]> {
-    let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestore().collection(collectionName);
+    let query: Query<DocumentData> = db.collection(collectionName);
 
     if (paginationOptions.limit) {
       query = query.limit(paginationOptions.limit);
@@ -161,12 +157,11 @@ export const databaseService: DatabaseService = {
     paginationOptions: PaginationOptions,
     orderByOptions?: OrderByOptions,
   ): Promise<T[]> {
-    let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestore().collection(collectionName);
+    let query: Query<DocumentData> = db.collection(collectionName);
 
     for (const queryConstraint of queryConstraints) {
       query = query.where(
-        queryConstraint.field,
+        queryConstraint.field as string,
         queryConstraint.operator,
         queryConstraint.value,
       );
@@ -207,12 +202,11 @@ export const databaseService: DatabaseService = {
     paginationOptions: PaginationOptions,
     orderByOptions?: OrderByOptions,
   ): Promise<T[]> {
-    let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestore().collectionGroup(collectionName);
+    let query: Query<DocumentData> = db.collectionGroup(collectionName);
 
     for (const queryConstraint of queryConstraints) {
       query = query.where(
-        queryConstraint.field,
+        queryConstraint.field as string,
         queryConstraint.operator,
         queryConstraint.value,
       );
@@ -247,12 +241,12 @@ export const databaseService: DatabaseService = {
    */
   async create<T>(collectionName: string, data: T): Promise<string> {
     console.log(`Creating document in collection ${collectionName}`, data);
-    const response = await firestore()
+    const response = await db
       .collection(collectionName)
       .add({
         ...data,
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
     return response.id;
@@ -271,12 +265,12 @@ export const databaseService: DatabaseService = {
    */
   async set<T>(collectionName: string, id: string, data: T): Promise<void> {
     console.log(`Setting document ${collectionName}/${id}`, data);
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.set({
       ...data,
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -292,13 +286,14 @@ export const databaseService: DatabaseService = {
    * @return {void}
    */
   batchSet<T>(collectionName: string, id: string, data: T): BatchOperation {
-    return (batch: FirebaseFirestore.WriteBatch) => {
-      const documentRef = firestore().collection(collectionName).doc(id);
+    return (batch: unknown) => {
+      const typedBatch = batch as WriteBatch;
+      const documentRef = db.collection(collectionName).doc(id);
 
-      batch.set(documentRef, {
+      typedBatch.set(documentRef as any, {
         ...data,
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     };
   },
@@ -316,11 +311,11 @@ export const databaseService: DatabaseService = {
    */
   async update<T>(collectionName: string, id: string, data: T): Promise<void> {
     console.log(`Updating document ${collectionName}/${id}`, data);
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.update({
       ...data,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -340,11 +335,11 @@ export const databaseService: DatabaseService = {
     field: string,
     value = 1,
   ): Promise<void> {
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.update({
-      [field]: firestore.FieldValue.increment(value),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      [field]: FieldValue.increment(value),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -362,17 +357,17 @@ export const databaseService: DatabaseService = {
     id: string,
     fields: FieldNameAndValue[],
   ): Promise<void> {
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
-    const updateObject: Record<string, FieldValue> = {};
+    const updateObject: Record<string, FieldValue> = {} as Record<string, FieldValue>;
 
     for (const field of fields) {
-      updateObject[field.name] = firestore.FieldValue.increment(field.value);
+      updateObject[field.name] = FieldValue.increment(field.value) as unknown as FieldValue;
     }
 
     await documentRef.update({
       ...updateObject,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -390,11 +385,11 @@ export const databaseService: DatabaseService = {
     field: string,
     value = 1,
   ): Promise<void> {
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.update({
-      [field]: firestore.FieldValue.increment(-value),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      [field]: FieldValue.increment(-value),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -408,7 +403,7 @@ export const databaseService: DatabaseService = {
    */
   async delete(collectionName: string, id: string): Promise<void> {
     console.log(`Deleting document ${collectionName}/${id}`);
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.delete();
   },
@@ -426,11 +421,11 @@ export const databaseService: DatabaseService = {
     batchSize = 500,
   ): Promise<void> {
     for (let i = 0; i < operations.length; i += batchSize) {
-      const batch = firestore().batch();
+      const batch = db.batch();
       const chunk = operations.slice(i, i + batchSize);
 
       for (const operation of chunk) {
-        operation(batch);
+        (operation as (b: unknown) => void)(batch as unknown);
       }
 
       await batch.commit();
@@ -455,11 +450,11 @@ export const databaseService: DatabaseService = {
     fieldName: keyof T,
     value: T[keyof T],
   ): Promise<void> {
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.update({
-      [fieldName]: firestore.FieldValue.arrayUnion(value),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      [fieldName]: FieldValue.arrayUnion(value),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 
@@ -479,11 +474,11 @@ export const databaseService: DatabaseService = {
     fieldName: keyof T,
     value: T[keyof T],
   ): Promise<void> {
-    const documentRef = firestore().collection(collectionName).doc(id);
+    const documentRef = db.collection(collectionName).doc(id);
 
     await documentRef.update({
-      [fieldName]: firestore.FieldValue.arrayRemove(value),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      [fieldName]: FieldValue.arrayRemove(value),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   },
 };
