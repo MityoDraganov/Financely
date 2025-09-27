@@ -20,4 +20,12 @@ export const functionsService: FunctionsService = {
     )(payload);
     return { id: result.data };
   },
+
+  async renderInvoicePdf(payload) {
+    const result = await httpsCallable<typeof payload, { url: string }>(
+      firebase.functions,
+      "renderInvoicePdf",
+    )(payload);
+    return result.data;
+  },
 };

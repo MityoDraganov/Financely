@@ -46,4 +46,9 @@ export interface FunctionsService {
     iban: string;
     vatRatePct?: number;
   }): Promise<{ id: string }>;
+
+  renderInvoicePdf(payload: {
+    templateVersionId: string;
+    invoiceId: string;
+  }): Promise<{ url: string }>;
 }
