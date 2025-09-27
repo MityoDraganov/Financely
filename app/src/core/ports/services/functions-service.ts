@@ -22,4 +22,28 @@ export interface FunctionsService {
     notes?: string;
     vatRatePct?: number;
   }): Promise<{ id: string }>;
+
+  createInvoice(payload: {
+    seller: {
+      name: string;
+      address: string;
+      taxIdVat: string;
+    };
+    buyer: {
+      name: string;
+      address: string;
+      taxIdVat: string;
+    };
+    invoiceNumber: string;
+    issueDate: string;
+    dueDate: string;
+    items: Array<{
+      description: string;
+      qty: number;
+      unitPrice: number;
+    }>;
+    paymentTerms: string;
+    iban: string;
+    vatRatePct?: number;
+  }): Promise<{ id: string }>;
 }

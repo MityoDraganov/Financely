@@ -6,5 +6,4 @@ import { getApps, initializeApp } from "firebase-admin/app";
 if (!getApps().length) {
   initializeApp();
 }
-
-export {createProposal} from "./functions/create-proposal";
+export { createInvoice } from "./functions/create-invoice";

@@ -11,4 +11,13 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async createInvoice(payload) {
+    type CreateInvoicePayload = Parameters<FunctionsService["createInvoice"]>[0];
+    const result = await httpsCallable<CreateInvoicePayload, string>(
+      firebase.functions,
+      "createInvoice",
+    )(payload);
+    return { id: result.data };
+  },
 };
