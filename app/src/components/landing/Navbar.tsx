@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 export function Navbar(): React.ReactElement {
   return (
@@ -12,9 +13,14 @@ export function Navbar(): React.ReactElement {
           <a href="#pricing" className="text-gray-700 hover:text-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] focus-visible:rounded">Pricing</a>
           <a href="#faq" className="text-gray-700 hover:text-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] focus-visible:rounded">FAQ</a>
         </nav>
-        <Button className="rounded-xl bg-[#166534] px-5 text-white shadow-sm transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#166534]">
-          Get Started
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild className="rounded-xl  px-5 bg-white text-[#166534] shadow-sm transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#166534]">
+            <Link to="/sign-in">Sign In</Link>
+          </Button>
+          <Button asChild className="rounded-xl bg-[#166534] px-5 text-white shadow-sm transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#166534]">
+            <Link to="/sign-up">Get Started</Link>
+          </Button>
+        </div>
       </div>
     </header>
   );
