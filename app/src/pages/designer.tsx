@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signInAnonymously } from "@firebase/auth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	Plus,
 	Save,
@@ -30,6 +30,7 @@ import {
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
+import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 
 type DesignerState = {
 	currentTemplateId?: string;
@@ -55,10 +56,8 @@ export default function TemplateDesignerPage() {
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
-	const { data: templates = [] } = useQuery<Template[]>({
-		queryKey: ["templates"],
-		queryFn: () => templateService.listTemplates("demo-org"),
-	});
+	const { data: templates = [] } = useTemplates();
+    console.log("templates", templates);
 
 	const currentTemplate = useMemo(() => {
 		return (
@@ -338,7 +337,7 @@ export default function TemplateDesignerPage() {
 		<div className="flex h-screen">
 			<ResizablePanelGroup direction="horizontal">
 				<ResizablePanel defaultSize={18} minSize={16}>
-					<div className="h-full p-3 border-r bg-neutral-50">
+						<div className="h-full p-3 border-r bg-neutral-50">
 						<div className="flex items-center justify-between mb-3">
 							<div className="font-medium">Templates</div>
 							<Button
@@ -348,7 +347,12 @@ export default function TemplateDesignerPage() {
 								<Plus className="mr-1 h-4 w-4" /> New
 							</Button>
 						</div>
-						<div className="space-y-2">
+							<div className="space-y-2">
+								{templates.length === 0 && (
+									<div className="text-xs text-neutral-500">
+										No templates yet. Click "New" to create your first template.
+									</div>
+								)}
 							{templates.map((t: Template) => (
 								<Card
 									key={t.id}
@@ -471,6 +475,23 @@ export default function TemplateDesignerPage() {
 								<MousePointer2 className="h-4 w-4 mr-1" />{" "}
 								Select
 							</Button>
+							<Select
+								value={currentTemplate?.id ?? ""}
+								onValueChange={(id: string) =>
+									setState((s: DesignerState) => ({ ...s, currentTemplateId: id }))
+								}
+							>
+								<SelectTrigger className="w-60">
+									<SelectValue placeholder="Select a template" />
+								</SelectTrigger>
+								<SelectContent>
+									{templates.map((t: Template) => (
+										<SelectItem key={t.id} value={t.id}>
+											{t.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 							<div className="ml-auto flex items-center gap-2">
 								<Select
 									value={String(state.zoom)}
@@ -523,6 +544,15 @@ export default function TemplateDesignerPage() {
 								console.log("[DND] container drop (ignored)");
 							}}
 						>
+							{!currentTemplate && (
+								<div className="text-center text-neutral-500 p-8">
+									<div className="text-sm mb-2">No template selected.</div>
+									<div className="text-xs mb-4">Select an existing template from the dropdown above or create a new one to start designing.</div>
+									<Button size="sm" onClick={() => createMutation.mutate()}>
+										<Plus className="mr-1 h-4 w-4" /> Create template
+									</Button>
+								</div>
+							)}
 						<div
 							ref={pageRef}
 							className="bg-white shadow-xl relative"
