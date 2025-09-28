@@ -4,6 +4,7 @@ export * from "./entities/proposal";
 export * from "./entities/invoice";
 export * from "./entities/buyer";
 export * from "./entities/seller";
+export * from "./entities/template";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";
