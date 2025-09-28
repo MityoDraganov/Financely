@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { signInAnonymously } from "@firebase/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	Plus,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/resizable";
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
+import { firebase } from "@/infrastructure";
 
 type DesignerState = {
 	currentTemplateId?: string;
@@ -127,12 +129,65 @@ export default function TemplateDesignerPage() {
 		},
 	});
 
+	function handleCanvasDragOver(e: React.DragEvent<HTMLDivElement>) {
+		e.preventDefault();
+		console.log("[DND] canvas dragover", {
+			target: (e.target as HTMLElement)?.className,
+			currentTarget: (e.currentTarget as HTMLElement)?.className,
+		});
+		try {
+			e.dataTransfer.dropEffect = "copy";
+		} catch {
+			/* no-op */
+		}
+	}
+
+	async function handleCanvasDrop(e: React.DragEvent<HTMLDivElement>) {
+		e.preventDefault();
+		const raw =
+			e.dataTransfer.getData("application/x-template-element") ||
+			e.dataTransfer.getData("text/plain");
+		const type = (raw as TemplateElement["type"]) || undefined;
+		console.log("[DND] canvas drop", {
+			raw,
+			type,
+			target: (e.target as HTMLElement)?.className,
+			currentTarget: (e.currentTarget as HTMLElement)?.className,
+		});
+		if (!type) return;
+		if (!currentTemplate) {
+			console.log("[DND] no current template; creating one before drop...");
+			try {
+				if (!firebase.auth.currentUser) {
+					console.log("[AUTH] signing in anonymously before creating template...");
+					await signInAnonymously(firebase.auth);
+				}
+				const newId = await (createMutation as unknown as { mutateAsync: () => Promise<string | undefined> }).mutateAsync();
+				if (newId && typeof newId === "string") {
+					setState((s: DesignerState) => ({ ...s, currentTemplateId: newId }));
+					console.log("[DND] created template", newId);
+				}
+			} catch (err) {
+				console.error("[DND] failed to create template for drop", err);
+				return;
+			}
+		}
+		const rect = pageRef.current?.getBoundingClientRect();
+		console.log("[DND] page rect", rect);
+		if (!rect) return;
+		const x = (e.clientX - rect.left) / state.zoom;
+		const y = (e.clientY - rect.top) / state.zoom;
+		console.log("[DND] computed drop coords", { x, y, zoom: state.zoom });
+		addElement(type, { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) });
+	}
+
 	function addElement(
 		kind: TemplateElement["type"],
 		at?: { x: number; y: number }
 	) {
 		if (!currentTemplate) return;
-		const newElement: TemplateElement =
+	console.log("[ADD] addElement called", { kind, at, templateId: currentTemplate.id });
+	const newElement: TemplateElement =
 			kind === "text"
 				? {
 						id: crypto.randomUUID(),
@@ -221,9 +276,14 @@ export default function TemplateDesignerPage() {
 									stroke: "#e5e7eb",
 									strokeWidth: 1,
 								};
-		saveMutation.mutate({
-			elements: [...(currentTemplate?.elements ?? []), newElement],
-		});
+	console.log("[ADD] new element", newElement);
+	const next = [...(currentTemplate?.elements ?? []), newElement];
+	console.log("[ADD] next elements length", next.length);
+	// optimistic UI update so drop shows immediately
+	setDraftElements(next);
+	setState((s: DesignerState) => ({ ...s, selectedElementId: newElement.id }));
+	console.log("[ADD] persisting draft via saveMutation.mutate");
+	saveMutation.mutate({ elements: next });
 	}
 
 	function updateSelected(partial: Partial<TemplateElement>) {
@@ -319,10 +379,12 @@ export default function TemplateDesignerPage() {
 								onClick={() => addElement("text")}
 								draggable
 								onDragStart={(e) => {
+								console.log("[DND] dragstart: text");
 									e.dataTransfer.setData(
 										"application/x-template-element",
 										"text"
 									);
+								e.dataTransfer.setData("text/plain", "text");
 									e.dataTransfer.effectAllowed = "copy";
 								}}
 								>
@@ -334,10 +396,12 @@ export default function TemplateDesignerPage() {
 								onClick={() => addElement("image")}
 								draggable
 								onDragStart={(e) => {
+								console.log("[DND] dragstart: image");
 									e.dataTransfer.setData(
 										"application/x-template-element",
 										"image"
 									);
+								e.dataTransfer.setData("text/plain", "image");
 									e.dataTransfer.effectAllowed = "copy";
 								}}
 								>
@@ -349,10 +413,12 @@ export default function TemplateDesignerPage() {
 								onClick={() => addElement("table")}
 								draggable
 								onDragStart={(e) => {
+								console.log("[DND] dragstart: table");
 									e.dataTransfer.setData(
 										"application/x-template-element",
 										"table"
 									);
+								e.dataTransfer.setData("text/plain", "table");
 									e.dataTransfer.effectAllowed = "copy";
 								}}
 								>
@@ -364,10 +430,12 @@ export default function TemplateDesignerPage() {
 								onClick={() => addElement("box")}
 								draggable
 								onDragStart={(e) => {
+								console.log("[DND] dragstart: box");
 									e.dataTransfer.setData(
 										"application/x-template-element",
 										"box"
 									);
+								e.dataTransfer.setData("text/plain", "box");
 									e.dataTransfer.effectAllowed = "copy";
 								}}
 								>
@@ -379,10 +447,12 @@ export default function TemplateDesignerPage() {
 								onClick={() => addElement("line")}
 								draggable
 								onDragStart={(e) => {
+								console.log("[DND] dragstart: line");
 									e.dataTransfer.setData(
 										"application/x-template-element",
 										"line"
 									);
+								e.dataTransfer.setData("text/plain", "line");
 									e.dataTransfer.effectAllowed = "copy";
 								}}
 								>
@@ -442,7 +512,17 @@ export default function TemplateDesignerPage() {
 								</Button>
 							</div>
 						</div>
-						<div className="flex-1 overflow-auto bg-neutral-100 grid place-items-center">
+						<div
+							className="flex-1 overflow-auto bg-neutral-100 grid place-items-center"
+							onDragOver={(e) => {
+								e.preventDefault();
+								console.log("[DND] container dragover");
+							}}
+							onDrop={(e) => {
+								e.preventDefault();
+								console.log("[DND] container drop (ignored)");
+							}}
+						>
 						<div
 							ref={pageRef}
 							className="bg-white shadow-xl relative"
@@ -450,34 +530,21 @@ export default function TemplateDesignerPage() {
 								width: 794 * state.zoom,
 								height: 1123 * state.zoom,
 							}}
-							onDragOver={(e) => {
-								e.preventDefault();
-								e.dataTransfer.dropEffect = "copy";
-							}}
-							onDrop={(e) => {
-								e.preventDefault();
-								const type =
-									e.dataTransfer.getData(
-										"application/x-template-element"
-									) || (e.dataTransfer.getData("text/plain") as TemplateElement["type"]);
-								if (!type) return;
-								const rect = pageRef.current?.getBoundingClientRect();
-								if (!rect) return;
-								const x = (e.clientX - rect.left) / state.zoom;
-								const y = (e.clientY - rect.top) / state.zoom;
-								addElement(type as TemplateElement["type"], {
-									x: Math.max(0, Math.round(x)),
-									y: Math.max(0, Math.round(y)),
-								});
-							}}
+							onDragOver={handleCanvasDragOver}
+							onDrop={handleCanvasDrop}
 						>
 								{/* grid */}
-								<div
+									<div
 									className="absolute inset-0 z-0"
 									style={{
 										backgroundSize: `${8 * state.zoom}px ${8 * state.zoom}px`,
 										backgroundImage: `linear-gradient(to right, #eee 1px, transparent 1px), linear-gradient(to bottom, #eee 1px, transparent 1px)`,
 									}}
+									onDragEnter={() => {
+									console.log("[DND] grid dragenter");
+								}}
+									onDragOver={handleCanvasDragOver}
+									onDrop={handleCanvasDrop}
 								/>
 								{/* elements */}
 								{(
