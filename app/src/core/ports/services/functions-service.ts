@@ -51,4 +51,13 @@ export interface FunctionsService {
     templateVersionId: string;
     invoiceId: string;
   }): Promise<{ url: string }>;
+
+  sendInvoiceEmail(payload: {
+    invoiceId: string;
+    toEmail: string;
+  }): Promise<{ sent: boolean }>;
+
+  generateInvoiceShareLink(payload: {
+    invoiceId: string;
+  }): Promise<{ url: string }>;
 }

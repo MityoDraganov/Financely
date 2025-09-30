@@ -69,6 +69,8 @@ export default function TemplateDesignerPage() {
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
+	const propertiesRef = useRef<HTMLDivElement | null>(null);
+	const [isPropsNarrow, setIsPropsNarrow] = useState(false);
 	const { data: templates = [] } = useTemplates();
 	console.log("templates", templates);
 
@@ -105,6 +107,19 @@ export default function TemplateDesignerPage() {
 			}));
 		}
 	}, [templates, state.currentTemplateId]);
+
+	// Observe sidebar width to adapt layout when user resizes the panel
+	useEffect(() => {
+		const el = propertiesRef.current;
+		if (!el) return;
+		const ro = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				setIsPropsNarrow(entry.contentRect.width < PROPS_NARROW_BREAKPOINT_PX);
+			}
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
 
 	const saveMutation = useMutation({
 		mutationFn: async (partial: Partial<TemplateData>) => {
@@ -149,8 +164,9 @@ export default function TemplateDesignerPage() {
 		},
 	});
 
-	const PAGE_WIDTH = 794;
-	const PAGE_HEIGHT = 1123;
+const PAGE_WIDTH = 794;
+const PAGE_HEIGHT = 1123;
+const PROPS_NARROW_BREAKPOINT_PX = 520;
 
 	function clampMove(x: number, y: number, width: number, height: number) {
 		const maxX = Math.max(0, PAGE_WIDTH - width);
@@ -315,7 +331,11 @@ export default function TemplateDesignerPage() {
 								rowHeight: 28,
 								headerHeight: 28,
 								stripe: true,
-								columns: [],
+								columns: [
+									{ id: crypto.randomUUID(), header: "Column 1", width: 160, align: "left", type: "text", format: { kind: "none" } },
+									{ id: crypto.randomUUID(), header: "Column 2", width: 160, align: "left", type: "text", format: { kind: "none" } },
+								],
+								designRows: [],
 								itemsBinding: "invoice.items",
 								totals: [],
 							}
@@ -335,7 +355,22 @@ export default function TemplateDesignerPage() {
 									strokeWidth: 1,
 									radius: 0,
 								}
-							: {
+								: kind === "input"
+									? {
+										id: crypto.randomUUID(),
+										type: "input",
+										x: at?.x ?? 60,
+										y: at?.y ?? 260,
+										width: 200,
+										height: 32,
+										rotation: 0,
+										zIndex: 1,
+										visible: true,
+										placeholder: "",
+										variant: "text",
+										align: "left",
+									}
+								: {
 									id: crypto.randomUUID(),
 									type: "line",
 									x: at?.x ?? 40,
@@ -399,6 +434,7 @@ export default function TemplateDesignerPage() {
 						})()
 					: el
 		);
+		setDraftElements(next);
 		saveMutation.mutate({ elements: next });
 	}
 
@@ -578,6 +614,27 @@ export default function TemplateDesignerPage() {
 									{" "}
 									<TableIcon className="h-4 w-4 mr-1" /> Table
 								</Button>
+									<Button
+										variant="secondary"
+										onClick={() => addElement("input")}
+										draggable
+										onDragStart={(e) => {
+											console.log("[DND] dragstart: input");
+											e.dataTransfer.setData(
+												"application/x-template-element",
+												"input"
+											);
+											e.dataTransfer.setData(
+												"text/plain",
+												"input"
+											);
+											e.dataTransfer.effectAllowed = "copy";
+										}}
+										className="w-full justify-start"
+									>
+										{" "}
+										<TypeIcon className="h-4 w-4 mr-1" /> Input
+									</Button>
 								<Button
 									variant="secondary"
 									onClick={() => addElement("box")}
@@ -772,9 +829,7 @@ export default function TemplateDesignerPage() {
 								/>
 								{/* elements */}
 								{(
-									draftElements ??
-									currentTemplate?.elements ??
-									[]
+							(draftElements ?? currentTemplate?.elements ?? [])
 								).map((el: TemplateElement) => (
 									<div
 										key={el.id}
@@ -786,6 +841,7 @@ export default function TemplateDesignerPage() {
 											height: el.height * state.zoom,
 											transform: `rotate(${el.rotation}deg)`,
 											touchAction: "none",
+									zIndex: el.zIndex ?? 0,
 										}}
 										onClick={() => {
 											setState((s: DesignerState) => ({
@@ -955,11 +1011,35 @@ export default function TemplateDesignerPage() {
 													</div>
 												);
 											})()}
-										{el.type === "image" && (
-											<div className="w-full h-full bg-neutral-100 grid place-items-center text-neutral-400">
-												Image
-											</div>
-										)}
+									{el.type === "input" &&
+										(() => {
+											const inp = el as Extract<TemplateElement, { type: "input" }>;
+											return (
+												<div className="w-full h-full grid place-items-center text-neutral-400">
+													<input
+														type={inp.variant}
+														placeholder={inp.placeholder}
+														className="w-[95%] h-[80%] border border-neutral-200 rounded px-2 text-[10px] bg-white"
+														style={{ textAlign: inp.align as React.CSSProperties["textAlign"] }}
+														readOnly
+													/>
+												</div>
+											);
+										})()}
+								{el.type === "image" && (() => {
+									const img = el as Extract<TemplateElement, { type: "image" }>;
+									return img.src ? (
+										<img
+											src={img.src}
+											alt={img.alt ?? ""}
+											style={{ width: "100%", height: "100%", objectFit: img.objectFit }}
+										/>
+									) : (
+										<div className="w-full h-full bg-neutral-100 grid place-items-center text-neutral-400">
+											Image
+										</div>
+									);
+								})()}
 										{el.type === "box" &&
 											(() => {
 												const b = el as Extract<
@@ -996,11 +1076,52 @@ export default function TemplateDesignerPage() {
 													/>
 												);
 											})()}
-										{el.type === "table" && (
-											<div className="w-full h-full border border-neutral-200 text-[10px] text-neutral-600 grid place-items-center">
-												Table
+								{el.type === "table" && (() => {
+									const tbl = el as Extract<TemplateElement, { type: "table" }>;
+									return (
+										<div className="w-full h-full border border-neutral-200 bg-white">
+											<div
+												style={{
+													display: "grid",
+													gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * state.zoom}px`).join(" ") : "1fr 1fr",
+													height: tbl.headerHeight * state.zoom,
+													borderBottom: "1px solid #e5e7eb",
+												}}
+											>
+									{(tbl.columns.length > 0
+										? tbl.columns
+										: [
+											{ id: "c1", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+											{ id: "c2", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+										]
+									).map((c) => (
+												<input
+														key={c.id}
+													value={c.header ?? ""}
+													onChange={(e) => {
+												const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
+													{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+													{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+												];
+														const next = baseColumns.map(col => col.id === c.id ? { ...col, header: e.target.value } : col);
+														// Optimistic update for immediate feedback
+														setDraftElements((prev) => {
+															const base = prev ?? currentTemplateRef.current?.elements ?? [];
+															return base.map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it);
+														});
+														saveMutation.mutate({ elements: (currentTemplateRef.current?.elements ?? []).map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it) });
+														}}
+													className="border-r last:border-r-0 px-2 text-[10px]"
+														style={{
+															textAlign: c.align,
+														}}
+													/>
+												))}
 											</div>
-										)}
+											<div className="text-[10px] text-neutral-500 p-2">Edit headers above or use Properties to configure columns and rows.</div>
+										</div>
+									);
+								})()}
 									</div>
 								))}
 							</div>
@@ -1008,8 +1129,8 @@ export default function TemplateDesignerPage() {
 					</div>
 				</ResizablePanel>
 				<ResizableHandle withHandle />
-				<ResizablePanel defaultSize={22} minSize={18}>
-					<div className="h-full p-3 border-l bg-neutral-50 space-y-3">
+               <ResizablePanel defaultSize={22} minSize={18}>
+                    <div ref={propertiesRef} className="h-full p-3 border-l bg-neutral-50 space-y-3 overflow-auto min-w-0">
 						<div className="font-medium">Properties</div>
 						{!currentTemplate && (
 							<div className="text-sm text-neutral-500">
@@ -1022,7 +1143,7 @@ export default function TemplateDesignerPage() {
 									<div className="text-xs text-neutral-500 mb-1">
 										Name
 									</div>
-									<Input
+                                    <Input
 										value={currentTemplate.name}
 										onChange={(
 											e: React.ChangeEvent<HTMLInputElement>
@@ -1059,7 +1180,7 @@ export default function TemplateDesignerPage() {
 										</SelectContent>
 									</Select>
 								</div>
-								{(() => {
+                                {(() => {
 									if (!state.selectedElementId) return null;
 									const selectedEl = (
 										draftElements ??
@@ -1071,10 +1192,11 @@ export default function TemplateDesignerPage() {
 									);
 									if (!selectedEl) return null;
 									return (
-										<ElementProperties
-											element={selectedEl}
-											onChange={updateSelected}
-										/>
+                                        <ElementProperties
+                                            element={selectedEl}
+                                            onChange={updateSelected}
+                                            isNarrow={isPropsNarrow}
+                                        />
 									);
 								})()}
 							</div>
@@ -1087,15 +1209,17 @@ export default function TemplateDesignerPage() {
 }
 
 function ElementProperties({
-	element,
-	onChange,
+    element,
+    onChange,
+    isNarrow,
 }: {
-	element: TemplateElement;
-	onChange: (partial: Partial<TemplateElement>) => void;
+    element: TemplateElement;
+    onChange: (partial: Partial<TemplateElement>) => void;
+    isNarrow?: boolean;
 }) {
 	// Common position/size controls
-	const common = (
-		<div className="grid grid-cols-2 gap-2">
+    const common = (
+        <div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
 			<div className="space-y-1">
 				<Label className="text-xs">X</Label>
 				<Input
@@ -1164,7 +1288,7 @@ function ElementProperties({
 								}
 								/>
 							</div>
-							<div className="grid grid-cols-2 gap-2">
+							<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 								<div className="space-y-1">
 									<Label className="text-xs">Font size</Label>
 									<Input
@@ -1244,7 +1368,7 @@ function ElementProperties({
 								/>
 								</div>
 							</div>
-							<div className="grid grid-cols-2 gap-2">
+							<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 								<div className="space-y-1">
 									<Label className="text-xs">Alignment</Label>
 									<Select
@@ -1311,7 +1435,7 @@ function ElementProperties({
 		return (
 			<div className="space-y-2">
 				<div className="text-xs font-medium">Image</div>
-				<div className="grid grid-cols-2 gap-2">
+				<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 					<div className="space-y-1 col-span-2">
 						<Label className="text-xs">Image URL</Label>
 						<Input
@@ -1339,7 +1463,7 @@ function ElementProperties({
 								<SelectItem value="contain">Contain</SelectItem>
 								<SelectItem value="cover">Cover</SelectItem>
 								<SelectItem value="fill">Fill</SelectItem>
-								<SelectItem value="none">None</SelectItem>
+
 							</SelectContent>
 						</Select>
 					</div>
@@ -1353,7 +1477,7 @@ function ElementProperties({
 		return (
 			<div className="space-y-2">
 				<div className="text-xs font-medium">Box</div>
-				<div className="grid grid-cols-2 gap-2">
+			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 					<div className="space-y-1">
 						<Label className="text-xs">Fill</Label>
 						<Input
@@ -1410,7 +1534,7 @@ function ElementProperties({
 		return (
 			<div className="space-y-2">
 				<div className="text-xs font-medium">Line</div>
-				<div className="grid grid-cols-2 gap-2">
+			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 					<div className="space-y-1">
 						<Label className="text-xs">Stroke</Label>
 						<Input
@@ -1441,20 +1565,18 @@ function ElementProperties({
 	}
 
 	if (element.type === "table") {
+		const tbl = element as Extract<TemplateElement, { type: "table" }>;
 		return (
 			<div className="space-y-2">
 				<div className="text-xs font-medium">Table</div>
-				<div className="grid grid-cols-2 gap-2">
+			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 					<div className="space-y-1">
 						<Label className="text-xs">Row height</Label>
 						<Input
 							type="number"
 							placeholder="28"
-							value={(element as Extract<TemplateElement, { type: "table" }>).rowHeight}
-							onChange={(e) => {
-								const tbl = element as Extract<TemplateElement, { type: "table" }>;
-								onChange({ ...tbl, rowHeight: Number(e.target.value) });
-							}}
+							value={tbl.rowHeight}
+							onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="space-y-1">
@@ -1462,36 +1584,256 @@ function ElementProperties({
 						<Input
 							type="number"
 							placeholder="28"
-							value={(element as Extract<TemplateElement, { type: "table" }>).headerHeight}
-							onChange={(e) => {
-								const tbl = element as Extract<TemplateElement, { type: "table" }>;
-								onChange({ ...tbl, headerHeight: Number(e.target.value) });
-							}}
+							value={tbl.headerHeight}
+							onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="space-y-1">
 						<Label className="text-xs">Stripe rows</Label>
 						<Switch
-							checked={(element as Extract<TemplateElement, { type: "table" }>).stripe}
-							onCheckedChange={(checked) => {
-								const tbl = element as Extract<TemplateElement, { type: "table" }>;
-								onChange({ ...tbl, stripe: checked });
-							}}
+							checked={tbl.stripe}
+							onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
 						/>
 					</div>
 					<div className="space-y-1 col-span-2">
 						<Label className="text-xs">Items binding</Label>
 						<Input
 							placeholder="invoice.items"
-							value={(element as Extract<TemplateElement, { type: "table" }>).itemsBinding}
-							onChange={(e) => {
-								const tbl = element as Extract<TemplateElement, { type: "table" }>;
-								onChange({ ...tbl, itemsBinding: e.target.value });
-							}}
+							value={tbl.itemsBinding}
+							onChange={(e) => onChange({ ...tbl, itemsBinding: e.target.value })}
 						/>
 					</div>
 				</div>
-				{/* Future: columns editor and totals editor */}
+
+				<div className="space-y-1">
+					<div className="text-xs text-neutral-500">Columns</div>
+					<div className="space-y-2">
+						{(() => {
+                            const defaultTwo = [
+                                { id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+                                { id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+                            ];
+							const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+                            return derivedColumns.map((c) => (
+                                <div key={c.id} className="space-y-2">
+                                    <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2 items-start min-w-0">
+                                        <Input
+                                            className="min-w-0 w-full"
+                                            placeholder="Header"
+                                            value={c.header}
+                                            onChange={(e) => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+                                                const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
+                                                onChange({ ...tbl, columns: next });
+                                            }}
+                                        />
+                                        <Input
+                                            type="number"
+                                            placeholder="Width"
+                                            value={c.width}
+                                            className="min-w-0 w-full"
+                                            onChange={(e) => {
+                                                const w = Math.max(20, Number(e.target.value));
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+                                                const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
+                                                onChange({ ...tbl, columns: next });
+                                            }}
+                                        />
+                                    <Select
+                                            value={c.align}
+                                            onValueChange={(v) => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+                                                const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
+                                                onChange({ ...tbl, columns: next });
+                                            }}
+                                        >
+                                            <SelectTrigger className="min-w-0 w-full">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="left">Left</SelectItem>
+                                                <SelectItem value="center">Center</SelectItem>
+                                                <SelectItem value="right">Right</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    <Select
+                                        value={c.type ?? "text"}
+                                        onValueChange={(v) => {
+                                            const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+                                            const next = base.map((col) => (col.id === c.id ? { ...col, type: v as "text" | "number" | "date" } : col));
+                                            onChange({ ...tbl, columns: next });
+                                        }}
+                                    >
+                                        <SelectTrigger className="min-w-0 w-full">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="text">Text</SelectItem>
+                                            <SelectItem value="number">Number</SelectItem>
+                                            <SelectItem value="date">Date</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="justify-self-start"
+                                            onClick={() => {
+                                                const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+                                                const next = base.filter((col) => col.id !== c.id);
+                                                onChange({ ...tbl, columns: next });
+                                            }}
+                                        >
+                                            Remove
+                                        </Button>
+                                    </div>
+                                    <div className="h-px bg-border" />
+                                </div>
+                            ));
+						})()}
+						<Button
+							variant="secondary"
+							size="sm"
+                            onClick={() => {
+                                const next = [
+                                    ...tbl.columns,
+                                    { id: crypto.randomUUID(), header: `Column ${tbl.columns.length + 1}`, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+                                ];
+                                onChange({ ...tbl, columns: next });
+                            }}
+						>
+							Add column
+						</Button>
+					</div>
+				</div>
+
+				{common}
+			</div>
+		);
+	}
+
+	if (element.type === "input") {
+		return (
+			<div className="space-y-2">
+				<div className="text-xs font-medium">Input</div>
+				{(() => {
+					const inp = element as Extract<TemplateElement, { type: "input" }>;
+					return (
+						<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+							<div className="space-y-1 col-span-2">
+								<Label className="text-xs">Placeholder</Label>
+								<Input
+									placeholder="Placeholder"
+									value={inp.placeholder}
+													onChange={(e) =>
+														onChange({
+															id: element.id,
+															type: "input",
+															x: element.x,
+															y: element.y,
+															width: element.width,
+															height: element.height,
+															rotation: element.rotation,
+															zIndex: element.zIndex,
+															visible: element.visible,
+															placeholder: e.target.value,
+															variant: inp.variant,
+															align: inp.align,
+															binding: inp.binding,
+														})
+													}
+								/>
+							</div>
+							<div className="space-y-1">
+								<Label className="text-xs">Variant</Label>
+								<Select
+									value={inp.variant}
+													onValueChange={(v) =>
+														onChange({
+															id: element.id,
+															type: "input",
+															x: element.x,
+															y: element.y,
+															width: element.width,
+															height: element.height,
+															rotation: element.rotation,
+															zIndex: element.zIndex,
+															visible: element.visible,
+															placeholder: inp.placeholder,
+															variant: v as typeof inp.variant,
+															align: inp.align,
+															binding: inp.binding,
+														})
+													}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="text">Text</SelectItem>
+										<SelectItem value="number">Number</SelectItem>
+										<SelectItem value="date">Date</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1">
+								<Label className="text-xs">Align</Label>
+								<Select
+									value={inp.align}
+													onValueChange={(v) =>
+														onChange({
+															id: element.id,
+															type: "input",
+															x: element.x,
+															y: element.y,
+															width: element.width,
+															height: element.height,
+															rotation: element.rotation,
+															zIndex: element.zIndex,
+															visible: element.visible,
+															placeholder: inp.placeholder,
+															variant: inp.variant,
+															align: v as typeof inp.align,
+															binding: inp.binding,
+														})
+													}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="left">Left</SelectItem>
+										<SelectItem value="center">Center</SelectItem>
+										<SelectItem value="right">Right</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1 col-span-2">
+								<Label className="text-xs">Binding</Label>
+								<Input
+									placeholder="invoice.customerName"
+									value={inp.binding ?? ""}
+													onChange={(e) =>
+														onChange({
+															id: element.id,
+															type: "input",
+															x: element.x,
+															y: element.y,
+															width: element.width,
+															height: element.height,
+															rotation: element.rotation,
+															zIndex: element.zIndex,
+															visible: element.visible,
+															placeholder: inp.placeholder,
+															variant: inp.variant,
+															align: inp.align,
+															binding: e.target.value,
+														})
+													}
+								/>
+							</div>
+						</div>
+					);
+				})()}
 				{common}
 			</div>
 		);

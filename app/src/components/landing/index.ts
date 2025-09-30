@@ -1,4 +1,4 @@
-export * from "./Navbar";
+export * from "../Navbar";
 export * from "./Hero";
 export * from "./HowItWorks";
 export * from "./Features";

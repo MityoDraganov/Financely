@@ -71,7 +71,21 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  const [_open, _setOpen] = React.useState<boolean>(() => {
+    try {
+      const cookie = document.cookie
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith(`${SIDEBAR_COOKIE_NAME}=`));
+      if (cookie) {
+        const value = cookie.split("=")[1];
+        return value === "true";
+      }
+    } catch {
+      // ignore if cookies are unavailable
+    }
+    return defaultOpen;
+  });
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -87,6 +101,8 @@ function SidebarProvider({
     },
     [setOpenProp, open],
   );
+
+  // Cookie is read in initial state above to avoid first-render flicker.
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -725,5 +741,4 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
-  useSidebar,
 };

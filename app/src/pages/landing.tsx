@@ -1,6 +1,6 @@
 'use client'
 
-import { Navbar, Hero, HowItWorks, Features, Metrics, Pricing, FAQ, CTA, Footer } from "@/components/landing";
+import { Hero, HowItWorks, Features, Metrics, Pricing, FAQ, CTA, Footer, Navbar } from "@/components/landing";
 
 export default function LandingPage() {
   return (

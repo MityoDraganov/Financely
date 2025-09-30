@@ -28,4 +28,20 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async sendInvoiceEmail(payload) {
+    const result = await httpsCallable<typeof payload, { sent: boolean }>(
+      firebase.functions,
+      "sendInvoiceEmail",
+    )(payload);
+    return result.data;
+  },
+
+  async generateInvoiceShareLink(payload) {
+    const result = await httpsCallable<typeof payload, { url: string }>(
+      firebase.functions,
+      "generateInvoiceShareLink",
+    )(payload);
+    return result.data;
+  },
 };

@@ -3,7 +3,7 @@ import { baseEntitySchema } from "./base";
 
 export const templateElementBaseSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["text", "image", "table", "box", "line"]),
+  type: z.enum(["text", "image", "table", "box", "line", "input"]),
   x: z.number().min(0),
   y: z.number().min(0),
   width: z.number().min(0),
@@ -61,11 +61,20 @@ export const lineElementSchema = templateElementBaseSchema.extend({
   strokeWidth: z.number().min(0.5).max(10).default(1),
 });
 
+export const inputElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("input"),
+  placeholder: z.string().default(""),
+  binding: z.string().optional(),
+  variant: z.enum(["text", "number", "date"]).default("text"),
+  align: z.enum(["left", "center", "right"]).default("left"),
+});
+
 export const tableColumnSchema = z.object({
   id: z.string().min(1),
   header: z.string().default("Column"),
   width: z.number().min(20).default(80),
   align: z.enum(["left", "center", "right"]).default("left"),
+  type: z.enum(["text", "number", "date"]).default("text"),
   binding: z.string().optional(),
   calc: z.string().optional(),
   format: z
@@ -84,6 +93,15 @@ export const tableElementSchema = templateElementBaseSchema.extend({
   stripe: z.boolean().default(false),
   columns: z.array(tableColumnSchema).default([]),
   itemsBinding: z.string().default("invoice.items"),
+  // Design-time sample rows for the designer preview (not used at runtime)
+  designRows: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        values: z.record(z.string()).default({}),
+      }),
+    )
+    .default([]),
   totals: z
     .array(
       z.object({
@@ -102,6 +120,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   tableElementSchema,
   boxElementSchema,
   lineElementSchema,
+  inputElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;
