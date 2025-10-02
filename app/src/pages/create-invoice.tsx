@@ -1,526 +1,390 @@
-import { useEffect, useMemo, useState } from "react";
-import { useForm, useFieldArray, type FieldPath } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { useCreateInvoice } from "@/hooks/use-invoice";
-import { useTemplates } from "@/hooks/repository-hooks/use-templates";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye } from "lucide-react";
-import { Template, TemplateElement } from "@/core";
+import { useCreateInvoice } from "@/hooks";
+import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { TemplateElement } from "@/core";
 import { TemplatePreview } from "@/components/templates/template-preview";
-import { invoiceDataSchema, type InvoiceData, type FunctionsService } from "@/core";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import type { InvoiceDataValue } from "@/core/entities/invoice";
 
-type CreateInvoiceParams = Parameters<FunctionsService["createInvoice"]>[0];
+type BindingField = {
+  path: string;
+  label: string;
+  type: "text" | "number" | "date";
+};
+
+type TableColumn = {
+  id: string;
+  header: string;
+  binding: string;
+  type: "text" | "number" | "date";
+};
+
+type TableConfig = {
+  itemsPath: string;
+  columns: TableColumn[];
+};
+
+type TableRow = Record<string, InvoiceDataValue>;
 
 export default function CreateInvoicePage() {
-    const form = useForm<InvoiceData>({
-        resolver: zodResolver(invoiceDataSchema),
-        defaultValues: {
-            seller: { name: "", address: "", taxIdVat: "" },
-            buyer: { name: "", address: "", taxIdVat: "" },
-            invoiceNumber: "",
-            issueDate: new Date().toISOString().slice(0, 10),
-            dueDate: new Date().toISOString().slice(0, 10),
-            items: [
-                { description: "", qty: 1, unitPrice: 0 },
-            ],
-            paymentTerms: "Due on receipt",
-            iban: "",
-            subtotal: 0,
-            vatTotal: 0,
-            total: 0,
-        },
-        mode: "onBlur",
-    });
+  const navigate = useNavigate();
+  const createInvoice = useCreateInvoice();
+  const { data: templates } = useTemplates();
+  
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [formData, setFormData] = useState<Record<string, InvoiceDataValue>>({});
 
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: "items",
-    });
-
-    const mutation = useCreateInvoice();
-    const { data: templates } = useTemplates();
-    const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-    const [vatRatePct, setVatRatePct] = useState<number>(20);
-    const values = form.watch();
-    const subtotal = (values.items ?? []).reduce((acc, item) => {
-        const qty = Number(item.qty || 0);
-        const price = Number(item.unitPrice || 0);
-        return acc + qty * price;
-    }, 0);
-    const vatTotal = Math.max(0, subtotal * (vatRatePct / 100));
-    const total = subtotal + vatTotal;
-
-    useEffect(() => {
-        form.setValue("subtotal", subtotal, { shouldValidate: false, shouldDirty: true });
-        form.setValue("vatTotal", vatTotal, { shouldValidate: false, shouldDirty: true });
-        form.setValue("total", total, { shouldValidate: false, shouldDirty: true });
-    }, [subtotal, vatTotal, total, form]);
-
-    function onSubmit(valuesToSubmit: InvoiceData) {
-        const payload: CreateInvoiceParams = {
-            seller: valuesToSubmit.seller,
-            buyer: valuesToSubmit.buyer,
-            invoiceNumber: valuesToSubmit.invoiceNumber,
-            issueDate: valuesToSubmit.issueDate,
-            dueDate: valuesToSubmit.dueDate,
-            items: valuesToSubmit.items,
-            paymentTerms: valuesToSubmit.paymentTerms,
-            iban: valuesToSubmit.iban,
-            vatRatePct: vatRatePct,
-        };
-
-        mutation.mutate(payload, {
-            onSuccess: (id) => {
-                toast.success("Invoice created", {
-                    description: `Invoice ID: ${id}`,
-                });
-                form.reset();
-            },
-            onError: (err) => {
-                toast.error("Failed to create invoice", {
-                    description: err.message,
-                });
-            },
-        });
+  // Get selected template
+  const selectedTemplate = useMemo(() => {
+    const list = templates ?? [];
+    if (!selectedTemplateId && list.length > 0) {
+      setSelectedTemplateId(list[0].id);
+      return list[0];
     }
+    return list.find((t) => t.id === selectedTemplateId);
+  }, [templates, selectedTemplateId]);
 
-    async function handlePreview() {
-        // We do not yet have an invoice ID before creation; preview will be based on current form state in future.
-        // For now, preview requires an existing invoice; this is a simple disabled state.
-        setPreviewUrl(null);
-    }
-
-    const selectedTemplate: Template | undefined = useMemo(() => {
-        const list = templates ?? [];
-        if (!selectedTemplateId && list.length > 0) {
-            // auto-select first template if none chosen
-            setSelectedTemplateId(list[0].id);
-            return list[0];
+  // Extract bindings from template elements
+  const bindings = useMemo((): BindingField[] => {
+    if (!selectedTemplate) return [];
+    
+    const fields = new Map<string, BindingField>();
+    const elements = selectedTemplate.elements ?? [];
+    
+    for (const element of elements) {
+      let binding: string | undefined;
+      let type: "text" | "number" | "date" = "text";
+      
+      if (element.type === "text") {
+        const textEl = element as Extract<TemplateElement, { type: "text" }>;
+        binding = textEl.binding;
+      } else if (element.type === "input") {
+        const inputEl = element as Extract<TemplateElement, { type: "input" }>;
+        binding = inputEl.binding;
+        type = inputEl.variant || "text";
+      }
+      
+      if (binding && !binding.includes(".items")) {
+        // Remove "invoice." prefix if present
+        const path = binding.replace(/^invoice\./, "");
+        const label = path
+          .split(".")
+          .pop()!
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (c) => c.toUpperCase());
+        
+        if (!fields.has(path)) {
+          fields.set(path, { path, label, type });
         }
-        return list.find((t) => t.id === selectedTemplateId);
-    }, [templates, selectedTemplateId]);
+      }
+    }
+    
+    return Array.from(fields.values());
+  }, [selectedTemplate]);
 
-    const invoiceContext = useMemo(() => ({ invoice: values }), [values]);
-
-    type BoundInput = {
-        id: string;
-        binding: string;
-        variant: "text" | "number" | "date";
-        placeholder?: string;
+  // Extract table configuration
+  const tableConfig = useMemo((): TableConfig | null => {
+    if (!selectedTemplate) return null;
+    
+    const tableEl = selectedTemplate.elements?.find(
+      (e) => e.type === "table"
+    ) as Extract<TemplateElement, { type: "table" }> | undefined;
+    
+    if (!tableEl || !tableEl.itemsBinding?.includes("items")) return null;
+    
+    return {
+      itemsPath: tableEl.itemsBinding.replace(/^invoice\./, ""),
+      columns: (tableEl.columns ?? []).map((col): TableColumn => ({
+        id: col.id,
+        header: col.header || "Column",
+        binding: col.binding?.replace(/^invoice\.items\./, "") || col.id,
+        type: col.type || "text",
+      })),
     };
+  }, [selectedTemplate]);
 
-    const boundInputs: BoundInput[] = useMemo(() => {
-        if (!selectedTemplate) return [];
-        const elements = selectedTemplate.elements ?? [];
-        const map = new Map<string, BoundInput>();
-        for (const raw of elements) {
-            if (raw.type === "input") {
-                const el = raw as Extract<TemplateElement, { type: "input" }>;
-                if (!el.binding) continue;
-                if (el.binding.startsWith("invoice.items")) continue;
-                const existing = map.get(el.binding);
-                const next: BoundInput = { id: el.id, binding: el.binding, variant: el.variant, placeholder: el.placeholder };
-                if (!existing) {
-                    map.set(el.binding, next);
-                } else {
-                    const priority = (v: BoundInput["variant"]) => (v === "date" ? 3 : v === "number" ? 2 : 1);
-                    if (priority(el.variant) > priority(existing.variant)) {
-                        map.set(el.binding, next);
-                    }
-                }
-            } else if (raw.type === "text") {
-                const t = raw as Extract<TemplateElement, { type: "text" }>;
-                if (!t.binding) continue;
-                if (t.binding.startsWith("invoice.items")) continue;
-                if (!map.has(t.binding)) {
-                    map.set(t.binding, { id: t.id, binding: t.binding, variant: "text", placeholder: undefined });
-                }
-            }
-        }
-        return Array.from(map.values());
-    }, [selectedTemplate]);
+  // Get value from nested path
+  const getValue = (path: string): InvoiceDataValue => {
+    const parts = path.split(".");
+    let value: InvoiceDataValue = formData;
+    
+    for (const part of parts) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        value = value[part];
+      } else {
+        return "";
+      }
+    }
+    
+    return value ?? "";
+  };
 
-    function bindingToFormPath(binding: string): FieldPath<InvoiceData> {
-        const path = binding.startsWith("invoice.") ? binding.slice("invoice.".length) : binding;
-        return path as FieldPath<InvoiceData>;
+  // Set value at nested path
+  const setValue = (path: string, value: InvoiceDataValue): void => {
+    const parts = path.split(".");
+    const newData: Record<string, InvoiceDataValue> = { ...formData };
+    let current: Record<string, InvoiceDataValue> = newData;
+    
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const next = current[part];
+      
+      if (!next || typeof next !== "object" || Array.isArray(next)) {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, InvoiceDataValue>;
+    }
+    
+    current[parts[parts.length - 1]] = value;
+    setFormData(newData);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    
+    if (!selectedTemplate) {
+      toast.error("Please select a template");
+      return;
     }
 
-    function labelFromPath(path: string): string {
-        const last = path.split(".").pop() || path;
-        return last
-            .replace(/([A-Z])/g, " $1")
-            .replace(/[-_]/g, " ")
-            .replace(/^\w/, (c) => c.toUpperCase());
+    try {
+      const result = await createInvoice.mutateAsync({
+        orgId: "default-org", // TODO: Get from auth context
+        templateId: selectedTemplate.id,
+        data: formData,
+        status: "draft",
+      });
+
+      toast.success("Invoice created successfully!");
+      navigate(`/invoices/${result.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to create invoice: ${message}`);
     }
+  };
 
-    // Derive dynamic table columns from the selected template (first table only)
-    type DynamicColumn = {
-        id: string;
-        header: string;
-        inputType: "text" | "number" | "date";
-        kind: { type: "native"; key: "description" | "qty" | "unitPrice" } | { type: "extra" };
-    };
+  // Add table row
+  const addTableRow = (): void => {
+    if (!tableConfig) return;
+    
+    const items = getValue(tableConfig.itemsPath);
+    const itemsArray = Array.isArray(items) ? items : [];
+    
+    const newRow: TableRow = {};
+    tableConfig.columns.forEach((col) => {
+      newRow[col.binding] = col.type === "number" ? 0 : "";
+    });
+    
+    setValue(tableConfig.itemsPath, [...itemsArray, newRow]);
+  };
 
-    const dynamicTable = useMemo(() => {
-        const table = (selectedTemplate?.elements ?? []).find((e) => e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
-        if (!table) return null;
-        // Only respect tables bound to invoice.items
-        if (!table.itemsBinding || !table.itemsBinding.startsWith("invoice.items")) return null;
-
-        function guessNativeKey(binding?: string, header?: string): "description" | "qty" | "unitPrice" | undefined {
-            const b = binding || "";
-            const h = (header || "").toLowerCase();
-            if (b.endsWith("description") || h.includes("desc")) return "description";
-            if (b.endsWith("qty") || h.includes("qty") || h.includes("quantity")) return "qty";
-            if (b.endsWith("unitPrice") || h.includes("price")) return "unitPrice";
-            return undefined;
-        }
-
-        const cols: DynamicColumn[] = (table.columns ?? []).map((c) => {
-            const binding = c.binding || "";
-            const key = binding.startsWith("invoice.items.") ? binding.replace("invoice.items.", "") : guessNativeKey(binding, c.header);
-            const header = c.header || labelFromPath(key || c.id);
-            const kind: DynamicColumn["kind"] = key === "description" || key === "qty" || key === "unitPrice" ? { type: "native", key } : { type: "extra" } as const;
-            const inputType: "text" | "number" | "date" = c.type ?? (key === "description" ? "text" : key ? "number" : "text");
-            return { id: c.id, header, inputType, kind };
-        });
-        return { columns: cols };
-    }, [selectedTemplate]);
-
-    // Local state for extra (non-native) table columns values per row
-    const [tableExtras, setTableExtras] = useState<Record<string, Record<string, string>>>({});
-
-    return (
-        <div className="container mx-auto py-8">
-            <div className="mb-8 rounded-[32px] bg-gradient-to-r from-[#eafcff] to-white p-6 md:p-10 border border-custom">
-                <div className="flex flex-col gap-3 md:gap-4">
-                    <h1 className="text-2xl md:text-4xl font-semibold tracking-tight">
-                        Craft a clear, trustworthy invoice
-                    </h1>
-                    <p className="text-gray max-w-2xl">
-                        Use a clean, structured layout so clients can scan quickly. Your brand-first design ensures confidence at every step.
-                    </p>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* Live preview - takes most of the page */}
-                <div className="lg:col-span-2">
-                    <Card className="card-large">
-                        <CardHeader>
-                            <CardTitle>Live Preview</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {selectedTemplate ? (
-                                <div className="w-full overflow-auto">
-                                    <TemplatePreview template={selectedTemplate} context={invoiceContext} zoom={0.95} />
-                                </div>
-                            ) : (
-                                <div className="text-sm text-muted-foreground">Select a template on the right to preview your invoice as you fill the fields.</div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Sidebar - dynamic fields from template and totals */}
-                <div className="lg:col-span-1 flex flex-col gap-6">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
-                            <Card className="card-large">
-                                <CardHeader>
-                                    <CardTitle>Template</CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex flex-col">
-                                    
-                                        <Label>Choose a template</Label>
-                                        <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select a template" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {(templates ?? []).map((t) => (
-                                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    
-                                </CardContent>
-                            </Card>
-                            {/* Dynamic fields from template input bindings */}
-                            <Card className="card-large">
-                                <CardHeader>
-                                    <CardTitle>Fields</CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid grid-cols-1 gap-4">
-                                    {boundInputs.length === 0 && (
-                                        <div className="text-sm text-muted-foreground">This template has no bound input fields.</div>
-                                    )}
-                                    {boundInputs.map((bi) => {
-                                        const formPath = bindingToFormPath(bi.binding);
-                                        return (
-                                            <FormField
-                                                key={bi.binding}
-                                                control={form.control}
-                                                name={formPath}
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>{labelFromPath(String(formPath))}</FormLabel>
-                                                        <FormControl>
-                                                            {bi.variant === "date" ? (
-                                                                <Input
-                                                                    type="date"
-                                                                    placeholder={bi.placeholder}
-                                                                    value={typeof field.value === "string" ? field.value : ""}
-                                                                    onChange={(e) => field.onChange(e.target.value)}
-                                                                />
-                                                            ) : bi.variant === "number" ? (
-                                                                <Input
-                                                                    type="number"
-                                                                    inputMode="decimal"
-                                                                    placeholder={bi.placeholder}
-                                                                    value={
-                                                                        typeof field.value === "number"
-                                                                            ? field.value
-                                                                            : typeof field.value === "string" && field.value !== ""
-                                                                                ? Number(field.value) || 0
-                                                                                : ""
-                                                                    }
-                                                                    onChange={(e) => {
-                                                                        const v = e.target.value;
-                                                                        field.onChange(v === "" ? "" : Number(v));
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <Input
-                                                                    placeholder={bi.placeholder}
-                                                                    value={typeof field.value === "string" ? field.value : ""}
-                                                                    onChange={(e) => field.onChange(e.target.value)}
-                                                                />
-                                                            )}
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        );
-                                    })}
-                                    <div>
-                                        <Label htmlFor="vatRatePct">VAT rate (%)</Label>
-                                        <Input
-                                            id="vatRatePct"
-                                            type="number"
-                                            inputMode="decimal"
-                                            step="0.1"
-                                            value={vatRatePct}
-                                            onChange={(e) => setVatRatePct(Number(e.target.value))}
-                                        />
-                                    </div>
-                                    {/* Items table inlined here only if template has a bound items table */}
-                                    {dynamicTable && (
-                                    <div className="space-y-3">
-                                        {dynamicTable ? (
-                                            <div className="hidden md:grid text-sm text-muted-foreground" style={{ gridTemplateColumns: `repeat(${dynamicTable.columns.length + 1}, minmax(0, 1fr))`, display: 'grid', gap: '0.75rem' }}>
-                                                {dynamicTable.columns.map((c) => (
-                                                    <div key={c.id}>{c.header}</div>
-                                                ))}
-                                                <div className="text-right">Line total</div>
-                                            </div>
-                                        ) : (
-                                            <div className="hidden grid-cols-12 gap-3 md:grid text-sm text-muted-foreground">
-                                                <div className="col-span-6">Description</div>
-                                                <div className="col-span-2">Qty</div>
-                                                <div className="col-span-2">Unit price</div>
-                                                <div className="col-span-2 text-right">Line total</div>
-                                            </div>
-                                        )}
-
-                                        {fields.map((fieldItem, index) => (
-                                            <div key={fieldItem.id} className="grid grid-cols-1 gap-3 md:items-center" style={dynamicTable ? { gridTemplateColumns: `repeat(${dynamicTable.columns.length + 1}, minmax(0, 1fr))` } : undefined}>
-                                                {dynamicTable ? (
-                                                    <>
-                                                        {dynamicTable.columns.map((c) => (
-                                                            <FormField
-                                                                key={c.id}
-                                                                control={form.control}
-                                                                name={c.kind.type === 'native' ? (`items.${index}.${c.kind.key}` as const) : (`items.${index}.description` as const)}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormLabel className="md:hidden">{c.header}</FormLabel>
-                                                                        <FormControl>
-                                                                            {c.kind.type === 'native' ? (
-                                                                                c.inputType === 'number' ? (
-                                                                                    <Input type="number" inputMode="decimal" value={field.value ?? 0} onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                                                ) : c.inputType === 'date' ? (
-                                                                                    <Input type="date" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} />
-                                                                                ) : (
-                                                                                    <Input placeholder="Text" {...field} />
-                                                                                )
-                                                                            ) : (
-                                                                                <Input
-                                                                                    placeholder="Text"
-                                                                                    value={tableExtras[fieldItem.id]?.[c.id] ?? ''}
-                                                                                    onChange={(e) => setTableExtras((prev) => ({
-                                                                                        ...prev,
-                                                                                        [fieldItem.id]: { ...(prev[fieldItem.id] ?? {}), [c.id]: e.target.value },
-                                                                                    }))}
-                                                                                />
-                                                                            )}
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        ))}
-                                                        <div className="flex items-center justify-between md:justify-end gap-2">
-                                                            <div className="text-right font-medium">
-                                                                {(() => {
-                                                                    const item = form.getValues().items?.[index];
-                                                                    const qty = Number(item?.qty || 0);
-                                                                    const price = Number(item?.unitPrice || 0);
-                                                                    return (qty * price).toFixed(2);
-                                                                })()}
-                                                            </div>
-                                                            <Button type="button" variant="ghost" onClick={() => remove(index)}>Remove</Button>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`items.${index}.description` as const}
-                                                            render={({ field }) => (
-                                                                <FormItem className="md:col-span-6">
-                                                                    <FormLabel className="md:hidden">Description</FormLabel>
-                                                                    <FormControl>
-                                                                        <Input placeholder="Service or product description" {...field} />
-                                                                    </FormControl>
-                                                                    <FormMessage />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`items.${index}.qty` as const}
-                                                            render={({ field }) => (
-                                                                <FormItem className="md:col-span-2">
-                                                                    <FormLabel className="md:hidden">Qty</FormLabel>
-                                                                    <FormControl>
-                                                                        <Input type="number" inputMode="numeric" min={0} step="1" value={field.value ?? 0} onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                                    </FormControl>
-                                                                    <FormMessage />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`items.${index}.unitPrice` as const}
-                                                            render={({ field }) => (
-                                                                <FormItem className="md:col-span-2">
-                                                                    <FormLabel className="md:hidden">Unit price</FormLabel>
-                                                                    <FormControl>
-                                                                        <Input type="number" inputMode="decimal" step="0.01" min={0} value={field.value ?? 0} onChange={(e) => field.onChange(Number(e.target.value))} />
-                                                                    </FormControl>
-                                                                    <FormMessage />
-                                                                </FormItem>
-                                                            )}
-                                                        />
-                                                        <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-2">
-                                                            <div className="text-right font-medium">
-                                                                {(() => {
-                                                                    const item = form.getValues().items?.[index];
-                                                                    const qty = Number(item?.qty || 0);
-                                                                    const price = Number(item?.unitPrice || 0);
-                                                                    return (qty * price).toFixed(2);
-                                                                })()}
-                                                            </div>
-                                                            <Button type="button" variant="ghost" onClick={() => remove(index)}>Remove</Button>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        <div>
-                                            <Button
-                                                type="button"
-                                                className="btn-secondary"
-                                                onClick={() => append({ description: "", qty: 1, unitPrice: 0 })}
-                                            >
-                                                Add item
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <div className="flex items-center justify-end gap-3">
-                                <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
-                                    <DialogTrigger asChild>
-                                        <Button type="button" variant="secondary" className="btn-secondary" onClick={handlePreview} disabled>
-                                            <Eye className="mr-2 h-4 w-4" /> Preview
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-4xl">
-                                        <DialogHeader>
-                                            <DialogTitle>Invoice preview</DialogTitle>
-                                        </DialogHeader>
-                                        <div className="aspect-[1/1.414] w-full overflow-hidden rounded border bg-muted">
-                                            {previewUrl ? (
-                                                <iframe title="invoice-preview" src={previewUrl} className="h-full w-full" />
-                                            ) : (
-                                                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Preview requires a saved invoice</div>
-                                            )}
-                                        </div>
-                                    </DialogContent>
-                                </Dialog>
-                                <Button type="submit" className="btn-primary" disabled={mutation.isPending}>
-                                    {mutation.isPending ? "Creating..." : "Create invoice"}
-                                </Button>
-                            </div>
-
-                            {/* Totals card at bottom of sidebar */}
-                            <Card className="card-large">
-                                <CardHeader>
-                                    <CardTitle>Calculated totals</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-muted-foreground">Subtotal</span>
-                                        <span className="font-medium">{subtotal.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-muted-foreground">VAT</span>
-                                        <span className="font-medium">{vatTotal.toFixed(2)}</span>
-                                    </div>
-                                    <div className="h-px bg-border" />
-                                    <div className="flex items-center justify-between text-lg">
-                                        <span>Total</span>
-                                        <span className="font-semibold">{total.toFixed(2)}</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </form>
-                    </Form>
-                    
-                </div>
-            </div>
-        </div>
+  // Remove table row
+  const removeTableRow = (index: number): void => {
+    if (!tableConfig) return;
+    
+    const items = getValue(tableConfig.itemsPath);
+    const itemsArray = Array.isArray(items) ? items : [];
+    
+    setValue(
+      tableConfig.itemsPath,
+      itemsArray.filter((_: InvoiceDataValue, i: number) => i !== index)
     );
+  };
+
+  // Update table cell
+  const updateTableCell = (rowIndex: number, binding: string, value: InvoiceDataValue): void => {
+    if (!tableConfig) return;
+    
+    const items = getValue(tableConfig.itemsPath);
+    const itemsArray = Array.isArray(items) ? [...items] : [];
+    
+    if (!itemsArray[rowIndex]) {
+      itemsArray[rowIndex] = {};
+    }
+    
+    const row = itemsArray[rowIndex];
+    if (row && typeof row === "object" && !Array.isArray(row)) {
+      (row as TableRow)[binding] = value;
+    }
+    
+    setValue(tableConfig.itemsPath, itemsArray);
+  };
+
+  const tableItems = useMemo((): TableRow[] => {
+    if (!tableConfig) return [];
+    
+    // Get items directly from formData to avoid getValue dependency
+    const parts = tableConfig.itemsPath.split(".");
+    let value: InvoiceDataValue = formData;
+    
+    for (const part of parts) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        value = value[part];
+      } else {
+        return [];
+      }
+    }
+    
+    if (!Array.isArray(value)) return [];
+    
+    return value.filter((item): item is TableRow => 
+      typeof item === "object" && item !== null && !Array.isArray(item)
+    );
+  }, [tableConfig, formData]);
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="mb-8 rounded-[32px] bg-gradient-to-r from-[#eafcff] to-white p-6 md:p-10 border border-custom">
+        <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-3">
+          Create Invoice
+        </h1>
+        <p className="text-gray max-w-2xl">
+          Select a template and fill in the details. Your invoice will be generated based on the template design.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Live Preview */}
+        <div className="lg:col-span-2">
+          <Card className="card-large">
+            <CardHeader>
+              <CardTitle>Live Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedTemplate ? (
+                <div className="w-full overflow-auto">
+                  <TemplatePreview
+                    template={selectedTemplate}
+                    context={{ invoice: formData }}
+                    zoom={0.95}
+                  />
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Select a template to preview your invoice
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Form Sidebar */}
+        <div className="lg:col-span-1">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            {/* Template Selection */}
+            <Card className="card-large">
+              <CardHeader>
+                <CardTitle>Template</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Label>Choose a template</Label>
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(templates ?? []).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
+            {/* Dynamic Fields */}
+            {bindings.length > 0 && (
+              <Card className="card-large">
+                <CardHeader>
+                  <CardTitle>Invoice Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {bindings.map((field) => (
+                    <div key={field.path}>
+                      <Label>{field.label}</Label>
+                      <Input
+                        type={field.type}
+                        value={String(getValue(field.path) ?? "")}
+                        onChange={(e) => {
+                          const val: InvoiceDataValue =
+                            field.type === "number"
+                              ? Number(e.target.value)
+                              : e.target.value;
+                          setValue(field.path, val);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Table Items */}
+            {tableConfig && (
+              <Card className="card-large">
+                <CardHeader>
+                  <CardTitle>Items</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {tableItems.map((row, rowIndex) => (
+                    <div key={rowIndex} className="p-4 border rounded-lg space-y-3">
+                      {tableConfig.columns.map((col) => (
+                        <div key={col.id}>
+                          <Label>{col.header}</Label>
+                          <Input
+                            type={col.type}
+                            value={String(row[col.binding] ?? "")}
+                            onChange={(e) => {
+                              const val: InvoiceDataValue =
+                                col.type === "number"
+                                  ? Number(e.target.value)
+                                  : e.target.value;
+                              updateTableCell(rowIndex, col.binding, val);
+                            }}
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTableRow(rowIndex)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={addTableRow}
+                  >
+                    Add Item
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Submit */}
+            <Button
+              type="submit"
+              className="btn-primary"
+              disabled={createInvoice.isPending || !selectedTemplate}
+            >
+              {createInvoice.isPending ? "Creating..." : "Create Invoice"}
+            </Button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 }

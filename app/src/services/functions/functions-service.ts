@@ -14,11 +14,11 @@ export const functionsService: FunctionsService = {
 
   async createInvoice(payload) {
     type CreateInvoicePayload = Parameters<FunctionsService["createInvoice"]>[0];
-    const result = await httpsCallable<CreateInvoicePayload, string>(
+    const result = await httpsCallable<CreateInvoicePayload, { id: string }>(
       firebase.functions,
       "createInvoice",
     )(payload);
-    return { id: result.data };
+    return result.data;
   },
 
   async renderInvoicePdf(payload) {

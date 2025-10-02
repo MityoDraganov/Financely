@@ -3,22 +3,17 @@ import { serviceHost } from "@/services";
 
 const functionsService = serviceHost.getFunctionsService();
 
-type CreateInvoiceParams = Parameters<typeof functionsService.createInvoice>[0];
-
 export const useCreateInvoice = () => {
     const queryClient = useQueryClient();
-
-    return useMutation<string, Error, CreateInvoiceParams>({
-        mutationKey: ["invoices", "create"],
-        mutationFn: async (params: CreateInvoiceParams) => {
-            const result = await functionsService.createInvoice(params);
-            return result.id;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["invoices", "get"] });
-        },
+  
+    return useMutation({
+      mutationKey: ["invoices", "create"],
+      mutationFn: functionsService.createInvoice,
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      },
     });
-};
+  };
 
 // Backwards-compat alias based on requested name
 export const useCreateProduct = useCreateInvoice;
