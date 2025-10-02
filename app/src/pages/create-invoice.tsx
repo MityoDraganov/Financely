@@ -50,7 +50,28 @@ export default function CreateInvoicePage() {
     return list.find((t) => t.id === selectedTemplateId);
   }, [templates, selectedTemplateId]);
 
-  // Extract bindings from template elements
+  // Extract table configuration first (supports multiple tables)
+  const tableConfigs = useMemo((): TableConfig[] => {
+    if (!selectedTemplate) return [];
+    
+    const tableElements = (selectedTemplate.elements ?? []).filter(
+      (e) => e.type === "table"
+    ) as Extract<TemplateElement, { type: "table" }>[];
+    
+    return tableElements
+      .filter((tableEl) => tableEl.itemsBinding) // Only include tables with bindings
+      .map((tableEl) => ({
+        itemsPath: tableEl.itemsBinding,
+        columns: (tableEl.columns ?? []).map((col): TableColumn => ({
+          id: col.id,
+          header: col.header || "Column",
+          binding: col.binding || col.id,
+          type: col.type || "text",
+        })),
+      }));
+  }, [selectedTemplate]);
+
+  // Extract bindings from template elements (depends on tableConfigs)
   const bindings = useMemo((): BindingField[] => {
     if (!selectedTemplate) return [];
     
@@ -70,44 +91,24 @@ export default function CreateInvoicePage() {
         type = inputEl.variant || "text";
       }
       
-      if (binding && !binding.includes(".items")) {
-        // Remove "invoice." prefix if present
-        const path = binding.replace(/^invoice\./, "");
-        const label = path
+      if (binding) {
+        // Skip bindings that are table paths (these are handled separately)
+        const isTableBinding = tableConfigs.some((tc) => binding.startsWith(tc.itemsPath));
+        if (isTableBinding) continue;
+        const label = binding
           .split(".")
           .pop()!
           .replace(/([A-Z])/g, " $1")
           .replace(/^./, (c) => c.toUpperCase());
         
-        if (!fields.has(path)) {
-          fields.set(path, { path, label, type });
+        if (!fields.has(binding)) {
+          fields.set(binding, { path: binding, label, type });
         }
       }
     }
     
     return Array.from(fields.values());
-  }, [selectedTemplate]);
-
-  // Extract table configuration
-  const tableConfig = useMemo((): TableConfig | null => {
-    if (!selectedTemplate) return null;
-    
-    const tableEl = selectedTemplate.elements?.find(
-      (e) => e.type === "table"
-    ) as Extract<TemplateElement, { type: "table" }> | undefined;
-    
-    if (!tableEl || !tableEl.itemsBinding?.includes("items")) return null;
-    
-    return {
-      itemsPath: tableEl.itemsBinding.replace(/^invoice\./, ""),
-      columns: (tableEl.columns ?? []).map((col): TableColumn => ({
-        id: col.id,
-        header: col.header || "Column",
-        binding: col.binding?.replace(/^invoice\.items\./, "") || col.id,
-        type: col.type || "text",
-      })),
-    };
-  }, [selectedTemplate]);
+  }, [selectedTemplate, tableConfigs]);
 
   // Get value from nested path
   const getValue = (path: string): InvoiceDataValue => {
@@ -125,23 +126,35 @@ export default function CreateInvoicePage() {
     return value ?? "";
   };
 
-  // Set value at nested path
+  // Set value at nested path (creates new references at each level for proper React re-rendering)
   const setValue = (path: string, value: InvoiceDataValue): void => {
     const parts = path.split(".");
-    const newData: Record<string, InvoiceDataValue> = { ...formData };
+    
+    // Create a deep clone with new references at each level in the path
+    const newData = { ...formData };
+    const pathToUpdate: Record<string, InvoiceDataValue>[] = [newData];
     let current: Record<string, InvoiceDataValue> = newData;
     
+    // Navigate to the parent of the target, creating new object references
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       const next = current[part];
       
-      if (!next || typeof next !== "object" || Array.isArray(next)) {
+      if (next && typeof next === "object" && !Array.isArray(next)) {
+        // Clone the nested object to create a new reference
+        current[part] = { ...next as Record<string, InvoiceDataValue> };
+      } else {
+        // Create new object if it doesn't exist or isn't an object
         current[part] = {};
       }
+      
       current = current[part] as Record<string, InvoiceDataValue>;
+      pathToUpdate.push(current);
     }
     
+    // Set the final value
     current[parts[parts.length - 1]] = value;
+    
     setFormData(newData);
   };
 
@@ -171,57 +184,58 @@ export default function CreateInvoicePage() {
   };
 
   // Add table row
-  const addTableRow = (): void => {
-    if (!tableConfig) return;
-    
-    const items = getValue(tableConfig.itemsPath);
+  const addTableRow = (itemsPath: string, columns: TableColumn[]): void => {
+    const items = getValue(itemsPath);
     const itemsArray = Array.isArray(items) ? items : [];
     
     const newRow: TableRow = {};
-    tableConfig.columns.forEach((col) => {
+    columns.forEach((col) => {
       newRow[col.binding] = col.type === "number" ? 0 : "";
     });
     
-    setValue(tableConfig.itemsPath, [...itemsArray, newRow]);
+    setValue(itemsPath, [...itemsArray, newRow]);
   };
 
   // Remove table row
-  const removeTableRow = (index: number): void => {
-    if (!tableConfig) return;
-    
-    const items = getValue(tableConfig.itemsPath);
+  const removeTableRow = (itemsPath: string, index: number): void => {
+    const items = getValue(itemsPath);
     const itemsArray = Array.isArray(items) ? items : [];
     
     setValue(
-      tableConfig.itemsPath,
+      itemsPath,
       itemsArray.filter((_: InvoiceDataValue, i: number) => i !== index)
     );
   };
 
-  // Update table cell
-  const updateTableCell = (rowIndex: number, binding: string, value: InvoiceDataValue): void => {
-    if (!tableConfig) return;
+  // Update table cell (creates new array and object references)
+  const updateTableCell = (itemsPath: string, rowIndex: number, binding: string, value: InvoiceDataValue): void => {
+    const items = getValue(itemsPath);
+    const itemsArray = Array.isArray(items) ? items : [];
     
-    const items = getValue(tableConfig.itemsPath);
-    const itemsArray = Array.isArray(items) ? [...items] : [];
+    // Create a new array with new object references for immutability
+    const newItemsArray = itemsArray.map((item, idx) => {
+      if (idx === rowIndex) {
+        // Create new object for the row being updated
+        const currentRow = (item && typeof item === "object" && !Array.isArray(item)) 
+          ? item as TableRow 
+          : {};
+        return { ...currentRow, [binding]: value };
+      }
+      return item;
+    });
     
-    if (!itemsArray[rowIndex]) {
-      itemsArray[rowIndex] = {};
+    // If row doesn't exist yet, add it
+    if (rowIndex >= newItemsArray.length) {
+      const newRow: TableRow = { [binding]: value };
+      newItemsArray[rowIndex] = newRow;
     }
     
-    const row = itemsArray[rowIndex];
-    if (row && typeof row === "object" && !Array.isArray(row)) {
-      (row as TableRow)[binding] = value;
-    }
-    
-    setValue(tableConfig.itemsPath, itemsArray);
+    setValue(itemsPath, newItemsArray);
   };
 
-  const tableItems = useMemo((): TableRow[] => {
-    if (!tableConfig) return [];
-    
-    // Get items directly from formData to avoid getValue dependency
-    const parts = tableConfig.itemsPath.split(".");
+  // Get table items for a specific table
+  const getTableItems = (itemsPath: string): TableRow[] => {
+    const parts = itemsPath.split(".");
     let value: InvoiceDataValue = formData;
     
     for (const part of parts) {
@@ -237,7 +251,7 @@ export default function CreateInvoicePage() {
     return value.filter((item): item is TableRow => 
       typeof item === "object" && item !== null && !Array.isArray(item)
     );
-  }, [tableConfig, formData]);
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -262,7 +276,7 @@ export default function CreateInvoicePage() {
                 <div className="w-full overflow-auto">
                   <TemplatePreview
                     template={selectedTemplate}
-                    context={{ invoice: formData }}
+                    context={formData}
                     zoom={0.95}
                   />
                 </div>
@@ -327,52 +341,61 @@ export default function CreateInvoicePage() {
               </Card>
             )}
 
-            {/* Table Items */}
-            {tableConfig && (
-              <Card className="card-large">
-                <CardHeader>
-                  <CardTitle>Items</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {tableItems.map((row, rowIndex) => (
-                    <div key={rowIndex} className="p-4 border rounded-lg space-y-3">
-                      {tableConfig.columns.map((col) => (
-                        <div key={col.id}>
-                          <Label>{col.header}</Label>
-                          <Input
-                            type={col.type}
-                            value={String(row[col.binding] ?? "")}
-                            onChange={(e) => {
-                              const val: InvoiceDataValue =
-                                col.type === "number"
-                                  ? Number(e.target.value)
-                                  : e.target.value;
-                              updateTableCell(rowIndex, col.binding, val);
-                            }}
-                          />
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeTableRow(rowIndex)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                  
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={addTableRow}
-                  >
-                    Add Item
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+            {/* Dynamic Tables - render a card for each table in template */}
+            {tableConfigs.map((tableConfig, tableIndex) => {
+              const tableItems = getTableItems(tableConfig.itemsPath);
+              const tableLabel = tableConfig.itemsPath
+                .split(".")
+                .pop()!
+                .replace(/([A-Z])/g, " $1")
+                .replace(/^./, (c) => c.toUpperCase());
+              
+              return (
+                <Card key={`table-${tableIndex}`} className="card-large">
+                  <CardHeader>
+                    <CardTitle>{tableLabel}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {tableItems.map((row, rowIndex) => (
+                      <div key={rowIndex} className="p-4 border rounded-lg space-y-3">
+                        {tableConfig.columns.map((col) => (
+                          <div key={col.id}>
+                            <Label>{col.header}</Label>
+                            <Input
+                              type={col.type}
+                              value={String(row[col.binding] ?? "")}
+                              onChange={(e) => {
+                                const val: InvoiceDataValue =
+                                  col.type === "number"
+                                    ? Number(e.target.value)
+                                    : e.target.value;
+                                updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
+                              }}
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeTableRow(tableConfig.itemsPath, rowIndex)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => addTableRow(tableConfig.itemsPath, tableConfig.columns)}
+                    >
+                      Add {tableLabel.slice(0, -1) || "Row"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
 
             {/* Submit */}
             <Button

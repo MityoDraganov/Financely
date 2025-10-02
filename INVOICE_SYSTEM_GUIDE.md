@@ -52,7 +52,7 @@ Templates contain elements with bindings that reference invoice data:
 {
   type: "text",
   text: "Invoice #",
-  binding: "invoice.invoiceNumber"  // References data.invoiceNumber
+  binding: "invoiceNumber"  // References data.invoiceNumber
 }
 ```
 
@@ -60,7 +60,7 @@ Templates contain elements with bindings that reference invoice data:
 ```typescript
 {
   type: "table",
-  itemsBinding: "invoice.items",    // References data.items array
+  itemsBinding: "items",    // References data.items array
   columns: [
     {
       id: "col1",
@@ -80,7 +80,7 @@ Templates contain elements with bindings that reference invoice data:
 ```typescript
 {
   type: "input",
-  binding: "invoice.customField",   // References data.customField
+  binding: "customField",   // References data.customField
   variant: "text"
 }
 ```
@@ -90,11 +90,11 @@ Templates contain elements with bindings that reference invoice data:
 ### Example 1: Standard Invoice
 
 **Template Bindings:**
-- `invoice.seller.name`, `invoice.seller.address`, `invoice.seller.taxIdVat`
-- `invoice.buyer.name`, `invoice.buyer.address`, `invoice.buyer.taxIdVat`
-- `invoice.invoiceNumber`, `invoice.issueDate`, `invoice.dueDate`
-- `invoice.items` (table with columns: description, qty, unitPrice, total)
-- `invoice.subtotal`, `invoice.vatTotal`, `invoice.total`
+- `seller.name`, `seller.address`, `seller.taxIdVat`
+- `buyer.name`, `buyer.address`, `buyer.taxIdVat`
+- `invoiceNumber`, `issueDate`, `dueDate`
+- `items` (table with columns: description, qty, unitPrice, total)
+- `subtotal`, `vatTotal`, `total`
 
 **Creating the Invoice:**
 
@@ -148,11 +148,11 @@ const createStandardInvoice = async () => {
 ### Example 2: Custom Service Invoice
 
 **Template Bindings:**
-- `invoice.provider.name`, `invoice.provider.contact`
-- `invoice.client.name`, `invoice.client.email`
-- `invoice.projectName`, `invoice.projectId`
-- `invoice.services` (table with columns: service, hours, rate, amount)
-- `invoice.totalAmount`
+- `provider.name`, `provider.contact`
+- `client.name`, `client.email`
+- `projectName`, `projectId`
+- `services` (table with columns: service, hours, rate, amount)
+- `totalAmount`
 
 **Creating the Invoice:**
 

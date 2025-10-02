@@ -119,21 +119,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
 
         if (el.type === "table") {
             const tbl = el as Extract<TemplateElement, { type: "table" }>;
-            // Handle the binding path - if it starts with "invoice.", remove that prefix
-            const bindingPath = tbl.itemsBinding.startsWith("invoice.") 
-                ? tbl.itemsBinding.slice("invoice.".length) 
-                : tbl.itemsBinding;
-            const items = getByPath<Array<Record<string, unknown>>>(context, bindingPath) || [];
-            
-            // Debug logging to see what's happening
-            console.log('Table preview debug:', {
-                itemsBinding: tbl.itemsBinding,
-                bindingPath,
-                context,
-                items,
-                itemsLength: items.length,
-                firstItem: items[0]
-            });
+            const items = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];
             return (
                 <div key={tbl.id} style={commonStyle}>
                     <div style={{ width: "100%", height: "100%", fontSize: 10 * zoom, color: "#374151", overflow: "hidden" }}>
@@ -147,58 +133,11 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                         <div style={{ height: `calc(100% - ${tbl.headerHeight * zoom}px)`, overflow: "hidden" }}>
                             {items.map((row, idx) => (
                                 <div key={idx} style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: tbl.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb", height: tbl.rowHeight * zoom }}>
-                                    {tbl.columns.map((c, colIndex) => {
-                                        // Handle column binding path - remove "invoice.items." prefix if present
-                                        let columnBinding = c.binding?.startsWith("invoice.items.") 
-                                            ? c.binding.slice("invoice.items.".length) 
-                                            : c.binding;
-                                        
-                                        // If no binding is set, try to infer from header or position
-                                        if (!columnBinding) {
-                                            const header = c.header?.toLowerCase() || "";
-                                            if (header.includes("desc") || header.includes("item") || header.includes("name")) {
-                                                columnBinding = "description";
-                                            } else if (header.includes("qty") || header.includes("quantity")) {
-                                                columnBinding = "qty";
-                                            } else if (header.includes("price") || header.includes("unit")) {
-                                                columnBinding = "unitPrice";
-                                            } else {
-                                                // Fallback: try to map by position (first column = description, second = qty, third = unitPrice)
-                                                const fallbackMap = ["description", "qty", "unitPrice"];
-                                                columnBinding = fallbackMap[colIndex] || "description";
-                                            }
-                                        }
-                                        
-                                        // Use the actual column binding from the template
-                                        if (!columnBinding) {
-                                            // If no binding is set, use the column ID as the field name
-                                            columnBinding = c.id;
-                                        }
-                                        
-                                        // Debug: Log the row structure to understand the data format
-                                        if (idx === 0) {
-                                            console.log('Row structure for first item:', {
-                                                row,
-                                                rowKeys: Object.keys(row),
-                                                columnBinding,
-                                                colIndex
-                                            });
-                                        }
-                                        
-                                        const raw = columnBinding ? getByPath<unknown>(row, columnBinding) : undefined;
+                                    {tbl.columns.map((c) => {
+                                        const columnBinding = c.binding || c.id;
+                                        const raw = getByPath<unknown>(row, columnBinding);
                                         const text = formatValue(raw, c.format?.kind ?? "none", c.format?.currency, c.format?.dateFormat);
                                         const justify = c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start";
-                                        
-                                        // Debug logging for column data
-                                        console.log('Column debug:', {
-                                            columnId: c.id,
-                                            header: c.header,
-                                            originalBinding: c.binding,
-                                            columnBinding,
-                                            row,
-                                            raw,
-                                            text
-                                        });
                                         
                                         return (
                                             <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `${4 * zoom}px` }}>

@@ -8,9 +8,9 @@ import { baseEntitySchema } from "./base";
  * The `data` field stores dynamic key-value pairs that correspond to template bindings.
  * 
  * Examples of bindings in templates:
- * - "invoice.seller.name" -> data.seller.name
- * - "invoice.invoiceNumber" -> data.invoiceNumber
- * - "invoice.items" (table) -> data.items = [{...}, {...}]
+ * - "seller.name" -> data.seller.name
+ * - "invoiceNumber" -> data.invoiceNumber
+ * - "items" (table) -> data.items = [{...}, {...}]
  * 
  * Tables are stored as arrays of objects where each object represents a row.
  */

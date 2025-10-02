@@ -92,7 +92,7 @@ export const tableElementSchema = templateElementBaseSchema.extend({
   headerHeight: z.number().min(0).max(200).default(28),
   stripe: z.boolean().default(false),
   columns: z.array(tableColumnSchema).default([]),
-  itemsBinding: z.string().default("invoice.items"),
+  itemsBinding: z.string().default("items"),
   // Design-time sample rows for the designer preview (not used at runtime)
   designRows: z
     .array(
