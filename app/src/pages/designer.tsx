@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -21,7 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -38,6 +36,20 @@ import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import {
+	TextElement,
+	TextProperties,
+	ImageElement,
+	ImageProperties,
+	BoxElement,
+	BoxProperties,
+	LineElement,
+	LineProperties,
+	InputElement,
+	InputProperties,
+	TableElement,
+	TableProperties,
+} from "@/components/designer/elements";
 
 type DesignerState = {
 	currentTemplateId?: string;
@@ -974,152 +986,52 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 												))}
 											</>
 										)}
-										{el.type === "text" &&
-											(() => {
-												const t = el as Extract<
-													TemplateElement,
-													{ type: "text" }
-												>;
-												return (
-													<div
-														className="p-1"
-														style={{
-															fontFamily:
-																t.typography
-																	.fontFamily,
-															fontSize:
-																t.typography
-																	.fontSize *
-																state.zoom,
-															fontWeight:
-																t.typography
-																	.fontWeight,
-															lineHeight:
-																t.typography
-																	.lineHeight,
-															letterSpacing:
-																t.typography
-																	.letterSpacing,
-															color: t.typography
-																.color,
-															textAlign:
-																t.typography
-																	.align,
-														}}
-													>
-														{t.text}
-													</div>
-												);
-											})()}
-									{el.type === "input" &&
-										(() => {
-											const inp = el as Extract<TemplateElement, { type: "input" }>;
-											return (
-												<div className="w-full h-full grid place-items-center text-neutral-400">
-													<input
-														type={inp.variant}
-														placeholder={inp.placeholder}
-														className="w-[95%] h-[80%] border border-neutral-200 rounded px-2 text-[10px] bg-white"
-														style={{ textAlign: inp.align as React.CSSProperties["textAlign"] }}
-														readOnly
-													/>
-												</div>
-											);
-										})()}
-								{el.type === "image" && (() => {
-									const img = el as Extract<TemplateElement, { type: "image" }>;
-									return img.src ? (
-										<img
-											src={img.src}
-											alt={img.alt ?? ""}
-											style={{ width: "100%", height: "100%", objectFit: img.objectFit }}
+										{el.type === "text" && (
+											<TextElement
+												element={el as Extract<TemplateElement, { type: "text" }>}
+												zoom={state.zoom}
+											/>
+										)}
+									{el.type === "input" && (
+										<InputElement
+											element={el as Extract<TemplateElement, { type: "input" }>}
 										/>
-									) : (
-										<div className="w-full h-full bg-neutral-100 grid place-items-center text-neutral-400">
-											Image
-										</div>
-									);
-								})()}
-										{el.type === "box" &&
-											(() => {
-												const b = el as Extract<
-													TemplateElement,
-													{ type: "box" }
-												>;
-												return (
-													<div
-														className="w-full h-full"
-														style={{
-															background: b.fill,
-															border: `${b.strokeWidth}px solid ${b.stroke}`,
-															borderRadius:
-																b.radius,
-														}}
-													/>
-												);
-											})()}
-										{el.type === "line" &&
-											(() => {
-												const ln = el as Extract<
-													TemplateElement,
-													{ type: "line" }
-												>;
-												return (
-													<div
-														className="absolute top-1/2 left-0 right-0 border-t"
-														style={{
-															borderColor:
-																ln.stroke,
-															borderWidth:
-																ln.strokeWidth,
-														}}
-													/>
-												);
-											})()}
+									)}
+								{el.type === "image" && (
+									<ImageElement
+										element={el as Extract<TemplateElement, { type: "image" }>}
+									/>
+								)}
+										{el.type === "box" && (
+											<BoxElement
+												element={el as Extract<TemplateElement, { type: "box" }>}
+											/>
+										)}
+										{el.type === "line" && (
+											<LineElement
+												element={el as Extract<TemplateElement, { type: "line" }>}
+											/>
+										)}
 								{el.type === "table" && (() => {
 									const tbl = el as Extract<TemplateElement, { type: "table" }>;
 									return (
-										<div className="w-full h-full border border-neutral-200 bg-white">
-											<div
-												style={{
-													display: "grid",
-													gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * state.zoom}px`).join(" ") : "1fr 1fr",
-													height: tbl.headerHeight * state.zoom,
-													borderBottom: "1px solid #e5e7eb",
-												}}
-											>
-									{(tbl.columns.length > 0
-										? tbl.columns
-										: [
-											{ id: "c1", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-											{ id: "c2", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-										]
-									).map((c) => (
-												<input
-														key={c.id}
-													value={c.header ?? ""}
-													onChange={(e) => {
+										<TableElement
+											element={tbl}
+											zoom={state.zoom}
+											onHeaderChange={(columnId, header) => {
 												const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
 													{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 													{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 												];
-														const next = baseColumns.map(col => col.id === c.id ? { ...col, header: e.target.value } : col);
-														// Optimistic update for immediate feedback
-														setDraftElements((prev) => {
-															const base = prev ?? currentTemplateRef.current?.elements ?? [];
-															return base.map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it);
-														});
-														saveMutation.mutate({ elements: (currentTemplateRef.current?.elements ?? []).map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it) });
-														}}
-													className="border-r last:border-r-0 px-2 text-[10px]"
-														style={{
-															textAlign: c.align,
-														}}
-													/>
-												))}
-											</div>
-											<div className="text-[10px] text-neutral-500 p-2">Edit headers above or use Properties to configure columns and rows.</div>
-										</div>
+												const next = baseColumns.map(col => col.id === columnId ? { ...col, header } : col);
+												// Optimistic update for immediate feedback
+												setDraftElements((prev) => {
+													const base = prev ?? currentTemplateRef.current?.elements ?? [];
+													return base.map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it);
+												});
+												saveMutation.mutate({ elements: (currentTemplateRef.current?.elements ?? []).map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it) });
+											}}
+										/>
 									);
 								})()}
 									</div>
@@ -1217,625 +1129,70 @@ function ElementProperties({
     onChange: (partial: Partial<TemplateElement>) => void;
     isNarrow?: boolean;
 }) {
-	// Common position/size controls
-    const common = (
-        <div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
-	);
 
 	if (element.type === "text") {
+		const t = element as Extract<TemplateElement, { type: "text" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Text</div>
-				{(() => {
-					const t = element as Extract<
-						TemplateElement,
-						{ type: "text" }
-					>;
-					return (
-						<>
-							<div className="space-y-1">
-								<Label className="text-xs">Text</Label>
-								<Input
-								value={t.text ?? ""}
-								onChange={(e) =>
-									onChange({
-										id: element.id,
-										type: "text",
-										x: element.x,
-										y: element.y,
-										width: element.width,
-										height: element.height,
-										rotation: element.rotation,
-										zIndex: element.zIndex,
-										visible: element.visible,
-										text: e.target.value,
-										typography: t.typography,
-										format: t.format,
-									})
-								}
-								/>
-							</div>
-							<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-								<div className="space-y-1">
-									<Label className="text-xs">Font size</Label>
-									<Input
-									type="number"
-									value={t.typography.fontSize}
-									onChange={(e) =>
-										onChange({
-											id: element.id,
-											type: "text",
-											x: element.x,
-											y: element.y,
-											width: element.width,
-											height: element.height,
-											rotation: element.rotation,
-											zIndex: element.zIndex,
-											visible: element.visible,
-											text: t.text,
-											typography: { ...t.typography, fontSize: Number(e.target.value) },
-											format: t.format,
-										})
-									}
-									/>
-								</div>
-								<div className="space-y-1">
-									<Label className="text-xs">Weight</Label>
-									<Select
-									value={t.typography.fontWeight}
-									onValueChange={(v) =>
-										onChange({
-											id: element.id,
-											type: "text",
-											x: element.x,
-											y: element.y,
-											width: element.width,
-											height: element.height,
-											rotation: element.rotation,
-											zIndex: element.zIndex,
-											visible: element.visible,
-											text: t.text,
-											typography: { ...t.typography, fontWeight: v as typeof t.typography.fontWeight },
-											format: t.format,
-										})
-									}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="normal">Normal</SelectItem>
-										<SelectItem value="medium">Medium</SelectItem>
-										<SelectItem value="semibold">Semibold</SelectItem>
-										<SelectItem value="bold">Bold</SelectItem>
-									</SelectContent>
-								</Select>
-								</div>
-								<div className="space-y-1">
-									<Label className="text-xs">Color</Label>
-									<Input
-									placeholder="#111827"
-									value={t.typography.color}
-									onChange={(e) =>
-										onChange({
-											id: element.id,
-											type: "text",
-											x: element.x,
-											y: element.y,
-											width: element.width,
-											height: element.height,
-											rotation: element.rotation,
-											zIndex: element.zIndex,
-											visible: element.visible,
-											text: t.text,
-											typography: { ...t.typography, color: e.target.value },
-											format: t.format,
-										})
-									}
-								/>
-								</div>
-							</div>
-							<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-								<div className="space-y-1">
-									<Label className="text-xs">Alignment</Label>
-									<Select
-									value={t.typography.align}
-									onValueChange={(v) =>
-										onChange({
-											id: element.id,
-											type: "text",
-											x: element.x,
-											y: element.y,
-											width: element.width,
-											height: element.height,
-											rotation: element.rotation,
-											zIndex: element.zIndex,
-											visible: element.visible,
-											text: t.text,
-											typography: { ...t.typography, align: v as typeof t.typography.align },
-											format: t.format,
-										})
-									}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="left">Left</SelectItem>
-										<SelectItem value="center">Center</SelectItem>
-										<SelectItem value="right">Right</SelectItem>
-									</SelectContent>
-								</Select>
-								</div>
-								<div className="space-y-1">
-									<Label className="text-xs">Uppercase</Label>
-									<Switch
-									checked={t.typography.uppercase}
-									onCheckedChange={(checked) =>
-										onChange({
-											id: element.id,
-											type: "text",
-											x: element.x,
-											y: element.y,
-											width: element.width,
-											height: element.height,
-											rotation: element.rotation,
-											zIndex: element.zIndex,
-											visible: element.visible,
-											text: t.text,
-											typography: { ...t.typography, uppercase: checked, lowercase: checked ? false : t.typography.lowercase },
-											format: t.format,
-										})
-									}
-								/>
-								</div>
-							</div>
-						</>
-					);
-				})()}
-				{common}
-			</div>
+			<TextProperties
+				element={t}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 
 	if (element.type === "image") {
+		const img = element as Extract<TemplateElement, { type: "image" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Image</div>
-				<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1 col-span-2">
-						<Label className="text-xs">Image URL</Label>
-						<Input
-							placeholder="https://..."
-							value={(element as Extract<TemplateElement, { type: "image" }>).src}
-							onChange={(e) => {
-								const img = element as Extract<TemplateElement, { type: "image" }>;
-								onChange({ ...img, src: e.target.value });
-							}}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Object fit</Label>
-						<Select
-							value={(element as Extract<TemplateElement, { type: "image" }>).objectFit}
-							onValueChange={(v) => {
-								const img = element as Extract<TemplateElement, { type: "image" }>;
-								onChange({ ...img, objectFit: v as Extract<TemplateElement, { type: "image" }>["objectFit"] });
-							}}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="contain">Contain</SelectItem>
-								<SelectItem value="cover">Cover</SelectItem>
-								<SelectItem value="fill">Fill</SelectItem>
-
-							</SelectContent>
-						</Select>
-					</div>
-				</div>
-				{common}
-			</div>
+			<ImageProperties
+				element={img}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 
 	if (element.type === "box") {
+		const bx = element as Extract<TemplateElement, { type: "box" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Box</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Fill</Label>
-						<Input
-							placeholder="#RRGGBB"
-							value={(element as Extract<TemplateElement, { type: "box" }>).fill}
-							onChange={(e) => {
-								const bx = element as Extract<TemplateElement, { type: "box" }>;
-								onChange({ ...bx, fill: e.target.value });
-							}}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Stroke</Label>
-						<Input
-							placeholder="#RRGGBB"
-							value={(element as Extract<TemplateElement, { type: "box" }>).stroke}
-							onChange={(e) => {
-								const bx = element as Extract<TemplateElement, { type: "box" }>;
-								onChange({ ...bx, stroke: e.target.value });
-							}}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Stroke width</Label>
-						<Input
-							type="number"
-							placeholder="1"
-							value={(element as Extract<TemplateElement, { type: "box" }>).strokeWidth}
-							onChange={(e) => {
-								const bx = element as Extract<TemplateElement, { type: "box" }>;
-								onChange({ ...bx, strokeWidth: Number(e.target.value) });
-							}}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Corner radius</Label>
-						<Input
-							type="number"
-							placeholder="0"
-							value={(element as Extract<TemplateElement, { type: "box" }>).radius}
-							onChange={(e) => {
-								const bx = element as Extract<TemplateElement, { type: "box" }>;
-								onChange({ ...bx, radius: Number(e.target.value) });
-							}}
-						/>
-					</div>
-				</div>
-				{common}
-			</div>
+			<BoxProperties
+				element={bx}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 
 	if (element.type === "line") {
+		const ln = element as Extract<TemplateElement, { type: "line" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Line</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Stroke</Label>
-						<Input
-							placeholder="#RRGGBB"
-							value={(element as Extract<TemplateElement, { type: "line" }>).stroke}
-							onChange={(e) => {
-								const ln = element as Extract<TemplateElement, { type: "line" }>;
-								onChange({ ...ln, stroke: e.target.value });
-							}}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Stroke width</Label>
-						<Input
-							type="number"
-							placeholder="1"
-							value={(element as Extract<TemplateElement, { type: "line" }>).strokeWidth}
-							onChange={(e) => {
-								const ln = element as Extract<TemplateElement, { type: "line" }>;
-								onChange({ ...ln, strokeWidth: Number(e.target.value) });
-							}}
-						/>
-					</div>
-				</div>
-				{common}
-			</div>
+			<LineProperties
+				element={ln}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 
 	if (element.type === "table") {
 		const tbl = element as Extract<TemplateElement, { type: "table" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Table</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Row height</Label>
-						<Input
-							type="number"
-							placeholder="28"
-							value={tbl.rowHeight}
-							onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Header height</Label>
-						<Input
-							type="number"
-							placeholder="28"
-							value={tbl.headerHeight}
-							onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Stripe rows</Label>
-						<Switch
-							checked={tbl.stripe}
-							onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
-						/>
-					</div>
-					<div className="space-y-1 col-span-2">
-						<Label className="text-xs">Items binding</Label>
-						<Input
-							placeholder="invoice.items"
-							value={tbl.itemsBinding}
-							onChange={(e) => onChange({ ...tbl, itemsBinding: e.target.value })}
-						/>
-					</div>
-				</div>
-
-				<div className="space-y-1">
-					<div className="text-xs text-neutral-500">Columns</div>
-					<div className="space-y-2">
-						{(() => {
-                            const defaultTwo = [
-                                { id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-                                { id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-                            ];
-							const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-                            return derivedColumns.map((c) => (
-                                <div key={c.id} className="space-y-2">
-                                    <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2 items-start min-w-0">
-                                        <Input
-                                            className="min-w-0 w-full"
-                                            placeholder="Header"
-                                            value={c.header}
-                                            onChange={(e) => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-                                                const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
-                                                onChange({ ...tbl, columns: next });
-                                            }}
-                                        />
-                                        <Input
-                                            type="number"
-                                            placeholder="Width"
-                                            value={c.width}
-                                            className="min-w-0 w-full"
-                                            onChange={(e) => {
-                                                const w = Math.max(20, Number(e.target.value));
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-                                                const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
-                                                onChange({ ...tbl, columns: next });
-                                            }}
-                                        />
-                                    <Select
-                                            value={c.align}
-                                            onValueChange={(v) => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-                                                const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
-                                                onChange({ ...tbl, columns: next });
-                                            }}
-                                        >
-                                            <SelectTrigger className="min-w-0 w-full">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="left">Left</SelectItem>
-                                                <SelectItem value="center">Center</SelectItem>
-                                                <SelectItem value="right">Right</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    <Select
-                                        value={c.type ?? "text"}
-                                        onValueChange={(v) => {
-                                            const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-                                            const next = base.map((col) => (col.id === c.id ? { ...col, type: v as "text" | "number" | "date" } : col));
-                                            onChange({ ...tbl, columns: next });
-                                        }}
-                                    >
-                                        <SelectTrigger className="min-w-0 w-full">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="text">Text</SelectItem>
-                                            <SelectItem value="number">Number</SelectItem>
-                                            <SelectItem value="date">Date</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="justify-self-start"
-                                            onClick={() => {
-                                                const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-                                                const next = base.filter((col) => col.id !== c.id);
-                                                onChange({ ...tbl, columns: next });
-                                            }}
-                                        >
-                                            Remove
-                                        </Button>
-                                    </div>
-                                    <div className="h-px bg-border" />
-                                </div>
-                            ));
-						})()}
-						<Button
-							variant="secondary"
-							size="sm"
-                            onClick={() => {
-                                const next = [
-                                    ...tbl.columns,
-                                    { id: crypto.randomUUID(), header: `Column ${tbl.columns.length + 1}`, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-                                ];
-                                onChange({ ...tbl, columns: next });
-                            }}
-						>
-							Add column
-						</Button>
-					</div>
-				</div>
-
-				{common}
-			</div>
+			<TableProperties
+				element={tbl}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 
 	if (element.type === "input") {
+		const inp = element as Extract<TemplateElement, { type: "input" }>;
 		return (
-			<div className="space-y-2">
-				<div className="text-xs font-medium">Input</div>
-				{(() => {
-					const inp = element as Extract<TemplateElement, { type: "input" }>;
-					return (
-						<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-							<div className="space-y-1 col-span-2">
-								<Label className="text-xs">Placeholder</Label>
-								<Input
-									placeholder="Placeholder"
-									value={inp.placeholder}
-													onChange={(e) =>
-														onChange({
-															id: element.id,
-															type: "input",
-															x: element.x,
-															y: element.y,
-															width: element.width,
-															height: element.height,
-															rotation: element.rotation,
-															zIndex: element.zIndex,
-															visible: element.visible,
-															placeholder: e.target.value,
-															variant: inp.variant,
-															align: inp.align,
-															binding: inp.binding,
-														})
-													}
-								/>
-							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Variant</Label>
-								<Select
-									value={inp.variant}
-													onValueChange={(v) =>
-														onChange({
-															id: element.id,
-															type: "input",
-															x: element.x,
-															y: element.y,
-															width: element.width,
-															height: element.height,
-															rotation: element.rotation,
-															zIndex: element.zIndex,
-															visible: element.visible,
-															placeholder: inp.placeholder,
-															variant: v as typeof inp.variant,
-															align: inp.align,
-															binding: inp.binding,
-														})
-													}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="text">Text</SelectItem>
-										<SelectItem value="number">Number</SelectItem>
-										<SelectItem value="date">Date</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Align</Label>
-								<Select
-									value={inp.align}
-													onValueChange={(v) =>
-														onChange({
-															id: element.id,
-															type: "input",
-															x: element.x,
-															y: element.y,
-															width: element.width,
-															height: element.height,
-															rotation: element.rotation,
-															zIndex: element.zIndex,
-															visible: element.visible,
-															placeholder: inp.placeholder,
-															variant: inp.variant,
-															align: v as typeof inp.align,
-															binding: inp.binding,
-														})
-													}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="left">Left</SelectItem>
-										<SelectItem value="center">Center</SelectItem>
-										<SelectItem value="right">Right</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-1 col-span-2">
-								<Label className="text-xs">Binding</Label>
-								<Input
-									placeholder="invoice.customerName"
-									value={inp.binding ?? ""}
-													onChange={(e) =>
-														onChange({
-															id: element.id,
-															type: "input",
-															x: element.x,
-															y: element.y,
-															width: element.width,
-															height: element.height,
-															rotation: element.rotation,
-															zIndex: element.zIndex,
-															visible: element.visible,
-															placeholder: inp.placeholder,
-															variant: inp.variant,
-															align: inp.align,
-															binding: e.target.value,
-														})
-													}
-								/>
-							</div>
-						</div>
-					);
-				})()}
-				{common}
-			</div>
+			<InputProperties
+				element={inp}
+				onChange={onChange}
+				isNarrow={isNarrow}
+			/>
 		);
 	}
 	return (
