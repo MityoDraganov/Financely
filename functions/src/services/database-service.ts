@@ -490,8 +490,8 @@ export const databaseService: DatabaseService = {
 
 /**
  * Get the database service instance
- * 
- * @returns {DatabaseService} The database service
+ *
+ * @return {DatabaseService} The database service
  */
 export function getDatabaseService(): DatabaseService {
   return databaseService;

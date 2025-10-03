@@ -24,7 +24,7 @@ module.exports = {
   rules: {
     "quotes": ["warn", "double"],
     "import/no-unresolved": 0,
-    "indent": ["none", 2],
+    "indent": "off",
     // Relax style constraints to match project preferences
     "object-curly-spacing": "off",
     "max-len": [

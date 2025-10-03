@@ -117,6 +117,40 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             );
         }
 
+        if (el.type === "input") {
+            const inp = el as Extract<TemplateElement, { type: "input" }>;
+            // Get the bound value from context
+            const boundValue = inp.binding ? getByPath<unknown>(context, inp.binding) : undefined;
+            const displayValue = boundValue != null ? String(boundValue) : "";
+            
+            // Determine text alignment
+            const textAlign = inp.align || "left";
+            
+            return (
+                <div key={inp.id} style={commonStyle}>
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "4px",
+                            padding: `${4 * zoom}px ${8 * zoom}px`,
+                            fontSize: 12 * zoom,
+                            color: displayValue ? "#111827" : "#9ca3af",
+                            backgroundColor: "#ffffff",
+                            display: "flex",
+                            alignItems: "center",
+                            textAlign,
+                            overflow: "hidden",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        {displayValue || inp.placeholder || ""}
+                    </div>
+                </div>
+            );
+        }
+
         if (el.type === "table") {
             const tbl = el as Extract<TemplateElement, { type: "table" }>;
             const items = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];

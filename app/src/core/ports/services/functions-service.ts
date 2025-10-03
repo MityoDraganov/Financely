@@ -65,7 +65,6 @@ export interface FunctionsService {
   }): Promise<{ id: string }>;
 
   renderInvoicePdf(payload: {
-    templateVersionId: string;
     invoiceId: string;
   }): Promise<{ url: string }>;
 

@@ -8,10 +8,11 @@ import { useQuery } from "@tanstack/react-query";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { Download, Eye, Link as LinkIcon, Send } from "lucide-react";
+import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink } from "@/hooks";
+import { toast } from "sonner";
 
 const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesReposity(databaseService);
-const functionsService = serviceHost.getFunctionsService();
 
 export default function InvoiceDetailPage() {
     const { id = "" } = useParams();
@@ -24,35 +25,77 @@ export default function InvoiceDetailPage() {
         enabled: !!id,
     });
 
-    async function handlePreview() {
-        if (!invoice) return;
-        // For now, use a stub templateVersionId or derive later
-        const { url } = await functionsService.renderInvoicePdf({ templateVersionId: "latest", invoiceId: invoice.id });
-        setPreviewUrl(url);
-    }
+    const renderPdf = useRenderInvoicePdf();
+    const sendEmail = useSendInvoiceEmail();
+    const generateShareLink = useGenerateInvoiceShareLink();
 
-    async function handleDownload() {
+    const handlePreview = () => {
         if (!invoice) return;
-        const { url } = await functionsService.renderInvoicePdf({ templateVersionId: "latest", invoiceId: invoice.id });
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
-        a.rel = "noopener";
-        a.target = "_blank";
-        a.click();
-    }
+        
+        renderPdf.mutate(
+            { invoiceId: invoice.id },
+            {
+                onSuccess: (result) => {
+                    setPreviewUrl(result.url);
+                },
+                onError: (error) => {
+                    toast.error(`Failed to generate preview: ${error.message}`);
+                },
+            }
+        );
+    };
 
-    async function handleSendEmail() {
+    const handleDownload = () => {
+        if (!invoice) return;
+        
+        renderPdf.mutate(
+            { invoiceId: invoice.id },
+            {
+                onSuccess: (result) => {
+                    window.open(result.url, "_blank");
+                    toast.success("PDF generated successfully!");
+                },
+                onError: (error) => {
+                    toast.error(`Failed to generate PDF: ${error.message}`);
+                },
+            }
+        );
+    };
+
+    const handleSendEmail = () => {
         if (!invoice || !email) return;
-        await functionsService.sendInvoiceEmail({ invoiceId: invoice.id, toEmail: email });
-        setEmail("");
-    }
+        
+        sendEmail.mutate(
+            { invoiceId: invoice.id, toEmail: email },
+            {
+                onSuccess: () => {
+                    toast.success(`Invoice sent to ${email}`);
+                    setEmail("");
+                },
+                onError: (error) => {
+                    toast.error(`Failed to send email: ${error.message}`);
+                },
+            }
+        );
+    };
 
-    async function handleShareLink() {
+    const handleGenerateShareLink = () => {
         if (!invoice) return;
-        const { url } = await functionsService.generateInvoiceShareLink({ invoiceId: invoice.id });
-        await navigator.clipboard.writeText(url);
-    }
+        
+        generateShareLink.mutate(
+            { invoiceId: invoice.id },
+            {
+                onSuccess: (result) => {
+                    navigator.clipboard.writeText(result.url);
+                    toast.success("Share link copied to clipboard!");
+                },
+                onError: (error) => {
+                    toast.error(`Failed to generate link: ${error.message}`);
+                },
+            }
+        );
+    };
+
 
     return (
         <div className="container mx-auto py-8">
@@ -69,14 +112,29 @@ export default function InvoiceDetailPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="flex items-center gap-3">
-                                <Button className="btn-secondary" onClick={handlePreview}>
-                                    <Eye className="mr-2 h-4 w-4" /> Preview
+                                <Button 
+                                    className="btn-secondary" 
+                                    onClick={handlePreview}
+                                    disabled={renderPdf.isPending}
+                                >
+                                    <Eye className="mr-2 h-4 w-4" /> 
+                                    {renderPdf.isPending ? "Loading..." : "Preview"}
                                 </Button>
-                                <Button className="btn-primary" onClick={handleDownload}>
-                                    <Download className="mr-2 h-4 w-4" /> Download PDF
+                                <Button 
+                                    className="btn-primary" 
+                                    onClick={handleDownload}
+                                    disabled={renderPdf.isPending}
+                                >
+                                    <Download className="mr-2 h-4 w-4" /> 
+                                    {renderPdf.isPending ? "Generating..." : "Download PDF"}
                                 </Button>
-                                <Button variant="outline" onClick={handleShareLink}>
-                                    <LinkIcon className="mr-2 h-4 w-4" /> Copy share link
+                                <Button 
+                                    variant="outline" 
+                                    onClick={handleGenerateShareLink}
+                                    disabled={generateShareLink.isPending}
+                                >
+                                    <LinkIcon className="mr-2 h-4 w-4" /> 
+                                    {generateShareLink.isPending ? "Generating..." : "Copy share link"}
                                 </Button>
                             </div>
                         </CardContent>
@@ -94,8 +152,13 @@ export default function InvoiceDetailPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
-                            <Button className="btn-primary" onClick={handleSendEmail} disabled={!email}>
-                                <Send className="mr-2 h-4 w-4" /> Send
+                            <Button 
+                                className="btn-primary" 
+                                onClick={handleSendEmail} 
+                                disabled={!email || sendEmail.isPending}
+                            >
+                                <Send className="mr-2 h-4 w-4" /> 
+                                {sendEmail.isPending ? "Sending..." : "Send"}
                             </Button>
                         </CardContent>
                     </Card>
@@ -120,6 +183,7 @@ export default function InvoiceDetailPage() {
         </div>
     );
 }
+
 
 
 

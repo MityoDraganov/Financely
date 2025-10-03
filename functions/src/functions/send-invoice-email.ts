@@ -20,7 +20,3 @@ export const sendInvoiceEmail = onCall<Payload>(
     return { sent: true };
   },
 );
-
-
-
-

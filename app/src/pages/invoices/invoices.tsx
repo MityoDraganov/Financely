@@ -1,13 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
+import { useRenderInvoicePdf } from "@/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { serviceHost } from "@/services";
 import type { Invoice } from "@/core/entities/invoice";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 // Helper to safely get a value from dynamic invoice data
 function getInvoiceValue(invoice: Invoice, path: string): string {
@@ -92,9 +93,26 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const { data: invoices, isLoading, isError } = useInvoices();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const functionsService = serviceHost.getFunctionsService();
+  const renderPdf = useRenderInvoicePdf();
 
   const handleCreate = () => navigate("/create-invoice");
+
+  const handleGeneratePdf = (invoiceId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    renderPdf.mutate(
+      { invoiceId },
+      {
+        onSuccess: (result) => {
+          toast.success("PDF generated successfully!");
+          window.open(result.url, "_blank");
+        },
+        onError: (error) => {
+          toast.error(`Failed to generate PDF: ${error.message}`);
+        },
+      }
+    );
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -172,20 +190,11 @@ export default function InvoicesPage() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        functionsService
-                          .renderInvoicePdf({
-                            templateVersionId: invoice.templateVersionId || "latest",
-                            invoiceId: invoice.id,
-                          })
-                          .then(({ url }) => setPreviewUrl(url))
-                          .catch((error) => {
-                            console.error("Failed to render PDF:", error);
-                          });
-                      }}
+                      onClick={(e) => handleGeneratePdf(invoice.id, e)}
+                      disabled={renderPdf.isPending}
                     >
-                      Preview
+                      <Download className="mr-1 h-3 w-3" />
+                      {renderPdf.isPending ? "Generating..." : "PDF"}
                     </Button>
                     <Button
                       size="sm"

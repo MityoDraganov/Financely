@@ -5,10 +5,10 @@ import { loggerService } from "../services/logger-service";
 
 /**
  * Firebase Cloud Function for creating an invoice.
- * 
+ *
  * This function accepts dynamic invoice data based on templates and creates
  * an invoice record in the database.
- * 
+ *
  * Request payload structure:
  * {
  *   orgId: string,
@@ -34,9 +34,9 @@ import { loggerService } from "../services/logger-service";
  *   status?: "draft" | "sent" | "paid" | "cancelled",
  *   notes?: string
  * }
- * 
+ *
  * Response: string (invoice ID)
- * 
+ *
  * @example
  * // Client call
  * const createInvoice = httpsCallable(functions, 'createInvoice');
