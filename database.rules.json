@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "templates": {
+      ".indexOn": ["orgId"],
+      "$templateId": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
+

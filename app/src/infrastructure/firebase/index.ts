@@ -1,7 +1,6 @@
 import { FirebaseApp, FirebaseOptions, initializeApp } from "@firebase/app";
 import { Auth, browserLocalPersistence, initializeAuth } from "@firebase/auth";
-
-import { Database, getDatabase } from "@firebase/database";
+import { Database, getDatabase} from "@firebase/database";
 import { Firestore, getFirestore } from "@firebase/firestore";
 import { Functions, getFunctions } from "@firebase/functions";
 import { FirebaseStorage, getStorage } from "@firebase/storage";

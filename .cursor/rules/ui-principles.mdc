@@ -1,0 +1,98 @@
+---
+alwaysApply: true
+---
+
+# 🧭 UI Depth & Hierarchy Rulebook
+
+### Purpose
+Guidelines to fix boring UIs, avoid annoying color combos, and create visual depth, hierarchy, and emotional balance.
+
+---
+
+## 1. Foundations — “3D Perception” Framework
+
+### **Z-Space Layers**
+| Layer | Purpose | Example |
+|-------|----------|----------|
+| **Z-0 (Background)** | Canvas base | Neutral `#f8f9fa` / `#0a0a0a` |
+| **Z-1 (Surface)** | Cards, containers | Slightly raised `shadow-sm` |
+| **Z-2 (Interactive)** | Buttons, inputs | Higher contrast `shadow-md` |
+| **Z-3 (Floating)** | Modals, tooltips | Full elevation `shadow-xl` |
+
+> ✅ Keep consistent elevation increments; avoid global heavy shadows.
+
+---
+
+### **Typographic Hierarchy**
+| Role | Size | Weight | Example |
+|------|------|---------|----------|
+| Title / H1 | 28–36px | 700–800 | `text-3xl font-bold` |
+| Section Heading | 18–22px | 600 | `text-xl font-semibold` |
+| Body | 14–16px | 400–500 | `text-base` |
+| Caption | 12px | 400 | `text-xs text-muted-foreground` |
+
+> If the layout works in grayscale, the hierarchy is correct.
+
+---
+
+### **Spacing Rhythm**
+Use consistent scales → `4, 8, 16, 24, 32px`
+
+| Element | Padding / Margin |
+|----------|------------------|
+| Section | 48px top/bottom |
+| Card | 24px |
+| Item | 12px |
+| Icon gap | 8px |
+
+---
+
+## 2. Color System — Fixing Annoying Combos
+
+# Saturation Control
+Keep surfaces desaturated (5–10%)
+Use vivid color only for actions/highlights
+Maintain text contrast > 4.5:1
+
+# Practical Notes
+Depth = layering + light. Use shadows, borders, and blurs sparingly.
+Hierarchy = contrast + spacing + scale.
+Emotion = controlled saturation + rhythm.
+TL;DR — Depth through Z-space, clarity through hierarchy, calm through color discipline.
+
+### **Palette Rule (3-1-1)**
+- 3 **neutrals** (background, surface, border)
+- 1 **primary**
+- 1 **accent** *(optional)*
+
+Example:
+```js
+{
+  background: "#0f1115",
+  surface: "#1b1e24",
+  border: "#2a2d35",
+  primary: "#166534",
+  accent: "#2dd4bf"
+}
+
+
+/* ----------------------------
+   Shadows & Depth (Actual Code)
+   ---------------------------- */
+
+.combined {
+  /* Layered shadow for realistic depth */
+  box-shadow:
+    0px 4px 4px #00000030,   /* strong near shadow */
+    0px 12px 12px #00000015; /* soft far shadow */
+}
+
+.dark {
+  /* Deeper contrast shadow */
+  box-shadow: 0px 4px 4px #00000030;
+}
+
+.light {
+  /* Subtle ambient shadow */
+  box-shadow: 0px 12px 12px #00000015;
+}

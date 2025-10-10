@@ -71,6 +71,13 @@ type DragState = {
 	startHeight?: number;
 };
 
+type SnapGuide = {
+	type: "horizontal" | "vertical";
+	position: number;
+	start: number;
+	end: number;
+};
+
 export default function TemplateDesignerPage() {
 	const queryClient = useQueryClient();
 	const [state, setState] = useState<DesignerState>({ zoom: 1 });
@@ -78,13 +85,14 @@ export default function TemplateDesignerPage() {
 	const [draftElements, setDraftElements] = useState<
 		TemplateElement[] | null
 	>(null);
+	const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const propertiesRef = useRef<HTMLDivElement | null>(null);
 	const [isPropsNarrow, setIsPropsNarrow] = useState(false);
-	const { data: templates = [] } = useTemplates();
-	console.log("templates", templates);
+	const { data: templates = [], isSubscribed } = useTemplates("demo-org");
+	console.log("templates", templates, "realtime subscribed:", isSubscribed);
 
 	const currentTemplate = useMemo(() => {
 		return (
@@ -139,7 +147,7 @@ export default function TemplateDesignerPage() {
 			await templateService.updateDraft(currentTemplate.id, partial);
 		},
 		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: ["templates"] }),
+			queryClient.invalidateQueries({ queryKey: ["templates", "demo-org"] }),
 	});
 
 	const createMutation = useMutation({
@@ -161,11 +169,18 @@ export default function TemplateDesignerPage() {
 				elements: [],
 				status: "draft",
 			};
-			return templateService.createDraft(empty);
+			console.log("[CREATE] creating new template...");
+			const id = await templateService.createDraft(empty);
+			console.log("[CREATE] template created with id:", id);
+			return id;
 		},
 		onSuccess: (id: string) => {
+			console.log("[CREATE] onSuccess called with id:", id);
 			setState((s: DesignerState) => ({ ...s, currentTemplateId: id }));
-			queryClient.invalidateQueries({ queryKey: ["templates"] });
+			queryClient.invalidateQueries({ queryKey: ["templates", "demo-org"] });
+		},
+		onError: (error) => {
+			console.error("[CREATE] failed to create template:", error);
 		},
 	});
 
@@ -179,6 +194,132 @@ export default function TemplateDesignerPage() {
 const PAGE_WIDTH = 794;
 const PAGE_HEIGHT = 1123;
 const PROPS_NARROW_BREAKPOINT_PX = 520;
+const SNAP_THRESHOLD = 5; // pixels
+
+	function calculateSnapPositions(
+		draggingElement: TemplateElement,
+		allElements: TemplateElement[],
+		dragX: number,
+		dragY: number
+	): {
+		snappedX: number;
+		snappedY: number;
+		guides: SnapGuide[];
+	} {
+		const guides: SnapGuide[] = [];
+		let snappedX = dragX;
+		let snappedY = dragY;
+
+		// Calculate edges of dragging element
+		const dragLeft = dragX;
+		const dragRight = dragX + draggingElement.width;
+		const dragTop = dragY;
+		const dragBottom = dragY + draggingElement.height;
+		const dragCenterX = dragX + draggingElement.width / 2;
+		const dragCenterY = dragY + draggingElement.height / 2;
+
+		let bestXSnap: { distance: number; position: number; otherElement: TemplateElement } | null = null;
+		let bestYSnap: { distance: number; position: number; otherElement: TemplateElement } | null = null;
+
+		// Check against all other elements
+		for (const el of allElements) {
+			if (el.id === draggingElement.id) continue;
+
+			const elLeft = el.x;
+			const elRight = el.x + el.width;
+			const elTop = el.y;
+			const elBottom = el.y + el.height;
+			const elCenterX = el.x + el.width / 2;
+			const elCenterY = el.y + el.height / 2;
+
+			// Check vertical alignments (X axis)
+			const xAlignments = [
+				{ dragPos: dragLeft, elPos: elLeft, name: "left-left" },
+				{ dragPos: dragLeft, elPos: elRight, name: "left-right" },
+				{ dragPos: dragRight, elPos: elLeft, name: "right-left" },
+				{ dragPos: dragRight, elPos: elRight, name: "right-right" },
+				{ dragPos: dragCenterX, elPos: elCenterX, name: "center-center" },
+			];
+
+			for (const align of xAlignments) {
+				const distance = Math.abs(align.dragPos - align.elPos);
+				if (distance <= SNAP_THRESHOLD && (!bestXSnap || distance < bestXSnap.distance)) {
+					const offset = align.dragPos - dragX;
+					bestXSnap = {
+						distance,
+						position: align.elPos - offset,
+						otherElement: el,
+					};
+				}
+			}
+
+			// Check horizontal alignments (Y axis)
+			const yAlignments = [
+				{ dragPos: dragTop, elPos: elTop, name: "top-top" },
+				{ dragPos: dragTop, elPos: elBottom, name: "top-bottom" },
+				{ dragPos: dragBottom, elPos: elTop, name: "bottom-top" },
+				{ dragPos: dragBottom, elPos: elBottom, name: "bottom-bottom" },
+				{ dragPos: dragCenterY, elPos: elCenterY, name: "center-center" },
+			];
+
+			for (const align of yAlignments) {
+				const distance = Math.abs(align.dragPos - align.elPos);
+				if (distance <= SNAP_THRESHOLD && (!bestYSnap || distance < bestYSnap.distance)) {
+					const offset = align.dragPos - dragY;
+					bestYSnap = {
+						distance,
+						position: align.elPos - offset,
+						otherElement: el,
+					};
+				}
+			}
+		}
+
+		// Apply snapping
+		if (bestXSnap) {
+			snappedX = bestXSnap.position;
+			const snappedCenterX = snappedX + draggingElement.width / 2;
+			const otherCenterX = bestXSnap.otherElement.x + bestXSnap.otherElement.width / 2;
+			
+			// Determine guide position based on alignment type
+			let guideX = snappedX;
+			if (Math.abs(snappedCenterX - otherCenterX) < 1) {
+				guideX = snappedCenterX;
+			} else if (Math.abs((snappedX + draggingElement.width) - (bestXSnap.otherElement.x + bestXSnap.otherElement.width)) < 1) {
+				guideX = snappedX + draggingElement.width;
+			}
+
+			guides.push({
+				type: "vertical",
+				position: guideX,
+				start: Math.min(dragY, bestXSnap.otherElement.y),
+				end: Math.max(dragY + draggingElement.height, bestXSnap.otherElement.y + bestXSnap.otherElement.height),
+			});
+		}
+
+		if (bestYSnap) {
+			snappedY = bestYSnap.position;
+			const snappedCenterY = snappedY + draggingElement.height / 2;
+			const otherCenterY = bestYSnap.otherElement.y + bestYSnap.otherElement.height / 2;
+			
+			// Determine guide position based on alignment type
+			let guideY = snappedY;
+			if (Math.abs(snappedCenterY - otherCenterY) < 1) {
+				guideY = snappedCenterY;
+			} else if (Math.abs((snappedY + draggingElement.height) - (bestYSnap.otherElement.y + bestYSnap.otherElement.height)) < 1) {
+				guideY = snappedY + draggingElement.height;
+			}
+
+			guides.push({
+				type: "horizontal",
+				position: guideY,
+				start: Math.min(dragX, bestXSnap?.otherElement?.x ?? bestYSnap.otherElement.x),
+				end: Math.max(dragX + draggingElement.width, bestXSnap?.otherElement ? bestXSnap.otherElement.x + bestXSnap.otherElement.width : bestYSnap.otherElement.x + bestYSnap.otherElement.width),
+			});
+		}
+
+		return { snappedX, snappedY, guides };
+	}
 
 	function clampMove(x: number, y: number, width: number, height: number) {
 		const maxX = Math.max(0, PAGE_WIDTH - width);
@@ -244,23 +385,40 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 				"[DND] no current template; creating one before drop..."
 			);
 			try {
+				// Try to ensure authentication for better security, but don't block if it fails
 				if (!firebase.auth.currentUser) {
-					console.log(
-						"[AUTH] signing in anonymously before creating template..."
-					);
-					await signInAnonymously(firebase.auth);
+					try {
+						console.log(
+							"[AUTH] attempting anonymous sign-in..."
+						);
+						await signInAnonymously(firebase.auth);
+						console.log("[AUTH] signed in anonymously");
+					} catch (authErr) {
+						console.warn(
+							"[AUTH] anonymous sign-in failed, continuing without auth:",
+							authErr
+						);
+						// Continue without auth for development/demo purposes
+					}
 				}
+				console.log("[DND] calling createMutation.mutateAsync...");
 				const newId = await (
 					createMutation as unknown as {
 						mutateAsync: () => Promise<string | undefined>;
 					}
 				).mutateAsync();
+				console.log("[DND] mutateAsync returned:", newId);
 				if (newId && typeof newId === "string") {
 					setState((s: DesignerState) => ({
 						...s,
 						currentTemplateId: newId,
 					}));
-					console.log("[DND] created template", newId);
+					console.log("[DND] set currentTemplateId to", newId);
+					// Wait a bit for the template to be available
+					await new Promise(resolve => setTimeout(resolve, 500));
+				} else {
+					console.error("[DND] invalid template id returned:", newId);
+					return;
 				}
 			} catch (err) {
 				console.error("[DND] failed to create template for drop", err);
@@ -476,20 +634,39 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 		function handlePointerMove(ev: PointerEvent) {
 			const dx = (ev.clientX - startClientX) / state.zoom;
 			const dy = (ev.clientY - startClientY) / state.zoom;
+			
 			setDraftElements((prev: TemplateElement[] | null) => {
 				const base = prev ?? currentTemplateRef.current?.elements ?? [];
+				const draggingElement = base.find((item) => item.id === elementId);
+				if (!draggingElement) return base;
+
 				return base.map((item) => {
 					if (item.id !== elementId) return item;
 					if (mode === "move") {
+						const rawX = startX + dx;
+						const rawY = startY + dy;
+						
+						// Calculate snapping with guides
+						const { snappedX, snappedY, guides } = calculateSnapPositions(
+							draggingElement,
+							base,
+							rawX,
+							rawY
+						);
+						
+						// Update snap guides
+						setSnapGuides(guides);
+						
 						const clamped = clampMove(
-							startX + dx,
-							startY + dy,
+							snappedX,
+							snappedY,
 							item.width,
 							item.height
 						);
 						return { ...item, x: clamped.x, y: clamped.y };
 					}
-					// resize logic
+					// resize logic - clear snap guides during resize
+					setSnapGuides([]);
 					let nextX = startX;
 					let nextY = startY;
 					let nextW = startWidth ?? item.width;
@@ -526,6 +703,7 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 			}
 			setDrag(null);
 			setDraftElements(null);
+			setSnapGuides([]);
 		}
 
 		window.addEventListener("pointermove", handlePointerMove);
@@ -745,6 +923,12 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 									))}
 								</SelectContent>
 							</Select>
+							{isSubscribed && (
+								<div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+									<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+									<span>Live</span>
+								</div>
+							)}
 							<div className="ml-auto flex items-center gap-2">
 								<Select
 									value={String(state.zoom)}
@@ -839,6 +1023,31 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 									onDragOver={handleCanvasDragOver}
 									onDrop={handleCanvasDrop}
 								/>
+								{/* snap guides */}
+								{snapGuides.map((guide, idx) => (
+									<div
+										key={`snap-${idx}`}
+										className="absolute pointer-events-none"
+										style={{
+											...(guide.type === "vertical"
+												? {
+														left: guide.position * state.zoom,
+														top: guide.start * state.zoom,
+														width: 1,
+														height: (guide.end - guide.start) * state.zoom,
+													}
+												: {
+														left: guide.start * state.zoom,
+														top: guide.position * state.zoom,
+														width: (guide.end - guide.start) * state.zoom,
+														height: 1,
+													}),
+											backgroundColor: "#8b5cf6",
+											boxShadow: "0 0 0 0.5px rgba(139, 92, 246, 0.5)",
+											zIndex: 9999,
+										}}
+									/>
+								))}
 								{/* elements */}
 								{(
 							(draftElements ?? currentTemplate?.elements ?? [])

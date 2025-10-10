@@ -2,6 +2,7 @@
   "DEV_FirebaseConfig": {
     "apiKey": "AIzaSyC5E4VmX41e2o6buhkU674stF7wnWmohZo",
     "authDomain": "invoicegenerator-8d7ce.firebaseapp.com",
+    "databaseURL": "https://invoicegenerator-8d7ce-default-rtdb.europe-west1.firebasedatabase.app",
     "projectId": "invoicegenerator-8d7ce",
     "storageBucket": "invoicegenerator-8d7ce.firebasestorage.app",
     "messagingSenderId": "838027233150",

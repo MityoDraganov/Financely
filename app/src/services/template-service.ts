@@ -1,5 +1,5 @@
 import { Template, TemplateData, TemplateVersion, TemplateVersionData } from "@/core";
-import { getTemplateRepository } from "@/repositories/template-repository";
+import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
 import { getTemplateVersionRepository } from "@/repositories/template-version-repository";
 import { databaseService } from "./database/database-service";
 
@@ -12,7 +12,9 @@ export type TemplateService = {
   listVersions: (templateId: string) => Promise<TemplateVersion[]>;
 };
 
-const templateRepository = getTemplateRepository(databaseService);
+// Templates use Realtime Database for collaborative editing
+const templateRepository = getTemplateRealtimeRepository();
+// Versions stay on Firestore for historical records
 const templateVersionRepository = getTemplateVersionRepository(databaseService);
 
 export const templateService: TemplateService = {

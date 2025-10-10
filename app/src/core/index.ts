@@ -1,5 +1,7 @@
 // Entities
 export * from "./entities/base";
+export * from "./entities/organization";
+export * from "./entities/user";
 export * from "./entities/proposal";
 export * from "./entities/invoice";
 export * from "./entities/buyer";
@@ -11,6 +13,8 @@ export * from "./ports/repositories/utilities";
 export * from "./ports/repositories/generic-repository";
 export * from "./ports/repositories/proposal-repository";
 export * from "./ports/repositories/invoice-repository";
+export * from "./ports/repositories/organization-repository";
+export * from "./ports/repositories/user-repository";
 
 // Ports - Services
 export * from "./ports/services/database-service";

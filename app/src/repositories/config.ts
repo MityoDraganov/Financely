@@ -3,5 +3,7 @@ export enum DatabaseCollection {
   INVOICES = "invoices",
   TEMPLATES = "templates",
   TEMPLATE_VERSIONS = "templateVersions",
+  ORGANIZATIONS = "organizations",
+  USERS = "users",
 }
 

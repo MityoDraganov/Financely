@@ -1,12 +1,16 @@
 import { DatabaseService } from "../services/database-service";
-import { ProposalRepository } from "./proposal-repository";
 import { InvoiceRepository } from "./invoice-repository";
+import { OrganizationRepository } from "./organization-repository";
+import { UserRepository } from "./user-repository";
 
 export interface RepositoryHost {
-    getProposalRepository: (
-      databaseService: DatabaseService,
-    ) => ProposalRepository;
     getInvoiceRepository: (
       databaseService: DatabaseService,
     ) => InvoiceRepository;
+    getOrganizationsRepository: (
+      databaseService: DatabaseService,
+    ) => OrganizationRepository;
+    getUsersRepository: (
+      databaseService: DatabaseService,
+    ) => UserRepository;
 }
