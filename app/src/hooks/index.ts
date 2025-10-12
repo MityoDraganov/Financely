@@ -10,3 +10,4 @@ export * from "./service-hooks/use-invoice-functions";
 // Utility hooks
 export * from "./use-onboarding";
 
+export * from "./service-hooks/auth/use-auth";

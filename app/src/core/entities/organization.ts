@@ -45,6 +45,55 @@ export const organizationDataSchema = z.object({
           accent: "#10b981",
         }),
       
+      // Advanced branding and white-label options
+      branding: z
+        .object({
+          customLogo: z.string().url().optional(),
+          customFavicon: z.string().url().optional(),
+          companyName: z.string().optional(), // Override app name
+          customDomain: z.string().optional(), // For white-label
+          emailFromName: z.string().optional(),
+          emailFromAddress: z.string().email().optional(),
+          footerText: z.string().optional(),
+          socialLinks: z.object({
+            twitter: z.string().optional(),
+            linkedin: z.string().optional(),
+            facebook: z.string().optional()
+          }).optional()
+        })
+        .optional(),
+      
+      // Security settings
+      security: z
+        .object({
+          ssoEnabled: z.boolean().default(false),
+          samlConfig: z.object({
+            metadataUrl: z.string().optional(),
+            certificate: z.string().optional(),
+            attributeMapping: z.record(z.string()).optional(),
+          }).optional(),
+        })
+        .default({
+          ssoEnabled: false,
+        }),
+      
+      // Custom roles for the organization
+      customRoles: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        permissions: z.array(z.enum([
+          "invoices.create", "invoices.read", "invoices.update", "invoices.delete",
+          "templates.create", "templates.read", "templates.update", "templates.delete",
+          "users.create", "users.read", "users.update", "users.delete",
+          "settings.read", "settings.update",
+          "billing.read", "billing.update",
+          "organizations.read", "organizations.update"
+        ])),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+      })).default([]),
+      
       // Defaults for invoices and documents
       defaultCurrency: z.string().default("USD"),
       defaultLanguage: z.string().default("en"),

@@ -119,6 +119,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             secondary: "#6b7280",
             accent: "#10b981",
           },
+          security: {
+            ssoEnabled: false,
+          },
+          customRoles: [],
           defaultCurrency: "USD",
           defaultLanguage: "en",
           defaultTimezone: "UTC",

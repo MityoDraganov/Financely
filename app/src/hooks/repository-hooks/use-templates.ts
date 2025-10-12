@@ -16,27 +16,47 @@ export const useTemplates = (orgId: string = "demo-org") => {
 	// Initial fetch
 	const query = useQuery({
 		queryKey: ["templates", orgId],
-		queryFn: () => templateRepository.getAll({
-			queryConstraints: [{ field: "orgId", operator: "==", value: orgId }],
-		}),
+		queryFn: async () => {
+			console.log("[USE-TEMPLATES] Initial fetch for orgId:", orgId);
+			const result = await templateRepository.getAll({
+				queryConstraints: [{ field: "orgId", operator: "==", value: orgId }],
+			});
+			console.log("[USE-TEMPLATES] Initial fetch result:", result);
+			return result;
+		},
 	});
 
 	// Real-time subscription for collaborative updates
 	useEffect(() => {
-		if (!orgId) return;
+		if (!orgId) {
+			console.log("[USE-TEMPLATES] No orgId provided, skipping subscription");
+			return;
+		}
 
+		console.log("[USE-TEMPLATES] Setting up subscription for orgId:", orgId);
 		setIsSubscribed(true);
 
-		const unsubscribe = templateRepository.subscribeToAll(
-			orgId,
-			(templates: Template[]) => {
-				// Update the React Query cache with real-time data
-				queryClient.setQueryData(["templates", orgId], templates);
-			}
-		);
+		let unsubscribe: (() => void) | null = null;
+		
+		try {
+			unsubscribe = templateRepository.subscribeToAll(
+				orgId,
+				(templates: Template[]) => {
+					console.log("[USE-TEMPLATES] Real-time update received:", templates.length, "templates");
+					// Update the React Query cache with real-time data
+					queryClient.setQueryData(["templates", orgId], templates);
+				}
+			);
+		} catch (error) {
+			console.error("[USE-TEMPLATES] Failed to set up subscription:", error);
+			setIsSubscribed(false);
+		}
 
 		return () => {
-			unsubscribe();
+			console.log("[USE-TEMPLATES] Cleaning up subscription for orgId:", orgId);
+			if (unsubscribe) {
+				unsubscribe();
+			}
 			setIsSubscribed(false);
 		};
 	}, [orgId, queryClient]);

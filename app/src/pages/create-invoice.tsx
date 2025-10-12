@@ -4,12 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateInvoice } from "@/hooks";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { TemplateElement } from "@/core";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { FileText, Plus, Loader2 } from "lucide-react";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 
 type BindingField = {
@@ -35,7 +38,8 @@ type TableRow = Record<string, InvoiceDataValue>;
 export default function CreateInvoicePage() {
   const navigate = useNavigate();
   const createInvoice = useCreateInvoice();
-  const { data: templates } = useTemplates();
+  const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
+  const { data: templates, isLoading: isTemplatesLoading, isSubscribed } = useTemplates(currentOrganization?.id);
   
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, InvoiceDataValue>>({});
@@ -167,9 +171,14 @@ export default function CreateInvoicePage() {
       return;
     }
 
+    if (!currentOrganization) {
+      toast.error("Organization not found. Please try again.");
+      return;
+    }
+
     try {
       const result = await createInvoice.mutateAsync({
-        orgId: "default-org", // TODO: Get from auth context
+        orgId: currentOrganization.id,
         templateId: selectedTemplate.id,
         data: formData,
         status: "draft",
@@ -253,159 +262,305 @@ export default function CreateInvoicePage() {
     );
   };
 
-  return (
-    <div className="container mx-auto py-8">
-      <div className="mb-8 rounded-[32px] bg-gradient-to-r from-[#eafcff] to-white p-6 md:p-10 border border-custom">
-        <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-3">
-          Create Invoice
-        </h1>
-        <p className="text-gray max-w-2xl">
-          Select a template and fill in the details. Your invoice will be generated based on the template design.
-        </p>
+  // Show loading state while organization or templates are loading
+  if (isOrgLoading || isTemplatesLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <Skeleton className="h-96" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-32" />
+              <Skeleton className="h-64" />
+            </div>
+          </div>
+        </div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Live Preview */}
-        <div className="lg:col-span-2">
-          <Card className="card-large">
-            <CardHeader>
-              <CardTitle>Live Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {selectedTemplate ? (
-                <div className="w-full overflow-auto">
-                  <TemplatePreview
-                    template={selectedTemplate}
-                    context={formData}
-                    zoom={0.95}
-                  />
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  Select a template to preview your invoice
-                </div>
-              )}
+  // Show error state if no organization
+  if (!currentOrganization) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-6 max-w-7xl">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <FileText className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Organization Required</h3>
+              <p className="text-muted-foreground mb-6">
+                You need to be part of an organization to create invoices.
+              </p>
+              <Button onClick={() => navigate("/dashboard")}>
+                Go to Dashboard
+              </Button>
             </CardContent>
           </Card>
         </div>
+      </div>
+    );
+  }
 
-        {/* Form Sidebar */}
-        <div className="lg:col-span-1">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {/* Template Selection */}
-            <Card className="card-large">
-              <CardHeader>
-                <CardTitle>Template</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Label>Choose a template</Label>
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(templates ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+  // Show error state if no templates
+  if (!isTemplatesLoading && (!templates || templates.length === 0)) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-6 max-w-7xl">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold tracking-tight">Create Invoice</h1>
+              <p className="text-muted-foreground">
+                Create a new invoice using your templates
+              </p>
+            </div>
+            
+            <Card>
+              <CardContent className="p-12 text-center">
+                <FileText className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Templates Available</h3>
+                <p className="text-muted-foreground mb-6">
+                  You need to create a template before you can create invoices.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button onClick={() => navigate("/designer")}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Template
+                  </Button>
+                  <Button variant="outline" onClick={() => navigate("/dashboard")}>
+                    Go to Dashboard
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-            {/* Dynamic Fields */}
-            {bindings.length > 0 && (
-              <Card className="card-large">
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+        {/* Header Section */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Create Invoice</h1>
+          <p className="text-muted-foreground">
+            Select a template and fill in the details. Your invoice will be generated based on the template design.
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Live Preview */}
+          <div className="lg:col-span-2">
+            <Card className="h-fit">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Live Preview</CardTitle>
+                  {isSubscribed && (
+                    <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <span>Live sync</span>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {selectedTemplate ? (
+                  <div className="w-full overflow-auto border rounded-lg">
+                    <TemplatePreview
+                      template={selectedTemplate}
+                      context={formData}
+                      zoom={0.8}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Select a Template</h3>
+                    <p className="text-muted-foreground">
+                      Choose a template from the sidebar to preview your invoice
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Form Sidebar */}
+          <div className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Template Selection */}
+              <Card>
                 <CardHeader>
-                  <CardTitle>Invoice Details</CardTitle>
+                  <CardTitle>Template</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {bindings.map((field) => (
-                    <div key={field.path}>
-                      <Label>{field.label}</Label>
-                      <Input
-                        type={field.type}
-                        value={String(getValue(field.path) ?? "")}
-                        onChange={(e) => {
-                          const val: InvoiceDataValue =
-                            field.type === "number"
-                              ? Number(e.target.value)
-                              : e.target.value;
-                          setValue(field.path, val);
-                        }}
-                      />
+                  <div>
+                    <Label>Choose a template</Label>
+                    <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(templates ?? []).map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            <div className="flex items-center space-x-2">
+                              <FileText className="h-4 w-4" />
+                              <span>{t.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {selectedTemplate && (
+                    <div className="text-sm text-muted-foreground">
+                      <p><strong>Description:</strong> {selectedTemplate.description || "No description"}</p>
+                      <p><strong>Status:</strong> {selectedTemplate.status || "Active"}</p>
                     </div>
-                  ))}
+                  )}
                 </CardContent>
               </Card>
-            )}
 
-            {/* Dynamic Tables - render a card for each table in template */}
-            {tableConfigs.map((tableConfig, tableIndex) => {
-              const tableItems = getTableItems(tableConfig.itemsPath);
-              const tableLabel = tableConfig.itemsPath
-                .split(".")
-                .pop()!
-                .replace(/([A-Z])/g, " $1")
-                .replace(/^./, (c) => c.toUpperCase());
-              
-              return (
-                <Card key={`table-${tableIndex}`} className="card-large">
+              {/* Dynamic Fields */}
+              {bindings.length > 0 && (
+                <Card>
                   <CardHeader>
-                    <CardTitle>{tableLabel}</CardTitle>
+                    <CardTitle>Invoice Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {tableItems.map((row, rowIndex) => (
-                      <div key={rowIndex} className="p-4 border rounded-lg space-y-3">
-                        {tableConfig.columns.map((col) => (
-                          <div key={col.id}>
-                            <Label>{col.header}</Label>
-                            <Input
-                              type={col.type}
-                              value={String(row[col.binding] ?? "")}
-                              onChange={(e) => {
-                                const val: InvoiceDataValue =
-                                  col.type === "number"
-                                    ? Number(e.target.value)
-                                    : e.target.value;
-                                updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
-                              }}
-                            />
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeTableRow(tableConfig.itemsPath, rowIndex)}
-                        >
-                          Remove
-                        </Button>
+                    {bindings.map((field) => (
+                      <div key={field.path} className="space-y-2">
+                        <Label htmlFor={field.path}>{field.label}</Label>
+                        <Input
+                          id={field.path}
+                          type={field.type}
+                          value={String(getValue(field.path) ?? "")}
+                          onChange={(e) => {
+                            const val: InvoiceDataValue =
+                              field.type === "number"
+                                ? Number(e.target.value)
+                                : e.target.value;
+                            setValue(field.path, val);
+                          }}
+                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                        />
                       </div>
                     ))}
-                    
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => addTableRow(tableConfig.itemsPath, tableConfig.columns)}
-                    >
-                      Add {tableLabel.slice(0, -1) || "Row"}
-                    </Button>
                   </CardContent>
                 </Card>
-              );
-            })}
+              )}
 
-            {/* Submit */}
-            <Button
-              type="submit"
-              className="btn-primary"
-              disabled={createInvoice.isPending || !selectedTemplate}
-            >
-              {createInvoice.isPending ? "Creating..." : "Create Invoice"}
-            </Button>
-          </form>
+              {/* Dynamic Tables - render a card for each table in template */}
+              {tableConfigs.map((tableConfig, tableIndex) => {
+                const tableItems = getTableItems(tableConfig.itemsPath);
+                const tableLabel = tableConfig.itemsPath
+                  .split(".")
+                  .pop()!
+                  .replace(/([A-Z])/g, " $1")
+                  .replace(/^./, (c) => c.toUpperCase());
+                
+                return (
+                  <Card key={`table-${tableIndex}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>{tableLabel}</CardTitle>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addTableRow(tableConfig.itemsPath, tableConfig.columns)}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Row
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {tableItems.length === 0 ? (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>No {tableLabel.toLowerCase()} added yet.</p>
+                          <p className="text-sm">Click "Add Row" to get started.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {tableItems.map((row, rowIndex) => (
+                            <div key={rowIndex} className="p-4 border rounded-lg space-y-3 bg-muted/20">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-medium">Row {rowIndex + 1}</h4>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeTableRow(tableConfig.itemsPath, rowIndex)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                {tableConfig.columns.map((col) => (
+                                  <div key={col.id} className="space-y-2">
+                                    <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
+                                      {col.header}
+                                    </Label>
+                                    <Input
+                                      id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
+                                      type={col.type}
+                                      value={String(row[col.binding] ?? "")}
+                                      onChange={(e) => {
+                                        const val: InvoiceDataValue =
+                                          col.type === "number"
+                                            ? Number(e.target.value)
+                                            : e.target.value;
+                                        updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
+                                      }}
+                                      placeholder={`Enter ${col.header.toLowerCase()}`}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* Submit */}
+              <Card>
+                <CardContent className="pt-6">
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={createInvoice.isPending || !selectedTemplate}
+                    size="lg"
+                  >
+                    {createInvoice.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating Invoice...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Create Invoice
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </form>
+          </div>
         </div>
       </div>
     </div>

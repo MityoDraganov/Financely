@@ -3,8 +3,6 @@ import { signInAnonymously } from "@firebase/auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	Plus,
-	Save,
-	Upload,
 	Type as TypeIcon,
 	ImageIcon,
 	Table as TableIcon,
@@ -36,6 +34,7 @@ import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import {
 	TextElement,
 	TextProperties,
@@ -91,8 +90,17 @@ export default function TemplateDesignerPage() {
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const propertiesRef = useRef<HTMLDivElement | null>(null);
 	const [isPropsNarrow, setIsPropsNarrow] = useState(false);
-	const { data: templates = [], isSubscribed } = useTemplates("demo-org");
-	console.log("templates", templates, "realtime subscribed:", isSubscribed);
+	const { data: currentOrg } = useCurrentOrganization();
+	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
+	const { data: templates = [], isSubscribed } = useTemplates(orgId);
+	console.log(
+		"templates",
+		templates,
+		"realtime subscribed:",
+		isSubscribed,
+		"orgId:",
+		orgId
+	);
 
 	const currentTemplate = useMemo(() => {
 		return (
@@ -134,7 +142,9 @@ export default function TemplateDesignerPage() {
 		if (!el) return;
 		const ro = new ResizeObserver((entries) => {
 			for (const entry of entries) {
-				setIsPropsNarrow(entry.contentRect.width < PROPS_NARROW_BREAKPOINT_PX);
+				setIsPropsNarrow(
+					entry.contentRect.width < PROPS_NARROW_BREAKPOINT_PX
+				);
 			}
 		});
 		ro.observe(el);
@@ -147,13 +157,13 @@ export default function TemplateDesignerPage() {
 			await templateService.updateDraft(currentTemplate.id, partial);
 		},
 		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: ["templates", "demo-org"] }),
+			queryClient.invalidateQueries({ queryKey: ["templates", orgId] }),
 	});
 
 	const createMutation = useMutation({
 		mutationFn: async () => {
 			const empty: TemplateData = {
-				orgId: "demo-org",
+				orgId: orgId,
 				name: "New Invoice Template",
 				description: "",
 				pageSize: "A4",
@@ -169,7 +179,7 @@ export default function TemplateDesignerPage() {
 				elements: [],
 				status: "draft",
 			};
-			console.log("[CREATE] creating new template...");
+			console.log("[CREATE] creating new template for orgId:", orgId);
 			const id = await templateService.createDraft(empty);
 			console.log("[CREATE] template created with id:", id);
 			return id;
@@ -177,24 +187,17 @@ export default function TemplateDesignerPage() {
 		onSuccess: (id: string) => {
 			console.log("[CREATE] onSuccess called with id:", id);
 			setState((s: DesignerState) => ({ ...s, currentTemplateId: id }));
-			queryClient.invalidateQueries({ queryKey: ["templates", "demo-org"] });
+			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
 		},
 		onError: (error) => {
 			console.error("[CREATE] failed to create template:", error);
 		},
 	});
 
-	const publishMutation = useMutation({
-		mutationFn: async () => {
-			if (!currentTemplate) return { versionId: "", version: 0 };
-			return templateService.publish(currentTemplate.id);
-		},
-	});
-
-const PAGE_WIDTH = 794;
-const PAGE_HEIGHT = 1123;
-const PROPS_NARROW_BREAKPOINT_PX = 520;
-const SNAP_THRESHOLD = 5; // pixels
+	const PAGE_WIDTH = 794;
+	const PAGE_HEIGHT = 1123;
+	const PROPS_NARROW_BREAKPOINT_PX = 520;
+	const SNAP_THRESHOLD = 5; // pixels
 
 	function calculateSnapPositions(
 		draggingElement: TemplateElement,
@@ -218,8 +221,16 @@ const SNAP_THRESHOLD = 5; // pixels
 		const dragCenterX = dragX + draggingElement.width / 2;
 		const dragCenterY = dragY + draggingElement.height / 2;
 
-		let bestXSnap: { distance: number; position: number; otherElement: TemplateElement } | null = null;
-		let bestYSnap: { distance: number; position: number; otherElement: TemplateElement } | null = null;
+		let bestXSnap: {
+			distance: number;
+			position: number;
+			otherElement: TemplateElement;
+		} | null = null;
+		let bestYSnap: {
+			distance: number;
+			position: number;
+			otherElement: TemplateElement;
+		} | null = null;
 
 		// Check against all other elements
 		for (const el of allElements) {
@@ -238,12 +249,19 @@ const SNAP_THRESHOLD = 5; // pixels
 				{ dragPos: dragLeft, elPos: elRight, name: "left-right" },
 				{ dragPos: dragRight, elPos: elLeft, name: "right-left" },
 				{ dragPos: dragRight, elPos: elRight, name: "right-right" },
-				{ dragPos: dragCenterX, elPos: elCenterX, name: "center-center" },
+				{
+					dragPos: dragCenterX,
+					elPos: elCenterX,
+					name: "center-center",
+				},
 			];
 
 			for (const align of xAlignments) {
 				const distance = Math.abs(align.dragPos - align.elPos);
-				if (distance <= SNAP_THRESHOLD && (!bestXSnap || distance < bestXSnap.distance)) {
+				if (
+					distance <= SNAP_THRESHOLD &&
+					(!bestXSnap || distance < bestXSnap.distance)
+				) {
 					const offset = align.dragPos - dragX;
 					bestXSnap = {
 						distance,
@@ -259,12 +277,19 @@ const SNAP_THRESHOLD = 5; // pixels
 				{ dragPos: dragTop, elPos: elBottom, name: "top-bottom" },
 				{ dragPos: dragBottom, elPos: elTop, name: "bottom-top" },
 				{ dragPos: dragBottom, elPos: elBottom, name: "bottom-bottom" },
-				{ dragPos: dragCenterY, elPos: elCenterY, name: "center-center" },
+				{
+					dragPos: dragCenterY,
+					elPos: elCenterY,
+					name: "center-center",
+				},
 			];
 
 			for (const align of yAlignments) {
 				const distance = Math.abs(align.dragPos - align.elPos);
-				if (distance <= SNAP_THRESHOLD && (!bestYSnap || distance < bestYSnap.distance)) {
+				if (
+					distance <= SNAP_THRESHOLD &&
+					(!bestYSnap || distance < bestYSnap.distance)
+				) {
 					const offset = align.dragPos - dragY;
 					bestYSnap = {
 						distance,
@@ -279,13 +304,21 @@ const SNAP_THRESHOLD = 5; // pixels
 		if (bestXSnap) {
 			snappedX = bestXSnap.position;
 			const snappedCenterX = snappedX + draggingElement.width / 2;
-			const otherCenterX = bestXSnap.otherElement.x + bestXSnap.otherElement.width / 2;
-			
+			const otherCenterX =
+				bestXSnap.otherElement.x + bestXSnap.otherElement.width / 2;
+
 			// Determine guide position based on alignment type
 			let guideX = snappedX;
 			if (Math.abs(snappedCenterX - otherCenterX) < 1) {
 				guideX = snappedCenterX;
-			} else if (Math.abs((snappedX + draggingElement.width) - (bestXSnap.otherElement.x + bestXSnap.otherElement.width)) < 1) {
+			} else if (
+				Math.abs(
+					snappedX +
+						draggingElement.width -
+						(bestXSnap.otherElement.x +
+							bestXSnap.otherElement.width)
+				) < 1
+			) {
 				guideX = snappedX + draggingElement.width;
 			}
 
@@ -293,28 +326,49 @@ const SNAP_THRESHOLD = 5; // pixels
 				type: "vertical",
 				position: guideX,
 				start: Math.min(dragY, bestXSnap.otherElement.y),
-				end: Math.max(dragY + draggingElement.height, bestXSnap.otherElement.y + bestXSnap.otherElement.height),
+				end: Math.max(
+					dragY + draggingElement.height,
+					bestXSnap.otherElement.y + bestXSnap.otherElement.height
+				),
 			});
 		}
 
 		if (bestYSnap) {
 			snappedY = bestYSnap.position;
 			const snappedCenterY = snappedY + draggingElement.height / 2;
-			const otherCenterY = bestYSnap.otherElement.y + bestYSnap.otherElement.height / 2;
-			
+			const otherCenterY =
+				bestYSnap.otherElement.y + bestYSnap.otherElement.height / 2;
+
 			// Determine guide position based on alignment type
 			let guideY = snappedY;
 			if (Math.abs(snappedCenterY - otherCenterY) < 1) {
 				guideY = snappedCenterY;
-			} else if (Math.abs((snappedY + draggingElement.height) - (bestYSnap.otherElement.y + bestYSnap.otherElement.height)) < 1) {
+			} else if (
+				Math.abs(
+					snappedY +
+						draggingElement.height -
+						(bestYSnap.otherElement.y +
+							bestYSnap.otherElement.height)
+				) < 1
+			) {
 				guideY = snappedY + draggingElement.height;
 			}
 
 			guides.push({
 				type: "horizontal",
 				position: guideY,
-				start: Math.min(dragX, bestXSnap?.otherElement?.x ?? bestYSnap.otherElement.x),
-				end: Math.max(dragX + draggingElement.width, bestXSnap?.otherElement ? bestXSnap.otherElement.x + bestXSnap.otherElement.width : bestYSnap.otherElement.x + bestYSnap.otherElement.width),
+				start: Math.min(
+					dragX,
+					bestXSnap?.otherElement?.x ?? bestYSnap.otherElement.x
+				),
+				end: Math.max(
+					dragX + draggingElement.width,
+					bestXSnap?.otherElement
+						? bestXSnap.otherElement.x +
+								bestXSnap.otherElement.width
+						: bestYSnap.otherElement.x +
+								bestYSnap.otherElement.width
+				),
 			});
 		}
 
@@ -388,9 +442,7 @@ const SNAP_THRESHOLD = 5; // pixels
 				// Try to ensure authentication for better security, but don't block if it fails
 				if (!firebase.auth.currentUser) {
 					try {
-						console.log(
-							"[AUTH] attempting anonymous sign-in..."
-						);
+						console.log("[AUTH] attempting anonymous sign-in...");
 						await signInAnonymously(firebase.auth);
 						console.log("[AUTH] signed in anonymously");
 					} catch (authErr) {
@@ -415,7 +467,7 @@ const SNAP_THRESHOLD = 5; // pixels
 					}));
 					console.log("[DND] set currentTemplateId to", newId);
 					// Wait a bit for the template to be available
-					await new Promise(resolve => setTimeout(resolve, 500));
+					await new Promise((resolve) => setTimeout(resolve, 500));
 				} else {
 					console.error("[DND] invalid template id returned:", newId);
 					return;
@@ -502,8 +554,22 @@ const SNAP_THRESHOLD = 5; // pixels
 								headerHeight: 28,
 								stripe: true,
 								columns: [
-									{ id: crypto.randomUUID(), header: "Column 1", width: 160, align: "left", type: "text", format: { kind: "none" } },
-									{ id: crypto.randomUUID(), header: "Column 2", width: 160, align: "left", type: "text", format: { kind: "none" } },
+									{
+										id: crypto.randomUUID(),
+										header: "Column 1",
+										width: 160,
+										align: "left",
+										type: "text",
+										format: { kind: "none" },
+									},
+									{
+										id: crypto.randomUUID(),
+										header: "Column 2",
+										width: 160,
+										align: "left",
+										type: "text",
+										format: { kind: "none" },
+									},
 								],
 								designRows: [],
 								itemsBinding: "invoice.items",
@@ -525,8 +591,8 @@ const SNAP_THRESHOLD = 5; // pixels
 									strokeWidth: 1,
 									radius: 0,
 								}
-								: kind === "input"
-									? {
+							: kind === "input"
+								? {
 										id: crypto.randomUUID(),
 										type: "input",
 										x: at?.x ?? 60,
@@ -541,20 +607,20 @@ const SNAP_THRESHOLD = 5; // pixels
 										align: "left",
 									}
 								: {
-									id: crypto.randomUUID(),
-									type: "line",
-									x: at?.x ?? 40,
-									y: at?.y ?? 140,
-									width: 200,
-									height: 1,
-									rotation: 0,
-									zIndex: 0,
-									visible: true,
-									x2: 240,
-									y2: 140,
-									stroke: "#e5e7eb",
-									strokeWidth: 1,
-								};
+										id: crypto.randomUUID(),
+										type: "line",
+										x: at?.x ?? 40,
+										y: at?.y ?? 140,
+										width: 200,
+										height: 1,
+										rotation: 0,
+										zIndex: 0,
+										visible: true,
+										x2: 240,
+										y2: 140,
+										stroke: "#e5e7eb",
+										strokeWidth: 1,
+									};
 		console.log("[ADD] new element", newElement);
 		// Clamp initial position so element appears fully in frame
 		const clampedAt = clampMove(
@@ -610,9 +676,14 @@ const SNAP_THRESHOLD = 5; // pixels
 
 	function deleteElement(id: string) {
 		if (!currentTemplate) return;
-		const next = (currentTemplate.elements ?? []).filter((e) => e.id !== id);
+		const next = (currentTemplate.elements ?? []).filter(
+			(e) => e.id !== id
+		);
 		saveMutation.mutate({ elements: next });
-		setState((s: DesignerState) => ({ ...s, selectedElementId: undefined }));
+		setState((s: DesignerState) => ({
+			...s,
+			selectedElementId: undefined,
+		}));
 	}
 
 	// Global pointer handlers during drag
@@ -634,10 +705,12 @@ const SNAP_THRESHOLD = 5; // pixels
 		function handlePointerMove(ev: PointerEvent) {
 			const dx = (ev.clientX - startClientX) / state.zoom;
 			const dy = (ev.clientY - startClientY) / state.zoom;
-			
+
 			setDraftElements((prev: TemplateElement[] | null) => {
 				const base = prev ?? currentTemplateRef.current?.elements ?? [];
-				const draggingElement = base.find((item) => item.id === elementId);
+				const draggingElement = base.find(
+					(item) => item.id === elementId
+				);
 				if (!draggingElement) return base;
 
 				return base.map((item) => {
@@ -645,18 +718,19 @@ const SNAP_THRESHOLD = 5; // pixels
 					if (mode === "move") {
 						const rawX = startX + dx;
 						const rawY = startY + dy;
-						
+
 						// Calculate snapping with guides
-						const { snappedX, snappedY, guides } = calculateSnapPositions(
-							draggingElement,
-							base,
-							rawX,
-							rawY
-						);
-						
+						const { snappedX, snappedY, guides } =
+							calculateSnapPositions(
+								draggingElement,
+								base,
+								rawX,
+								rawY
+							);
+
 						// Update snap guides
 						setSnapGuides(guides);
-						
+
 						const clamped = clampMove(
 							snappedX,
 							snappedY,
@@ -721,12 +795,6 @@ const SNAP_THRESHOLD = 5; // pixels
 					<div className="h-full p-3 border-r bg-neutral-50">
 						<div className="flex items-center justify-between mb-3">
 							<div className="font-medium">Templates</div>
-							<Button
-								size="sm"
-								onClick={() => createMutation.mutate()}
-							>
-								<Plus className="mr-1 h-4 w-4" /> New
-							</Button>
 						</div>
 						<div className="space-y-2">
 							{templates.length === 0 && (
@@ -804,27 +872,27 @@ const SNAP_THRESHOLD = 5; // pixels
 									{" "}
 									<TableIcon className="h-4 w-4 mr-1" /> Table
 								</Button>
-									<Button
-										variant="secondary"
-										onClick={() => addElement("input")}
-										draggable
-										onDragStart={(e) => {
-											console.log("[DND] dragstart: input");
-											e.dataTransfer.setData(
-												"application/x-template-element",
-												"input"
-											);
-											e.dataTransfer.setData(
-												"text/plain",
-												"input"
-											);
-											e.dataTransfer.effectAllowed = "copy";
-										}}
-										className="w-full justify-start"
-									>
-										{" "}
-										<TypeIcon className="h-4 w-4 mr-1" /> Input
-									</Button>
+								<Button
+									variant="secondary"
+									onClick={() => addElement("input")}
+									draggable
+									onDragStart={(e) => {
+										console.log("[DND] dragstart: input");
+										e.dataTransfer.setData(
+											"application/x-template-element",
+											"input"
+										);
+										e.dataTransfer.setData(
+											"text/plain",
+											"input"
+										);
+										e.dataTransfer.effectAllowed = "copy";
+									}}
+									className="w-full justify-start"
+								>
+									{" "}
+									<TypeIcon className="h-4 w-4 mr-1" /> Input
+								</Button>
 								<Button
 									variant="secondary"
 									onClick={() => addElement("box")}
@@ -869,30 +937,78 @@ const SNAP_THRESHOLD = 5; // pixels
 								</Button>
 							</div>
 							<div className="mt-4">
-								<div className="text-xs uppercase text-neutral-500 mb-2">Elements</div>
+								<div className="text-xs uppercase text-neutral-500 mb-2">
+									Elements
+								</div>
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-									{(currentTemplate?.elements ?? []).map((el) => (
-										<ContextMenu key={el.id}>
-											<ContextMenuTrigger asChild>
-												<div
-													className={`px-2 py-2 min-w-0 w-full text-xs sm:text-sm rounded cursor-pointer truncate ${state.selectedElementId === el.id ? "bg-blue-50 text-blue-700" : "hover:bg-neutral-100"}`}
-													onClick={() =>
-														setState((s: DesignerState) => ({ ...s, selectedElementId: el.id }))
-													}
-												>
-													<span className="uppercase text-[10px] text-neutral-500 mr-2">{el.type}</span>
-													<span className="truncate inline-block align-middle">{el.type === "text" ? (el as Extract<TemplateElement, { type: "text" }>).text ?? "Text" : el.id.slice(0, 6)}</span>
-												</div>
-											</ContextMenuTrigger>
-											<ContextMenuContent>
-												<ContextMenuItem onClick={() => deleteElement(el.id)} variant="destructive">
-													Delete
-												</ContextMenuItem>
-												<ContextMenuSeparator />
-												<ContextMenuItem onClick={() => setState((s: DesignerState) => ({ ...s, selectedElementId: el.id }))}>Select</ContextMenuItem>
-											</ContextMenuContent>
-										</ContextMenu>
-									))}
+									{(currentTemplate?.elements ?? []).map(
+										(el) => (
+											<ContextMenu key={el.id}>
+												<ContextMenuTrigger asChild>
+													<div
+														className={`px-2 py-2 min-w-0 w-full text-xs sm:text-sm rounded cursor-pointer truncate ${state.selectedElementId === el.id ? "bg-blue-50 text-blue-700" : "hover:bg-neutral-100"}`}
+														onClick={() =>
+															setState(
+																(
+																	s: DesignerState
+																) => ({
+																	...s,
+																	selectedElementId:
+																		el.id,
+																})
+															)
+														}
+													>
+														<span className="uppercase text-[10px] text-neutral-500 mr-2">
+															{el.type}
+														</span>
+														<span className="truncate inline-block align-middle">
+															{el.type === "text"
+																? ((
+																		el as Extract<
+																			TemplateElement,
+																			{
+																				type: "text";
+																			}
+																		>
+																	).text ??
+																	"Text")
+																: el.id.slice(
+																		0,
+																		6
+																	)}
+														</span>
+													</div>
+												</ContextMenuTrigger>
+												<ContextMenuContent>
+													<ContextMenuItem
+														onClick={() =>
+															deleteElement(el.id)
+														}
+														variant="destructive"
+													>
+														Delete
+													</ContextMenuItem>
+													<ContextMenuSeparator />
+													<ContextMenuItem
+														onClick={() =>
+															setState(
+																(
+																	s: DesignerState
+																) => ({
+																	...s,
+																	selectedElementId:
+																		el.id,
+																})
+															)
+														}
+													>
+														Select
+													</ContextMenuItem>
+												</ContextMenuContent>
+											</ContextMenu>
+										)
+									)}
 								</div>
 							</div>
 						</div>
@@ -902,7 +1018,6 @@ const SNAP_THRESHOLD = 5; // pixels
 				<ResizablePanel minSize={40}>
 					<div className="h-full flex flex-col">
 						<div className="px-3 py-2 border-b bg-white flex items-center gap-2">
-							
 							<Select
 								value={currentTemplate?.id ?? ""}
 								onValueChange={(id: string) =>
@@ -953,21 +1068,6 @@ const SNAP_THRESHOLD = 5; // pixels
 										))}
 									</SelectContent>
 								</Select>
-								<Button
-									size="sm"
-									onClick={() => publishMutation.mutate()}
-								>
-									<Upload className="h-4 w-4 mr-1" /> Publish
-								</Button>
-								<Button
-									size="sm"
-									onClick={() =>
-										currentTemplate &&
-										saveMutation.mutate({})
-									}
-								>
-									<Save className="h-4 w-4 mr-1" /> Save
-								</Button>
 							</div>
 						</div>
 						<div
@@ -1031,26 +1131,43 @@ const SNAP_THRESHOLD = 5; // pixels
 										style={{
 											...(guide.type === "vertical"
 												? {
-														left: guide.position * state.zoom,
-														top: guide.start * state.zoom,
+														left:
+															guide.position *
+															state.zoom,
+														top:
+															guide.start *
+															state.zoom,
 														width: 1,
-														height: (guide.end - guide.start) * state.zoom,
+														height:
+															(guide.end -
+																guide.start) *
+															state.zoom,
 													}
 												: {
-														left: guide.start * state.zoom,
-														top: guide.position * state.zoom,
-														width: (guide.end - guide.start) * state.zoom,
+														left:
+															guide.start *
+															state.zoom,
+														top:
+															guide.position *
+															state.zoom,
+														width:
+															(guide.end -
+																guide.start) *
+															state.zoom,
 														height: 1,
 													}),
 											backgroundColor: "#8b5cf6",
-											boxShadow: "0 0 0 0.5px rgba(139, 92, 246, 0.5)",
+											boxShadow:
+												"0 0 0 0.5px rgba(139, 92, 246, 0.5)",
 											zIndex: 9999,
 										}}
 									/>
 								))}
 								{/* elements */}
 								{(
-							(draftElements ?? currentTemplate?.elements ?? [])
+									draftElements ??
+									currentTemplate?.elements ??
+									[]
 								).map((el: TemplateElement) => (
 									<div
 										key={el.id}
@@ -1062,7 +1179,7 @@ const SNAP_THRESHOLD = 5; // pixels
 											height: el.height * state.zoom,
 											transform: `rotate(${el.rotation}deg)`,
 											touchAction: "none",
-									zIndex: el.zIndex ?? 0,
+											zIndex: el.zIndex ?? 0,
 										}}
 										onClick={() => {
 											setState((s: DesignerState) => ({
@@ -1197,52 +1314,152 @@ const SNAP_THRESHOLD = 5; // pixels
 										)}
 										{el.type === "text" && (
 											<TextElement
-												element={el as Extract<TemplateElement, { type: "text" }>}
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "text" }
+													>
+												}
 												zoom={state.zoom}
 											/>
 										)}
-									{el.type === "input" && (
-										<InputElement
-											element={el as Extract<TemplateElement, { type: "input" }>}
-										/>
-									)}
-								{el.type === "image" && (
-									<ImageElement
-										element={el as Extract<TemplateElement, { type: "image" }>}
-									/>
-								)}
+										{el.type === "input" && (
+											<InputElement
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "input" }
+													>
+												}
+											/>
+										)}
+										{el.type === "image" && (
+											<ImageElement
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "image" }
+													>
+												}
+											/>
+										)}
 										{el.type === "box" && (
 											<BoxElement
-												element={el as Extract<TemplateElement, { type: "box" }>}
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "box" }
+													>
+												}
 											/>
 										)}
 										{el.type === "line" && (
 											<LineElement
-												element={el as Extract<TemplateElement, { type: "line" }>}
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "line" }
+													>
+												}
 											/>
 										)}
-								{el.type === "table" && (() => {
-									const tbl = el as Extract<TemplateElement, { type: "table" }>;
-									return (
-										<TableElement
-											element={tbl}
-											zoom={state.zoom}
-											onHeaderChange={(columnId, header) => {
-												const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-													{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-													{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-												];
-												const next = baseColumns.map(col => col.id === columnId ? { ...col, header } : col);
-												// Optimistic update for immediate feedback
-												setDraftElements((prev) => {
-													const base = prev ?? currentTemplateRef.current?.elements ?? [];
-													return base.map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it);
-												});
-												saveMutation.mutate({ elements: (currentTemplateRef.current?.elements ?? []).map(it => it.id === tbl.id ? ({ ...tbl, columns: next }) as TemplateElement : it) });
-											}}
-										/>
-									);
-								})()}
+										{el.type === "table" &&
+											(() => {
+												const tbl = el as Extract<
+													TemplateElement,
+													{ type: "table" }
+												>;
+												return (
+													<TableElement
+														element={tbl}
+														zoom={state.zoom}
+														onHeaderChange={(
+															columnId,
+															header
+														) => {
+															const baseColumns =
+																tbl.columns
+																	.length > 0
+																	? tbl.columns
+																	: [
+																			{
+																				id: "c1",
+																				header: "Column 1",
+																				width: 120,
+																				align: "left" as const,
+																				type: "text" as const,
+																				format: {
+																					kind: "none" as const,
+																				},
+																			},
+																			{
+																				id: "c2",
+																				header: "Column 2",
+																				width: 120,
+																				align: "left" as const,
+																				type: "text" as const,
+																				format: {
+																					kind: "none" as const,
+																				},
+																			},
+																		];
+															const next =
+																baseColumns.map(
+																	(col) =>
+																		col.id ===
+																		columnId
+																			? {
+																					...col,
+																					header,
+																				}
+																			: col
+																);
+															// Optimistic update for immediate feedback
+															setDraftElements(
+																(prev) => {
+																	const base =
+																		prev ??
+																		currentTemplateRef
+																			.current
+																			?.elements ??
+																		[];
+																	return base.map(
+																		(it) =>
+																			it.id ===
+																			tbl.id
+																				? ({
+																						...tbl,
+																						columns:
+																							next,
+																					} as TemplateElement)
+																				: it
+																	);
+																}
+															);
+															saveMutation.mutate(
+																{
+																	elements: (
+																		currentTemplateRef
+																			.current
+																			?.elements ??
+																		[]
+																	).map(
+																		(it) =>
+																			it.id ===
+																			tbl.id
+																				? ({
+																						...tbl,
+																						columns:
+																							next,
+																					} as TemplateElement)
+																				: it
+																	),
+																}
+															);
+														}}
+													/>
+												);
+											})()}
 									</div>
 								))}
 							</div>
@@ -1250,8 +1467,11 @@ const SNAP_THRESHOLD = 5; // pixels
 					</div>
 				</ResizablePanel>
 				<ResizableHandle withHandle />
-               <ResizablePanel defaultSize={22} minSize={18}>
-                    <div ref={propertiesRef} className="h-full p-3 border-l bg-neutral-50 space-y-3 overflow-auto min-w-0">
+				<ResizablePanel defaultSize={22} minSize={18}>
+					<div
+						ref={propertiesRef}
+						className="h-full p-3 border-l bg-neutral-50 space-y-3 overflow-auto min-w-0"
+					>
 						<div className="font-medium">Properties</div>
 						{!currentTemplate && (
 							<div className="text-sm text-neutral-500">
@@ -1264,7 +1484,7 @@ const SNAP_THRESHOLD = 5; // pixels
 									<div className="text-xs text-neutral-500 mb-1">
 										Name
 									</div>
-                                    <Input
+									<Input
 										value={currentTemplate.name}
 										onChange={(
 											e: React.ChangeEvent<HTMLInputElement>
@@ -1301,7 +1521,7 @@ const SNAP_THRESHOLD = 5; // pixels
 										</SelectContent>
 									</Select>
 								</div>
-                                {(() => {
+								{(() => {
 									if (!state.selectedElementId) return null;
 									const selectedEl = (
 										draftElements ??
@@ -1313,11 +1533,11 @@ const SNAP_THRESHOLD = 5; // pixels
 									);
 									if (!selectedEl) return null;
 									return (
-                                        <ElementProperties
-                                            element={selectedEl}
-                                            onChange={updateSelected}
-                                            isNarrow={isPropsNarrow}
-                                        />
+										<ElementProperties
+											element={selectedEl}
+											onChange={updateSelected}
+											isNarrow={isPropsNarrow}
+										/>
 									);
 								})()}
 							</div>
@@ -1330,15 +1550,14 @@ const SNAP_THRESHOLD = 5; // pixels
 }
 
 function ElementProperties({
-    element,
-    onChange,
-    isNarrow,
+	element,
+	onChange,
+	isNarrow,
 }: {
-    element: TemplateElement;
-    onChange: (partial: Partial<TemplateElement>) => void;
-    isNarrow?: boolean;
+	element: TemplateElement;
+	onChange: (partial: Partial<TemplateElement>) => void;
+	isNarrow?: boolean;
 }) {
-
 	if (element.type === "text") {
 		const t = element as Extract<TemplateElement, { type: "text" }>;
 		return (

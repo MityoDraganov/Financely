@@ -100,7 +100,7 @@ export default function InvoiceDetailPage() {
     return (
         <div className="container mx-auto py-8">
             <div className="mb-6">
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Invoice {invoice?.invoiceNumber ?? id}</h1>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Invoice {id}</h1>
                 <p className="text-muted-foreground">View, download, email, or share this invoice.</p>
             </div>
 

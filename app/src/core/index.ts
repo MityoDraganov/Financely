@@ -2,6 +2,7 @@
 export * from "./entities/base";
 export * from "./entities/organization";
 export * from "./entities/user";
+export * from "./entities/auth-user";
 export * from "./entities/proposal";
 export * from "./entities/invoice";
 export * from "./entities/buyer";
@@ -19,3 +20,4 @@ export * from "./ports/repositories/user-repository";
 // Ports - Services
 export * from "./ports/services/database-service";
 export * from "./ports/services/functions-service";
+export * from "./ports/services/authentication-service";

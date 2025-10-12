@@ -36,15 +36,53 @@ export const useOrganization = (organizationId: string | undefined) => {
 export const useUserOrganizations = (userId: string | undefined) => {
   return useQuery({
     queryKey: ["organizations", "user", userId],
-    queryFn: () => {
+    queryFn: async () => {
       if (!userId) return Promise.resolve([]);
-      return organizationRepository.getAll({
-        queryConstraints: [
-          { field: "memberIds", operator: "array-contains", value: userId },
-        ],
-      });
+      
+      try {
+        console.log('useUserOrganizations: Querying for userId:', userId);
+        const result = await organizationRepository.getAll({
+          queryConstraints: [
+            { field: "memberIds", operator: "array-contains", value: userId },
+          ],
+        });
+        console.log('useUserOrganizations: Query result:', result);
+        return result;
+      } catch (error) {
+        console.error(error);
+        throw error;
+      }
     },
     enabled: !!userId,
+  });
+};
+
+/**
+ * Hook to fetch organizations by their IDs (fallback for when memberIds query fails)
+ */
+export const useOrganizationsByIds = (organizationIds: string[] | undefined) => {
+  return useQuery({
+    queryKey: ["organizations", "by-ids", organizationIds],
+    queryFn: async () => {
+      if (!organizationIds || organizationIds.length === 0) return Promise.resolve([]);
+      
+      try {
+        console.log('useOrganizationsByIds: Fetching organizations by IDs:', organizationIds);
+        const organizations = await Promise.all(
+          organizationIds.map(id => organizationRepository.get({ id }))
+        );
+        
+        // Filter out null results (organizations that don't exist)
+        const validOrganizations = organizations.filter(org => org !== null) as Organization[];
+        console.log('useOrganizationsByIds: Found organizations:', validOrganizations);
+        
+        return validOrganizations;
+      } catch (error) {
+        console.error('useOrganizationsByIds: Error fetching organizations by IDs:', error);
+        throw error;
+      }
+    },
+    enabled: !!organizationIds && organizationIds.length > 0,
   });
 };
 

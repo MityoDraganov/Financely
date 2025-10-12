@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import {
 	Sidebar,
 	SidebarContent,
@@ -11,9 +10,10 @@ import {
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserButton } from "@clerk/clerk-react";
-import { Brush, FileText, LayoutDashboard } from "lucide-react";
-import { OnboardingFlow } from "@/components/onboarding";
-import { useOnboardingStatus } from "@/hooks";
+import { Brush, FileText, LayoutDashboard, Settings } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useOrganizationBranding } from "@/hooks/use-organization-branding";
+import { getOrganizationName, getOrganizationLogo } from "@/utils/branding";
 
 const items = [
 	{
@@ -31,50 +31,34 @@ const items = [
 		href: "/designer",
 		icon: Brush,
 	},
+	{
+		title: "Settings",
+		href: "/settings/organization/general",
+		icon: Settings,
+	},
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
-	const [forceShowApp, setForceShowApp] = useState(false);
-	const { needsOnboarding, isLoading } = useOnboardingStatus();
-
-	// Add timeout to prevent infinite loading
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			if (isLoading) {
-				console.warn('Loading state persisted for 10 seconds, forcing app to show');
-				setForceShowApp(true);
-			}
-		}, 10000); // 10 second timeout
-
-		return () => clearTimeout(timer);
-	}, [isLoading]);
-
-	// Show onboarding if user needs it and hasn't completed it in this session
-	if (!isLoading && needsOnboarding && !hasCompletedOnboarding && !forceShowApp) {
-		return <OnboardingFlow onComplete={() => setHasCompletedOnboarding(true)} />;
-	}
-
-	// Show loading state while checking onboarding status (unless forced to show app)
-	if (isLoading && !forceShowApp) {
-		return (
-			<div className="min-h-screen flex items-center justify-center bg-gray-50">
-				<div className="text-center space-y-4">
-					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#166534] mx-auto" />
-					<p className="text-gray-600">Loading your workspace...</p>
-					<p className="text-sm text-gray-500">If this takes too long, try refreshing the page</p>
-				</div>
-			</div>
-		);
-	}
+	const { organization } = useOrganizationBranding();
 
 	return (
 		<div className="flex">
 			<Sidebar collapsible="icon">
 				<SidebarHeader>
-					<h2 className="text-2xl font-bold group-data-[collapsible=icon]:hidden">
-						Financely
-					</h2>
+					<div className="flex items-center gap-2">
+						{getOrganizationLogo(organization) !== null && (
+							<img
+								src={getOrganizationLogo(organization)!}
+								alt="Logo"
+								className="h-8 w-8 rounded"
+							/>
+						)}
+						{getOrganizationName(organization) && (
+							<h2 className="text-2xl font-bold group-data-[collapsible=icon]:hidden">
+								{getOrganizationName(organization)}
+							</h2>
+						)}
+					</div>
 					<SidebarTrigger />
 				</SidebarHeader>
 				<SidebarContent className="flex flex-col justify-between">
@@ -82,10 +66,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						{items.map((item) => (
 							<SidebarMenuItem key={item.title}>
 								<SidebarMenuButton asChild tooltip={item.title}>
-									<a href={item.href}>
+									<Link to={item.href}>
 										<item.icon />
 										<span>{item.title}</span>
-									</a>
+									</Link>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 						))}

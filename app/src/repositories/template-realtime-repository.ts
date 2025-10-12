@@ -73,18 +73,18 @@ export function getTemplateRealtimeRepository(): TemplateRepository & {
       await realtimeDatabaseService.delete(TEMPLATES_PATH, payload.id);
     },
 
-    async increment(payload) {
+    async increment(_payload) {
       // Realtime Database doesn't have built-in increment
       // Would need to implement with transaction if needed
       throw new Error("Increment not implemented for Realtime Database");
     },
 
-    async addToSet(payload) {
+    async addToSet(_payload) {
       // Would need custom implementation for array operations
       throw new Error("AddToSet not implemented for Realtime Database");
     },
 
-    async removeFromSet(payload) {
+    async removeFromSet(_payload) {
       // Would need custom implementation for array operations
       throw new Error("RemoveFromSet not implemented for Realtime Database");
     },
@@ -93,14 +93,19 @@ export function getTemplateRealtimeRepository(): TemplateRepository & {
      * Subscribe to all templates for an organization with real-time updates
      */
     subscribeToAll(orgId: string, callback: (templates: Template[]) => void) {
+      console.log("[TEMPLATE-REPO] Starting subscription for orgId:", orgId);
+      
       // Subscribe to all templates and filter client-side
       // This avoids index requirements and is fine for small datasets
       return realtimeDatabaseService.subscribeToCollection<Template>(
         TEMPLATES_PATH,
         (allTemplates: Template[]) => {
+          console.log("[TEMPLATE-REPO] Raw templates received:", allTemplates);
+          
           // Filter by orgId client-side
-          const filtered = allTemplates.filter(t => t.orgId === orgId);
+          const filtered = allTemplates.filter(t => t && t.orgId === orgId);
           console.log("[TEMPLATE-REPO] Filtered templates:", filtered.length, "from", allTemplates.length, "total");
+          console.log("[TEMPLATE-REPO] Filtered templates data:", filtered);
           callback(filtered);
         }
       );

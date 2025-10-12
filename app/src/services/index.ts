@@ -1,10 +1,12 @@
-import { FunctionsService } from "@/core";
+import { FunctionsService, AuthenticationService } from "@/core";
 import { databaseService } from "./database/database-service";
 import { functionsService } from "./functions/functions-service";
+import { authenticationService } from "./authentication/authentication-service";
 
 export type ServiceHost = {
   getDatabaseService: () => typeof databaseService;
   getFunctionsService: () => FunctionsService;
+  getAuthenticationService: () => AuthenticationService;
 };
 
 export const serviceHost: ServiceHost = {
@@ -13,6 +15,9 @@ export const serviceHost: ServiceHost = {
   },
   getFunctionsService() {
     return functionsService;
+  },
+  getAuthenticationService() {
+    return authenticationService;
   },
 };
 

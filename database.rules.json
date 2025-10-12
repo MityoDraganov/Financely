@@ -2,9 +2,27 @@
   "rules": {
     "templates": {
       ".indexOn": ["orgId"],
+      ".read": "auth != null",
+      ".write": "auth != null",
       "$templateId": {
-        ".read": true,
-        ".write": true
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "organizations": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$orgId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$userId": {
+        ".read": "auth != null && (auth.uid == $userId || auth.token.admin == true)",
+        ".write": "auth != null && (auth.uid == $userId || auth.token.admin == true)"
       }
     }
   }

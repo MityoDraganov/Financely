@@ -33,12 +33,15 @@ function snapshotToData<T>(snapshot: DataSnapshot): T | null {
 
 function snapshotsToDataArray<T>(snapshot: DataSnapshot): T[] {
   if (!snapshot.exists()) {
+    console.log("[RTDB] Snapshot does not exist, returning empty array");
     return [];
   }
 
   const items: T[] = [];
   snapshot.forEach((childSnapshot) => {
     const data = childSnapshot.val();
+    console.log("[RTDB] Processing child snapshot:", childSnapshot.key, "data:", data);
+    
     const normalized = {
       ...data,
       id: childSnapshot.key,
@@ -47,6 +50,7 @@ function snapshotsToDataArray<T>(snapshot: DataSnapshot): T[] {
     items.push(normalized as T);
   });
 
+  console.log("[RTDB] Converted snapshots to array:", items.length, "items");
   return items;
 }
 
@@ -184,9 +188,14 @@ export const realtimeDatabaseService = {
       }
 
       const unsubscribe = onValue(q, (snapshot) => {
+        console.log("[RTDB] Snapshot received for path:", path, "exists:", snapshot.exists());
         const data = snapshotsToDataArray<T>(snapshot);
         console.log("[RTDB] Collection update received:", path, "items:", data.length);
         callback(data);
+      }, (error) => {
+        console.error("[RTDB] Error in subscription for path:", path, error);
+        // Still call callback with empty array to prevent hanging
+        callback([]);
       });
 
       return () => {
@@ -196,9 +205,14 @@ export const realtimeDatabaseService = {
     }
 
     const unsubscribe = onValue(queryRef, (snapshot) => {
+      console.log("[RTDB] Snapshot received for path:", path, "exists:", snapshot.exists());
       const data = snapshotsToDataArray<T>(snapshot);
       console.log("[RTDB] Collection update received:", path, "items:", data.length);
       callback(data);
+    }, (error) => {
+      console.error("[RTDB] Error in subscription for path:", path, error);
+      // Still call callback with empty array to prevent hanging
+      callback([]);
     });
 
     return () => {

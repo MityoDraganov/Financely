@@ -2,12 +2,25 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
+import { useOrganizationBranding } from "@/hooks/use-organization-branding";
+import { getOrganizationName, getOrganizationLogo } from "@/utils/branding";
 
 export function Navbar(): React.ReactElement {
+  const { organization } = useOrganizationBranding();
+  
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <a href="#" className="text-2xl font-extrabold tracking-tight text-[#166534]">Financely</a>
+        <div className="flex items-center gap-2">
+          <img 
+            src={getOrganizationLogo(organization)} 
+            alt="Logo" 
+            className="h-8 w-8 rounded"
+          />
+          <a href="#" className="text-2xl font-extrabold tracking-tight text-[#166534]">
+            {getOrganizationName(organization)}
+          </a>
+        </div>
         <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
           <a href="#features" className="text-gray-700 hover:text-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] focus-visible:rounded">Features</a>
           <a href="#how-it-works" className="text-gray-700 hover:text-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] focus-visible:rounded">How It Works</a>
