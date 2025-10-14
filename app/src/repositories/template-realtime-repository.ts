@@ -99,7 +99,12 @@ export function getTemplateRealtimeRepository(): TemplateRepository & {
       // This avoids index requirements and is fine for small datasets
       return realtimeDatabaseService.subscribeToCollection<Template>(
         TEMPLATES_PATH,
-        (allTemplates: Template[]) => {
+        (allTemplates: Template[] | null) => {
+          if (!allTemplates) {
+            callback([]);
+            return;
+          }
+          
           console.log("[TEMPLATE-REPO] Raw templates received:", allTemplates);
           
           // Filter by orgId client-side

@@ -5,5 +5,6 @@ export enum DatabaseCollection {
   TEMPLATE_VERSIONS = "templateVersions",
   ORGANIZATIONS = "organizations",
   USERS = "users",
+  INVITES = "invites",
 }
 

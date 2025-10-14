@@ -37,7 +37,6 @@ export default function OrganizationGeneralPage() {
     register,
     handleSubmit,
     reset,
-    watch,
     formState: { errors, isDirty },
   } = useForm<OrganizationGeneralForm>({
     resolver: zodResolver(organizationGeneralSchema),

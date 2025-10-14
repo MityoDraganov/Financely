@@ -140,7 +140,7 @@ export function TableProperties({
 				<div className="space-y-1 col-span-2">
 					<Label className="text-xs">Items binding</Label>
 					<Input
-						placeholder="invoice.items"
+						placeholder=""
 						value={tbl.itemsBinding}
 						onChange={(e) => onChange({ ...tbl, itemsBinding: e.target.value })}
 					/>

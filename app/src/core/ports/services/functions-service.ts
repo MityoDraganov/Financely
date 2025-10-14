@@ -76,4 +76,14 @@ export interface FunctionsService {
   generateInvoiceShareLink(payload: {
     invoiceId: string;
   }): Promise<{ url: string }>;
+
+  sendInviteEmail(payload: {
+    inviteId: string;
+    organizationId: string;
+  }): Promise<{ sent: boolean }>;
+
+  sendWelcomeEmail(payload: {
+    userId: string;
+    organizationId: string;
+  }): Promise<{ sent: boolean }>;
 }

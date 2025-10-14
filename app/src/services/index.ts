@@ -2,11 +2,13 @@ import { FunctionsService, AuthenticationService } from "@/core";
 import { databaseService } from "./database/database-service";
 import { functionsService } from "./functions/functions-service";
 import { authenticationService } from "./authentication/authentication-service";
+import { inviteService } from "./invite/invite-service";
 
 export type ServiceHost = {
   getDatabaseService: () => typeof databaseService;
   getFunctionsService: () => FunctionsService;
   getAuthenticationService: () => AuthenticationService;
+  getInviteService: () => typeof inviteService;
 };
 
 export const serviceHost: ServiceHost = {
@@ -18,6 +20,9 @@ export const serviceHost: ServiceHost = {
   },
   getAuthenticationService() {
     return authenticationService;
+  },
+  getInviteService() {
+    return inviteService;
   },
 };
 

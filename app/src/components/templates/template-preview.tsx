@@ -94,9 +94,25 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
 
         if (el.type === "image") {
             const img = el as Extract<TemplateElement, { type: "image" }>;
+            let imageSrc = img.src;
+            
+            // If there's a binding, try to get the value from context, otherwise use default src
+            if (img.binding) {
+                const boundValue = getByPath<string>(context, img.binding);
+                if (boundValue) {
+                    imageSrc = boundValue;
+                }
+            }
+            
             return (
                 <div key={img.id} style={commonStyle}>
-                    <img src={img.src} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: img.objectFit }} />
+                    {imageSrc ? (
+                        <img src={imageSrc} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: img.objectFit }} />
+                    ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", color: "#6b7280", fontSize: 12 * zoom }}>
+                            No Image
+                        </div>
+                    )}
                 </div>
             );
         }

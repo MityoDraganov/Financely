@@ -35,6 +35,9 @@ import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { usePresence } from "@/hooks/use-presence";
+import { PresenceIndicator } from "@/components/designer/presence-indicator";
+import { LiveCursor } from "@/components/designer/live-cursor";
 import {
 	TextElement,
 	TextProperties,
@@ -93,6 +96,7 @@ export default function TemplateDesignerPage() {
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const { data: templates = [], isSubscribed } = useTemplates(orgId);
+	const { activeUsers, isConnected, updateCursor } = usePresence(state.currentTemplateId);
 	console.log(
 		"templates",
 		templates,
@@ -499,6 +503,14 @@ export default function TemplateDesignerPage() {
 			at,
 			templateId: currentTemplate.id,
 		});
+
+		// Generate default binding based on element type and existing elements
+		const existingElements = currentTemplate.elements ?? [];
+		const elementsOfSameType = existingElements.filter(el => el.type === kind);
+		const defaultBinding = elementsOfSameType.length === 0 
+			? kind 
+			: `${kind}${elementsOfSameType.length + 1}`;
+
 		const newElement: TemplateElement =
 			kind === "text"
 				? {
@@ -512,6 +524,7 @@ export default function TemplateDesignerPage() {
 						zIndex: 1,
 						visible: true,
 						text: "Text",
+						binding: defaultBinding,
 						typography: {
 							fontFamily: "Inter",
 							fontSize: 12,
@@ -537,6 +550,7 @@ export default function TemplateDesignerPage() {
 							zIndex: 1,
 							visible: true,
 							src: "",
+							binding: defaultBinding,
 							objectFit: "contain",
 						}
 					: kind === "table"
@@ -572,7 +586,7 @@ export default function TemplateDesignerPage() {
 									},
 								],
 								designRows: [],
-								itemsBinding: "invoice.items",
+								itemsBinding: "items",
 								totals: [],
 							}
 						: kind === "box"
@@ -603,6 +617,7 @@ export default function TemplateDesignerPage() {
 										zIndex: 1,
 										visible: true,
 										placeholder: "",
+										binding: defaultBinding,
 										variant: "text",
 										align: "left",
 									}
@@ -1044,6 +1059,14 @@ export default function TemplateDesignerPage() {
 									<span>Live</span>
 								</div>
 							)}
+							{isConnected && (
+								<div className="flex items-center gap-2">
+									<PresenceIndicator users={activeUsers} />
+									<span className="text-xs text-muted-foreground">
+										{activeUsers.length} {activeUsers.length === 1 ? 'person' : 'people'} viewing
+									</span>
+								</div>
+							)}
 							<div className="ml-auto flex items-center gap-2">
 								<Select
 									value={String(state.zoom)}
@@ -1109,6 +1132,18 @@ export default function TemplateDesignerPage() {
 								}}
 								onDragOver={handleCanvasDragOver}
 								onDrop={handleCanvasDrop}
+								onMouseMove={(e) => {
+									if (!state.currentTemplateId) return;
+									
+									const rect = pageRef.current?.getBoundingClientRect();
+									if (!rect) return;
+									
+									const x = (e.clientX - rect.left) / state.zoom;
+									const y = (e.clientY - rect.top) / state.zoom;
+									
+									// Throttle cursor updates to avoid too many database writes
+									updateCursor({ x, y });
+								}}
 							>
 								{/* grid */}
 								<div
@@ -1163,6 +1198,15 @@ export default function TemplateDesignerPage() {
 										}}
 									/>
 								))}
+								{/* Live cursors */}
+								{activeUsers.map((user) => (
+									<LiveCursor
+										key={user.uid}
+										user={user}
+										zoom={state.zoom}
+									/>
+								))}
+								
 								{/* elements */}
 								{(
 									draftElements ??

@@ -79,7 +79,7 @@ export function ImageProperties({ element, onChange, isNarrow }: ImageProperties
 			<div className="text-xs font-medium">Image</div>
 			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
 				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Image URL</Label>
+					<Label className="text-xs">Image URL (Default)</Label>
 					<Input
 						placeholder="https://..."
 						value={element.src}
@@ -88,6 +88,20 @@ export function ImageProperties({ element, onChange, isNarrow }: ImageProperties
 							onChange({ ...img, src: e.target.value });
 						}}
 					/>
+				</div>
+				<div className="space-y-1 col-span-2">
+					<Label className="text-xs">Data Binding (Optional)</Label>
+					<Input
+						placeholder="e.g., company.logoUrl"
+						value={element.binding || ""}
+						onChange={(e) => {
+							const img = element as Extract<TemplateElement, { type: "image" }>;
+							onChange({ ...img, binding: e.target.value || undefined });
+						}}
+					/>
+					<div className="text-xs text-muted-foreground">
+						Leave empty to use default URL. Set a binding to override with data from invoice.
+					</div>
 				</div>
 				<div className="space-y-1">
 					<Label className="text-xs">Object fit</Label>

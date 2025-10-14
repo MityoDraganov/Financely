@@ -41,6 +41,7 @@ export const textElementSchema = templateElementBaseSchema.extend({
 export const imageElementSchema = templateElementBaseSchema.extend({
   type: z.literal("image"),
   src: z.string().min(1),
+  binding: z.string().optional(),
   objectFit: z.enum(["contain", "cover", "fill", "none"]).default("contain"),
   alt: z.string().optional(),
 });

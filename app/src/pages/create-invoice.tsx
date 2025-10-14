@@ -93,6 +93,10 @@ export default function CreateInvoicePage() {
         const inputEl = element as Extract<TemplateElement, { type: "input" }>;
         binding = inputEl.binding;
         type = inputEl.variant || "text";
+      } else if (element.type === "image") {
+        const imageEl = element as Extract<TemplateElement, { type: "image" }>;
+        binding = imageEl.binding;
+        type = "text"; // Image URLs are text
       }
       
       if (binding) {

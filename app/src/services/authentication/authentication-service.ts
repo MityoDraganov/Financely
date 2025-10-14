@@ -1,72 +1,41 @@
-import { AuthenticationService, AuthUser } from "@/core";
-import { firebase } from "@/infrastructure";
-import {
-  createUserWithEmailAndPassword,
-  IdTokenResult,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signInWithCustomToken,
-  signInWithEmailAndPassword,
-  signOut,
-  User,
-} from "@firebase/auth";
+import { AuthenticationService } from "@/core";
 
+// Clerk-based authentication service
+// Note: Most authentication is handled by Clerk directly
+// This service provides compatibility with existing code
 export const authenticationService: AuthenticationService = {
-  async signUpWithEmailAndPassword({ email, password }) {
-    await createUserWithEmailAndPassword(firebase.auth, email, password);
+  async signUpWithEmailAndPassword() {
+    // Clerk handles sign up through their components
+    // This method is kept for compatibility but should not be used
+    throw new Error("Use Clerk's SignUp component instead of this method");
   },
 
-  async signInWithCustomToken(token: string) {
-    await signInWithCustomToken(firebase.auth, token);
+  async signInWithCustomToken() {
+    // Clerk handles custom token sign in through their components
+    // This method is kept for compatibility but should not be used
+    throw new Error("Use Clerk's SignIn component instead of this method");
   },
 
-  async signInWithEmailAndPassword({ email, password }) {
-    await signInWithEmailAndPassword(firebase.auth, email, password);
+  async signInWithEmailAndPassword() {
+    // Clerk handles sign in through their components
+    // This method is kept for compatibility but should not be used
+    throw new Error("Use Clerk's SignIn component instead of this method");
   },
 
-  onUserStateChanged(callback) {
-    return onAuthStateChanged(firebase.auth, async (user) => {
-      if (!user) {
-        callback(null);
-        return;
-      }
-
-      const token = await user.getIdTokenResult();
-      callback(createAuthUser(user, token));
-    });
+  onUserStateChanged() {
+    // This is handled by ClerkAuthProvider
+    // Return a no-op unsubscribe function
+    return () => {};
   },
 
-  async sendPasswordResetEmail(email) {
-    await sendPasswordResetEmail(firebase.auth, email);
+  async sendPasswordResetEmail() {
+    // Clerk handles password reset through their components
+    // This method is kept for compatibility but should not be used
+    throw new Error("Use Clerk's password reset flow instead of this method");
   },
 
   async signOut() {
-    await signOut(firebase.auth);
+    // This would need to be called from a component with useClerk hook
+    throw new Error("Use Clerk's signOut from useClerk hook instead of this method");
   },
 };
-
-function createAuthUser(
-  user: User | null,
-  token: IdTokenResult,
-): AuthUser | null {
-  if (!user) {
-    return null;
-  }
-
-  if (!user.uid) {
-    return null;
-  }
-
-  if (!user.email) {
-    return null;
-  }
-
-  return {
-    uid: user.uid,
-    email: user.email,
-    emailVerified: user.emailVerified,
-    displayName: user.displayName || "",
-    photoURL: user.photoURL || "",
-    isTrueAdmin: Boolean(token.claims.admin) || false,
-  };
-}

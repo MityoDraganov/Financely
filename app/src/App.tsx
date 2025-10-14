@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { FirebaseTokenProvider } from "./components/FirebaseTokenProvider";
 
 import CreateInvoicePage from "./pages/create-invoice";
 import TemplateDesignerPage from "./pages/designer";
@@ -19,9 +18,11 @@ import OrganizationBrandingPage from "./pages/settings/organization/branding";
 import OrganizationBillingPage from "./pages/settings/organization/billing";
 import UsersListPage from "./pages/settings/users/list";
 import OnboardingPage from "./pages/onboarding/page";
+import AcceptInvitePage from "./pages/accept-invite";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
 import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 
 const queryClient = new QueryClient();
 
@@ -34,9 +35,9 @@ if (!PUBLISHABLE_KEY) {
 
 function App() {
 	return (
-		<ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-			<QueryClientProvider client={queryClient}>
-				<FirebaseTokenProvider>
+			<ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+				<QueryClientProvider client={queryClient}>
+					<ClerkAuthProvider>
 					<SidebarProvider>
 						<OrganizationProvider>
 							<Router>
@@ -53,6 +54,10 @@ function App() {
 									<Route
 										path="/onboarding"
 										element={<OnboardingPage />}
+									/>
+									<Route
+										path="/accept-invite"
+										element={<AcceptInvitePage />}
 									/>
 
 									<Route
@@ -147,7 +152,7 @@ function App() {
 							</Router>
 						</OrganizationProvider>
 					</SidebarProvider>
-				</FirebaseTokenProvider>
+				</ClerkAuthProvider>
 			</QueryClientProvider>
 		</ClerkProvider>
 	);

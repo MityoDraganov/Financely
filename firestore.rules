@@ -2,8 +2,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow access only to authenticated users
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
+    }
+    
+    // Organization-specific rules
+    match /organizations/{orgId} {
+      allow read, write: if request.auth != null 
+        && (request.auth.token.clerkId != null);
+      
+      // Organization members can read/write
+      match /members/{userId} {
+        allow read, write: if request.auth != null 
+          && (request.auth.token.clerkId == userId || 
+              request.auth.token.clerkId in resource.data.roles);
+      }
+    }
+    
+    // User-specific rules
+    match /users/{userId} {
+      allow read, write: if request.auth != null 
+        && request.auth.token.clerkId == userId;
+    }
+    
+    // Templates - organization members can access
+    match /templates/{templateId} {
+      allow read, write: if request.auth != null 
+        && request.auth.token.clerkId != null;
+    }
+    
+    // Invoices - organization members can access
+    match /invoices/{invoiceId} {
+      allow read, write: if request.auth != null 
+        && request.auth.token.clerkId != null;
     }
   }
 }

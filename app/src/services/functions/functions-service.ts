@@ -44,4 +44,20 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async sendInviteEmail(payload) {
+    const result = await httpsCallable<typeof payload, { sent: boolean }>(
+      firebase.functions,
+      "sendInviteEmail",
+    )(payload);
+    return result.data;
+  },
+
+  async sendWelcomeEmail(payload) {
+    const result = await httpsCallable<typeof payload, { sent: boolean }>(
+      firebase.functions,
+      "sendWelcomeEmail",
+    )(payload);
+    return result.data;
+  },
 };

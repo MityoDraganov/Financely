@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,12 +14,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
+import { useInvites } from "@/hooks/use-invites";
+import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
+import { PendingInvites } from "@/components/invite/pending-invites";
 
 export default function UsersListPage() {
   const { data: organization } = useCurrentOrganization();
   const { data: members = [], isLoading } = useOrganizationMembers(organization?.id);
+  const { data: invites = [] } = useInvites(organization?.id);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   const filteredMembers = members.filter(member =>
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,7 +96,10 @@ export default function UsersListPage() {
               </p>
             </div>
           </div>
-          <Button className="flex items-center gap-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800">
+          <Button 
+            onClick={() => setInviteDialogOpen(true)}
+            className="flex items-center gap-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+          >
             <Plus className="h-4 w-4" />
             Invite Member
           </Button>
@@ -287,6 +295,17 @@ export default function UsersListPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Invites Section */}
+      {invites.length > 0 && (
+        <PendingInvites invites={invites} />
+      )}
+
+      {/* Invite User Dialog */}
+      <InviteUserDialog 
+        open={inviteDialogOpen} 
+        onOpenChange={setInviteDialogOpen} 
+      />
     </div>
   );
 }

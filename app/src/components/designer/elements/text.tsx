@@ -102,6 +102,31 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 							zIndex: element.zIndex,
 							visible: element.visible,
 							text: e.target.value,
+							binding: t.binding,
+							typography: t.typography,
+							format: t.format,
+						})
+					}
+				/>
+			</div>
+			<div className="space-y-1">
+				<Label className="text-xs">Data Binding</Label>
+				<Input
+					placeholder="e.g., invoice.customerName"
+					value={t.binding ?? ""}
+					onChange={(e) =>
+						onChange({
+							id: element.id,
+							type: "text",
+							x: element.x,
+							y: element.y,
+							width: element.width,
+							height: element.height,
+							rotation: element.rotation,
+							zIndex: element.zIndex,
+							visible: element.visible,
+							text: t.text,
+							binding: e.target.value || undefined,
 							typography: t.typography,
 							format: t.format,
 						})
@@ -114,22 +139,23 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 					<Input
 						type="number"
 						value={t.typography.fontSize}
-						onChange={(e) =>
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
-								typography: { ...t.typography, fontSize: Number(e.target.value) },
-								format: t.format,
-							})
-						}
+					onChange={(e) =>
+						onChange({
+							id: element.id,
+							type: "text",
+							x: element.x,
+							y: element.y,
+							width: element.width,
+							height: element.height,
+							rotation: element.rotation,
+							zIndex: element.zIndex,
+							visible: element.visible,
+							text: t.text,
+							binding: t.binding,
+							typography: { ...t.typography, fontSize: Number(e.target.value) },
+							format: t.format,
+						})
+					}
 					/>
 				</div>
 				<div className="space-y-1">
@@ -148,6 +174,7 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 								zIndex: element.zIndex,
 								visible: element.visible,
 								text: t.text,
+								binding: t.binding,
 								typography: { ...t.typography, fontWeight: v as typeof t.typography.fontWeight },
 								format: t.format,
 							})
@@ -181,6 +208,7 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 								zIndex: element.zIndex,
 								visible: element.visible,
 								text: t.text,
+								binding: t.binding,
 								typography: { ...t.typography, color: e.target.value },
 								format: t.format,
 							})
@@ -205,6 +233,7 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 								zIndex: element.zIndex,
 								visible: element.visible,
 								text: t.text,
+								binding: t.binding,
 								typography: { ...t.typography, align: v as typeof t.typography.align },
 								format: t.format,
 							})
@@ -236,6 +265,7 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 								zIndex: element.zIndex,
 								visible: element.visible,
 								text: t.text,
+								binding: t.binding,
 								typography: { ...t.typography, uppercase: checked, lowercase: checked ? false : t.typography.lowercase },
 								format: t.format,
 							})
