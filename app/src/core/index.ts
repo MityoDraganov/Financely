@@ -8,6 +8,7 @@ export * from "./entities/invoice";
 export * from "./entities/buyer";
 export * from "./entities/seller";
 export * from "./entities/template";
+export * from "./entities/workflow";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

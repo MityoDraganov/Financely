@@ -6,5 +6,7 @@ export enum DatabaseCollection {
   ORGANIZATIONS = "organizations",
   USERS = "users",
   INVITES = "invites",
+  WORKFLOWS = "workflows",
+  WORKFLOW_EXECUTIONS = "workflow_executions",
 }
 

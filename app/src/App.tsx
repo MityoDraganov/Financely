@@ -20,6 +20,9 @@ import UsersListPage from "./pages/settings/users/list";
 import InvitesPage from "./pages/settings/invites";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
+import WorkflowsPage from "./pages/workflows/workflows-page";
+import WorkflowTemplatesPage from "./pages/workflows/workflow-templates-page";
+import WorkflowExecutionPage from "./pages/workflows/workflow-execution-page";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
 import { ClerkProvider } from "@clerk/clerk-react";
@@ -110,6 +113,36 @@ function App() {
 											<ProtectedRoute>
 												<AppLayout>
 													<TemplateDesignerPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/workflows"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<WorkflowsPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/workflows/templates"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<WorkflowTemplatesPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/workflows/:id"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<WorkflowExecutionPage />
 												</AppLayout>
 											</ProtectedRoute>
 										}
