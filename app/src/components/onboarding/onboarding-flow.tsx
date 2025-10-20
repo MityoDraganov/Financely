@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   Loader2
 } from "lucide-react";
 import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useCreateUser, useUserByClerkId } from "@/hooks";
+import { useAcceptInvite } from "@/hooks/use-invites";
 import { useUser } from "@clerk/clerk-react";
 import { toast } from "sonner";
 
@@ -29,9 +30,11 @@ interface OrganizationFormData {
 
 const STEPS = {
   WELCOME: 0,
-  BENEFITS: 1,
-  CREATE_ORG: 2,
-  SUCCESS: 3,
+  CHOOSE_PATH: 1,
+  BENEFITS: 2,
+  CREATE_ORG: 3,
+  JOIN_ORG: 4,
+  SUCCESS: 5,
 };
 
 export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
@@ -41,6 +44,19 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     description: "",
     website: "",
   });
+  const [inviteCode, setInviteCode] = useState("");
+
+  // Check for pending invite code on mount
+  useEffect(() => {
+    const pendingCode = sessionStorage.getItem('pendingInviteCode');
+    if (pendingCode) {
+      setInviteCode(pendingCode);
+      // Clear the pending code
+      sessionStorage.removeItem('pendingInviteCode');
+      // Skip to join organization step
+      setCurrentStep(STEPS.JOIN_ORG);
+    }
+  }, []);
 
   const { user: clerkUser } = useUser();
   const { data: dbUser } = useUserByClerkId(clerkUser?.id);
@@ -48,11 +64,14 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const createOrganization = useCreateOrganization();
   const addMember = useAddOrganizationMember();
   const updateUserRole = useUpdateUserRole();
+  const acceptInvite = useAcceptInvite();
 
   const progress = ((currentStep + 1) / Object.keys(STEPS).length) * 100;
 
   const handleNext = () => {
-    if (currentStep < STEPS.SUCCESS) {
+    if (currentStep === STEPS.WELCOME) {
+      setCurrentStep(STEPS.CHOOSE_PATH);
+    } else if (currentStep < STEPS.SUCCESS) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -60,6 +79,29 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const handleBack = () => {
     if (currentStep > STEPS.WELCOME) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleChooseCreate = () => {
+    setCurrentStep(STEPS.BENEFITS);
+  };
+
+  const handleChooseJoin = () => {
+    setCurrentStep(STEPS.JOIN_ORG);
+  };
+
+  const handleJoinOrganization = async () => {
+    if (!inviteCode.trim()) {
+      toast.error("Please enter an invite code");
+      return;
+    }
+
+    try {
+      await acceptInvite.mutateAsync(inviteCode);
+      setCurrentStep(STEPS.SUCCESS);
+    } catch (error) {
+      toast.error("Failed to join organization. Please check your invite code.");
+      console.error("Error joining organization:", error);
     }
   };
 
@@ -186,6 +228,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             <WelcomeStep key="welcome" onNext={handleNext} userName={clerkUser?.firstName || "there"} />
           )}
 
+          {currentStep === STEPS.CHOOSE_PATH && (
+            <ChoosePathStep key="choose" onCreate={handleChooseCreate} onJoin={handleChooseJoin} />
+          )}
+
           {currentStep === STEPS.BENEFITS && (
             <BenefitsStep key="benefits" onNext={handleNext} onBack={handleBack} />
           )}
@@ -201,12 +247,181 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             />
           )}
 
+          {currentStep === STEPS.JOIN_ORG && (
+            <JoinOrgStep
+              key="join"
+              inviteCode={inviteCode}
+              setInviteCode={setInviteCode}
+              onBack={handleBack}
+              onSubmit={handleJoinOrganization}
+              isLoading={acceptInvite.isPending}
+            />
+          )}
+
           {currentStep === STEPS.SUCCESS && (
             <SuccessStep key="success" onComplete={handleComplete} orgName={formData.name} />
           )}
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.4 }}
+    >
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+        <CardHeader className="text-center pb-8">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
+            <Building2 className="h-8 w-8 text-[#166534]" />
+          </div>
+          <CardTitle className="text-3xl font-bold text-gray-900 mb-4">
+            Choose Your Path
+          </CardTitle>
+          <CardDescription className="text-lg text-gray-600">
+            How would you like to get started with Financely?
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Create Organization Option */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="group cursor-pointer"
+              onClick={onCreate}
+            >
+              <Card className="border-2 border-transparent group-hover:border-[#166534]/20 transition-all duration-200 h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#166534]/10 group-hover:bg-[#166534]/20 transition-colors">
+                    <Building2 className="h-6 w-6 text-[#166534]" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Create Organization</h3>
+                  <p className="text-gray-600 mb-4">
+                    Start fresh with your own organization and invite team members
+                  </p>
+                  <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
+                    Create New Organization
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Join Organization Option */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="group cursor-pointer"
+              onClick={onJoin}
+            >
+              <Card className="border-2 border-transparent group-hover:border-[#166534]/20 transition-all duration-200 h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#166534]/10 group-hover:bg-[#166534]/20 transition-colors">
+                    <Users className="h-6 w-6 text-[#166534]" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Join Organization</h3>
+                  <p className="text-gray-600 mb-4">
+                    Join an existing organization using an invite code
+                  </p>
+                  <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
+                    Join with Code
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function JoinOrgStep({ 
+  inviteCode, 
+  setInviteCode, 
+  onBack, 
+  onSubmit, 
+  isLoading 
+}: { 
+  inviteCode: string; 
+  setInviteCode: (code: string) => void; 
+  onBack: () => void; 
+  onSubmit: () => void; 
+  isLoading: boolean; 
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.4 }}
+    >
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+        <CardHeader className="text-center pb-8">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
+            <Users className="h-8 w-8 text-[#166534]" />
+          </div>
+          <CardTitle className="text-3xl font-bold text-gray-900 mb-4">
+            Join Organization
+          </CardTitle>
+          <CardDescription className="text-lg text-gray-600">
+            Enter the invite code you received to join an existing organization
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="inviteCode" className="text-sm font-medium text-gray-700">
+                Invite Code
+              </Label>
+              <Input
+                id="inviteCode"
+                type="text"
+                placeholder="Enter invite code (e.g., ABC123)"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                className="mt-1"
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-between pt-6">
+            <Button
+              variant="outline"
+              onClick={onBack}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <Button
+              onClick={onSubmit}
+              disabled={isLoading || !inviteCode.trim()}
+              className="flex items-center gap-2 bg-[#166534] hover:bg-[#0e4424]"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                <>
+                  Join Organization
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 

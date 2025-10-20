@@ -45,12 +45,12 @@ export function useAcceptInvite() {
   const authUser = useFirebaseAuthUser();
 
   return useMutation({
-    mutationFn: async (token: string) => {
+    mutationFn: async (code: string) => {
       if (!authUser) {
         throw new Error("User not authenticated");
       }
 
-      return inviteService.acceptInvite(token, authUser);
+      return inviteService.acceptInvite(code, authUser);
     },
     onSuccess: () => {
       toast.success("Successfully joined the organization!");

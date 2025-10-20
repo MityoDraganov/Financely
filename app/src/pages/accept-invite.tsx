@@ -9,11 +9,11 @@ import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 export default function AcceptInvitePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get("token");
+  const token = searchParams.get("code");
   const authUser = useFirebaseAuthUser();
   const acceptInvite = useAcceptInvite();
   
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "no-token">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "error" | "no-token" | "checking-auth">("checking-auth");
 
   useEffect(() => {
     if (!token) {
@@ -21,23 +21,24 @@ export default function AcceptInvitePage() {
       return;
     }
 
-    if (!authUser) {
-      // Redirect to sign in if user is not authenticated
+    // If authUser is still loading (undefined), keep checking
+    if (authUser === undefined) {
+      setStatus("checking-auth");
+      return;
+    }
+
+    // If user is not authenticated, redirect to sign in
+    if (authUser === null) {
       navigate("/sign-in?redirect_url=" + encodeURIComponent(window.location.href));
       return;
     }
 
-    // Auto-accept the invite
-    const handleAcceptInvite = async () => {
-      try {
-        await acceptInvite.mutateAsync(token);
-        setStatus("success");
-      } catch (error) {
-        setStatus("error");
-      }
-    };
-
-    handleAcceptInvite();
+    // If user is authenticated, redirect to onboarding with the invite code
+    if (authUser) {
+      // Store the invite code in sessionStorage for the onboarding flow
+      sessionStorage.setItem('pendingInviteCode', token);
+      navigate("/onboarding", { replace: true });
+    }
   }, [token, authUser, navigate, acceptInvite]);
 
   if (status === "no-token") {
@@ -63,7 +64,7 @@ export default function AcceptInvitePage() {
     );
   }
 
-  if (status === "loading") {
+  if (status === "checking-auth" || status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
@@ -71,9 +72,14 @@ export default function AcceptInvitePage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
               <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
             </div>
-            <CardTitle>Accepting Invitation</CardTitle>
+            <CardTitle>
+              {status === "checking-auth" ? "Checking Authentication" : "Accepting Invitation"}
+            </CardTitle>
             <CardDescription>
-              Please wait while we add you to the organization...
+              {status === "checking-auth" 
+                ? "Please wait while we verify your authentication..." 
+                : "Please wait while we add you to the organization..."
+              }
             </CardDescription>
           </CardHeader>
         </Card>

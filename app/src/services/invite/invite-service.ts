@@ -10,7 +10,8 @@ export interface InviteService {
   sendInvite: (inviteData: Omit<InviteData, "token" | "expiresAt" | "status">) => Promise<string>;
   getInvites: (organizationId: string) => Promise<Invite[]>;
   getInviteByToken: (token: string) => Promise<Invite | null>;
-  acceptInvite: (token: string, user: AuthUser) => Promise<void>;
+  getInviteByCode: (code: string) => Promise<Invite | null>;
+  acceptInvite: (code: string, user: AuthUser) => Promise<void>;
   revokeInvite: (inviteId: string) => Promise<void>;
   resendInvite: (inviteId: string) => Promise<void>;
   getOrganizationName: (organizationId: string) => Promise<string>;
@@ -21,7 +22,6 @@ export interface InviteService {
 export const inviteService: InviteService = {
   async sendInvite(inviteData) {
     // Generate a unique token
-    const token = crypto.randomUUID();
     
     // Set expiration to 7 days from now
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -29,8 +29,7 @@ export const inviteService: InviteService = {
     const fullInviteData: InviteData = {
       ...inviteData,
       expiresAt,
-      token,
-      status: "pending",
+      status: "active",
     };
 
     // Save the invite to Firebase
@@ -72,15 +71,22 @@ export const inviteService: InviteService = {
     );
   },
 
-  async acceptInvite(token: string, user: AuthUser) {
-    // Get the invite
-    const invite = await this.getInviteByToken(token);
+  async getInviteByCode(code: string) {
+    return await databaseService.getByField<Invite>(
+      DatabaseCollection.INVITES,
+      [{ field: "code", operator: "==", value: code }]
+    );
+  },
+
+  async acceptInvite(code: string, user: AuthUser) {
+    // Get the invite by code
+    const invite = await this.getInviteByCode(code);
     if (!invite) {
-      throw new Error("Invalid invite token");
+      throw new Error("Invalid invite code");
     }
 
     // Check if invite is still valid
-    if (invite.status !== "pending") {
+    if (invite.status !== "active") {
       throw new Error("Invite has already been used or revoked");
     }
 
@@ -88,24 +94,19 @@ export const inviteService: InviteService = {
       throw new Error("Invite has expired");
     }
 
-    // Check if user email matches invite email
-    if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
-      throw new Error("This invite is for a different email address");
-    }
-
     // Update the invite status
     await databaseService.update(
       DatabaseCollection.INVITES,
       invite.id,
       {
-        status: "accepted",
-        acceptedAt: new Date().toISOString(),
-        acceptedBy: user.uid,
+        status: "used",
+        usedAt: new Date().toISOString(),
+        usedBy: user.uid,
       }
     );
 
-    // Add user to organization
-    await inviteService.addUserToOrganization(invite.organizationId, user.uid, invite.role);
+    // Add user to organization with member role
+    await inviteService.addUserToOrganization(invite.organizationId, user.uid, "member");
 
     // Send welcome email
     try {
@@ -140,8 +141,8 @@ export const inviteService: InviteService = {
       throw new Error("Invite not found");
     }
 
-    if (invite.status !== "pending") {
-      throw new Error("Can only resend pending invites");
+    if (invite.status !== "active") {
+      throw new Error("Can only resend active invites");
     }
 
     // Send email via Cloud Function

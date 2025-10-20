@@ -45,6 +45,37 @@ export interface InviteService {
   canCreateInvites(userId: string, organizationId: string): Promise<boolean>;
 }
 
+/**
+ * Generate a unique invite code
+ */
+async function generateUniqueCode(inviteRepository: InviteRepository): Promise<string> {
+  const generateCode = (): string => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  let code: string;
+  let isUnique = false;
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  do {
+    code = generateCode();
+    isUnique = await inviteRepository.isCodeUnique(code);
+    attempts++;
+  } while (!isUnique && attempts < maxAttempts);
+
+  if (!isUnique) {
+    throw new Error("Failed to generate unique invite code");
+  }
+
+  return code;
+}
+
 export function createInviteService(
   inviteRepository: InviteRepository,
   organizationRepository: OrganizationRepository,
@@ -59,7 +90,7 @@ export function createInviteService(
       }
 
       // Generate unique code
-      const code = await this.generateUniqueCode();
+      const code = await generateUniqueCode(inviteRepository);
 
       const inviteInput = {
         ...input,
@@ -121,8 +152,8 @@ export function createInviteService(
     async canCreateInvites(userId: string, organizationId: string): Promise<boolean> {
       try {
         // Get user and organization
-        const user = await userRepository.getById(userId);
-        const organization = await organizationRepository.getById(organizationId);
+        const user = await userRepository.get({ id: userId });
+        const organization = await organizationRepository.get({ id: organizationId });
 
         if (!user || !organization) {
           return false;
@@ -140,37 +171,6 @@ export function createInviteService(
         console.error("Error checking invite permissions:", error);
         return false;
       }
-    },
-
-    /**
-     * Generate a unique invite code
-     */
-    async generateUniqueCode(): Promise<string> {
-      const generateCode = (): string => {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        let result = "";
-        for (let i = 0; i < 8; i++) {
-          result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-      };
-
-      let code: string;
-      let isUnique = false;
-      let attempts = 0;
-      const maxAttempts = 10;
-
-      do {
-        code = generateCode();
-        isUnique = await inviteRepository.isCodeUnique(code);
-        attempts++;
-      } while (!isUnique && attempts < maxAttempts);
-
-      if (!isUnique) {
-        throw new Error("Failed to generate unique invite code");
-      }
-
-      return code;
     },
   };
 }

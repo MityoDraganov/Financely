@@ -143,10 +143,16 @@ export function useInvites() {
     return revokeInviteMutation.mutateAsync({ inviteId });
   };
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (inviteCode: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Copied to clipboard");
+      // Get the current domain from window.location
+      const currentDomain = window.location.origin;
+      
+      // Create the join URL with the invite code
+      const joinUrl = `${currentDomain}/accept-invite?code=${inviteCode}`;
+      
+      await navigator.clipboard.writeText(joinUrl);
+      toast.success("Join URL copied to clipboard");
     } catch (error) {
       console.error("Error copying to clipboard:", error);
       toast.error("Failed to copy to clipboard");

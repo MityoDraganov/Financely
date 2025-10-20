@@ -30,7 +30,9 @@ export default function InvitesPage() {
     refetch,
     isCreating: creating,
     isRevoking,
+    error,
   } = useInvites();
+  console.log(error)
 
   const handleCreateInvite = async () => {
     await createInvite(expirationDays);
