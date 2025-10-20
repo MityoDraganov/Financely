@@ -1,40 +1,82 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "firebase-admin/auth";
+import { verifyToken } from "@clerk/backend";
+import { loggerService } from "../../services/logger-service";
 
-export const verifyClerkToken = onCall(async (request) => {
-  try {
-    const { clerkToken } = request.data;
+// Define the Clerk API secret
+const clerkApiSecret = defineSecret("CLERK_API_SECRET");
 
-    if (!clerkToken) {
-      throw new HttpsError("invalid-argument", "Clerk token is required");
+export const verifyClerkToken = onCall(
+  {
+    secrets: [clerkApiSecret],
+  },
+  async (request) => {
+    try {
+      const { clerkToken } = request.data;
+
+      if (!clerkToken) {
+        throw new HttpsError("invalid-argument", "Clerk token is required");
+      }
+
+      loggerService.info("Verifying Clerk token");
+
+      // Verify the Clerk JWT token
+      const payload = await verifyToken(clerkToken, {
+        secretKey: clerkApiSecret.value(),
+      });
+
+      if (!payload) {
+        throw new HttpsError("unauthenticated", "Invalid Clerk token");
+      }
+
+      loggerService.info("Clerk token verified successfully for user:", payload.sub);
+
+      // Extract user information from the verified token
+      const clerkUserId = payload.sub;
+      const email = payload.email as string;
+      const emailVerified = payload.email_verified as boolean;
+      const name = payload.name as string;
+      const picture = payload.picture as string;
+
+      // Create Firebase custom token with verified Clerk user data
+      const firebaseToken = await getAuth().createCustomToken(clerkUserId, {
+        clerkId: clerkUserId,
+        email: email,
+        email_verified: emailVerified,
+        name: name,
+        picture: picture,
+      });
+
+      loggerService.info("Firebase custom token created for user:", clerkUserId);
+
+      return {
+        firebaseToken,
+        clerkUser: {
+          id: clerkUserId,
+          email: email,
+          name: name,
+          picture: picture,
+        },
+      };
+    } catch (error) {
+      loggerService.error("Error verifying Clerk token:", error);
+      
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      
+      // Handle specific Clerk verification errors
+      if (error instanceof Error) {
+        if (error.message.includes("Invalid token")) {
+          throw new HttpsError("unauthenticated", "Invalid Clerk token");
+        }
+        if (error.message.includes("Token expired")) {
+          throw new HttpsError("unauthenticated", "Clerk token has expired");
+        }
+      }
+      
+      throw new HttpsError("internal", "Failed to verify Clerk token");
     }
-
-    // For now, we'll create a simple Firebase token without Clerk verification
-    // This is a temporary solution until we implement proper JWT verification
-    const firebaseToken = await getAuth().createCustomToken("clerk-user", {
-      clerkId: "clerk-user",
-      email: "user@example.com",
-      email_verified: true,
-      name: "Clerk User",
-      picture: "",
-    });
-
-    return {
-      firebaseToken,
-      clerkUser: {
-        id: "clerk-user",
-        email: "user@example.com",
-        name: "Clerk User",
-        picture: "",
-      },
-    };
-  } catch (error) {
-    console.error("Error verifying Clerk token:", error);
-    
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    
-    throw new HttpsError("internal", "Failed to verify Clerk token");
   }
-});
+);

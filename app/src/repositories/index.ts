@@ -6,6 +6,7 @@ import { getTemplateRepository } from "./template-repository";
 import { getInvoiceRepository } from "./invoice-repository";
 import { getOrganizationRepository } from "./organization-repository";
 import { getUserRepository } from "./user-repository";
+import { getInviteRepository } from "./invite-repository";
 
 
 export const repositoryHost: RepositoryHost = {
@@ -17,4 +18,6 @@ export const repositoryHost: RepositoryHost = {
       getOrganizationRepository(databaseService),
     getUsersRepository: (databaseService: DatabaseService) =>
       getUserRepository(databaseService),
+    getInvitesRepository: (databaseService: DatabaseService) =>
+      getInviteRepository(databaseService),
   }

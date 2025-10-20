@@ -10,7 +10,9 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": []
+      "predeploy": [
+        "cd functions && sudo npm run build"
+      ]
     }
   ],
   "firestore": {

@@ -11,6 +11,7 @@ import {
   UserCheck,
   Lock,
   FileText,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +53,12 @@ const settingsSections = [
         href: "/settings/users",
         description: "Manage team members",
         icon: UserCheck,
+      },
+      {
+        title: "Invites",
+        href: "/settings/invites",
+        description: "Manage team invites",
+        icon: UserPlus,
       },
       {
         title: "Roles",

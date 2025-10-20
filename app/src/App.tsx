@@ -17,12 +17,14 @@ import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
 import OrganizationBillingPage from "./pages/settings/organization/billing";
 import UsersListPage from "./pages/settings/users/list";
+import InvitesPage from "./pages/settings/invites";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
+import { ThemeProvider } from "./components/ui/theme-provider";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,7 @@ function App() {
 			<ClerkProvider publishableKey={PUBLISHABLE_KEY}>
 				<QueryClientProvider client={queryClient}>
 					<ClerkAuthProvider>
+						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>
 						<OrganizationProvider>
 							<Router>
@@ -145,6 +148,10 @@ function App() {
 											path="users"
 											element={<UsersListPage />}
 										/>
+										<Route
+											path="invites"
+											element={<InvitesPage />}
+										/>
 										{/* TODO: Add more settings routes */}
 									</Route>
 								</Routes>
@@ -152,6 +159,7 @@ function App() {
 							</Router>
 						</OrganizationProvider>
 					</SidebarProvider>
+					</ThemeProvider>
 				</ClerkAuthProvider>
 			</QueryClientProvider>
 		</ClerkProvider>

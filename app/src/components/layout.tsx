@@ -14,6 +14,7 @@ import { Brush, FileText, LayoutDashboard, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useOrganizationBranding } from "@/hooks/use-organization-branding";
 import { getOrganizationName, getOrganizationLogo } from "@/utils/branding";
+import { ModeToggle } from "./ui/mode-toggle";
 
 const items = [
 	{
@@ -42,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const { organization } = useOrganizationBranding();
 
 	return (
-		<div className="flex">
+		<div className="flex flex-1">
 			<Sidebar collapsible="icon">
 				<SidebarHeader>
 					<div className="flex items-center gap-2">
@@ -77,16 +78,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 					<div>
 						<SidebarSeparator />
-						<SidebarGroup>
+						<SidebarGroup className="flex flex-row justify-between items-center">
 							<SidebarMenuItem>
 								<UserButton showName />
 							</SidebarMenuItem>
+							<ModeToggle />
 						</SidebarGroup>
 					</div>
 				</SidebarContent>
 				<SidebarFooter />
 			</Sidebar>
-			<div className="flex-1">{children}</div>
+			<div className="flex-1 bg-background w-full">{children}</div>
 		</div>
 	);
 }

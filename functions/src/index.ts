@@ -11,6 +11,10 @@ if (!getApps().length) {
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 
+// Invite functions
+export { createInvite } from "./functions/create-invite";
+export { revokeInvite } from "./functions/revoke-invite";
+
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";
 export { sendWelcomeEmail } from "./functions/send-welcome-email";
