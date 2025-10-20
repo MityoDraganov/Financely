@@ -24,6 +24,18 @@
         ".read": "auth != null && (auth.uid == $userId || auth.token.admin == true)",
         ".write": "auth != null && (auth.uid == $userId || auth.token.admin == true)"
       }
+    },
+    "presence": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$templateId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId"
+        }
+      }
     }
   }
 }

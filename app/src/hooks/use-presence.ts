@@ -1,16 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import { presenceService, UserPresence } from "@/services/presence/presence-service";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 
 export function usePresence(templateId: string | undefined) {
   const [activeUsers, setActiveUsers] = useState<UserPresence[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const authUser = useFirebaseAuthUser();
+  const { data: currentOrg } = useCurrentOrganization();
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Join/leave template presence
   useEffect(() => {
     if (!templateId || !authUser) {
+      console.log("usePresence: Missing templateId or authUser", { templateId, authUser });
       return;
     }
 
@@ -18,8 +21,13 @@ export function usePresence(templateId: string | undefined) {
 
     const joinTemplate = async () => {
       try {
-        await presenceService.joinTemplate(templateId, authUser);
+        console.log("usePresence: Joining template", { templateId, authUser, currentOrg });
+        await presenceService.joinTemplate(templateId, authUser, currentOrg ? {
+          id: currentOrg.id,
+          name: currentOrg.name
+        } : undefined);
         if (isMounted) {
+          console.log("usePresence: Successfully joined template");
           setIsConnected(true);
         }
       } catch (error) {
@@ -35,33 +43,59 @@ export function usePresence(templateId: string | undefined) {
         presenceService.leaveTemplate(templateId, authUser).catch(console.error);
       }
     };
-  }, [templateId, authUser]);
+  }, [templateId, authUser, currentOrg]);
 
   // Subscribe to presence updates
   useEffect(() => {
     if (!templateId) {
+      console.log("usePresence: No templateId, clearing active users");
+      setActiveUsers([]);
       return;
     }
 
     // Clean up previous subscription
     if (unsubscribeRef.current) {
+      console.log("usePresence: Cleaning up previous subscription");
       unsubscribeRef.current();
     }
+
+    console.log("usePresence: Setting up presence subscription for template", templateId);
 
     unsubscribeRef.current = presenceService.subscribeToPresence(
       templateId,
       (users) => {
-        setActiveUsers(users);
+        console.log("usePresence: Received presence update with", users.length, "users");
+        console.log("usePresence: Raw users data", users);
+        
+        // Filter out invalid users but keep the current user
+        const validUsers = users.filter(user => {
+          const isValid = user && 
+            user.uid && 
+            user.displayName &&
+            user.isActive !== false;
+          
+          if (!isValid) {
+            console.log("usePresence: Filtering out invalid user", user);
+          }
+          
+          return isValid;
+        });
+        
+        console.log("usePresence: Filtered to", validUsers.length, "valid users");
+        console.log("usePresence: Valid users", validUsers.map(u => ({ uid: u.uid, name: u.displayName, isOnline: u.isOnline })));
+        
+        setActiveUsers(validUsers);
       }
     );
 
     return () => {
+      console.log("usePresence: Cleaning up presence subscription");
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     };
-  }, [templateId]);
+  }, [templateId, authUser?.uid]);
 
   // Update cursor position
   const updateCursor = async (cursor: { x: number; y: number }) => {

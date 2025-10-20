@@ -36,7 +36,8 @@ import { firebase } from "@/infrastructure";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { usePresence } from "@/hooks/use-presence";
-import { PresenceIndicator } from "@/components/designer/presence-indicator";
+import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
+import { EnhancedPresenceIndicator } from "@/components/designer/enhanced-presence-indicator";
 import { LiveCursor } from "@/components/designer/live-cursor";
 import {
 	TextElement,
@@ -96,7 +97,10 @@ export default function TemplateDesignerPage() {
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const { data: templates = [], isSubscribed } = useTemplates(orgId);
-	const { activeUsers, isConnected, updateCursor } = usePresence(state.currentTemplateId);
+	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
+	const authUser = useFirebaseAuthUser();
+
+
 	console.log(
 		"templates",
 		templates,
@@ -1059,14 +1063,9 @@ export default function TemplateDesignerPage() {
 									<span>Live</span>
 								</div>
 							)}
-							{isConnected && (
-								<div className="flex items-center gap-2">
-									<PresenceIndicator users={activeUsers} />
-									<span className="text-xs text-muted-foreground">
-										{activeUsers.length} {activeUsers.length === 1 ? 'person' : 'people'} viewing
-									</span>
-								</div>
-							)}
+						
+								<EnhancedPresenceIndicator users={activeUsers} />
+							
 							<div className="ml-auto flex items-center gap-2">
 								<Select
 									value={String(state.zoom)}
@@ -1198,14 +1197,16 @@ export default function TemplateDesignerPage() {
 										}}
 									/>
 								))}
-								{/* Live cursors */}
-								{activeUsers.map((user) => (
-									<LiveCursor
-										key={user.uid}
-										user={user}
-										zoom={state.zoom}
-									/>
-								))}
+								{/* Live cursors - exclude current user's cursor */}
+								{activeUsers
+									.filter(user => user.uid !== authUser?.uid)
+									.map((user) => (
+										<LiveCursor
+											key={user.uid}
+											user={user}
+											zoom={state.zoom}
+										/>
+									))}
 								
 								{/* elements */}
 								{(

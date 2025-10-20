@@ -15,6 +15,11 @@ export function PresenceAvatar({
   showName = false, 
   className 
 }: PresenceAvatarProps) {
+  // Don't render if user data is invalid
+  if (!user || !user.uid || !user.displayName) {
+    return null;
+  }
+
   const sizeClasses = {
     sm: "h-6 w-6",
     md: "h-8 w-8", 
@@ -28,6 +33,7 @@ export function PresenceAvatar({
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "?";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -39,18 +45,24 @@ export function PresenceAvatar({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <div className="relative">
-        <Avatar className={sizeClasses[size]}>
+        <Avatar className={cn(
+          sizeClasses[size],
+          user.isOnline && "ring-2 ring-green-500 ring-offset-2 ring-offset-background"
+        )}>
           <AvatarImage src={user.photoURL} alt={user.displayName} />
           <AvatarFallback className="bg-primary text-primary-foreground">
             {getInitials(user.displayName || user.email)}
           </AvatarFallback>
         </Avatar>
-        {/* Online indicator */}
-        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-green-500" />
+        {/* Online/Offline indicator */}
+        <div className={cn(
+          "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+          user.isOnline ? "bg-green-500" : "bg-gray-400"
+        )} />
       </div>
       {showName && (
         <span className={cn("font-medium text-foreground", textSizeClasses[size])}>
-          {user.displayName || user.email.split("@")[0]}
+          {user.displayName || user.email?.split("@")[0]}
         </span>
       )}
     </div>
