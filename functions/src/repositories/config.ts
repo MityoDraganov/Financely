@@ -4,4 +4,5 @@ export enum DatabaseCollection {
   TEMPLATES = "templates",
   ORGANIZATIONS = "organizations",
   USERS = "users",
+  WORKFLOWS = "workflows",
 }

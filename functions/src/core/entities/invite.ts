@@ -12,3 +12,4 @@ export interface Invite {
   createdAt: string;
   updatedAt: string;
 }
+

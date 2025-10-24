@@ -51,3 +51,4 @@ export interface InviteRepository {
    */
   isCodeUnique(code: string): Promise<boolean>;
 }
+

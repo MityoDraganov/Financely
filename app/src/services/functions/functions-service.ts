@@ -60,4 +60,13 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async createWorkflow(payload) {
+    type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
+    const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(
+      firebase.functions,
+      "createWorkflow",
+    )(payload);
+    return result.data;
+  },
 };

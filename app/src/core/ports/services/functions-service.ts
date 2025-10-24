@@ -86,4 +86,109 @@ export interface FunctionsService {
     userId: string;
     organizationId: string;
   }): Promise<{ sent: boolean }>;
+
+  /**
+   * Create a workflow with the specified configuration.
+   * 
+   * @param payload - The workflow creation payload
+   * @param payload.orgId - Organization ID
+   * @param payload.name - Workflow name
+   * @param payload.description - Optional workflow description
+   * @param payload.trigger - Workflow trigger configuration
+   * @param payload.steps - Array of workflow steps
+   * @param payload.status - Workflow status (draft, active, paused, archived)
+   * @param payload.version - Workflow version number
+   * @param payload.settings - Workflow execution settings
+   * @param payload.tags - Array of workflow tags
+   * @param payload.category - Workflow category
+   * @param payload.n8nEnabled - Whether n8n integration is enabled
+   * @returns Promise with the created workflow ID
+   * 
+   * @example
+   * // Example with a simple invoice follow-up workflow
+   * createWorkflow({
+   *   orgId: "org123",
+   *   name: "Invoice Follow-up",
+   *   description: "Automatically send follow-up emails for overdue invoices",
+   *   trigger: {
+   *     type: "invoice.overdue"
+   *   },
+   *   steps: [
+   *     {
+   *       id: "step1",
+   *       name: "Send Reminder Email",
+   *       type: "action",
+   *       actions: [
+   *         {
+   *           type: "send.email",
+   *           config: {
+   *             templateId: "overdue-reminder",
+   *             recipient: "{{invoice.customer.email}}",
+   *             subject: "Payment Reminder - Invoice {{invoice.number}}"
+   *           }
+   *         }
+   *       ],
+   *       order: 0
+   *     }
+   *   ],
+   *   tags: ["invoice", "automation"],
+   *   category: "finance"
+   * })
+   */
+  createWorkflow(payload: {
+    orgId: string;
+    name: string;
+    description?: string;
+    trigger: {
+      type: "invoice.created" | "invoice.sent" | "invoice.paid" | "invoice.overdue" | "proposal.created" | "proposal.approved" | "proposal.rejected" | "contract.expiring" | "contract.expired" | "user.joined" | "schedule.cron" | "webhook.external" | "manual.trigger";
+      config?: Record<string, any>;
+      cronExpression?: string;
+      webhookUrl?: string;
+      eventFilters?: Record<string, any>;
+    };
+    steps: Array<{
+      id: string;
+      name: string;
+      type: "action" | "condition" | "delay" | "parallel";
+      actions: Array<{
+        type: "send.email" | "send.slack" | "create.invoice" | "update.invoice.status" | "create.task" | "assign.task" | "generate.pdf" | "call.webhook" | "create.stripe.invoice" | "wait.delay" | "notify.user" | "archive.record" | "update.field";
+        config: Record<string, any>;
+        conditions?: Array<{
+          field: string;
+          operator: "equals" | "not_equals" | "greater_than" | "less_than" | "contains" | "not_contains" | "is_empty" | "is_not_empty";
+          value: string | number | boolean;
+        }>;
+        delaySeconds?: number;
+        templateId?: string;
+        recipient?: string;
+        subject?: string;
+        url?: string;
+        method?: "GET" | "POST" | "PUT" | "DELETE";
+        headers?: Record<string, string>;
+        assigneeId?: string;
+        title?: string;
+        description?: string;
+      }>;
+      conditions?: Array<{
+        field: string;
+        operator: "equals" | "not_equals" | "greater_than" | "less_than" | "contains" | "not_contains" | "is_empty" | "is_not_empty";
+        value: string | number | boolean;
+      }>;
+      parallelSteps?: string[];
+      delaySeconds?: number;
+      order: number;
+    }>;
+    status?: "draft" | "active" | "paused" | "archived";
+    version?: number;
+    settings?: {
+      maxRetries?: number;
+      timeoutSeconds?: number;
+      notifyOnFailure?: boolean;
+      notifyOnSuccess?: boolean;
+      maxConcurrentExecutions?: number;
+    };
+    tags?: string[];
+    category?: string;
+    n8nEnabled?: boolean;
+  }): Promise<{ id: string }>;
 }

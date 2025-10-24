@@ -1,46 +1,68 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Play, Pause, Archive, MoreHorizontal, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { workflowService } from "@/services/workflow/workflow-service";
+import { useWorkflowsByOrg, useActivateWorkflow, usePauseWorkflow, useArchiveWorkflow, useCreateWorkflowFunction } from "@/hooks";
 import { useOrganizationContext } from "@/contexts/organization-context";
 
 export default function WorkflowsPage() {
   const { currentOrganization } = useOrganizationContext();
-  const queryClient = useQueryClient();
 
-  // Fetch workflows
-  const { data: workflows = [], isLoading } = useQuery({
-    queryKey: ["workflows", currentOrganization?.id],
-    queryFn: () => workflowService.listWorkflows(currentOrganization?.id || ""),
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch workflows using repository hook
+  const { data: workflows = [], isLoading, error } = useWorkflowsByOrg(currentOrganization?.id);
+  console.log(error);
+  // Workflow management mutations using repository hooks
+  const activateWorkflow = useActivateWorkflow();
+  const pauseWorkflow = usePauseWorkflow();
+  const archiveWorkflow = useArchiveWorkflow();
+  
+  // Create workflow mutation using service hook
+  const createWorkflow = useCreateWorkflowFunction();
 
-  // Activate workflow mutation
-  const activateWorkflow = useMutation({
-    mutationFn: (id: string) => workflowService.activateWorkflow(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflows"] });
-    },
-  });
+  const handleCreateWorkflow = () => {
+    if (!currentOrganization?.id) return;
+    
+    // Create a simple example workflow
+    const workflowData = {
+      orgId: currentOrganization.id,
+      name: "New Workflow",
+      description: "A new workflow created from the UI",
+      trigger: {
+        type: "manual.trigger" as const,
+      },
+      steps: [
+        {
+          id: "step1",
+          name: "Initial Step",
+          type: "action" as const,
+          actions: [
+            {
+              type: "notify.user" as const,
+              config: {
+                message: "Workflow executed successfully",
+              },
+            },
+          ],
+          order: 0,
+        },
+      ],
+      status: "draft" as const,
+      version: 1,
+      settings: {
+        maxRetries: 3,
+        timeoutSeconds: 300,
+        notifyOnFailure: true,
+        notifyOnSuccess: false,
+        maxConcurrentExecutions: 10,
+      },
+      tags: ["example"],
+      category: "general",
+      n8nEnabled: false,
+    };
 
-  // Pause workflow mutation
-  const pauseWorkflow = useMutation({
-    mutationFn: (id: string) => workflowService.pauseWorkflow(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflows"] });
-    },
-  });
-
-  // Archive workflow mutation
-  const archiveWorkflow = useMutation({
-    mutationFn: (id: string) => workflowService.archiveWorkflow(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflows"] });
-    },
-  });
+    createWorkflow.mutate(workflowData);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -100,9 +122,9 @@ export default function WorkflowsPage() {
             Automate your business processes with custom workflows
           </p>
         </div>
-        <Button>
+        <Button onClick={handleCreateWorkflow} disabled={createWorkflow.isPending}>
           <Plus className="w-4 h-4 mr-2" />
-          Create Workflow
+          {createWorkflow.isPending ? "Creating..." : "Create Workflow"}
         </Button>
       </div>
 
@@ -120,9 +142,9 @@ export default function WorkflowsPage() {
                   Create your first workflow to automate your business processes
                 </p>
               </div>
-              <Button>
+              <Button onClick={handleCreateWorkflow} disabled={createWorkflow.isPending}>
                 <Plus className="w-4 h-4 mr-2" />
-                Create Your First Workflow
+                {createWorkflow.isPending ? "Creating..." : "Create Your First Workflow"}
               </Button>
             </div>
           </CardContent>

@@ -11,6 +11,9 @@ if (!getApps().length) {
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 
+// Workflow functions
+export { createWorkflow } from "./functions/create-workflow";
+
 // Invite functions
 export { createInvite } from "./functions/create-invite";
 export { revokeInvite } from "./functions/revoke-invite";
