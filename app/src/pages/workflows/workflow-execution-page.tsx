@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { workflowService } from "@/services/workflow/workflow-service";
-import { WorkflowExecutionHistory } from "@/components/workflow/workflow-execution-history";
-import { WorkflowBuilder } from "@/components/workflow/workflow-builder";
+import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
+import WorkflowBuilder from "@/components/workflow/workflow-builder";
 import { Workflow } from "@/core";
 
 export default function WorkflowExecutionPage() {

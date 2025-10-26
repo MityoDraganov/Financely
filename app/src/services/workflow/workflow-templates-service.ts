@@ -1,500 +1,305 @@
-import { WorkflowTemplate } from "@/core";
+import { WorkflowTemplate, WorkflowTriggerType } from "@/core";
 
-/**
- * Service for managing workflow templates
- */
-export class WorkflowTemplatesService {
-  private static instance: WorkflowTemplatesService;
-  private templates: WorkflowTemplate[] = [];
+export interface WorkflowTemplatesService {
+  getTemplates(): WorkflowTemplate[];
+  getTemplate(id: string): WorkflowTemplate | null;
+  getTemplatesByCategory(category: string): WorkflowTemplate[];
+  createWorkflowFromTemplate(templateId: string, orgId: string, customizations?: Record<string, unknown>): any;
+}
 
-  private constructor() {
-    this.initializeBuiltInTemplates();
-  }
-
-  public static getInstance(): WorkflowTemplatesService {
-    if (!WorkflowTemplatesService.instance) {
-      WorkflowTemplatesService.instance = new WorkflowTemplatesService();
-    }
-    return WorkflowTemplatesService.instance;
-  }
-
-  private initializeBuiltInTemplates() {
-    this.templates = [
+export const workflowTemplatesService: WorkflowTemplatesService = {
+  getTemplates(): WorkflowTemplate[] {
+    return [
       {
-        id: "invoice-follow-up",
-        name: "Invoice Follow-up",
-        description: "Automatically send follow-up emails for unpaid invoices",
-        category: "Invoicing",
+        id: "invoice-reminder",
+        name: "Invoice Reminder",
+        description: "Automatically send reminder emails for overdue invoices",
+        category: "finance",
         trigger: {
-          type: "invoice.sent",
-          config: {},
+          type: "invoice.overdue" as WorkflowTriggerType,
         },
         steps: [
           {
-            id: "step-1",
-            name: "Wait 3 days",
+            id: "step1",
+            name: "Send Reminder Email",
             type: "action",
             actions: [
               {
-                type: "wait.delay",
-                config: {},
-                delaySeconds: 259200, // 3 days
+                type: "send.email",
+                config: {
+                  recipient: "{{invoice.customer.email}}",
+                  subject: "Payment Reminder - Invoice {{invoice.number}}",
+                  templateId: "invoice-reminder",
+                },
+              },
+            ],
+            order: 0,
+          },
+        ],
+        tags: ["invoice", "reminder", "automation"],
+        isBuiltIn: true,
+      },
+      {
+        id: "welcome-new-user",
+        name: "Welcome New User",
+        description: "Send welcome email to new users",
+        category: "onboarding",
+        trigger: {
+          type: "user.joined" as WorkflowTriggerType,
+        },
+        steps: [
+          {
+            id: "step1",
+            name: "Send Welcome Email",
+            type: "action",
+            actions: [
+              {
+                type: "send.email",
+                config: {
+                  recipient: "{{user.email}}",
+                  subject: "Welcome to {{organization.name}}!",
+                  templateId: "welcome-email",
+                },
               },
             ],
             order: 0,
           },
           {
-            id: "step-2",
-            name: "Send reminder",
+            id: "step2",
+            name: "Create Onboarding Task",
             type: "action",
             actions: [
               {
-                type: "send.email",
+                type: "create.task",
                 config: {
-                  template: "invoice-reminder",
-                  recipient: "{{invoice.buyer.email}}",
-                  subject: "Reminder: Invoice {{invoice.invoiceNumber}} is due",
+                  title: "Complete your profile setup",
+                  description: "Please complete your profile information to get started",
+                  assigneeId: "{{user.id}}",
                 },
-                recipient: "{{invoice.buyer.email}}",
-                subject: "Reminder: Invoice {{invoice.invoiceNumber}} is due",
               },
             ],
             order: 1,
           },
-          {
-            id: "step-3",
-            name: "Wait 7 more days",
-            type: "action",
-            actions: [
-              {
-                type: "wait.delay",
-                config: {},
-                delaySeconds: 604800, // 7 days
-              },
-            ],
-            order: 2,
-          },
-          {
-            id: "step-4",
-            name: "Send final notice",
-            type: "action",
-            actions: [
-              {
-                type: "send.email",
-                config: {
-                  template: "invoice-final-notice",
-                  recipient: "{{invoice.buyer.email}}",
-                  subject: "Final Notice: Invoice {{invoice.invoiceNumber}}",
-                },
-                recipient: "{{invoice.buyer.email}}",
-                subject: "Final Notice: Invoice {{invoice.invoiceNumber}}",
-              },
-            ],
-            order: 3,
-          },
         ],
-        tags: ["invoicing", "automation", "follow-up"],
+        tags: ["onboarding", "welcome", "automation"],
         isBuiltIn: true,
       },
       {
         id: "proposal-approval",
         name: "Proposal Approval Workflow",
-        description: "Automate the proposal review and approval process",
-        category: "Sales",
+        description: "Automated proposal approval process with notifications",
+        category: "approval",
         trigger: {
-          type: "proposal.created",
-          config: {},
+          type: "proposal.created" as WorkflowTriggerType,
         },
         steps: [
           {
-            id: "step-1",
-            name: "Notify manager",
+            id: "step1",
+            name: "Notify Manager",
             type: "action",
             actions: [
               {
-                type: "send.slack",
+                type: "notify.user",
                 config: {
-                  channel: "#sales",
-                  message: "New proposal created: {{proposal.title}}",
+                  userId: "{{proposal.managerId}}",
+                  message: "New proposal requires your approval: {{proposal.title}}",
                 },
               },
             ],
             order: 0,
           },
           {
-            id: "step-2",
-            name: "Create review task",
+            id: "step2",
+            name: "Create Approval Task",
             type: "action",
             actions: [
               {
                 type: "create.task",
                 config: {
-                  title: "Review proposal: {{proposal.title}}",
-                  assignee: "{{proposal.managerId}}",
-                  dueDate: "{{proposal.createdAt + 2 days}}",
+                  title: "Review Proposal: {{proposal.title}}",
+                  description: "Please review and approve the proposal",
+                  assigneeId: "{{proposal.managerId}}",
                 },
-                assigneeId: "{{proposal.managerId}}",
-                title: "Review proposal: {{proposal.title}}",
-                description: "Please review and approve this proposal",
               },
             ],
             order: 1,
           },
-          {
-            id: "step-3",
-            name: "Wait for approval",
-            type: "action",
-            actions: [
-              {
-                type: "wait.delay",
-                config: {},
-                delaySeconds: 172800, // 2 days
-              },
-            ],
-            order: 2,
-          },
-          {
-            id: "step-4",
-            name: "Send reminder if not approved",
-            type: "action",
-            actions: [
-              {
-                type: "send.slack",
-                config: {
-                  channel: "#sales",
-                  message: "Reminder: Proposal {{proposal.title}} still pending approval",
-                },
-              },
-            ],
-            order: 3,
-          },
         ],
-        tags: ["sales", "approval", "automation"],
+        tags: ["proposal", "approval", "automation"],
         isBuiltIn: true,
       },
       {
         id: "contract-renewal",
         name: "Contract Renewal Reminder",
-        description: "Send reminders for expiring contracts",
-        category: "Contracts",
+        description: "Automated contract renewal reminders and notifications",
+        category: "contracts",
         trigger: {
-          type: "schedule.cron",
-          config: {},
-          cronExpression: "0 9 * * *", // Daily at 9 AM
+          type: "contract.expiring" as WorkflowTriggerType,
         },
         steps: [
           {
-            id: "step-1",
-            name: "Check expiring contracts",
+            id: "step1",
+            name: "Notify Account Manager",
             type: "action",
             actions: [
               {
-                type: "call.webhook",
+                type: "notify.user",
                 config: {
-                  url: "{{api.baseUrl}}/contracts/expiring",
-                  method: "GET",
-                },
-                url: "{{api.baseUrl}}/contracts/expiring",
-                method: "GET",
-              },
-            ],
-            order: 0,
-          },
-          {
-            id: "step-2",
-            name: "Send renewal reminders",
-            type: "action",
-            actions: [
-              {
-                type: "send.email",
-                config: {
-                  template: "contract-renewal",
-                  recipient: "{{contract.clientEmail}}",
-                  subject: "Contract Renewal: {{contract.name}}",
-                },
-                recipient: "{{contract.clientEmail}}",
-                subject: "Contract Renewal: {{contract.name}}",
-              },
-            ],
-            order: 1,
-          },
-          {
-            id: "step-3",
-            name: "Notify team",
-            type: "action",
-            actions: [
-              {
-                type: "send.slack",
-                config: {
-                  channel: "#contracts",
-                  message: "Renewal reminder sent for contract: {{contract.name}}",
-                },
-              },
-            ],
-            order: 2,
-          },
-        ],
-        tags: ["contracts", "renewal", "scheduled"],
-        isBuiltIn: true,
-      },
-      {
-        id: "payment-received",
-        name: "Payment Received Notification",
-        description: "Notify team when payments are received",
-        category: "Payments",
-        trigger: {
-          type: "invoice.paid",
-          config: {},
-        },
-        steps: [
-          {
-            id: "step-1",
-            name: "Update invoice status",
-            type: "action",
-            actions: [
-              {
-                type: "update.invoice.status",
-                config: {
-                  status: "paid",
-                  paidAt: "{{now}}",
+                  userId: "{{contract.accountManagerId}}",
+                  message: "Contract {{contract.name}} expires in {{contract.daysUntilExpiry}} days",
                 },
               },
             ],
             order: 0,
           },
           {
-            id: "step-2",
-            name: "Notify team",
-            type: "action",
-            actions: [
-              {
-                type: "send.slack",
-                config: {
-                  channel: "#finance",
-                  message: "💰 Payment received for invoice {{invoice.invoiceNumber}} - ${{invoice.total}}",
-                },
-              },
-            ],
-            order: 1,
-          },
-          {
-            id: "step-3",
-            name: "Send receipt",
-            type: "action",
-            actions: [
-              {
-                type: "send.email",
-                config: {
-                  template: "payment-receipt",
-                  recipient: "{{invoice.buyer.email}}",
-                  subject: "Payment Received - Invoice {{invoice.invoiceNumber}}",
-                },
-                recipient: "{{invoice.buyer.email}}",
-                subject: "Payment Received - Invoice {{invoice.invoiceNumber}}",
-              },
-            ],
-            order: 2,
-          },
-        ],
-        tags: ["payments", "notifications", "automation"],
-        isBuiltIn: true,
-      },
-      {
-        id: "new-customer-onboarding",
-        name: "New Customer Onboarding",
-        description: "Automate the onboarding process for new customers",
-        category: "Customer Success",
-        trigger: {
-          type: "user.joined",
-          config: {},
-        },
-        steps: [
-          {
-            id: "step-1",
-            name: "Send welcome email",
-            type: "action",
-            actions: [
-              {
-                type: "send.email",
-                config: {
-                  template: "welcome-email",
-                  recipient: "{{user.email}}",
-                  subject: "Welcome to Financely!",
-                },
-                recipient: "{{user.email}}",
-                subject: "Welcome to Financely!",
-              },
-            ],
-            order: 0,
-          },
-          {
-            id: "step-2",
-            name: "Create onboarding task",
+            id: "step2",
+            name: "Create Renewal Task",
             type: "action",
             actions: [
               {
                 type: "create.task",
                 config: {
-                  title: "Onboard new customer: {{user.name}}",
-                  assignee: "{{user.assignedAccountManager}}",
-                  dueDate: "{{now + 1 day}}",
+                  title: "Renew Contract: {{contract.name}}",
+                  description: "Contract expires on {{contract.expiryDate}}. Please initiate renewal process.",
+                  assigneeId: "{{contract.accountManagerId}}",
                 },
-                assigneeId: "{{user.assignedAccountManager}}",
-                title: "Onboard new customer: {{user.name}}",
-                description: "Follow up with new customer and ensure they're set up properly",
               },
             ],
             order: 1,
           },
-          {
-            id: "step-3",
-            name: "Notify team",
-            type: "action",
-            actions: [
-              {
-                type: "send.slack",
-                config: {
-                  channel: "#customer-success",
-                  message: "🎉 New customer joined: {{user.name}} ({{user.email}})",
-                },
-              },
-            ],
-            order: 2,
-          },
         ],
-        tags: ["onboarding", "customer-success", "automation"],
+        tags: ["contract", "renewal", "automation"],
         isBuiltIn: true,
       },
       {
-        id: "monthly-reporting",
-        name: "Monthly Reporting",
-        description: "Generate and send monthly reports",
-        category: "Reporting",
+        id: "invoice-auto-approval",
+        name: "Auto-approve Small Invoices",
+        description: "Automatically approve invoices under a certain amount",
+        category: "finance",
         trigger: {
-          type: "schedule.cron",
-          config: {},
-          cronExpression: "0 9 1 * *", // First day of month at 9 AM
+          type: "invoice.created" as WorkflowTriggerType,
         },
         steps: [
           {
-            id: "step-1",
-            name: "Generate report",
+            id: "step1",
+            name: "Check Amount",
+            type: "condition",
+            conditions: [
+              {
+                field: "invoice.amount",
+                operator: "less_than",
+                value: 500,
+              },
+            ],
+            actions: [
+              {
+                type: "update.invoice.status",
+                config: {
+                  invoiceId: "{{invoice.id}}",
+                  status: "approved",
+                },
+              },
+              {
+                type: "notify.user",
+                config: {
+                  userId: "{{invoice.creatorId}}",
+                  message: "Invoice {{invoice.number}} has been auto-approved",
+                },
+              },
+            ],
+            order: 0,
+          },
+        ],
+        tags: ["invoice", "approval", "automation"],
+        isBuiltIn: true,
+      },
+      {
+        id: "payment-received",
+        name: "Payment Received Notification",
+        description: "Send notifications when payment is received",
+        category: "finance",
+        trigger: {
+          type: "invoice.paid" as WorkflowTriggerType,
+        },
+        steps: [
+          {
+            id: "step1",
+            name: "Notify Finance Team",
             type: "action",
             actions: [
               {
-                type: "call.webhook",
+                type: "notify.user",
                 config: {
-                  url: "{{api.baseUrl}}/reports/monthly",
-                  method: "POST",
+                  userId: "{{invoice.financeManagerId}}",
+                  message: "Payment received for invoice {{invoice.number}} - Amount: ${{invoice.amount}}",
                 },
-                url: "{{api.baseUrl}}/reports/monthly",
-                method: "POST",
               },
             ],
             order: 0,
           },
           {
-            id: "step-2",
-            name: "Send to stakeholders",
+            id: "step2",
+            name: "Update Customer Status",
             type: "action",
             actions: [
               {
-                type: "send.email",
+                type: "update.field",
                 config: {
-                  template: "monthly-report",
-                  recipient: "{{report.recipients}}",
-                  subject: "Monthly Report - {{report.month}} {{report.year}}",
+                  recordType: "customer",
+                  recordId: "{{invoice.customerId}}",
+                  field: "lastPaymentDate",
+                  value: "{{payment.date}}",
                 },
-                recipient: "{{report.recipients}}",
-                subject: "Monthly Report - {{report.month}} {{report.year}}",
               },
             ],
             order: 1,
           },
-          {
-            id: "step-3",
-            name: "Archive report",
-            type: "action",
-            actions: [
-              {
-                type: "call.webhook",
-                config: {
-                  url: "{{api.baseUrl}}/reports/archive",
-                  method: "POST",
-                },
-                url: "{{api.baseUrl}}/reports/archive",
-                method: "POST",
-              },
-            ],
-            order: 2,
-          },
         ],
-        tags: ["reporting", "scheduled", "automation"],
+        tags: ["payment", "notification", "automation"],
         isBuiltIn: true,
       },
     ];
-  }
+  },
 
-  /**
-   * Get all templates
-   */
-  public getAllTemplates(): WorkflowTemplate[] {
-    return this.templates;
-  }
+  getTemplate(id: string): WorkflowTemplate | null {
+    const templates = this.getTemplates();
+    return templates.find(template => template.id === id) || null;
+  },
 
-  /**
-   * Get templates by category
-   */
-  public getTemplatesByCategory(category: string): WorkflowTemplate[] {
-    if (category === "all") {
-      return this.templates;
+  getTemplatesByCategory(category: string): WorkflowTemplate[] {
+    const templates = this.getTemplates();
+    return templates.filter(template => template.category === category);
+  },
+
+  createWorkflowFromTemplate(templateId: string, orgId: string, customizations: Record<string, unknown> = {}): any {
+    const template = this.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template ${templateId} not found`);
     }
-    return this.templates.filter(template => template.category === category);
-  }
 
-  /**
-   * Get template by ID
-   */
-  public getTemplateById(id: string): WorkflowTemplate | null {
-    return this.templates.find(template => template.id === id) || null;
-  }
+    // Create workflow data from template
+    const workflowData = {
+      orgId,
+      name: template.name,
+      description: template.description,
+      trigger: template.trigger,
+      steps: template.steps,
+      tags: template.tags,
+      category: template.category,
+      status: "draft" as const,
+      version: 1,
+      settings: {
+        maxRetries: 3,
+        timeoutSeconds: 300,
+        notifyOnFailure: true,
+        notifyOnSuccess: false,
+        maxConcurrentExecutions: 10,
+      },
+      n8nEnabled: false,
+      ...customizations,
+    };
 
-  /**
-   * Get templates by tags
-   */
-  public getTemplatesByTags(tags: string[]): WorkflowTemplate[] {
-    return this.templates.filter(template =>
-      tags.some(tag => template.tags.includes(tag))
-    );
-  }
-
-  /**
-   * Search templates
-   */
-  public searchTemplates(query: string): WorkflowTemplate[] {
-    const lowercaseQuery = query.toLowerCase();
-    return this.templates.filter(template =>
-      template.name.toLowerCase().includes(lowercaseQuery) ||
-      template.description.toLowerCase().includes(lowercaseQuery) ||
-      template.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-    );
-  }
-
-  /**
-   * Get available categories
-   */
-  public getCategories(): string[] {
-    return Array.from(new Set(this.templates.map(template => template.category)));
-  }
-
-  /**
-   * Get available tags
-   */
-  public getTags(): string[] {
-    const allTags = this.templates.flatMap(template => template.tags);
-    return Array.from(new Set(allTags));
-  }
-}
-
-// Export singleton instance
-export const workflowTemplatesService = WorkflowTemplatesService.getInstance();
+    return workflowData;
+  },
+};

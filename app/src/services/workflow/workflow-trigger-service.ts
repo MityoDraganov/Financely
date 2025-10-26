@@ -1,5 +1,6 @@
 import { workflowService } from "./workflow-service";
 import { WorkflowTriggerType } from "@/core";
+import { loggerService } from "./logger-service";
 
 /**
  * Service for handling workflow triggers and event processing
@@ -54,12 +55,12 @@ export class WorkflowTriggerService {
     orgId: string
   ): Promise<void> {
     try {
-      console.log(`Processing trigger: ${triggerType}`, triggerData);
+      loggerService.info(`Processing trigger: ${triggerType}`, { triggerData, orgId });
       
       // Get the appropriate handler
       const handler = this.triggerHandlers.get(triggerType);
       if (!handler) {
-        console.warn(`No handler found for trigger type: ${triggerType}`);
+        loggerService.warn(`No handler found for trigger type: ${triggerType}`);
         return;
       }
 
@@ -69,8 +70,12 @@ export class WorkflowTriggerService {
       // Trigger workflows for this event
       await workflowService.handleTrigger(triggerType, triggerData, orgId);
 
-    } catch (error) {
-      console.error(`Error processing trigger ${triggerType}:`, error);
+    } catch (error: any) {
+      loggerService.error(`Error processing trigger ${triggerType}`, {
+        error: error.message,
+        triggerData,
+        orgId,
+      });
       throw error;
     }
   }
@@ -87,67 +92,67 @@ export class WorkflowTriggerService {
 
   // Invoice trigger handlers
   private async handleInvoiceCreated(data: any): Promise<void> {
-    console.log("Invoice created trigger:", data);
+    loggerService.info("Invoice created trigger", { data });
     // Additional logic for invoice created events
   }
 
   private async handleInvoiceSent(data: any): Promise<void> {
-    console.log("Invoice sent trigger:", data);
+    loggerService.info("Invoice sent trigger", { data });
     // Additional logic for invoice sent events
   }
 
   private async handleInvoicePaid(data: any): Promise<void> {
-    console.log("Invoice paid trigger:", data);
+    loggerService.info("Invoice paid trigger", { data });
     // Additional logic for invoice paid events
   }
 
   private async handleInvoiceOverdue(data: any): Promise<void> {
-    console.log("Invoice overdue trigger:", data);
+    loggerService.info("Invoice overdue trigger", { data });
     // Additional logic for invoice overdue events
   }
 
   // Proposal trigger handlers
   private async handleProposalCreated(data: any): Promise<void> {
-    console.log("Proposal created trigger:", data);
+    loggerService.info("Proposal created trigger", { data });
     // Additional logic for proposal created events
   }
 
   private async handleProposalApproved(data: any): Promise<void> {
-    console.log("Proposal approved trigger:", data);
+    loggerService.info("Proposal approved trigger", { data });
     // Additional logic for proposal approved events
   }
 
   private async handleProposalRejected(data: any): Promise<void> {
-    console.log("Proposal rejected trigger:", data);
+    loggerService.info("Proposal rejected trigger", { data });
     // Additional logic for proposal rejected events
   }
 
   // Contract trigger handlers
   private async handleContractExpiring(data: any): Promise<void> {
-    console.log("Contract expiring trigger:", data);
+    loggerService.info("Contract expiring trigger", { data });
     // Additional logic for contract expiring events
   }
 
   private async handleContractExpired(data: any): Promise<void> {
-    console.log("Contract expired trigger:", data);
+    loggerService.info("Contract expired trigger", { data });
     // Additional logic for contract expired events
   }
 
   // User trigger handlers
   private async handleUserJoined(data: any): Promise<void> {
-    console.log("User joined trigger:", data);
+    loggerService.info("User joined trigger", { data });
     // Additional logic for user joined events
   }
 
   // Manual trigger handler
   private async handleManualTrigger(data: any): Promise<void> {
-    console.log("Manual trigger:", data);
+    loggerService.info("Manual trigger", { data });
     // Additional logic for manual triggers
   }
 
   // Webhook trigger handler
   private async handleWebhookTrigger(data: any): Promise<void> {
-    console.log("Webhook trigger:", data);
+    loggerService.info("Webhook trigger", { data });
     // Additional logic for webhook triggers
   }
 }

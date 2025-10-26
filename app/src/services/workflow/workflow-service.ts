@@ -9,6 +9,7 @@ import {
 } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { databaseService } from "../database/database-service";
+import { workflowExecutionEngine } from "./workflow-execution-engine";
 
 const workflowRepository = repositoryHost.getWorkflowsRepository(databaseService);
 
@@ -99,13 +100,8 @@ export const workflowService: WorkflowService = {
       throw new Error("Workflow is not active");
     }
 
-    // Create execution record
-    const executionId = await workflowRepository.createExecution(workflowId, triggerData);
-    
-    // TODO: Start execution (this would typically be handled by a background job processor)
-    console.log("Workflow execution started:", executionId);
-
-    return executionId;
+    // Use the execution engine to run the workflow
+    return workflowExecutionEngine.executeWorkflow(workflowId, triggerData);
   },
 
   async getExecution(id) {

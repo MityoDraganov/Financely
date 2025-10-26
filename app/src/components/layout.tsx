@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="flex flex-1">
 			<Sidebar collapsible="icon">
-				<SidebarHeader>
+				<SidebarHeader className="flex flex-row items-center justify-between group-data-[collapsible=icon]:justify-center">
 					<div className="flex items-center gap-2">
 						{getOrganizationLogo(organization) !== null && (
 							<img

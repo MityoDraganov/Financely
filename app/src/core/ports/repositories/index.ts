@@ -5,6 +5,8 @@ import { OrganizationRepository } from "./organization-repository";
 import { UserRepository } from "./user-repository";
 import { InviteRepository } from "./invite-repository";
 import { WorkflowRepository } from "./workflow-repository";
+import { TaskRepository } from "./task-repository";
+import { NotificationRepository } from "./notification-repository";
 
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
@@ -13,4 +15,6 @@ export interface RepositoryHost {
     getUsersRepository(databaseService: DatabaseService): UserRepository;
     getInvitesRepository(databaseService: DatabaseService): InviteRepository;
     getWorkflowsRepository(databaseService: DatabaseService): WorkflowRepository;
+    getTasksRepository(databaseService: DatabaseService): TaskRepository;
+    getNotificationsRepository(databaseService: DatabaseService): NotificationRepository;
 }

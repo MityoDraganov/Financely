@@ -8,6 +8,8 @@ import { getOrganizationRepository } from "./organization-repository";
 import { getUserRepository } from "./user-repository";
 import { getInviteRepository } from "./invite-repository";
 import { getWorkflowRepository } from "./workflow-repository";
+import { getTaskRepository } from "./task-repository";
+import { getNotificationRepository } from "./notification-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>
@@ -22,4 +24,8 @@ export const repositoryHost: RepositoryHost = {
       getInviteRepository(databaseService),
     getWorkflowsRepository: (databaseService: DatabaseService) =>
       getWorkflowRepository(databaseService),
+    getTasksRepository: (databaseService: DatabaseService) =>
+      getTaskRepository(databaseService),
+    getNotificationsRepository: (databaseService: DatabaseService) =>
+      getNotificationRepository(databaseService),
   }

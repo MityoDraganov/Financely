@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { WorkflowTemplates } from "@/components/workflow/workflow-templates";
-import { WorkflowBuilder } from "@/components/workflow/workflow-builder";
+import WorkflowTemplates from "@/components/workflow/workflow-templates";
+import WorkflowBuilder from "@/components/workflow/workflow-builder";
 import { WorkflowTemplate } from "@/core";
 
 export default function WorkflowTemplatesPage() {

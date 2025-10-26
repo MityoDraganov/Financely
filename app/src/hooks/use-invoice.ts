@@ -15,5 +15,4 @@ export const useCreateInvoice = () => {
     });
   };
 
-// Backwards-compat alias based on requested name
 export const useCreateProduct = useCreateInvoice;

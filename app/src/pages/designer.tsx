@@ -34,6 +34,7 @@ import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useCreateTemplate } from "@/hooks/repository-hooks/use-create-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { usePresence } from "@/hooks/use-presence";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
@@ -99,7 +100,39 @@ export default function TemplateDesignerPage() {
 	const { data: templates = [], isSubscribed } = useTemplates(orgId);
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
+	const createTemplate = useCreateTemplate();
 
+	// Handler for creating a new template
+	const handleCreateNewTemplate = async () => {
+		const templateData: TemplateData = {
+			orgId,
+			name: "New Template",
+			description: "A new template",
+			pageSize: "A4",
+			brand: {
+				colors: {
+					primary: "#000000",
+					secondary: "#666666",
+					accent: "#2563eb",
+				},
+				backgroundImage: "",
+				margins: { top: 40, right: 40, bottom: 40, left: 40 },
+				fonts: ["Inter"],
+			},
+			elements: [],
+			status: "draft",
+		};
+		
+		try {
+			const newTemplateId = await createTemplate.mutateAsync(templateData);
+			setState((s: DesignerState) => ({
+				...s,
+				currentTemplateId: newTemplateId,
+			}));
+		} catch (error) {
+			console.error("Failed to create template:", error);
+		}
+	};
 
 	console.log(
 		"templates",
@@ -1036,15 +1069,19 @@ export default function TemplateDesignerPage() {
 				<ResizableHandle withHandle />
 				<ResizablePanel minSize={40}>
 					<div className="h-full flex flex-col">
-						<div className="px-3 py-2 border-b bg-white flex items-center gap-2">
+						<div className="px-3 py-2 border-b  flex items-center gap-2">
 							<Select
 								value={currentTemplate?.id ?? ""}
-								onValueChange={(id: string) =>
-									setState((s: DesignerState) => ({
-										...s,
-										currentTemplateId: id,
-									}))
-								}
+								onValueChange={async (id: string) => {
+									if (id === "new") {
+										await handleCreateNewTemplate();
+									} else {
+										setState((s: DesignerState) => ({
+											...s,
+											currentTemplateId: id,
+										}));
+									}
+								}}
 							>
 								<SelectTrigger className="w-60">
 									<SelectValue placeholder="Select a template" />
@@ -1055,6 +1092,10 @@ export default function TemplateDesignerPage() {
 											{t.name}
 										</SelectItem>
 									))}
+									<SelectItem value="new">
+										<Plus className="h-4 w-4 mr-1" /> New
+										template
+									</SelectItem>
 								</SelectContent>
 							</Select>
 							{isSubscribed && (

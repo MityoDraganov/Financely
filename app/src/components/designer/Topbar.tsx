@@ -21,7 +21,7 @@ export function DesignerTopbar({
 	onSave: () => void;
 }) {
 	return (
-		<div className="px-3 py-2 border-b bg-white flex items-center gap-2">
+		<div className="px-3 py-2 border-b  flex items-center gap-2">
 			<Select
 				value={currentTemplateId ?? ""}
 				onValueChange={(id: string) => onTemplateChange(id)}

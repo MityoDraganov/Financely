@@ -1,17 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { workflowService } from "@/services/workflow/workflow-service";
-import { useOrganization } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/contexts/organization-context";
 import { CreateWorkflowInput, UpdateWorkflowInput } from "@/core";
 
 export function useWorkflows() {
-  const { organization } = useOrganization();
+  const { currentOrganization } = useOrganizationContext();
   const queryClient = useQueryClient();
 
   // Fetch workflows
   const { data: workflows = [], isLoading, error } = useQuery({
-    queryKey: ["workflows", organization?.id],
-    queryFn: () => workflowService.listWorkflows(organization?.id || ""),
-    enabled: !!organization?.id,
+    queryKey: ["workflows", currentOrganization?.id],
+    queryFn: () => workflowService.listWorkflows(currentOrganization?.id || ""),
+    enabled: !!currentOrganization?.id,
   });
 
   // Create workflow mutation
