@@ -26,19 +26,7 @@ export type WorkflowTriggerType = z.infer<typeof workflowTriggerTypeSchema>;
  * Workflow action types that can be executed as part of a workflow
  */
 export const workflowActionTypeSchema = z.enum([
-  "send.email",
-  "send.slack",
-  "create.invoice",
-  "update.invoice.status",
-  "create.task",
-  "assign.task",
-  "generate.pdf",
-  "call.webhook",
-  "create.stripe.invoice",
-  "wait.delay",
-  "notify.user",
-  "archive.record",
-  "update.field"
+  "http_request"
 ]);
 
 export type WorkflowActionType = z.infer<typeof workflowActionTypeSchema>;
@@ -103,24 +91,22 @@ export type WorkflowCondition = z.infer<typeof workflowConditionSchema>;
  * Workflow action configuration
  */
 export const workflowActionSchema = z.object({
+  id: z.string(),
   type: workflowActionTypeSchema,
-  config: z.record(z.string(), z.any()),
-  // For conditional actions
-  conditions: z.array(workflowConditionSchema).optional(),
-  // For delay actions
-  delaySeconds: z.number().int().min(0).optional(),
-  // For email actions
-  templateId: z.string().optional(),
-  recipient: z.string().optional(),
-  subject: z.string().optional(),
-  // For webhook actions
-  url: z.string().url().optional(),
-  method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-  // For task actions
-  assigneeId: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
+  name: z.string(),
+  config: z.object({
+    method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
+    url: z.string(),
+    headers: z.record(z.string(), z.string()).optional(),
+    body: z.any().optional(),
+    auth: z.object({
+      type: z.enum(["bearer", "basic", "none"]),
+      token: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+    }).optional(),
+    timeoutMs: z.number().int().min(0).optional(),
+  }),
 });
 
 export type WorkflowAction = z.infer<typeof workflowActionSchema>;

@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { 
   ArrowRight, 
   Play, 
@@ -38,6 +37,7 @@ const getActionIcon = (actionType: string) => {
     case "create.task":
       return <CheckCircle className="w-4 h-4" />;
     case "call.webhook":
+    case "http_request":
       return <Zap className="w-4 h-4" />;
     case "notify.user":
       return <AlertCircle className="w-4 h-4" />;
@@ -61,7 +61,8 @@ const getActionLabel = (actionType: string) => {
     case "create.task":
       return "Create Task";
     case "call.webhook":
-      return "Call Webhook";
+    case "http_request":
+      return "HTTP Request";
     case "notify.user":
       return "Notify User";
     case "wait.delay":
@@ -99,24 +100,52 @@ const getTriggerLabel = (triggerType: string) => {
 export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewProps) {
   const [simulationStep, setSimulationStep] = useState<number | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
 
   const handleSimulate = async () => {
     setIsSimulating(true);
     setSimulationStep(0);
+    setSimulationError(null);
     
-    // Simulate workflow execution step by step
-    for (let i = 0; i <= workflow.steps.length; i++) {
-      setSimulationStep(i);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between steps
+    try {
+      // Validate workflow has steps
+      if (!workflow.steps || workflow.steps.length === 0) {
+        throw new Error("Workflow has no steps to simulate");
+      }
+      
+      // Simulate workflow execution step by step
+      for (let i = 0; i < workflow.steps.length; i++) {
+        setSimulationStep(i);
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay between steps
+        
+        // Check if simulation was stopped
+        if (!isSimulating) {
+          return;
+        }
+      }
+      
+      // Mark all steps as completed
+      setSimulationStep(workflow.steps.length);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+    } catch (error) {
+      console.error("Simulation error:", error);
+      setSimulationError(error instanceof Error ? error.message : "Simulation failed");
+    } finally {
+      setIsSimulating(false);
     }
-    
-    setIsSimulating(false);
-    setSimulationStep(null);
   };
 
   const stopSimulation = () => {
     setIsSimulating(false);
     setSimulationStep(null);
+    setSimulationError(null);
+  };
+
+  const resetSimulation = () => {
+    setIsSimulating(false);
+    setSimulationStep(null);
+    setSimulationError(null);
   };
 
   return (
@@ -141,6 +170,12 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
             <Button variant="outline" onClick={stopSimulation}>
               <Pause className="w-4 h-4 mr-2" />
               Stop
+            </Button>
+          )}
+          {simulationStep !== null && !isSimulating && (
+            <Button variant="outline" onClick={resetSimulation}>
+              <X className="w-4 h-4 mr-2" />
+              Reset
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>
@@ -247,9 +282,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
                       </div>
                     </div>
                   </div>
-                  {stepIndex < workflow.steps.length - 1 && (
-                    <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                  )}
+                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
                 </div>
 
                 {/* Actions in this step */}
@@ -268,6 +301,36 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
                 </div>
               </div>
             ))}
+
+            {/* Completion Indicator */}
+            {simulationStep === workflow.steps.length && (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border-2 border-green-200">
+                  <div className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-green-900">Workflow Completed</h4>
+                    <p className="text-sm text-green-700">All steps executed successfully</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error Indicator */}
+            {simulationError && (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border-2 border-red-200">
+                  <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-red-900">Simulation Error</h4>
+                    <p className="text-sm text-red-700">{simulationError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -14,6 +14,23 @@ export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 // Workflow functions
 export { createWorkflow } from "./functions/create-workflow";
 
+// Workflow execution functions
+export { 
+  onInvoiceCreated, 
+  onInvoicePaid, 
+  triggerWorkflow, 
+  executeStep, 
+  webhookHandler 
+} from "./functions/workflow-triggers";
+
+export { 
+  createWorkflow as createWorkflowV2, 
+  updateWorkflow, 
+  getWorkflow, 
+  listWorkflows, 
+  deleteWorkflow 
+} from "./functions/workflow-management";
+
 // Invite functions
 export { createInvite } from "./functions/create-invite";
 export { revokeInvite } from "./functions/revoke-invite";

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,9 +11,7 @@ import {
   XCircle, 
   Clock, 
   Search, 
-  Filter,
   Calendar,
-  User,
   Activity
 } from "lucide-react";
 import { WorkflowExecution, WorkflowExecutionStatus } from "@/core";
@@ -41,7 +39,9 @@ const STATUS_ICONS: Record<WorkflowExecutionStatus, React.ReactNode> = {
 
 export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecutionHistoryProps) {
   const { executions, isLoading, error } = useWorkflowExecutions(workflowId);
-  
+  console.log(error);
+  console.log("isLoading", isLoading);
+  console.log("executions", executions);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<WorkflowExecutionStatus | "all">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
