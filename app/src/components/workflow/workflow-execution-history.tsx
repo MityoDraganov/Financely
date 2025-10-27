@@ -46,10 +46,19 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
   const [statusFilter, setStatusFilter] = useState<WorkflowExecutionStatus | "all">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
 
+  // Helper function to safely extract error message
+  const getErrorMessage = (error: unknown): string => {
+    if (typeof error === 'string') return error;
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String(error.message);
+    }
+    return 'Unknown error occurred';
+  };
+
   const filteredExecutions = executions
     .filter(execution => {
-      const matchesSearch = execution.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           execution.triggerType.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = execution.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           execution.triggerType?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || execution.status === statusFilter;
       return matchesSearch && matchesStatus;
     })
@@ -73,9 +82,10 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
   };
 
   const getExecutionSummary = (execution: WorkflowExecution) => {
-    const totalLogs = execution.logs.length;
-    const completedLogs = execution.logs.filter(log => log.status === "completed").length;
-    const failedLogs = execution.logs.filter(log => log.status === "failed").length;
+    const logs = execution.logs || [];
+    const totalLogs = logs.length;
+    const completedLogs = logs.filter(log => log.status === "completed").length;
+    const failedLogs = logs.filter(log => log.status === "failed").length;
     
     return {
       totalSteps: totalLogs,
@@ -168,7 +178,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Triggered by: {execution.triggerType.replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      Triggered by: {execution.triggerType?.replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
                     </p>
                   </div>
                   <div className="text-right text-sm text-muted-foreground">
@@ -217,12 +227,14 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                       <XCircle className="w-4 h-4" />
                       <span className="font-medium">Error:</span>
                     </div>
-                    <p className="text-red-700 text-sm mt-1">{execution.error}</p>
+                    <p className="text-red-700 text-sm mt-1">
+                      {getErrorMessage(execution.error)}
+                    </p>
                   </div>
                 )}
 
                 {/* Execution Logs */}
-                {execution.logs.length > 0 && (
+                {execution.logs && execution.logs.length > 0 && (
                   <div className="space-y-2">
                     <h5 className="font-medium text-sm">Execution Logs</h5>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -236,7 +248,9 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                           </Badge>
                           <span className="text-muted-foreground">{log.actionType}</span>
                           {log.message && (
-                            <span className="text-muted-foreground">- {log.message}</span>
+                            <span className="text-muted-foreground">
+                              - {getErrorMessage(log.message)}
+                            </span>
                           )}
                         </div>
                       ))}
