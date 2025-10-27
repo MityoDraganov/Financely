@@ -26,7 +26,8 @@ export type WorkflowTriggerType = z.infer<typeof workflowTriggerTypeSchema>;
  * Workflow action types that can be executed as part of a workflow
  */
 export const workflowActionTypeSchema = z.enum([
-  "http_request"
+  "http_request",
+  "send_email"
 ]);
 
 export type WorkflowActionType = z.infer<typeof workflowActionTypeSchema>;
@@ -94,19 +95,37 @@ export const workflowActionSchema = z.object({
   id: z.string(),
   type: workflowActionTypeSchema,
   name: z.string(),
-  config: z.object({
-    method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
-    url: z.string(),
-    headers: z.record(z.string(), z.string()).optional(),
-    body: z.any().optional(),
-    auth: z.object({
-      type: z.enum(["bearer", "basic", "none"]),
-      token: z.string().optional(),
-      username: z.string().optional(),
-      password: z.string().optional(),
-    }).optional(),
-    timeoutMs: z.number().int().min(0).optional(),
-  }),
+  config: z.union([
+    // HTTP Request configuration
+    z.object({
+      method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
+      url: z.string(),
+      headers: z.record(z.string(), z.string()).optional(),
+      body: z.any().optional(),
+      auth: z.object({
+        type: z.enum(["bearer", "basic", "none"]),
+        token: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+      }).optional(),
+      timeoutMs: z.number().int().min(0).optional(),
+    }),
+    // Email configuration
+    z.object({
+      recipients: z.array(z.string().email()),
+      subject: z.string(),
+      body: z.string(),
+      isHtml: z.boolean().default(false),
+      cc: z.array(z.string().email()).optional(),
+      bcc: z.array(z.string().email()).optional(),
+      replyTo: z.string().email().optional(),
+      attachments: z.array(z.object({
+        filename: z.string(),
+        content: z.string(), // Base64 encoded content
+        contentType: z.string(),
+      })).optional(),
+    })
+  ]),
 });
 
 export type WorkflowAction = z.infer<typeof workflowActionSchema>;

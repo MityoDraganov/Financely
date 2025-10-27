@@ -10,8 +10,13 @@ const executionEngine = new WorkflowExecutionEngine();
 
 // Initialize executors
 import { HttpRequestExecutor } from "../executors/http-request-executor";
+import { EmailExecutor } from "../executors/email-executor";
+
 const httpExecutor = new HttpRequestExecutor();
+const emailExecutor = new EmailExecutor();
+
 executionEngine.registerExecutor("http_request", httpExecutor);
+executionEngine.registerExecutor("send_email", emailExecutor);
 
 /**
  * Handle invoice created events

@@ -1,6 +1,7 @@
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
+import { firestore as db } from "../infrastructure/firebase";
 import {
   WorkflowRun,
   StepExecution,
@@ -9,7 +10,31 @@ import {
   WorkflowStatus,
 } from "../core/entities/workflow-execution";
 
-const db = getFirestore();
+/**
+ * Remove undefined values from an object recursively
+ * Firestore doesn't allow undefined values
+ */
+function removeUndefinedValues(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefinedValues).filter(item => item !== undefined);
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = removeUndefinedValues(value);
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
 
 export class WorkflowExecutionEngine {
   private actionExecutors: Map<string, any> = new Map();
@@ -290,11 +315,14 @@ export class WorkflowExecutionEngine {
         results[action.id] = actionResult;
       }
 
+      // Clean results to remove undefined values before saving to Firestore
+      const cleanedResults = removeUndefinedValues(results);
+
       // Update step status to succeeded
       await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
         status: "succeeded",
         endedAt: FieldValue.serverTimestamp(),
-        result: results,
+        result: cleanedResults,
         rev: FieldValue.increment(1),
       });
 
@@ -302,7 +330,7 @@ export class WorkflowExecutionEngine {
       await db.collection("workflowRuns").doc(runId).update({
         context: {
           ...context,
-          [stepId]: results,
+          [stepId]: cleanedResults,
         },
         updatedAt: FieldValue.serverTimestamp(),
       });

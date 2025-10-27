@@ -27,6 +27,7 @@ interface WorkflowPreviewProps {
 const getActionIcon = (actionType: string) => {
   switch (actionType) {
     case "send.email":
+    case "send_email":
       return <Mail className="w-4 h-4" />;
     case "send.slack":
       return <MessageSquare className="w-4 h-4" />;
@@ -51,6 +52,7 @@ const getActionIcon = (actionType: string) => {
 const getActionLabel = (actionType: string) => {
   switch (actionType) {
     case "send.email":
+    case "send_email":
       return "Send Email";
     case "send.slack":
       return "Send Slack Message";

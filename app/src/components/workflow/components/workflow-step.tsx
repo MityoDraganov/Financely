@@ -1,0 +1,111 @@
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Trash2 } from "lucide-react";
+import { WorkflowActionType } from "@/core";
+import { WorkflowStepProps, ACTION_TYPES } from "../types";
+import { WorkflowActionComponent } from "./workflow-action";
+
+export function WorkflowStepComponent({ 
+  step, 
+  stepIndex, 
+  onUpdateStep, 
+  onDeleteStep 
+}: WorkflowStepProps) {
+  const handleUpdateName = (name: string) => {
+    onUpdateStep(step.id, { name });
+  };
+
+  const handleUpdateAction = (actionIndex: number, updates: any) => {
+    const updatedActions = [...step.actions];
+    updatedActions[actionIndex] = { ...updatedActions[actionIndex], ...updates };
+    onUpdateStep(step.id, { actions: updatedActions });
+  };
+
+  const handleDeleteAction = (actionIndex: number) => {
+    const updatedActions = step.actions.filter((_, idx) => idx !== actionIndex);
+    onUpdateStep(step.id, { actions: updatedActions });
+  };
+
+  const handleAddAction = (actionType: WorkflowActionType) => {
+    const newAction = actionType === "http_request" ? {
+      id: `action_${Date.now()}`,
+      type: actionType,
+      name: "",
+      config: {
+        method: "POST" as const,
+        url: "",
+      },
+    } : {
+      id: `action_${Date.now()}`,
+      type: actionType,
+      name: "",
+      config: {
+        recipients: [],
+        subject: "",
+        body: "",
+        isHtml: false,
+      },
+    };
+    
+    const updatedActions = [...step.actions, newAction];
+    onUpdateStep(step.id, { actions: updatedActions });
+  };
+
+  return (
+    <Card className="border-l-4 border-l-blue-500">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-3">
+              <Badge variant="outline" className="text-xs">Step {stepIndex + 1}</Badge>
+              <Input
+                placeholder={`Step ${stepIndex + 1} name`}
+                value={step.name}
+                onChange={(e) => handleUpdateName(e.target.value)}
+                className="font-semibold border-none shadow-none p-0 h-auto"
+              />
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => onDeleteStep(step.id)}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-4">
+          {step.actions.map((action, actionIndex) => (
+            <WorkflowActionComponent
+              key={action.id}
+              action={action}
+              actionIndex={actionIndex}
+              stepId={step.id}
+              onUpdateAction={(_stepId, actionIndex, updates) => handleUpdateAction(actionIndex, updates)}
+              onDeleteAction={(_stepId, actionIndex) => handleDeleteAction(actionIndex)}
+            />
+          ))}
+          
+          <div className="flex gap-2">
+            <Select onValueChange={(value) => handleAddAction(value as WorkflowActionType)}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select action type" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACTION_TYPES.map((actionType) => (
+                  <SelectItem key={actionType.value} value={actionType.value}>
+                    {actionType.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Default export for backward compatibility
+export default WorkflowStepComponent;
