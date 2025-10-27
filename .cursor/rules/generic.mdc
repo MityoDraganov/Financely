@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+Always use early returns;
+
+Always clear up arthefacts or unused code snipperts/functions/components

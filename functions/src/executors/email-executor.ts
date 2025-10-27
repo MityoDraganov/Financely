@@ -28,9 +28,9 @@ export class EmailExecutor implements ActionExecutor {
     resendFromName?: string;
   }) {
     // Use provided secrets or fallback to environment variables
-    const apiKey = secrets?.resendApiKey || process.env.RESEND_API_KEY || 're_ZCRzkrBq_MtQZdv9VErJNnMVPLKxZFBLY';
-    const fromEmail = secrets?.resendFromEmail || process.env.RESEND_FROM_EMAIL || 'noreply@financely.app';
-    const fromName = secrets?.resendFromName || process.env.RESEND_FROM_NAME || 'Financely';
+    const apiKey = secrets?.resendApiKey || process.env.RESEND_API_KEY || '';
+    const fromEmail = secrets?.resendFromEmail || process.env.RESEND_FROM_EMAIL || '';
+    const fromName = secrets?.resendFromName || process.env.RESEND_FROM_NAME || '';
 
     // Initialize Resend email service
     this.emailService = new ResendEmailService({

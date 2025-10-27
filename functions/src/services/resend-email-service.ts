@@ -1,6 +1,5 @@
 /**
  * Resend Email Service Implementation for Firebase Functions
- * Simplified version without external dependencies
  */
 
 import { logger } from "firebase-functions";
@@ -9,6 +8,7 @@ import {
   EmailSendOptions,
   EmailSendResult,
   EmailServiceConfig,
+  EmailRecipient,
   EmailServiceError,
   EmailValidationError,
 } from "./email-service-types";
@@ -29,8 +29,7 @@ export class ResendEmailService implements EmailService {
       // Validate inputs
       this.validateEmailOptions(options);
 
-      // For now, we'll simulate the Resend API call
-      // In production, you would use the actual Resend SDK
+      // Send email using Resend API
       const result = await this.sendWithResend(options);
 
       return {
@@ -97,11 +96,12 @@ export class ResendEmailService implements EmailService {
   }
 
   private async sendWithResend(options: EmailSendOptions): Promise<{ id: string }> {
-    // This is a placeholder implementation
-    // In production, you would use the actual Resend SDK:
-    // const resend = new Resend(this.config.apiKey);
-    // return await resend.emails.send(this.prepareResendData(options));
-
+    // Use dynamic import for Resend SDK
+    const { Resend } = await import('resend');
+    const resend = new Resend(this.config.apiKey);
+    
+    const resendData = this.prepareResendData(options);
+    
     logger.info("Sending email via Resend", {
       apiKey: this.config.apiKey ? `${this.config.apiKey.substring(0, 8)}...` : 'not-set',
       defaultFromEmail: this.config.defaultFromEmail,
@@ -116,13 +116,43 @@ export class ResendEmailService implements EmailService {
       attachmentCount: options.attachments?.length || 0,
     });
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Return mock result
+    // Send email using real Resend API
+    const result = await resend.emails.send(resendData);
+    
+    logger.info("Resend API response", { result });
+    
+    // Extract the ID from the Resend response
     return {
-      id: `resend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: result.data?.id || `resend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     };
+  }
+
+  private prepareResendData(options: EmailSendOptions): any {
+    const recipients = Array.isArray(options.to) ? options.to : [options.to];
+    
+    return {
+      from: this.formatRecipient(options.from),
+      to: recipients.map(r => this.formatRecipient(r)),
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+      cc: options.cc ? (Array.isArray(options.cc) ? options.cc.map(r => this.formatRecipient(r)) : [this.formatRecipient(options.cc)]) : undefined,
+      bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc.map(r => this.formatRecipient(r)) : [this.formatRecipient(options.bcc)]) : undefined,
+      reply_to: options.replyTo ? this.formatRecipient(options.replyTo) : undefined,
+      attachments: options.attachments?.map(att => ({
+        filename: att.filename,
+        content: typeof att.content === 'string' ? att.content : att.content.toString('base64'),
+        content_type: att.contentType,
+        disposition: att.disposition || 'attachment',
+        cid: att.cid,
+      })),
+      tags: options.tags ? Object.entries(options.tags).map(([key, value]) => ({ name: key, value })) : undefined,
+      headers: options.headers,
+    };
+  }
+
+  private formatRecipient(recipient: EmailRecipient): string {
+    return recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email;
   }
 
   private handleError(error: unknown): EmailSendResult {

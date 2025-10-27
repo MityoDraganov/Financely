@@ -45,5 +45,9 @@ export { onClerkWebhookEvent } from "./functions/clerk/on-clerk-event-webhook";
 // Clerk authentication functions
 export { verifyClerkToken } from "./functions/clerk/verify-clerk-token";
 
-// Email service
-export { emailService } from "./services/email-service";
+// Email service functions
+export { 
+  sendEmail, 
+  sendTemplateEmail, 
+  sendWorkflowEmail 
+} from "./functions/send-email";

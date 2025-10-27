@@ -7,7 +7,6 @@ import {
   StepExecution,
   WorkflowEvent,
   StepDefinition,
-  WorkflowStatus,
 } from "../core/entities/workflow-execution";
 
 /**
@@ -134,20 +133,19 @@ export class WorkflowExecutionEngine {
       eventType: event.type,
     });
 
-    // Create the workflow run
-    const run: WorkflowRun = {
-      runId,
+    // Create the workflow execution in the format expected by frontend
+    const execution = {
+      id: runId,
       workflowId: workflow.id,
-      version: workflow.version || 1,
-      tenantId: workflow.orgId,
-      status: "queued",
-      input: event.payload,
+      status: "pending" as const,
+      triggerType: event.type as any,
+      triggerData: event.payload,
+      startedAt: new Date().toISOString(),
+      logs: [],
       context: { ...event.payload }, // Start with event payload as context
-      createdAt: FieldValue.serverTimestamp() as any,
-      updatedAt: FieldValue.serverTimestamp() as any,
     };
 
-    await db.collection("workflowRuns").doc(runId).set(run);
+    await db.collection("workflowRuns").doc(runId).set(execution);
 
     logger.info("Workflow run created successfully", { runId, workflowId: workflow.id });
 
@@ -171,7 +169,7 @@ export class WorkflowExecutionEngine {
       const stepExecution: StepExecution = {
         stepId: firstStep.id,
         type: firstStep.type,
-        status: "queued",
+        status: "pending",
         attempt: 1,
         rev: 1,
         next: this.getNextStepsFromWorkflow(firstStep.id, workflow),
@@ -208,11 +206,9 @@ export class WorkflowExecutionEngine {
    * Start workflow execution by processing the first queued step
    */
   private async startWorkflowExecution(runId: string): Promise<void> {
-    // Update workflow run status
+    // Update workflow execution status
     await db.collection("workflowRuns").doc(runId).update({
       status: "running",
-      startedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // Process the first queued step
@@ -229,7 +225,7 @@ export class WorkflowExecutionEngine {
         .collection("workflowRuns")
         .doc(runId)
         .collection("steps")
-        .where("status", "==", "queued")
+        .where("status", "==", "pending")
         .limit(1)
         .get();
 
@@ -318,21 +314,31 @@ export class WorkflowExecutionEngine {
       // Clean results to remove undefined values before saving to Firestore
       const cleanedResults = removeUndefinedValues(results);
 
-      // Update step status to succeeded
+      // Update step status to completed
       await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
-        status: "succeeded",
+        status: "completed",
         endedAt: FieldValue.serverTimestamp(),
         result: cleanedResults,
         rev: FieldValue.increment(1),
       });
 
-      // Update workflow context with step result
+      // Add execution log
+      const logEntry = {
+        stepId,
+        actionType: stepDefinition.type,
+        status: "completed" as const,
+        message: `Step ${stepDefinition.name || stepId} completed successfully`,
+        timestamp: new Date().toISOString(),
+        data: cleanedResults,
+      };
+
+      // Update workflow execution with log and context
       await db.collection("workflowRuns").doc(runId).update({
         context: {
           ...context,
           [stepId]: cleanedResults,
         },
-        updatedAt: FieldValue.serverTimestamp(),
+        logs: FieldValue.arrayUnion(logEntry),
       });
 
       // Process next steps
@@ -360,14 +366,22 @@ export class WorkflowExecutionEngine {
         rev: FieldValue.increment(1),
       });
 
-      // Mark workflow as failed
+      // Add error log to workflow execution
+      const errorLogEntry = {
+        stepId,
+        actionType: stepDefinition.type,
+        status: "failed" as const,
+        message: `Step ${stepDefinition.name || stepId} failed`,
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      };
+
+      // Mark workflow as failed with error log
       await db.collection("workflowRuns").doc(runId).update({
         status: "failed",
-        endedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        error: {
-          message: error instanceof Error ? error.message : "Unknown error",
-        },
+        completedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : "Unknown error",
+        logs: FieldValue.arrayUnion(errorLogEntry),
       });
     }
   }
@@ -398,7 +412,7 @@ export class WorkflowExecutionEngine {
     const stepExecution: StepExecution = {
       stepId,
       type: stepDefinition.type,
-      status: "queued",
+      status: "pending",
       attempt: 1,
       rev: 1,
       next: this.getNextStepsFromWorkflow(stepId, workflow),
@@ -422,7 +436,7 @@ export class WorkflowExecutionEngine {
 
     const allStepsCompleted = stepsSnapshot.docs.every(doc => {
       const step = doc.data() as StepExecution;
-      return step.status === "succeeded" || step.status === "failed";
+      return step.status === "completed" || step.status === "failed";
     });
 
     if (allStepsCompleted) {
@@ -432,12 +446,11 @@ export class WorkflowExecutionEngine {
         return step.status === "failed";
       });
 
-      const finalStatus: WorkflowStatus = hasFailures ? "failed" : "succeeded";
+      const finalStatus = hasFailures ? "failed" : "completed";
 
       await db.collection("workflowRuns").doc(runId).update({
         status: finalStatus,
-        endedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        completedAt: new Date().toISOString(),
       });
 
       logger.info("Workflow execution completed", { runId, status: finalStatus });

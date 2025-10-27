@@ -4,8 +4,8 @@ import { Timestamp } from "firebase-admin/firestore";
  * Workflow execution data models
  */
 
-export type WorkflowStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
-export type StepStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+export type StepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
 export interface WorkflowDefinition {
   id: string;
