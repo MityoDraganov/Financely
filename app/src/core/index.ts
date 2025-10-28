@@ -9,6 +9,7 @@ export * from "./entities/buyer";
 export * from "./entities/seller";
 export * from "./entities/template";
 export * from "./entities/workflow";
+export * from "./entities/contact";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";
@@ -17,6 +18,7 @@ export * from "./ports/repositories/proposal-repository";
 export * from "./ports/repositories/invoice-repository";
 export * from "./ports/repositories/organization-repository";
 export * from "./ports/repositories/user-repository";
+export * from "./ports/repositories/contact-repository";
 
 // Ports - Services
 export * from "./ports/services/database-service";

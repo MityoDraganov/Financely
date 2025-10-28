@@ -12,6 +12,7 @@ import AppLayout from "./components/layout";
 import { SidebarProvider } from "./components/ui/sidebar";
 import InvoicesPage from "./pages/invoices/invoices";
 import InvoiceDetailPage from "./pages/invoices/invoice-detail";
+import ContactsPage from "./pages/contacts/contacts";
 import SettingsLayout from "./pages/settings/layout";
 import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
@@ -93,6 +94,16 @@ function App() {
 											<ProtectedRoute>
 												<AppLayout>
 													<InvoiceDetailPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/contacts"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<ContactsPage />
 												</AppLayout>
 											</ProtectedRoute>
 										}

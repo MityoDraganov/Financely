@@ -10,6 +10,7 @@ import { getInviteRepository } from "./invite-repository";
 import { getWorkflowRepository } from "./workflow-repository";
 import { getTaskRepository } from "./task-repository";
 import { getNotificationRepository } from "./notification-repository";
+import { getContactRepository } from "./contact-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>
@@ -28,4 +29,6 @@ export const repositoryHost: RepositoryHost = {
       getTaskRepository(databaseService),
     getNotificationsRepository: (databaseService: DatabaseService) =>
       getNotificationRepository(databaseService),
+    getContactsRepository: (databaseService: DatabaseService) =>
+      getContactRepository(databaseService),
   }
