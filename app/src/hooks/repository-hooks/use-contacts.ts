@@ -1,4 +1,4 @@
-import { Contact, ContactData, QueryConstraint } from "@/core";
+import { ContactData, QueryConstraint } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -58,7 +58,7 @@ export const useCreateContact = () => {
     mutationFn: async (data: ContactData) => {
       return contactRepository.create({ data });
     },
-    onSuccess: (contactId, variables) => {
+    onSuccess: (_contactId, variables) => {
       // Invalidate and refetch contacts queries
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       

@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import WorkflowTemplates from "@/components/workflow/workflow-templates";
+import { Card, CardContent } from "@/components/ui/card";
 import WorkflowBuilder from "@/components/workflow/workflow-builder";
 import { WorkflowTemplate } from "@/core";
 
@@ -11,17 +10,6 @@ export default function WorkflowTemplatesPage() {
   const navigate = useNavigate();
   const [showBuilder, setShowBuilder] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
-
-  const handleSelectTemplate = (template: WorkflowTemplate) => {
-    setSelectedTemplate(template);
-    setShowBuilder(true);
-  };
-
-  const handleCreateFromTemplate = (workflowData: Partial<any>) => {
-    // TODO: Create workflow from template
-    console.log("Creating workflow from template:", workflowData);
-    navigate("/workflows");
-  };
 
   const handleCreateCustom = () => {
     setSelectedTemplate(null);
@@ -50,7 +38,7 @@ export default function WorkflowTemplatesPage() {
         </div>
 
         <WorkflowBuilder
-          workflow={selectedTemplate ? {
+          editingWorkflow={selectedTemplate ? {
             id: "",
             name: selectedTemplate.name,
             description: selectedTemplate.description,
@@ -70,9 +58,8 @@ export default function WorkflowTemplatesPage() {
             category: selectedTemplate.category,
             createdAt: "",
             updatedAt: "",
-          } : undefined}
-          onSave={handleCreateFromTemplate}
-          onCancel={() => setShowBuilder(false)}
+          } as any : null}
+          onCancelEdit={() => setShowBuilder(false)}
         />
       </div>
     );
@@ -146,7 +133,11 @@ export default function WorkflowTemplatesPage() {
       </div>
 
       {/* Templates */}
-      <WorkflowTemplates onSelectTemplate={handleSelectTemplate} />
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-muted-foreground">Workflow templates coming soon...</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

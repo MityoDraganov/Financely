@@ -1,4 +1,3 @@
-import React from "react";
 import WorkflowBuilder from "./workflow-builder";
 import { Workflow, CreateWorkflowInput } from "@/core";
 

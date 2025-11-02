@@ -10,7 +10,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useWorkflowsByOrg, useActivateWorkflow, usePauseWorkflow, useArchiveWorkflow, useCreateWorkflowFunction, useDeleteWorkflow } from "@/hooks";
 import { useOrganizationContext } from "@/contexts/organization-context";
 import WorkflowBuilderWrapper from "@/components/workflow/workflow-builder-wrapper";
-import WorkflowTemplates from "@/components/workflow/workflow-templates";
 import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
 import WorkflowPreview from "@/components/workflow/workflow-preview";
 import { Workflow as WorkflowType, CreateWorkflowInput } from "@/core";
@@ -473,10 +472,6 @@ export default function WorkflowsPage() {
                 </div>
               )}
             </TabsContent>
-
-        <TabsContent value="templates">
-          <WorkflowTemplates />
-        </TabsContent>
 
         <TabsContent value="history">
           {workflows.length > 0 ? (

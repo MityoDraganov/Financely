@@ -42,7 +42,6 @@ export function JsonEditor({
 }: JsonEditorProps) {
   const [localValue, setLocalValue] = useState(value);
   const [validation, setValidation] = useState<JsonValidationResult>({ isValid: true });
-  const [cursorPosition, setCursorPosition] = useState(0);
   const [completion, setCompletion] = useState<CompletionContext | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const completionRef = useRef<HTMLDivElement>(null);
@@ -54,7 +53,8 @@ export function JsonEditor({
 
   // Validate JSON in real-time
   useEffect(() => {
-    validateJson(localValue);
+    const validationResult = validateJson(localValue);
+    setValidation(validationResult);
   }, [localValue]);
 
   // Close completion on click outside
@@ -105,7 +105,6 @@ export function JsonEditor({
   // Get suggestions based on context
   const getSuggestions = (text: string, cursorPos: number): CompletionSuggestion[] => {
     const beforeCursor = text.slice(0, cursorPos);
-    const afterCursor = text.slice(cursorPos);
     
     // Check if we're inside quotes (string value)
     const quoteCount = (beforeCursor.match(/"/g) || []).length;
@@ -166,7 +165,6 @@ export function JsonEditor({
     const cursorPos = e.target.selectionStart;
     
     setLocalValue(newValue);
-    setCursorPosition(cursorPos);
     
     // Auto-format on certain triggers
     const autoFormatted = handleAutoFormatting(newValue, cursorPos);

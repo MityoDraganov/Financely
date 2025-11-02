@@ -11,7 +11,7 @@ export const useCreateWorkflowFunction = () => {
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.createWorkflow>[0]) => 
       functionsService.createWorkflow(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (_result, variables) => {
       // Invalidate workflows queries to refresh the list
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["workflows", "org", variables.orgId] });

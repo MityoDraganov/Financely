@@ -144,7 +144,7 @@ export class N8nIntegrationService {
   private convertActionToN8nNode(action: any, nodeId: string, stepIndex: number, actionIndex: number): any {
     const baseNode = {
       id: nodeId,
-      name: `${action.type.replace(".", " ").replace(/\b\w/g, l => l.toUpperCase())}`,
+      name: `${action.type.replace(".", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}`,
       position: [400 + (stepIndex * 200), 200 + (actionIndex * 100)],
       parameters: {},
     };
@@ -261,7 +261,7 @@ export class N8nIntegrationService {
 
     // Connect steps in sequence
     steps.forEach((step, stepIndex) => {
-      step.actions.forEach((action, actionIndex) => {
+      step.actions.forEach((_action, actionIndex) => {
         const currentNodeId = `step-${stepIndex}-action-${actionIndex}`;
         
         // Connect to next action in same step

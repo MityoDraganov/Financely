@@ -1,126 +1,91 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy,
-  Timestamp 
-} from "firebase/firestore";
 import { InviteRepository } from "../core/ports/repositories/invite-repository";
-import { Invite, CreateInviteInput } from "../core/entities/invite";
+import { Invite, CreateInviteInput, InviteData } from "../core/entities/invite";
 import { DatabaseService } from "../core/ports/services/database-service";
+import { DatabaseCollection } from "./config";
 
 export function getInviteRepository(databaseService: DatabaseService): InviteRepository {
-  const db = databaseService.getFirestore();
-
   return {
     async create(input: CreateInviteInput): Promise<Invite> {
-      const now = new Date().toISOString();
       const expiresAt = input.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days default
 
-      const inviteData = {
-        ...input,
+      // Generate a random code (this should ideally be done server-side)
+      const code = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+      const inviteData: InviteData = {
+        code,
+        organizationId: input.organizationId,
+        invitedBy: input.invitedBy,
+        email: input.email,
+        role: input.role || "member",
+        status: "active",
         expiresAt,
-        createdAt: now,
-        updatedAt: now,
       };
 
-      const docRef = await addDoc(collection(db, "invites"), inviteData);
+      const id = await databaseService.create<InviteData>(
+        DatabaseCollection.INVITES,
+        inviteData
+      );
       
-      return {
-        id: docRef.id,
-        ...inviteData,
-      };
+      const created = await databaseService.get<Invite>(DatabaseCollection.INVITES, id);
+      if (!created) {
+        throw new Error("Failed to create invite");
+      }
+      
+      return created as Invite;
     },
 
     async getById(id: string): Promise<Invite | null> {
-      const docRef = doc(db, "invites", id);
-      const docSnap = await getDoc(docRef);
-      
-      if (!docSnap.exists()) {
-        return null;
-      }
-
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        ...data,
-      } as Invite;
+      const invite = await databaseService.get<Invite>(DatabaseCollection.INVITES, id);
+      return invite || null;
     },
 
     async getByCode(code: string): Promise<Invite | null> {
-      const q = query(
-        collection(db, "invites"),
-        where("code", "==", code)
+      const invite = await databaseService.getByField<Invite>(
+        DatabaseCollection.INVITES,
+        [{ field: "code", operator: "==", value: code }]
       );
-      
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        return null;
-      }
-
-      const doc = querySnapshot.docs[0];
-      const data = doc.data();
-      
-      return {
-        id: doc.id,
-        ...data,
-      } as Invite;
+      return invite || null;
     },
 
     async getByOrganizationId(organizationId: string): Promise<Invite[]> {
-      const q = query(
-        collection(db, "invites"),
-        where("organizationId", "==", organizationId),
-        orderBy("createdAt", "desc")
+      return await databaseService.getPaginated<Invite>(
+        DatabaseCollection.INVITES,
+        [{ field: "organizationId", operator: "==", value: organizationId }],
+        {},
+        { field: "createdAt", direction: "desc" }
       );
-      
-      const querySnapshot = await getDocs(q);
-      
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      } as Invite));
     },
 
     async getActiveByOrganizationId(organizationId: string): Promise<Invite[]> {
-      const q = query(
-        collection(db, "invites"),
-        where("organizationId", "==", organizationId),
-        where("status", "==", "active"),
-        orderBy("createdAt", "desc")
+      return await databaseService.getPaginated<Invite>(
+        DatabaseCollection.INVITES,
+        [
+          { field: "organizationId", operator: "==", value: organizationId },
+          { field: "status", operator: "==", value: "active" }
+        ],
+        {},
+        { field: "createdAt", direction: "desc" }
       );
-      
-      const querySnapshot = await getDocs(q);
-      
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      } as Invite));
     },
 
     async update(id: string, updates: Partial<Invite>): Promise<Invite> {
-      const docRef = doc(db, "invites", id);
       const updateData = {
         ...updates,
         updatedAt: new Date().toISOString(),
       };
       
-      await updateDoc(docRef, updateData);
+      await databaseService.update(
+        DatabaseCollection.INVITES,
+        id,
+        updateData
+      );
       
-      const updatedDoc = await getDoc(docRef);
-      const data = updatedDoc.data();
+      const updated = await databaseService.get<Invite>(DatabaseCollection.INVITES, id);
+      if (!updated) {
+        throw new Error("Failed to update invite");
+      }
       
-      return {
-        id: updatedDoc.id,
-        ...data,
-      } as Invite;
+      return updated as Invite;
     },
 
     async markAsUsed(id: string, usedBy: string): Promise<Invite> {
@@ -142,18 +107,15 @@ export function getInviteRepository(databaseService: DatabaseService): InviteRep
     },
 
     async delete(id: string): Promise<void> {
-      const docRef = doc(db, "invites", id);
-      await deleteDoc(docRef);
+      await databaseService.delete(DatabaseCollection.INVITES, id);
     },
 
     async isCodeUnique(code: string): Promise<boolean> {
-      const q = query(
-        collection(db, "invites"),
-        where("code", "==", code)
+      const existing = await databaseService.getByField<Invite>(
+        DatabaseCollection.INVITES,
+        [{ field: "code", operator: "==", value: code }]
       );
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.empty;
+      return !existing;
     },
   };
 }

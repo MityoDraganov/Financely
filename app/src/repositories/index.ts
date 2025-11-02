@@ -17,6 +17,8 @@ export const repositoryHost: RepositoryHost = {
       getTemplateRepository(databaseService),
     getInvoicesReposity: (databaseService: DatabaseService) =>
       getInvoiceRepository(databaseService),
+    getInvoicesRepository: (databaseService: DatabaseService) =>
+      getInvoiceRepository(databaseService),
     getOrganizationsRepository: (databaseService: DatabaseService) =>
       getOrganizationRepository(databaseService),
     getUsersRepository: (databaseService: DatabaseService) =>

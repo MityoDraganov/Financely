@@ -103,7 +103,7 @@ export function getWorkflowRepository(
 
       const logEntry = {
         ...log,
-        actionType: log.actionType as "send.email" | "send.slack" | "create.invoice" | "update.invoice.status" | "create.task" | "assign.task" | "generate.pdf" | "call.webhook" | "create.stripe.invoice" | "wait.delay" | "notify.user" | "archive.record" | "update.field",
+        actionType: log.actionType as "http_request" | "send_email",
         timestamp: new Date().toISOString(),
       };
 

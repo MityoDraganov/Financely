@@ -5,14 +5,11 @@ import {
   WorkflowAction, 
   WorkflowActionType,
   WorkflowCondition,
-  WorkflowExecutionStatus,
   WorkflowExecutionLog,
-  WorkflowTriggerType
 } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { databaseService } from "../database/database-service";
 import { emailService } from "./email-service";
-import { loggerService } from "./logger-service";
 
 const workflowRepository = repositoryHost.getWorkflowsRepository(databaseService);
 
@@ -41,79 +38,15 @@ export class WorkflowExecutionEngine {
 
   private initializeActionExecutors(): void {
     // Email actions
-    this.actionExecutors.set("send.email", {
-      type: "send.email",
+    this.actionExecutors.set("send_email", {
+      type: "send_email",
       execute: this.executeEmailAction.bind(this),
     });
 
-    // Slack actions
-    this.actionExecutors.set("send.slack", {
-      type: "send.slack",
-      execute: this.executeSlackAction.bind(this),
-    });
-
-    // Invoice actions
-    this.actionExecutors.set("create.invoice", {
-      type: "create.invoice",
-      execute: this.executeCreateInvoiceAction.bind(this),
-    });
-
-    this.actionExecutors.set("update.invoice.status", {
-      type: "update.invoice.status",
-      execute: this.executeUpdateInvoiceStatusAction.bind(this),
-    });
-
-    // Task actions
-    this.actionExecutors.set("create.task", {
-      type: "create.task",
-      execute: this.executeCreateTaskAction.bind(this),
-    });
-
-    this.actionExecutors.set("assign.task", {
-      type: "assign.task",
-      execute: this.executeAssignTaskAction.bind(this),
-    });
-
-    // PDF actions
-    this.actionExecutors.set("generate.pdf", {
-      type: "generate.pdf",
-      execute: this.executeGeneratePdfAction.bind(this),
-    });
-
-    // Webhook actions
-    this.actionExecutors.set("call.webhook", {
-      type: "call.webhook",
-      execute: this.executeWebhookAction.bind(this),
-    });
-
-    // Stripe actions
-    this.actionExecutors.set("create.stripe.invoice", {
-      type: "create.stripe.invoice",
-      execute: this.executeStripeInvoiceAction.bind(this),
-    });
-
-    // Delay actions
-    this.actionExecutors.set("wait.delay", {
-      type: "wait.delay",
-      execute: this.executeDelayAction.bind(this),
-    });
-
-    // Notification actions
-    this.actionExecutors.set("notify.user", {
-      type: "notify.user",
-      execute: this.executeNotifyUserAction.bind(this),
-    });
-
-    // Archive actions
-    this.actionExecutors.set("archive.record", {
-      type: "archive.record",
-      execute: this.executeArchiveRecordAction.bind(this),
-    });
-
-    // Update field actions
-    this.actionExecutors.set("update.field", {
-      type: "update.field",
-      execute: this.executeUpdateFieldAction.bind(this),
+    // HTTP Request actions
+    this.actionExecutors.set("http_request", {
+      type: "http_request",
+      execute: this.executeHttpRequestAction.bind(this),
     });
   }
 
@@ -155,7 +88,14 @@ export class WorkflowExecutionEngine {
 
       const context: WorkflowExecutionContext = {
         workflow,
-        execution: await workflowRepository.getExecution(executionId)!,
+        execution: await workflowRepository.getExecution(executionId) || {
+          id: executionId,
+          workflowId: workflow.id,
+          status: "running" as const,
+          triggerType: workflow.trigger.type,
+          startedAt: new Date().toISOString(),
+          logs: [],
+        },
         triggerData,
         variables: { ...triggerData },
       };
@@ -175,26 +115,27 @@ export class WorkflowExecutionEngine {
 
       await this.addExecutionLog(executionId, {
         stepId: "workflow",
-        actionType: "notify.user",
+        actionType: "http_request",
         status: "completed",
         message: "Workflow execution completed successfully",
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Workflow execution failed:`, error);
       
       await workflowRepository.updateExecution(executionId, {
         status: "failed",
         completedAt: new Date().toISOString(),
-        error: error.message,
+        error: errorMessage,
       });
 
       await this.addExecutionLog(executionId, {
         stepId: "workflow",
-        actionType: "notify.user",
+        actionType: "http_request",
         status: "failed",
         message: "Workflow execution failed",
-        error: error.message,
+        error: errorMessage,
       });
     }
   }
@@ -207,7 +148,7 @@ export class WorkflowExecutionEngine {
     
     await this.addExecutionLog(executionId, {
       stepId: step.id,
-      actionType: "notify.user",
+      actionType: "http_request",
       status: "started",
       message: `Executing step: ${step.name}`,
     });
@@ -219,7 +160,7 @@ export class WorkflowExecutionEngine {
         if (!conditionsMet) {
           await this.addExecutionLog(executionId, {
             stepId: step.id,
-            actionType: "notify.user",
+            actionType: "http_request",
             status: "completed",
             message: `Step skipped: conditions not met`,
           });
@@ -229,7 +170,7 @@ export class WorkflowExecutionEngine {
 
       // Execute actions
       for (const action of step.actions) {
-        await this.executeAction(action, context);
+        await this.executeAction(action, context, executionId, step.id);
       }
 
       // Handle delay if specified
@@ -239,18 +180,19 @@ export class WorkflowExecutionEngine {
 
       await this.addExecutionLog(executionId, {
         stepId: step.id,
-        actionType: "notify.user",
+        actionType: "http_request",
         status: "completed",
         message: `Step completed: ${step.name}`,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       await this.addExecutionLog(executionId, {
         stepId: step.id,
-        actionType: "notify.user",
+        actionType: "http_request",
         status: "failed",
         message: `Step failed: ${step.name}`,
-        error: error.message,
+        error: errorMessage,
       });
       throw error;
     }
@@ -261,18 +203,53 @@ export class WorkflowExecutionEngine {
    */
   private async executeAction(
     action: WorkflowAction, 
-    context: WorkflowExecutionContext
+    context: WorkflowExecutionContext,
+    executionId: string,
+    stepId: string
   ): Promise<void> {
     const executor = this.actionExecutors.get(action.type);
     if (!executor) {
+      await this.addExecutionLog(executionId, {
+        stepId,
+        actionType: action.type,
+        status: "failed",
+        message: `No executor found for action type: ${action.type}`,
+        error: `Unsupported action type: ${action.type}`,
+      });
       throw new Error(`No executor found for action type: ${action.type}`);
     }
 
+    await this.addExecutionLog(executionId, {
+      stepId,
+      actionType: action.type,
+      status: "started",
+      message: `Executing action: ${action.name}`,
+    });
+
+    const startTime = Date.now();
     const result = await executor.execute(action, context);
+    const duration = Date.now() - startTime;
     
     if (!result.success) {
+      await this.addExecutionLog(executionId, {
+        stepId,
+        actionType: action.type,
+        status: "failed",
+        message: `Action failed: ${action.name}`,
+        error: result.error || `Action ${action.type} failed`,
+        duration,
+      });
       throw new Error(result.error || `Action ${action.type} failed`);
     }
+
+    await this.addExecutionLog(executionId, {
+      stepId,
+      actionType: action.type,
+      status: "completed",
+      message: `Action completed: ${action.name}`,
+      duration,
+      data: result.result,
+    });
 
     // Update context variables with result
     if (result.result) {
@@ -304,11 +281,11 @@ export class WorkflowExecutionEngine {
   private getFieldValue(field: string, context: WorkflowExecutionContext): unknown {
     // Handle nested field access (e.g., "invoice.amount")
     const parts = field.split('.');
-    let value: any = context.variables;
+    let value: unknown = context.variables;
     
     for (const part of parts) {
-      if (value && typeof value === 'object' && part in value) {
-        value = value[part];
+      if (value && typeof value === 'object' && value !== null && part in value) {
+        value = (value as Record<string, unknown>)[part];
       } else {
         return undefined;
       }
@@ -348,7 +325,7 @@ export class WorkflowExecutionEngine {
    */
   private async addExecutionLog(
     executionId: string, 
-    log: Omit<WorkflowExecutionLog, "timestamp" | "duration">
+    log: Omit<WorkflowExecutionLog, "timestamp">
   ): Promise<void> {
     await workflowRepository.addExecutionLog(executionId, log);
   }
@@ -364,422 +341,157 @@ export class WorkflowExecutionEngine {
 
   private async executeEmailAction(action: WorkflowAction, context: WorkflowExecutionContext) {
     try {
-      const { recipient, subject, templateId } = action.config;
+      // Check if config matches email schema
+      if (action.type !== "send_email") {
+        throw new Error(`Invalid action type for email executor: ${action.type}`);
+      }
+
+      // Type guard for email config
+      if (!('recipients' in action.config && Array.isArray(action.config.recipients))) {
+        throw new Error("Email action must have recipients array");
+      }
+
+      const { recipients, subject, body, isHtml = false } = action.config as {
+        recipients: string[];
+        subject: string;
+        body: string;
+        isHtml?: boolean;
+      };
       
-      if (!recipient || !subject) {
-        throw new Error("Email recipient and subject are required");
+      if (!recipients || recipients.length === 0 || !subject || !body) {
+        throw new Error("Email recipients, subject, and body are required");
       }
 
       // Replace variables in email content
-      const processedRecipient = this.replaceVariables(recipient, context.variables);
+      const processedRecipients = recipients.map(r => this.replaceVariables(r, context.variables));
       const processedSubject = this.replaceVariables(subject, context.variables);
+      const processedBody = this.replaceVariables(body, context.variables);
 
       // Send email using email service
       await emailService.sendEmail({
-        to: processedRecipient,
+        to: processedRecipients[0], // Email service expects single recipient for now
         subject: processedSubject,
-        templateId: templateId,
-        data: context.variables,
+        ...(isHtml ? { html: processedBody } : { text: processedBody }),
       });
 
-      return { success: true, result: { emailSent: true } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return { success: true, result: { emailSent: true, recipients: processedRecipients } };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 
-  private async executeSlackAction(action: WorkflowAction, context: WorkflowExecutionContext) {
+  private async executeHttpRequestAction(action: WorkflowAction, context: WorkflowExecutionContext) {
     try {
-      const { channel, message, webhookUrl } = action.config;
-      
-      if (!webhookUrl || !message) {
-        throw new Error("Slack webhook URL and message are required");
+      // Check if config matches HTTP request schema
+      if (action.type !== "http_request") {
+        throw new Error(`Invalid action type for HTTP executor: ${action.type}`);
       }
 
-      const processedMessage = this.replaceVariables(message, context.variables);
-
-      // Send Slack message via webhook
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: channel,
-          text: processedMessage,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Slack webhook failed: ${response.statusText}`);
+      // Type guard for HTTP request config
+      if (!('url' in action.config && 'method' in action.config)) {
+        throw new Error("HTTP request action must have url and method");
       }
 
-      return { success: true, result: { slackMessageSent: true } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeCreateInvoiceAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { customerId, amount, description, dueDate } = action.config;
-      
-      if (!customerId || !amount) {
-        throw new Error("Customer ID and amount are required for invoice creation");
-      }
-
-      // Create invoice using invoice service
-      const invoiceData = {
-        customerId: this.replaceVariables(customerId, context.variables),
-        amount: Number(this.replaceVariables(amount, context.variables)),
-        description: this.replaceVariables(description || "", context.variables),
-        dueDate: dueDate ? new Date(this.replaceVariables(dueDate, context.variables)) : undefined,
-      };
-
-      // Create invoice using existing invoice service
-      try {
-        const { functionsService } = await import("@/services/functions/functions-service");
-        const result = await functionsService.createInvoice({
-          customerId: invoiceData.customerId,
-          amount: invoiceData.amount,
-          description: invoiceData.description,
-          dueDate: invoiceData.dueDate,
-        });
-        
-        return { success: true, result: { invoiceCreated: true, invoiceId: result.id } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to create invoice: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeUpdateInvoiceStatusAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { invoiceId, status } = action.config;
-      
-      if (!invoiceId || !status) {
-        throw new Error("Invoice ID and status are required");
-      }
-
-      const processedInvoiceId = this.replaceVariables(invoiceId, context.variables);
-      const processedStatus = this.replaceVariables(status, context.variables);
-
-      // Update invoice status using repository
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        const invoiceRepository = repositoryHost.getInvoicesRepository(databaseService);
-        
-        await invoiceRepository.update(processedInvoiceId, { status: processedStatus });
-        
-        return { success: true, result: { invoiceStatusUpdated: true } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to update invoice status: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeCreateTaskAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { title, description, assigneeId, priority } = action.config;
-      
-      if (!title) {
-        throw new Error("Task title is required");
-      }
-
-      const taskData = {
-        title: this.replaceVariables(title, context.variables),
-        description: this.replaceVariables(description || "", context.variables),
-        assigneeId: assigneeId ? this.replaceVariables(assigneeId, context.variables) : undefined,
-        priority: priority || "medium",
-      };
-
-      // Create task using database
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        const taskRepository = repositoryHost.getTasksRepository(databaseService);
-        
-        const taskId = await taskRepository.create({
-          title: taskData.title,
-          description: taskData.description,
-          assigneeId: taskData.assigneeId,
-          priority: taskData.priority,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-        
-        return { success: true, result: { taskCreated: true, taskId } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to create task: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeAssignTaskAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { taskId, assigneeId } = action.config;
-      
-      if (!taskId || !assigneeId) {
-        throw new Error("Task ID and assignee ID are required");
-      }
-
-      const processedTaskId = this.replaceVariables(taskId, context.variables);
-      const processedAssigneeId = this.replaceVariables(assigneeId, context.variables);
-
-      // Assign task using database
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        const taskRepository = repositoryHost.getTasksRepository(databaseService);
-        
-        await taskRepository.update(processedTaskId, { 
-          assigneeId: processedAssigneeId,
-          updatedAt: new Date().toISOString()
-        });
-        
-        return { success: true, result: { taskAssigned: true } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to assign task: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeGeneratePdfAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { templateId, data, outputPath } = action.config;
-      
-      if (!templateId) {
-        throw new Error("Template ID is required for PDF generation");
-      }
-
-      // Generate PDF using existing PDF service
-      try {
-        const { functionsService } = await import("@/services/functions/functions-service");
-        const result = await functionsService.renderInvoicePdf({
-          templateId,
-          data: context.variables,
-          outputPath: outputPath || `pdf_${Date.now()}.pdf`,
-        });
-        
-        return { success: true, result: { pdfGenerated: true, url: result.url } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to generate PDF: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeWebhookAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { url, method = "POST", headers = {}, body } = action.config;
-      
-      if (!url) {
-        throw new Error("Webhook URL is required");
-      }
-
-      const processedUrl = this.replaceVariables(url, context.variables);
-      const processedBody = body ? this.replaceVariables(JSON.stringify(body), context.variables) : undefined;
-
-      const response = await fetch(processedUrl, {
-        method: method as any,
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: processedBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Webhook call failed: ${response.statusText}`);
-      }
-
-      return { success: true, result: { webhookCalled: true, status: response.status } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeStripeInvoiceAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { customerId, amount, description } = action.config;
-      
-      if (!customerId || !amount) {
-        throw new Error("Customer ID and amount are required for Stripe invoice");
-      }
-
-      // Create Stripe invoice using webhook integration
-      try {
-        const stripeData = {
-          customer: customerId,
-          amount: amount * 100, // Convert to cents
-          currency: "usd",
-          description: description,
+      const { url, method, headers = {}, body, auth, timeoutMs } = action.config as {
+        url: string;
+        method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+        headers?: Record<string, string>;
+        body?: unknown;
+        auth?: {
+          type: "bearer" | "basic" | "none";
+          token?: string;
+          username?: string;
+          password?: string;
         };
-        
-        const response = await fetch("/api/stripe/create-invoice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(stripeData),
+        timeoutMs?: number;
+      };
+      
+      if (!url || !method) {
+        throw new Error("HTTP request URL and method are required");
+      }
+
+      // Replace variables in URL and headers
+      const processedUrl = this.replaceVariables(url, context.variables);
+      const processedHeaders: Record<string, string> = {};
+      for (const [key, value] of Object.entries(headers)) {
+        processedHeaders[key] = this.replaceVariables(value, context.variables);
+      }
+
+      // Add authentication headers
+      if (auth && auth.type !== "none") {
+        if (auth.type === "bearer" && auth.token) {
+          processedHeaders["Authorization"] = `Bearer ${this.replaceVariables(auth.token, context.variables)}`;
+        } else if (auth.type === "basic" && auth.username && auth.password) {
+          const credentials = btoa(
+            `${this.replaceVariables(auth.username, context.variables)}:${this.replaceVariables(auth.password, context.variables)}`
+          );
+          processedHeaders["Authorization"] = `Basic ${credentials}`;
+        }
+      }
+
+      // Process body
+      let processedBody: string | undefined;
+      if (body) {
+        if (typeof body === 'string') {
+          processedBody = this.replaceVariables(body, context.variables);
+        } else {
+          // Replace variables in JSON body
+          const bodyStr = JSON.stringify(body);
+          processedBody = this.replaceVariables(bodyStr, context.variables);
+        }
+      }
+
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+      try {
+        const response = await fetch(processedUrl, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...processedHeaders,
+          },
+          body: processedBody,
+          signal: controller.signal,
         });
-        
+
+        const responseData = await response.text();
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(responseData);
+        } catch {
+          parsedResponse = responseData;
+        }
+
         if (!response.ok) {
-          throw new Error(`Stripe API error: ${response.statusText}`);
+          throw new Error(`HTTP request failed: ${response.status} ${response.statusText}`);
         }
-        
-        const result = await response.json();
-        return { success: true, result: { stripeInvoiceCreated: true, invoiceId: result.id } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to create Stripe invoice: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
 
-  private async executeDelayAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const delaySeconds = action.delaySeconds || 0;
-      
-      if (delaySeconds > 0) {
-        await this.executeDelay(delaySeconds);
-      }
+        if (timeoutId) clearTimeout(timeoutId);
 
-      return { success: true, result: { delayExecuted: true, delaySeconds } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeNotifyUserAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { userId, message, type = "info" } = action.config;
-      
-      if (!userId || !message) {
-        throw new Error("User ID and message are required");
-      }
-
-      const processedMessage = this.replaceVariables(message, context.variables);
-
-      // Send user notification using database
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        const notificationRepository = repositoryHost.getNotificationsRepository(databaseService);
-        
-        await notificationRepository.create({
-          userId,
-          message: processedMessage,
-          type: type || "info",
-          status: "unread",
-          createdAt: new Date().toISOString(),
-        });
-        
-        return { success: true, result: { userNotified: true } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to notify user: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  private async executeArchiveRecordAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { recordType, recordId } = action.config;
-      
-      if (!recordType || !recordId) {
-        throw new Error("Record type and ID are required");
-      }
-
-      const processedRecordId = this.replaceVariables(recordId, context.variables);
-
-      // Archive record using appropriate repository
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        
-        let repository;
-        switch (recordType) {
-          case "invoice":
-            repository = repositoryHost.getInvoicesRepository(databaseService);
-            break;
-          case "proposal":
-            repository = repositoryHost.getProposalsRepository(databaseService);
-            break;
-          case "contract":
-            repository = repositoryHost.getContractsRepository(databaseService);
-            break;
-          default:
-            throw new Error(`Unsupported record type: ${recordType}`);
+        return { 
+          success: true, 
+          result: { 
+            httpRequestCompleted: true, 
+            status: response.status,
+            data: parsedResponse,
+          } 
+        };
+      } catch (fetchError: unknown) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error(`HTTP request timeout after ${timeoutMs}ms`);
         }
-        
-        await repository.update(processedRecordId, { 
-          status: "archived",
-          archivedAt: new Date().toISOString()
-        });
-        
-        return { success: true, result: { recordArchived: true } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to archive record: ${error.message}` };
+        throw fetchError;
       }
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 
-  private async executeUpdateFieldAction(action: WorkflowAction, context: WorkflowExecutionContext) {
-    try {
-      const { recordType, recordId, field, value } = action.config;
-      
-      if (!recordType || !recordId || !field || value === undefined) {
-        throw new Error("Record type, ID, field, and value are required");
-      }
-
-      const processedRecordId = this.replaceVariables(recordId, context.variables);
-      const processedValue = this.replaceVariables(String(value), context.variables);
-
-      // Update field using appropriate repository
-      try {
-        const { repositoryHost } = await import("@/repositories");
-        const { databaseService } = await import("@/services/database/database-service");
-        
-        let repository;
-        switch (recordType) {
-          case "invoice":
-            repository = repositoryHost.getInvoicesRepository(databaseService);
-            break;
-          case "proposal":
-            repository = repositoryHost.getProposalsRepository(databaseService);
-            break;
-          case "contract":
-            repository = repositoryHost.getContractsRepository(databaseService);
-            break;
-          case "user":
-            repository = repositoryHost.getUsersRepository(databaseService);
-            break;
-          default:
-            throw new Error(`Unsupported record type: ${recordType}`);
-        }
-        
-        const updateData = { [field]: processedValue, updatedAt: new Date().toISOString() };
-        await repository.update(processedRecordId, updateData);
-        
-        return { success: true, result: { fieldUpdated: true } };
-      } catch (error: any) {
-        return { success: false, error: `Failed to update field: ${error.message}` };
-      }
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
-  }
 
   /**
    * Replace variables in strings with actual values

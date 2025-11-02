@@ -89,7 +89,7 @@ export function PendingInvites({ invites }: PendingInvitesProps) {
         <div className="space-y-3">
           {invites.map((invite) => (
             <div
-              key={invite.token}
+              key={invite.id}
               className="flex items-center justify-between p-3 border rounded-lg"
             >
               <div className="flex items-center gap-3">
@@ -118,10 +118,10 @@ export function PendingInvites({ invites }: PendingInvitesProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    onClick={() => handleResend(invite.token)}
-                    disabled={resendingId === invite.token}
+                    onClick={() => handleResend(invite.id)}
+                    disabled={resendingId === invite.id}
                   >
-                    {resendingId === invite.token ? (
+                    {resendingId === invite.id ? (
                       <>
                         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                         Resending...
@@ -134,11 +134,11 @@ export function PendingInvites({ invites }: PendingInvitesProps) {
                     )}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => handleRevoke(invite.token)}
-                    disabled={revokingId === invite.token}
+                    onClick={() => handleRevoke(invite.id)}
+                    disabled={revokingId === invite.id}
                     className="text-destructive"
                   >
-                    {revokingId === invite.token ? (
+                    {revokingId === invite.id ? (
                       <>
                         <UserX className="mr-2 h-4 w-4 animate-spin" />
                         Revoking...

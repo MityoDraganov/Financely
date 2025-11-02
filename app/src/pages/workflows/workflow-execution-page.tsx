@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { workflowService } from "@/services/workflow/workflow-service";
 import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
 import WorkflowBuilder from "@/components/workflow/workflow-builder";
-import { Workflow } from "@/core";
 
 export default function WorkflowExecutionPage() {
   const { id } = useParams<{ id: string }>();
@@ -140,13 +139,8 @@ export default function WorkflowExecutionPage() {
         </div>
 
         <WorkflowBuilder
-          workflow={workflow}
-          onSave={(data) => {
-            // TODO: Update workflow
-            console.log("Updating workflow:", data);
-            setShowBuilder(false);
-          }}
-          onCancel={() => setShowBuilder(false)}
+          editingWorkflow={workflow}
+          onCancelEdit={() => setShowBuilder(false)}
         />
       </div>
     );
@@ -299,7 +293,7 @@ export default function WorkflowExecutionPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Created:</span>
                   <span className="font-medium">
-                    {new Date(workflow.createdAt).toLocaleDateString()}
+                    {workflow.createdAt ? new Date(workflow.createdAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
                 {workflow.tags.length > 0 && (

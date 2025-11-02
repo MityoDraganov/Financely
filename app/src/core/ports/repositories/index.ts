@@ -12,6 +12,7 @@ import { ContactRepository } from "./contact-repository";
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
     getInvoicesReposity(databaseService: DatabaseService): InvoiceRepository;
+    getInvoicesRepository(databaseService: DatabaseService): InvoiceRepository;
     getOrganizationsRepository(databaseService: DatabaseService): OrganizationRepository;
     getUsersRepository(databaseService: DatabaseService): UserRepository;
     getInvitesRepository(databaseService: DatabaseService): InviteRepository;

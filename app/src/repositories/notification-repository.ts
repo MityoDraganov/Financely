@@ -18,6 +18,7 @@ export interface NotificationData {
   message: string;
   type: "info" | "warning" | "error" | "success";
   status: "unread" | "read";
+  readAt?: string;
   data?: Record<string, unknown>;
 }
 

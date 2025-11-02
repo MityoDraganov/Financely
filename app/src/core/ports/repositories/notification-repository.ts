@@ -1,4 +1,3 @@
-import { DatabaseService } from "../services/database-service";
 
 export interface Notification {
   id: string;

@@ -7,7 +7,7 @@ import { databaseService } from "@/services/database/database-service";
 import { functionsService } from "@/services/functions/functions-service";
 
 export interface InviteService {
-  sendInvite: (inviteData: Omit<InviteData, "token" | "expiresAt" | "status">) => Promise<string>;
+  sendInvite: (inviteData: Omit<InviteData, "code" | "expiresAt" | "status">) => Promise<string>;
   getInvites: (organizationId: string) => Promise<Invite[]>;
   getInviteByToken: (token: string) => Promise<Invite | null>;
   getInviteByCode: (code: string) => Promise<Invite | null>;
@@ -21,15 +21,18 @@ export interface InviteService {
 // Real Firebase implementation
 export const inviteService: InviteService = {
   async sendInvite(inviteData) {
-    // Generate a unique token
+    // Generate a unique code
+    const code = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     
     // Set expiration to 7 days from now
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     
     const fullInviteData: InviteData = {
       ...inviteData,
+      code,
       expiresAt,
       status: "active",
+      role: inviteData.role || "member",
     };
 
     // Save the invite to Firebase
