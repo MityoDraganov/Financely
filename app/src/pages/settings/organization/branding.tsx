@@ -130,25 +130,99 @@ export default function OrganizationBrandingPage() {
     if (!organization) return;
 
     try {
+      // Build updates, merging with existing values and only including changed fields
+      const existingSettings = organization.settings || {};
+      const existingBrandColors = existingSettings.brandColors || {
+        primary: defaultColors.primaryColor,
+        secondary: defaultColors.secondaryColor,
+        accent: defaultColors.accentColor,
+      };
+      const existingBranding = existingSettings.branding || {};
+
+      const brandColors = {
+        primary: (data.primaryColor && data.primaryColor.trim()) || existingBrandColors.primary || defaultColors.primaryColor,
+        secondary: (data.secondaryColor && data.secondaryColor.trim()) || existingBrandColors.secondary || defaultColors.secondaryColor,
+        accent: (data.accentColor && data.accentColor.trim()) || existingBrandColors.accent || defaultColors.accentColor,
+      };
+
+      // Build branding object, only including fields with values (Firestore doesn't accept undefined)
+      const branding: Record<string, string> = {};
+      
+      // Merge existing branding values
+      if (existingBranding.customLogo) branding.customLogo = existingBranding.customLogo;
+      if (existingBranding.customFavicon) branding.customFavicon = existingBranding.customFavicon;
+      if (existingBranding.companyName) branding.companyName = existingBranding.companyName;
+      if (existingBranding.customDomain) branding.customDomain = existingBranding.customDomain;
+      if (existingBranding.emailFromName) branding.emailFromName = existingBranding.emailFromName;
+      if (existingBranding.emailFromAddress) branding.emailFromAddress = existingBranding.emailFromAddress;
+      if (existingBranding.footerText) branding.footerText = existingBranding.footerText;
+      
+      // Override with new values if provided, or remove if set to empty
+      if (data.customLogo !== undefined) {
+        const trimmed = data.customLogo.trim();
+        if (trimmed) {
+          branding.customLogo = trimmed;
+        } else {
+          delete branding.customLogo;
+        }
+      }
+      if (data.customFavicon !== undefined) {
+        const trimmed = data.customFavicon.trim();
+        if (trimmed) {
+          branding.customFavicon = trimmed;
+        } else {
+          delete branding.customFavicon;
+        }
+      }
+      if (data.companyName !== undefined) {
+        const trimmed = data.companyName.trim();
+        if (trimmed) {
+          branding.companyName = trimmed;
+        } else {
+          delete branding.companyName;
+        }
+      }
+      if (data.customDomain !== undefined) {
+        const trimmed = data.customDomain.trim();
+        if (trimmed) {
+          branding.customDomain = trimmed;
+        } else {
+          delete branding.customDomain;
+        }
+      }
+      if (data.emailFromName !== undefined) {
+        const trimmed = data.emailFromName.trim();
+        if (trimmed) {
+          branding.emailFromName = trimmed;
+        } else {
+          delete branding.emailFromName;
+        }
+      }
+      if (data.emailFromAddress !== undefined) {
+        const trimmed = data.emailFromAddress.trim();
+        if (trimmed) {
+          branding.emailFromAddress = trimmed;
+        } else {
+          delete branding.emailFromAddress;
+        }
+      }
+      if (data.footerText !== undefined) {
+        const trimmed = data.footerText.trim();
+        if (trimmed) {
+          branding.footerText = trimmed;
+        } else {
+          delete branding.footerText;
+        }
+      }
+
       await updateOrganization.mutateAsync({
         id: organization.id,
         data: {
           settings: {
-            ...organization.settings,
-            brandColors: {
-              primary: data.primaryColor,
-              secondary: data.secondaryColor,
-              accent: data.accentColor,
-            },
-            branding: {
-              customLogo: data.customLogo || undefined,
-              customFavicon: data.customFavicon || undefined,
-              companyName: data.companyName || undefined,
-              customDomain: data.customDomain || undefined,
-              emailFromName: data.emailFromName || undefined,
-              emailFromAddress: data.emailFromAddress || undefined,
-              footerText: data.footerText || undefined,
-            },
+            ...existingSettings,
+            brandColors,
+            // Only include branding if it has fields, otherwise keep existing or use empty object
+            branding: Object.keys(branding).length > 0 ? branding : (existingBranding || {}),
           },
         },
       });
