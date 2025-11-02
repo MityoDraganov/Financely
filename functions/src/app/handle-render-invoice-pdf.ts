@@ -1,6 +1,7 @@
 import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getTemplateRepository } from "../repositories/template-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getStorage } from "firebase-admin/storage";
 import { Template } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
@@ -8,14 +9,30 @@ import puppeteer from "puppeteer";
 import chromium from "@sparticuz/chromium";
 
 /**
- * Generates HTML from template and invoice data
+ * Generates HTML from template and invoice data with organization branding
  *
  * @param {Template} template - The template to use for rendering
  * @param {Invoice} invoice - The invoice data to render
+ * @param {Organization | null} organization - Organization for branding
  * @return {string} The generated HTML
  */
-function generateInvoiceHTML(template: Template, invoice: Invoice): string {
+function generateInvoiceHTML(template: Template, invoice: Invoice, organization: { settings?: { brandColors?: { primary?: string; secondary?: string; accent?: string }; branding?: { customLogo?: string } } } | null): string {
   const { pageSize, brand, elements } = template;
+
+  // Override template brand colors with organization branding if available
+  const finalBrand = {
+    ...brand,
+    colors: {
+      primary: organization?.settings?.brandColors?.primary || brand.colors.primary,
+      secondary: organization?.settings?.brandColors?.secondary || brand.colors.secondary,
+      accent: organization?.settings?.brandColors?.accent || brand.colors.accent,
+    },
+  };
+
+  // Add organization logo to brand if available
+  if (organization?.settings?.branding?.customLogo && !finalBrand.backgroundImage) {
+    finalBrand.backgroundImage = organization.settings.branding.customLogo;
+  }
 
   // Page dimensions
   const pageSizes = {
@@ -222,7 +239,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice): string {
           width: ${size.width}px;
           height: ${size.height}px;
           background: white;
-          ${brand.backgroundImage ? `background-image: url(${brand.backgroundImage});` : ""}
+          ${finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
           background-size: cover;
         ">
           ${elementsHTML}
@@ -252,6 +269,7 @@ export async function handleRenderInvoicePdf(
   const databaseService = getDatabaseService();
   const invoiceRepository = getInvoiceRepository(databaseService);
   const templateRepository = getTemplateRepository(databaseService);
+  const organizationRepository = getOrganizationRepository(databaseService);
 
   // Fetch invoice
   const invoice = await invoiceRepository.get({ id: invoiceId });
@@ -265,8 +283,14 @@ export async function handleRenderInvoicePdf(
     throw new Error(`Template not found: ${invoice.templateId}`);
   }
 
-  // Generate HTML
-  const html = generateInvoiceHTML(template, invoice);
+  // Fetch organization for branding
+  let organization = null;
+  if (invoice.orgId) {
+    organization = await organizationRepository.get({ id: invoice.orgId });
+  }
+
+  // Generate HTML with organization branding
+  const html = generateInvoiceHTML(template, invoice, organization);
 
   // Convert HTML to PDF using puppeteer with serverless Chromium
   // Using @sparticuz/chromium for Firebase Cloud Functions compatibility

@@ -1,8 +1,10 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useState, useEffect } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { useUserOrganizations, useOrganizationsByIds } from "@/hooks/repository-hooks/use-organizations";
 import { Organization } from "@/core";
+
+const CURRENT_ORG_STORAGE_KEY = "financely_current_organization_id";
 
 interface OrganizationContextType {
   currentOrganization: Organization | null;
@@ -35,13 +37,56 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   const organizations = organizationsByMemberIds.length > 0 ? organizationsByMemberIds : organizationsByIds;
   
   const isLoading = !isClerkLoaded || isUserLoading || isOrganizationsLoading || isOrganizationsByIdsLoading;
-  const currentOrganization = organizations.length > 0 ? organizations[0] : null; // For now, use first organization
   const error = userError || orgsError;
 
+  // Get stored organization ID or use first available
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(CURRENT_ORG_STORAGE_KEY);
+    }
+    return null;
+  });
+
+  // Update current organization based on stored ID or first available
+  useEffect(() => {
+    if (organizations.length === 0) {
+      setCurrentOrgId(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
+      }
+      return;
+    }
+
+    // If we have a stored ID and it exists in organizations, use it
+    if (currentOrgId) {
+      const org = organizations.find(o => o.id === currentOrgId);
+      if (org) {
+        return;
+      }
+    }
+
+    // Otherwise, use first organization and store it
+    const firstOrg = organizations[0];
+    if (firstOrg) {
+      setCurrentOrgId(firstOrg.id);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(CURRENT_ORG_STORAGE_KEY, firstOrg.id);
+      }
+    }
+  }, [organizations, currentOrgId]);
+
+  const currentOrganization = currentOrgId 
+    ? organizations.find(o => o.id === currentOrgId) || organizations[0] || null
+    : organizations[0] || null;
+
   const switchOrganization = (organizationId: string) => {
-    // TODO: Implement organization switching logic
-    // This could involve updating user preferences or using a state management solution
-    console.log("Switching to organization:", organizationId);
+    const org = organizations.find(o => o.id === organizationId);
+    if (org) {
+      setCurrentOrgId(organizationId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(CURRENT_ORG_STORAGE_KEY, organizationId);
+      }
+    }
   };
 
   const value: OrganizationContextType = {

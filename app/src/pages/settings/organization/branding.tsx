@@ -1,28 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Palette, Upload, Eye, Globe, Mail } from "lucide-react";
+import { Palette, Upload, Eye, Globe, Mail, X, Image as ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+import { useFileUpload } from "@/hooks/use-file-upload";
 
 const brandingSchema = z.object({
-  customLogo: z.string().url().optional().or(z.literal("")),
-  customFavicon: z.string().url().optional().or(z.literal("")),
+  customLogo: z.string().optional(),
+  customFavicon: z.string().optional(),
   companyName: z.string().optional(),
   customDomain: z.string().optional(),
   emailFromName: z.string().optional(),
-  emailFromAddress: z.string().email().optional().or(z.literal("")),
+  emailFromAddress: z.string().optional(),
   footerText: z.string().optional(),
-  primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color"),
-  secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color"),
-  accentColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color"),
+  primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color").optional(),
+  secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color").optional(),
+  accentColor: z.string().regex(/^#[0-9A-F]{6}$/i, "Please enter a valid hex color").optional(),
 });
 
 type BrandingForm = z.infer<typeof brandingSchema>;
@@ -38,12 +40,17 @@ export default function OrganizationBrandingPage() {
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const logoUploadRef = useRef<HTMLInputElement>(null);
+  const faviconUploadRef = useRef<HTMLInputElement>(null);
+  const logoFileUpload = useFileUpload();
+  const faviconFileUpload = useFileUpload();
 
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<BrandingForm>({
     resolver: zodResolver(brandingSchema),
@@ -83,6 +90,42 @@ export default function OrganizationBrandingPage() {
     }
   }, [organization, reset]);
 
+  const handleLogoUpload = async (file: File) => {
+    if (!organization) return;
+
+    const path = `organizations/${organization.id}/branding/logo-${Date.now()}.${file.name.split('.').pop()}`;
+    const url = await logoFileUpload.uploadFile(file, path);
+
+    if (url) {
+      setValue("customLogo", url, { shouldDirty: true });
+      toast.success("Logo uploaded successfully");
+    } else {
+      toast.error(logoFileUpload.error || "Failed to upload logo");
+    }
+  };
+
+  const handleFaviconUpload = async (file: File) => {
+    if (!organization) return;
+
+    const path = `organizations/${organization.id}/branding/favicon-${Date.now()}.${file.name.split('.').pop()}`;
+    const url = await faviconFileUpload.uploadFile(file, path);
+
+    if (url) {
+      setValue("customFavicon", url, { shouldDirty: true });
+      toast.success("Favicon uploaded successfully");
+    } else {
+      toast.error(faviconFileUpload.error || "Failed to upload favicon");
+    }
+  };
+
+  const handleLogoRemove = () => {
+    setValue("customLogo", "", { shouldDirty: true });
+  };
+
+  const handleFaviconRemove = () => {
+    setValue("customFavicon", "", { shouldDirty: true });
+  };
+
   const onSubmit = async (data: BrandingForm) => {
     if (!organization) return;
 
@@ -113,8 +156,8 @@ export default function OrganizationBrandingPage() {
       toast.success("Branding settings updated successfully");
       setHasUnsavedChanges(false);
     } catch (error) {
-      console.error("Failed to update branding:", error);
-      toast.error("Failed to update branding settings");
+      const errorMessage = error instanceof Error ? error.message : "Failed to update branding settings";
+      toast.error(errorMessage);
     }
   };
 
@@ -157,7 +200,7 @@ export default function OrganizationBrandingPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="flex flex-col gap-8">
           {/* Left Column - Settings */}
           <div className="space-y-8">
             {/* Logo & Visual Identity */}
@@ -175,29 +218,127 @@ export default function OrganizationBrandingPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="customLogo">Logo URL</Label>
-                  <Input
-                    id="customLogo"
-                    {...register("customLogo")}
-                    placeholder="https://example.com/logo.png"
-                    className={errors.customLogo ? "border-red-500" : ""}
-                  />
-                  {errors.customLogo && (
-                    <p className="text-sm text-red-600">{errors.customLogo.message}</p>
-                  )}
+                  <Label htmlFor="customLogo">Logo</Label>
+                  <div className="space-y-2">
+                    <input
+                      ref={logoUploadRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleLogoUpload(file);
+                        }
+                      }}
+                    />
+                    {watch("customLogo") ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={watch("customLogo")}
+                          alt="Logo preview"
+                          className="h-20 w-auto rounded border border-gray-200 object-contain"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          onClick={handleLogoRemove}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => logoUploadRef.current?.click()}
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-gray-400 transition-colors"
+                      >
+                        <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload logo</p>
+                        <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</p>
+                      </div>
+                    )}
+                    {logoFileUpload.isUploading && (
+                      <p className="text-sm text-gray-500">Uploading... {logoFileUpload.uploadProgress}%</p>
+                    )}
+                    {logoFileUpload.error && (
+                      <p className="text-sm text-red-600">{logoFileUpload.error}</p>
+                    )}
+                    <div className="mt-2">
+                      <Input
+                        id="customLogo"
+                        {...register("customLogo")}
+                        placeholder="Or enter logo URL"
+                        className={errors.customLogo ? "border-red-500" : ""}
+                      />
+                      {errors.customLogo && (
+                        <p className="text-sm text-red-600 mt-1">{errors.customLogo.message}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customFavicon">Favicon URL</Label>
-                  <Input
-                    id="customFavicon"
-                    {...register("customFavicon")}
-                    placeholder="https://example.com/favicon.ico"
-                    className={errors.customFavicon ? "border-red-500" : ""}
-                  />
-                  {errors.customFavicon && (
-                    <p className="text-sm text-red-600">{errors.customFavicon.message}</p>
-                  )}
+                  <Label htmlFor="customFavicon">Favicon</Label>
+                  <div className="space-y-2">
+                    <input
+                      ref={faviconUploadRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFaviconUpload(file);
+                        }
+                      }}
+                    />
+                    {watch("customFavicon") ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={watch("customFavicon")}
+                          alt="Favicon preview"
+                          className="h-12 w-12 rounded border border-gray-200 object-contain"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          onClick={handleFaviconRemove}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => faviconUploadRef.current?.click()}
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-gray-400 transition-colors"
+                      >
+                        <ImageIcon className="h-6 w-6 text-gray-400 mb-2" />
+                        <p className="text-xs text-gray-600">Click to upload favicon</p>
+                        <p className="text-xs text-gray-500 mt-1">PNG, ICO up to 5MB</p>
+                      </div>
+                    )}
+                    {faviconFileUpload.isUploading && (
+                      <p className="text-sm text-gray-500">Uploading... {faviconFileUpload.uploadProgress}%</p>
+                    )}
+                    {faviconFileUpload.error && (
+                      <p className="text-sm text-red-600">{faviconFileUpload.error}</p>
+                    )}
+                    <div className="mt-2">
+                      <Input
+                        id="customFavicon"
+                        {...register("customFavicon")}
+                        placeholder="Or enter favicon URL"
+                        className={errors.customFavicon ? "border-red-500" : ""}
+                      />
+                      {errors.customFavicon && (
+                        <p className="text-sm text-red-600 mt-1">{errors.customFavicon.message}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -226,56 +367,41 @@ export default function OrganizationBrandingPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="primaryColor">Primary Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="primaryColor"
-                        {...register("primaryColor")}
-                        className={`w-20 ${errors.primaryColor ? "border-red-500" : ""}`}
-                      />
-                      <div 
-                        className="w-10 h-10 rounded border border-gray-300"
-                        style={{ backgroundColor: watchedColors[0] || defaultColors.primaryColor }}
-                      />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-1">
+                    <ColorPicker
+                      label="Primary Color"
+                      value={watchedColors[0] || defaultColors.primaryColor}
+                      onChange={(color) => {
+                        setValue("primaryColor", color, { shouldDirty: true });
+                      }}
+                    />
                     {errors.primaryColor && (
                       <p className="text-sm text-red-600">{errors.primaryColor.message}</p>
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="secondaryColor">Secondary Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="secondaryColor"
-                        {...register("secondaryColor")}
-                        className={`w-20 ${errors.secondaryColor ? "border-red-500" : ""}`}
-                      />
-                      <div 
-                        className="w-10 h-10 rounded border border-gray-300"
-                        style={{ backgroundColor: watchedColors[1] || defaultColors.secondaryColor }}
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <ColorPicker
+                      label="Secondary Color"
+                      value={watchedColors[1] || defaultColors.secondaryColor}
+                      onChange={(color) => {
+                        setValue("secondaryColor", color, { shouldDirty: true });
+                      }}
+                    />
                     {errors.secondaryColor && (
                       <p className="text-sm text-red-600">{errors.secondaryColor.message}</p>
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="accentColor">Accent Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="accentColor"
-                        {...register("accentColor")}
-                        className={`w-20 ${errors.accentColor ? "border-red-500" : ""}`}
-                      />
-                      <div 
-                        className="w-10 h-10 rounded border border-gray-300"
-                        style={{ backgroundColor: watchedColors[2] || defaultColors.accentColor }}
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <ColorPicker
+                      label="Accent Color"
+                      value={watchedColors[2] || defaultColors.accentColor}
+                      onChange={(color) => {
+                        setValue("accentColor", color, { shouldDirty: true });
+                      }}
+                    />
                     {errors.accentColor && (
                       <p className="text-sm text-red-600">{errors.accentColor.message}</p>
                     )}

@@ -9,7 +9,6 @@ import {
   Palette,
   Globe,
   UserCheck,
-  Lock,
   FileText,
   UserPlus,
 } from "lucide-react";
@@ -74,12 +73,7 @@ const settingsSections = [
     color: "text-purple-600",
     bgColor: "bg-purple-50",
     items: [
-      {
-        title: "SSO",
-        href: "/settings/security/sso",
-        description: "Single sign-on configuration",
-        icon: Lock,
-      },
+    
       {
         title: "Audit Log",
         href: "/settings/security/audit-log",

@@ -12,8 +12,7 @@ import {
 import { UserButton } from "@clerk/clerk-react";
 import { Brush, FileText, LayoutDashboard, Settings, Zap, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useOrganizationBranding } from "@/hooks/use-organization-branding";
-import { getOrganizationName, getOrganizationLogo } from "@/utils/branding";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
 
 const items = [
@@ -50,27 +49,27 @@ const items = [
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-	const { organization } = useOrganizationBranding();
-
 	return (
 		<div className="flex flex-1">
 			<Sidebar collapsible="icon">
-				<SidebarHeader className="flex flex-row items-center justify-between group-data-[collapsible=icon]:justify-center">
-					<div className="flex items-center gap-2">
-						{getOrganizationLogo(organization) !== null && (
-							<img
-								src={getOrganizationLogo(organization)!}
-								alt="Logo"
-								className="h-8 w-8 rounded"
-							/>
-						)}
-						{getOrganizationName(organization) && (
-							<h2 className="text-2xl font-bold group-data-[collapsible=icon]:hidden">
-								{getOrganizationName(organization)}
+				<SidebarHeader className="flex flex-col gap-3 p-4 border-b">
+					<div className="flex items-center justify-between w-full group-data-[collapsible=icon]:justify-center">
+						<div className="flex items-center gap-2">
+							<h2 className="text-xl font-bold group-data-[collapsible=icon]:hidden">
+								Financely
 							</h2>
-						)}
+							<h2 className="text-xl font-bold group-data-[collapsible=icon]:block hidden">
+								F
+							</h2>
+						</div>
+						<SidebarTrigger />
 					</div>
-					<SidebarTrigger />
+					<div className="w-full group-data-[collapsible=icon]:hidden">
+						<div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+							Organization
+						</div>
+						<OrganizationSwitcher />
+					</div>
 				</SidebarHeader>
 				<SidebarContent className="flex flex-col justify-between">
 					<SidebarGroup>
