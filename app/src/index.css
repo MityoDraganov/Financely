@@ -9,14 +9,19 @@
 
 /* Define shadcn/ui theme variables */
 :root {
-  /* Custom color palette */
-  --accent-color: #166534;
-  --light-accent-color: #22c55e;
+  /* Brand colors - will be overridden by organization branding */
+  --brand-primary: #2563eb;
+  --brand-secondary: #6b7280;
+  --brand-accent: #10b981;
+  
+  /* Custom color palette - now using brand colors with fallbacks */
+  --accent-color: var(--brand-accent, #166534);
+  --light-accent-color: var(--brand-accent, #22c55e);
   --white-color: #ffffff;
   --black-color: #181818;
   --dark-bg: hsl(241deg 6% 10%);
   --card-dark-bg: hsl(240deg 5.3% 26.1%);
-  --gray-color: #74767e;
+  --gray-color: var(--brand-secondary, #74767e);
   --border-color: #e7ebf0;
   --dark-blue-bg: #083e9e;
   --light-blue-bg: #eafcff;
@@ -36,7 +41,7 @@
   --card-foreground: 240 10% 3.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 240 10% 3.9%;
-  /* Brand primary (green) */
+  /* Brand primary - will use organization brand color */
   --primary: 143 64% 24%;
   --primary-foreground: 210 40% 98%;
   --secondary: 210 40% 96%;

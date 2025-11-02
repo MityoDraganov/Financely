@@ -62,6 +62,67 @@ export function applyBrandColors(organization?: Organization | null): void {
   Object.entries(colors).forEach(([property, value]) => {
     root.style.setProperty(property, value);
   });
+  
+  // Also update Tailwind primary/accent colors for shadcn components
+  const primary = getPrimaryColor(organization);
+  const accent = getAccentColor(organization);
+  const secondary = getSecondaryColor(organization);
+  
+  // Convert hex to HSL for Tailwind compatibility
+  const primaryHsl = hexToHsl(primary);
+  const accentHsl = hexToHsl(accent);
+  const secondaryHsl = hexToHsl(secondary);
+  
+  if (primaryHsl) {
+    root.style.setProperty('--primary', `${primaryHsl.h} ${primaryHsl.s}% ${primaryHsl.l}%`);
+  }
+  if (accentHsl) {
+    root.style.setProperty('--accent-color', accent);
+    root.style.setProperty('--light-accent-color', lightenColor(accent, 20));
+  }
+  if (secondaryHsl) {
+    root.style.setProperty('--gray-color', secondary);
+  }
+}
+
+/**
+ * Convert hex color to HSL
+ */
+function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return null;
+  
+  const r = parseInt(result[1], 16) / 255;
+  const g = parseInt(result[2], 16) / 255;
+  const b = parseInt(result[3], 16) / 255;
+  
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+/**
+ * Lighten a hex color by a percentage
+ */
+function lightenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + Math.round((255 - (num >> 16)) * percent / 100));
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + Math.round((255 - ((num >> 8) & 0x00FF)) * percent / 100));
+  const b = Math.min(255, (num & 0x0000FF) + Math.round((255 - (num & 0x0000FF)) * percent / 100));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
 /**

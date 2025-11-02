@@ -29,6 +29,7 @@ import { OrganizationProvider } from "./contexts/organization-context";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
+import { useOrganizationBranding } from "./hooks/use-organization-branding";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,12 @@ if (!PUBLISHABLE_KEY) {
 	);
 }
 
+// Component to apply organization branding globally
+function BrandingProvider({ children }: { children: React.ReactNode }) {
+	useOrganizationBranding();
+	return <>{children}</>;
+}
+
 function App() {
 	return (
 			<ClerkProvider publishableKey={PUBLISHABLE_KEY}>
@@ -47,6 +54,7 @@ function App() {
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>
 						<OrganizationProvider>
+							<BrandingProvider>
 							<Router>
 								<Routes>
 									<Route path="/" element={<LandingPage />} />
@@ -201,6 +209,7 @@ function App() {
 								</Routes>
 								<Toaster />
 							</Router>
+							</BrandingProvider>
 						</OrganizationProvider>
 					</SidebarProvider>
 					</ThemeProvider>

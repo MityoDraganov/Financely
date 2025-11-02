@@ -14,6 +14,7 @@ import { Brush, FileText, LayoutDashboard, Settings, Zap, Users } from "lucide-r
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
+import { useOrganizationBranding } from "@/hooks/use-organization-branding";
 
 const items = [
 	{
@@ -49,18 +50,39 @@ const items = [
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+	const { organizationName, organizationLogo } = useOrganizationBranding();
+	const displayName = organizationName || "Financely";
+	const displayInitial = displayName.charAt(0).toUpperCase();
+
 	return (
 		<div className="flex flex-1">
 			<Sidebar collapsible="icon">
 				<SidebarHeader className="flex flex-col gap-3 p-4 border-b">
 					<div className="flex items-center justify-between w-full group-data-[collapsible=icon]:justify-center">
 						<div className="flex items-center gap-2">
-							<h2 className="text-xl font-bold group-data-[collapsible=icon]:hidden">
-								Financely
-							</h2>
-							<h2 className="text-xl font-bold group-data-[collapsible=icon]:block hidden">
-								F
-							</h2>
+							{organizationLogo ? (
+								<>
+									<img 
+										src={organizationLogo} 
+										alt={displayName}
+										className="h-8 w-auto group-data-[collapsible=icon]:hidden"
+									/>
+									<img 
+										src={organizationLogo} 
+										alt={displayName}
+										className="h-6 w-6 rounded group-data-[collapsible=icon]:block hidden object-contain"
+									/>
+								</>
+							) : (
+								<>
+									<h2 className="text-xl font-bold group-data-[collapsible=icon]:hidden">
+										{displayName}
+									</h2>
+									<h2 className="text-xl font-bold group-data-[collapsible=icon]:block hidden">
+										{displayInitial}
+									</h2>
+								</>
+							)}
 						</div>
 						<SidebarTrigger />
 					</div>
