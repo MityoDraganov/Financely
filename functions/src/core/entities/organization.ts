@@ -35,6 +35,19 @@ export const organizationDataSchema = z.object({
           accent: "#10b981",
         }),
       
+      // Advanced branding and white-label options
+      branding: z
+        .object({
+          customLogo: z.string().url().optional(),
+          customFavicon: z.string().url().optional(),
+          companyName: z.string().optional(),
+          customDomain: z.string().optional(),
+          emailFromName: z.string().optional(),
+          emailFromAddress: z.string().email().optional(),
+          footerText: z.string().optional(),
+        })
+        .optional(),
+      
       // Defaults for invoices and documents
       defaultCurrency: z.string().default("USD"),
       defaultLanguage: z.string().default("en"),

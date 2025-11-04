@@ -20,7 +20,7 @@ import { format } from "date-fns";
 
 export default function DashboardPage() {
   const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
-  const { data: invoices, isLoading: isInvoicesLoading } = useInvoices();
+  const { data: invoices, isLoading: isInvoicesLoading } = useInvoices(currentOrganization?.id);
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
 
   // Calculate dashboard metrics

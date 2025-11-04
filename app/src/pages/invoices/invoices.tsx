@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { useRenderInvoicePdf } from "@/hooks";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,7 +107,8 @@ function getStatusColor(status: string): "default" | "secondary" | "destructive"
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
-  const { data: invoices, isLoading, isError } = useInvoices();
+  const { data: currentOrganization } = useCurrentOrganization();
+  const { data: invoices, isLoading, isError } = useInvoices(currentOrganization?.id);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");

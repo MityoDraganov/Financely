@@ -1,14 +1,13 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { emailService, WelcomeEmailData } from "../services/email-service";
 import { loggerService } from "../services/logger-service";
+import { ResendEmailService } from "../services/resend-email-service";
 import { defineSecret } from "firebase-functions/params";
 
 // Define secrets
-const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
-const mailgunDomain = defineSecret("MAILGUN_DOMAIN");
-const mailgunFromEmail = defineSecret("MAILGUN_FROM_EMAIL");
-const mailgunFromName = defineSecret("MAILGUN_FROM_NAME");
+const resendApiKey = defineSecret("RESEND_API_KEY");
+const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
+const resendFromName = defineSecret("RESEND_FROM_NAME");
 
 interface SendWelcomeEmailPayload {
   userId: string;
@@ -18,7 +17,7 @@ interface SendWelcomeEmailPayload {
 export const sendWelcomeEmail = onCall<SendWelcomeEmailPayload>(
   { 
     region: "us-central1",
-    secrets: [mailgunApiKey, mailgunDomain, mailgunFromEmail, mailgunFromName]
+    secrets: [resendApiKey, resendFromEmail, resendFromName]
   },
   async (request) => {
     try {
@@ -52,16 +51,36 @@ export const sendWelcomeEmail = onCall<SendWelcomeEmailPayload>(
         throw new HttpsError("not-found", "Organization data not found");
       }
 
-      // Prepare email data
-      const emailData: WelcomeEmailData = {
-        userEmail: userData.email,
-        userName: userData.name || userData.displayName || "there",
-        organizationName: orgData.name,
-        dashboardUrl: `https://financely.app/dashboard`,
-      };
+      // Initialize email service
+      const emailService = new ResendEmailService({
+        apiKey: resendApiKey.value(),
+        defaultFromEmail: resendFromEmail.value(),
+        defaultFromName: resendFromName.value(),
+      });
+
+      // Prepare email content
+      const userName = userData.name || userData.displayName || "there";
+      const dashboardUrl = "https://financely.app/dashboard";
+      const subject = `Welcome to ${orgData.name}, ${userName}!`;
+      const html = `
+        <h1>Welcome ${userName}!</h1>
+        <p>Thank you for joining <strong>${orgData.name}</strong>.</p>
+        <p>Here's what you can do next:</p>
+        <ul>
+          <li>Complete your profile setup</li>
+          <li>Explore our features</li>
+          <li>Connect with our support team if you need help</li>
+        </ul>
+        <p><a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Get Started</a></p>
+      `;
 
       // Send the welcome email
-      await emailService.sendWelcomeEmail(emailData);
+      await emailService.sendEmail({
+        to: { email: userData.email, name: userName },
+        from: { email: resendFromEmail.value(), name: resendFromName.value() },
+        subject,
+        html,
+      });
 
       loggerService.info("Welcome email sent successfully", {
         userId,

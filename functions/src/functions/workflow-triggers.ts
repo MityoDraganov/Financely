@@ -12,21 +12,25 @@ const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
 const resendFromName = defineSecret("RESEND_FROM_NAME");
 
-const executionEngine = new WorkflowExecutionEngine();
-
-// Initialize executors with secrets
+// Initialize executors lazily (at runtime, not at module load time)
 import { HttpRequestExecutor } from "../executors/http-request-executor";
 import { EmailExecutor } from "../executors/email-executor";
 
-const httpExecutor = new HttpRequestExecutor();
-const emailExecutor = new EmailExecutor({
-  resendApiKey: resendApiKey.value(),
-  resendFromEmail: resendFromEmail.value(),
-  resendFromName: resendFromName.value(),
-});
+function getExecutionEngine(): WorkflowExecutionEngine {
+  const executionEngine = new WorkflowExecutionEngine();
+  
+  const httpExecutor = new HttpRequestExecutor();
+  const emailExecutor = new EmailExecutor({
+    resendApiKey: resendApiKey.value(),
+    resendFromEmail: resendFromEmail.value(),
+    resendFromName: resendFromName.value(),
+  });
 
-executionEngine.registerExecutor("http_request", httpExecutor);
-executionEngine.registerExecutor("send_email", emailExecutor);
+  executionEngine.registerExecutor("http_request", httpExecutor);
+  executionEngine.registerExecutor("send_email", emailExecutor);
+  
+  return executionEngine;
+}
 
 /**
  * Handle invoice created events
@@ -51,6 +55,7 @@ export const onInvoiceCreated = onDocumentCreated({
   };
 
   try {
+    const executionEngine = getExecutionEngine();
     await executionEngine.processEvent(workflowEvent);
   } catch (error) {
     logger.error("Error processing invoice.created event", { 
@@ -87,6 +92,7 @@ export const onInvoicePaid = onDocumentUpdated({
     };
 
     try {
+      const executionEngine = getExecutionEngine();
       await executionEngine.processEvent(workflowEvent);
     } catch (error) {
       logger.error("Error processing invoice.paid event", { 
@@ -128,6 +134,7 @@ export const triggerWorkflow = onRequest({
       timestamp: FieldValue.serverTimestamp() as any,
     };
 
+    const executionEngine = getExecutionEngine();
     await executionEngine.processEvent(workflowEvent);
 
     res.status(200).json({ 
@@ -161,6 +168,7 @@ export const executeStep = onRequest({
       return;
     }
 
+    const executionEngine = getExecutionEngine();
     await executionEngine.processNextStep(runId);
 
     res.status(200).json({ success: true });
@@ -204,6 +212,7 @@ export const webhookHandler = onRequest({
       timestamp: FieldValue.serverTimestamp() as any,
     };
 
+    const executionEngine = getExecutionEngine();
     await executionEngine.processEvent(workflowEvent);
 
     res.status(200).json({ 

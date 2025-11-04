@@ -69,4 +69,35 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async generateSite(payload) {
+    type GenerateSitePayload = Parameters<FunctionsService["generateSite"]>[0];
+    const result = await httpsCallable<
+      GenerateSitePayload,
+      { id: string; status: string }
+    >(firebase.functions, "generateSite")(payload);
+    return result.data;
+  },
+
+  async regenerateSite(payload) {
+    type RegenerateSitePayload = Parameters<
+      FunctionsService["regenerateSite"]
+    >[0];
+    const result = await httpsCallable<
+      RegenerateSitePayload,
+      { success: boolean; brandSiteId: string; status: string }
+    >(firebase.functions, "regenerateSite")(payload);
+    return result.data;
+  },
+
+  async addCustomDomain(payload) {
+    type AddCustomDomainPayload = Parameters<
+      FunctionsService["addCustomDomain"]
+    >[0];
+    const result = await httpsCallable<
+      AddCustomDomainPayload,
+      { success: boolean; customDomain: string }
+    >(firebase.functions, "addCustomDomain")(payload);
+    return result.data;
+  },
 };

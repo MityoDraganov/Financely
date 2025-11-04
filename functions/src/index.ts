@@ -51,3 +51,9 @@ export {
   sendTemplateEmail, 
   sendWorkflowEmail 
 } from "./functions/send-email";
+
+// Brand site functions
+export { generateSite } from "./functions/generate-site";
+export { regenerateSite } from "./functions/regenerate-site";
+export { addCustomDomain } from "./functions/add-custom-domain";
+export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";

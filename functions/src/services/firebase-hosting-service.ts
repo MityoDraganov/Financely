@@ -1,0 +1,849 @@
+import { logger } from "firebase-functions";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { GoogleAuth } from "google-auth-library";
+import { createHash } from "crypto";
+import { gzipSync } from "zlib";
+
+interface FirebaseHostingConfig {
+  projectId: string;
+}
+
+interface HostingFile {
+  path: string;
+  contents: string;
+}
+
+export class FirebaseHostingService {
+  private readonly projectId: string;
+  private readonly hostingApiBaseUrl = "https://firebasehosting.googleapis.com/v1beta1";
+  private readonly auth: GoogleAuth;
+
+  constructor(config: FirebaseHostingConfig) {
+    if (!config.projectId || config.projectId.trim() === "") {
+      throw new Error("Firebase project ID is required for Firebase Hosting service");
+    }
+    
+    this.projectId = config.projectId.trim();
+    
+    logger.info("Initializing Firebase Hosting Service", {
+      projectId: this.projectId,
+      apiBaseUrl: this.hostingApiBaseUrl,
+    });
+
+    this.auth = new GoogleAuth({
+      scopes: [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/firebase",
+      ],
+      projectId: this.projectId, // Explicitly set project ID
+    });
+
+    if (!getApps().length) {
+      initializeApp();
+    }
+  }
+
+  private async getAccessToken(): Promise<string> {
+    try {
+      logger.info("Getting access token for Firebase Hosting API", {
+        projectId: this.projectId,
+      });
+      
+      const client = await this.auth.getClient();
+      const accessTokenResponse = await client.getAccessToken();
+      
+      if (!accessTokenResponse.token) {
+        logger.error("Access token response is empty");
+        throw new Error("Failed to get access token: token is empty");
+      }
+
+      logger.info("Access token obtained successfully");
+      return accessTokenResponse.token;
+    } catch (error) {
+      logger.error("Failed to get access token for Hosting API", {
+        error: error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack?.substring(0, 500),
+        } : "Unknown error",
+        projectId: this.projectId,
+      });
+      throw new Error(`Failed to authenticate with Firebase Hosting API: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  private async makeRequest<T>(
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+    endpoint: string,
+    body?: unknown,
+  ): Promise<T> {
+    let token: string;
+    try {
+      token = await this.getAccessToken();
+    } catch (error) {
+      logger.error("Failed to get access token for Firebase Hosting API", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw new Error("Failed to authenticate with Firebase Hosting API");
+    }
+
+    const url = `${this.hostingApiBaseUrl}${endpoint}`;
+    const headers: HeadersInit = {
+      Authorization: `Bearer ${token}`,
+    };
+
+    // Only add Content-Type for requests with a body
+    if (body !== undefined && body !== null) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    logger.info("Making Firebase Hosting API request", {
+      method,
+      endpoint,
+      url: url.replace(token, "REDACTED"),
+      hasBody: body !== undefined && body !== null,
+    });
+
+    try {
+      // Validate URL before making request
+      try {
+        new URL(url);
+      } catch (urlError) {
+        throw new Error(`Invalid URL constructed: ${url}`);
+      }
+
+      const fetchOptions: RequestInit = {
+        method,
+        headers,
+        body: body !== undefined && body !== null ? JSON.stringify(body) : undefined,
+      };
+
+      logger.debug("Firebase Hosting API request details", {
+        method,
+        endpoint,
+        hasBody: body !== undefined && body !== null,
+        bodySize: body !== undefined && body !== null ? JSON.stringify(body).length : 0,
+      });
+
+      const response = await fetch(url, fetchOptions);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error?.message) {
+            errorMessage = `Firebase Hosting API error: ${errorJson.error.message}`;
+          } else if (errorJson.message) {
+            errorMessage = `Firebase Hosting API error: ${errorJson.message}`;
+          }
+        } catch {
+          // If not JSON, use the text as is
+          if (errorText && errorText.length < 500) {
+            errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText} - ${errorText}`;
+          }
+        }
+        
+        logger.error("Firebase Hosting API error", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText.substring(0, 1000), // Truncate long errors
+          endpoint,
+          method,
+          url: url.replace(token, "REDACTED"),
+        });
+        
+        throw new Error(errorMessage);
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      // Enhanced error logging for fetch failures
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack?.substring(0, 500),
+      } : { message: "Unknown error" };
+
+      logger.error("Firebase Hosting API request failed", {
+        ...errorDetails,
+        endpoint,
+        method,
+        url: url.replace(token, "REDACTED"),
+        projectId: this.projectId,
+        apiBaseUrl: this.hostingApiBaseUrl,
+      });
+
+      // Provide more helpful error messages for common fetch failures
+      if (error instanceof TypeError) {
+        if (error.message.includes("fetch")) {
+          throw new Error(
+            `Firebase Hosting API network error: ${error.message}. ` +
+            `Possible causes: Firebase Hosting API not enabled, invalid project ID, or network connectivity issues. ` +
+            `Enable the API with: gcloud services enable firebasehosting.googleapis.com`
+          );
+        }
+        if (error.message.includes("Failed to fetch")) {
+          throw new Error(
+            `Firebase Hosting API connection failed. ` +
+            `Please verify: 1) Firebase Hosting API is enabled, 2) Project ID is correct, 3) Service account has proper permissions.`
+          );
+        }
+      }
+      
+      // Re-throw with more context
+      if (error instanceof Error) {
+        throw new Error(`Firebase Hosting API error: ${error.message}`);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Extract siteId from Firebase Hosting API response.
+   * The API may return siteId directly, or it may be embedded in the name field
+   * (e.g., "projects/{project}/sites/{siteId}").
+   */
+  private extractSiteId(response: { name?: string; siteId?: string }, normalizedSiteId: string): string {
+    // If siteId is directly provided, use it
+    if (response.siteId) {
+      return response.siteId;
+    }
+
+    // If name is provided, extract siteId from it
+    // Format: "projects/{project}/sites/{siteId}"
+    if (response.name) {
+      const nameMatch = response.name.match(/\/sites\/([^/]+)$/);
+      if (nameMatch && nameMatch[1]) {
+        return nameMatch[1];
+      }
+    }
+
+    // Fallback to normalized siteId
+    return normalizedSiteId;
+  }
+
+  async createSite(siteId: string): Promise<{ name: string; siteId: string }> {
+    // Validate siteId is provided
+    if (!siteId || typeof siteId !== 'string') {
+      throw new Error("Site ID is required and must be a string");
+    }
+
+    // Validate siteId format - Firebase Hosting site IDs must be lowercase alphanumeric with hyphens
+    const normalizedSiteId = siteId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    if (normalizedSiteId !== siteId) {
+      logger.warn("Site ID normalized", { original: siteId, normalized: normalizedSiteId });
+    }
+    
+    // First, try to get the site to see if it already exists
+    // Try both site-scoped and project-scoped paths
+    const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
+    const projectScopedEndpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}`;
+    
+    logger.info("Checking if Firebase Hosting site exists", { 
+      siteId: normalizedSiteId, 
+      siteScopedEndpoint,
+      projectScopedEndpoint,
+    });
+    
+    // Try site-scoped path first (preferred)
+    for (const endpoint of [siteScopedEndpoint, projectScopedEndpoint]) {
+      try {
+        const existingSite = await this.makeRequest<{
+          name?: string;
+          siteId?: string;
+        }>("GET", endpoint);
+        
+        if (existingSite) {
+          // Site exists, return it
+          const extractedSiteId = this.extractSiteId(existingSite, normalizedSiteId);
+          
+          logger.info("Firebase Hosting site already exists, using existing site", {
+            siteId: extractedSiteId,
+            name: existingSite.name,
+            endpoint,
+          });
+          
+          return {
+            name: existingSite.name || `projects/${this.projectId}/sites/${normalizedSiteId}`,
+            siteId: extractedSiteId,
+          };
+        }
+      } catch (getError) {
+        // Site doesn't exist (404) or other error - try next endpoint
+        const getErrorMessage = getError instanceof Error ? getError.message : String(getError);
+        const isNotFound = 
+          getErrorMessage.includes("404") || 
+          getErrorMessage.toLowerCase().includes("not found") ||
+          getErrorMessage.toLowerCase().includes("does not exist");
+        
+        if (isNotFound && endpoint === projectScopedEndpoint) {
+          // Both endpoints returned 404, site doesn't exist
+          logger.info("Site does not exist (checked both endpoints), will create new site", { 
+            siteId: normalizedSiteId,
+            siteScopedEndpoint,
+            projectScopedEndpoint,
+          });
+          break; // Exit loop, proceed to create
+        } else if (!isNotFound) {
+          logger.warn("Error checking for existing site, will try next endpoint or create", {
+            error: getErrorMessage.substring(0, 300),
+            siteId: normalizedSiteId,
+            endpoint,
+          });
+        }
+        // If site-scoped returned 404, try project-scoped next
+        // If project-scoped also returns 404, we break and create
+      }
+    }
+    
+    // Site doesn't exist, create it
+    // Firebase Hosting API: siteId goes in the URL query parameter, not in the request body
+    // The endpoint format is: POST /projects/{project}/sites?siteId={siteId}
+    const endpoint = `/projects/${this.projectId}/sites?siteId=${encodeURIComponent(normalizedSiteId)}`;
+    
+    try {
+      // Request body should be empty - siteId is passed as a query parameter
+      const response = await this.makeRequest<{
+        name?: string;
+        siteId?: string;
+      }>("POST", endpoint); // No body - siteId is in the URL query parameter
+
+      // Validate response structure
+      if (!response) {
+        logger.error("Invalid response from Firebase Hosting API", {
+          response: JSON.stringify(response),
+          normalizedSiteId,
+        });
+        throw new Error("Firebase Hosting API returned invalid response: empty response");
+      }
+
+      // Extract siteId from response (may be in name field or siteId field)
+      const extractedSiteId = this.extractSiteId(response, normalizedSiteId);
+
+      logger.info("Firebase Hosting site created", {
+        siteId: extractedSiteId,
+        name: response.name || `sites/${normalizedSiteId}`,
+        responseKeys: Object.keys(response),
+      });
+
+      return {
+        name: response.name || `projects/${this.projectId}/sites/${normalizedSiteId}`,
+        siteId: extractedSiteId,
+      };
+    } catch (error) {
+      // Check if site already exists - handle various error message formats
+      // The error may be wrapped multiple times (e.g., "Firebase Hosting API error: Firebase Hosting API error: Site ... already exists")
+      // Also handle backtick format: Site `projects/.../sites/...` already exists
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Extract the core error message by removing "Firebase Hosting API error:" prefixes
+      // This handles cases where the error is wrapped multiple times
+      let coreErrorMessage = errorMessage;
+      while (coreErrorMessage.toLowerCase().startsWith("firebase hosting api error:")) {
+        coreErrorMessage = coreErrorMessage.substring("firebase hosting api error:".length).trim();
+      }
+      
+      const lowerErrorMessage = coreErrorMessage.toLowerCase();
+      
+      // Remove backticks, single quotes, and normalize the error message for better matching
+      const normalizedErrorMessage = lowerErrorMessage
+        .replace(/`/g, "")
+        .replace(/'/g, "")
+        .replace(/"/g, "")
+        .trim();
+      
+      // More comprehensive detection of "already exists" errors
+      const isAlreadyExists = 
+        normalizedErrorMessage.includes("already exists") ||
+        normalizedErrorMessage.includes("already_exists") ||
+        normalizedErrorMessage.includes("already-exists") ||
+        errorMessage.includes("ALREADY_EXISTS") ||
+        errorMessage.includes("409") ||
+        (normalizedErrorMessage.includes("resource") && normalizedErrorMessage.includes("already")) ||
+        (normalizedErrorMessage.includes("site") && normalizedErrorMessage.includes("already"));
+      
+      logger.info("Checking if error indicates site already exists", {
+        siteId: normalizedSiteId,
+        errorMessage: errorMessage.substring(0, 300),
+        normalizedErrorMessage: normalizedErrorMessage.substring(0, 200),
+        isAlreadyExists,
+      });
+      
+      if (isAlreadyExists) {
+        logger.info("Site already exists error detected, fetching existing site info", { 
+          siteId: normalizedSiteId,
+          originalError: errorMessage.substring(0, 300),
+          coreErrorMessage: coreErrorMessage.substring(0, 200),
+        });
+        
+        // Try to get the existing site using both site-scoped and project-scoped paths
+        // Try multiple times in case of transient errors
+        const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
+        const projectScopedEndpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}`;
+        
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          // Try both endpoints for each attempt
+          for (const endpoint of [siteScopedEndpoint, projectScopedEndpoint]) {
+            try {
+              logger.info(`Attempting to get existing site (attempt ${attempt}/3, endpoint: ${endpoint})`, {
+                siteId: normalizedSiteId,
+                endpoint,
+              });
+              
+              const existingSite = await this.makeRequest<{
+                name?: string;
+                siteId?: string;
+              }>("GET", endpoint);
+            
+              if (!existingSite) {
+                throw new Error("Existing site found but response is empty");
+              }
+
+              // Extract siteId from response
+              const extractedSiteId = this.extractSiteId(existingSite, normalizedSiteId);
+              
+              logger.info("Existing site retrieved successfully after 'already exists' error", {
+                siteId: extractedSiteId,
+                name: existingSite.name,
+                attempt,
+                endpoint,
+              });
+              
+              return {
+                name: existingSite.name || `projects/${this.projectId}/sites/${normalizedSiteId}`,
+                siteId: extractedSiteId,
+              };
+            } catch (getError) {
+              const getErrorMessage = getError instanceof Error ? getError.message : String(getError);
+              const isNotFound = 
+                getErrorMessage.includes("404") || 
+                getErrorMessage.toLowerCase().includes("not found");
+              
+              // If this endpoint returned 404, try the other endpoint
+              if (isNotFound && endpoint === siteScopedEndpoint) {
+                logger.info(`Site-scoped endpoint returned 404, trying project-scoped endpoint`, {
+                  siteId: normalizedSiteId,
+                  attempt,
+                });
+                continue; // Try project-scoped endpoint
+              }
+              
+              logger.warn(`Failed to get existing site (attempt ${attempt}/3, endpoint: ${endpoint})`, {
+                error: getErrorMessage.substring(0, 300),
+                siteId: normalizedSiteId,
+                attempt,
+                endpoint,
+              });
+              
+              // If both endpoints failed and this is the last attempt, throw error
+              if (attempt === 3 && endpoint === projectScopedEndpoint) {
+                logger.error("All attempts to get existing site failed after 'already exists' error", {
+                  siteId: normalizedSiteId,
+                  lastError: getErrorMessage.substring(0, 500),
+                  originalError: errorMessage.substring(0, 300),
+                });
+                // Instead of throwing the original error, construct a more helpful error message
+                // that indicates the site exists but we couldn't retrieve it
+                throw new Error(
+                  `Site ${normalizedSiteId} already exists but could not be retrieved. ` +
+                  `Original error: ${errorMessage.substring(0, 200)}. ` +
+                  `Get error: ${getErrorMessage.substring(0, 200)}`
+                );
+              }
+            }
+          }
+          
+          // Wait a bit before retrying (exponential backoff)
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          }
+        }
+      }
+      
+      // Re-throw if it's not an "already exists" error
+      logger.error("Site creation failed with non-'already exists' error", {
+        siteId: normalizedSiteId,
+        error: errorMessage.substring(0, 500),
+        normalizedErrorMessage: normalizedErrorMessage.substring(0, 200),
+      });
+      throw error;
+    }
+  }
+
+  async deploySite(
+    siteId: string,
+    files: HostingFile[],
+    versionMessage?: string,
+  ): Promise<string> {
+    // Validate siteId is provided
+    if (!siteId || typeof siteId !== 'string') {
+      throw new Error("Site ID is required and must be a string");
+    }
+
+    // Normalize siteId to match createSite format
+    const normalizedSiteId = siteId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    
+    // Step 1: Create a version (without files)
+    // First, prepare files to get their hashes
+    const filesByHash: Record<string, string> = {};
+    const pathToHash: Record<string, string> = {};
+    
+    for (const file of files) {
+      // Gzip the file contents
+      const gzippedContents = gzipSync(Buffer.from(file.contents, 'utf-8'));
+      
+      // Calculate SHA256 hash of the gzipped content
+      const hash = createHash('sha256').update(gzippedContents).digest('hex');
+      
+      // Base64 encode the gzipped content
+      const base64Contents = gzippedContents.toString('base64');
+      
+      // Store file by hash
+      filesByHash[hash] = base64Contents;
+      pathToHash[file.path] = hash;
+    }
+
+    // Create file mappings: path -> hash
+    // Firebase Hosting requires all paths to start with a forward slash
+    const fileMappings: Record<string, string> = {};
+    for (const file of files) {
+      const hash = pathToHash[file.path];
+      if (hash) {
+        // Normalize path to start with /
+        const normalizedPath = file.path.startsWith('/') ? file.path : `/${file.path}`;
+        fileMappings[normalizedPath] = hash;
+      }
+    }
+
+    logger.info("Creating version", {
+      siteId: normalizedSiteId,
+      fileCount: files.length,
+    });
+
+    // Verify the site exists before creating a version
+    // This helps catch issues early and provides better error messages
+    try {
+      const siteCheckEndpoint = `/sites/${normalizedSiteId}`;
+      await this.makeRequest("GET", siteCheckEndpoint);
+      logger.info("Site verified to exist before creating version", {
+        siteId: normalizedSiteId,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn("Could not verify site exists via site-scoped GET, will attempt version creation anyway", {
+        siteId: normalizedSiteId,
+        error: errorMessage.substring(0, 200),
+      });
+      // Continue anyway - the version creation will fail with a clearer error if site doesn't exist
+    }
+
+    // According to Firebase Hosting API v1beta1, use site-scoped path for version creation
+    // This ensures consistency with finalize and release endpoints
+    const versionEndpoint = `/sites/${normalizedSiteId}/versions`;
+    
+    logger.info("Creating version with site-scoped endpoint", {
+      siteId: normalizedSiteId,
+      versionEndpoint,
+    });
+    
+    // Create version WITHOUT files - files will be populated separately
+    const version = await this.makeRequest<{
+      name: string;
+      status: string;
+    }>("POST", versionEndpoint, {
+      config: {
+        headers: [],
+        redirects: [],
+        rewrites: [],
+      },
+    });
+
+    // Validate version was created successfully
+    if (!version || !version.name) {
+      throw new Error(`Invalid version response: ${JSON.stringify(version)}`);
+    }
+    
+    // Log the full version name for debugging
+    logger.info("Version created successfully", {
+      versionName: version.name,
+      versionStatus: version.status,
+      fileCount: files.length,
+      versionEndpoint: versionEndpoint,
+    });
+    
+    // Extract version ID for later use
+    const versionNameMatch = version.name.match(/versions\/([^/]+)$/);
+    if (!versionNameMatch || !versionNameMatch[1]) {
+      throw new Error(`Invalid version name format: ${version.name}. Expected format: .../versions/{versionId}`);
+    }
+    const versionIdFromName = versionNameMatch[1];
+    
+    logger.info("Version ID extracted", {
+      versionId: versionIdFromName,
+      fullVersionName: version.name,
+    });
+
+    // Step 2a: Note - According to Firebase Hosting API, file mappings are handled by populateFiles
+    // We don't need to (and can't) set files in config - the API handles this automatically
+    // after populateFiles is called. The config only contains headers, redirects, and rewrites.
+    logger.info("File mappings prepared", {
+      fileMappingsCount: Object.keys(fileMappings).length,
+      sampleMappings: Object.entries(fileMappings).slice(0, 2).map(([path, hash]) => ({
+        path,
+        hashPrefix: hash.substring(0, 16) + "...",
+      })),
+    });
+
+    // Step 2b: Populate files using populateFiles method
+    // According to Firebase Hosting API documentation, populateFiles expects:
+    // { "files": { "/FILE_PATH": "SHA256_HASH" } }
+    // Paths must start with a forward slash, and values must be SHA256 hashes
+    const populateEndpoint = `/${version.name}:populateFiles`;
+    
+    logger.info("Calling populateFiles with path -> hash mappings", {
+      endpoint: populateEndpoint,
+      fileCount: Object.keys(fileMappings).length,
+      sampleMappings: Object.entries(fileMappings).slice(0, 2).map(([path, hash]) => ({
+        path,
+        hashPrefix: hash.substring(0, 16) + "...",
+      })),
+    });
+    
+    // Verify all paths start with / and all hashes are valid SHA256 format
+    for (const [path, hash] of Object.entries(fileMappings)) {
+      if (!path.startsWith('/')) {
+        throw new Error(`File path must start with /: ${path}`);
+      }
+      if (!/^[a-f0-9]{64}$/i.test(hash)) {
+        throw new Error(`Invalid hash format for path ${path}: ${hash.substring(0, 32)}... (expected 64 hex characters)`);
+      }
+    }
+    
+    // Call populateFiles with path -> hash mapping
+    // Paths must start with /, and values must be SHA256 hashes
+    const populateResponse = await this.makeRequest<{
+      uploadRequiredHashes?: string[];
+      uploadUrl?: string;
+      status?: string;
+    }>("POST", populateEndpoint, {
+      files: fileMappings, // Maps "/path/to/file" -> "sha256_hash"
+    });
+
+    logger.info("PopulateFiles response received", {
+      versionName: version.name,
+      uploadRequiredHashes: populateResponse.uploadRequiredHashes?.length || 0,
+      hasUploadUrl: !!populateResponse.uploadUrl,
+      status: populateResponse.status,
+    });
+    
+    // Note: populateFiles already associates file paths with hashes
+    // We don't need to update the version separately - the API handles this automatically
+
+    // Step 3: Upload file content for all required hashes
+    // The API returns uploadRequiredHashes - these are the hashes that need content uploaded
+    // All files need their content uploaded, so we upload all hashes
+    if (populateResponse.uploadRequiredHashes && populateResponse.uploadRequiredHashes.length > 0) {
+      if (!populateResponse.uploadUrl) {
+        throw new Error("Upload URL is missing but files require upload");
+      }
+
+      logger.info("Uploading file content", {
+        uploadRequiredHashes: populateResponse.uploadRequiredHashes.length,
+        uploadUrl: populateResponse.uploadUrl.substring(0, 100) + "...",
+      });
+
+      // Get access token once for all uploads (more efficient)
+      const accessToken = await this.getAccessToken();
+
+      // Upload each file's content to the uploadUrl
+      // According to Firebase Hosting API, the uploadUrl format is:
+      // https://upload-firebasehosting.googleapis.com/upload/sites/SITE_ID/versions/VERSION_ID/files/SHA256_HASH
+      // We need to append the hash to the base uploadUrl
+      for (const requiredHash of populateResponse.uploadRequiredHashes) {
+        const base64Content = filesByHash[requiredHash];
+        if (!base64Content) {
+          throw new Error(`Content for required hash ${requiredHash.substring(0, 16)}... not found in filesByHash`);
+        }
+
+        // Decode base64 to get the gzipped buffer
+        const gzippedBuffer = Buffer.from(base64Content, 'base64');
+        
+        // Construct the upload URL by appending the hash
+        // According to Firebase Hosting API, the format should be:
+        // https://upload-firebasehosting.googleapis.com/upload/sites/SITE_ID/versions/VERSION_ID/files/SHA256_HASH
+        // The uploadUrl from populateFiles response is a base URL ending with /files
+        let uploadUrl = populateResponse.uploadUrl;
+        
+        // Ensure the URL ends with /files before appending the hash
+        if (!uploadUrl.endsWith('/files') && !uploadUrl.endsWith('/files/')) {
+          uploadUrl = uploadUrl.endsWith('/') ? `${uploadUrl}files` : `${uploadUrl}/files`;
+        }
+        
+        // Append the hash to the URL: /files/{hash}
+        uploadUrl = `${uploadUrl.replace(/\/$/, '')}/${requiredHash}`;
+        
+        // Ensure URL is HTTPS (required for Cloud Functions)
+        if (!uploadUrl.startsWith('https://')) {
+          throw new Error(`Upload URL must use HTTPS: ${uploadUrl.substring(0, 100)}...`);
+        }
+
+        logger.info(`Uploading file content`, {
+          hash: requiredHash.substring(0, 16) + "...",
+          uploadUrl: uploadUrl.substring(0, 100) + "...",
+          contentSize: gzippedBuffer.length,
+        });
+        
+        try {
+          // Firebase Hosting uploads require PUT with raw binary content and Authorization header
+          // The content is already gzipped, so we send it as raw bytes
+          const uploadResponse = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/octet-stream",
+              "Content-Length": gzippedBuffer.length.toString(),
+            },
+            body: gzippedBuffer, // Raw binary content, not base64
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            logger.error("File upload failed", {
+              hash: requiredHash.substring(0, 16) + "...",
+              status: uploadResponse.status,
+              statusText: uploadResponse.statusText,
+              error: errorText.substring(0, 500),
+              uploadUrl: uploadUrl.substring(0, 100) + "...",
+            });
+            throw new Error(`Failed to upload file content for hash ${requiredHash.substring(0, 16)}...: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText.substring(0, 200)}`);
+          }
+
+          logger.info(`Uploaded file content for hash ${requiredHash.substring(0, 16)}...`);
+        } catch (error) {
+          // Handle network errors (fetch failed, timeouts, etc.)
+          if (error instanceof TypeError && error.message.includes('fetch')) {
+            logger.error("Network error during file upload", {
+              hash: requiredHash.substring(0, 16) + "...",
+              error: error.message,
+              uploadUrl: uploadUrl.substring(0, 100) + "...",
+            });
+            throw new Error(`Network error uploading file content for hash ${requiredHash.substring(0, 16)}...: ${error.message}. Check network connectivity and Firebase Hosting API access.`);
+          }
+          // Re-throw other errors
+          throw error;
+        }
+      }
+    } else {
+      // If no uploadRequiredHashes, the files might already exist in Firebase Hosting
+      // or the API handles them differently
+      logger.info("No files require explicit upload (may already exist or handled inline)");
+    }
+
+
+    // Step 4: Finalize the version
+    // According to Firebase Hosting API v1beta1, finalize endpoint should use site-scoped path:
+    // POST /sites/{site}/versions/{versionId}:finalize
+    // But if version was created with project-scoped, we may need to use that format
+    // Try site-scoped first, fallback to project-scoped if needed
+    let finalizeEndpoint = `/sites/${normalizedSiteId}/versions/${versionIdFromName}:finalize`;
+    
+    logger.info("Finalizing version", {
+      versionId: versionIdFromName,
+      siteId: normalizedSiteId,
+      finalizeEndpoint,
+      versionName: version.name,
+      versionEndpointUsed: versionEndpoint, // Log which endpoint was used to create version
+    });
+    
+    // Wait a moment for version to be fully ready before finalizing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Finalize using site-scoped path (consistent with version creation)
+    await this.makeRequest("POST", finalizeEndpoint, {});
+
+    logger.info("Version finalized successfully", {
+      versionName: version.name,
+      versionId: versionIdFromName,
+      siteId: normalizedSiteId,
+    });
+
+    // Wait a moment for finalization to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Step 5: Create a release
+    // According to Firebase Hosting API v1beta1, release endpoint must use site-scoped path:
+    // POST /sites/{site}/releases
+    // And use versionName (site-scoped) instead of version
+    const releaseEndpoint = `/sites/${normalizedSiteId}/releases`;
+    
+    logger.info("Creating release", {
+      siteId: normalizedSiteId,
+      versionName: `sites/${normalizedSiteId}/versions/${versionIdFromName}`,
+      releaseEndpoint,
+    });
+    
+    await this.makeRequest("POST", releaseEndpoint, {
+      versionName: `sites/${normalizedSiteId}/versions/${versionIdFromName}`,
+      message: versionMessage || `Deploy ${new Date().toISOString()}`,
+    });
+    
+    logger.info("Release created successfully", {
+      siteId: normalizedSiteId,
+      versionId: versionIdFromName,
+    });
+
+    logger.info("Firebase Hosting site deployed", {
+      siteId: normalizedSiteId,
+      version: version.name,
+      fileCount: files.length,
+    });
+
+    const siteUrl = await this.getSiteUrl(normalizedSiteId);
+    return siteUrl;
+  }
+
+  async getSiteUrl(siteId: string): Promise<string> {
+    // Validate siteId is provided
+    if (!siteId || typeof siteId !== 'string') {
+      throw new Error("Site ID is required and must be a string");
+    }
+
+    // Normalize siteId
+    const normalizedSiteId = siteId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    // According to Firebase Hosting API v1beta1, use site-scoped path
+    const endpoint = `/sites/${normalizedSiteId}`;
+    const site = await this.makeRequest<{
+      defaultUrl: string;
+    }>("GET", endpoint);
+
+    return site.defaultUrl;
+  }
+
+  async addCustomDomain(
+    siteId: string,
+    domain: string,
+  ): Promise<{ domain: string; status: string }> {
+    // Normalize siteId
+    const normalizedSiteId = siteId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    // According to Firebase Hosting API v1beta1, use site-scoped path
+    const endpoint = `/sites/${normalizedSiteId}/domains`;
+    const response = await this.makeRequest<{
+      domain: string;
+      status: string;
+    }>("POST", endpoint, {
+      domain,
+    });
+
+    logger.info("Custom domain added to Firebase Hosting", {
+      siteId,
+      domain: response.domain,
+      status: response.status,
+    });
+
+    return response;
+  }
+}
+

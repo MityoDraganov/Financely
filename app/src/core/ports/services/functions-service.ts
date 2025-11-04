@@ -191,4 +191,20 @@ export interface FunctionsService {
     category?: string;
     n8nEnabled?: boolean;
   }): Promise<{ id: string }>;
+
+  generateSite(payload: {
+    organizationId: string;
+    brandName?: string;
+    tone?: string;
+  }): Promise<{ id: string; status: string }>;
+
+  regenerateSite(payload: {
+    brandSiteId: string;
+    sectionType?: "hero" | "about" | "features" | "contact";
+  }): Promise<{ success: boolean; brandSiteId: string; status: string }>;
+
+  addCustomDomain(payload: {
+    brandSiteId: string;
+    customDomain: string;
+  }): Promise<{ success: boolean; customDomain: string }>;
 }
