@@ -49,6 +49,7 @@ export default function OrganizationBrandingPage() {
   const [description, setDescription] = useState("");
   const [context, setContext] = useState("");
   const [contextImages, setContextImages] = useState<string[]>([]);
+  const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
   const logoUploadRef = useRef<HTMLInputElement>(null);
   const faviconUploadRef = useRef<HTMLInputElement>(null);
   const galleryUploadRef = useRef<HTMLInputElement>(null);
@@ -1098,27 +1099,56 @@ export default function OrganizationBrandingPage() {
                                       type="button"
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => {
+                                      onClick={async () => {
                                         const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
                                         if (!brandSiteId) return;
-                                        previewVersion.mutate(
-                                          {
+                                        
+                                        // Set loading state for this specific version
+                                        setPreviewingVersion(version.version);
+                                        
+                                        // Create preview and open immediately
+                                        try {
+                                          const result = await previewVersion.mutateAsync({
                                             brandSiteId,
                                             version: version.version,
-                                          },
-                                          {
-                                            onSuccess: (result) => {
-                                              window.open(result.previewUrl, "_blank");
-                                            },
+                                          });
+                                          
+                                          // Open the preview URL immediately after creation
+                                          // Store the URL in a variable to ensure it's captured before any state updates
+                                          const previewUrl = result?.previewUrl;
+                                          if (previewUrl) {
+                                            // Open immediately - must be in the same synchronous execution context
+                                            // as the user click to avoid popup blockers
+                                            const previewWindow = window.open(previewUrl, "_blank");
+                                            if (!previewWindow) {
+                                              // If popup was blocked, show a message
+                                              toast.error("Popup blocked. Please allow popups for this site and try again.");
+                                            } else {
+                                              toast.success("Preview opened in new tab", {
+                                                duration: 2000,
+                                              });
+                                            }
                                           }
-                                        );
+                                        } catch (error) {
+                                          // Error handling is done in the hook
+                                          console.error("Failed to create preview:", error);
+                                          setPreviewingVersion(null);
+                                        } finally {
+                                          // Clear loading state after a short delay to ensure UI updates
+                                          setTimeout(() => {
+                                            setPreviewingVersion(null);
+                                          }, 500);
+                                        }
                                       }}
-                                      disabled={previewVersion.isPending}
+                                      disabled={previewingVersion === version.version}
                                       className="h-8"
-                                      title="Create preview for this version"
+                                      title={previewingVersion === version.version ? "Creating preview..." : "Create preview for this version"}
                                     >
-                                      {previewVersion.isPending ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      {previewingVersion === version.version ? (
+                                        <>
+                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                          Creating...
+                                        </>
                                       ) : (
                                         <>
                                           <Eye className="h-3 w-3 mr-1" />

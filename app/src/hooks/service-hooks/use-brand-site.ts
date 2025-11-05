@@ -18,6 +18,7 @@ export const usePreviewBrandSiteVersion = () => {
       queryClient.invalidateQueries({
         queryKey: ["brandSites"],
       });
+      // Don't show toast here - the UI will handle opening the window
     },
     onError: (error: unknown) => {
       console.error("Failed to create preview:", error);
