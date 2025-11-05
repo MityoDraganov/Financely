@@ -6,6 +6,8 @@ interface GenerateSitePayload {
   organizationId: string;
   brandName?: string;
   tone?: string;
+  context?: string;
+  contextImages?: string[];
 }
 
 /**
@@ -35,7 +37,7 @@ export const generateSite = onCall<GenerateSitePayload>(
   },
   async (request) => {
     try {
-      const { organizationId, brandName, tone } = request.data;
+      const { organizationId, brandName, tone, context, contextImages } = request.data;
 
       if (!organizationId) {
         throw new HttpsError(
@@ -48,6 +50,8 @@ export const generateSite = onCall<GenerateSitePayload>(
         organizationId,
         brandName,
         tone,
+        hasContext: !!context,
+        contextImageCount: contextImages?.length || 0,
       });
 
       // This returns immediately after creating the document
@@ -55,6 +59,8 @@ export const generateSite = onCall<GenerateSitePayload>(
         organizationId,
         brandName,
         tone,
+        context,
+        contextImages,
       });
 
       logger.info("Site generation initiated", {

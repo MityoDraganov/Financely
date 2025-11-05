@@ -45,6 +45,8 @@ export const organizationDataSchema = z.object({
           emailFromName: z.string().optional(),
           emailFromAddress: z.string().email().optional(),
           footerText: z.string().optional(),
+          description: z.string().optional(),
+          brandImages: z.array(z.string().url()).default([]),
         })
         .optional(),
       

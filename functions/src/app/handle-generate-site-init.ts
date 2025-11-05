@@ -7,6 +7,8 @@ interface GenerateSiteInitInput {
   organizationId: string;
   brandName?: string;
   tone?: string;
+  context?: string;
+  contextImages?: string[];
 }
 
 /**
@@ -61,6 +63,8 @@ export async function handleGenerateSiteInit(
         brandColors,
         logoUrl,
         error: undefined, // Clear any previous errors
+        context: input.context,
+        contextImages: input.contextImages || [],
       },
     });
   } else {
@@ -73,6 +77,9 @@ export async function handleGenerateSiteInit(
         logoUrl,
         tone,
         status: "pending",
+        context: input.context,
+        contextImages: input.contextImages || [],
+        versions: [],
       },
     });
   }

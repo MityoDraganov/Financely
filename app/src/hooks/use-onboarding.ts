@@ -24,18 +24,6 @@ export function useOnboardingStatus() {
 
   // Calculate loading state
   const isLoading = !isClerkLoaded || isUserLoading;
-  // Debug logging (can be removed in production)
-  if (process.env.NODE_ENV === 'development') {
-    console.log('useOnboardingStatus debug:', {
-      isClerkLoaded,
-      clerkUserId: user?.id,
-      isUserLoading,
-      dbUser: dbUser ? { id: dbUser.id, name: dbUser.name, organizationRoles: dbUser.organizationRoles } : null,
-      userError: userError?.message,
-      organizations: organizations?.map(org => ({ id: org.id, name: org.name, memberIds: org.memberIds })),
-      needsOnboarding: isClerkLoaded && !isLoading && (!dbUser || !organizations || organizations.length === 0 || userError)
-    });
-  }
 
   // Determine if onboarding is needed
   // User needs onboarding if:

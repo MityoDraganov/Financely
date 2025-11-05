@@ -100,4 +100,26 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "addCustomDomain")(payload);
     return result.data;
   },
+
+  async restoreBrandSiteVersion(payload) {
+    type RestoreVersionPayload = Parameters<
+      FunctionsService["restoreBrandSiteVersion"]
+    >[0];
+    const result = await httpsCallable<
+      RestoreVersionPayload,
+      { success: boolean; brandSiteId: string; restoredVersion: number }
+    >(firebase.functions, "restoreBrandSiteVersion")(payload);
+    return result.data;
+  },
+
+  async previewBrandSiteVersion(payload) {
+    type PreviewVersionPayload = Parameters<
+      FunctionsService["previewBrandSiteVersion"]
+    >[0];
+    const result = await httpsCallable<
+      PreviewVersionPayload,
+      { success: boolean; brandSiteId: string; version: number; previewUrl: string }
+    >(firebase.functions, "previewBrandSiteVersion")(payload);
+    return result.data;
+  },
 };

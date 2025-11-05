@@ -14,6 +14,10 @@ interface BrandContext {
   };
   logoUrl?: string;
   tone: string;
+  description?: string;
+  brandImages?: string[];
+  context?: string;
+  contextImages?: string[];
 }
 
 interface GeminiResponse {
@@ -227,9 +231,9 @@ export class GeminiService {
   }
 
   private buildPrompt(brandContext: BrandContext): string {
-    const { brandName, colors, logoUrl, tone } = brandContext;
+    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages } = brandContext;
 
-    return `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
+    let prompt = `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
 
 Requirements:
 1. Use inline CSS only (no external stylesheets)
@@ -238,17 +242,39 @@ Requirements:
    - Primary: ${colors.primary}
    - Secondary: ${colors.secondary}
    - Accent: ${colors.accent}
-4. Brand tone: ${tone}
-5. Include a hero section with brand name
-6. Include sections: About, Features/Services, Contact
-7. Use modern CSS (flexbox/grid, smooth transitions)
-8. Include proper semantic HTML5
-9. Make it visually appealing with proper spacing, typography, and visual hierarchy
-10. Add subtle animations and hover effects
-11. Ensure accessibility (proper alt tags, ARIA labels where needed)
-${logoUrl ? `12. Include the logo at: ${logoUrl}` : ""}
+4. Brand tone: ${tone}`;
 
-The HTML should be complete and ready to deploy. Include:
+    if (description) {
+      prompt += `\n5. Brand description: ${description}`;
+    }
+
+    if (logoUrl) {
+      prompt += `\n6. Include the logo at: ${logoUrl}`;
+    }
+
+    if (brandImages && brandImages.length > 0) {
+      prompt += `\n7. Include these brand images in the gallery section: ${brandImages.join(", ")}`;
+    }
+
+    prompt += `\n8. Include a hero section with brand name
+9. Include sections: About, Features/Services, Contact
+10. Use modern CSS (flexbox/grid, smooth transitions)
+11. Include proper semantic HTML5
+12. Make it visually appealing with proper spacing, typography, and visual hierarchy
+13. Add subtle animations and hover effects
+14. Ensure accessibility (proper alt tags, ARIA labels where needed)`;
+
+    if (context) {
+      prompt += `\n\nAdditional Context and Instructions:
+${context}`;
+    }
+
+    if (contextImages && contextImages.length > 0) {
+      prompt += `\n\nContext Images (use these as reference for styling and content):
+${contextImages.join(", ")}`;
+    }
+
+    prompt += `\n\nThe HTML should be complete and ready to deploy. Include:
 - <!DOCTYPE html>
 - <html> with lang attribute
 - <head> with meta tags, title, and viewport
@@ -256,6 +282,8 @@ The HTML should be complete and ready to deploy. Include:
 - All CSS inline in <style> tag or style attributes
 
 Output ONLY the HTML code, no markdown, no explanations, just the HTML.`;
+
+    return prompt;
   }
 
   private sanitizeHtml(html: string): string {

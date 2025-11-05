@@ -17,7 +17,21 @@ interface BrandSite {
     generatedAt?: string;
     model?: string;
     version?: number;
+    regenerateSectionType?: "hero" | "about" | "features" | "contact";
   };
+  versions?: Array<{
+    version: number;
+    html: string;
+    deployedUrl?: string;
+    previewUrl?: string;
+    metadata?: {
+      generatedAt?: string;
+      model?: string;
+      regenerateSectionType?: "hero" | "about" | "features" | "contact";
+    };
+    createdAt: string;
+    description?: string;
+  }>;
 }
 
 /**

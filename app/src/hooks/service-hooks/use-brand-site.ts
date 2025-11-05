@@ -3,6 +3,32 @@ import { functionsService } from "@/services/functions/functions-service";
 import { toast } from "sonner";
 
 /**
+ * Hook to preview a previous version of a brand site
+ */
+export const usePreviewBrandSiteVersion = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.previewBrandSiteVersion>[0]) =>
+      functionsService.previewBrandSiteVersion(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to create preview:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to create preview: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to generate a brand site using Firebase Functions.
  * Returns immediately with a task ID. Use useBrandSite to poll for status.
  */
@@ -10,11 +36,7 @@ export const useGenerateSite = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: {
-      organizationId: string;
-      brandName?: string;
-      tone?: string;
-    }) => functionsService.generateSite(payload),
+    mutationFn: (payload: Parameters<typeof functionsService.generateSite>[0]) => functionsService.generateSite(payload),
     onSuccess: (result, variables) => {
       // Invalidate queries to trigger refetch
       queryClient.invalidateQueries({
@@ -45,10 +67,7 @@ export const useRegenerateSite = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: {
-      brandSiteId: string;
-      sectionType?: "hero" | "about" | "features" | "contact";
-    }) => functionsService.regenerateSite(payload),
+    mutationFn: (payload: Parameters<typeof functionsService.regenerateSite>[0]) => functionsService.regenerateSite(payload),
     onSuccess: (result) => {
       // Invalidate the specific brand site query (singular) to start polling
       queryClient.invalidateQueries({
@@ -94,6 +113,33 @@ export const useAddCustomDomain = () => {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       toast.error(`Failed to add custom domain: ${errorMessage}`);
+    },
+  });
+};
+
+/**
+ * Hook to restore a previous version of a brand site
+ */
+export const useRestoreBrandSiteVersion = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.restoreBrandSiteVersion>[0]) =>
+      functionsService.restoreBrandSiteVersion(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success(`Version ${result.restoredVersion} restored successfully!`);
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to restore version:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to restore version: ${errorMessage}`);
     },
   });
 };

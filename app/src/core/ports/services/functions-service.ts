@@ -196,15 +196,29 @@ export interface FunctionsService {
     organizationId: string;
     brandName?: string;
     tone?: string;
+    context?: string;
+    contextImages?: string[];
   }): Promise<{ id: string; status: string }>;
 
   regenerateSite(payload: {
     brandSiteId: string;
     sectionType?: "hero" | "about" | "features" | "contact";
+    context?: string;
+    contextImages?: string[];
   }): Promise<{ success: boolean; brandSiteId: string; status: string }>;
 
   addCustomDomain(payload: {
     brandSiteId: string;
     customDomain: string;
   }): Promise<{ success: boolean; customDomain: string }>;
+
+  restoreBrandSiteVersion(payload: {
+    brandSiteId: string;
+    version: number;
+  }): Promise<{ success: boolean; brandSiteId: string; restoredVersion: number }>;
+
+  previewBrandSiteVersion(payload: {
+    brandSiteId: string;
+    version: number;
+  }): Promise<{ success: boolean; brandSiteId: string; version: number; previewUrl: string }>;
 }

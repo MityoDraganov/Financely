@@ -6,6 +6,8 @@ import { logger } from "firebase-functions";
 interface RegenerateSitePayload {
   brandSiteId: string;
   sectionType?: "hero" | "about" | "features" | "contact";
+  context?: string;
+  contextImages?: string[];
 }
 
 /**
@@ -34,7 +36,7 @@ export const regenerateSite = onCall<RegenerateSitePayload>(
   },
   async (request) => {
     try {
-      const { brandSiteId, sectionType } = request.data;
+      const { brandSiteId, sectionType, context, contextImages } = request.data;
 
       if (!brandSiteId) {
         throw new HttpsError("invalid-argument", "brandSiteId is required");
@@ -43,6 +45,8 @@ export const regenerateSite = onCall<RegenerateSitePayload>(
       logger.info("Initiating site regeneration", {
         brandSiteId,
         sectionType,
+        hasContext: !!context,
+        contextImageCount: contextImages?.length || 0,
       });
 
       const databaseService = getDatabaseService();
@@ -60,6 +64,8 @@ export const regenerateSite = onCall<RegenerateSitePayload>(
         data: {
           status: "pending",
           error: undefined, // Clear any previous errors
+          context: context !== undefined ? context : brandSite.context,
+          contextImages: contextImages !== undefined ? contextImages : brandSite.contextImages || [],
           metadata: {
             ...(brandSite.metadata || {}),
             version: brandSite.metadata?.version || 1,

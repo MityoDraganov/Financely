@@ -1325,4 +1325,65 @@ export class FirebaseHostingService {
 
 		return response;
 	}
+
+	/**
+	 * Deploy a version to a separate preview site (for viewing without making live)
+	 * Creates a separate Firebase Hosting site for this version and returns the preview URL
+	 */
+	async deployToPreviewChannel(
+		siteId: string,
+		files: HostingFile[],
+		channelId: string,
+		versionMessage?: string
+	): Promise<string> {
+		// Create a unique site ID for this preview version
+		// Format: original-site-id-v{version} or original-site-id-preview-{channelId}
+		const normalizedSiteId = siteId
+			.toLowerCase()
+			.replace(/[^a-z0-9-]/g, "-");
+		
+		const previewSiteId = `${normalizedSiteId}-preview-${channelId}`.substring(0, 63); // Firebase site IDs have a 63 char limit
+
+		logger.info("Deploying to preview site", {
+			originalSiteId: normalizedSiteId,
+			previewSiteId,
+			channelId,
+			fileCount: files.length,
+		});
+
+		// Create or get the preview site
+		let previewSite;
+		try {
+			previewSite = await this.createSite(previewSiteId);
+			logger.info("Preview site created/retrieved", {
+				previewSiteId: previewSite.siteId,
+			});
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error";
+			logger.error("Failed to create preview site", {
+				previewSiteId,
+				error: errorMessage,
+			});
+			throw new Error(`Failed to create preview site: ${errorMessage}`);
+		}
+
+		// Use the siteId from the response (works for both new and existing sites)
+		const actualPreviewSiteId = previewSite.siteId || previewSiteId;
+
+		// Deploy to the preview site (same as regular deployment)
+		const previewUrl = await this.deploySite(
+			actualPreviewSiteId,
+			files,
+			versionMessage || `Preview version ${channelId}`,
+		);
+
+		logger.info("Preview site deployment completed", {
+			originalSiteId: normalizedSiteId,
+			previewSiteId: actualPreviewSiteId,
+			channelId,
+			previewUrl,
+		});
+
+		return previewUrl;
+	}
 }

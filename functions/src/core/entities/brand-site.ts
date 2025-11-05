@@ -36,6 +36,27 @@ export const brandSiteDataSchema = z.object({
   deployedUrl: z.string().optional(),
   error: z.string().optional(),
   lastRegeneratedAt: z.string().optional(),
+  // AI generation context (temporary, not saved to brand)
+  context: z.string().optional(),
+  contextImages: z.array(z.string().url()).default([]),
+  // Version history - stores previous versions of the site
+  versions: z.array(
+    z.object({
+      version: z.number().int(),
+      html: z.string(),
+      deployedUrl: z.string().optional(),
+      previewUrl: z.string().optional(), // Preview URL for viewing without making live
+      metadata: z
+        .object({
+          generatedAt: z.string().optional(),
+          model: z.string().optional(),
+          regenerateSectionType: z.enum(["hero", "about", "features", "contact"]).optional(),
+        })
+        .optional(),
+      createdAt: z.string(),
+      description: z.string().optional(),
+    })
+  ).default([]),
 });
 
 export type BrandSiteData = z.infer<typeof brandSiteDataSchema>;
@@ -59,6 +80,8 @@ export type UpdateBrandSiteInput = Partial<
     | "error"
     | "metadata"
     | "lastRegeneratedAt"
+    | "context"
+    | "contextImages"
   >
 >;
 
