@@ -119,6 +119,54 @@ export const organizationDataSchema = z.object({
           emailSending: true,
           apiAccess: false,
         }),
+      
+      // Widget configuration for embeddable widgets
+      widgets: z
+        .object({
+          enabled: z.boolean().default(false),
+          contactForm: z
+            .object({
+              enabled: z.boolean().default(false),
+              title: z.string().default("Contact Us"),
+              description: z.string().optional(),
+              fields: z.array(z.object({
+                name: z.string(),
+                label: z.string(),
+                type: z.enum(["text", "email", "tel", "textarea"]),
+                required: z.boolean().default(false),
+              })).default([
+                { name: "name", label: "Name", type: "text" as const, required: true },
+                { name: "email", label: "Email", type: "email" as const, required: true },
+                { name: "message", label: "Message", type: "textarea" as const, required: true },
+              ]),
+              submitButtonText: z.string().default("Send Message"),
+              successMessage: z.string().default("Thank you! We'll get back to you soon."),
+              position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),
+              displayMode: z.enum(["floating", "inline"]).default("floating"),
+            })
+            .optional(),
+          invoiceRequest: z
+            .object({
+              enabled: z.boolean().default(false),
+              title: z.string().default("Request Invoice"),
+              description: z.string().optional(),
+              submitButtonText: z.string().default("Request Invoice"),
+              successMessage: z.string().default("Invoice request submitted successfully!"),
+              position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),
+            })
+            .optional(),
+          quoteRequest: z
+            .object({
+              enabled: z.boolean().default(false),
+              title: z.string().default("Request Quote"),
+              description: z.string().optional(),
+              submitButtonText: z.string().default("Request Quote"),
+              successMessage: z.string().default("Quote request submitted successfully!"),
+              position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),
+            })
+            .optional(),
+        })
+        .optional(),
     })
     .default({
       brandColors: {

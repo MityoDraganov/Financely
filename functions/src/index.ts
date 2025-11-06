@@ -59,3 +59,7 @@ export { addCustomDomain } from "./functions/add-custom-domain";
 export { restoreBrandSiteVersion } from "./functions/restore-brand-site-version";
 export { previewBrandSiteVersion } from "./functions/preview-brand-site-version";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
+
+// Widget functions
+export { getWidgetConfig } from "./functions/get-widget-config";
+export { submitWidgetForm } from "./functions/submit-widget-form";

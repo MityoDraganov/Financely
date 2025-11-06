@@ -1,23 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X } from "lucide-react";
+import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion } from "@/hooks/service-hooks/use-brand-site";
 import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
+import { projectId } from "@/infrastructure/firebase";
 
 export default function SiteBuilderPage() {
   const { data: organization, isLoading } = useCurrentOrganization();
+  const updateOrganization = useUpdateOrganization();
   const [customDomainInput, setCustomDomainInput] = useState("");
   const [context, setContext] = useState("");
   const [contextImages, setContextImages] = useState<string[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
+  const [copiedScript, setCopiedScript] = useState(false);
   const contextUploadRef = useRef<HTMLInputElement>(null);
   const contextFileUpload = useFileUpload();
   const generateSite = useGenerateSite();
@@ -27,6 +33,58 @@ export default function SiteBuilderPage() {
   const previewVersion = usePreviewBrandSiteVersion();
   const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(null);
   const brandSite = useBrandSite(currentBrandSiteId);
+  
+  // Widget configuration state
+  type WidgetPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
+  
+  const [widgetsEnabled, setWidgetsEnabled] = useState(false);
+  const [contactFormConfig, setContactFormConfig] = useState<{
+    enabled: boolean;
+    title: string;
+    description: string;
+    submitButtonText: string;
+    successMessage: string;
+    position: WidgetPosition;
+    displayMode: "floating" | "inline";
+  }>({
+    enabled: false,
+    title: "Contact Us",
+    description: "",
+    submitButtonText: "Send Message",
+    successMessage: "Thank you! We'll get back to you soon.",
+    position: "bottom-right",
+    displayMode: "floating",
+  });
+  const [invoiceRequestConfig, setInvoiceRequestConfig] = useState<{
+    enabled: boolean;
+    title: string;
+    description: string;
+    submitButtonText: string;
+    successMessage: string;
+    position: WidgetPosition;
+  }>({
+    enabled: false,
+    title: "Request Invoice",
+    description: "",
+    submitButtonText: "Request Invoice",
+    successMessage: "Invoice request submitted successfully!",
+    position: "bottom-right",
+  });
+  const [quoteRequestConfig, setQuoteRequestConfig] = useState<{
+    enabled: boolean;
+    title: string;
+    description: string;
+    submitButtonText: string;
+    successMessage: string;
+    position: WidgetPosition;
+  }>({
+    enabled: false,
+    title: "Request Quote",
+    description: "",
+    submitButtonText: "Request Quote",
+    successMessage: "Quote request submitted successfully!",
+    position: "bottom-right",
+  });
   
   // Load existing brand sites for this organization
   const { data: brandSites = [] } = useBrandSitesByOrganization(organization?.id);
@@ -81,6 +139,116 @@ export default function SiteBuilderPage() {
   const handleContextRemove = (index: number) => {
     const newImages = contextImages.filter((_, i) => i !== index);
     setContextImages(newImages);
+  };
+
+  // Load widget configuration from organization
+  useEffect(() => {
+    if (!organization?.settings?.widgets) return;
+    
+    const widgets = organization.settings.widgets;
+    setWidgetsEnabled(widgets.enabled || false);
+    
+    if (widgets.contactForm) {
+      setContactFormConfig({
+        enabled: widgets.contactForm.enabled || false,
+        title: widgets.contactForm.title || "Contact Us",
+        description: widgets.contactForm.description || "",
+        submitButtonText: widgets.contactForm.submitButtonText || "Send Message",
+        successMessage: widgets.contactForm.successMessage || "Thank you! We'll get back to you soon.",
+        position: widgets.contactForm.position || "bottom-right",
+        displayMode: widgets.contactForm.displayMode || "floating",
+      });
+    }
+    
+    if (widgets.invoiceRequest) {
+      setInvoiceRequestConfig({
+        enabled: widgets.invoiceRequest.enabled || false,
+        title: widgets.invoiceRequest.title || "Request Invoice",
+        description: widgets.invoiceRequest.description || "",
+        submitButtonText: widgets.invoiceRequest.submitButtonText || "Request Invoice",
+        successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
+        position: widgets.invoiceRequest.position || "bottom-right",
+      });
+    }
+    
+    if (widgets.quoteRequest) {
+      setQuoteRequestConfig({
+        enabled: widgets.quoteRequest.enabled || false,
+        title: widgets.quoteRequest.title || "Request Quote",
+        description: widgets.quoteRequest.description || "",
+        submitButtonText: widgets.quoteRequest.submitButtonText || "Request Quote",
+        successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
+        position: widgets.quoteRequest.position || "bottom-right",
+      });
+    }
+  }, [organization?.settings?.widgets]);
+
+  // Save widget configuration
+  const handleSaveWidgets = async () => {
+    if (!organization) return;
+
+    try {
+      const existingSettings = organization.settings || {};
+      
+      // Build widgets object, only including enabled widgets (Firestore doesn't accept undefined)
+      const widgets: {
+        enabled: boolean;
+        contactForm?: typeof contactFormConfig & { fields: Array<{ name: string; label: string; type: "text" | "email" | "tel" | "textarea"; required: boolean }> };
+        invoiceRequest?: typeof invoiceRequestConfig;
+        quoteRequest?: typeof quoteRequestConfig;
+      } = {
+        enabled: widgetsEnabled,
+      };
+
+      if (widgetsEnabled && contactFormConfig.enabled) {
+        widgets.contactForm = {
+          ...contactFormConfig,
+          fields: [
+            { name: "name", label: "Name", type: "text" as const, required: true },
+            { name: "email", label: "Email", type: "email" as const, required: true },
+            { name: "message", label: "Message", type: "textarea" as const, required: true },
+          ],
+        };
+      }
+
+      if (widgetsEnabled && invoiceRequestConfig.enabled) {
+        widgets.invoiceRequest = invoiceRequestConfig;
+      }
+
+      if (widgetsEnabled && quoteRequestConfig.enabled) {
+        widgets.quoteRequest = quoteRequestConfig;
+      }
+      
+      await updateOrganization.mutateAsync({
+        id: organization.id,
+        data: {
+          settings: {
+            ...existingSettings,
+            widgets,
+          },
+        },
+      });
+
+      toast.success("Widget configuration saved successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save widget configuration");
+    }
+  };
+
+  // Generate embed script
+  const getEmbedScript = () => {
+    if (!organization) return "";
+    const apiUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
+    const widgetLoaderUrl = window.location.origin + "/widget-loader.js";
+    return `<script src="${widgetLoaderUrl}" data-org-id="${organization.id}" data-api-url="${apiUrl}"></script>`;
+  };
+
+  const handleCopyScript = () => {
+    const script = getEmbedScript();
+    navigator.clipboard.writeText(script);
+    setCopiedScript(true);
+    toast.success("Embed script copied to clipboard");
+    setTimeout(() => setCopiedScript(false), 2000);
   };
 
   if (isLoading) {
@@ -567,6 +735,368 @@ export default function SiteBuilderPage() {
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Integration Widgets */}
+        <Card className="shadow-sm border-gray-200/50">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Settings2 className="h-4 w-4 text-blue-600" />
+              </div>
+              Integration Widgets
+            </CardTitle>
+            <CardDescription className="ml-11">
+              Create embeddable widgets for your website. Copy and paste the script into any website.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Enable Widgets */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <Label className="text-base font-semibold">Enable Widgets</Label>
+                <p className="text-sm text-gray-500 mt-1">
+                  Allow widgets to be embedded on external websites
+                </p>
+              </div>
+              <Switch
+                checked={widgetsEnabled}
+                onCheckedChange={setWidgetsEnabled}
+              />
+            </div>
+
+            {widgetsEnabled && (
+              <>
+                {/* Contact Form Widget */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold">Contact Form Widget</Label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Allow visitors to submit contact information
+                      </p>
+                    </div>
+                    <Switch
+                      checked={contactFormConfig.enabled}
+                      onCheckedChange={(enabled) =>
+                        setContactFormConfig({ ...contactFormConfig, enabled })
+                      }
+                    />
+                  </div>
+                  {contactFormConfig.enabled && (
+                    <div className="space-y-3 mt-4 pl-4 border-l-2">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={contactFormConfig.title}
+                          onChange={(e) =>
+                            setContactFormConfig({ ...contactFormConfig, title: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (Optional)</Label>
+                        <Textarea
+                          value={contactFormConfig.description}
+                          onChange={(e) =>
+                            setContactFormConfig({ ...contactFormConfig, description: e.target.value })
+                          }
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Display Mode</Label>
+                        <Select
+                          value={contactFormConfig.displayMode}
+                          onValueChange={(value: "floating" | "inline") =>
+                            setContactFormConfig({ ...contactFormConfig, displayMode: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="floating">Floating Button</SelectItem>
+                            <SelectItem value="inline">Inline Form</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500">
+                          {contactFormConfig.displayMode === "floating"
+                            ? "Shows a floating button that opens a modal form"
+                            : "Renders the form directly in the page where a placeholder element exists"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Button Text</Label>
+                          <Input
+                            value={contactFormConfig.submitButtonText}
+                            onChange={(e) =>
+                              setContactFormConfig({ ...contactFormConfig, submitButtonText: e.target.value })
+                            }
+                          />
+                        </div>
+                        {contactFormConfig.displayMode === "floating" && (
+                          <div className="space-y-2">
+                            <Label>Position</Label>
+                            <Select
+                              value={contactFormConfig.position}
+                              onValueChange={(value: WidgetPosition) =>
+                                setContactFormConfig({ ...contactFormConfig, position: value })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                                <SelectItem value="top-right">Top Right</SelectItem>
+                                <SelectItem value="top-left">Top Left</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                      {contactFormConfig.displayMode === "inline" && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-800">
+                            <strong>Inline Form Usage:</strong> Add a placeholder element in your HTML where you want the form to appear:
+                          </p>
+                          <code className="text-xs text-blue-700 mt-2 block">
+                            {`<div data-financely-widget="contactForm"></div>`}
+                          </code>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label>Success Message</Label>
+                        <Input
+                          value={contactFormConfig.successMessage}
+                          onChange={(e) =>
+                            setContactFormConfig({ ...contactFormConfig, successMessage: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Invoice Request Widget */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold">Invoice Request Widget</Label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Allow customers to request invoices
+                      </p>
+                    </div>
+                    <Switch
+                      checked={invoiceRequestConfig.enabled}
+                      onCheckedChange={(enabled) =>
+                        setInvoiceRequestConfig({ ...invoiceRequestConfig, enabled })
+                      }
+                    />
+                  </div>
+                  {invoiceRequestConfig.enabled && (
+                    <div className="space-y-3 mt-4 pl-4 border-l-2">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={invoiceRequestConfig.title}
+                          onChange={(e) =>
+                            setInvoiceRequestConfig({ ...invoiceRequestConfig, title: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (Optional)</Label>
+                        <Textarea
+                          value={invoiceRequestConfig.description}
+                          onChange={(e) =>
+                            setInvoiceRequestConfig({ ...invoiceRequestConfig, description: e.target.value })
+                          }
+                          rows={2}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Button Text</Label>
+                          <Input
+                            value={invoiceRequestConfig.submitButtonText}
+                            onChange={(e) =>
+                              setInvoiceRequestConfig({ ...invoiceRequestConfig, submitButtonText: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Position</Label>
+                          <Select
+                            value={invoiceRequestConfig.position}
+                            onValueChange={(value: WidgetPosition) =>
+                              setInvoiceRequestConfig({ ...invoiceRequestConfig, position: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                              <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                              <SelectItem value="top-right">Top Right</SelectItem>
+                              <SelectItem value="top-left">Top Left</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Success Message</Label>
+                        <Input
+                          value={invoiceRequestConfig.successMessage}
+                          onChange={(e) =>
+                            setInvoiceRequestConfig({ ...invoiceRequestConfig, successMessage: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quote Request Widget */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold">Quote Request Widget</Label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Allow customers to request quotes
+                      </p>
+                    </div>
+                    <Switch
+                      checked={quoteRequestConfig.enabled}
+                      onCheckedChange={(enabled) =>
+                        setQuoteRequestConfig({ ...quoteRequestConfig, enabled })
+                      }
+                    />
+                  </div>
+                  {quoteRequestConfig.enabled && (
+                    <div className="space-y-3 mt-4 pl-4 border-l-2">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={quoteRequestConfig.title}
+                          onChange={(e) =>
+                            setQuoteRequestConfig({ ...quoteRequestConfig, title: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (Optional)</Label>
+                        <Textarea
+                          value={quoteRequestConfig.description}
+                          onChange={(e) =>
+                            setQuoteRequestConfig({ ...quoteRequestConfig, description: e.target.value })
+                          }
+                          rows={2}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Button Text</Label>
+                          <Input
+                            value={quoteRequestConfig.submitButtonText}
+                            onChange={(e) =>
+                              setQuoteRequestConfig({ ...quoteRequestConfig, submitButtonText: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Position</Label>
+                          <Select
+                            value={quoteRequestConfig.position}
+                            onValueChange={(value: WidgetPosition) =>
+                              setQuoteRequestConfig({ ...quoteRequestConfig, position: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                              <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                              <SelectItem value="top-right">Top Right</SelectItem>
+                              <SelectItem value="top-left">Top Left</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Success Message</Label>
+                        <Input
+                          value={quoteRequestConfig.successMessage}
+                          onChange={(e) =>
+                            setQuoteRequestConfig({ ...quoteRequestConfig, successMessage: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Save Button */}
+                <Button
+                  onClick={handleSaveWidgets}
+                  disabled={updateOrganization.isPending}
+                  className="w-full"
+                >
+                  {updateOrganization.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Widget Configuration"
+                  )}
+                </Button>
+
+                {/* Embed Script */}
+                <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Embed Script</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyScript}
+                    >
+                      {copiedScript ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Script
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Copy this script and paste it into your website's HTML to embed the widgets.
+                  </p>
+                  <div className="relative">
+                    <Textarea
+                      value={getEmbedScript()}
+                      readOnly
+                      className="font-mono text-xs bg-white"
+                      rows={3}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    The script will automatically load your widget configuration. No need to update it when you make changes.
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
