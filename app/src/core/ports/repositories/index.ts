@@ -8,6 +8,7 @@ import { WorkflowRepository } from "./workflow-repository";
 import { TaskRepository } from "./task-repository";
 import { NotificationRepository } from "./notification-repository";
 import { ContactRepository } from "./contact-repository";
+import { LeadRepository } from "./lead-repository";
 
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
@@ -20,4 +21,5 @@ export interface RepositoryHost {
     getTasksRepository(databaseService: DatabaseService): TaskRepository;
     getNotificationsRepository(databaseService: DatabaseService): NotificationRepository;
     getContactsRepository(databaseService: DatabaseService): ContactRepository;
+    getLeadsRepository(databaseService: DatabaseService): LeadRepository;
 }

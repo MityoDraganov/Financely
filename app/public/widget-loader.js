@@ -30,54 +30,91 @@
     return;
   }
 
-  // Widget styles
-  const widgetStyles = `
-    .financely-widget-container {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  // Generate dynamic styles from configuration for a specific widget
+  function generateStyles(widgetType, styling) {
+    const defaultStyling = {
+      primaryColor: "#2563eb",
+      secondaryColor: "#6b7280",
+      backgroundColor: "#ffffff",
+      textColor: "#111827",
+      borderColor: "#d1d5db",
+      errorColor: "#ef4444",
+      successColor: "#10b981",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      fontSize: "14px",
+      fontWeight: "400",
+      padding: "12px",
+      gap: "16px",
+      borderRadius: "8px",
+      buttonPadding: "12px 24px",
+      buttonBorderRadius: "8px",
+      buttonFontWeight: "600",
+      modalBackdropOpacity: "0.5",
+      modalBorderRadius: "12px",
+      modalMaxWidth: "500px",
+      shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    };
+
+    const s = styling || defaultStyling;
+    const widgetClass = `.financely-widget-${widgetType}`;
+
+    return `
+    ${widgetClass} .financely-widget-container {
+      font-family: ${s.fontFamily};
       box-sizing: border-box;
     }
-    .financely-widget-button {
+    ${widgetClass}.financely-widget-button,
+    ${widgetClass} .financely-widget-button {
       position: fixed;
       z-index: 9999;
       border: none;
       border-radius: 50px;
-      padding: 16px 24px;
-      font-size: 16px;
-      font-weight: 600;
+      padding: ${s.buttonPadding};
+      font-size: ${s.fontSize};
+      font-weight: ${s.buttonFontWeight};
+      font-family: ${s.fontFamily};
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: ${s.shadow};
       transition: all 0.3s ease;
       display: flex;
       align-items: center;
       gap: 8px;
+      background-color: ${s.primaryColor};
+      color: ${s.backgroundColor};
     }
     .financely-widget-button:hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+      opacity: 0.9;
     }
-    .financely-widget-button.bottom-right {
+    ${widgetClass}.financely-widget-button.bottom-right,
+    ${widgetClass} .financely-widget-button.bottom-right {
       bottom: 24px;
       right: 24px;
     }
-    .financely-widget-button.bottom-left {
+    ${widgetClass}.financely-widget-button.bottom-left,
+    ${widgetClass} .financely-widget-button.bottom-left {
       bottom: 24px;
       left: 24px;
     }
-    .financely-widget-button.top-right {
+    ${widgetClass}.financely-widget-button.top-right,
+    ${widgetClass} .financely-widget-button.top-right {
       top: 24px;
       right: 24px;
     }
-    .financely-widget-button.top-left {
+    ${widgetClass}.financely-widget-button.top-left,
+    ${widgetClass} .financely-widget-button.top-left {
       top: 24px;
       left: 24px;
     }
-    .financely-widget-modal {
+    ${widgetClass}.financely-widget-modal,
+    ${widgetClass} .financely-widget-modal {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, ${s.modalBackdropOpacity});
       z-index: 10000;
       display: flex;
       align-items: center;
@@ -85,137 +122,167 @@
       padding: 20px;
       animation: financely-fade-in 0.2s ease;
     }
-    .financely-widget-modal-content {
-      background: white;
-      border-radius: 12px;
-      max-width: 500px;
+    ${widgetClass} .financely-widget-modal-content {
+      background: ${s.backgroundColor};
+      border-radius: ${s.modalBorderRadius};
+      max-width: ${s.modalMaxWidth};
       width: 100%;
       max-height: 90vh;
       overflow-y: auto;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       animation: financely-slide-up 0.3s ease;
     }
-    .financely-widget-header {
-      padding: 24px;
-      border-bottom: 1px solid #e5e7eb;
+    ${widgetClass} .financely-widget-header {
+      padding: ${s.padding};
+      border-bottom: 1px solid ${s.borderColor};
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .financely-widget-title {
+    ${widgetClass} .financely-widget-title {
       font-size: 20px;
-      font-weight: 600;
+      font-weight: ${s.buttonFontWeight};
+      font-family: ${s.fontFamily};
       margin: 0;
-      color: #111827;
+      color: ${s.textColor};
     }
-    .financely-widget-close {
+    ${widgetClass} .financely-widget-close {
       background: none;
       border: none;
       font-size: 24px;
       cursor: pointer;
-      color: #6b7280;
+      color: ${s.secondaryColor};
       padding: 0;
       width: 32px;
       height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 6px;
+      border-radius: ${s.borderRadius};
       transition: background 0.2s;
     }
-    .financely-widget-close:hover {
-      background: #f3f4f6;
+    ${widgetClass} .financely-widget-close:hover {
+      background: ${s.borderColor};
     }
-    .financely-widget-body {
-      padding: 24px;
+    ${widgetClass} .financely-widget-body {
+      padding: ${s.padding};
     }
-    .financely-widget-description {
-      color: #6b7280;
-      font-size: 14px;
+    ${widgetClass} .financely-widget-description {
+      color: ${s.secondaryColor};
+      font-size: ${s.fontSize};
+      font-family: ${s.fontFamily};
       margin-bottom: 20px;
     }
-    .financely-widget-form {
+    ${widgetClass} .financely-widget-form {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: ${s.gap};
     }
-    .financely-widget-field {
+    ${widgetClass} .financely-widget-field {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
-    .financely-widget-label {
-      font-size: 14px;
-      font-weight: 500;
-      color: #374151;
+    ${widgetClass} .financely-widget-label {
+      font-size: ${s.fontSize};
+      font-weight: ${s.fontWeight};
+      font-family: ${s.fontFamily};
+      color: ${s.textColor};
     }
-    .financely-widget-input,
-    .financely-widget-textarea {
-      padding: 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
+    ${widgetClass} .financely-widget-input,
+    ${widgetClass} .financely-widget-textarea,
+    ${widgetClass} .financely-widget-select {
+      padding: ${s.padding};
+      border: 1px solid ${s.borderColor};
+      border-radius: ${s.borderRadius};
+      font-size: ${s.fontSize};
+      font-family: ${s.fontFamily};
+      font-weight: ${s.fontWeight};
+      color: ${s.textColor};
+      background: ${s.backgroundColor};
       transition: border-color 0.2s;
     }
-    .financely-widget-input:focus,
-    .financely-widget-textarea:focus {
+    ${widgetClass} .financely-widget-input:focus,
+    ${widgetClass} .financely-widget-textarea:focus,
+    ${widgetClass} .financely-widget-select:focus {
       outline: none;
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      border-color: ${s.primaryColor};
+      box-shadow: 0 0 0 3px ${s.primaryColor}20;
     }
-    .financely-widget-textarea {
+    ${widgetClass} .financely-widget-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: ${s.primaryColor};
+    }
+    ${widgetClass} .financely-widget-checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    ${widgetClass} .financely-widget-textarea {
       min-height: 100px;
       resize: vertical;
     }
-    .financely-widget-submit {
-      padding: 12px 24px;
+    ${widgetClass} .financely-widget-submit {
+      padding: ${s.buttonPadding};
       border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
+      border-radius: ${s.buttonBorderRadius};
+      font-size: ${s.fontSize};
+      font-weight: ${s.buttonFontWeight};
+      font-family: ${s.fontFamily};
       cursor: pointer;
       transition: all 0.2s;
       margin-top: 8px;
+      background-color: ${s.primaryColor};
+      color: ${s.backgroundColor};
     }
-    .financely-widget-submit:disabled {
+    ${widgetClass} .financely-widget-submit:hover {
+      opacity: 0.9;
+    }
+    ${widgetClass} .financely-widget-submit:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    .financely-widget-message {
-      padding: 12px;
-      border-radius: 8px;
-      margin-top: 16px;
-      font-size: 14px;
+    ${widgetClass} .financely-widget-message {
+      padding: ${s.padding};
+      border-radius: ${s.borderRadius};
+      margin-top: ${s.gap};
+      font-size: ${s.fontSize};
+      font-family: ${s.fontFamily};
     }
-    .financely-widget-message.success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
+    ${widgetClass} .financely-widget-message.success {
+      background: ${s.successColor}20;
+      color: ${s.successColor};
+      border: 1px solid ${s.successColor};
     }
-    .financely-widget-message.error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
+    ${widgetClass} .financely-widget-message.error {
+      background: ${s.errorColor}20;
+      color: ${s.errorColor};
+      border: 1px solid ${s.errorColor};
     }
-    .financely-widget-inline {
+    ${widgetClass}.financely-widget-inline,
+    ${widgetClass} .financely-widget-inline {
       width: 100%;
       max-width: 600px;
       margin: 0 auto;
-      padding: 24px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: ${s.padding};
+      background: ${s.backgroundColor};
+      border-radius: ${s.modalBorderRadius};
+      box-shadow: ${s.shadow};
     }
-    .financely-widget-inline-title {
+    ${widgetClass} .financely-widget-inline-title {
       font-size: 24px;
-      font-weight: 600;
+      font-weight: ${s.buttonFontWeight};
+      font-family: ${s.fontFamily};
       margin: 0 0 8px 0;
-      color: #111827;
+      color: ${s.textColor};
     }
-    .financely-widget-inline-description {
-      color: #6b7280;
-      font-size: 14px;
+    ${widgetClass} .financely-widget-inline-description {
+      color: ${s.secondaryColor};
+      font-size: ${s.fontSize};
+      font-family: ${s.fontFamily};
       margin-bottom: 24px;
     }
     @keyframes financely-fade-in {
@@ -233,13 +300,28 @@
       }
     }
   `;
+  }
 
-  // Inject styles
-  function injectStyles() {
-    if (document.getElementById('financely-widget-styles')) return;
+  // Translation helper
+  function translate(key, translations, defaultValue) {
+    if (!translations) return defaultValue;
+    return translations[key] || defaultValue;
+  }
+
+  // Inject styles for a specific widget
+  function injectWidgetStyles(widgetType, styling) {
+    const styleId = `financely-widget-styles-${widgetType}`;
+    const existingStyle = document.getElementById(styleId);
+    const styleContent = generateStyles(widgetType, styling);
+    
+    if (existingStyle) {
+      existingStyle.textContent = styleContent;
+      return;
+    }
+    
     const style = document.createElement('style');
-    style.id = 'financely-widget-styles';
-    style.textContent = widgetStyles;
+    style.id = styleId;
+    style.textContent = styleContent;
     document.head.appendChild(style);
   }
 
@@ -260,23 +342,38 @@
   }
 
   // Create widget button
-  function createWidgetButton(widgetType, widgetConfig, branding) {
+  function createWidgetButton(widgetType, widgetConfig, branding, styling, translations) {
+    // Inject widget-specific styles
+    injectWidgetStyles(widgetType, styling);
+    
     const button = document.createElement('button');
-    button.className = `financely-widget-button ${widgetConfig.position || 'bottom-right'}`;
-    button.style.backgroundColor = branding.colors.primary;
-    button.style.color = 'white';
-    button.textContent = widgetConfig.title || 'Contact Us';
-    button.onclick = () => openWidget(widgetType, widgetConfig, branding);
+    button.className = `financely-widget-button financely-widget-${widgetType} ${widgetConfig.position || 'bottom-right'}`;
+    
+    // Use styling if available, otherwise fall back to branding
+    const primaryColor = styling?.primaryColor || branding.colors.primary;
+    const bgColor = styling?.backgroundColor || '#ffffff';
+    
+    button.style.backgroundColor = primaryColor;
+    button.style.color = bgColor;
+    button.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    button.onclick = () => openWidget(widgetType, widgetConfig, branding, styling, translations);
     return button;
   }
 
   // Open widget modal
-  function openWidget(widgetType, widgetConfig, branding) {
+  function openWidget(widgetType, widgetConfig, branding, styling, translations) {
+    // Ensure widget-specific styles are injected
+    injectWidgetStyles(widgetType, styling);
+    
     const modal = document.createElement('div');
-    modal.className = 'financely-widget-modal';
+    modal.className = `financely-widget-modal financely-widget-${widgetType}`;
     modal.onclick = (e) => {
       if (e.target === modal) closeWidget(modal);
     };
+
+    // Wrap content in widget-specific container for CSS scoping
+    const widgetContainer = document.createElement('div');
+    widgetContainer.className = `financely-widget-${widgetType}`;
 
     const content = document.createElement('div');
     content.className = 'financely-widget-modal-content';
@@ -286,7 +383,7 @@
     
     const title = document.createElement('h2');
     title.className = 'financely-widget-title';
-    title.textContent = widgetConfig.title || 'Contact Us';
+    title.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'financely-widget-close';
@@ -302,60 +399,88 @@
     if (widgetConfig.description) {
       const desc = document.createElement('p');
       desc.className = 'financely-widget-description';
-      desc.textContent = widgetConfig.description;
+      desc.textContent = translate('description', translations, widgetConfig.description);
       body.appendChild(desc);
     }
 
-    const form = createWidgetForm(widgetType, widgetConfig, branding);
+    const form = createWidgetForm(widgetType, widgetConfig, branding, styling, translations);
     body.appendChild(form);
 
     content.appendChild(header);
     content.appendChild(body);
-    modal.appendChild(content);
+    widgetContainer.appendChild(content);
+    modal.appendChild(widgetContainer);
     document.body.appendChild(modal);
   }
 
   // Create widget form
-  function createWidgetForm(widgetType, widgetConfig, branding) {
+  function createWidgetForm(widgetType, widgetConfig, branding, styling, translations) {
     const form = document.createElement('form');
-    form.className = 'financely-widget-form';
+    form.className = `financely-widget-form financely-widget-${widgetType}`;
     form.onsubmit = async (e) => {
       e.preventDefault();
-      await submitForm(widgetType, form, widgetConfig);
+      await submitForm(widgetType, form, widgetConfig, translations);
     };
 
-    if (widgetType === 'contactForm' && widgetConfig.fields) {
-      widgetConfig.fields.forEach(field => {
-        const fieldDiv = document.createElement('div');
-        fieldDiv.className = 'financely-widget-field';
-
-        const label = document.createElement('label');
-        label.className = 'financely-widget-label';
-        label.textContent = field.label + (field.required ? ' *' : '');
-        label.setAttribute('for', field.name);
-
-        let input;
-        if (field.type === 'textarea') {
-          input = document.createElement('textarea');
-          input.className = 'financely-widget-textarea';
-        } else {
-          input = document.createElement('input');
-          input.className = 'financely-widget-input';
-          input.type = field.type;
-        }
-        input.id = field.name;
-        input.name = field.name;
-        input.required = field.required;
-
-        fieldDiv.appendChild(label);
-        fieldDiv.appendChild(input);
-        form.appendChild(fieldDiv);
+    if (widgetType === 'contactForm') {
+      // Build fields from builtInFields and customFields
+      const allFields = [];
+      
+      // Add built-in fields if enabled
+      if (widgetConfig.builtInFields) {
+        const builtInFieldMap = {
+          name: { name: 'name', type: 'text' },
+          email: { name: 'email', type: 'email' },
+          phone: { name: 'phone', type: 'tel' },
+          company: { name: 'company', type: 'text' },
+          message: { name: 'message', type: 'textarea' },
+        };
+        
+        Object.entries(widgetConfig.builtInFields).forEach(([key, config]) => {
+          if (config && config.enabled) {
+            allFields.push({
+              ...builtInFieldMap[key],
+              label: translate(`${key}Label`, translations, config.label || key),
+              required: config.required || false,
+              placeholder: translate(`${key}Placeholder`, translations, ''),
+              order: 0,
+            });
+          }
+        });
+      }
+      
+      // Add custom fields
+      if (widgetConfig.customFields && Array.isArray(widgetConfig.customFields)) {
+        widgetConfig.customFields.forEach(field => {
+          allFields.push({
+            name: field.name,
+            type: field.type,
+            label: translate(`${field.name}Label`, translations, field.label),
+            required: field.required || false,
+            placeholder: translate(`${field.name}Placeholder`, translations, field.placeholder || ''),
+            options: field.options,
+            validation: field.validation,
+            order: field.order || 0,
+          });
+        });
+      }
+      
+      // Sort by order
+      allFields.sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      // Create form fields
+      allFields.forEach(field => {
+        const fieldElement = createFormFieldElement(field, translations, widgetType);
+        form.appendChild(fieldElement);
       });
     } else {
       // Default fields for invoice/quote requests
-      const nameField = createFormField('name', 'Name', 'text', true);
-      const emailField = createFormField('email', 'Email', 'email', true);
-      const messageField = createFormField('message', 'Message', 'textarea', false);
+      const nameLabel = translate('name', translations, 'Name');
+      const emailLabel = translate('email', translations, 'Email');
+      const messageLabel = translate('message', translations, 'Message');
+      const nameField = createFormField('name', nameLabel, 'text', true, widgetType);
+      const emailField = createFormField('email', emailLabel, 'email', true, widgetType);
+      const messageField = createFormField('message', messageLabel, 'textarea', false, widgetType);
       form.appendChild(nameField);
       form.appendChild(emailField);
       form.appendChild(messageField);
@@ -363,31 +488,111 @@
 
     const submitBtn = document.createElement('button');
     submitBtn.type = 'submit';
-    submitBtn.className = 'financely-widget-submit';
-    submitBtn.style.backgroundColor = branding.colors.primary;
-    submitBtn.style.color = 'white';
-    submitBtn.textContent = widgetConfig.submitButtonText || 'Submit';
+    submitBtn.className = `financely-widget-submit financely-widget-${widgetType}`;
+    
+    // Use styling if available
+    const primaryColor = styling?.primaryColor || branding.colors.primary;
+    const bgColor = styling?.backgroundColor || '#ffffff';
+    
+    submitBtn.style.backgroundColor = primaryColor;
+    submitBtn.style.color = bgColor;
+    submitBtn.textContent = translate('submitButton', translations, widgetConfig.submitButtonText || 'Submit');
     form.appendChild(submitBtn);
 
     return form;
   }
 
-  function createFormField(name, label, type, required) {
+  // Create form field element with support for all field types
+  function createFormFieldElement(field, translations, widgetType) {
     const fieldDiv = document.createElement('div');
-    fieldDiv.className = 'financely-widget-field';
+    fieldDiv.className = `financely-widget-field financely-widget-${widgetType}`;
+
+    const label = document.createElement('label');
+    label.className = `financely-widget-label financely-widget-${widgetType}`;
+    const requiredText = translate('required', translations, '*');
+    label.textContent = field.label + (field.required ? ' ' + requiredText : '');
+    label.setAttribute('for', field.name);
+
+    let input;
+    if (field.type === 'textarea') {
+      input = document.createElement('textarea');
+      input.className = `financely-widget-textarea financely-widget-${widgetType}`;
+      input.rows = 4;
+    } else if (field.type === 'select') {
+      input = document.createElement('select');
+      input.className = `financely-widget-select financely-widget-${widgetType}`;
+      if (field.options && Array.isArray(field.options)) {
+        field.options.forEach(option => {
+          const optionEl = document.createElement('option');
+          optionEl.value = option;
+          optionEl.textContent = translate(`${field.name}_${option}`, translations, option);
+          input.appendChild(optionEl);
+        });
+      }
+    } else if (field.type === 'checkbox') {
+      input = document.createElement('input');
+      input.className = `financely-widget-checkbox financely-widget-${widgetType}`;
+      input.type = 'checkbox';
+      input.value = 'true';
+      // For checkboxes, wrap label and input together
+      const checkboxWrapper = document.createElement('div');
+      checkboxWrapper.className = `financely-widget-checkbox-label financely-widget-${widgetType}`;
+      label.className = `financely-widget-label financely-widget-${widgetType}`;
+      label.style.cursor = 'pointer';
+      checkboxWrapper.appendChild(input);
+      checkboxWrapper.appendChild(label);
+      fieldDiv.innerHTML = '';
+      fieldDiv.appendChild(checkboxWrapper);
+      return fieldDiv;
+    } else if (field.type === 'number') {
+      input = document.createElement('input');
+      input.className = `financely-widget-input financely-widget-${widgetType}`;
+      input.type = 'number';
+      if (field.validation) {
+        if (field.validation.min !== undefined) input.min = field.validation.min;
+        if (field.validation.max !== undefined) input.max = field.validation.max;
+      }
+    } else if (field.type === 'date') {
+      input = document.createElement('input');
+      input.className = `financely-widget-input financely-widget-${widgetType}`;
+      input.type = 'date';
+    } else {
+      input = document.createElement('input');
+      input.className = `financely-widget-input financely-widget-${widgetType}`;
+      input.type = field.type || 'text';
+      if (field.validation && field.validation.pattern) {
+        input.pattern = field.validation.pattern;
+      }
+    }
+    
+    input.id = field.name;
+    input.name = field.name;
+    input.required = field.required || false;
+    if (field.placeholder) {
+      input.placeholder = field.placeholder;
+    }
+
+    fieldDiv.appendChild(label);
+    fieldDiv.appendChild(input);
+    return fieldDiv;
+  }
+
+  function createFormField(name, label, type, required, widgetType) {
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = `financely-widget-field financely-widget-${widgetType}`;
 
     const labelEl = document.createElement('label');
-    labelEl.className = 'financely-widget-label';
+    labelEl.className = `financely-widget-label financely-widget-${widgetType}`;
     labelEl.textContent = label + (required ? ' *' : '');
     labelEl.setAttribute('for', name);
 
     let input;
     if (type === 'textarea') {
       input = document.createElement('textarea');
-      input.className = 'financely-widget-textarea';
+      input.className = `financely-widget-textarea financely-widget-${widgetType}`;
     } else {
       input = document.createElement('input');
-      input.className = 'financely-widget-input';
+      input.className = `financely-widget-input financely-widget-${widgetType}`;
       input.type = type;
     }
     input.id = name;
@@ -400,11 +605,11 @@
   }
 
   // Submit form
-  async function submitForm(widgetType, form, widgetConfig) {
+  async function submitForm(widgetType, form, widgetConfig, translations) {
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
+    submitBtn.textContent = translate('submitting', translations, 'Submitting...');
 
     // Remove existing messages
     const existingMessage = form.querySelector('.financely-widget-message');
@@ -413,9 +618,19 @@
     try {
       const formData = new FormData(form);
       const data = {};
-      for (const [key, value] of formData.entries()) {
-        data[key] = value;
-      }
+      
+      // First, collect all form fields including unchecked checkboxes
+      const allInputs = form.querySelectorAll('input, textarea, select');
+      allInputs.forEach(input => {
+        const name = input.name;
+        if (!name) return;
+        
+        if (input.type === 'checkbox') {
+          data[name] = input.checked ? 'true' : 'false';
+        } else {
+          data[name] = input.value || '';
+        }
+      });
 
       const response = await fetch(`${config.apiUrl}/submitWidgetForm`, {
         method: 'POST',
@@ -437,7 +652,8 @@
       // Show success message
       const message = document.createElement('div');
       message.className = 'financely-widget-message success';
-      message.textContent = widgetConfig.successMessage || 'Thank you! We\'ll get back to you soon.';
+      const successMsg = translate('successMessage', translations, widgetConfig.successMessage || 'Thank you! We\'ll get back to you soon.');
+      message.textContent = successMsg;
       form.appendChild(message);
 
       // Reset form
@@ -453,7 +669,8 @@
     } catch (error) {
       const message = document.createElement('div');
       message.className = 'financely-widget-message error';
-      message.textContent = error.message || 'An error occurred. Please try again.';
+      const errorMsg = translate('errorMessage', translations, error.message || 'An error occurred. Please try again.');
+      message.textContent = errorMsg;
       form.appendChild(message);
     } finally {
       submitBtn.disabled = false;
@@ -472,7 +689,10 @@
   }
 
   // Create inline widget form
-  function createInlineWidget(widgetType, widgetConfig, branding) {
+  function createInlineWidget(widgetType, widgetConfig, branding, styling, translations) {
+    // Inject widget-specific styles
+    injectWidgetStyles(widgetType, styling);
+    
     const placeholder = document.querySelector(`[data-financely-widget="${widgetType}"]`);
     if (!placeholder) {
       console.warn(`Financely Widget: Placeholder element with data-financely-widget="${widgetType}" not found`);
@@ -480,21 +700,21 @@
     }
 
     const container = document.createElement('div');
-    container.className = 'financely-widget-inline';
+    container.className = `financely-widget-inline financely-widget-${widgetType}`;
 
     const title = document.createElement('h2');
-    title.className = 'financely-widget-inline-title';
-    title.textContent = widgetConfig.title || 'Contact Us';
+    title.className = `financely-widget-inline-title financely-widget-${widgetType}`;
+    title.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
     container.appendChild(title);
 
     if (widgetConfig.description) {
       const desc = document.createElement('p');
-      desc.className = 'financely-widget-inline-description';
-      desc.textContent = widgetConfig.description;
+      desc.className = `financely-widget-inline-description financely-widget-${widgetType}`;
+      desc.textContent = translate('description', translations, widgetConfig.description);
       container.appendChild(desc);
     }
 
-    const form = createWidgetForm(widgetType, widgetConfig, branding);
+    const form = createWidgetForm(widgetType, widgetConfig, branding, styling, translations);
     container.appendChild(form);
 
     // Replace placeholder with the form
@@ -503,7 +723,6 @@
 
   // Initialize widgets
   async function init() {
-    injectStyles();
     const widgetConfig = await loadConfig();
     
     if (!widgetConfig || !widgetConfig.widgets.enabled) {
@@ -512,26 +731,62 @@
 
     const { widgets, branding } = widgetConfig;
 
-    // Create contact form widget
+    // Default styling fallback
+    const defaultStyling = {
+      primaryColor: "#2563eb",
+      secondaryColor: "#6b7280",
+      backgroundColor: "#ffffff",
+      textColor: "#111827",
+      borderColor: "#d1d5db",
+      errorColor: "#ef4444",
+      successColor: "#10b981",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      fontSize: "14px",
+      fontWeight: "400",
+      padding: "12px",
+      gap: "16px",
+      borderRadius: "8px",
+      buttonPadding: "12px 24px",
+      buttonBorderRadius: "8px",
+      buttonFontWeight: "600",
+      modalBackdropOpacity: "0.5",
+      modalBorderRadius: "12px",
+      modalMaxWidth: "500px",
+      shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    };
+
+    // Create contact form widget with widget-specific styling and localization
     if (widgets.contactForm && widgets.contactForm.enabled) {
+      const contactFormStyling = widgets.contactForm.styling || defaultStyling;
+      const contactFormLocalization = widgets.contactForm.localization || { language: 'en', translations: {} };
+      const contactFormTranslations = contactFormLocalization.translations || {};
+      
       const displayMode = widgets.contactForm.displayMode || 'floating';
       if (displayMode === 'inline') {
-        createInlineWidget('contactForm', widgets.contactForm, branding);
+        createInlineWidget('contactForm', widgets.contactForm, branding, contactFormStyling, contactFormTranslations);
       } else {
-        const button = createWidgetButton('contactForm', widgets.contactForm, branding);
+        const button = createWidgetButton('contactForm', widgets.contactForm, branding, contactFormStyling, contactFormTranslations);
         document.body.appendChild(button);
       }
     }
 
-    // Create invoice request widget
+    // Create invoice request widget with widget-specific styling and localization
     if (widgets.invoiceRequest && widgets.invoiceRequest.enabled) {
-      const button = createWidgetButton('invoiceRequest', widgets.invoiceRequest, branding);
+      const invoiceRequestStyling = widgets.invoiceRequest.styling || defaultStyling;
+      const invoiceRequestLocalization = widgets.invoiceRequest.localization || { language: 'en', translations: {} };
+      const invoiceRequestTranslations = invoiceRequestLocalization.translations || {};
+      
+      const button = createWidgetButton('invoiceRequest', widgets.invoiceRequest, branding, invoiceRequestStyling, invoiceRequestTranslations);
       document.body.appendChild(button);
     }
 
-    // Create quote request widget
+    // Create quote request widget with widget-specific styling and localization
     if (widgets.quoteRequest && widgets.quoteRequest.enabled) {
-      const button = createWidgetButton('quoteRequest', widgets.quoteRequest, branding);
+      const quoteRequestStyling = widgets.quoteRequest.styling || defaultStyling;
+      const quoteRequestLocalization = widgets.quoteRequest.localization || { language: 'en', translations: {} };
+      const quoteRequestTranslations = quoteRequestLocalization.translations || {};
+      
+      const button = createWidgetButton('quoteRequest', widgets.quoteRequest, branding, quoteRequestStyling, quoteRequestTranslations);
       document.body.appendChild(button);
     }
   }

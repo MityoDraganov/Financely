@@ -74,6 +74,7 @@ export const getWidgetConfig = onRequest(
       };
 
       // Build response with only enabled widgets
+      // Styling and localization are now widget-specific (inside each widget's config)
       const config = {
         organizationId: organization.id,
         branding: {
@@ -84,6 +85,7 @@ export const getWidgetConfig = onRequest(
         widgets: widgets?.enabled
           ? {
               enabled: true,
+              // Styling and localization are now widget-specific
               contactForm: widgets.contactForm?.enabled ? widgets.contactForm : null,
               invoiceRequest: widgets.invoiceRequest?.enabled ? widgets.invoiceRequest : null,
               quoteRequest: widgets.quoteRequest?.enabled ? widgets.quoteRequest : null,

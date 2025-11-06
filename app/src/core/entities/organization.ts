@@ -129,16 +129,70 @@ export const organizationDataSchema = z.object({
               enabled: z.boolean().default(false),
               title: z.string().default("Contact Us"),
               description: z.string().optional(),
-              fields: z.array(z.object({
+              // Widget-specific styling configuration
+              styling: z
+                .object({
+                  // Colors
+                  primaryColor: z.string().default("#2563eb"),
+                  secondaryColor: z.string().default("#6b7280"),
+                  backgroundColor: z.string().default("#ffffff"),
+                  textColor: z.string().default("#111827"),
+                  borderColor: z.string().default("#d1d5db"),
+                  errorColor: z.string().default("#ef4444"),
+                  successColor: z.string().default("#10b981"),
+                  // Typography
+                  fontFamily: z.string().default("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"),
+                  fontSize: z.string().default("14px"),
+                  fontWeight: z.string().default("400"),
+                  // Spacing
+                  padding: z.string().default("12px"),
+                  gap: z.string().default("16px"),
+                  borderRadius: z.string().default("8px"),
+                  // Button styling
+                  buttonPadding: z.string().default("12px 24px"),
+                  buttonBorderRadius: z.string().default("8px"),
+                  buttonFontWeight: z.string().default("600"),
+                  // Modal/Container styling
+                  modalBackdropOpacity: z.string().default("0.5"),
+                  modalBorderRadius: z.string().default("12px"),
+                  modalMaxWidth: z.string().default("500px"),
+                  // Shadow
+                  shadow: z.string().default("0 4px 12px rgba(0, 0, 0, 0.15)"),
+                })
+                .optional(),
+              // Widget-specific localization
+              localization: z
+                .object({
+                  language: z.string().default("en"),
+                  translations: z.record(z.string(), z.string()).default({}),
+                })
+                .optional(),
+              // Built-in fields configuration
+              builtInFields: z
+                .object({
+                  name: z.object({ enabled: z.boolean().default(true), required: z.boolean().default(true), label: z.string().default("Name") }).optional(),
+                  email: z.object({ enabled: z.boolean().default(true), required: z.boolean().default(true), label: z.string().default("Email") }).optional(),
+                  phone: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false), label: z.string().default("Phone") }).optional(),
+                  company: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false), label: z.string().default("Company") }).optional(),
+                  message: z.object({ enabled: z.boolean().default(true), required: z.boolean().default(false), label: z.string().default("Message") }).optional(),
+                })
+                .optional(),
+              // Custom metadata fields
+              customFields: z.array(z.object({
+                id: z.string(),
                 name: z.string(),
                 label: z.string(),
-                type: z.enum(["text", "email", "tel", "textarea"]),
+                type: z.enum(["text", "email", "tel", "textarea", "number", "select", "checkbox", "date"]),
                 required: z.boolean().default(false),
-              })).default([
-                { name: "name", label: "Name", type: "text" as const, required: true },
-                { name: "email", label: "Email", type: "email" as const, required: true },
-                { name: "message", label: "Message", type: "textarea" as const, required: true },
-              ]),
+                placeholder: z.string().optional(),
+                options: z.array(z.string()).optional(), // For select type
+                validation: z.object({
+                  min: z.number().optional(),
+                  max: z.number().optional(),
+                  pattern: z.string().optional(),
+                }).optional(),
+                order: z.number().default(0),
+              })).default([]),
               submitButtonText: z.string().default("Send Message"),
               successMessage: z.string().default("Thank you! We'll get back to you soon."),
               position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),
@@ -150,6 +204,44 @@ export const organizationDataSchema = z.object({
               enabled: z.boolean().default(false),
               title: z.string().default("Request Invoice"),
               description: z.string().optional(),
+              // Widget-specific styling configuration
+              styling: z
+                .object({
+                  // Colors
+                  primaryColor: z.string().default("#2563eb"),
+                  secondaryColor: z.string().default("#6b7280"),
+                  backgroundColor: z.string().default("#ffffff"),
+                  textColor: z.string().default("#111827"),
+                  borderColor: z.string().default("#d1d5db"),
+                  errorColor: z.string().default("#ef4444"),
+                  successColor: z.string().default("#10b981"),
+                  // Typography
+                  fontFamily: z.string().default("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"),
+                  fontSize: z.string().default("14px"),
+                  fontWeight: z.string().default("400"),
+                  // Spacing
+                  padding: z.string().default("12px"),
+                  gap: z.string().default("16px"),
+                  borderRadius: z.string().default("8px"),
+                  // Button styling
+                  buttonPadding: z.string().default("12px 24px"),
+                  buttonBorderRadius: z.string().default("8px"),
+                  buttonFontWeight: z.string().default("600"),
+                  // Modal/Container styling
+                  modalBackdropOpacity: z.string().default("0.5"),
+                  modalBorderRadius: z.string().default("12px"),
+                  modalMaxWidth: z.string().default("500px"),
+                  // Shadow
+                  shadow: z.string().default("0 4px 12px rgba(0, 0, 0, 0.15)"),
+                })
+                .optional(),
+              // Widget-specific localization
+              localization: z
+                .object({
+                  language: z.string().default("en"),
+                  translations: z.record(z.string(), z.string()).default({}),
+                })
+                .optional(),
               submitButtonText: z.string().default("Request Invoice"),
               successMessage: z.string().default("Invoice request submitted successfully!"),
               position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),
@@ -160,6 +252,44 @@ export const organizationDataSchema = z.object({
               enabled: z.boolean().default(false),
               title: z.string().default("Request Quote"),
               description: z.string().optional(),
+              // Widget-specific styling configuration
+              styling: z
+                .object({
+                  // Colors
+                  primaryColor: z.string().default("#2563eb"),
+                  secondaryColor: z.string().default("#6b7280"),
+                  backgroundColor: z.string().default("#ffffff"),
+                  textColor: z.string().default("#111827"),
+                  borderColor: z.string().default("#d1d5db"),
+                  errorColor: z.string().default("#ef4444"),
+                  successColor: z.string().default("#10b981"),
+                  // Typography
+                  fontFamily: z.string().default("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"),
+                  fontSize: z.string().default("14px"),
+                  fontWeight: z.string().default("400"),
+                  // Spacing
+                  padding: z.string().default("12px"),
+                  gap: z.string().default("16px"),
+                  borderRadius: z.string().default("8px"),
+                  // Button styling
+                  buttonPadding: z.string().default("12px 24px"),
+                  buttonBorderRadius: z.string().default("8px"),
+                  buttonFontWeight: z.string().default("600"),
+                  // Modal/Container styling
+                  modalBackdropOpacity: z.string().default("0.5"),
+                  modalBorderRadius: z.string().default("12px"),
+                  modalMaxWidth: z.string().default("500px"),
+                  // Shadow
+                  shadow: z.string().default("0 4px 12px rgba(0, 0, 0, 0.15)"),
+                })
+                .optional(),
+              // Widget-specific localization
+              localization: z
+                .object({
+                  language: z.string().default("en"),
+                  translations: z.record(z.string(), z.string()).default({}),
+                })
+                .optional(),
               submitButtonText: z.string().default("Request Quote"),
               successMessage: z.string().default("Quote request submitted successfully!"),
               position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left", "center"]).default("bottom-right"),

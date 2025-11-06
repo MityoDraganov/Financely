@@ -9,6 +9,7 @@ export enum DatabaseCollection {
   WORKFLOWS = "workflows",
   WORKFLOW_EXECUTIONS = "workflowRuns",
   CONTACTS = "contacts",
+  LEADS = "leads",
   NOTIFICATIONS = "notifications",
   TASKS = "tasks",
 }

@@ -10,6 +10,7 @@ export * from "./entities/seller";
 export * from "./entities/template";
 export * from "./entities/workflow";
 export * from "./entities/contact";
+export * from "./entities/lead";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";
@@ -19,6 +20,7 @@ export * from "./ports/repositories/invoice-repository";
 export * from "./ports/repositories/organization-repository";
 export * from "./ports/repositories/user-repository";
 export * from "./ports/repositories/contact-repository";
+export * from "./ports/repositories/lead-repository";
 
 // Ports - Services
 export * from "./ports/services/database-service";

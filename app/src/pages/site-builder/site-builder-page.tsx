@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2 } from "lucide-react";
+import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2, Plus, Trash2, Palette, Globe, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,39 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion } from "@/hooks/service-hooks/use-brand-site";
 import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
+
+// Default styling object (constant, defined outside component)
+const defaultStyling = {
+  primaryColor: "#2563eb",
+  secondaryColor: "#6b7280",
+  backgroundColor: "#ffffff",
+  textColor: "#111827",
+  borderColor: "#d1d5db",
+  errorColor: "#ef4444",
+  successColor: "#10b981",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontSize: "14px",
+  fontWeight: "400",
+  padding: "12px",
+  gap: "16px",
+  borderRadius: "8px",
+  buttonPadding: "12px 24px",
+  buttonBorderRadius: "8px",
+  buttonFontWeight: "600",
+  modalBackdropOpacity: "0.5",
+  modalBorderRadius: "12px",
+  modalMaxWidth: "500px",
+  shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+};
 
 export default function SiteBuilderPage() {
   const { data: organization, isLoading } = useCurrentOrganization();
@@ -38,6 +65,48 @@ export default function SiteBuilderPage() {
   type WidgetPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
   
   const [widgetsEnabled, setWidgetsEnabled] = useState(false);
+
+  // Widget-specific styling state
+  const [contactFormStyling, setContactFormStyling] = useState(defaultStyling);
+  const [invoiceRequestStyling, setInvoiceRequestStyling] = useState(defaultStyling);
+  const [quoteRequestStyling, setQuoteRequestStyling] = useState(defaultStyling);
+
+  // Widget-specific localization state
+  const [contactFormLocalization, setContactFormLocalization] = useState({
+    language: "en",
+    translations: {} as Record<string, string>,
+  });
+  const [invoiceRequestLocalization, setInvoiceRequestLocalization] = useState({
+    language: "en",
+    translations: {} as Record<string, string>,
+  });
+  const [quoteRequestLocalization, setQuoteRequestLocalization] = useState({
+    language: "en",
+    translations: {} as Record<string, string>,
+  });
+
+  // Built-in fields state
+  const [builtInFields, setBuiltInFields] = useState({
+    name: { enabled: true, required: true, label: "Name" },
+    email: { enabled: true, required: true, label: "Email" },
+    phone: { enabled: false, required: false, label: "Phone" },
+    company: { enabled: false, required: false, label: "Company" },
+    message: { enabled: true, required: false, label: "Message" },
+  });
+
+  // Custom fields state
+  const [customFields, setCustomFields] = useState<Array<{
+    id: string;
+    name: string;
+    label: string;
+    type: "text" | "email" | "tel" | "textarea" | "number" | "select" | "checkbox" | "date";
+    required: boolean;
+    placeholder?: string;
+    options?: string[];
+    validation?: { min?: number; max?: number; pattern?: string };
+    order: number;
+  }>>([]);
+
   const [contactFormConfig, setContactFormConfig] = useState<{
     enabled: boolean;
     title: string;
@@ -148,6 +217,7 @@ export default function SiteBuilderPage() {
     const widgets = organization.settings.widgets;
     setWidgetsEnabled(widgets.enabled || false);
     
+    // Load contact form widget configuration
     if (widgets.contactForm) {
       setContactFormConfig({
         enabled: widgets.contactForm.enabled || false,
@@ -158,8 +228,59 @@ export default function SiteBuilderPage() {
         position: widgets.contactForm.position || "bottom-right",
         displayMode: widgets.contactForm.displayMode || "floating",
       });
+      
+      // Load contact form styling
+      if (widgets.contactForm.styling) {
+        setContactFormStyling({
+          primaryColor: widgets.contactForm.styling.primaryColor || defaultStyling.primaryColor,
+          secondaryColor: widgets.contactForm.styling.secondaryColor || defaultStyling.secondaryColor,
+          backgroundColor: widgets.contactForm.styling.backgroundColor || defaultStyling.backgroundColor,
+          textColor: widgets.contactForm.styling.textColor || defaultStyling.textColor,
+          borderColor: widgets.contactForm.styling.borderColor || defaultStyling.borderColor,
+          errorColor: widgets.contactForm.styling.errorColor || defaultStyling.errorColor,
+          successColor: widgets.contactForm.styling.successColor || defaultStyling.successColor,
+          fontFamily: widgets.contactForm.styling.fontFamily || defaultStyling.fontFamily,
+          fontSize: widgets.contactForm.styling.fontSize || defaultStyling.fontSize,
+          fontWeight: widgets.contactForm.styling.fontWeight || defaultStyling.fontWeight,
+          padding: widgets.contactForm.styling.padding || defaultStyling.padding,
+          gap: widgets.contactForm.styling.gap || defaultStyling.gap,
+          borderRadius: widgets.contactForm.styling.borderRadius || defaultStyling.borderRadius,
+          buttonPadding: widgets.contactForm.styling.buttonPadding || defaultStyling.buttonPadding,
+          buttonBorderRadius: widgets.contactForm.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
+          buttonFontWeight: widgets.contactForm.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
+          modalBackdropOpacity: widgets.contactForm.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
+          modalBorderRadius: widgets.contactForm.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
+          modalMaxWidth: widgets.contactForm.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
+          shadow: widgets.contactForm.styling.shadow || defaultStyling.shadow,
+        });
+      }
+      
+      // Load contact form localization
+      if (widgets.contactForm.localization) {
+        setContactFormLocalization({
+          language: widgets.contactForm.localization.language || "en",
+          translations: widgets.contactForm.localization.translations || {},
+        });
+      }
+      
+      // Load built-in fields
+      if (widgets.contactForm.builtInFields) {
+        setBuiltInFields({
+          name: widgets.contactForm.builtInFields.name || { enabled: true, required: true, label: "Name" },
+          email: widgets.contactForm.builtInFields.email || { enabled: true, required: true, label: "Email" },
+          phone: widgets.contactForm.builtInFields.phone || { enabled: false, required: false, label: "Phone" },
+          company: widgets.contactForm.builtInFields.company || { enabled: false, required: false, label: "Company" },
+          message: widgets.contactForm.builtInFields.message || { enabled: true, required: false, label: "Message" },
+        });
+      }
+      
+      // Load custom fields
+      if (widgets.contactForm.customFields) {
+        setCustomFields(widgets.contactForm.customFields);
+      }
     }
     
+    // Load invoice request widget configuration
     if (widgets.invoiceRequest) {
       setInvoiceRequestConfig({
         enabled: widgets.invoiceRequest.enabled || false,
@@ -169,8 +290,43 @@ export default function SiteBuilderPage() {
         successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
         position: widgets.invoiceRequest.position || "bottom-right",
       });
+      
+      // Load invoice request styling
+      if (widgets.invoiceRequest.styling) {
+        setInvoiceRequestStyling({
+          primaryColor: widgets.invoiceRequest.styling.primaryColor || defaultStyling.primaryColor,
+          secondaryColor: widgets.invoiceRequest.styling.secondaryColor || defaultStyling.secondaryColor,
+          backgroundColor: widgets.invoiceRequest.styling.backgroundColor || defaultStyling.backgroundColor,
+          textColor: widgets.invoiceRequest.styling.textColor || defaultStyling.textColor,
+          borderColor: widgets.invoiceRequest.styling.borderColor || defaultStyling.borderColor,
+          errorColor: widgets.invoiceRequest.styling.errorColor || defaultStyling.errorColor,
+          successColor: widgets.invoiceRequest.styling.successColor || defaultStyling.successColor,
+          fontFamily: widgets.invoiceRequest.styling.fontFamily || defaultStyling.fontFamily,
+          fontSize: widgets.invoiceRequest.styling.fontSize || defaultStyling.fontSize,
+          fontWeight: widgets.invoiceRequest.styling.fontWeight || defaultStyling.fontWeight,
+          padding: widgets.invoiceRequest.styling.padding || defaultStyling.padding,
+          gap: widgets.invoiceRequest.styling.gap || defaultStyling.gap,
+          borderRadius: widgets.invoiceRequest.styling.borderRadius || defaultStyling.borderRadius,
+          buttonPadding: widgets.invoiceRequest.styling.buttonPadding || defaultStyling.buttonPadding,
+          buttonBorderRadius: widgets.invoiceRequest.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
+          buttonFontWeight: widgets.invoiceRequest.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
+          modalBackdropOpacity: widgets.invoiceRequest.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
+          modalBorderRadius: widgets.invoiceRequest.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
+          modalMaxWidth: widgets.invoiceRequest.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
+          shadow: widgets.invoiceRequest.styling.shadow || defaultStyling.shadow,
+        });
+      }
+      
+      // Load invoice request localization
+      if (widgets.invoiceRequest.localization) {
+        setInvoiceRequestLocalization({
+          language: widgets.invoiceRequest.localization.language || "en",
+          translations: widgets.invoiceRequest.localization.translations || {},
+        });
+      }
     }
     
+    // Load quote request widget configuration
     if (widgets.quoteRequest) {
       setQuoteRequestConfig({
         enabled: widgets.quoteRequest.enabled || false,
@@ -180,6 +336,40 @@ export default function SiteBuilderPage() {
         successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
         position: widgets.quoteRequest.position || "bottom-right",
       });
+      
+      // Load quote request styling
+      if (widgets.quoteRequest.styling) {
+        setQuoteRequestStyling({
+          primaryColor: widgets.quoteRequest.styling.primaryColor || defaultStyling.primaryColor,
+          secondaryColor: widgets.quoteRequest.styling.secondaryColor || defaultStyling.secondaryColor,
+          backgroundColor: widgets.quoteRequest.styling.backgroundColor || defaultStyling.backgroundColor,
+          textColor: widgets.quoteRequest.styling.textColor || defaultStyling.textColor,
+          borderColor: widgets.quoteRequest.styling.borderColor || defaultStyling.borderColor,
+          errorColor: widgets.quoteRequest.styling.errorColor || defaultStyling.errorColor,
+          successColor: widgets.quoteRequest.styling.successColor || defaultStyling.successColor,
+          fontFamily: widgets.quoteRequest.styling.fontFamily || defaultStyling.fontFamily,
+          fontSize: widgets.quoteRequest.styling.fontSize || defaultStyling.fontSize,
+          fontWeight: widgets.quoteRequest.styling.fontWeight || defaultStyling.fontWeight,
+          padding: widgets.quoteRequest.styling.padding || defaultStyling.padding,
+          gap: widgets.quoteRequest.styling.gap || defaultStyling.gap,
+          borderRadius: widgets.quoteRequest.styling.borderRadius || defaultStyling.borderRadius,
+          buttonPadding: widgets.quoteRequest.styling.buttonPadding || defaultStyling.buttonPadding,
+          buttonBorderRadius: widgets.quoteRequest.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
+          buttonFontWeight: widgets.quoteRequest.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
+          modalBackdropOpacity: widgets.quoteRequest.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
+          modalBorderRadius: widgets.quoteRequest.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
+          modalMaxWidth: widgets.quoteRequest.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
+          shadow: widgets.quoteRequest.styling.shadow || defaultStyling.shadow,
+        });
+      }
+      
+      // Load quote request localization
+      if (widgets.quoteRequest.localization) {
+        setQuoteRequestLocalization({
+          language: widgets.quoteRequest.localization.language || "en",
+          translations: widgets.quoteRequest.localization.translations || {},
+        });
+      }
     }
   }, [organization?.settings?.widgets]);
 
@@ -193,9 +383,39 @@ export default function SiteBuilderPage() {
       // Build widgets object, only including enabled widgets (Firestore doesn't accept undefined)
       const widgets: {
         enabled: boolean;
-        contactForm?: typeof contactFormConfig & { fields: Array<{ name: string; label: string; type: "text" | "email" | "tel" | "textarea"; required: boolean }> };
-        invoiceRequest?: typeof invoiceRequestConfig;
-        quoteRequest?: typeof quoteRequestConfig;
+        contactForm?: {
+          enabled: boolean;
+          title: string;
+          description?: string;
+          styling?: typeof contactFormStyling;
+          localization?: typeof contactFormLocalization;
+          builtInFields?: typeof builtInFields;
+          customFields: typeof customFields;
+          submitButtonText: string;
+          successMessage: string;
+          position: WidgetPosition;
+          displayMode: "floating" | "inline";
+        };
+        invoiceRequest?: {
+          enabled: boolean;
+          title: string;
+          description?: string;
+          styling?: typeof invoiceRequestStyling;
+          localization?: typeof invoiceRequestLocalization;
+          submitButtonText: string;
+          successMessage: string;
+          position: WidgetPosition;
+        };
+        quoteRequest?: {
+          enabled: boolean;
+          title: string;
+          description?: string;
+          styling?: typeof quoteRequestStyling;
+          localization?: typeof quoteRequestLocalization;
+          submitButtonText: string;
+          successMessage: string;
+          position: WidgetPosition;
+        };
       } = {
         enabled: widgetsEnabled,
       };
@@ -203,20 +423,27 @@ export default function SiteBuilderPage() {
       if (widgetsEnabled && contactFormConfig.enabled) {
         widgets.contactForm = {
           ...contactFormConfig,
-          fields: [
-            { name: "name", label: "Name", type: "text" as const, required: true },
-            { name: "email", label: "Email", type: "email" as const, required: true },
-            { name: "message", label: "Message", type: "textarea" as const, required: true },
-          ],
+          styling: contactFormStyling,
+          localization: contactFormLocalization,
+          builtInFields: builtInFields,
+          customFields: customFields.length > 0 ? customFields : [],
         };
       }
 
       if (widgetsEnabled && invoiceRequestConfig.enabled) {
-        widgets.invoiceRequest = invoiceRequestConfig;
+        widgets.invoiceRequest = {
+          ...invoiceRequestConfig,
+          styling: invoiceRequestStyling,
+          localization: invoiceRequestLocalization,
+        };
       }
 
       if (widgetsEnabled && quoteRequestConfig.enabled) {
-        widgets.quoteRequest = quoteRequestConfig;
+        widgets.quoteRequest = {
+          ...quoteRequestConfig,
+          styling: quoteRequestStyling,
+          localization: quoteRequestLocalization,
+        };
       }
       
       await updateOrganization.mutateAsync({
@@ -233,6 +460,29 @@ export default function SiteBuilderPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save widget configuration");
     }
+  };
+
+  // Add custom field
+  const handleAddCustomField = () => {
+    const newField = {
+      id: `custom-${Date.now()}`,
+      name: `field_${customFields.length + 1}`,
+      label: "New Field",
+      type: "text" as const,
+      required: false,
+      order: customFields.length,
+    };
+    setCustomFields([...customFields, newField]);
+  };
+
+  // Remove custom field
+  const handleRemoveCustomField = (id: string) => {
+    setCustomFields(customFields.filter(f => f.id !== id));
+  };
+
+  // Update custom field
+  const handleUpdateCustomField = (id: string, updates: Partial<typeof customFields[0]>) => {
+    setCustomFields(customFields.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
   // Generate embed script
@@ -768,6 +1018,7 @@ export default function SiteBuilderPage() {
 
             {widgetsEnabled && (
               <>
+
                 {/* Contact Form Widget */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
@@ -785,99 +1036,500 @@ export default function SiteBuilderPage() {
                     />
                   </div>
                   {contactFormConfig.enabled && (
-                    <div className="space-y-3 mt-4 pl-4 border-l-2">
-                      <div className="space-y-2">
-                        <Label>Title</Label>
-                        <Input
-                          value={contactFormConfig.title}
-                          onChange={(e) =>
-                            setContactFormConfig({ ...contactFormConfig, title: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description (Optional)</Label>
-                        <Textarea
-                          value={contactFormConfig.description}
-                          onChange={(e) =>
-                            setContactFormConfig({ ...contactFormConfig, description: e.target.value })
-                          }
-                          rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Display Mode</Label>
-                        <Select
-                          value={contactFormConfig.displayMode}
-                          onValueChange={(value: "floating" | "inline") =>
-                            setContactFormConfig({ ...contactFormConfig, displayMode: value })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="floating">Floating Button</SelectItem>
-                            <SelectItem value="inline">Inline Form</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-gray-500">
-                          {contactFormConfig.displayMode === "floating"
-                            ? "Shows a floating button that opens a modal form"
-                            : "Renders the form directly in the page where a placeholder element exists"}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4 mt-4 pl-4 border-l-2">
+                      {/* Basic Configuration */}
+                      <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label>Button Text</Label>
+                          <Label>Title</Label>
                           <Input
-                            value={contactFormConfig.submitButtonText}
+                            value={contactFormConfig.title}
                             onChange={(e) =>
-                              setContactFormConfig({ ...contactFormConfig, submitButtonText: e.target.value })
+                              setContactFormConfig({ ...contactFormConfig, title: e.target.value })
                             }
                           />
                         </div>
-                        {contactFormConfig.displayMode === "floating" && (
+                        <div className="space-y-2">
+                          <Label>Description (Optional)</Label>
+                          <Textarea
+                            value={contactFormConfig.description}
+                            onChange={(e) =>
+                              setContactFormConfig({ ...contactFormConfig, description: e.target.value })
+                            }
+                            rows={2}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Display Mode</Label>
+                          <Select
+                            value={contactFormConfig.displayMode}
+                            onValueChange={(value: "floating" | "inline") =>
+                              setContactFormConfig({ ...contactFormConfig, displayMode: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="floating">Floating Button</SelectItem>
+                              <SelectItem value="inline">Inline Form</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-500">
+                            {contactFormConfig.displayMode === "floating"
+                              ? "Shows a floating button that opens a modal form"
+                              : "Renders the form directly in the page where a placeholder element exists"}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
-                            <Label>Position</Label>
-                            <Select
-                              value={contactFormConfig.position}
-                              onValueChange={(value: WidgetPosition) =>
-                                setContactFormConfig({ ...contactFormConfig, position: value })
+                            <Label>Button Text</Label>
+                            <Input
+                              value={contactFormConfig.submitButtonText}
+                              onChange={(e) =>
+                                setContactFormConfig({ ...contactFormConfig, submitButtonText: e.target.value })
                               }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                                <SelectItem value="top-right">Top Right</SelectItem>
-                                <SelectItem value="top-left">Top Left</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            />
+                          </div>
+                          {contactFormConfig.displayMode === "floating" && (
+                            <div className="space-y-2">
+                              <Label>Position</Label>
+                              <Select
+                                value={contactFormConfig.position}
+                                onValueChange={(value: WidgetPosition) =>
+                                  setContactFormConfig({ ...contactFormConfig, position: value })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                                  <SelectItem value="top-right">Top Right</SelectItem>
+                                  <SelectItem value="top-left">Top Left</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                        {contactFormConfig.displayMode === "inline" && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>Inline Form Usage:</strong> Add a placeholder element in your HTML where you want the form to appear:
+                            </p>
+                            <code className="text-xs text-blue-700 mt-2 block">
+                              {`<div data-financely-widget="contactForm"></div>`}
+                            </code>
                           </div>
                         )}
-                      </div>
-                      {contactFormConfig.displayMode === "inline" && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-sm text-blue-800">
-                            <strong>Inline Form Usage:</strong> Add a placeholder element in your HTML where you want the form to appear:
-                          </p>
-                          <code className="text-xs text-blue-700 mt-2 block">
-                            {`<div data-financely-widget="contactForm"></div>`}
-                          </code>
+                        <div className="space-y-2">
+                          <Label>Success Message</Label>
+                          <Input
+                            value={contactFormConfig.successMessage}
+                            onChange={(e) =>
+                              setContactFormConfig({ ...contactFormConfig, successMessage: e.target.value })
+                            }
+                          />
                         </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label>Success Message</Label>
-                        <Input
-                          value={contactFormConfig.successMessage}
-                          onChange={(e) =>
-                            setContactFormConfig({ ...contactFormConfig, successMessage: e.target.value })
-                          }
-                        />
                       </div>
+
+                      {/* Widget-Specific Styling */}
+                      <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="contactForm-styling">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Palette className="h-4 w-4" />
+                            <span>Styling & Appearance</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <ColorPicker
+                                label="Primary Color"
+                                value={contactFormStyling.primaryColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, primaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Secondary Color"
+                                value={contactFormStyling.secondaryColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, secondaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Background Color"
+                                value={contactFormStyling.backgroundColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, backgroundColor: color })}
+                              />
+                              <ColorPicker
+                                label="Text Color"
+                                value={contactFormStyling.textColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, textColor: color })}
+                              />
+                              <ColorPicker
+                                label="Border Color"
+                                value={contactFormStyling.borderColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, borderColor: color })}
+                              />
+                              <ColorPicker
+                                label="Error Color"
+                                value={contactFormStyling.errorColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, errorColor: color })}
+                              />
+                              <ColorPicker
+                                label="Success Color"
+                                value={contactFormStyling.successColor}
+                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, successColor: color })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Font Family</Label>
+                                <Input
+                                  value={contactFormStyling.fontFamily}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, fontFamily: e.target.value })}
+                                  placeholder="Arial, sans-serif"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Size</Label>
+                                <Input
+                                  value={contactFormStyling.fontSize}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, fontSize: e.target.value })}
+                                  placeholder="14px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Weight</Label>
+                                <Select
+                                  value={contactFormStyling.fontWeight}
+                                  onValueChange={(value) => setContactFormStyling({ ...contactFormStyling, fontWeight: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="300">Light (300)</SelectItem>
+                                    <SelectItem value="400">Normal (400)</SelectItem>
+                                    <SelectItem value="500">Medium (500)</SelectItem>
+                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
+                                    <SelectItem value="700">Bold (700)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Padding</Label>
+                                <Input
+                                  value={contactFormStyling.padding}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, padding: e.target.value })}
+                                  placeholder="12px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Gap</Label>
+                                <Input
+                                  value={contactFormStyling.gap}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, gap: e.target.value })}
+                                  placeholder="16px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Border Radius</Label>
+                                <Input
+                                  value={contactFormStyling.borderRadius}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, borderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Padding</Label>
+                                <Input
+                                  value={contactFormStyling.buttonPadding}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, buttonPadding: e.target.value })}
+                                  placeholder="12px 24px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Border Radius</Label>
+                                <Input
+                                  value={contactFormStyling.buttonBorderRadius}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, buttonBorderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Modal Max Width</Label>
+                                <Input
+                                  value={contactFormStyling.modalMaxWidth}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, modalMaxWidth: e.target.value })}
+                                  placeholder="500px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Shadow</Label>
+                                <Input
+                                  value={contactFormStyling.shadow}
+                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, shadow: e.target.value })}
+                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
+                                />
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        {/* Widget-Specific Localization */}
+                        <AccordionItem value="contactForm-localization">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            <span>Localization & Translations</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <Label>Default Language</Label>
+                              <Select
+                                value={contactFormLocalization.language}
+                                onValueChange={(value) => setContactFormLocalization({ ...contactFormLocalization, language: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="en">English</SelectItem>
+                                  <SelectItem value="es">Spanish</SelectItem>
+                                  <SelectItem value="fr">French</SelectItem>
+                                  <SelectItem value="de">German</SelectItem>
+                                  <SelectItem value="it">Italian</SelectItem>
+                                  <SelectItem value="pt">Portuguese</SelectItem>
+                                  <SelectItem value="ru">Russian</SelectItem>
+                                  <SelectItem value="zh">Chinese</SelectItem>
+                                  <SelectItem value="ja">Japanese</SelectItem>
+                                  <SelectItem value="ko">Korean</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Custom Translations</Label>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Add custom translations for widget text. Use keys like "contactUs", "sendMessage", etc.
+                              </p>
+                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                                {Object.entries(contactFormLocalization.translations).map(([key, value]) => (
+                                  <div key={key} className="flex gap-2">
+                                    <Input
+                                      value={key}
+                                      onChange={(e) => {
+                                        const newTranslations = { ...contactFormLocalization.translations };
+                                        delete newTranslations[key];
+                                        newTranslations[e.target.value] = value;
+                                        setContactFormLocalization({ ...contactFormLocalization, translations: newTranslations });
+                                      }}
+                                      placeholder="Translation key"
+                                      className="flex-1"
+                                    />
+                                    <Input
+                                      value={value}
+                                      onChange={(e) => {
+                                        setContactFormLocalization({
+                                          ...contactFormLocalization,
+                                          translations: { ...contactFormLocalization.translations, [key]: e.target.value },
+                                        });
+                                      }}
+                                      placeholder="Translated text"
+                                      className="flex-1"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        const newTranslations = { ...contactFormLocalization.translations };
+                                        delete newTranslations[key];
+                                        setContactFormLocalization({ ...contactFormLocalization, translations: newTranslations });
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newKey = `key_${Object.keys(contactFormLocalization.translations).length + 1}`;
+                                    setContactFormLocalization({
+                                      ...contactFormLocalization,
+                                      translations: { ...contactFormLocalization.translations, [newKey]: "" },
+                                    });
+                                  }}
+                                  className="w-full"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Translation
+                                </Button>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        {/* Field Configuration - Only for Contact Form */}
+                        <AccordionItem value="contactForm-fields">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span>Field Configuration</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            {/* Built-in Fields */}
+                            <div className="space-y-3">
+                              <Label className="text-base font-semibold">Built-in Fields</Label>
+                              {Object.entries(builtInFields).map(([fieldKey, fieldConfig]) => (
+                                <div key={fieldKey} className="p-3 border rounded-lg space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        checked={fieldConfig.enabled}
+                                        onCheckedChange={(checked) =>
+                                          setBuiltInFields({
+                                            ...builtInFields,
+                                            [fieldKey]: { ...fieldConfig, enabled: checked as boolean },
+                                          })
+                                        }
+                                      />
+                                      <Label className="font-medium capitalize">{fieldKey}</Label>
+                                    </div>
+                                  </div>
+                                  {fieldConfig.enabled && (
+                                    <div className="grid grid-cols-2 gap-3 pl-6">
+                                      <div className="space-y-2">
+                                        <Label>Label</Label>
+                                        <Input
+                                          value={fieldConfig.label}
+                                          onChange={(e) =>
+                                            setBuiltInFields({
+                                              ...builtInFields,
+                                              [fieldKey]: { ...fieldConfig, label: e.target.value },
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2 pt-6">
+                                        <Checkbox
+                                          checked={fieldConfig.required}
+                                          onCheckedChange={(checked) =>
+                                            setBuiltInFields({
+                                              ...builtInFields,
+                                              [fieldKey]: { ...fieldConfig, required: checked as boolean },
+                                            })
+                                          }
+                                        />
+                                        <Label>Required</Label>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Custom Fields */}
+                            <div className="space-y-3 border-t pt-4">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-base font-semibold">Custom Fields</Label>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleAddCustomField}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Custom Field
+                                </Button>
+                              </div>
+                              {customFields.map((field) => (
+                                <div key={field.id} className="p-4 border rounded-lg space-y-3">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                      <Label>Field Name (ID)</Label>
+                                      <Input
+                                        value={field.name}
+                                        onChange={(e) => handleUpdateCustomField(field.id, { name: e.target.value })}
+                                        placeholder="field_name"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Field Label</Label>
+                                      <Input
+                                        value={field.label}
+                                        onChange={(e) => handleUpdateCustomField(field.id, { label: e.target.value })}
+                                        placeholder="Field Label"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                      <Label>Field Type</Label>
+                                      <Select
+                                        value={field.type}
+                                        onValueChange={(value) => handleUpdateCustomField(field.id, { type: value as typeof field.type })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="text">Text</SelectItem>
+                                          <SelectItem value="email">Email</SelectItem>
+                                          <SelectItem value="tel">Phone</SelectItem>
+                                          <SelectItem value="textarea">Textarea</SelectItem>
+                                          <SelectItem value="number">Number</SelectItem>
+                                          <SelectItem value="select">Select</SelectItem>
+                                          <SelectItem value="checkbox">Checkbox</SelectItem>
+                                          <SelectItem value="date">Date</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-6">
+                                      <Checkbox
+                                        checked={field.required}
+                                        onCheckedChange={(checked) => handleUpdateCustomField(field.id, { required: checked as boolean })}
+                                      />
+                                      <Label>Required</Label>
+                                    </div>
+                                  </div>
+                                  {field.type === "select" && (
+                                    <div className="space-y-2">
+                                      <Label>Options (one per line)</Label>
+                                      <Textarea
+                                        value={field.options?.join("\n") || ""}
+                                        onChange={(e) =>
+                                          handleUpdateCustomField(field.id, {
+                                            options: e.target.value.split("\n").filter((o) => o.trim()),
+                                          })
+                                        }
+                                        placeholder="Option 1&#10;Option 2&#10;Option 3"
+                                        rows={3}
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="space-y-2">
+                                    <Label>Placeholder (Optional)</Label>
+                                    <Input
+                                      value={field.placeholder || ""}
+                                      onChange={(e) => handleUpdateCustomField(field.id, { placeholder: e.target.value })}
+                                      placeholder="Enter placeholder text"
+                                    />
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveCustomField(field.id)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Remove Field
+                                  </Button>
+                                </div>
+                              ))}
+                              {customFields.length === 0 && (
+                                <p className="text-sm text-gray-500 text-center py-4">
+                                  No custom fields added. Click "Add Custom Field" to create one.
+                                </p>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   )}
                 </div>
@@ -899,65 +1551,301 @@ export default function SiteBuilderPage() {
                     />
                   </div>
                   {invoiceRequestConfig.enabled && (
-                    <div className="space-y-3 mt-4 pl-4 border-l-2">
-                      <div className="space-y-2">
-                        <Label>Title</Label>
-                        <Input
-                          value={invoiceRequestConfig.title}
-                          onChange={(e) =>
-                            setInvoiceRequestConfig({ ...invoiceRequestConfig, title: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description (Optional)</Label>
-                        <Textarea
-                          value={invoiceRequestConfig.description}
-                          onChange={(e) =>
-                            setInvoiceRequestConfig({ ...invoiceRequestConfig, description: e.target.value })
-                          }
-                          rows={2}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4 mt-4 pl-4 border-l-2">
+                      {/* Basic Configuration */}
+                      <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label>Button Text</Label>
+                          <Label>Title</Label>
                           <Input
-                            value={invoiceRequestConfig.submitButtonText}
+                            value={invoiceRequestConfig.title}
                             onChange={(e) =>
-                              setInvoiceRequestConfig({ ...invoiceRequestConfig, submitButtonText: e.target.value })
+                              setInvoiceRequestConfig({ ...invoiceRequestConfig, title: e.target.value })
                             }
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Position</Label>
-                          <Select
-                            value={invoiceRequestConfig.position}
-                            onValueChange={(value: WidgetPosition) =>
-                              setInvoiceRequestConfig({ ...invoiceRequestConfig, position: value })
+                          <Label>Description (Optional)</Label>
+                          <Textarea
+                            value={invoiceRequestConfig.description}
+                            onChange={(e) =>
+                              setInvoiceRequestConfig({ ...invoiceRequestConfig, description: e.target.value })
                             }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                              <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                              <SelectItem value="top-right">Top Right</SelectItem>
-                              <SelectItem value="top-left">Top Left</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Button Text</Label>
+                            <Input
+                              value={invoiceRequestConfig.submitButtonText}
+                              onChange={(e) =>
+                                setInvoiceRequestConfig({ ...invoiceRequestConfig, submitButtonText: e.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Position</Label>
+                            <Select
+                              value={invoiceRequestConfig.position}
+                              onValueChange={(value: WidgetPosition) =>
+                                setInvoiceRequestConfig({ ...invoiceRequestConfig, position: value })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                                <SelectItem value="top-right">Top Right</SelectItem>
+                                <SelectItem value="top-left">Top Left</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Success Message</Label>
+                          <Input
+                            value={invoiceRequestConfig.successMessage}
+                            onChange={(e) =>
+                              setInvoiceRequestConfig({ ...invoiceRequestConfig, successMessage: e.target.value })
+                            }
+                          />
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Success Message</Label>
-                        <Input
-                          value={invoiceRequestConfig.successMessage}
-                          onChange={(e) =>
-                            setInvoiceRequestConfig({ ...invoiceRequestConfig, successMessage: e.target.value })
-                          }
-                        />
-                      </div>
+
+                      {/* Widget-Specific Styling & Localization */}
+                      <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="invoiceRequest-styling">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Palette className="h-4 w-4" />
+                            <span>Styling & Appearance</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <ColorPicker
+                                label="Primary Color"
+                                value={invoiceRequestStyling.primaryColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, primaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Secondary Color"
+                                value={invoiceRequestStyling.secondaryColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, secondaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Background Color"
+                                value={invoiceRequestStyling.backgroundColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, backgroundColor: color })}
+                              />
+                              <ColorPicker
+                                label="Text Color"
+                                value={invoiceRequestStyling.textColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, textColor: color })}
+                              />
+                              <ColorPicker
+                                label="Border Color"
+                                value={invoiceRequestStyling.borderColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, borderColor: color })}
+                              />
+                              <ColorPicker
+                                label="Error Color"
+                                value={invoiceRequestStyling.errorColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, errorColor: color })}
+                              />
+                              <ColorPicker
+                                label="Success Color"
+                                value={invoiceRequestStyling.successColor}
+                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, successColor: color })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Font Family</Label>
+                                <Input
+                                  value={invoiceRequestStyling.fontFamily}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontFamily: e.target.value })}
+                                  placeholder="Arial, sans-serif"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Size</Label>
+                                <Input
+                                  value={invoiceRequestStyling.fontSize}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontSize: e.target.value })}
+                                  placeholder="14px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Weight</Label>
+                                <Select
+                                  value={invoiceRequestStyling.fontWeight}
+                                  onValueChange={(value) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontWeight: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="300">Light (300)</SelectItem>
+                                    <SelectItem value="400">Normal (400)</SelectItem>
+                                    <SelectItem value="500">Medium (500)</SelectItem>
+                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
+                                    <SelectItem value="700">Bold (700)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Padding</Label>
+                                <Input
+                                  value={invoiceRequestStyling.padding}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, padding: e.target.value })}
+                                  placeholder="12px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Gap</Label>
+                                <Input
+                                  value={invoiceRequestStyling.gap}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, gap: e.target.value })}
+                                  placeholder="16px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Border Radius</Label>
+                                <Input
+                                  value={invoiceRequestStyling.borderRadius}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, borderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Padding</Label>
+                                <Input
+                                  value={invoiceRequestStyling.buttonPadding}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, buttonPadding: e.target.value })}
+                                  placeholder="12px 24px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Border Radius</Label>
+                                <Input
+                                  value={invoiceRequestStyling.buttonBorderRadius}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, buttonBorderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Modal Max Width</Label>
+                                <Input
+                                  value={invoiceRequestStyling.modalMaxWidth}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, modalMaxWidth: e.target.value })}
+                                  placeholder="500px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Shadow</Label>
+                                <Input
+                                  value={invoiceRequestStyling.shadow}
+                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, shadow: e.target.value })}
+                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
+                                />
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="invoiceRequest-localization">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            <span>Localization & Translations</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <Label>Default Language</Label>
+                              <Select
+                                value={invoiceRequestLocalization.language}
+                                onValueChange={(value) => setInvoiceRequestLocalization({ ...invoiceRequestLocalization, language: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="en">English</SelectItem>
+                                  <SelectItem value="es">Spanish</SelectItem>
+                                  <SelectItem value="fr">French</SelectItem>
+                                  <SelectItem value="de">German</SelectItem>
+                                  <SelectItem value="it">Italian</SelectItem>
+                                  <SelectItem value="pt">Portuguese</SelectItem>
+                                  <SelectItem value="ru">Russian</SelectItem>
+                                  <SelectItem value="zh">Chinese</SelectItem>
+                                  <SelectItem value="ja">Japanese</SelectItem>
+                                  <SelectItem value="ko">Korean</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Custom Translations</Label>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Add custom translations for widget text. Use keys like "requestInvoice", "submitButton", etc.
+                              </p>
+                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                                {Object.entries(invoiceRequestLocalization.translations).map(([key, value]) => (
+                                  <div key={key} className="flex gap-2">
+                                    <Input
+                                      value={key}
+                                      onChange={(e) => {
+                                        const newTranslations = { ...invoiceRequestLocalization.translations };
+                                        delete newTranslations[key];
+                                        newTranslations[e.target.value] = value;
+                                        setInvoiceRequestLocalization({ ...invoiceRequestLocalization, translations: newTranslations });
+                                      }}
+                                      placeholder="Translation key"
+                                      className="flex-1"
+                                    />
+                                    <Input
+                                      value={value}
+                                      onChange={(e) => {
+                                        setInvoiceRequestLocalization({
+                                          ...invoiceRequestLocalization,
+                                          translations: { ...invoiceRequestLocalization.translations, [key]: e.target.value },
+                                        });
+                                      }}
+                                      placeholder="Translated text"
+                                      className="flex-1"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        const newTranslations = { ...invoiceRequestLocalization.translations };
+                                        delete newTranslations[key];
+                                        setInvoiceRequestLocalization({ ...invoiceRequestLocalization, translations: newTranslations });
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newKey = `key_${Object.keys(invoiceRequestLocalization.translations).length + 1}`;
+                                    setInvoiceRequestLocalization({
+                                      ...invoiceRequestLocalization,
+                                      translations: { ...invoiceRequestLocalization.translations, [newKey]: "" },
+                                    });
+                                  }}
+                                  className="w-full"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Translation
+                                </Button>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   )}
                 </div>
@@ -979,65 +1867,301 @@ export default function SiteBuilderPage() {
                     />
                   </div>
                   {quoteRequestConfig.enabled && (
-                    <div className="space-y-3 mt-4 pl-4 border-l-2">
-                      <div className="space-y-2">
-                        <Label>Title</Label>
-                        <Input
-                          value={quoteRequestConfig.title}
-                          onChange={(e) =>
-                            setQuoteRequestConfig({ ...quoteRequestConfig, title: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description (Optional)</Label>
-                        <Textarea
-                          value={quoteRequestConfig.description}
-                          onChange={(e) =>
-                            setQuoteRequestConfig({ ...quoteRequestConfig, description: e.target.value })
-                          }
-                          rows={2}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4 mt-4 pl-4 border-l-2">
+                      {/* Basic Configuration */}
+                      <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label>Button Text</Label>
+                          <Label>Title</Label>
                           <Input
-                            value={quoteRequestConfig.submitButtonText}
+                            value={quoteRequestConfig.title}
                             onChange={(e) =>
-                              setQuoteRequestConfig({ ...quoteRequestConfig, submitButtonText: e.target.value })
+                              setQuoteRequestConfig({ ...quoteRequestConfig, title: e.target.value })
                             }
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Position</Label>
-                          <Select
-                            value={quoteRequestConfig.position}
-                            onValueChange={(value: WidgetPosition) =>
-                              setQuoteRequestConfig({ ...quoteRequestConfig, position: value })
+                          <Label>Description (Optional)</Label>
+                          <Textarea
+                            value={quoteRequestConfig.description}
+                            onChange={(e) =>
+                              setQuoteRequestConfig({ ...quoteRequestConfig, description: e.target.value })
                             }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                              <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                              <SelectItem value="top-right">Top Right</SelectItem>
-                              <SelectItem value="top-left">Top Left</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Button Text</Label>
+                            <Input
+                              value={quoteRequestConfig.submitButtonText}
+                              onChange={(e) =>
+                                setQuoteRequestConfig({ ...quoteRequestConfig, submitButtonText: e.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Position</Label>
+                            <Select
+                              value={quoteRequestConfig.position}
+                              onValueChange={(value: WidgetPosition) =>
+                                setQuoteRequestConfig({ ...quoteRequestConfig, position: value })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                                <SelectItem value="top-right">Top Right</SelectItem>
+                                <SelectItem value="top-left">Top Left</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Success Message</Label>
+                          <Input
+                            value={quoteRequestConfig.successMessage}
+                            onChange={(e) =>
+                              setQuoteRequestConfig({ ...quoteRequestConfig, successMessage: e.target.value })
+                            }
+                          />
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Success Message</Label>
-                        <Input
-                          value={quoteRequestConfig.successMessage}
-                          onChange={(e) =>
-                            setQuoteRequestConfig({ ...quoteRequestConfig, successMessage: e.target.value })
-                          }
-                        />
-                      </div>
+
+                      {/* Widget-Specific Styling & Localization */}
+                      <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="quoteRequest-styling">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Palette className="h-4 w-4" />
+                            <span>Styling & Appearance</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <ColorPicker
+                                label="Primary Color"
+                                value={quoteRequestStyling.primaryColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, primaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Secondary Color"
+                                value={quoteRequestStyling.secondaryColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, secondaryColor: color })}
+                              />
+                              <ColorPicker
+                                label="Background Color"
+                                value={quoteRequestStyling.backgroundColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, backgroundColor: color })}
+                              />
+                              <ColorPicker
+                                label="Text Color"
+                                value={quoteRequestStyling.textColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, textColor: color })}
+                              />
+                              <ColorPicker
+                                label="Border Color"
+                                value={quoteRequestStyling.borderColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, borderColor: color })}
+                              />
+                              <ColorPicker
+                                label="Error Color"
+                                value={quoteRequestStyling.errorColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, errorColor: color })}
+                              />
+                              <ColorPicker
+                                label="Success Color"
+                                value={quoteRequestStyling.successColor}
+                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, successColor: color })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Font Family</Label>
+                                <Input
+                                  value={quoteRequestStyling.fontFamily}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, fontFamily: e.target.value })}
+                                  placeholder="Arial, sans-serif"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Size</Label>
+                                <Input
+                                  value={quoteRequestStyling.fontSize}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, fontSize: e.target.value })}
+                                  placeholder="14px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Font Weight</Label>
+                                <Select
+                                  value={quoteRequestStyling.fontWeight}
+                                  onValueChange={(value) => setQuoteRequestStyling({ ...quoteRequestStyling, fontWeight: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="300">Light (300)</SelectItem>
+                                    <SelectItem value="400">Normal (400)</SelectItem>
+                                    <SelectItem value="500">Medium (500)</SelectItem>
+                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
+                                    <SelectItem value="700">Bold (700)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Padding</Label>
+                                <Input
+                                  value={quoteRequestStyling.padding}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, padding: e.target.value })}
+                                  placeholder="12px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Gap</Label>
+                                <Input
+                                  value={quoteRequestStyling.gap}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, gap: e.target.value })}
+                                  placeholder="16px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Border Radius</Label>
+                                <Input
+                                  value={quoteRequestStyling.borderRadius}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, borderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Padding</Label>
+                                <Input
+                                  value={quoteRequestStyling.buttonPadding}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, buttonPadding: e.target.value })}
+                                  placeholder="12px 24px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Button Border Radius</Label>
+                                <Input
+                                  value={quoteRequestStyling.buttonBorderRadius}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, buttonBorderRadius: e.target.value })}
+                                  placeholder="8px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Modal Max Width</Label>
+                                <Input
+                                  value={quoteRequestStyling.modalMaxWidth}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, modalMaxWidth: e.target.value })}
+                                  placeholder="500px"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Shadow</Label>
+                                <Input
+                                  value={quoteRequestStyling.shadow}
+                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, shadow: e.target.value })}
+                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
+                                />
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="quoteRequest-localization">
+                          <AccordionTrigger className="flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            <span>Localization & Translations</span>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <Label>Default Language</Label>
+                              <Select
+                                value={quoteRequestLocalization.language}
+                                onValueChange={(value) => setQuoteRequestLocalization({ ...quoteRequestLocalization, language: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="en">English</SelectItem>
+                                  <SelectItem value="es">Spanish</SelectItem>
+                                  <SelectItem value="fr">French</SelectItem>
+                                  <SelectItem value="de">German</SelectItem>
+                                  <SelectItem value="it">Italian</SelectItem>
+                                  <SelectItem value="pt">Portuguese</SelectItem>
+                                  <SelectItem value="ru">Russian</SelectItem>
+                                  <SelectItem value="zh">Chinese</SelectItem>
+                                  <SelectItem value="ja">Japanese</SelectItem>
+                                  <SelectItem value="ko">Korean</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Custom Translations</Label>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Add custom translations for widget text. Use keys like "requestQuote", "submitButton", etc.
+                              </p>
+                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                                {Object.entries(quoteRequestLocalization.translations).map(([key, value]) => (
+                                  <div key={key} className="flex gap-2">
+                                    <Input
+                                      value={key}
+                                      onChange={(e) => {
+                                        const newTranslations = { ...quoteRequestLocalization.translations };
+                                        delete newTranslations[key];
+                                        newTranslations[e.target.value] = value;
+                                        setQuoteRequestLocalization({ ...quoteRequestLocalization, translations: newTranslations });
+                                      }}
+                                      placeholder="Translation key"
+                                      className="flex-1"
+                                    />
+                                    <Input
+                                      value={value}
+                                      onChange={(e) => {
+                                        setQuoteRequestLocalization({
+                                          ...quoteRequestLocalization,
+                                          translations: { ...quoteRequestLocalization.translations, [key]: e.target.value },
+                                        });
+                                      }}
+                                      placeholder="Translated text"
+                                      className="flex-1"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        const newTranslations = { ...quoteRequestLocalization.translations };
+                                        delete newTranslations[key];
+                                        setQuoteRequestLocalization({ ...quoteRequestLocalization, translations: newTranslations });
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newKey = `key_${Object.keys(quoteRequestLocalization.translations).length + 1}`;
+                                    setQuoteRequestLocalization({
+                                      ...quoteRequestLocalization,
+                                      translations: { ...quoteRequestLocalization.translations, [newKey]: "" },
+                                    });
+                                  }}
+                                  className="w-full"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Translation
+                                </Button>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   )}
                 </div>

@@ -7,6 +7,7 @@ export * from "./entities/proposal";
 export * from "./entities/invoice";
 export * from "./entities/workflow";
 export * from "./entities/contact";
+export * from "./entities/lead";
 
 // Service ports
 export * from "./ports/services/logger-service";
