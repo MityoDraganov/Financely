@@ -24,6 +24,7 @@ import AcceptInvitePage from "./pages/accept-invite";
 import WorkflowsPage from "./pages/workflows/workflows-page";
 import WorkflowTemplatesPage from "./pages/workflows/workflow-templates-page";
 import WorkflowExecutionPage from "./pages/workflows/workflow-execution-page";
+import SiteBuilderPage from "./pages/site-builder/site-builder-page";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
 import { ClerkProvider } from "@clerk/clerk-react";
@@ -162,6 +163,16 @@ function App() {
 											<ProtectedRoute>
 												<AppLayout>
 													<WorkflowExecutionPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/site-builder"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<SiteBuilderPage />
 												</AppLayout>
 											</ProtectedRoute>
 										}

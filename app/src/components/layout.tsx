@@ -10,7 +10,7 @@ import {
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserButton } from "@clerk/clerk-react";
-import { Brush, FileText, LayoutDashboard, Settings, Zap, Users } from "lucide-react";
+import { Brush, FileText, LayoutDashboard, Settings, Zap, Users, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
@@ -41,6 +41,11 @@ const items = [
 		title: "Workflows",
 		href: "/workflows",
 		icon: Zap,
+	},
+	{
+		title: "Site Builder",
+		href: "/site-builder",
+		icon: Sparkles,
 	},
 	{
 		title: "Settings",
