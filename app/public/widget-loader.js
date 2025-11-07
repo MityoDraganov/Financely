@@ -721,6 +721,51 @@
     placeholder.parentNode.replaceChild(container, placeholder);
   }
 
+  // Build default styling from organization branding
+  function buildDefaultStyling(branding) {
+    const brandColors = branding?.colors || {};
+    return {
+      // Colors from organization branding
+      primaryColor: brandColors.primary || "#2563eb",
+      secondaryColor: brandColors.secondary || "#6b7280",
+      backgroundColor: "#ffffff",
+      textColor: "#111827",
+      borderColor: "#d1d5db",
+      errorColor: "#ef4444",
+      successColor: brandColors.accent || "#10b981",
+      // Typography
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      fontSize: "14px",
+      fontWeight: "400",
+      // Spacing
+      padding: "12px",
+      gap: "16px",
+      borderRadius: "8px",
+      // Button styling
+      buttonPadding: "12px 24px",
+      buttonBorderRadius: "8px",
+      buttonFontWeight: "600",
+      // Modal/Container styling
+      modalBackdropOpacity: "0.5",
+      modalBorderRadius: "12px",
+      modalMaxWidth: "500px",
+      // Shadow
+      shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    };
+  }
+
+  // Merge widget-specific styling with branding defaults
+  function mergeStyling(brandingDefaults, widgetSpecificStyling) {
+    if (!widgetSpecificStyling) {
+      return brandingDefaults;
+    }
+    // Merge widget-specific styling over branding defaults
+    return {
+      ...brandingDefaults,
+      ...widgetSpecificStyling,
+    };
+  }
+
   // Initialize widgets
   async function init() {
     const widgetConfig = await loadConfig();
@@ -731,33 +776,12 @@
 
     const { widgets, branding } = widgetConfig;
 
-    // Default styling fallback
-    const defaultStyling = {
-      primaryColor: "#2563eb",
-      secondaryColor: "#6b7280",
-      backgroundColor: "#ffffff",
-      textColor: "#111827",
-      borderColor: "#d1d5db",
-      errorColor: "#ef4444",
-      successColor: "#10b981",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-      fontSize: "14px",
-      fontWeight: "400",
-      padding: "12px",
-      gap: "16px",
-      borderRadius: "8px",
-      buttonPadding: "12px 24px",
-      buttonBorderRadius: "8px",
-      buttonFontWeight: "600",
-      modalBackdropOpacity: "0.5",
-      modalBorderRadius: "12px",
-      modalMaxWidth: "500px",
-      shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-    };
+    // Build default styling from organization branding
+    const brandingDefaultStyling = buildDefaultStyling(branding);
 
     // Create contact form widget with widget-specific styling and localization
     if (widgets.contactForm && widgets.contactForm.enabled) {
-      const contactFormStyling = widgets.contactForm.styling || defaultStyling;
+      const contactFormStyling = mergeStyling(brandingDefaultStyling, widgets.contactForm.styling);
       const contactFormLocalization = widgets.contactForm.localization || { language: 'en', translations: {} };
       const contactFormTranslations = contactFormLocalization.translations || {};
       
@@ -772,7 +796,7 @@
 
     // Create invoice request widget with widget-specific styling and localization
     if (widgets.invoiceRequest && widgets.invoiceRequest.enabled) {
-      const invoiceRequestStyling = widgets.invoiceRequest.styling || defaultStyling;
+      const invoiceRequestStyling = mergeStyling(brandingDefaultStyling, widgets.invoiceRequest.styling);
       const invoiceRequestLocalization = widgets.invoiceRequest.localization || { language: 'en', translations: {} };
       const invoiceRequestTranslations = invoiceRequestLocalization.translations || {};
       
@@ -782,7 +806,7 @@
 
     // Create quote request widget with widget-specific styling and localization
     if (widgets.quoteRequest && widgets.quoteRequest.enabled) {
-      const quoteRequestStyling = widgets.quoteRequest.styling || defaultStyling;
+      const quoteRequestStyling = mergeStyling(brandingDefaultStyling, widgets.quoteRequest.styling);
       const quoteRequestLocalization = widgets.quoteRequest.localization || { language: 'en', translations: {} };
       const quoteRequestTranslations = quoteRequestLocalization.translations || {};
       

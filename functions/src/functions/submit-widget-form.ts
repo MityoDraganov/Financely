@@ -138,8 +138,8 @@ export const submitWidgetForm = onRequest(
       }
 
       // Extract contact information from form data
-      const email = (data.email as string) || "";
-      const phone = (data.phone as string) || (data.tel as string) || "";
+      const email = ((data.email as string) || "").trim().toLowerCase();
+      const phone = ((data.phone as string) || (data.tel as string) || "").trim();
       const firstName = (data.name as string)?.split(" ")[0] || (data.firstName as string) || "";
       const lastName = (data.name as string)?.split(" ").slice(1).join(" ") || (data.lastName as string) || "";
       const company = (data.company as string) || undefined;
@@ -150,47 +150,36 @@ export const submitWidgetForm = onRequest(
       const leadRepository = getLeadRepository(databaseService);
 
       // Check for existing contact by email or phone
+      // We need to check both conditions to prevent duplicates
       let existingContact = null;
       let contactId: string | undefined = undefined;
 
-      if (email) {
-        const contactsByEmail = await contactRepository.getAll({
-          queryConstraints: [
-            {
-              field: "data.organizationId",
-              operator: "==",
-              value: organizationId,
-            },
-            {
-              field: "data.email",
-              operator: "==",
-              value: email,
-            },
-          ],
-        });
-        if (contactsByEmail.length > 0) {
-          existingContact = contactsByEmail[0];
-        }
-      }
+      // Get all contacts for this organization to check for matches
+      const allContacts = await contactRepository.getAll({
+        queryConstraints: [
+          {
+            field: "data.organizationId",
+            operator: "==",
+            value: organizationId,
+          },
+        ],
+      });
 
-      // If not found by email, check by phone
-      if (!existingContact && phone) {
-        const contactsByPhone = await contactRepository.getAll({
-          queryConstraints: [
-            {
-              field: "data.organizationId",
-              operator: "==",
-              value: organizationId,
-            },
-            {
-              field: "data.phone",
-              operator: "==",
-              value: phone,
-            },
-          ],
-        });
-        if (contactsByPhone.length > 0) {
-          existingContact = contactsByPhone[0];
+      // Check for existing contact by normalized email or phone
+      for (const contact of allContacts) {
+        const contactEmail = (contact.data.email || "").trim().toLowerCase();
+        const contactPhone = (contact.data.phone || "").trim();
+        
+        // Match by email (case-insensitive, normalized)
+        if (email && contactEmail && contactEmail === email) {
+          existingContact = contact;
+          break;
+        }
+        
+        // Match by phone (if both are provided and non-empty)
+        if (phone && contactPhone && contactPhone === phone) {
+          existingContact = contact;
+          break;
         }
       }
 
@@ -199,23 +188,27 @@ export const submitWidgetForm = onRequest(
         // Update existing contact - merge new data with existing
         const updateData: Partial<ContactData> = {};
         
-        // Only update fields that are provided and not already set
-        if (firstName && !existingContact.data.firstName) {
+        // Update fields - prefer new data if it's more complete
+        if (firstName) {
           updateData.firstName = firstName;
         }
-        if (lastName && !existingContact.data.lastName) {
+        if (lastName) {
           updateData.lastName = lastName;
         }
-        if (email && existingContact.data.email !== email) {
+        // Always update email to ensure consistency (normalized)
+        if (email) {
           updateData.email = email;
         }
-        if (phone && !existingContact.data.phone) {
+        // Update phone if provided and different
+        if (phone && phone !== (existingContact.data.phone || "").trim()) {
           updateData.phone = phone;
         }
-        if (company && !existingContact.data.company) {
+        // Update company if provided
+        if (company) {
           updateData.company = company;
         }
-        if (jobTitle && !existingContact.data.jobTitle) {
+        // Update job title if provided
+        if (jobTitle) {
           updateData.jobTitle = jobTitle;
         }
 
@@ -246,7 +239,8 @@ export const submitWidgetForm = onRequest(
           email,
         });
       } else {
-        // Create new contact
+        // Create new contact (only if we didn't find an existing one)
+        // Normalize email to lowercase for consistency
         const contactData: ContactData = {
           organizationId,
           firstName: firstName || "",
@@ -267,15 +261,18 @@ export const submitWidgetForm = onRequest(
 
         const newContactId = await contactRepository.create({ data: contactData });
         contactId = newContactId;
-
+        
         logger.info("Contact created from widget submission", {
           organizationId,
           contactId: newContactId,
-          email,
+          email: email || "no email",
+          phone: phone || "no phone",
         });
+
       }
 
       // Always create a new lead record to track this individual submission
+      // This ensures every submission is tracked, even if it's from the same contact
       const leadData: LeadData = {
         organizationId,
         contactId,
@@ -293,14 +290,25 @@ export const submitWidgetForm = onRequest(
         tags: [widgetType],
       };
 
-      const leadId = await leadRepository.create({ data: leadData });
-
-      logger.info("Lead created from widget submission", {
-        organizationId,
-        leadId,
-        contactId,
-        widgetType,
-      });
+      try {
+        const leadId = await leadRepository.create({ data: leadData });
+        logger.info("Lead created from widget submission", {
+          organizationId,
+          leadId,
+          contactId,
+          widgetType,
+          email: email || "no email",
+          phone: phone || "no phone",
+        });
+      } catch (leadError) {
+        // Log error but don't fail the request - contact was already created/updated
+        logger.error("Failed to create lead record", {
+          error: leadError instanceof Error ? leadError.message : "Unknown error",
+          organizationId,
+          contactId,
+          widgetType,
+        });
+      }
 
       response.status(200).json({
         success: true,

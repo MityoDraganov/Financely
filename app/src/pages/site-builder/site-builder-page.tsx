@@ -19,29 +19,37 @@ import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrand
 import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
 
-// Default styling object (constant, defined outside component)
-const defaultStyling = {
-  primaryColor: "#2563eb",
-  secondaryColor: "#6b7280",
-  backgroundColor: "#ffffff",
-  textColor: "#111827",
-  borderColor: "#d1d5db",
-  errorColor: "#ef4444",
-  successColor: "#10b981",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  fontSize: "14px",
-  fontWeight: "400",
-  padding: "12px",
-  gap: "16px",
-  borderRadius: "8px",
-  buttonPadding: "12px 24px",
-  buttonBorderRadius: "8px",
-  buttonFontWeight: "600",
-  modalBackdropOpacity: "0.5",
-  modalBorderRadius: "12px",
-  modalMaxWidth: "500px",
-  shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-};
+// Build default styling from organization branding
+function buildDefaultStylingFromBranding(brandColors?: { primary?: string; secondary?: string; accent?: string }) {
+  return {
+    // Colors from organization branding
+    primaryColor: brandColors?.primary || "#2563eb",
+    secondaryColor: brandColors?.secondary || "#6b7280",
+    backgroundColor: "#ffffff",
+    textColor: "#111827",
+    borderColor: "#d1d5db",
+    errorColor: "#ef4444",
+    successColor: brandColors?.accent || "#10b981",
+    // Typography
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    fontSize: "14px",
+    fontWeight: "400",
+    // Spacing
+    padding: "12px",
+    gap: "16px",
+    borderRadius: "8px",
+    // Button styling
+    buttonPadding: "12px 24px",
+    buttonBorderRadius: "8px",
+    buttonFontWeight: "600",
+    // Modal/Container styling
+    modalBackdropOpacity: "0.5",
+    modalBorderRadius: "12px",
+    modalMaxWidth: "500px",
+    // Shadow
+    shadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+  };
+}
 
 export default function SiteBuilderPage() {
   const { data: organization, isLoading } = useCurrentOrganization();
@@ -66,10 +74,29 @@ export default function SiteBuilderPage() {
   
   const [widgetsEnabled, setWidgetsEnabled] = useState(false);
 
-  // Widget-specific styling state
-  const [contactFormStyling, setContactFormStyling] = useState(defaultStyling);
-  const [invoiceRequestStyling, setInvoiceRequestStyling] = useState(defaultStyling);
-  const [quoteRequestStyling, setQuoteRequestStyling] = useState(defaultStyling);
+  // Widget-specific styling state (initialized with branding defaults)
+  const [contactFormStyling, setContactFormStyling] = useState(() => buildDefaultStylingFromBranding());
+  const [invoiceRequestStyling, setInvoiceRequestStyling] = useState(() => buildDefaultStylingFromBranding());
+  const [quoteRequestStyling, setQuoteRequestStyling] = useState(() => buildDefaultStylingFromBranding());
+  
+  // Update styling defaults when organization branding changes (if no widget-specific styling exists)
+  useEffect(() => {
+    if (!organization?.settings?.brandColors) return;
+    
+    const brandingDefaults = buildDefaultStylingFromBranding(organization.settings.brandColors);
+    const widgets = organization.settings?.widgets;
+    
+    // Only update if widget config doesn't exist or doesn't have styling
+    if (!widgets?.contactForm?.styling) {
+      setContactFormStyling(brandingDefaults);
+    }
+    if (!widgets?.invoiceRequest?.styling) {
+      setInvoiceRequestStyling(brandingDefaults);
+    }
+    if (!widgets?.quoteRequest?.styling) {
+      setQuoteRequestStyling(brandingDefaults);
+    }
+  }, [organization?.settings?.brandColors, organization?.settings?.widgets]);
 
   // Widget-specific localization state
   const [contactFormLocalization, setContactFormLocalization] = useState({
@@ -215,6 +242,8 @@ export default function SiteBuilderPage() {
     if (!organization?.settings?.widgets) return;
     
     const widgets = organization.settings.widgets;
+    const brandColors = organization.settings.brandColors;
+    const brandingDefaults = buildDefaultStylingFromBranding(brandColors);
     setWidgetsEnabled(widgets.enabled || false);
     
     // Load contact form widget configuration
@@ -229,30 +258,14 @@ export default function SiteBuilderPage() {
         displayMode: widgets.contactForm.displayMode || "floating",
       });
       
-      // Load contact form styling
+      // Load contact form styling (merge with branding defaults)
       if (widgets.contactForm.styling) {
         setContactFormStyling({
-          primaryColor: widgets.contactForm.styling.primaryColor || defaultStyling.primaryColor,
-          secondaryColor: widgets.contactForm.styling.secondaryColor || defaultStyling.secondaryColor,
-          backgroundColor: widgets.contactForm.styling.backgroundColor || defaultStyling.backgroundColor,
-          textColor: widgets.contactForm.styling.textColor || defaultStyling.textColor,
-          borderColor: widgets.contactForm.styling.borderColor || defaultStyling.borderColor,
-          errorColor: widgets.contactForm.styling.errorColor || defaultStyling.errorColor,
-          successColor: widgets.contactForm.styling.successColor || defaultStyling.successColor,
-          fontFamily: widgets.contactForm.styling.fontFamily || defaultStyling.fontFamily,
-          fontSize: widgets.contactForm.styling.fontSize || defaultStyling.fontSize,
-          fontWeight: widgets.contactForm.styling.fontWeight || defaultStyling.fontWeight,
-          padding: widgets.contactForm.styling.padding || defaultStyling.padding,
-          gap: widgets.contactForm.styling.gap || defaultStyling.gap,
-          borderRadius: widgets.contactForm.styling.borderRadius || defaultStyling.borderRadius,
-          buttonPadding: widgets.contactForm.styling.buttonPadding || defaultStyling.buttonPadding,
-          buttonBorderRadius: widgets.contactForm.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
-          buttonFontWeight: widgets.contactForm.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
-          modalBackdropOpacity: widgets.contactForm.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
-          modalBorderRadius: widgets.contactForm.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
-          modalMaxWidth: widgets.contactForm.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
-          shadow: widgets.contactForm.styling.shadow || defaultStyling.shadow,
+          ...brandingDefaults,
+          ...widgets.contactForm.styling,
         });
+      } else {
+        setContactFormStyling(brandingDefaults);
       }
       
       // Load contact form localization
@@ -291,30 +304,14 @@ export default function SiteBuilderPage() {
         position: widgets.invoiceRequest.position || "bottom-right",
       });
       
-      // Load invoice request styling
+      // Load invoice request styling (merge with branding defaults)
       if (widgets.invoiceRequest.styling) {
         setInvoiceRequestStyling({
-          primaryColor: widgets.invoiceRequest.styling.primaryColor || defaultStyling.primaryColor,
-          secondaryColor: widgets.invoiceRequest.styling.secondaryColor || defaultStyling.secondaryColor,
-          backgroundColor: widgets.invoiceRequest.styling.backgroundColor || defaultStyling.backgroundColor,
-          textColor: widgets.invoiceRequest.styling.textColor || defaultStyling.textColor,
-          borderColor: widgets.invoiceRequest.styling.borderColor || defaultStyling.borderColor,
-          errorColor: widgets.invoiceRequest.styling.errorColor || defaultStyling.errorColor,
-          successColor: widgets.invoiceRequest.styling.successColor || defaultStyling.successColor,
-          fontFamily: widgets.invoiceRequest.styling.fontFamily || defaultStyling.fontFamily,
-          fontSize: widgets.invoiceRequest.styling.fontSize || defaultStyling.fontSize,
-          fontWeight: widgets.invoiceRequest.styling.fontWeight || defaultStyling.fontWeight,
-          padding: widgets.invoiceRequest.styling.padding || defaultStyling.padding,
-          gap: widgets.invoiceRequest.styling.gap || defaultStyling.gap,
-          borderRadius: widgets.invoiceRequest.styling.borderRadius || defaultStyling.borderRadius,
-          buttonPadding: widgets.invoiceRequest.styling.buttonPadding || defaultStyling.buttonPadding,
-          buttonBorderRadius: widgets.invoiceRequest.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
-          buttonFontWeight: widgets.invoiceRequest.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
-          modalBackdropOpacity: widgets.invoiceRequest.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
-          modalBorderRadius: widgets.invoiceRequest.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
-          modalMaxWidth: widgets.invoiceRequest.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
-          shadow: widgets.invoiceRequest.styling.shadow || defaultStyling.shadow,
+          ...brandingDefaults,
+          ...widgets.invoiceRequest.styling,
         });
+      } else {
+        setInvoiceRequestStyling(brandingDefaults);
       }
       
       // Load invoice request localization
@@ -337,30 +334,14 @@ export default function SiteBuilderPage() {
         position: widgets.quoteRequest.position || "bottom-right",
       });
       
-      // Load quote request styling
+      // Load quote request styling (merge with branding defaults)
       if (widgets.quoteRequest.styling) {
         setQuoteRequestStyling({
-          primaryColor: widgets.quoteRequest.styling.primaryColor || defaultStyling.primaryColor,
-          secondaryColor: widgets.quoteRequest.styling.secondaryColor || defaultStyling.secondaryColor,
-          backgroundColor: widgets.quoteRequest.styling.backgroundColor || defaultStyling.backgroundColor,
-          textColor: widgets.quoteRequest.styling.textColor || defaultStyling.textColor,
-          borderColor: widgets.quoteRequest.styling.borderColor || defaultStyling.borderColor,
-          errorColor: widgets.quoteRequest.styling.errorColor || defaultStyling.errorColor,
-          successColor: widgets.quoteRequest.styling.successColor || defaultStyling.successColor,
-          fontFamily: widgets.quoteRequest.styling.fontFamily || defaultStyling.fontFamily,
-          fontSize: widgets.quoteRequest.styling.fontSize || defaultStyling.fontSize,
-          fontWeight: widgets.quoteRequest.styling.fontWeight || defaultStyling.fontWeight,
-          padding: widgets.quoteRequest.styling.padding || defaultStyling.padding,
-          gap: widgets.quoteRequest.styling.gap || defaultStyling.gap,
-          borderRadius: widgets.quoteRequest.styling.borderRadius || defaultStyling.borderRadius,
-          buttonPadding: widgets.quoteRequest.styling.buttonPadding || defaultStyling.buttonPadding,
-          buttonBorderRadius: widgets.quoteRequest.styling.buttonBorderRadius || defaultStyling.buttonBorderRadius,
-          buttonFontWeight: widgets.quoteRequest.styling.buttonFontWeight || defaultStyling.buttonFontWeight,
-          modalBackdropOpacity: widgets.quoteRequest.styling.modalBackdropOpacity || defaultStyling.modalBackdropOpacity,
-          modalBorderRadius: widgets.quoteRequest.styling.modalBorderRadius || defaultStyling.modalBorderRadius,
-          modalMaxWidth: widgets.quoteRequest.styling.modalMaxWidth || defaultStyling.modalMaxWidth,
-          shadow: widgets.quoteRequest.styling.shadow || defaultStyling.shadow,
+          ...brandingDefaults,
+          ...widgets.quoteRequest.styling,
         });
+      } else {
+        setQuoteRequestStyling(brandingDefaults);
       }
       
       // Load quote request localization
@@ -371,7 +352,7 @@ export default function SiteBuilderPage() {
         });
       }
     }
-  }, [organization?.settings?.widgets]);
+  }, [organization?.settings?.widgets, organization?.settings?.brandColors]);
 
   // Save widget configuration
   const handleSaveWidgets = async () => {
