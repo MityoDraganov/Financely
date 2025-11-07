@@ -122,4 +122,15 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "previewBrandSiteVersion")(payload);
     return result.data;
   },
+
+  async deployManualSite(payload) {
+    type DeployManualSitePayload = Parameters<
+      FunctionsService["deployManualSite"]
+    >[0];
+    const result = await httpsCallable<
+      DeployManualSitePayload,
+      { success: boolean; brandSiteId: string; deployedUrl: string; status: string }
+    >(firebase.functions, "deployManualSite")(payload);
+    return result.data;
+  },
 };

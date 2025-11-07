@@ -13,6 +13,7 @@ interface BrandSite {
   customDomain?: string;
   error?: string;
   html?: string;
+  files?: Record<string, string>; // path -> content
   metadata?: {
     generatedAt?: string;
     model?: string;
@@ -22,6 +23,7 @@ interface BrandSite {
   versions?: Array<{
     version: number;
     html: string;
+    files?: Record<string, string>; // path -> content
     deployedUrl?: string;
     previewUrl?: string;
     metadata?: {

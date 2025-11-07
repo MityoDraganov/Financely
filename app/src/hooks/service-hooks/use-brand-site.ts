@@ -145,3 +145,30 @@ export const useRestoreBrandSiteVersion = () => {
   });
 };
 
+/**
+ * Hook to manually deploy files to a brand site
+ */
+export const useDeployManualSite = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.deployManualSite>[0]) =>
+      functionsService.deployManualSite(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success("Site deployed successfully!");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to deploy site:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to deploy site: ${errorMessage}`);
+    },
+  });
+};
+

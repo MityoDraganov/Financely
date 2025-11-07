@@ -22,6 +22,8 @@ export const brandSiteDataSchema = z.object({
   logoUrl: z.string().url().optional(),
   tone: z.string().default("professional"),
   html: z.string().optional(),
+  // Manual file editing support - stores files as key-value pairs (path -> content)
+  files: z.record(z.string(), z.string()).optional(), // e.g., { "index.html": "...", "styles.css": "...", "script.js": "..." }
   metadata: z
     .object({
       generatedAt: z.string().optional(),
@@ -44,6 +46,7 @@ export const brandSiteDataSchema = z.object({
     z.object({
       version: z.number().int(),
       html: z.string(),
+      files: z.record(z.string(), z.string()).optional(), // Store files for version history
       deployedUrl: z.string().optional(),
       previewUrl: z.string().optional(), // Preview URL for viewing without making live
       metadata: z
@@ -73,6 +76,7 @@ export type UpdateBrandSiteInput = Partial<
   Pick<
     BrandSiteData,
     | "html"
+    | "files"
     | "status"
     | "subdomain"
     | "customDomain"

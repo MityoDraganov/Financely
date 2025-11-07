@@ -85,7 +85,7 @@ export default function OrganizationBrandingPage() {
   useEffect(() => {
     if (!organization?.id || !organization?.settings) return;
     
-    const settings = organization.settings;
+      const settings = organization.settings;
     const brandingKey = JSON.stringify(settings.branding || {});
     const brandColorsKey = JSON.stringify(settings.brandColors || {});
     const orgId = organization.id;
@@ -103,18 +103,18 @@ export default function OrganizationBrandingPage() {
     prevBrandingRef.current = brandingKey;
     prevBrandColorsRef.current = brandColorsKey;
     
-    reset({
-      customLogo: settings.branding?.customLogo || "",
-      customFavicon: settings.branding?.customFavicon || "",
-      companyName: settings.branding?.companyName || "",
-      customDomain: settings.branding?.customDomain || "",
-      emailFromName: settings.branding?.emailFromName || "",
-      emailFromAddress: settings.branding?.emailFromAddress || "",
-      footerText: settings.branding?.footerText || "",
-      primaryColor: settings.brandColors?.primary || defaultColors.primaryColor,
-      secondaryColor: settings.brandColors?.secondary || defaultColors.secondaryColor,
-      accentColor: settings.brandColors?.accent || defaultColors.accentColor,
-    });
+      reset({
+        customLogo: settings.branding?.customLogo || "",
+        customFavicon: settings.branding?.customFavicon || "",
+        companyName: settings.branding?.companyName || "",
+        customDomain: settings.branding?.customDomain || "",
+        emailFromName: settings.branding?.emailFromName || "",
+        emailFromAddress: settings.branding?.emailFromAddress || "",
+        footerText: settings.branding?.footerText || "",
+        primaryColor: settings.brandColors?.primary || defaultColors.primaryColor,
+        secondaryColor: settings.brandColors?.secondary || defaultColors.secondaryColor,
+        accentColor: settings.brandColors?.accent || defaultColors.accentColor,
+      });
     setBrandImages(settings.branding?.brandImages || []);
     setDescription(settings.branding?.description || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -821,28 +821,28 @@ export default function OrganizationBrandingPage() {
         {/* Save Button Footer - Always visible, sticky at bottom */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
           <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">
               {hasUnsavedChanges ? "You have unsaved changes" : "All changes saved"}
-            </p>
-            <div className="flex gap-2">
+              </p>
+              <div className="flex gap-2">
               {hasUnsavedChanges ? (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      reset();
-                      setHasUnsavedChanges(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={updateOrganization.isPending}
-                  >
-                    {updateOrganization.isPending ? "Saving..." : "Save Changes"}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    reset();
+                    setHasUnsavedChanges(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateOrganization.isPending}
+                >
+                  {updateOrganization.isPending ? "Saving..." : "Save Changes"}
                   </Button>
                 </>
               ) : (
@@ -856,8 +856,8 @@ export default function OrganizationBrandingPage() {
                           disabled
                         >
                           Cancel
-                        </Button>
-                      </div>
+                </Button>
+              </div>
                     </TooltipTrigger>
                     <TooltipContent>
                       All changes are already saved
@@ -872,7 +872,7 @@ export default function OrganizationBrandingPage() {
                         >
                           Save Changes
                         </Button>
-                      </div>
+            </div>
                     </TooltipTrigger>
                     <TooltipContent>
                       All changes are already saved

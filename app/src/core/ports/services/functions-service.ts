@@ -221,4 +221,17 @@ export interface FunctionsService {
     brandSiteId: string;
     version: number;
   }): Promise<{ success: boolean; brandSiteId: string; version: number; previewUrl: string }>;
+
+  /**
+   * Manually deploy custom files to a brand site
+   */
+  deployManualSite(payload: {
+    brandSiteId: string;
+    files: Array<{
+      path: string;
+      content: string;
+    }>;
+    versionMessage?: string;
+    includeWidgets?: boolean;
+  }): Promise<{ success: boolean; brandSiteId: string; deployedUrl: string; status: string }>;
 }

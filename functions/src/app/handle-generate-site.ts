@@ -5,6 +5,8 @@ import { GeminiService } from "../services/gemini-service";
 import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { logger } from "firebase-functions";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 interface GenerateSiteInput {
   organizationId: string;
@@ -43,17 +45,17 @@ export async function handleGenerateSite(
     logger.debug("Step 1: Initializing repositories", {
       organizationId: input.organizationId,
     });
-    const databaseService = getDatabaseService();
-    const organizationRepository = getOrganizationRepository(databaseService);
-    const brandSiteRepository = getBrandSiteRepository(databaseService);
+  const databaseService = getDatabaseService();
+  const organizationRepository = getOrganizationRepository(databaseService);
+  const brandSiteRepository = getBrandSiteRepository(databaseService);
 
     logger.debug("Step 2: Fetching organization", {
       organizationId: input.organizationId,
     });
-    const orgStartTime = Date.now();
+  const orgStartTime = Date.now();
     errorContext.stage = "organization_fetch";
-    const organization = await organizationRepository.get({ id: input.organizationId });
-    if (!organization) {
+  const organization = await organizationRepository.get({ id: input.organizationId });
+  if (!organization) {
       const error = "Organization not found";
       errorContext.errors.push({
         stage: errorContext.stage,
@@ -65,11 +67,11 @@ export async function handleGenerateSite(
         errorContext,
       });
       throw new Error(error);
-    }
-    logger.info("Organization retrieved", {
-      duration: Date.now() - orgStartTime,
-      organizationName: organization.name,
-    });
+  }
+  logger.info("Organization retrieved", {
+    duration: Date.now() - orgStartTime,
+    organizationName: organization.name,
+  });
 
     logger.debug("Step 3: Extracting brand configuration", {
       organizationId: input.organizationId,
@@ -77,14 +79,14 @@ export async function handleGenerateSite(
       hasTone: !!input.tone,
     });
     errorContext.stage = "brand_config";
-    const brandName = input.brandName || organization.name;
-    const tone = input.tone || "professional";
-    const brandColors = organization.settings?.brandColors || {
-      primary: "#2563eb",
-      secondary: "#6b7280",
-      accent: "#10b981",
-    };
-    const logoUrl = organization.settings?.branding?.customLogo || organization.logoUrl;
+  const brandName = input.brandName || organization.name;
+  const tone = input.tone || "professional";
+  const brandColors = organization.settings?.brandColors || {
+    primary: "#2563eb",
+    secondary: "#6b7280",
+    accent: "#10b981",
+  };
+  const logoUrl = organization.settings?.branding?.customLogo || organization.logoUrl;
     const description = organization.settings?.branding?.description;
     const brandImages = organization.settings?.branding?.brandImages || [];
 
@@ -92,13 +94,13 @@ export async function handleGenerateSite(
       organizationId: input.organizationId,
     });
     errorContext.stage = "brand_site_fetch";
-    const existingSites = await brandSiteRepository.getAll({
-      queryConstraints: [
-        { field: "organizationId", operator: "==", value: input.organizationId },
-      ],
-    });
+  const existingSites = await brandSiteRepository.getAll({
+    queryConstraints: [
+      { field: "organizationId", operator: "==", value: input.organizationId },
+    ],
+  });
 
-    if (existingSites.length === 0) {
+  if (existingSites.length === 0) {
       const error = "Brand site not found. Please initiate generation first.";
       errorContext.errors.push({
         stage: errorContext.stage,
@@ -110,29 +112,29 @@ export async function handleGenerateSite(
         errorContext,
       });
       throw new Error(error);
-    }
+  }
 
-    const brandSite = existingSites[0];
+  const brandSite = existingSites[0];
     brandSiteId = brandSite.id;
     logger.debug("Brand site found", {
       brandSiteId,
       currentStatus: brandSite.status,
     });
 
-    // Verify status is pending (should be set by init function)
-    if (brandSite.status !== "pending") {
-      logger.warn("Brand site status is not pending, updating to pending", {
-        brandSiteId,
-        currentStatus: brandSite.status,
-      });
+  // Verify status is pending (should be set by init function)
+  if (brandSite.status !== "pending") {
+    logger.warn("Brand site status is not pending, updating to pending", {
+      brandSiteId,
+      currentStatus: brandSite.status,
+    });
       errorContext.stage = "status_update";
-      await brandSiteRepository.update({
-        id: brandSiteId,
-        data: {
-          status: "pending",
-        },
-      });
-    }
+    await brandSiteRepository.update({
+      id: brandSiteId,
+      data: {
+        status: "pending",
+      },
+    });
+  }
 
     logger.debug("Step 5: Updating status to generating", {
       brandSiteId,
@@ -168,54 +170,67 @@ export async function handleGenerateSite(
     let html: string;
 
     try {
-      if (sectionType && brandSite.html) {
-        logger.info("Calling Gemini API for section regeneration", {
-          brandName,
-          sectionType,
-          model: "gemini-2.5-flash",
-        });
+    if (sectionType && brandSite.html) {
+      logger.info("Calling Gemini API for section regeneration", {
+        brandName,
+        sectionType,
+        model: "gemini-2.5-flash",
+      });
 
-        html = await geminiService.regenerateSection(
-          {
-            brandName,
-            colors: brandColors,
-            logoUrl,
-            tone,
-            description,
-            brandImages,
-            context: brandSite.context,
-            contextImages: brandSite.contextImages || [],
-          },
-          sectionType,
-          brandSite.html,
-        );
-
-        logger.info("Section regenerated by Gemini", {
-          duration: Date.now() - geminiStartTime,
-          sectionType,
-          htmlLength: html.length,
-        });
-      } else {
-        logger.info("Calling Gemini API for HTML generation", {
-          brandName,
-          model: "gemini-2.5-flash",
-        });
-
-        html = await geminiService.generateSiteHtml({
+      html = await geminiService.regenerateSection(
+        {
           brandName,
           colors: brandColors,
           logoUrl,
           tone,
+            description,
+            brandImages,
+            context: brandSite.context,
+            contextImages: brandSite.contextImages || [],
+        },
+        sectionType,
+        brandSite.html,
+      );
+
+      logger.info("Section regenerated by Gemini", {
+        duration: Date.now() - geminiStartTime,
+        sectionType,
+        htmlLength: html.length,
+      });
+    } else {
+      logger.info("Calling Gemini API for HTML generation", {
+        brandName,
+        model: "gemini-2.5-flash",
+      });
+
+      html = await geminiService.generateSiteHtml({
+        brandName,
+        colors: brandColors,
+        logoUrl,
+        tone,
           description,
           brandImages,
           context: brandSite.context,
           contextImages: brandSite.contextImages || [],
-        });
+      });
 
-        logger.info("HTML generated by Gemini", {
-          duration: Date.now() - geminiStartTime,
-          htmlLength: html.length,
-        });
+      // Inject widget script if widgets are enabled
+      const widgets = organization.settings?.widgets;
+      if (widgets?.enabled) {
+        const widgetScript = generateWidgetScript(organization.id, config.firebaseProjectId || "");
+        // Inject before closing </body> tag
+        if (html.includes("</body>")) {
+          html = html.replace("</body>", `${widgetScript}\n</body>`);
+        } else {
+          // If no body tag, append to end
+          html += `\n${widgetScript}`;
+        }
+      }
+
+      logger.info("HTML generated by Gemini", {
+        duration: Date.now() - geminiStartTime,
+        htmlLength: html.length,
+      });
       }
     } catch (geminiError) {
       const error = geminiError instanceof Error ? geminiError.message : "Unknown Gemini error";
@@ -363,16 +378,22 @@ export async function handleGenerateSite(
       });
       throw new Error(error);
     }
-    
+
+    // Save files structure (for manual editing support)
+    const files: Record<string, string> = {
+      "index.html": html,
+    };
+
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
         html,
-        metadata: {
-          generatedAt: new Date().toISOString(),
-          model: "gemini-2.5-flash",
+        files,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        model: "gemini-2.5-flash",
           version: newVersion,
-        },
+      },
         status: "deploying",
         versions: versionsToSave,
       },
@@ -487,15 +508,46 @@ export async function handleGenerateSite(
     errorContext.stage = "hosting_deployment";
     let deployedUrl: string;
     try {
+      // Prepare files for deployment
+      const filesToDeploy = [{ path: "index.html", contents: html }];
+      
+      // If widgets are enabled, add widget-loader.js to deployment
+      const widgets = organization.settings?.widgets;
+      if (widgets?.enabled) {
+        try {
+          // Read widget-loader.js from the app/public directory
+          const widgetLoaderPath = join(__dirname, "../../../app/public/widget-loader.js");
+          try {
+            const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
+            filesToDeploy.push({
+              path: "widget-loader.js",
+              contents: widgetLoaderContent,
+            });
+            logger.info("Added widget-loader.js to deployment", { brandSiteId });
+          } catch (readError) {
+            logger.warn("Could not read widget-loader.js, widgets may not work", {
+              error: readError instanceof Error ? readError.message : "Unknown error",
+              path: widgetLoaderPath,
+            });
+            // Continue without widget-loader.js - the script tag will still be injected
+          }
+        } catch (error) {
+          logger.warn("Failed to add widget-loader.js to deployment", {
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }
+      
       deployedUrl = await hostingService.deploySite(
-        siteId,
-        [{ path: "index.html", contents: html }],
-        `Deploy ${brandName} site`,
-      );
-      logger.info("Site deployed to Firebase Hosting", {
-        duration: Date.now() - deployStartTime,
-        deployedUrl,
-      });
+      siteId,
+      filesToDeploy,
+      `Deploy ${brandName} site`,
+    );
+    logger.info("Site deployed to Firebase Hosting", {
+      duration: Date.now() - deployStartTime,
+      deployedUrl,
+      fileCount: filesToDeploy.length,
+    });
     } catch (deployError) {
       const error = deployError instanceof Error ? deployError.message : "Unknown deployment error";
       errorContext.errors.push({
@@ -563,16 +615,16 @@ export async function handleGenerateSite(
       });
 
       try {
-        logger.info("Creating Cloudflare subdomain", { subdomain });
-        const deployedHost = new URL(deployedUrl).hostname;
-        finalUrl = await cloudflareService.createSubdomain(
-          subdomain,
-          deployedHost,
-        );
-        logger.info("Cloudflare subdomain created", {
-          duration: Date.now() - cloudflareStartTime,
-          subdomainUrl: finalUrl,
-        });
+      logger.info("Creating Cloudflare subdomain", { subdomain });
+      const deployedHost = new URL(deployedUrl).hostname;
+      finalUrl = await cloudflareService.createSubdomain(
+        subdomain,
+        deployedHost,
+      );
+      logger.info("Cloudflare subdomain created", {
+        duration: Date.now() - cloudflareStartTime,
+        subdomainUrl: finalUrl,
+      });
       } catch (cloudflareError) {
         const error = cloudflareError instanceof Error ? cloudflareError.message : "Unknown Cloudflare error";
         errorContext.errors.push({
@@ -638,7 +690,7 @@ export async function handleGenerateSite(
     if (!errorContext.errors.some(e => e.error === errorMessage && e.stage === errorContext.stage)) {
       errorContext.errors.push({
         stage: errorContext.stage,
-        error: errorMessage,
+      error: errorMessage,
         timestamp: new Date().toISOString(),
       });
     }
@@ -661,13 +713,13 @@ export async function handleGenerateSite(
     try {
       const databaseService = getDatabaseService();
       const brandSiteRepository = getBrandSiteRepository(databaseService);
-      await brandSiteRepository.update({
+    await brandSiteRepository.update({
         id: brandSiteId || "unknown",
-        data: {
-          status: "failed",
-          error: errorMessage,
-        },
-      });
+      data: {
+        status: "failed",
+        error: errorMessage,
+      },
+    });
     } catch (updateError) {
       logger.error("Failed to update brand site with error status", {
         brandSiteId,
@@ -691,5 +743,13 @@ function generateSubdomain(brandName: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .substring(0, 50);
+}
+
+/**
+ * Generate widget script tag for embedding widgets
+ */
+function generateWidgetScript(organizationId: string, projectId: string): string {
+  const apiUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
+  return `<script src="/widget-loader.js" data-org-id="${organizationId}" data-api-url="${apiUrl}"></script>`;
 }
 

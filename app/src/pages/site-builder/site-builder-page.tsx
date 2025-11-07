@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2, Plus, Trash2, Palette, Globe, FileText } from "lucide-react";
+import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2, Plus, Trash2, Palette, Globe, FileText, Code } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
-import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion } from "@/hooks/service-hooks/use-brand-site";
+import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion, useDeployManualSite } from "@/hooks/service-hooks/use-brand-site";
 import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
+import { FileEditor } from "@/components/site-builder/file-editor";
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { firebase } from "@/infrastructure/firebase";
 
 // Build default styling from organization branding
 function buildDefaultStylingFromBranding(brandColors?: { primary?: string; secondary?: string; accent?: string }) {
@@ -66,8 +70,10 @@ export default function SiteBuilderPage() {
   const addCustomDomain = useAddCustomDomain();
   const restoreVersion = useRestoreBrandSiteVersion();
   const previewVersion = usePreviewBrandSiteVersion();
+  const deployManualSite = useDeployManualSite();
   const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(null);
   const brandSite = useBrandSite(currentBrandSiteId);
+  const [activeTab, setActiveTab] = useState<"ai" | "manual">("ai");
   
   // Widget configuration state
   type WidgetPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
@@ -508,20 +514,33 @@ export default function SiteBuilderPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl">
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <Sparkles className="h-4 w-4 text-purple-600" />
-              </div>
-              Site Generation
-            </CardTitle>
-            <CardDescription className="ml-11">
-              Provide context and instructions to generate or regenerate your website.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <div className="max-w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ai" | "manual")} className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="ai" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Generation
+            </TabsTrigger>
+            <TabsTrigger value="manual" className="flex items-center gap-2">
+              <Code className="h-4 w-4" />
+              Manual Editor
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="ai" className="space-y-6">
+            <Card className="shadow-sm border-gray-200/50">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-3 text-lg">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                  </div>
+                  Site Generation
+                </CardTitle>
+                <CardDescription className="ml-11">
+                  Provide context and instructions to generate or regenerate your website.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
             {/* Context Section */}
             <div className="space-y-3 border-b border-gray-200 pb-4">
               <Label>Context & Instructions (Optional)</Label>
@@ -968,6 +987,179 @@ export default function SiteBuilderPage() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="manual" className="space-y-6">
+            {brandSites.length === 0 ? (
+              <Card className="shadow-sm border-gray-200/50">
+                <CardContent className="p-8 text-center">
+                  <Code className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-lg font-semibold mb-2">No Site Created Yet</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Create a site using AI generation first, or start with a blank template.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      if (!organization?.id) return;
+                      // Create a blank site with minimal HTML
+                      const blankHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${organization.settings?.branding?.companyName || organization.name}</title>
+</head>
+<body>
+  <h1>Welcome</h1>
+  <p>Start editing your site files!</p>
+</body>
+</html>`;
+                      generateSite.mutate(
+                        {
+                          organizationId: organization.id,
+                          brandName: organization.settings?.branding?.companyName || organization.name,
+                          tone: "professional",
+                        },
+                        {
+                          onSuccess: async (result) => {
+                            setCurrentBrandSiteId(result.id);
+                            // Update with blank HTML and files
+                            const db = getFirestore(firebase.app);
+                            await updateDoc(doc(db, "brandSites", result.id), {
+                              html: blankHtml,
+                              files: {
+                                "index.html": blankHtml,
+                              },
+                            });
+                            toast.success("Blank site created! Start editing in the file editor.");
+                            setActiveTab("manual");
+                          },
+                        }
+                      );
+                    }}
+                    disabled={generateSite.isPending || !organization?.id}
+                  >
+                    {generateSite.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Create Blank Site
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-sm border-gray-200/50">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-3 text-lg">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Code className="h-4 w-4 text-blue-600" />
+                    </div>
+                    Code Editor
+                  </CardTitle>
+                  <CardDescription className="ml-11">
+                    Edit your site files directly. Changes are saved automatically when you deploy.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Status Display - Only show if site exists */}
+                  {(brandSite?.data || brandSites[0]) && (
+                    <div className={`p-4 border rounded-lg ${
+                      (brandSite?.data || brandSites[0])?.status === "success" 
+                        ? "bg-green-50 border-green-200" 
+                        : (brandSite?.data || brandSites[0])?.status === "failed"
+                        ? "bg-red-50 border-red-200"
+                        : "bg-blue-50 border-blue-200"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          {((brandSite?.data || brandSites[0])?.status === "pending") && (
+                            <>
+                              <p className="text-sm font-medium text-blue-900">
+                                Site deployment queued...
+                              </p>
+                              <p className="text-xs text-blue-700 mt-1">
+                                Waiting to start deployment
+                              </p>
+                            </>
+                          )}
+                          {((brandSite?.data || brandSites[0])?.status === "deploying") && (
+                            <>
+                              <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Deploying site...
+                              </p>
+                              <p className="text-xs text-blue-700 mt-1">
+                                Setting up hosting and DNS
+                              </p>
+                            </>
+                          )}
+                          {((brandSite?.data || brandSites[0])?.status === "success") && (brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl) && (
+                            <>
+                              <p className="text-sm font-medium text-green-900">
+                                Site Deployed Successfully!
+                              </p>
+                              <a
+                                href={brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-green-700 hover:text-green-900 flex items-center gap-1 mt-1"
+                              >
+                                {brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </>
+                          )}
+                          {((brandSite?.data || brandSites[0])?.status === "failed") && (
+                            <>
+                              <p className="text-sm font-medium text-red-900">
+                                Site Deployment Failed
+                              </p>
+                              <p className="text-xs text-red-700 mt-1">
+                                {(brandSite?.data || brandSites[0])?.error || "Unknown error occurred"}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <FileEditor
+                    files={brandSite?.data?.files || (brandSite?.data?.html ? { "index.html": brandSite.data.html } : {})}
+                    onSave={async (files) => {
+                      if (!currentBrandSiteId) return;
+                      const db = getFirestore(firebase.app);
+                      await updateDoc(doc(db, "brandSites", currentBrandSiteId), {
+                        files,
+                        html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                      });
+                    }}
+                    onDeploy={async (files) => {
+                      if (!currentBrandSiteId || !organization?.id) return;
+                      await deployManualSite.mutateAsync({
+                        brandSiteId: currentBrandSiteId,
+                        files: Object.entries(files).map(([path, content]) => ({
+                          path,
+                          content,
+                        })),
+                        versionMessage: "Manual deployment from code editor",
+                        includeWidgets: organization.settings?.widgets?.enabled || false,
+                      });
+                    }}
+                    organizationId={organization?.id || ""}
+                    projectId={projectId || ""}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Integration Widgets */}
         <Card className="shadow-sm border-gray-200/50">

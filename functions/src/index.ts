@@ -63,3 +63,4 @@ export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-p
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";
 export { submitWidgetForm } from "./functions/submit-widget-form";
+export { deployManualSite } from "./functions/deploy-manual-site";
