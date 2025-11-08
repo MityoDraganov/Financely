@@ -133,4 +133,65 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "deployManualSite")(payload);
     return result.data;
   },
+
+  async generateProposalSuggestion(payload: {
+    leadId: string;
+    organizationId: string;
+  }): Promise<{
+    title: string;
+    description?: string;
+    items: Array<{
+      description: string;
+      qty: number;
+      unitPrice: number;
+      taxPct?: number;
+    }>;
+    currency: string;
+    terms?: string;
+    notes?: string;
+    organizationId: string;
+    leadId: string;
+    status: string;
+    subtotal: number;
+    taxTotal: number;
+    total: number;
+    aiGenerated: boolean;
+  }> {
+    type GenerateProposalSuggestionPayload = Parameters<
+      FunctionsService["generateProposalSuggestion"]
+    >[0];
+    const result = await httpsCallable<
+      GenerateProposalSuggestionPayload,
+      {
+        title: string;
+        description?: string;
+        items: Array<{
+          description: string;
+          qty: number;
+          unitPrice: number;
+          taxPct?: number;
+        }>;
+        currency: string;
+        terms?: string;
+        notes?: string;
+        organizationId: string;
+        leadId: string;
+        status: string;
+        subtotal: number;
+        taxTotal: number;
+        total: number;
+        aiGenerated: boolean;
+      }
+    >(firebase.functions, "generateProposalSuggestion")(payload);
+    return result.data;
+  },
+
+  async createProduct(payload) {
+    type CreateProductPayload = Parameters<FunctionsService["createProduct"]>[0];
+    const result = await httpsCallable<CreateProductPayload, { id: string }>(
+      firebase.functions,
+      "createProduct",
+    )(payload);
+    return result.data;
+  },
 };

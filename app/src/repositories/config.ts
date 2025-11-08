@@ -12,5 +12,6 @@ export enum DatabaseCollection {
   LEADS = "leads",
   NOTIFICATIONS = "notifications",
   TASKS = "tasks",
+  PRODUCTS = "products",
 }
 

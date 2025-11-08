@@ -5,6 +5,7 @@ export * from "./entities/user";
 export * from "./entities/auth-user";
 export * from "./entities/proposal";
 export * from "./entities/invoice";
+export * from "./entities/product";
 export * from "./entities/buyer";
 export * from "./entities/seller";
 export * from "./entities/template";
@@ -21,6 +22,7 @@ export * from "./ports/repositories/organization-repository";
 export * from "./ports/repositories/user-repository";
 export * from "./ports/repositories/contact-repository";
 export * from "./ports/repositories/lead-repository";
+export * from "./ports/repositories/product-repository";
 
 // Ports - Services
 export * from "./ports/services/database-service";

@@ -4,6 +4,7 @@ import { RepositoryHost } from "@/core/ports/repositories";
 
 import { getTemplateRepository } from "./template-repository";
 import { getInvoiceRepository } from "./invoice-repository";
+import { getProposalRepository } from "./proposal-repository";
 import { getOrganizationRepository } from "./organization-repository";
 import { getUserRepository } from "./user-repository";
 import { getInviteRepository } from "./invite-repository";
@@ -12,6 +13,7 @@ import { getTaskRepository } from "./task-repository";
 import { getNotificationRepository } from "./notification-repository";
 import { getContactRepository } from "./contact-repository";
 import { getLeadRepository } from "./lead-repository";
+import { getProductRepository } from "./product-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>
@@ -20,6 +22,8 @@ export const repositoryHost: RepositoryHost = {
       getInvoiceRepository(databaseService),
     getInvoicesRepository: (databaseService: DatabaseService) =>
       getInvoiceRepository(databaseService),
+    getProposalsRepository: (databaseService: DatabaseService) =>
+      getProposalRepository(databaseService),
     getOrganizationsRepository: (databaseService: DatabaseService) =>
       getOrganizationRepository(databaseService),
     getUsersRepository: (databaseService: DatabaseService) =>
@@ -36,4 +40,6 @@ export const repositoryHost: RepositoryHost = {
       getContactRepository(databaseService),
     getLeadsRepository: (databaseService: DatabaseService) =>
       getLeadRepository(databaseService),
+    getProductsRepository: (databaseService: DatabaseService) =>
+      getProductRepository(databaseService),
   }

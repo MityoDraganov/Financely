@@ -120,6 +120,15 @@ export const organizationDataSchema = z.object({
           apiAccess: false,
         }),
       
+      // AI and automation settings
+      ai: z
+        .object({
+          autoProposalSuggestions: z.boolean().default(false),
+        })
+        .default({
+          autoProposalSuggestions: false,
+        }),
+      
       // Widget configuration for embeddable widgets
       widgets: z
         .object({

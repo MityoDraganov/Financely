@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye} from "lucide-react";
+import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye, Sparkles} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,20 +11,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLeadsByOrg, useUpdateLead } from "@/hooks/repository-hooks/use-leads";
 import { useOrganizationContext } from "@/contexts/organization-context";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { Lead } from "@/core";
 import { format } from "date-fns";
+import { ProposalSuggestionDialog } from "@/components/proposal-suggestion-dialog";
 
 export default function LeadsPage() {
   const { currentOrganization } = useOrganizationContext();
+  const { data: organization } = useCurrentOrganization();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isSuggestionDialogOpen, setIsSuggestionDialogOpen] = useState(false);
+  const [leadForSuggestion, setLeadForSuggestion] = useState<Lead | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [widgetTypeFilter, setWidgetTypeFilter] = useState<string>("all");
 
   // Queries
   const { data: leads = [], isLoading: isLoadingLeads, error } = useLeadsByOrg(currentOrganization?.id);
   const updateLeadMutation = useUpdateLead();
+  
   console.log('leads error', error);
   console.log('leads', leads);
 
@@ -73,6 +79,11 @@ export default function LeadsPage() {
   const openDetailDialog = (lead: Lead) => {
     setSelectedLead(lead);
     setIsDetailDialogOpen(true);
+  };
+
+  const openSuggestionDialog = (lead: Lead) => {
+    setLeadForSuggestion(lead);
+    setIsSuggestionDialogOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -268,8 +279,17 @@ export default function LeadsPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openDetailDialog(lead)}
+                            title="View details"
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openSuggestionDialog(lead)}
+                            title="Generate proposal suggestion"
+                          >
+                            <Sparkles className="h-4 w-4 text-purple-500" />
                           </Button>
                           <Select
                             value={leadData.status || "new"}
@@ -458,6 +478,17 @@ export default function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Proposal Suggestion Dialog */}
+      {leadForSuggestion && (
+        <ProposalSuggestionDialog
+          open={isSuggestionDialogOpen}
+          onOpenChange={setIsSuggestionDialogOpen}
+          leadId={leadForSuggestion.id}
+          leadData={leadForSuggestion.data || leadForSuggestion}
+          organizationName={organization?.name}
+        />
+      )}
     </div>
   );
 }

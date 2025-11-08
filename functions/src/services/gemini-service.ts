@@ -18,6 +18,7 @@ interface BrandContext {
   brandImages?: string[];
   context?: string;
   contextImages?: string[];
+  products?: Array<{ name: string; description?: string; price: number; currency: string; category?: string; images?: string[] }>;
 }
 
 interface GeminiResponse {
@@ -231,7 +232,7 @@ export class GeminiService {
   }
 
   private buildPrompt(brandContext: BrandContext): string {
-    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages } = brandContext;
+    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages, products } = brandContext;
 
     let prompt = `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
 
@@ -272,6 +273,22 @@ ${context}`;
     if (contextImages && contextImages.length > 0) {
       prompt += `\n\nContext Images (use these as reference for styling and content):
 ${contextImages.join(", ")}`;
+    }
+
+    if (products && products.length > 0) {
+      prompt += `\n\nProducts/Services to Feature:
+The website should prominently feature these products/services:`;
+      products.forEach((product) => {
+        const productInfo = [
+          `- ${product.name}`,
+          product.description ? `  Description: ${product.description}` : null,
+          `  Price: ${product.price} ${product.currency}`,
+          product.category ? `  Category: ${product.category}` : null,
+          product.images && product.images.length > 0 ? `  Images: ${product.images[0]}` : null,
+        ].filter(Boolean).join("\n");
+        prompt += `\n${productInfo}`;
+      });
+      prompt += `\n\nCreate a products/services section showcasing these items with their descriptions, prices, and images. Make it visually appealing and easy to browse.`;
     }
 
     prompt += `\n\nThe HTML should be complete and ready to deploy. Include:
@@ -462,7 +479,7 @@ Output ONLY the HTML code, no markdown, no explanations, just the HTML.`;
     sectionType: "hero" | "about" | "features" | "contact",
     currentHtml: string,
   ): string {
-    const { brandName, colors, tone } = brandContext;
+    const { brandName, colors, tone, products } = brandContext;
 
     const sectionDescriptions = {
       hero: "hero section with a compelling headline, subheadline, and call-to-action button",
@@ -471,7 +488,7 @@ Output ONLY the HTML code, no markdown, no explanations, just the HTML.`;
       contact: "contact section with a contact form or contact information",
     };
 
-    return `Generate a new ${sectionDescriptions[sectionType]} HTML section for the brand "${brandName}".
+    let prompt = `Generate a new ${sectionDescriptions[sectionType]} HTML section for the brand "${brandName}".
 
 Current HTML context (for reference only):
 ${currentHtml.substring(0, 1000)}
@@ -484,9 +501,28 @@ Requirements:
    - Accent: ${colors.accent}
 3. Brand tone: ${tone}
 4. Make it responsive and modern
-5. Ensure it fits seamlessly with the rest of the page
+5. Ensure it fits seamlessly with the rest of the page`;
 
-Output ONLY the HTML for this section (the opening and closing tags for the section element), no explanations, no markdown.`;
+    // Add products context for features section
+    if (sectionType === "features" && products && products.length > 0) {
+      prompt += `\n\nProducts/Services to Feature:
+The section should showcase these products/services:`;
+      products.forEach((product) => {
+        const productInfo = [
+          `- ${product.name}`,
+          product.description ? `  Description: ${product.description}` : null,
+          `  Price: ${product.price} ${product.currency}`,
+          product.category ? `  Category: ${product.category}` : null,
+          product.images && product.images.length > 0 ? `  Image: ${product.images[0]}` : null,
+        ].filter(Boolean).join("\n");
+        prompt += `\n${productInfo}`;
+      });
+      prompt += `\n\nCreate an attractive products/services showcase with cards or grid layout displaying each product with its name, description, price, and image.`;
+    }
+
+    prompt += `\n\nOutput ONLY the HTML for this section (the opening and closing tags for the section element), no explanations, no markdown.`;
+
+    return prompt;
   }
 }
 

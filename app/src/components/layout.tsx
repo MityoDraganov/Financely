@@ -10,7 +10,7 @@ import {
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { UserButton } from "@clerk/clerk-react";
-import { Brush, FileText, LayoutDashboard, Settings, Zap, Users, Sparkles, MessageSquare } from "lucide-react";
+import { Brush, FileText, LayoutDashboard, Settings, Zap, Users, Sparkles, MessageSquare, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
@@ -21,6 +21,11 @@ const items = [
 		title: "Dashboard",
 		href: "/dashboard",
 		icon: LayoutDashboard,
+	},
+	{
+		title: "Products",
+		href: "/products",
+		icon: Package,
 	},
 	{
 		title: "Invoices",
@@ -36,6 +41,11 @@ const items = [
 		title: "Leads",
 		href: "/leads",
 		icon: MessageSquare,
+	},
+	{
+		title: "Proposals",
+		href: "/proposals",
+		icon: FileText,
 	},
 	{
 		title: "Designer",

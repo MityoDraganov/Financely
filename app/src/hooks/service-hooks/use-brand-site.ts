@@ -11,7 +11,7 @@ export const usePreviewBrandSiteVersion = () => {
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.previewBrandSiteVersion>[0]) =>
       functionsService.previewBrandSiteVersion(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["brandSite", variables.brandSiteId],
       });
@@ -154,7 +154,7 @@ export const useDeployManualSite = () => {
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.deployManualSite>[0]) =>
       functionsService.deployManualSite(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["brandSite", variables.brandSiteId],
       });

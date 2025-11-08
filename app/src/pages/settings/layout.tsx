@@ -39,6 +39,12 @@ const settingsSections = [
         description: "Subscription and payment",
         icon: CreditCard,
       },
+      {
+        title: "AI Settings",
+        href: "/settings/organization/ai",
+        description: "AI features and automation",
+        icon: Settings,
+      },
     ],
   },
   {

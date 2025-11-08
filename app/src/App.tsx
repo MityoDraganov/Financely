@@ -14,10 +14,14 @@ import InvoicesPage from "./pages/invoices/invoices";
 import InvoiceDetailPage from "./pages/invoices/invoice-detail";
 import ContactsPage from "./pages/contacts/contacts";
 import LeadsPage from "./pages/leads/leads";
+import ProposalsPage from "./pages/proposals/proposals";
+import ProposalDetailPage from "./pages/proposals/proposal-detail";
+import ProductsPage from "./pages/products/products";
 import SettingsLayout from "./pages/settings/layout";
 import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
 import OrganizationBillingPage from "./pages/settings/organization/billing";
+import OrganizationAISettingsPage from "./pages/settings/organization/ai-settings";
 import UsersListPage from "./pages/settings/users/list";
 import InvitesPage from "./pages/settings/invites";
 import OnboardingPage from "./pages/onboarding/page";
@@ -32,6 +36,7 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
+import { AIServiceProvider } from "./components/AIServiceProvider";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +61,7 @@ function App() {
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>
 						<OrganizationProvider>
+							<AIServiceProvider>
 							<BrandingProvider>
 							<Router>
 								<Routes>
@@ -124,6 +130,36 @@ function App() {
 											<ProtectedRoute>
 												<AppLayout>
 													<LeadsPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/proposals"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<ProposalsPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/proposals/:id"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<ProposalDetailPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/products"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<ProductsPage />
 												</AppLayout>
 											</ProtectedRoute>
 										}
@@ -219,6 +255,12 @@ function App() {
 											}
 										/>
 										<Route
+											path="organization/ai"
+											element={
+												<OrganizationAISettingsPage />
+											}
+										/>
+										<Route
 											path="users"
 											element={<UsersListPage />}
 										/>
@@ -232,6 +274,7 @@ function App() {
 								<Toaster />
 							</Router>
 							</BrandingProvider>
+							</AIServiceProvider>
 						</OrganizationProvider>
 					</SidebarProvider>
 					</ThemeProvider>

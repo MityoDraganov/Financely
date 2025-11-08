@@ -88,6 +88,9 @@ export function OrganizationSwitcher() {
             emailSending: true,
             apiAccess: false,
           },
+          ai: {
+            autoProposalSuggestions: false,
+          },
         },
         usage: {
           templateCount: 0,

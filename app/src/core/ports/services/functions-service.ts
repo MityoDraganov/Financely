@@ -234,4 +234,60 @@ export interface FunctionsService {
     versionMessage?: string;
     includeWidgets?: boolean;
   }): Promise<{ success: boolean; brandSiteId: string; deployedUrl: string; status: string }>;
+
+  /**
+   * Generate a proposal suggestion from a lead using AI
+   */
+  generateProposalSuggestion(payload: {
+    leadId: string;
+    organizationId: string;
+  }): Promise<{
+    title: string;
+    description?: string;
+    items: Array<{
+      description: string;
+      qty: number;
+      unitPrice: number;
+      taxPct?: number;
+    }>;
+    currency: string;
+    terms?: string;
+    notes?: string;
+    organizationId: string;
+    leadId: string;
+    status: string;
+    subtotal: number;
+    taxTotal: number;
+    total: number;
+    aiGenerated: boolean;
+  }>;
+
+  /**
+   * Create a product
+   */
+  createProduct(payload: {
+    organizationId: string;
+    name: string;
+    description?: string;
+    price: number;
+    currency?: string;
+    sku?: string;
+    barcode?: string;
+    stockQuantity?: number;
+    trackInventory?: boolean;
+    lowStockThreshold?: number;
+    images?: string[];
+    category?: string;
+    tags?: string[];
+    weight?: number;
+    dimensions?: {
+      length?: number;
+      width?: number;
+      height?: number;
+      unit?: "cm" | "in" | "m";
+    };
+    status?: "active" | "inactive" | "archived";
+    taxRate?: number;
+    cost?: number;
+  }): Promise<{ id: string }>;
 }

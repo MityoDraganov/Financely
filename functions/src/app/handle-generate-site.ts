@@ -1,6 +1,7 @@
 import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
+import { getProductRepository } from "../repositories/product-repository";
 import { GeminiService } from "../services/gemini-service";
 import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
@@ -48,6 +49,7 @@ export async function handleGenerateSite(
   const databaseService = getDatabaseService();
   const organizationRepository = getOrganizationRepository(databaseService);
   const brandSiteRepository = getBrandSiteRepository(databaseService);
+  const productRepository = getProductRepository(databaseService);
 
     logger.debug("Step 2: Fetching organization", {
       organizationId: input.organizationId,
@@ -177,6 +179,23 @@ export async function handleGenerateSite(
         model: "gemini-2.5-flash",
       });
 
+      // Get products for the organization
+      const products = await productRepository.getAll({
+        queryConstraints: [
+          { field: "organizationId", operator: "==", value: input.organizationId },
+          { field: "status", operator: "==", value: "active" },
+        ],
+      });
+
+      const productsForContext = products.map((p) => ({
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        currency: p.currency,
+        category: p.category,
+        images: p.images,
+      }));
+
       html = await geminiService.regenerateSection(
         {
           brandName,
@@ -187,6 +206,7 @@ export async function handleGenerateSite(
             brandImages,
             context: brandSite.context,
             contextImages: brandSite.contextImages || [],
+            products: productsForContext,
         },
         sectionType,
         brandSite.html,
@@ -203,6 +223,23 @@ export async function handleGenerateSite(
         model: "gemini-2.5-flash",
       });
 
+      // Get products for the organization
+      const products = await productRepository.getAll({
+        queryConstraints: [
+          { field: "organizationId", operator: "==", value: input.organizationId },
+          { field: "status", operator: "==", value: "active" },
+        ],
+      });
+
+      const productsForContext = products.map((p) => ({
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        currency: p.currency,
+        category: p.category,
+        images: p.images,
+      }));
+
       html = await geminiService.generateSiteHtml({
         brandName,
         colors: brandColors,
@@ -212,6 +249,7 @@ export async function handleGenerateSite(
           brandImages,
           context: brandSite.context,
           contextImages: brandSite.contextImages || [],
+          products: productsForContext,
       });
 
       // Inject widget script if widgets are enabled

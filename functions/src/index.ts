@@ -64,3 +64,10 @@ export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-p
 export { getWidgetConfig } from "./functions/get-widget-config";
 export { submitWidgetForm } from "./functions/submit-widget-form";
 export { deployManualSite } from "./functions/deploy-manual-site";
+
+// Lead functions
+export { onLeadCreated } from "./functions/on-lead-created";
+export { generateProposalSuggestion } from "./functions/generate-proposal-suggestion";
+
+// Product functions
+export { createProduct } from "./functions/create-product";

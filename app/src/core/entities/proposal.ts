@@ -27,6 +27,12 @@ export const proposalApprovalSchema = z.object({
 });
 
 export const proposalDataSchema = z.object({
+  // Organization and relationship tracking
+  organizationId: z.string().min(1, "Organization ID is required"),
+  leadId: z.string().optional(), // Reference to the lead this proposal is based on
+  invoiceId: z.string().optional(), // Reference to the invoice created from this proposal
+  
+  // Proposal content
   title: z.string().min(1),
   description: z.string().optional(),
   status: z.nativeEnum(PROPOSAL_STATUSES),
@@ -38,6 +44,10 @@ export const proposalDataSchema = z.object({
   terms: z.string().optional(),
   notes: z.string().optional(),
   approval: proposalApprovalSchema.optional(),
+  
+  // AI generation metadata
+  aiGenerated: z.boolean().default(false),
+  aiSuggestionId: z.string().optional(), // Track if this was from an AI suggestion
 });
 
 export type ProposalItem = z.infer<typeof proposalItemSchema>;

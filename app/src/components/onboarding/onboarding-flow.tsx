@@ -176,6 +176,9 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             emailSending: true,
             apiAccess: false,
           },
+          ai: {
+            autoProposalSuggestions: false,
+          },
         },
         usage: {
           templateCount: 0,

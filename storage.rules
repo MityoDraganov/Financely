@@ -7,10 +7,11 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Allow authenticated users to read/write organization branding assets
+    // Allow public read access to branding assets (needed for displaying in brand sites)
+    // Write access restricted to authenticated users only
     // The app-level code ensures users can only access their own organization's branding
     match /organizations/{orgId}/branding/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if true; // Public read access for branding images (logos, gallery, etc.)
       allow write: if isAuthenticated() 
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
@@ -21,6 +22,15 @@ service firebase.storage {
     match /invoices/{orgId}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if false;
+    }
+
+    // Allow public read access to product images (needed for displaying in sites/proposals)
+    // Write access restricted to authenticated users only
+    match /organizations/{orgId}/products/{fileName} {
+      allow read: if true; // Public read access for product images
+      allow write: if isAuthenticated() 
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
     }
 
     // Default deny all other paths
