@@ -25,7 +25,8 @@ export default function LeadsPage() {
   // Queries
   const { data: leads = [], isLoading: isLoadingLeads, error } = useLeadsByOrg(currentOrganization?.id);
   const updateLeadMutation = useUpdateLead();
-  console.log(error);
+  console.log('leads error', error);
+  console.log('leads', leads);
 
   // Filter leads
   const filteredLeads = leads.filter((lead) => {

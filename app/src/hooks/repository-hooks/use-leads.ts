@@ -24,9 +24,10 @@ export const useLeadsByOrg = (orgId: string | undefined) => {
     queryKey: ["leads", "org", orgId],
     queryFn: async () => {
       if (!orgId) return [];
+      // Note: Data is stored flat in Firestore, not nested under "data"
       return leadRepository.getAll({
         queryConstraints: [
-          { field: "data.organizationId", operator: "==", value: orgId },
+          { field: "organizationId", operator: "==", value: orgId },
         ],
         orderBy: { field: "createdAt", direction: "desc" },
       });
