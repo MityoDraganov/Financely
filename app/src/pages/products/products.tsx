@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Package, DollarSign, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
+import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -907,7 +907,6 @@ export default function ProductsPage() {
                           </td>
                           <td className="p-3 align-top">
                             <div className="flex items-center gap-1.5">
-                              <DollarSign className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                               <span className="font-medium text-sm whitespace-nowrap">
                                 {formatCurrency(product.price, product.currency)}
                               </span>
