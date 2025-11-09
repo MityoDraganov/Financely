@@ -217,6 +217,10 @@ export const functionsService: FunctionsService = {
         avgSessionDuration: number;
         topPages: Array<{ path: string; views: number }>;
         trafficSources: Array<{ source: string; visitors: number }>;
+        devices: Array<{ device: string; visitors: number }>;
+        browsers: Array<{ browser: string; visitors: number }>;
+        referrers: Array<{ referrer: string; visitors: number }>;
+        pageViewsOverTime: Array<{ date: string; views: number }>;
         dateRange: { start: string; end: string };
         warning?: string;
         indexError?: {
@@ -225,6 +229,14 @@ export const functionsService: FunctionsService = {
         };
       }
     >(firebase.functions, "getAnalyticsMetrics")(payload);
-    return result.data;
+    // Ensure all required fields are present, provide defaults if missing
+    const data = result.data;
+    return {
+      ...data,
+      devices: data.devices || [],
+      browsers: data.browsers || [],
+      referrers: data.referrers || [],
+      pageViewsOverTime: data.pageViewsOverTime || [],
+    };
   },
 };

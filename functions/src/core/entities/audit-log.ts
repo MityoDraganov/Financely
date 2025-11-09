@@ -1,0 +1,307 @@
+import z from "zod";
+import { baseEntitySchema } from "./base";
+
+/**
+ * Audit log action types - comprehensive list of all trackable actions
+ */
+export const auditLogActionTypeSchema = z.enum([
+  // Authentication & User Management
+  "user.login",
+  "user.logout",
+  "user.created",
+  "user.updated",
+  "user.deleted",
+  "user.suspended",
+  "user.reactivated",
+  "user.password_changed",
+  "user.email_changed",
+  
+  // Organization Management
+  "organization.created",
+  "organization.updated",
+  "organization.deleted",
+  "organization.settings.updated",
+  "organization.branding.updated",
+  "organization.billing.updated",
+  "organization.subscription.changed",
+  
+  // Member & Invite Management
+  "member.added",
+  "member.removed",
+  "member.role_changed",
+  "invite.created",
+  "invite.sent",
+  "invite.accepted",
+  "invite.revoked",
+  "invite.expired",
+  
+  // Invoice Operations
+  "invoice.created",
+  "invoice.updated",
+  "invoice.deleted",
+  "invoice.sent",
+  "invoice.paid",
+  "invoice.overdue",
+  "invoice.cancelled",
+  "invoice.refunded",
+  "invoice.pdf.generated",
+  "invoice.pdf.downloaded",
+  
+  // Proposal Operations
+  "proposal.created",
+  "proposal.updated",
+  "proposal.deleted",
+  "proposal.sent",
+  "proposal.accepted",
+  "proposal.rejected",
+  "proposal.expired",
+  "proposal.converted_to_invoice",
+  
+  // Product Operations
+  "product.created",
+  "product.updated",
+  "product.deleted",
+  "product.archived",
+  "product.activated",
+  
+  // Contact Operations
+  "contact.created",
+  "contact.updated",
+  "contact.deleted",
+  "contact.merged",
+  "contact.imported",
+  
+  // Lead Operations
+  "lead.created",
+  "lead.updated",
+  "lead.deleted",
+  "lead.converted",
+  "lead.qualified",
+  "lead.disqualified",
+  
+  // Template Operations
+  "template.created",
+  "template.updated",
+  "template.deleted",
+  "template.published",
+  "template.archived",
+  "template.version.created",
+  "template.version.restored",
+  
+  // Workflow Operations
+  "workflow.created",
+  "workflow.updated",
+  "workflow.deleted",
+  "workflow.activated",
+  "workflow.paused",
+  "workflow.archived",
+  "workflow.executed",
+  "workflow.step.completed",
+  "workflow.step.failed",
+  
+  // Site Builder Operations
+  "site.created",
+  "site.updated",
+  "site.deleted",
+  "site.published",
+  "site.deployed",
+  "site.version.created",
+  "site.version.restored",
+  "site.domain.added",
+  "site.domain.removed",
+  
+  // Analytics & Configuration
+  "analytics.config.updated",
+  "analytics.script.updated",
+  "analytics.event.tracked",
+  
+  // Security & Access
+  "access.granted",
+  "access.revoked",
+  "permission.changed",
+  "api_key.created",
+  "api_key.revoked",
+  "api_key.rotated",
+  "session.created",
+  "session.terminated",
+  
+  // Settings & Configuration
+  "settings.general.updated",
+  "settings.ai.updated",
+  "settings.security.updated",
+  "settings.integration.added",
+  "settings.integration.removed",
+  "settings.integration.updated",
+  
+  // Data Operations
+  "data.exported",
+  "data.imported",
+  "data.backed_up",
+  "data.restored",
+  "data.deleted",
+  
+  // System Operations
+  "system.maintenance.started",
+  "system.maintenance.completed",
+  "system.error.occurred",
+  "system.warning.issued",
+]);
+
+export type AuditLogActionType = z.infer<typeof auditLogActionTypeSchema>;
+
+/**
+ * Audit log severity levels
+ */
+export const auditLogSeveritySchema = z.enum([
+  "info",
+  "warning",
+  "error",
+  "critical",
+]);
+
+export type AuditLogSeverity = z.infer<typeof auditLogSeveritySchema>;
+
+/**
+ * User context information captured in audit logs
+ */
+export const auditLogUserContextSchema = z.object({
+  userId: z.string().min(1),
+  clerkId: z.string().min(1),
+  email: z.string().email(),
+  name: z.string().min(1),
+  role: z.string().optional(), // Organization role
+  ipAddress: z.string().optional(),
+  userAgent: z.string().optional(),
+  sessionId: z.string().optional(),
+  deviceInfo: z
+    .object({
+      type: z.enum(["desktop", "mobile", "tablet", "unknown"]).optional(),
+      os: z.string().optional(),
+      browser: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type AuditLogUserContext = z.infer<typeof auditLogUserContextSchema>;
+
+/**
+ * Resource information that the action was performed on
+ */
+export const auditLogResourceSchema = z.object({
+  type: z.string().min(1), // e.g., "invoice", "proposal", "user"
+  id: z.string().min(1),
+  name: z.string().optional(), // Human-readable name for display
+  metadata: z.record(z.string(), z.unknown()).optional(), // Additional resource metadata
+});
+
+export type AuditLogResource = z.infer<typeof auditLogResourceSchema>;
+
+/**
+ * Change tracking for update operations
+ */
+export const auditLogChangeSchema = z.object({
+  field: z.string().min(1),
+  oldValue: z.unknown().optional(),
+  newValue: z.unknown().optional(),
+  dataType: z.enum(["string", "number", "boolean", "object", "array", "date"]).optional(),
+});
+
+export type AuditLogChange = z.infer<typeof auditLogChangeSchema>;
+
+/**
+ * Outcome of the action
+ */
+export const auditLogOutcomeSchema = z.object({
+  status: z.enum(["success", "failure", "partial"]),
+  message: z.string().optional(),
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+  errorStack: z.string().optional(),
+  durationMs: z.number().optional(), // How long the operation took
+});
+
+export type AuditLogOutcome = z.infer<typeof auditLogOutcomeSchema>;
+
+/**
+ * Main audit log data schema
+ */
+export const auditLogDataSchema = z.object({
+  // Organization context
+  organizationId: z.string().min(1),
+  
+  // Action details
+  action: auditLogActionTypeSchema,
+  severity: auditLogSeveritySchema.default("info"),
+  
+  // User context
+  user: auditLogUserContextSchema,
+  
+  // Resource context
+  resource: auditLogResourceSchema.optional(),
+  
+  // Change tracking (for updates)
+  changes: z.array(auditLogChangeSchema).optional(),
+  
+  // Before/after snapshots (for critical operations)
+  beforeSnapshot: z.record(z.string(), z.unknown()).optional(),
+  afterSnapshot: z.record(z.string(), z.unknown()).optional(),
+  
+  // Outcome
+  outcome: auditLogOutcomeSchema,
+  
+  // Additional metadata
+  metadata: z
+    .object({
+      requestId: z.string().optional(), // For request tracing
+      correlationId: z.string().optional(), // For distributed tracing
+      source: z.enum(["web", "api", "system", "webhook", "scheduled"]).default("web"),
+      sourceDetails: z.string().optional(), // e.g., "POST /api/invoices"
+      tags: z.array(z.string()).optional(), // For categorization
+      customFields: z.record(z.string(), z.unknown()).optional(), // For extensibility
+    })
+    .optional(),
+  
+  // Timestamps (handled by base entity, but can be overridden)
+  timestamp: z.string().optional(), // ISO 8601 timestamp
+});
+
+export type AuditLogData = z.infer<typeof auditLogDataSchema>;
+
+/**
+ * Complete audit log entity
+ */
+export const auditLogSchema = baseEntitySchema.merge(auditLogDataSchema);
+
+export type AuditLog = z.infer<typeof auditLogSchema>;
+
+/**
+ * Input for creating an audit log entry
+ */
+export type CreateAuditLogInput = Omit<
+  AuditLogData,
+  "timestamp" | "outcome" | "severity"
+> & {
+  outcome?: Partial<AuditLogOutcome>;
+  timestamp?: string;
+  severity?: AuditLogSeverity;
+};
+
+/**
+ * Query filters for audit logs
+ */
+export const auditLogQueryFiltersSchema = z.object({
+  organizationId: z.string().min(1).optional(),
+  userId: z.string().optional(),
+  action: auditLogActionTypeSchema.optional(),
+  severity: auditLogSeveritySchema.optional(),
+  resourceType: z.string().optional(),
+  resourceId: z.string().optional(),
+  status: z.enum(["success", "failure", "partial"]).optional(),
+  startDate: z.string().optional(), // ISO 8601
+  endDate: z.string().optional(), // ISO 8601
+  search: z.string().optional(), // Text search across relevant fields
+  tags: z.array(z.string()).optional(),
+});
+
+export type AuditLogQueryFilters = z.infer<typeof auditLogQueryFiltersSchema>;
+

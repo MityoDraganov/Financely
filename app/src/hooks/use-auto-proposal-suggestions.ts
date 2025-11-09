@@ -3,7 +3,6 @@ import { useLeadsByOrg } from "./repository-hooks/use-leads";
 import { useCurrentOrganization } from "./use-current-organization";
 import { useGenerateProposalSuggestion } from "./service-hooks/use-proposal-generation";
 import { useCreateProposal } from "./repository-hooks/use-proposals";
-import { Lead } from "@/core";
 
 /**
  * Hook that automatically generates proposal suggestions for new leads
@@ -44,8 +43,8 @@ export function useAutoProposalSuggestions() {
         
         // Generate proposal suggestion
         const suggestion = await generateMutation.mutateAsync({
-          lead: lead as Lead,
-          organizationName: organization.name,
+          leadId: lead.id,
+          organizationId: organization.id,
         });
 
         // Automatically save the suggestion as a draft proposal

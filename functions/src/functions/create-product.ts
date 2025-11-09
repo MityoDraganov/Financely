@@ -2,6 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { handleCreateProduct } from "../app/handle-create-product";
 import { CreateProductInput } from "../core/entities/product";
 import { loggerService } from "../services/logger-service";
+import { getDatabaseService } from "../services/database-service";
+import { extractUserContextFromRequest } from "../utils/request-context";
+import { getAuditLogRepository } from "../repositories/audit-log-repository";
+import { getAuditLogService } from "../services/audit-log-service";
 
 /**
  * Firebase Cloud Function for creating a product.
@@ -102,10 +106,45 @@ export const createProduct = onCall<CreateProductInput, Promise<{ id: string }>>
         price: payload.price,
       });
 
+      const startTime = Date.now();
+
       // Call application handler
       const productId = await handleCreateProduct(payload);
 
       loggerService.info("Product created successfully", { productId });
+
+      // Automatically create audit log entry
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        if (userContext) {
+          const databaseService = getDatabaseService();
+          const auditLogRepository = getAuditLogRepository(databaseService);
+          const auditLogService = getAuditLogService(auditLogRepository);
+
+          await auditLogService.logSuccess(
+            payload.organizationId,
+            "product.created",
+            userContext,
+            {
+              resource: {
+                type: "product",
+                id: productId,
+                name: payload.name,
+              },
+              durationMs: Date.now() - startTime,
+              metadata: {
+                source: "api",
+                sourceDetails: "createProduct",
+              },
+            }
+          );
+        }
+      } catch (auditError) {
+        // Don't fail the operation if audit logging fails
+        loggerService.warn("Failed to create audit log for product creation", {
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
 
       return { id: productId };
     } catch (error: any) {
@@ -113,6 +152,35 @@ export const createProduct = onCall<CreateProductInput, Promise<{ id: string }>>
         error: error.message,
         stack: error.stack,
       });
+
+      // Log failure to audit log
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        const errorPayload = request.data as CreateProductInput;
+        if (userContext && errorPayload?.organizationId) {
+          const databaseService = getDatabaseService();
+          const auditLogRepository = getAuditLogRepository(databaseService);
+          const auditLogService = getAuditLogService(auditLogRepository);
+
+          await auditLogService.logFailure(
+            errorPayload.organizationId,
+            "product.created",
+            userContext,
+            error,
+            {
+              metadata: {
+                source: "api",
+                sourceDetails: "createProduct",
+              },
+            }
+          );
+        }
+      } catch (auditError) {
+        // Don't fail if audit logging fails
+        loggerService.warn("Failed to create audit log for product creation failure", {
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
 
       // Re-throw HttpsError as-is
       if (error instanceof HttpsError) {

@@ -181,12 +181,14 @@ export default function CreateInvoicePage() {
     }
 
     try {
-      const result = await createInvoice.mutateAsync({
+      const invoicePayload = {
         orgId: currentOrganization.id,
         templateId: selectedTemplate.id,
         data: formData,
         status: "draft",
-      });
+      };
+
+      const result = await createInvoice.mutateAsync(invoicePayload);
 
       toast.success("Invoice created successfully!");
       navigate(`/invoices/${result.id}`);

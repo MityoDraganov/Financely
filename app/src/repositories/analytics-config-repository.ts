@@ -13,11 +13,11 @@ const ANALYTICS_CONFIG_DOC_ID = "default";
  * Factory for an `AnalyticsConfigRepository` backed by the provided `DatabaseService`.
  * Stores config as a subcollection document: organizations/{orgId}/analyticsConfig/default
  *
- * @param {DatabaseService} databaseService - Abstraction over the database layer.
+ * @param {DatabaseService} _databaseService - Abstraction over the database layer (unused, kept for interface compatibility).
  * @return {AnalyticsConfigRepository} Repository with CRUD operations for analytics config.
  */
 export function getAnalyticsConfigRepository(
-  databaseService: DatabaseService,
+  _databaseService: DatabaseService,
 ): AnalyticsConfigRepository {
   return {
     async get(orgId: string): Promise<AnalyticsConfig | null> {

@@ -24,6 +24,7 @@ import OrganizationBillingPage from "./pages/settings/organization/billing";
 import OrganizationAISettingsPage from "./pages/settings/organization/ai-settings";
 import UsersListPage from "./pages/settings/users/list";
 import InvitesPage from "./pages/settings/invites";
+import AuditLogPage from "./pages/settings/security/audit-log";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
 import WorkflowsPage from "./pages/workflows/workflows-page";
@@ -278,6 +279,10 @@ function App() {
 										<Route
 											path="invites"
 											element={<InvitesPage />}
+										/>
+										<Route
+											path="security/audit-log"
+											element={<AuditLogPage />}
 										/>
 										{/* TODO: Add more settings routes */}
 									</Route>

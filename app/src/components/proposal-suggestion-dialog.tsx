@@ -32,7 +32,6 @@ export function ProposalSuggestionDialog({
   onOpenChange,
   leadId,
   leadData,
-  organizationName,
 }: ProposalSuggestionDialogProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedProposal, setEditedProposal] = useState<ProposalData | null>(null);

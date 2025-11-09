@@ -141,7 +141,7 @@ export default function ProductsPage() {
     }
 
     try {
-      await createProductMutation.mutateAsync({
+      const productPayload = {
         organizationId: currentOrganization.id,
         name: formData.name!,
         description: formData.description,
@@ -153,9 +153,10 @@ export default function ProductsPage() {
         category: formData.category,
         status: formData.status || "active",
         images: formData.images || [],
-      } as CreateProductInput);
+      } as CreateProductInput;
 
-      toast.success("Product created successfully");
+      const result = await createProductMutation.mutateAsync(productPayload);
+
       setIsCreateDialogOpen(false);
       setFormData({
         name: "",

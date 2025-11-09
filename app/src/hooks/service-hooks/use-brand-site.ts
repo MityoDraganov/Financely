@@ -38,10 +38,10 @@ export const useGenerateSite = () => {
 
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.generateSite>[0]) => functionsService.generateSite(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (result) => {
       // Invalidate queries to trigger refetch
       queryClient.invalidateQueries({
-        queryKey: ["brandSites", variables.organizationId],
+        queryKey: ["brandSites"],
       });
       queryClient.invalidateQueries({
         queryKey: ["brandSite", result.id],
@@ -69,7 +69,7 @@ export const useUpdateAnalyticsScript = () => {
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.updateAnalyticsScript>[0]) => 
       functionsService.updateAnalyticsScript(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (_result, variables) => {
       // Invalidate brand site queries to refresh
       queryClient.invalidateQueries({
         queryKey: ["brandSite", variables.brandSiteId],

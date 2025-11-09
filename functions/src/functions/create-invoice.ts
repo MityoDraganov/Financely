@@ -2,6 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { handleCreateInvoice } from "../app/handle-create-invoice";
 import { CreateInvoiceInput } from "../core/entities/invoice";
 import { loggerService } from "../services/logger-service";
+import { getDatabaseService } from "../services/database-service";
+import { extractUserContextFromRequest } from "../utils/request-context";
+import { getAuditLogRepository } from "../repositories/audit-log-repository";
+import { getAuditLogService } from "../services/audit-log-service";
 
 /**
  * Firebase Cloud Function for creating an invoice.
@@ -108,10 +112,47 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
         hasData: !!payload.data,
       });
 
+      const startTime = Date.now();
+
       // Call application handler
       const invoiceId = await handleCreateInvoice(payload);
 
       loggerService.info("Invoice created successfully", { invoiceId });
+
+      // Automatically create audit log entry
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        if (userContext) {
+          const databaseService = getDatabaseService();
+          const auditLogRepository = getAuditLogRepository(databaseService);
+          const auditLogService = getAuditLogService(auditLogRepository);
+
+          const invoiceNumber = (payload.data as any)?.invoiceNumber || invoiceId;
+
+          await auditLogService.logSuccess(
+            payload.orgId,
+            "invoice.created",
+            userContext,
+            {
+              resource: {
+                type: "invoice",
+                id: invoiceId,
+                name: invoiceNumber,
+              },
+              durationMs: Date.now() - startTime,
+              metadata: {
+                source: "api",
+                sourceDetails: "createInvoice",
+              },
+            }
+          );
+        }
+      } catch (auditError) {
+        // Don't fail the operation if audit logging fails
+        loggerService.warn("Failed to create audit log for invoice creation", {
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
 
       return { id: invoiceId };
     } catch (error: any) {
@@ -119,6 +160,35 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
         error: error.message,
         stack: error.stack,
       });
+
+      // Log failure to audit log
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        const errorPayload = request.data as CreateInvoiceInput;
+        if (userContext && errorPayload?.orgId) {
+          const databaseService = getDatabaseService();
+          const auditLogRepository = getAuditLogRepository(databaseService);
+          const auditLogService = getAuditLogService(auditLogRepository);
+
+          await auditLogService.logFailure(
+            errorPayload.orgId,
+            "invoice.created",
+            userContext,
+            error,
+            {
+              metadata: {
+                source: "api",
+                sourceDetails: "createInvoice",
+              },
+            }
+          );
+        }
+      } catch (auditError) {
+        // Don't fail if audit logging fails
+        loggerService.warn("Failed to create audit log for invoice creation failure", {
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
 
       // Re-throw HttpsError as-is
       if (error instanceof HttpsError) {

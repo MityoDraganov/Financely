@@ -1,4 +1,4 @@
-import { AnalyticsConfig, AnalyticsConfigData } from "@/core";
+import { AnalyticsConfigData } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

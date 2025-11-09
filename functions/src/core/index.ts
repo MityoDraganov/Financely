@@ -11,6 +11,7 @@ export * from "./entities/lead";
 export * from "./entities/product";
 export * from "./entities/analytics-config";
 export * from "./entities/analytics-event";
+export * from "./entities/audit-log";
 
 // Service ports
 export * from "./ports/services/logger-service";
@@ -25,3 +26,4 @@ export * from "./ports/repositories/user-repository";
 export * from "./ports/repositories/workflow-repository";
 export * from "./ports/repositories/analytics-config-repository";
 export * from "./ports/repositories/analytics-event-repository";
+export * from "./ports/repositories/audit-log-repository";
