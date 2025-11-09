@@ -1,7 +1,7 @@
 import { onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { defineSecret } from "firebase-functions/params";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
@@ -125,11 +125,25 @@ export const deployManualSite = onCall(
     // If widgets are enabled, add widget-loader.js to deployment
     if (includeWidgets && organization.settings?.widgets?.enabled) {
       try {
-        // Read widget-loader.js from the app/public directory
-        // Note: In Cloud Functions, we need to reference the file relative to the functions directory
-        // The widget-loader.js is in app/public, but we can also embed it inline or serve it from a CDN
-        // For now, we'll try to read it from a known location or use a fallback
-        const widgetLoaderPath = join(__dirname, "../../../app/public/widget-loader.js");
+        // Read widget-loader.js - try multiple paths to support both dev and production
+        let widgetLoaderPath: string | null = null;
+        const possiblePaths = [
+          join(__dirname, "../../public/widget-loader.js"), // Production: functions/lib/functions -> functions/public
+          join(__dirname, "../../../app/public/widget-loader.js"), // Dev: functions/lib/functions -> app/public
+          join(process.cwd(), "functions/public/widget-loader.js"), // Fallback
+        ];
+        
+        for (const path of possiblePaths) {
+          if (existsSync(path)) {
+            widgetLoaderPath = path;
+            break;
+          }
+        }
+        
+        if (!widgetLoaderPath) {
+          throw new Error("widget-loader.js not found in any expected location");
+        }
+        
         try {
           const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
           filesToDeploy.push({

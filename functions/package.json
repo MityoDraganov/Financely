@@ -2,7 +2,8 @@
   "name": "functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "build": "tsc",
+    "prebuild": "mkdir -p public && cp -f ../app/public/widget-loader.js public/ 2>/dev/null || true && cp -f ../app/public/analytics-loader.js public/ 2>/dev/null || true",
+    "build": "npm run prebuild && tsc",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",

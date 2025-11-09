@@ -194,4 +194,26 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async getAnalyticsMetrics(payload) {
+    type GetAnalyticsMetricsPayload = Parameters<FunctionsService["getAnalyticsMetrics"]>[0];
+    const result = await httpsCallable<
+      GetAnalyticsMetricsPayload,
+      {
+        pageViews: number;
+        visitors: number;
+        bounceRate: number;
+        avgSessionDuration: number;
+        topPages: Array<{ path: string; views: number }>;
+        trafficSources: Array<{ source: string; visitors: number }>;
+        dateRange: { start: string; end: string };
+        warning?: string;
+        indexError?: {
+          message: string;
+          indexUrl?: string;
+        };
+      }
+    >(firebase.functions, "getAnalyticsMetrics")(payload);
+    return result.data;
+  },
 };

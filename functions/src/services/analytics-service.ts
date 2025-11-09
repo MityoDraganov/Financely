@@ -1,0 +1,334 @@
+import { logger } from "firebase-functions";
+import type { QuerySnapshot, DocumentData } from "firebase-admin/firestore";
+
+export interface AnalyticsMetrics {
+  pageViews: number;
+  visitors: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  topPages: Array<{ path: string; views: number }>;
+  trafficSources: Array<{ source: string; visitors: number }>;
+  devices: Array<{ device: string; visitors: number }>;
+  browsers: Array<{ browser: string; visitors: number }>;
+  referrers: Array<{ referrer: string; visitors: number }>;
+  pageViewsOverTime: Array<{ date: string; views: number }>;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  warning?: string;
+  indexError?: {
+    message: string;
+    indexUrl?: string;
+  };
+}
+
+export interface AnalyticsQueryParams {
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+  orgId: string;
+}
+
+/**
+ * Analytics Service for fetching real analytics data
+ * Supports GA4 via Google Analytics Data API
+ */
+export class AnalyticsService {
+  /**
+   * Fetch analytics metrics from GA4
+   * Requires GA4 property ID and OAuth/service account credentials
+   */
+  async getGA4Metrics(params: AnalyticsQueryParams): Promise<AnalyticsMetrics | null> {
+    const { propertyId, startDate, endDate } = params;
+
+    if (!propertyId) {
+      logger.warn("GA4 property ID not provided");
+      return null;
+    }
+
+    try {
+      // Extract property ID from measurement ID (G-XXXXXXXXXX -> property ID)
+      // For now, we'll use the measurement ID directly
+      // In production, you'd need to map measurement ID to property ID
+      
+      // Note: This requires Google Analytics Data API credentials
+      // For now, return null and log that integration is needed
+      logger.info("GA4 metrics fetch requested", {
+        propertyId,
+        startDate,
+        endDate,
+        orgId: params.orgId,
+      });
+
+      // TODO: Implement actual GA4 Data API integration
+      // This requires:
+      // 1. OAuth token or service account credentials
+      // 2. Google Analytics Data API client library
+      // 3. Property ID mapping from measurement ID
+      
+      return null;
+    } catch (error) {
+      logger.error("Failed to fetch GA4 metrics", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        params,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch analytics events from Firestore (if we're storing them)
+   * This provides real-time analytics from our own tracking
+   */
+  async getStoredAnalyticsEvents(
+    orgId: string,
+    siteId: string | undefined,
+    startDate: string,
+    endDate: string,
+  ): Promise<AnalyticsMetrics | null> {
+    try {
+      const { firestore } = await import("firebase-admin");
+      
+      // Query analytics events from Firestore
+      // Events are stored when analytics-loader.js tracks them
+      const eventsRef = firestore()
+        .collection("organizations")
+        .doc(orgId)
+        .collection("analyticsEvents");
+
+      const startTimestamp = firestore.Timestamp.fromDate(new Date(startDate));
+      const endTimestamp = firestore.Timestamp.fromDate(new Date(endDate + "T23:59:59Z"));
+      
+      let snapshot: QuerySnapshot<DocumentData>;
+      let indexError: { message: string; indexUrl?: string } | undefined;
+      
+      // If siteId is provided, try composite index query first
+      // If index doesn't exist, fall back to timestamp-only query and filter in memory
+      if (siteId) {
+        try {
+          // Try composite index query (site_id first, then timestamp range)
+          const compositeQuery = eventsRef
+            .where("site_id", "==", siteId)
+            .where("timestamp", ">=", startTimestamp)
+            .where("timestamp", "<=", endTimestamp);
+          snapshot = await compositeQuery.get();
+        } catch (error: any) {
+          // If index doesn't exist yet, fall back to timestamp-only query
+          if (error?.code === 9 || error?.message?.includes("index")) {
+            logger.warn("Composite index not ready, falling back to timestamp-only query", {
+              orgId,
+              siteId,
+              error: error.message,
+            });
+            
+            // Extract index URL from error message if available
+            const indexUrlMatch = error.message?.match(/https:\/\/[^\s]+/);
+            const indexUrl = indexUrlMatch ? indexUrlMatch[0] : undefined;
+            
+            // Store error info to return to frontend
+            indexError = {
+              message: error.message || "Firestore composite index is not ready. Using fallback query (may be slower).",
+              indexUrl,
+            };
+            
+            // Query by timestamp only and filter by siteId in memory
+            const timestampQuery = eventsRef
+              .where("timestamp", ">=", startTimestamp)
+              .where("timestamp", "<=", endTimestamp);
+            snapshot = await timestampQuery.get();
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        // Query by timestamp only (no composite index needed)
+        const timestampQuery = eventsRef
+          .where("timestamp", ">=", startTimestamp)
+          .where("timestamp", "<=", endTimestamp);
+        snapshot = await timestampQuery.get();
+      }
+
+      if (snapshot.empty) {
+        const emptyResult: AnalyticsMetrics = {
+          pageViews: 0,
+          visitors: 0,
+          bounceRate: 0,
+          avgSessionDuration: 0,
+          topPages: [],
+          trafficSources: [],
+          devices: [],
+          browsers: [],
+          referrers: [],
+          pageViewsOverTime: [],
+          dateRange: { start: startDate, end: endDate },
+        };
+        
+        // Attach index error if present
+        if (indexError) {
+          emptyResult.warning = "Using fallback query - composite index not ready";
+          emptyResult.indexError = indexError;
+        }
+        
+        return emptyResult;
+      }
+
+      let events = snapshot.docs.map((doc) => doc.data() as Record<string, unknown>);
+      
+      // If siteId was not used in query, filter by siteId in memory
+      if (!siteId) {
+        // No siteId filter needed - use all events
+      } else {
+        // Double-check siteId filter (in case query didn't use it)
+        events = events.filter((e: Record<string, unknown>) => e.site_id === siteId);
+      }
+      
+      const pageViewEvents = events.filter((e: Record<string, unknown>) => e.event === "page_view");
+      const uniqueVisitors = new Set(events.map((e: Record<string, unknown>) => e.client_id || e.user_id)).size;
+      
+      // Calculate metrics
+      const pageViews = pageViewEvents.length;
+      const visitors = uniqueVisitors;
+      
+      // Group by page path
+      const pageViewsByPath = pageViewEvents.reduce((acc: Record<string, number>, event: any) => {
+        const path = event.page_path || "/";
+        acc[path] = (acc[path] || 0) + 1;
+        return acc;
+      }, {});
+
+      const topPages = Object.entries(pageViewsByPath)
+        .map(([path, views]) => ({ path, views: views as number }))
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 10);
+
+      // Group by traffic source
+      const sources = events.reduce((acc: Record<string, number>, event: any) => {
+        const source = event.utm_source || event.referrer || "direct";
+        acc[source] = (acc[source] || 0) + 1;
+        return acc;
+      }, {});
+
+      const trafficSources = Object.entries(sources)
+        .map(([source, visitors]) => ({ source, visitors: visitors as number }))
+        .sort((a, b) => b.visitors - a.visitors)
+        .slice(0, 10);
+
+      // Parse user agent for device and browser info
+      const deviceMap: Record<string, number> = {};
+      const browserMap: Record<string, number> = {};
+      const referrerMap: Record<string, number> = {};
+
+      events.forEach((event: Record<string, unknown>) => {
+        const userAgent = (event.user_agent as string) || "";
+        const referrer = (event.referrer as string) || "";
+
+        // Simple device detection
+        let device = "Unknown";
+        if (userAgent.includes("Mobile") || userAgent.includes("Android") || userAgent.includes("iPhone")) {
+          device = "Mobile";
+        } else if (userAgent.includes("Tablet") || userAgent.includes("iPad")) {
+          device = "Tablet";
+        } else {
+          device = "Desktop";
+        }
+        deviceMap[device] = (deviceMap[device] || 0) + 1;
+
+        // Simple browser detection
+        let browser = "Unknown";
+        if (userAgent.includes("Chrome") && !userAgent.includes("Edg")) {
+          browser = "Chrome";
+        } else if (userAgent.includes("Firefox")) {
+          browser = "Firefox";
+        } else if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) {
+          browser = "Safari";
+        } else if (userAgent.includes("Edg")) {
+          browser = "Edge";
+        } else if (userAgent.includes("Opera") || userAgent.includes("OPR")) {
+          browser = "Opera";
+        }
+        browserMap[browser] = (browserMap[browser] || 0) + 1;
+
+        // Track referrers (excluding direct traffic and empty referrers)
+        if (referrer && referrer.trim() !== "") {
+          try {
+            const referrerUrl = new URL(referrer);
+            const domain = referrerUrl.hostname.replace("www.", "");
+            referrerMap[domain] = (referrerMap[domain] || 0) + 1;
+          } catch {
+            // Invalid URL, skip
+          }
+        }
+      });
+
+      const devices = Object.entries(deviceMap)
+        .map(([device, visitors]) => ({ device, visitors }))
+        .sort((a, b) => b.visitors - a.visitors);
+
+      const browsers = Object.entries(browserMap)
+        .map(([browser, visitors]) => ({ browser, visitors }))
+        .sort((a, b) => b.visitors - a.visitors);
+
+      const referrers = Object.entries(referrerMap)
+        .map(([referrer, visitors]) => ({ referrer, visitors }))
+        .sort((a, b) => b.visitors - a.visitors)
+        .slice(0, 10);
+
+      // Group page views by date
+      const pageViewsByDate: Record<string, number> = {};
+      pageViewEvents.forEach((event: Record<string, unknown>) => {
+        const timestamp = event.timestamp;
+        if (timestamp && typeof timestamp === "object" && "toDate" in timestamp) {
+          const date = (timestamp as { toDate: () => Date }).toDate();
+          const dateStr = date.toISOString().split("T")[0];
+          pageViewsByDate[dateStr] = (pageViewsByDate[dateStr] || 0) + 1;
+        } else if (timestamp && typeof timestamp === "string") {
+          const dateStr = new Date(timestamp).toISOString().split("T")[0];
+          pageViewsByDate[dateStr] = (pageViewsByDate[dateStr] || 0) + 1;
+        }
+      });
+
+      // Fill in missing dates in range
+      const pageViewsOverTime: Array<{ date: string; views: number }> = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split("T")[0];
+        pageViewsOverTime.push({
+          date: dateStr,
+          views: pageViewsByDate[dateStr] || 0,
+        });
+      }
+
+      const result: AnalyticsMetrics = {
+        pageViews,
+        visitors,
+        bounceRate: 0, // Would need session data to calculate
+        avgSessionDuration: 0, // Would need session data to calculate
+        topPages,
+        trafficSources,
+        devices,
+        browsers,
+        referrers,
+        pageViewsOverTime,
+        dateRange: { start: startDate, end: endDate },
+      };
+      
+      // Attach index error if present
+      if (indexError) {
+        result.warning = "Using fallback query - composite index not ready";
+        result.indexError = indexError;
+      }
+      
+      return result;
+    } catch (error) {
+      logger.error("Failed to fetch stored analytics events", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        orgId,
+        siteId,
+      });
+      return null;
+    }
+  }
+}
+

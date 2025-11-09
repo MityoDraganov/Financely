@@ -290,4 +290,30 @@ export interface FunctionsService {
     taxRate?: number;
     cost?: number;
   }): Promise<{ id: string }>;
+
+  /**
+   * Get analytics metrics for an organization
+   */
+  getAnalyticsMetrics(payload: {
+    orgId: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    pageViews: number;
+    visitors: number;
+    bounceRate: number;
+    avgSessionDuration: number;
+    topPages: Array<{ path: string; views: number }>;
+    trafficSources: Array<{ source: string; visitors: number }>;
+    devices: Array<{ device: string; visitors: number }>;
+    browsers: Array<{ browser: string; visitors: number }>;
+    referrers: Array<{ referrer: string; visitors: number }>;
+    pageViewsOverTime: Array<{ date: string; views: number }>;
+    dateRange: { start: string; end: string };
+    warning?: string;
+    indexError?: {
+      message: string;
+      indexUrl?: string;
+    };
+  }>;
 }
