@@ -34,17 +34,25 @@ export default function AnalyticsPage() {
   });
 
   // Fetch real analytics metrics
-  const { data: metrics, isLoading: metricsLoading } = useAnalyticsMetrics(
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useAnalyticsMetrics(
     organization?.id,
     dateRange.start,
     dateRange.end,
   );
 
+  useEffect(() => {
+    if (metricsError) {
+      toast.error("Failed to fetch analytics metrics");
+    }
+  }, [metricsError]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [localConfig, setLocalConfig] = useState<{
     enabled: boolean;
-    strategy: "gtm" | "gtag_only" | "plausible" | "umami";
-    gtmContainerId: string;
+    enableGA4: boolean;
+    enablePlausible: boolean;
+    enableUmami: boolean;
+    enableClarity: boolean;
     ga4MeasurementId: string;
     clarityProjectId: string;
     plausibleDomain: string;
@@ -52,12 +60,13 @@ export default function AnalyticsPage() {
     umamiWebsiteId: string;
     consentDefault: "denied" | "granted";
     bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
-    enableClarity: boolean;
     enableBigQueryServerLogs: boolean;
   }>({
     enabled: false,
-    strategy: "gtag_only",
-    gtmContainerId: "",
+    enableGA4: false,
+    enablePlausible: false,
+    enableUmami: false,
+    enableClarity: false,
     ga4MeasurementId: "",
     clarityProjectId: "",
     plausibleDomain: "",
@@ -65,17 +74,35 @@ export default function AnalyticsPage() {
     umamiWebsiteId: "",
     consentDefault: "denied",
     bannerProvider: "custom",
-    enableClarity: false,
     enableBigQueryServerLogs: false,
   });
 
   // Update local config when analyticsConfig changes
   useEffect(() => {
     if (analyticsConfig) {
+      // Handle migration from old strategy-based config to new multi-provider config
+      const legacyStrategy = analyticsConfig.strategy;
+      let enableGA4 = analyticsConfig.enableGA4 ?? false;
+      let enablePlausible = analyticsConfig.enablePlausible ?? false;
+      let enableUmami = analyticsConfig.enableUmami ?? false;
+      
+      // Migrate from legacy strategy field if new fields are not set
+      if (!analyticsConfig.enableGA4 && !analyticsConfig.enablePlausible && !analyticsConfig.enableUmami) {
+        if (legacyStrategy === "gtag_only") {
+          enableGA4 = true;
+        } else if (legacyStrategy === "plausible") {
+          enablePlausible = true;
+        } else if (legacyStrategy === "umami") {
+          enableUmami = true;
+        }
+      }
+      
       setLocalConfig({
         enabled: analyticsConfig.enabled ?? false,
-        strategy: analyticsConfig.strategy ?? "gtag_only",
-        gtmContainerId: analyticsConfig.gtmContainerId ?? "",
+        enableGA4,
+        enablePlausible,
+        enableUmami,
+        enableClarity: analyticsConfig.enableClarity ?? false,
         ga4MeasurementId: analyticsConfig.ga4MeasurementId ?? "",
         clarityProjectId: analyticsConfig.clarityProjectId ?? "",
         plausibleDomain: analyticsConfig.plausibleDomain ?? "",
@@ -83,7 +110,6 @@ export default function AnalyticsPage() {
         umamiWebsiteId: analyticsConfig.umamiWebsiteId ?? "",
         consentDefault: analyticsConfig.consentDefault ?? "denied",
         bannerProvider: analyticsConfig.bannerProvider ?? "custom",
-        enableClarity: analyticsConfig.enableClarity ?? false,
         enableBigQueryServerLogs: analyticsConfig.enableBigQueryServerLogs ?? false,
       });
     }
@@ -97,15 +123,16 @@ export default function AnalyticsPage() {
       // Clean up undefined values and prepare data
       const configData: {
         enabled: boolean;
-        strategy: "gtm" | "gtag_only" | "plausible" | "umami";
+        enableGA4: boolean;
+        enablePlausible: boolean;
+        enableUmami: boolean;
+        enableClarity: boolean;
         consentDefault: "denied" | "granted";
         bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
-        enableClarity: boolean;
         enableBigQueryServerLogs: boolean;
         orgId: string;
         siteId?: string;
         brandName?: string;
-        gtmContainerId?: string;
         ga4MeasurementId?: string;
         clarityProjectId?: string;
         plausibleDomain?: string;
@@ -113,20 +140,19 @@ export default function AnalyticsPage() {
         umamiWebsiteId?: string;
       } = {
         enabled: localConfig.enabled,
-        strategy: localConfig.strategy,
+        enableGA4: localConfig.enableGA4,
+        enablePlausible: localConfig.enablePlausible,
+        enableUmami: localConfig.enableUmami,
+        enableClarity: localConfig.enableClarity,
         consentDefault: localConfig.consentDefault,
         bannerProvider: localConfig.bannerProvider,
-        enableClarity: localConfig.enableClarity,
         enableBigQueryServerLogs: localConfig.enableBigQueryServerLogs,
         orgId: organization.id,
         siteId: brandSites?.[0]?.id || undefined,
         brandName: organization.settings?.branding?.companyName || organization.name || undefined,
       };
 
-      // Only include strategy-specific fields if they have values
-      if (localConfig.gtmContainerId) {
-        configData.gtmContainerId = localConfig.gtmContainerId;
-      }
+      // Only include provider-specific fields if they have values
       if (localConfig.ga4MeasurementId) {
         configData.ga4MeasurementId = localConfig.ga4MeasurementId;
       }
@@ -177,10 +203,10 @@ export default function AnalyticsPage() {
 
   const activeSite = brandSites?.find((site) => site.status === "success");
   const isConfigured = analyticsConfig?.enabled && (
-    (analyticsConfig.strategy === "gtm" && analyticsConfig.gtmContainerId) ||
-    (analyticsConfig.strategy === "gtag_only" && analyticsConfig.ga4MeasurementId) ||
-    (analyticsConfig.strategy === "plausible" && analyticsConfig.plausibleDomain) ||
-    (analyticsConfig.strategy === "umami" && analyticsConfig.umamiScriptUrl && analyticsConfig.umamiWebsiteId)
+    (analyticsConfig.enableGA4 && analyticsConfig.ga4MeasurementId) ||
+    (analyticsConfig.enablePlausible && analyticsConfig.plausibleDomain) ||
+    (analyticsConfig.enableUmami && analyticsConfig.umamiScriptUrl && analyticsConfig.umamiWebsiteId) ||
+    (analyticsConfig.enableClarity && analyticsConfig.clarityProjectId)
   );
 
   return (
@@ -320,7 +346,17 @@ export default function AnalyticsPage() {
                 </div>
                 {analyticsConfig && (
                   <div className="text-sm text-muted-foreground">
-                    Strategy: <span className="font-medium">{analyticsConfig.strategy}</span>
+                    Active providers:{" "}
+                    <span className="font-medium">
+                      {[
+                        analyticsConfig.enableGA4 && "GA4",
+                        analyticsConfig.enablePlausible && "Plausible",
+                        analyticsConfig.enableUmami && "Umami",
+                        analyticsConfig.enableClarity && "Clarity",
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "None"}
+                    </span>
                   </div>
                 )}
               </div>
@@ -369,7 +405,7 @@ export default function AnalyticsPage() {
               ) : metrics ? (
                 <>
                   {metrics && "indexError" in metrics && metrics.indexError && (
-                    <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                       <div className="flex items-start gap-3">
                         <div className="shrink-0">
                           <XCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
@@ -395,148 +431,178 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="p-6 border rounded-lg">
-                      <div className="text-2xl font-bold">{metrics.pageViews.toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground mt-1">Page Views</div>
+
+                  {/* Main Metrics Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
+                      <div className="text-3xl font-bold mb-1">{metrics.pageViews.toLocaleString()}</div>
+                      <div className="text-sm font-medium text-muted-foreground">Page Views</div>
                       <div className="text-xs text-muted-foreground mt-2">
-                        Last 30 days
+                        {new Date(dateRange.start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - {new Date(dateRange.end).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </div>
                     </div>
-                    <div className="p-6 border rounded-lg">
-                      <div className="text-2xl font-bold">{metrics.visitors.toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground mt-1">Visitors</div>
+                    <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
+                      <div className="text-3xl font-bold mb-1">{metrics.visitors.toLocaleString()}</div>
+                      <div className="text-sm font-medium text-muted-foreground">Unique Visitors</div>
                       <div className="text-xs text-muted-foreground mt-2">
-                        Unique visitors
+                        Based on client IDs
                       </div>
                     </div>
-                    <div className="p-6 border rounded-lg">
-                      <div className="text-2xl font-bold">
-                        {metrics.bounceRate > 0 ? `${metrics.bounceRate.toFixed(1)}%` : "N/A"}
+                    <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
+                      <div className="text-3xl font-bold mb-1">
+                        {metrics.bounceRate > 0 ? `${metrics.bounceRate.toFixed(1)}%` : "—"}
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1">Bounce Rate</div>
+                      <div className="text-sm font-medium text-muted-foreground">Bounce Rate</div>
                       <div className="text-xs text-muted-foreground mt-2">
                         {metrics.avgSessionDuration > 0 
-                          ? `Avg: ${Math.round(metrics.avgSessionDuration)}s`
+                          ? `Avg session: ${Math.round(metrics.avgSessionDuration)}s`
                           : "Session data unavailable"}
                       </div>
                     </div>
                   </div>
 
-                  {metrics.topPages.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold mb-3">Top Pages</h3>
+                  {/* Top Pages */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4">Top Pages</h3>
+                    {metrics.topPages.length > 0 ? (
                       <div className="space-y-2">
-                        {metrics.topPages.slice(0, 5).map((page, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                            <span className="text-sm font-medium truncate">{page.path}</span>
-                            <span className="text-sm text-muted-foreground ml-4">
-                              {page.views.toLocaleString()} views
+                        {metrics.topPages.slice(0, 10).map((page, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <span className="text-sm font-medium truncate flex-1">{page.path || "/"}</span>
+                            <span className="text-sm font-semibold ml-4 text-muted-foreground">
+                              {page.views.toLocaleString()} {page.views === 1 ? "view" : "views"}
                             </span>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {metrics.trafficSources.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold mb-3">Traffic Sources</h3>
-                      <div className="space-y-2">
-                        {metrics.trafficSources.slice(0, 5).map((source, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                            <span className="text-sm font-medium">{source.source}</span>
-                            <span className="text-sm text-muted-foreground ml-4">
-                              {source.visitors.toLocaleString()} visitors
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Devices & Browsers */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    {"devices" in metrics && metrics.devices && metrics.devices.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Monitor className="h-5 w-5" />
-                          Devices
-                        </h3>
-                        <div className="space-y-2">
-                          {metrics.devices.map((device: { device: string; visitors: number }, index: number) => (
-                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                              <span className="text-sm font-medium">{device.device}</span>
-                              <span className="text-sm text-muted-foreground ml-4">
-                                {device.visitors.toLocaleString()} visitors
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {"browsers" in metrics && metrics.browsers && metrics.browsers.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Globe className="h-5 w-5" />
-                          Browsers
-                        </h3>
-                        <div className="space-y-2">
-                          {metrics.browsers.map((browser: { browser: string; visitors: number }, index: number) => (
-                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                              <span className="text-sm font-medium">{browser.browser}</span>
-                              <span className="text-sm text-muted-foreground ml-4">
-                                {browser.visitors.toLocaleString()} visitors
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                    ) : (
+                      <div className="p-8 border rounded-lg bg-muted/30 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          No page views recorded yet. Pages will appear here once visitors start browsing your site.
+                        </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Referrers */}
-                  {"referrers" in metrics && metrics.referrers && metrics.referrers.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold mb-3">Top Referrers</h3>
+                  {/* Traffic Sources */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4">Traffic Sources</h3>
+                    {metrics.trafficSources.length > 0 ? (
                       <div className="space-y-2">
-                        {metrics.referrers.slice(0, 5).map((referrer: { referrer: string; visitors: number }, index: number) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                            <span className="text-sm font-medium truncate">{referrer.referrer}</span>
-                            <span className="text-sm text-muted-foreground ml-4">
-                              {referrer.visitors.toLocaleString()} visitors
+                        {metrics.trafficSources.slice(0, 10).map((source, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <span className="text-sm font-medium">{source.source || "Direct"}</span>
+                            <span className="text-sm font-semibold ml-4 text-muted-foreground">
+                              {source.visitors.toLocaleString()} {source.visitors === 1 ? "visitor" : "visitors"}
                             </span>
                           </div>
                         ))}
                       </div>
+                    ) : (
+                      <div className="p-8 border rounded-lg bg-muted/30 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          No traffic sources recorded yet. Sources will appear here as visitors arrive.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Devices & Browsers */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Monitor className="h-5 w-5" />
+                        Devices
+                      </h3>
+                      {"devices" in metrics && metrics.devices && metrics.devices.length > 0 ? (
+                        <div className="space-y-2">
+                          {metrics.devices.map((device: { device: string; visitors: number }, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                              <span className="text-sm font-medium">{device.device}</span>
+                              <span className="text-sm font-semibold ml-4 text-muted-foreground">
+                                {device.visitors.toLocaleString()} {device.visitors === 1 ? "visitor" : "visitors"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 border rounded-lg bg-muted/30 text-center">
+                          <p className="text-sm text-muted-foreground">No device data available</p>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Globe className="h-5 w-5" />
+                        Browsers
+                      </h3>
+                      {"browsers" in metrics && metrics.browsers && metrics.browsers.length > 0 ? (
+                        <div className="space-y-2">
+                          {metrics.browsers.map((browser: { browser: string; visitors: number }, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                              <span className="text-sm font-medium">{browser.browser}</span>
+                              <span className="text-sm font-semibold ml-4 text-muted-foreground">
+                                {browser.visitors.toLocaleString()} {browser.visitors === 1 ? "visitor" : "visitors"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 border rounded-lg bg-muted/30 text-center">
+                          <p className="text-sm text-muted-foreground">No browser data available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Referrers */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4">Top Referrers</h3>
+                    {"referrers" in metrics && metrics.referrers && metrics.referrers.length > 0 ? (
+                      <div className="space-y-2">
+                        {metrics.referrers.slice(0, 10).map((referrer: { referrer: string; visitors: number }, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <span className="text-sm font-medium truncate flex-1">{referrer.referrer}</span>
+                            <span className="text-sm font-semibold ml-4 text-muted-foreground">
+                              {referrer.visitors.toLocaleString()} {referrer.visitors === 1 ? "visitor" : "visitors"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 border rounded-lg bg-muted/30 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          No referrers recorded yet. Referrers will appear here when visitors arrive from other websites.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Page Views Over Time */}
-                  {"pageViewsOverTime" in metrics && metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5" />
-                        Page Views Over Time
-                      </h3>
-                      <div className="p-4 border rounded-lg bg-muted/50">
-                        <div className="flex items-end gap-1 h-48">
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      Page Views Over Time
+                    </h3>
+                    {"pageViewsOverTime" in metrics && metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 0 ? (
+                      <div className="p-6 border rounded-lg bg-muted/30">
+                        <div className="flex items-end gap-1 h-64 mb-4">
                           {metrics.pageViewsOverTime.map((day: { date: string; views: number }, index: number) => {
                             const maxViews = Math.max(...metrics.pageViewsOverTime.map((d: { date: string; views: number }) => d.views), 1);
                             const height = (day.views / maxViews) * 100;
                             return (
                               <div
                                 key={index}
-                                className="flex-1 flex flex-col items-center gap-1 group"
-                                title={`${day.date}: ${day.views} views`}
+                                className="flex-1 flex flex-col items-center gap-2 group cursor-pointer"
+                                title={`${day.date}: ${day.views} ${day.views === 1 ? "view" : "views"}`}
                               >
                                 <div
-                                  className="w-full bg-primary rounded-t transition-all hover:bg-primary/80 min-h-[2px]"
-                                  style={{ height: `${Math.max(height, 2)}%` }}
+                                  className="w-full bg-primary rounded-t transition-all hover:bg-primary/80 min-h-[4px] shadow-sm"
+                                  style={{ height: `${Math.max(height, 4)}%` }}
                                 />
                                 {metrics.pageViewsOverTime.length <= 30 && (
-                                  <span className="text-xs text-muted-foreground transform -rotate-45 origin-top-left whitespace-nowrap">
+                                  <span className="text-xs text-muted-foreground transform -rotate-45 origin-top-left whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                                     {new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </span>
                                 )}
@@ -545,20 +611,40 @@ export default function AnalyticsPage() {
                           })}
                         </div>
                         {metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 30 && (
-                          <p className="text-xs text-muted-foreground mt-2 text-center">
+                          <p className="text-xs text-muted-foreground text-center">
                             Showing daily page views (hover bars for details)
                           </p>
                         )}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="p-12 border rounded-lg bg-muted/30 text-center">
+                        <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <p className="text-sm text-muted-foreground">
+                          No page view data available for the selected date range. 
+                          <br />
+                          Data will appear here once visitors start browsing your site.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
+                  {/* Overall Empty State */}
                   {metrics.pageViews === 0 && metrics.visitors === 0 && (
-                    <div className="mt-6 p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground">
-                        No analytics data available yet. Once visitors start browsing your site,
+                    <div className="mt-8 p-8 border-2 border-dashed rounded-lg bg-muted/50 text-center">
+                      <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                      <h3 className="text-lg font-semibold mb-2">No Analytics Data Yet</h3>
+                      <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                        Your analytics is configured and ready. Once visitors start browsing your site, 
                         metrics will appear here automatically.
                       </p>
+                      {activeSite && (
+                        <Button variant="outline" asChild>
+                          <a href={activeSite.deployedUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Visit Your Site
+                          </a>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </>
@@ -604,133 +690,160 @@ export default function AnalyticsPage() {
 
               {localConfig.enabled && (
                 <>
-                  {/* Strategy Selection */}
-                  <div className="space-y-2">
-                    <Label htmlFor="strategy">Analytics Strategy</Label>
-                    <Select
-                      value={localConfig.strategy}
-                      onValueChange={(value: "gtm" | "gtag_only" | "plausible" | "umami") =>
-                        setLocalConfig({ ...localConfig, strategy: value })
-                      }
-                    >
-                      <SelectTrigger id="strategy">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gtm">Google Tag Manager</SelectItem>
-                        <SelectItem value="gtag_only">Google Analytics 4 (gtag)</SelectItem>
-                        <SelectItem value="plausible">Plausible</SelectItem>
-                        <SelectItem value="umami">Umami</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* GTM Configuration */}
-                  {localConfig.strategy === "gtm" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="gtmContainerId">GTM Container ID</Label>
-                      <Input
-                        id="gtmContainerId"
-                        placeholder="GTM-XXXXXXX"
-                        value={localConfig.gtmContainerId}
-                        onChange={(e) =>
-                          setLocalConfig({ ...localConfig, gtmContainerId: e.target.value })
-                        }
-                      />
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Analytics Providers</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Enable one or more analytics providers to track your website. You can use multiple providers simultaneously.
+                      </p>
                     </div>
-                  )}
 
-                  {/* GA4 Configuration */}
-                  {(localConfig.strategy === "gtag_only" || localConfig.strategy === "gtm") && (
-                    <div className="space-y-2">
-                      <Label htmlFor="ga4MeasurementId">GA4 Measurement ID</Label>
-                      <Input
-                        id="ga4MeasurementId"
-                        placeholder="G-XXXXXXXXXX"
-                        value={localConfig.ga4MeasurementId}
-                        onChange={(e) =>
-                          setLocalConfig({ ...localConfig, ga4MeasurementId: e.target.value })
-                        }
-                      />
-                    </div>
-                  )}
-
-                  {/* Plausible Configuration */}
-                  {localConfig.strategy === "plausible" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="plausibleDomain">Plausible Domain</Label>
-                      <Input
-                        id="plausibleDomain"
-                        placeholder="yourdomain.com"
-                        value={localConfig.plausibleDomain}
-                        onChange={(e) =>
-                          setLocalConfig({ ...localConfig, plausibleDomain: e.target.value })
-                        }
-                      />
-                    </div>
-                  )}
-
-                  {/* Umami Configuration */}
-                  {localConfig.strategy === "umami" && (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="umamiScriptUrl">Umami Script URL</Label>
-                        <Input
-                          id="umamiScriptUrl"
-                          placeholder="https://cloud.umami.is/script.js"
-                          value={localConfig.umamiScriptUrl}
-                          onChange={(e) =>
-                            setLocalConfig({ ...localConfig, umamiScriptUrl: e.target.value })
+                    {/* Google Analytics 4 */}
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enableGA4">Google Analytics 4 (gtag.js)</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Direct Google Analytics 4 tracking
+                          </p>
+                        </div>
+                        <Switch
+                          id="enableGA4"
+                          checked={localConfig.enableGA4}
+                          onCheckedChange={(checked) =>
+                            setLocalConfig({ ...localConfig, enableGA4: checked })
                           }
                         />
-                        <p className="text-sm text-muted-foreground">
-                          The URL to your Umami script (e.g., https://cloud.umami.is/script.js)
-                        </p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="umamiWebsiteId">Umami Website ID</Label>
-                        <Input
-                          id="umamiWebsiteId"
-                          placeholder="e74df8d0-2837-4ec1-bac8-ce82e8a170b2"
-                          value={localConfig.umamiWebsiteId}
-                          onChange={(e) =>
-                            setLocalConfig({ ...localConfig, umamiWebsiteId: e.target.value })
+                      {localConfig.enableGA4 && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <Label htmlFor="ga4MeasurementId">GA4 Measurement ID</Label>
+                          <Input
+                            id="ga4MeasurementId"
+                            placeholder="G-XXXXXXXXXX"
+                            value={localConfig.ga4MeasurementId}
+                            onChange={(e) =>
+                              setLocalConfig({ ...localConfig, ga4MeasurementId: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Plausible */}
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enablePlausible">Plausible Analytics</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Privacy-friendly, open-source analytics
+                          </p>
+                        </div>
+                        <Switch
+                          id="enablePlausible"
+                          checked={localConfig.enablePlausible}
+                          onCheckedChange={(checked) =>
+                            setLocalConfig({ ...localConfig, enablePlausible: checked })
                           }
                         />
-                        <p className="text-sm text-muted-foreground">
-                          Your Umami website ID from the tracking code
-                        </p>
                       </div>
+                      {localConfig.enablePlausible && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <Label htmlFor="plausibleDomain">Plausible Domain</Label>
+                          <Input
+                            id="plausibleDomain"
+                            placeholder="yourdomain.com"
+                            value={localConfig.plausibleDomain}
+                            onChange={(e) =>
+                              setLocalConfig({ ...localConfig, plausibleDomain: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Clarity Configuration */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="enableClarity">Enable Microsoft Clarity</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Session replay and heatmaps
-                        </p>
+                    {/* Umami */}
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enableUmami">Umami Analytics</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Privacy-focused, open-source analytics solution
+                          </p>
+                        </div>
+                        <Switch
+                          id="enableUmami"
+                          checked={localConfig.enableUmami}
+                          onCheckedChange={(checked) =>
+                            setLocalConfig({ ...localConfig, enableUmami: checked })
+                          }
+                        />
                       </div>
-                      <Switch
-                        id="enableClarity"
-                        checked={localConfig.enableClarity}
-                        onCheckedChange={(checked) =>
-                          setLocalConfig({ ...localConfig, enableClarity: checked })
-                        }
-                      />
+                      {localConfig.enableUmami && (
+                        <div className="space-y-4 pt-2 border-t">
+                          <div className="space-y-2">
+                            <Label htmlFor="umamiScriptUrl">Umami Script URL</Label>
+                            <Input
+                              id="umamiScriptUrl"
+                              placeholder="https://cloud.umami.is/script.js"
+                              value={localConfig.umamiScriptUrl}
+                              onChange={(e) =>
+                                setLocalConfig({ ...localConfig, umamiScriptUrl: e.target.value })
+                              }
+                            />
+                            <p className="text-sm text-muted-foreground">
+                              The URL to your Umami script (e.g., https://cloud.umami.is/script.js)
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="umamiWebsiteId">Umami Website ID</Label>
+                            <Input
+                              id="umamiWebsiteId"
+                              placeholder="e74df8d0-2837-4ec1-bac8-ce82e8a170b2"
+                              value={localConfig.umamiWebsiteId}
+                              onChange={(e) =>
+                                setLocalConfig({ ...localConfig, umamiWebsiteId: e.target.value })
+                              }
+                            />
+                            <p className="text-sm text-muted-foreground">
+                              Your Umami website ID from the tracking code
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {localConfig.enableClarity && (
-                      <Input
-                        id="clarityProjectId"
-                        placeholder="Clarity Project ID"
-                        value={localConfig.clarityProjectId}
-                        onChange={(e) =>
-                          setLocalConfig({ ...localConfig, clarityProjectId: e.target.value })
-                        }
-                      />
-                    )}
+
+                    {/* Microsoft Clarity */}
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enableClarity">Microsoft Clarity</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Session replay, heatmaps, and user behavior insights
+                          </p>
+                        </div>
+                        <Switch
+                          id="enableClarity"
+                          checked={localConfig.enableClarity}
+                          onCheckedChange={(checked) =>
+                            setLocalConfig({ ...localConfig, enableClarity: checked })
+                          }
+                        />
+                      </div>
+                      {localConfig.enableClarity && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <Label htmlFor="clarityProjectId">Clarity Project ID</Label>
+                          <Input
+                            id="clarityProjectId"
+                            placeholder="Clarity Project ID"
+                            value={localConfig.clarityProjectId}
+                            onChange={(e) =>
+                              setLocalConfig({ ...localConfig, clarityProjectId: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Consent Settings */}

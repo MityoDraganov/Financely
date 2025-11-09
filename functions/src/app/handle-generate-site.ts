@@ -965,15 +965,25 @@ function generateAnalyticsScript(
     `data-analytics-site-id="${siteId}"`,
     `data-analytics-brand-name="${brandName || ""}"`,
     `data-analytics-enabled="true"`,
-    `data-analytics-strategy="${analyticsConfig.strategy || "gtag_only"}"`,
     `data-analytics-consent-default="${analyticsConfig.consentDefault || "denied"}"`,
     `data-analytics-banner-provider="${analyticsConfig.bannerProvider || "custom"}"`,
   ];
 
-  if (analyticsConfig.gtmContainerId) {
-    attributes.push(`data-analytics-gtm-id="${analyticsConfig.gtmContainerId}"`);
+  // Add provider enable flags
+  if (analyticsConfig.enableGA4) {
+    attributes.push(`data-analytics-enable-ga4="true"`);
+  }
+  if (analyticsConfig.enablePlausible) {
+    attributes.push(`data-analytics-enable-plausible="true"`);
+  }
+  if (analyticsConfig.enableUmami) {
+    attributes.push(`data-analytics-enable-umami="true"`);
+  }
+  if (analyticsConfig.enableClarity) {
+    attributes.push(`data-analytics-enable-clarity="true"`);
   }
 
+  // Add provider configuration
   if (analyticsConfig.ga4MeasurementId) {
     attributes.push(`data-analytics-ga4-id="${analyticsConfig.ga4MeasurementId}"`);
   }
@@ -994,8 +1004,9 @@ function generateAnalyticsScript(
     attributes.push(`data-analytics-umami-website-id="${analyticsConfig.umamiWebsiteId}"`);
   }
 
-  if (analyticsConfig.enableClarity) {
-    attributes.push(`data-analytics-enable-clarity="true"`);
+  // Legacy strategy field (for backward compatibility)
+  if (analyticsConfig.strategy) {
+    attributes.push(`data-analytics-strategy="${analyticsConfig.strategy}"`);
   }
 
   // Add Firebase project ID as data attribute so analytics-loader can call functions

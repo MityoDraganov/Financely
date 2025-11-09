@@ -166,7 +166,50 @@ export const updateAnalyticsScript = onCall(
             }
           }
 
-          // Deploy updated HTML and analytics-loader.js
+          // If widgets are enabled, add widget-loader.js to deployment
+          if (organization.settings?.widgets?.enabled) {
+            try {
+              // Read widget-loader.js - try multiple paths to support both dev and production
+              let widgetLoaderPath: string | null = null;
+              const possiblePaths = [
+                join(__dirname, "../../public/widget-loader.js"), // Production: functions/lib/functions -> functions/public
+                join(__dirname, "../../../app/public/widget-loader.js"), // Dev: functions/lib/functions -> app/public
+                join(process.cwd(), "functions/public/widget-loader.js"), // Fallback
+              ];
+              
+              for (const path of possiblePaths) {
+                if (existsSync(path)) {
+                  widgetLoaderPath = path;
+                  break;
+                }
+              }
+              
+              if (!widgetLoaderPath) {
+                throw new Error("widget-loader.js not found in any expected location");
+              }
+              
+              try {
+                const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
+                filesToDeploy.push({
+                  path: "widget-loader.js",
+                  contents: widgetLoaderContent,
+                });
+                logger.info("Added widget-loader.js to deployment", { brandSiteId });
+              } catch (readError) {
+                logger.warn("Could not read widget-loader.js, widgets may not work", {
+                  error: readError instanceof Error ? readError.message : "Unknown error",
+                  path: widgetLoaderPath,
+                });
+                // Continue without widget-loader.js - the script tag will still be injected
+              }
+            } catch (error) {
+              logger.warn("Failed to add widget-loader.js to deployment", {
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
+            }
+          }
+
+          // Deploy updated HTML, analytics-loader.js, and widget-loader.js (if enabled)
           await hostingService.deploySite(
             siteIdForHosting,
             filesToDeploy,
@@ -216,15 +259,25 @@ function generateAnalyticsScript(
     `data-analytics-site-id="${siteId}"`,
     `data-analytics-brand-name="${brandName || ""}"`,
     `data-analytics-enabled="true"`,
-    `data-analytics-strategy="${analyticsConfig.strategy || "gtag_only"}"`,
     `data-analytics-consent-default="${analyticsConfig.consentDefault || "denied"}"`,
     `data-analytics-banner-provider="${analyticsConfig.bannerProvider || "custom"}"`,
   ];
 
-  if (analyticsConfig.gtmContainerId) {
-    attributes.push(`data-analytics-gtm-id="${analyticsConfig.gtmContainerId}"`);
+  // Add provider enable flags
+  if (analyticsConfig.enableGA4) {
+    attributes.push(`data-analytics-enable-ga4="true"`);
+  }
+  if (analyticsConfig.enablePlausible) {
+    attributes.push(`data-analytics-enable-plausible="true"`);
+  }
+  if (analyticsConfig.enableUmami) {
+    attributes.push(`data-analytics-enable-umami="true"`);
+  }
+  if (analyticsConfig.enableClarity) {
+    attributes.push(`data-analytics-enable-clarity="true"`);
   }
 
+  // Add provider configuration
   if (analyticsConfig.ga4MeasurementId) {
     attributes.push(`data-analytics-ga4-id="${analyticsConfig.ga4MeasurementId}"`);
   }
@@ -245,8 +298,9 @@ function generateAnalyticsScript(
     attributes.push(`data-analytics-umami-website-id="${analyticsConfig.umamiWebsiteId}"`);
   }
 
-  if (analyticsConfig.enableClarity) {
-    attributes.push(`data-analytics-enable-clarity="true"`);
+  // Legacy strategy field (for backward compatibility)
+  if (analyticsConfig.strategy) {
+    attributes.push(`data-analytics-strategy="${analyticsConfig.strategy}"`);
   }
 
   // Add Firebase project ID as data attribute so analytics-loader can call functions

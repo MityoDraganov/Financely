@@ -14,16 +14,23 @@
     siteId: null,
     brandName: null,
     enabled: false,
-    strategy: 'gtag_only',
-    gtmContainerId: null,
+    // Individual provider toggles (can enable multiple)
+    enableGA4: false,
+    enablePlausible: false,
+    enableUmami: false,
+    enableClarity: false,
+    // Provider configuration
     ga4MeasurementId: null,
     clarityProjectId: null,
     plausibleDomain: null,
     umamiScriptUrl: null,
     umamiWebsiteId: null,
+    // Consent and banner settings
     consentDefault: 'denied',
     bannerProvider: 'custom',
-    enableClarity: false,
+    // Legacy strategy field (for backward compatibility)
+    strategy: null,
+    // Firebase configuration
     firebaseProjectId: null,
     functionUrl: null,
   };
@@ -40,16 +47,38 @@
     config.siteId = currentScript.getAttribute('data-analytics-site-id') || '';
     config.brandName = currentScript.getAttribute('data-analytics-brand-name') || '';
     config.enabled = currentScript.getAttribute('data-analytics-enabled') === 'true';
-    config.strategy = currentScript.getAttribute('data-analytics-strategy') || 'gtag_only';
-    config.gtmContainerId = currentScript.getAttribute('data-analytics-gtm-id') || null;
+    
+    // Read provider enable flags
+    config.enableGA4 = currentScript.getAttribute('data-analytics-enable-ga4') === 'true';
+    config.enablePlausible = currentScript.getAttribute('data-analytics-enable-plausible') === 'true';
+    config.enableUmami = currentScript.getAttribute('data-analytics-enable-umami') === 'true';
+    config.enableClarity = currentScript.getAttribute('data-analytics-enable-clarity') === 'true';
+    
+    // Read provider configuration
     config.ga4MeasurementId = currentScript.getAttribute('data-analytics-ga4-id') || null;
     config.clarityProjectId = currentScript.getAttribute('data-analytics-clarity-id') || null;
     config.plausibleDomain = currentScript.getAttribute('data-analytics-plausible-domain') || null;
     config.umamiScriptUrl = currentScript.getAttribute('data-analytics-umami-url') || null;
     config.umamiWebsiteId = currentScript.getAttribute('data-analytics-umami-website-id') || null;
+    
+    // Read consent and banner settings
     config.consentDefault = currentScript.getAttribute('data-analytics-consent-default') || 'denied';
     config.bannerProvider = currentScript.getAttribute('data-analytics-banner-provider') || 'custom';
-    config.enableClarity = currentScript.getAttribute('data-analytics-enable-clarity') === 'true';
+    
+    // Legacy strategy field (for backward compatibility)
+    config.strategy = currentScript.getAttribute('data-analytics-strategy') || null;
+    
+    // Migrate legacy strategy to new enable flags if new flags are not set
+    if (!config.enableGA4 && !config.enablePlausible && !config.enableUmami && config.strategy) {
+      if (config.strategy === 'gtag_only') {
+        config.enableGA4 = true;
+      } else if (config.strategy === 'plausible') {
+        config.enablePlausible = true;
+      } else if (config.strategy === 'umami') {
+        config.enableUmami = true;
+      }
+    }
+    
     config.firebaseProjectId = currentScript.getAttribute('data-firebase-project') || null;
     config.functionUrl = currentScript.getAttribute('data-analytics-function-url') || null;
   }
@@ -535,53 +564,35 @@
     default: config.consentDefault,
   });
 
-  // Load analytics scripts based on strategy
-  if (config.strategy === 'gtm' && config.gtmContainerId) {
-    // Load GTM (which manages GA4 internally via container configuration)
-    // Note: GA4 should be configured inside GTM, not loaded separately
-    console.log('Financely Analytics: Using GTM strategy', {
-      containerId: config.gtmContainerId,
-      ga4MeasurementId: config.ga4MeasurementId || 'Not configured (should be set in GTM)',
-    });
-    loadGTM();
-  } else if (config.strategy === 'gtag_only' && config.ga4MeasurementId) {
-    // Load GA4 directly (gtag.js)
-    console.log('Financely Analytics: Using gtag_only strategy', {
+  // Load all enabled analytics providers (can use multiple simultaneously)
+  if (config.enableGA4 && config.ga4MeasurementId) {
+    console.log('Financely Analytics: Loading Google Analytics 4', {
       measurementId: config.ga4MeasurementId,
     });
     loadGA4();
-  } else if (config.strategy === 'plausible' && config.plausibleDomain) {
-    // Load Plausible as primary analytics
-    console.log('Financely Analytics: Using Plausible strategy', {
+  }
+
+  if (config.enablePlausible && config.plausibleDomain) {
+    console.log('Financely Analytics: Loading Plausible Analytics', {
       domain: config.plausibleDomain,
     });
     loadPlausible();
-  } else if (config.strategy === 'umami' && config.umamiScriptUrl) {
-    // Load Umami as primary analytics
-    console.log('Financely Analytics: Using Umami strategy', {
-      scriptUrl: config.umamiScriptUrl,
-    });
-    loadUmami();
-  } else {
-    console.warn('Financely Analytics: No valid strategy configured', {
-      strategy: config.strategy,
-      gtmContainerId: config.gtmContainerId,
-      ga4MeasurementId: config.ga4MeasurementId,
-      plausibleDomain: config.plausibleDomain,
-      umamiScriptUrl: config.umamiScriptUrl,
-    });
   }
 
-  // Load additional services (can be used alongside primary strategy)
+  if (config.enableUmami && config.umamiScriptUrl && config.umamiWebsiteId) {
+    console.log('Financely Analytics: Loading Umami Analytics', {
+      scriptUrl: config.umamiScriptUrl,
+      websiteId: config.umamiWebsiteId,
+    });
+    loadUmami();
+  }
+
   if (config.enableClarity && config.clarityProjectId) {
-    console.log('Financely Analytics: Loading Clarity as additional service', {
+    console.log('Financely Analytics: Loading Microsoft Clarity', {
       projectId: config.clarityProjectId,
     });
     loadClarity();
   }
-
-  // Note: Plausible and Umami are only loaded if they're the primary strategy
-  // (handled above). They're not loaded as additional services.
 
   // Track initial page view
   trackPageView();
