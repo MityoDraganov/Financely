@@ -61,6 +61,31 @@ export const useGenerateSite = () => {
 };
 
 /**
+ * Hook to update analytics script in existing site without full regeneration.
+ */
+export const useUpdateAnalyticsScript = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.updateAnalyticsScript>[0]) => 
+      functionsService.updateAnalyticsScript(payload),
+    onSuccess: (result, variables) => {
+      // Invalidate brand site queries to refresh
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      toast.success("Analytics script updated successfully");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to update analytics script:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to update analytics script: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to regenerate a brand site or section.
  * Returns immediately with a task ID. Use useBrandSite to poll for status.
  */

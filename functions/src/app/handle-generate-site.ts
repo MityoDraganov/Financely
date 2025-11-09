@@ -990,6 +990,10 @@ function generateAnalyticsScript(
     attributes.push(`data-analytics-umami-url="${analyticsConfig.umamiScriptUrl}"`);
   }
 
+  if (analyticsConfig.umamiWebsiteId) {
+    attributes.push(`data-analytics-umami-website-id="${analyticsConfig.umamiWebsiteId}"`);
+  }
+
   if (analyticsConfig.enableClarity) {
     attributes.push(`data-analytics-enable-clarity="true"`);
   }

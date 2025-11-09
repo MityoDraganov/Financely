@@ -206,6 +206,9 @@ export interface FunctionsService {
     context?: string;
     contextImages?: string[];
   }): Promise<{ success: boolean; brandSiteId: string; status: string }>;
+  updateAnalyticsScript(payload: {
+    brandSiteId: string;
+  }): Promise<{ success: boolean; brandSiteId: string }>;
 
   addCustomDomain(payload: {
     brandSiteId: string;

@@ -1,7 +1,7 @@
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useAnalyticsConfig, useUpdateAnalyticsConfig } from "@/hooks/repository-hooks/use-analytics-config";
 import { useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
-import { useRegenerateSite } from "@/hooks/service-hooks/use-brand-site";
+import { useUpdateAnalyticsScript } from "@/hooks/service-hooks/use-brand-site";
 import { useAnalyticsMetrics } from "@/hooks/service-hooks/use-analytics-metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ export default function AnalyticsPage() {
   const { data: analyticsConfig, isLoading: configLoading } = useAnalyticsConfig(organization?.id);
   const { data: brandSites, isLoading: sitesLoading } = useBrandSitesByOrganization(organization?.id);
   const updateAnalyticsConfig = useUpdateAnalyticsConfig();
-  const regenerateSite = useRegenerateSite();
+  const updateAnalyticsScript = useUpdateAnalyticsScript();
   
   // Date range state
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
@@ -49,6 +49,7 @@ export default function AnalyticsPage() {
     clarityProjectId: string;
     plausibleDomain: string;
     umamiScriptUrl: string;
+    umamiWebsiteId: string;
     consentDefault: "denied" | "granted";
     bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
     enableClarity: boolean;
@@ -61,6 +62,7 @@ export default function AnalyticsPage() {
     clarityProjectId: "",
     plausibleDomain: "",
     umamiScriptUrl: "",
+    umamiWebsiteId: "",
     consentDefault: "denied",
     bannerProvider: "custom",
     enableClarity: false,
@@ -78,6 +80,7 @@ export default function AnalyticsPage() {
         clarityProjectId: analyticsConfig.clarityProjectId ?? "",
         plausibleDomain: analyticsConfig.plausibleDomain ?? "",
         umamiScriptUrl: analyticsConfig.umamiScriptUrl ?? "",
+        umamiWebsiteId: analyticsConfig.umamiWebsiteId ?? "",
         consentDefault: analyticsConfig.consentDefault ?? "denied",
         bannerProvider: analyticsConfig.bannerProvider ?? "custom",
         enableClarity: analyticsConfig.enableClarity ?? false,
@@ -107,6 +110,7 @@ export default function AnalyticsPage() {
         clarityProjectId?: string;
         plausibleDomain?: string;
         umamiScriptUrl?: string;
+        umamiWebsiteId?: string;
       } = {
         enabled: localConfig.enabled,
         strategy: localConfig.strategy,
@@ -135,21 +139,20 @@ export default function AnalyticsPage() {
       if (localConfig.umamiScriptUrl) {
         configData.umamiScriptUrl = localConfig.umamiScriptUrl;
       }
+      if (localConfig.umamiWebsiteId) {
+        configData.umamiWebsiteId = localConfig.umamiWebsiteId;
+      }
 
       await updateAnalyticsConfig.mutateAsync({
         orgId: organization.id,
         data: configData,
       });
 
-      // If analytics is enabled and there's an active site, regenerate to inject analytics
+      // If there's an active site, update analytics script without full regeneration
       const activeSite = brandSites?.find((site) => site.status === "success");
-      if (activeSite && configData.enabled) {
-        toast.success("Analytics configuration saved. Regenerating site to apply changes...", {
-          duration: 5000,
-        });
-        
-        // Trigger site regeneration to inject analytics script
-        regenerateSite.mutate({
+      if (activeSite) {
+        // Update analytics script in existing HTML (lightweight, no AI regeneration)
+        updateAnalyticsScript.mutate({
           brandSiteId: activeSite.id,
         });
       } else {
@@ -177,7 +180,7 @@ export default function AnalyticsPage() {
     (analyticsConfig.strategy === "gtm" && analyticsConfig.gtmContainerId) ||
     (analyticsConfig.strategy === "gtag_only" && analyticsConfig.ga4MeasurementId) ||
     (analyticsConfig.strategy === "plausible" && analyticsConfig.plausibleDomain) ||
-    (analyticsConfig.strategy === "umami" && analyticsConfig.umamiScriptUrl)
+    (analyticsConfig.strategy === "umami" && analyticsConfig.umamiScriptUrl && analyticsConfig.umamiWebsiteId)
   );
 
   return (
@@ -669,16 +672,35 @@ export default function AnalyticsPage() {
 
                   {/* Umami Configuration */}
                   {localConfig.strategy === "umami" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="umamiScriptUrl">Umami Script URL</Label>
-                      <Input
-                        id="umamiScriptUrl"
-                        placeholder="https://analytics.example.com/script.js"
-                        value={localConfig.umamiScriptUrl}
-                        onChange={(e) =>
-                          setLocalConfig({ ...localConfig, umamiScriptUrl: e.target.value })
-                        }
-                      />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="umamiScriptUrl">Umami Script URL</Label>
+                        <Input
+                          id="umamiScriptUrl"
+                          placeholder="https://cloud.umami.is/script.js"
+                          value={localConfig.umamiScriptUrl}
+                          onChange={(e) =>
+                            setLocalConfig({ ...localConfig, umamiScriptUrl: e.target.value })
+                          }
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          The URL to your Umami script (e.g., https://cloud.umami.is/script.js)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="umamiWebsiteId">Umami Website ID</Label>
+                        <Input
+                          id="umamiWebsiteId"
+                          placeholder="e74df8d0-2837-4ec1-bac8-ce82e8a170b2"
+                          value={localConfig.umamiWebsiteId}
+                          onChange={(e) =>
+                            setLocalConfig({ ...localConfig, umamiWebsiteId: e.target.value })
+                          }
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Your Umami website ID from the tracking code
+                        </p>
+                      </div>
                     </div>
                   )}
 

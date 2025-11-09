@@ -90,6 +90,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async updateAnalyticsScript(payload) {
+    type UpdateAnalyticsScriptPayload = Parameters<
+      FunctionsService["updateAnalyticsScript"]
+    >[0];
+    const result = await httpsCallable<
+      UpdateAnalyticsScriptPayload,
+      { success: boolean; brandSiteId: string }
+    >(firebase.functions, "updateAnalyticsScript")(payload);
+    return result.data;
+  },
+
   async addCustomDomain(payload) {
     type AddCustomDomainPayload = Parameters<
       FunctionsService["addCustomDomain"]

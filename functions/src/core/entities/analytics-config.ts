@@ -25,6 +25,7 @@ export const analyticsConfigDataSchema = z.object({
   clarityProjectId: z.string().optional(),
   plausibleDomain: z.string().optional(),
   umamiScriptUrl: z.string().url().optional(),
+  umamiWebsiteId: z.string().optional(),
   consentDefault: consentDefaultSchema.default("denied"),
   bannerProvider: bannerProviderSchema.default("custom"),
   orgId: z.string().min(1),

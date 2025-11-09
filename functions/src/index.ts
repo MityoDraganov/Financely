@@ -75,3 +75,4 @@ export { createProduct } from "./functions/create-product";
 // Analytics functions
 export { getAnalyticsMetrics } from "./functions/get-analytics-metrics";
 export { storeAnalyticsEvent } from "./functions/store-analytics-event";
+export { updateAnalyticsScript } from "./functions/update-analytics-script";

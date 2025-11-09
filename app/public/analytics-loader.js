@@ -20,6 +20,7 @@
     clarityProjectId: null,
     plausibleDomain: null,
     umamiScriptUrl: null,
+    umamiWebsiteId: null,
     consentDefault: 'denied',
     bannerProvider: 'custom',
     enableClarity: false,
@@ -45,6 +46,7 @@
     config.clarityProjectId = currentScript.getAttribute('data-analytics-clarity-id') || null;
     config.plausibleDomain = currentScript.getAttribute('data-analytics-plausible-domain') || null;
     config.umamiScriptUrl = currentScript.getAttribute('data-analytics-umami-url') || null;
+    config.umamiWebsiteId = currentScript.getAttribute('data-analytics-umami-website-id') || null;
     config.consentDefault = currentScript.getAttribute('data-analytics-consent-default') || 'denied';
     config.bannerProvider = currentScript.getAttribute('data-analytics-banner-provider') || 'custom';
     config.enableClarity = currentScript.getAttribute('data-analytics-enable-clarity') === 'true';
@@ -418,10 +420,10 @@
       // Verify gtag is now the real function (not just our queue)
       if (typeof window.gtag === 'function') {
         // Re-initialize to ensure config is applied after script loads
-        window.gtag('config', config.ga4MeasurementId, {
-          anonymize_ip: true,
+    window.gtag('config', config.ga4MeasurementId, {
+      anonymize_ip: true,
           send_page_view: false,
-        });
+    });
       }
     };
     
@@ -496,19 +498,25 @@
       return;
     }
 
+    if (!config.umamiWebsiteId) {
+      console.warn('Financely Analytics: Umami website ID not provided');
+      return;
+    }
+
     const umamiScript = document.createElement('script');
     umamiScript.async = true;
     umamiScript.defer = true;
     umamiScript.src = config.umamiScriptUrl;
-    // Umami website ID - use siteId if available, otherwise orgId
-    // Note: This should match the website ID configured in your Umami instance
-    const websiteId = config.siteId || config.orgId;
-    umamiScript.setAttribute('data-website-id', websiteId);
+    // Use the website ID from config (set in Umami dashboard)
+    umamiScript.setAttribute('data-website-id', config.umamiWebsiteId);
     umamiScript.onerror = function() {
       console.error('Financely Analytics: Failed to load Umami script', config.umamiScriptUrl);
     };
     umamiScript.onload = function() {
-      console.log('Financely Analytics: Umami loaded', config.umamiScriptUrl, 'website-id:', websiteId);
+      console.log('Financely Analytics: Umami loaded', {
+        scriptUrl: config.umamiScriptUrl,
+        websiteId: config.umamiWebsiteId,
+      });
     };
     document.head.appendChild(umamiScript);
   }
@@ -688,6 +696,7 @@
           clarityProjectId: script.getAttribute('data-analytics-clarity-id'),
           plausibleDomain: script.getAttribute('data-analytics-plausible-domain'),
           umamiScriptUrl: script.getAttribute('data-analytics-umami-url'),
+          umamiWebsiteId: script.getAttribute('data-analytics-umami-website-id'),
           enableClarity: script.getAttribute('data-analytics-enable-clarity'),
           consentDefault: script.getAttribute('data-analytics-consent-default'),
           bannerProvider: script.getAttribute('data-analytics-banner-provider'),
