@@ -4,6 +4,7 @@ import { functionsService } from "./functions/functions-service";
 import { authenticationService } from "./authentication/authentication-service";
 import { inviteService } from "./invite/invite-service";
 import { workflowService } from "./workflow/workflow-service";
+import { invoiceComplianceService } from "./invoice-compliance-service";
 
 export type ServiceHost = {
   getDatabaseService: () => typeof databaseService;
@@ -11,6 +12,7 @@ export type ServiceHost = {
   getAuthenticationService: () => AuthenticationService;
   getInviteService: () => typeof inviteService;
   getWorkflowService: () => typeof workflowService;
+  getInvoiceComplianceService: () => typeof invoiceComplianceService;
 };
 
 export const serviceHost: ServiceHost = {
@@ -28,6 +30,9 @@ export const serviceHost: ServiceHost = {
   },
   getWorkflowService() {
     return workflowService;
+  },
+  getInvoiceComplianceService() {
+    return invoiceComplianceService;
   },
 };
 

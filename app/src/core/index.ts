@@ -5,6 +5,7 @@ export * from "./entities/user";
 export * from "./entities/auth-user";
 export * from "./entities/proposal";
 export * from "./entities/invoice";
+export * from "./entities/invoice-compliance";
 export * from "./entities/product";
 export * from "./entities/buyer";
 export * from "./entities/seller";

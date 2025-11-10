@@ -8,6 +8,9 @@ import {
 	Table as TableIcon,
 	Square,
 	Minus,
+	Lock,
+	CheckCircle2,
+	AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,9 @@ import { useCreateTemplate } from "@/hooks/repository-hooks/use-create-template"
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { usePresence } from "@/hooks/use-presence";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
+import { invoiceComplianceService } from "@/services/invoice-compliance-service";
+import { isRequiredBinding } from "@/utils/invoice-compliance";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EnhancedPresenceIndicator } from "@/components/designer/enhanced-presence-indicator";
 import { LiveCursor } from "@/components/designer/live-cursor";
 import {
@@ -104,6 +110,9 @@ export default function TemplateDesignerPage() {
 
 	// Handler for creating a new template
 	const handleCreateNewTemplate = async () => {
+		// Detect region from organization for compliance
+		const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
+		
 		const templateData: TemplateData = {
 			orgId,
 			name: "New Template",
@@ -121,6 +130,13 @@ export default function TemplateDesignerPage() {
 			},
 			elements: [],
 			status: "draft",
+			// Set compliance metadata based on organization region
+			compliance: {
+				region,
+				requiredFields: [],
+				autoFooter: true,
+				complianceValidated: false,
+			},
 		};
 		
 		try {
@@ -149,6 +165,30 @@ export default function TemplateDesignerPage() {
 			templates[0]
 		);
 	}, [templates, state.currentTemplateId]);
+
+	// Compliance validation for current template
+	const complianceStatus = useMemo(() => {
+		if (!currentTemplate || !currentOrg) return null;
+		
+		// Use template's stored region if available, otherwise detect from organization
+		const region = currentTemplate.compliance?.region || invoiceComplianceService.detectRegion(currentOrg);
+		const validation = invoiceComplianceService.validateTemplate(currentTemplate, region);
+		
+		return {
+			region,
+			valid: validation.valid,
+			missingBindings: validation.missingBindings,
+		};
+	}, [currentTemplate, currentOrg]);
+
+	// Check if a binding is required for compliance
+	const isRequired = useMemo(() => {
+		if (!currentOrg || !complianceStatus) return () => false;
+		return (binding: string | undefined) => {
+			if (!binding) return false;
+			return isRequiredBinding(complianceStatus.region, binding);
+		};
+	}, [currentOrg, complianceStatus]);
 
 	// Keep refs in sync for stable event handlers
 	useEffect(() => {
@@ -203,6 +243,9 @@ export default function TemplateDesignerPage() {
 
 	const createMutation = useMutation({
 		mutationFn: async () => {
+			// Detect region from organization for compliance
+			const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
+			
 			const empty: TemplateData = {
 				orgId: orgId,
 				name: "New Invoice Template",
@@ -219,6 +262,13 @@ export default function TemplateDesignerPage() {
 				},
 				elements: [],
 				status: "draft",
+				// Set compliance metadata based on organization region
+				compliance: {
+					region,
+					requiredFields: [],
+					autoFooter: true,
+					complianceValidated: false,
+				},
 			};
 			console.log("[CREATE] creating new template for orgId:", orgId);
 			const id = await templateService.createDraft(empty);
@@ -1254,10 +1304,17 @@ export default function TemplateDesignerPage() {
 									draftElements ??
 									currentTemplate?.elements ??
 									[]
-								).map((el: TemplateElement) => (
+								).map((el: TemplateElement) => {
+									const binding = el.type === "text" ? el.binding : 
+										el.type === "input" ? el.binding :
+										el.type === "image" ? el.binding :
+										el.type === "table" ? el.itemsBinding : undefined;
+									const isRequiredField = isRequired(binding);
+									
+									return (
 									<div
 										key={el.id}
-										className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"}`}
+										className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400" : ""}`}
 										style={{
 											left: el.x * state.zoom,
 											top: el.y * state.zoom,
@@ -1299,6 +1356,15 @@ export default function TemplateDesignerPage() {
 											});
 										}}
 									>
+										{/* Lock icon for required fields */}
+										{isRequiredField && (
+											<div
+												className="absolute -top-2 -left-2 bg-amber-500 text-white rounded-full p-0.5 z-50 shadow-sm"
+												title="Required field for compliance"
+											>
+												<Lock className="w-3 h-3" />
+											</div>
+										)}
 										{/* resize handles */}
 										{state.selectedElementId === el.id && (
 											<>
@@ -1547,7 +1613,8 @@ export default function TemplateDesignerPage() {
 												);
 											})()}
 									</div>
-								))}
+								);
+								})}
 							</div>
 						</div>
 					</div>
@@ -1566,6 +1633,37 @@ export default function TemplateDesignerPage() {
 						)}
 						{currentTemplate && (
 							<div className="space-y-4">
+								{/* Compliance Status Indicator */}
+								{complianceStatus && (
+									<Alert className={complianceStatus.valid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}>
+										{complianceStatus.valid ? (
+											<CheckCircle2 className="h-4 w-4 text-green-600" />
+										) : (
+											<AlertCircle className="h-4 w-4 text-amber-600" />
+										)}
+										<AlertDescription className="text-xs">
+											<div className="font-medium mb-1">
+												{complianceStatus.valid ? "✅ Compliant" : "⚠️ Missing Required Fields"}
+											</div>
+											<div className="text-neutral-600">
+												Region: {complianceStatus.region}
+											</div>
+											{!complianceStatus.valid && complianceStatus.missingBindings.length > 0 && (
+												<div className="mt-2">
+													<div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
+													<ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
+														{complianceStatus.missingBindings.slice(0, 5).map((binding) => (
+															<li key={binding}>{binding}</li>
+														))}
+														{complianceStatus.missingBindings.length > 5 && (
+															<li>+{complianceStatus.missingBindings.length - 5} more</li>
+														)}
+													</ul>
+												</div>
+											)}
+										</AlertDescription>
+									</Alert>
+								)}
 								<div>
 									<div className="text-xs text-neutral-500 mb-1">
 										Name
@@ -1606,6 +1704,44 @@ export default function TemplateDesignerPage() {
 											</SelectItem>
 										</SelectContent>
 									</Select>
+								</div>
+								{/* Compliance Region */}
+								<div>
+									<div className="text-xs text-neutral-500 mb-1">
+										Compliance Region
+									</div>
+									<Select
+										value={currentTemplate.compliance?.region || (currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US")}
+										onValueChange={(v: string) => {
+											const currentCompliance = currentTemplate.compliance || {
+												region: "US" as const,
+												requiredFields: [],
+												autoFooter: true,
+												complianceValidated: false,
+											};
+											saveMutation.mutate({
+												compliance: {
+													...currentCompliance,
+													region: v as "US" | "EU" | "CA" | "AU" | "UK",
+													complianceValidated: false, // Reset validation when region changes
+												},
+											});
+										}}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="US">🇺🇸 United States</SelectItem>
+											<SelectItem value="EU">🇪🇺 European Union</SelectItem>
+											<SelectItem value="CA">🇨🇦 Canada</SelectItem>
+											<SelectItem value="AU">🇦🇺 Australia</SelectItem>
+											<SelectItem value="UK">🇬🇧 United Kingdom</SelectItem>
+										</SelectContent>
+									</Select>
+									<p className="text-xs text-neutral-400 mt-1">
+										Determines which compliance requirements apply
+									</p>
 								</div>
 								{(() => {
 									if (!state.selectedElementId) return null;

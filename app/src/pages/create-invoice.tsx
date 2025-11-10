@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCreateInvoice } from "@/hooks";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -12,8 +13,10 @@ import { TemplateElement } from "@/core";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Loader2 } from "lucide-react";
+import { FileText, Plus, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
+import { invoiceComplianceService } from "@/services/invoice-compliance-service";
+import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
 
 type BindingField = {
   path: string;
@@ -43,6 +46,14 @@ export default function CreateInvoicePage() {
   
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, InvoiceDataValue>>({});
+  const [complianceValidation, setComplianceValidation] = useState<{
+    valid: boolean;
+    region: string;
+    missingFields: Array<{ binding: string; label: string; description?: string }>;
+    warnings?: string[];
+    errors?: string[];
+  } | null>(null);
+  const [hasAutoFilled, setHasAutoFilled] = useState(false);
 
   // Get selected template
   const selectedTemplate = useMemo(() => {
@@ -118,6 +129,94 @@ export default function CreateInvoicePage() {
     return Array.from(fields.values());
   }, [selectedTemplate, tableConfigs]);
 
+  // Auto-fill organization data when template is selected
+  useEffect(() => {
+    if (!selectedTemplate || !currentOrganization || hasAutoFilled) return;
+    
+    const newData = { ...formData };
+    let hasChanges = false;
+    
+    // Auto-fill seller/supplier information
+    if (currentOrganization.name) {
+      const sellerNameBinding = bindings.find(b => 
+        b.path === "seller.name" || b.path === "supplier.name"
+      );
+      if (sellerNameBinding && !getBindingValue(newData, sellerNameBinding.path)) {
+        setBindingValue(newData, sellerNameBinding.path, currentOrganization.name);
+        hasChanges = true;
+      }
+    }
+    
+    // Auto-fill organization address if available
+    const orgAddress = currentOrganization.settings?.address;
+    if (orgAddress) {
+      const sellerAddressBinding = bindings.find(b => 
+        b.path === "seller.address" || b.path === "supplier.address"
+      );
+      if (sellerAddressBinding && !getBindingValue(newData, sellerAddressBinding.path)) {
+        // Build address object from organization address
+        const addressObj: Record<string, string> = {};
+        if (orgAddress.street) addressObj.street = orgAddress.street;
+        if (orgAddress.city) addressObj.city = orgAddress.city;
+        if (orgAddress.state) addressObj.state = orgAddress.state;
+        if (orgAddress.zipCode) addressObj.zipCode = orgAddress.zipCode;
+        if (orgAddress.country) addressObj.country = orgAddress.country;
+        
+        if (Object.keys(addressObj).length > 0) {
+          setBindingValue(newData, sellerAddressBinding.path, addressObj);
+          hasChanges = true;
+        }
+      }
+    }
+    
+    // Auto-fill currency
+    const currencyBinding = bindings.find(b => b.path === "currency");
+    if (currencyBinding && !getBindingValue(newData, currencyBinding.path)) {
+      const currency = currentOrganization.settings?.defaultCurrency || "USD";
+      setBindingValue(newData, currencyBinding.path, currency);
+      hasChanges = true;
+    }
+    
+    // Auto-fill invoice date
+    const invoiceDateBinding = bindings.find(b => 
+      b.path === "invoiceDate" || b.path === "issueDate"
+    );
+    if (invoiceDateBinding && !getBindingValue(newData, invoiceDateBinding.path)) {
+      setBindingValue(newData, invoiceDateBinding.path, new Date().toISOString().split("T")[0]);
+      hasChanges = true;
+    }
+    
+    if (hasChanges) {
+      setFormData(newData);
+      setHasAutoFilled(true);
+    }
+  }, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]);
+
+  // Real-time compliance validation
+  useEffect(() => {
+    if (!selectedTemplate || !currentOrganization || Object.keys(formData).length === 0) {
+      setComplianceValidation(null);
+      return;
+    }
+    
+    const region = invoiceComplianceService.detectRegion(currentOrganization);
+    const invoiceData = {
+      orgId: currentOrganization.id,
+      templateId: selectedTemplate.id,
+      data: formData,
+      status: "draft" as const,
+    };
+    
+    const validation = invoiceComplianceService.validateInvoice(invoiceData, region);
+    setComplianceValidation({
+      valid: validation.valid,
+      region: validation.region,
+      missingFields: validation.missingFields,
+      warnings: validation.warnings,
+      errors: validation.errors,
+    });
+  }, [formData, selectedTemplate, currentOrganization]);
+
   // Get value from nested path
   const getValue = (path: string): InvoiceDataValue => {
     const parts = path.split(".");
@@ -178,6 +277,35 @@ export default function CreateInvoicePage() {
     if (!currentOrganization) {
       toast.error("Organization not found. Please try again.");
       return;
+    }
+
+    // Pre-validate compliance before saving
+    const region = invoiceComplianceService.detectRegion(currentOrganization);
+    const invoiceData = {
+      orgId: currentOrganization.id,
+      templateId: selectedTemplate.id,
+      data: formData,
+      status: "draft" as const,
+    };
+    
+    const validation = invoiceComplianceService.validateInvoice(invoiceData, region);
+    
+    if (!validation.valid) {
+      const missingFieldsList = validation.missingFields
+        .map(f => f.label)
+        .join(", ");
+      toast.error(
+        `Invoice is not compliant. Missing required fields: ${missingFieldsList}`,
+        { duration: 5000 }
+      );
+      return;
+    }
+    
+    if (validation.warnings && validation.warnings.length > 0) {
+      toast.warning(
+        `Invoice has compliance warnings: ${validation.warnings.join(", ")}`,
+        { duration: 5000 }
+      );
     }
 
     try {
@@ -442,6 +570,47 @@ export default function CreateInvoicePage() {
                     <CardTitle>Invoice Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Compliance Status Indicator */}
+                    {complianceValidation && (
+                      <Alert className={complianceValidation.valid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}>
+                        {complianceValidation.valid ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-amber-600" />
+                        )}
+                        <AlertDescription className="text-xs">
+                          <div className="font-medium mb-1">
+                            {complianceValidation.valid ? "✅ Compliant" : "⚠️ Missing Required Fields"}
+                          </div>
+                          <div className="text-neutral-600 mb-1">
+                            Region: {complianceValidation.region}
+                          </div>
+                          {!complianceValidation.valid && complianceValidation.missingFields.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
+                              <ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
+                                {complianceValidation.missingFields.slice(0, 3).map((field) => (
+                                  <li key={field.binding}>{field.label}</li>
+                                ))}
+                                {complianceValidation.missingFields.length > 3 && (
+                                  <li>+{complianceValidation.missingFields.length - 3} more</li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                          {complianceValidation.warnings && complianceValidation.warnings.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-xs font-medium text-amber-700 mb-1">Warnings:</div>
+                              <ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
+                                {complianceValidation.warnings.slice(0, 2).map((warning, idx) => (
+                                  <li key={idx}>{warning}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     {bindings.map((field) => (
                       <div key={field.path} className="space-y-2">
                         <Label htmlFor={field.path}>{field.label}</Label>

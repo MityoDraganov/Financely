@@ -54,6 +54,20 @@ export const organizationDataSchema = z.object({
       defaultCurrency: z.string().default("USD"),
       defaultLanguage: z.string().default("en"),
       defaultTimezone: z.string().default("UTC"),
+      // Organization location for compliance
+      country: z.string().optional(), // ISO country code (e.g., "US", "GB", "DE")
+      region: z.enum(["US", "EU", "CA", "AU", "UK"]).optional(), // Invoice compliance region
+      // Organization address
+      address: z.object({
+        street: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zipCode: z.string().optional(),
+        country: z.string().optional(), // Full country name (e.g., "United States")
+      }).optional(),
+      // Organization contact information
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
       
       // Invoice numbering
       invoicePrefix: z.string().default("INV"),

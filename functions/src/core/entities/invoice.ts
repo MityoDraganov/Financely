@@ -175,3 +175,21 @@ export function setBindingValue(
 
   current[parts[parts.length - 1]] = value;
 }
+
+/**
+ * Helper function to check if invoice data is compliant with a region's requirements.
+ * This is a convenience wrapper around the compliance validation utilities.
+ * 
+ * @param data - The invoice data to check
+ * @param region - The compliance region (e.g., "US", "EU")
+ * @returns true if compliant, false otherwise
+ */
+export function isInvoiceCompliant(
+  data: Record<string, InvoiceDataValue>,
+  region: "US" | "EU" | "CA" | "AU" | "UK"
+): boolean {
+  // Import dynamically to avoid circular dependencies
+  const { validateInvoiceCompliance } = require("../utils/invoice-compliance");
+  const result = validateInvoiceCompliance(data, region);
+  return result.valid;
+}

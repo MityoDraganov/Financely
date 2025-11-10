@@ -62,17 +62,18 @@ export default function OrganizationGeneralPage() {
   // Reset form when organization data loads
   useEffect(() => {
     if (organization) {
+      const address = organization.settings?.address;
       reset({
         name: organization.name || "",
         description: organization.description || "",
         website: organization.website || "",
-        email: "", // Add email field to organization schema if needed
-        phone: "", // Add phone field to organization schema if needed
-        address: "", // Add address fields to organization schema if needed
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
+        email: organization.settings?.email || "",
+        phone: organization.settings?.phone || "",
+        address: address?.street || "",
+        city: address?.city || "",
+        state: address?.state || "",
+        zipCode: address?.zipCode || "",
+        country: address?.country || "",
       });
     }
   }, [organization, reset]);
@@ -81,12 +82,35 @@ export default function OrganizationGeneralPage() {
     if (!organization) return;
 
     try {
+      // Build address object if any address fields are provided
+      const address = (data.address || data.city || data.state || data.zipCode || data.country) ? {
+        street: data.address || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        zipCode: data.zipCode || undefined,
+        country: data.country || undefined,
+      } : undefined;
+
+      // Update settings with address and contact information
+      // Note: settings.country should be ISO code (e.g., "US"), not full name
+      // The full country name goes in address.country
+      const currentSettings = organization.settings || {};
+      const updatedSettings = {
+        ...currentSettings,
+        ...(address && { address }),
+        // Save email and phone (empty string means clear the field)
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        // Keep existing country code if it exists, don't overwrite with full name
+      };
+
       await updateOrganization.mutateAsync({
         id: organization.id,
         data: {
           name: data.name,
           description: data.description || undefined,
           website: data.website || undefined,
+          settings: updatedSettings,
         },
       });
 

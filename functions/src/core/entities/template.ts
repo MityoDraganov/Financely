@@ -140,6 +140,21 @@ export const templateBrandSchema = z.object({
   backgroundImage: z.string().optional(),
 });
 
+export const templateComplianceMetadataSchema = z.object({
+  // Target region for this template (determines which compliance schema applies)
+  region: z.enum(["US", "EU", "CA", "AU", "UK"]).optional(),
+  // Required field bindings that must be present in the template
+  requiredFields: z.array(z.string()).default([]), // Array of binding paths (e.g., ["invoiceNumber", "seller.name"])
+  // Whether to auto-inject compliance footer
+  autoFooter: z.boolean().default(true),
+  // Custom footer text (overrides auto-generated)
+  customFooter: z.string().optional(),
+  // Whether template has been validated for compliance
+  complianceValidated: z.boolean().default(false),
+  // Last compliance validation timestamp
+  complianceValidatedAt: z.string().optional(),
+});
+
 export const templateDataSchema = z.object({
   orgId: z.string().min(1),
   name: z.string().min(1),
@@ -148,6 +163,8 @@ export const templateDataSchema = z.object({
   brand: templateBrandSchema,
   elements: z.array(templateElementSchema).default([]),
   status: z.enum(["draft", "published"]).default("draft"),
+  // Compliance metadata for invoice templates
+  compliance: templateComplianceMetadataSchema.optional(),
 });
 
 export type TemplateData = z.infer<typeof templateDataSchema>;
