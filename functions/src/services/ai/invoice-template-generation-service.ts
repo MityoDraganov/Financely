@@ -242,17 +242,23 @@ export class InvoiceTemplateGenerationService {
     const style = options?.style || "modern";
     const includeLogo = options?.includeLogo ?? true;
     
-    const requiredFieldsList = requiredFields.map(f => 
-      `- ${f.binding} (${f.label})${f.description ? `: ${f.description}` : ""}${f.format ? ` [Format: ${f.format}]` : ""}`
+    const requiredFieldsList = requiredFields.map((f, idx) => 
+      `${idx + 1}. ${f.binding} (${f.label})${f.description ? `: ${f.description}` : ""}${f.format ? ` [Format: ${f.format}]` : ""}`
     ).join("\n");
+    
+    const requiredFieldsSummary = requiredFields.map(f => f.binding).join(", ");
     
     return `You are a professional invoice template designer. Create a beautiful, functional, and fully compliant invoice template.
 
 Organization Context:
 ${context}
 
-Required Compliance Fields (MUST be included):
+CRITICAL: Required Compliance Fields (ALL MUST be included - this is legally mandatory):
 ${requiredFieldsList}
+
+Required Field Bindings Summary: ${requiredFieldsSummary}
+
+IMPORTANT: You MUST create elements for EVERY single required field listed above. Missing any field will result in non-compliance. Double-check your output includes all ${requiredFields.length} required fields.
 
 Design Requirements:
 - Style: ${style} (${this.getStyleDescription(style)})
@@ -346,13 +352,38 @@ Generate a complete template JSON with all elements properly configured, positio
       }
     }
     
-    // Add missing required fields
+    // Add missing required fields - ensure ALL are present
     const missingFields = requiredFields.filter(f => !existingBindings.has(f.binding));
+    let currentY = enriched.length > 0 
+      ? Math.max(...enriched.map(el => el.y + el.height)) + 30
+      : 100;
+    
     for (const field of missingFields) {
-      const element = this.createElementForBinding(field, enriched.length * 50 + 100);
+      const element = this.createElementForBinding(field, currentY);
       if (element) {
         enriched.push(element);
+        currentY = element.y + element.height + 30;
       }
+    }
+    
+    // Final validation - log if any are still missing
+    const finalBindings = new Set(
+      enriched.flatMap(el => {
+        const bindings: string[] = [];
+        if (el.type === "text" || el.type === "input") {
+          if (el.binding) bindings.push(el.binding);
+        } else if (el.type === "table" && el.itemsBinding) {
+          bindings.push(el.itemsBinding);
+        }
+        return bindings;
+      })
+    );
+    
+    const stillMissing = requiredFields.filter(f => !finalBindings.has(f.binding));
+    if (stillMissing.length > 0) {
+      logger.warn("Some required fields could not be added automatically", {
+        missing: stillMissing.map(f => f.binding),
+      });
     }
     
     return enriched;
@@ -501,6 +532,39 @@ Generate a complete template JSON with all elements properly configured, positio
     field: { binding: string; label: string; format?: string },
     yPosition: number
   ): TemplateElement | null {
+    // Handle nested object fields (e.g., seller.name, seller.address)
+    // For nested fields, we create a text element that can display the value
+    // The binding will be used to access nested data
+    
+    // Special handling for address objects - create a text element that can display formatted address
+    if (field.binding.includes(".address") && field.format === "object") {
+      return {
+        id: `el-${Date.now()}-text-addr`,
+        type: "text",
+        x: 60,
+        y: yPosition,
+        width: 300,
+        height: 60,
+        rotation: 0,
+        zIndex: 1,
+        visible: true,
+        text: field.label,
+        binding: field.binding,
+        typography: {
+          fontFamily: "Inter",
+          fontSize: 11,
+          fontWeight: "normal",
+          lineHeight: 1.4,
+          letterSpacing: 0,
+          color: "#111827",
+          align: "left",
+          uppercase: false,
+          lowercase: false,
+        },
+        format: { kind: "none" },
+      };
+    }
+    
     if (field.binding === "items" || field.format === "array") {
       // Create table for items
       return {

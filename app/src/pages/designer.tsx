@@ -1087,24 +1087,24 @@ export default function TemplateDesignerPage() {
 		<div className="flex h-screen">
 			<ResizablePanelGroup direction="horizontal">
 				<ResizablePanel defaultSize={18} minSize={16}>
-					<div className="h-full p-3 border-r bg-neutral-50">
-						<div className="flex items-center justify-between mb-3">
-							<div className="font-medium">Templates</div>
+					<div className="h-full p-4 border-r bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
+						<div className="flex items-center justify-between mb-4">
+							<div className="font-semibold text-base text-neutral-800">Templates</div>
 						</div>
-						<div className="mb-3 space-y-2">
+						<div className="mb-4 space-y-2.5">
 							<Button
 								variant="default"
 								size="sm"
-								className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+								className="w-full bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
 								onClick={() => setAiBuilderOpen(true)}
 							>
-								<Sparkles className="h-4 w-4 mr-2" />
-								AI Builder
+								<Sparkles className="h-4 w-4 mr-2 animate-pulse" />
+								<span className="font-medium">AI Builder</span>
 							</Button>
 							<Button
 								variant="outline"
 								size="sm"
-								className="w-full"
+								className="w-full border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-all duration-200 shadow-sm hover:shadow"
 								onClick={handleCreateNewTemplate}
 							>
 								<Plus className="h-4 w-4 mr-2" />
@@ -1121,25 +1121,28 @@ export default function TemplateDesignerPage() {
 						</div>
 						{/* Required Fields Section */}
 						{missingRequiredFields.length > 0 && currentTemplate && (
-							<div className="mt-4">
-								<div className="text-xs uppercase text-neutral-500 mb-2 flex items-center gap-1">
-									<Lock className="h-3 w-3" />
+							<div className="mt-5 mb-5 p-3 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/50 shadow-sm">
+								<div className="text-xs font-semibold uppercase text-amber-700 mb-2.5 flex items-center gap-1.5">
+									<Lock className="h-3.5 w-3.5" />
 									Required Fields
 								</div>
-								<div className="space-y-1.5">
+								<div className="space-y-2">
 									{missingRequiredFields.map((field) => (
 										<Button
 											key={field.binding}
 											variant="outline"
 											size="sm"
-											onClick={() => addRequiredElement(field.binding, field.label, field.elementType)}
-											className="w-full justify-start text-xs h-auto py-2 px-2 border-amber-300 bg-amber-50 hover:bg-amber-100"
+											onClick={() => {
+												addRequiredElement(field.binding, field.label, field.elementType);
+												toast.success(`Added ${field.label}`, { duration: 2000 });
+											}}
+											className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300/60 bg-white/80 hover:bg-amber-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
 										>
-											<Plus className="h-3 w-3 mr-1.5" />
-											<span className="text-left">
-												<div className="font-medium">{field.label}</div>
+											<Plus className="h-3.5 w-3.5 mr-2 text-amber-600" />
+											<span className="text-left flex-1">
+												<div className="font-semibold text-amber-900">{field.label}</div>
 												{field.description && (
-													<div className="text-xs text-neutral-500 font-normal">{field.description}</div>
+													<div className="text-xs text-amber-700/70 font-normal mt-0.5">{field.description}</div>
 												)}
 											</span>
 										</Button>
@@ -1147,14 +1150,19 @@ export default function TemplateDesignerPage() {
 								</div>
 							</div>
 						)}
-						<div className="mt-4">
-							<div className="text-xs uppercase text-neutral-500 mb-2">
-								Palette
+						<div className="mt-5">
+							<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
+								<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+								<span>Palette</span>
+								<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
 							</div>
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
 								<Button
 									variant="secondary"
-									onClick={() => addElement("text")}
+									onClick={() => {
+										addElement("text");
+										toast.success("Text element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: text");
@@ -1168,14 +1176,17 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<TypeIcon className="h-4 w-4 mr-1" /> Text
+									<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Text</span>
 								</Button>
 								<Button
 									variant="secondary"
-									onClick={() => addElement("image")}
+									onClick={() => {
+										addElement("image");
+										toast.success("Image element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: image");
@@ -1189,14 +1200,17 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<ImageIcon className="h-4 w-4 mr-1" /> Image
+									<ImageIcon className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Image</span>
 								</Button>
 								<Button
 									variant="secondary"
-									onClick={() => addElement("table")}
+									onClick={() => {
+										addElement("table");
+										toast.success("Table element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: table");
@@ -1210,14 +1224,17 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<TableIcon className="h-4 w-4 mr-1" /> Table
+									<TableIcon className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Table</span>
 								</Button>
 								<Button
 									variant="secondary"
-									onClick={() => addElement("input")}
+									onClick={() => {
+										addElement("input");
+										toast.success("Input element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: input");
@@ -1231,14 +1248,17 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<TypeIcon className="h-4 w-4 mr-1" /> Input
+									<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Input</span>
 								</Button>
 								<Button
 									variant="secondary"
-									onClick={() => addElement("box")}
+									onClick={() => {
+										addElement("box");
+										toast.success("Box element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: box");
@@ -1252,14 +1272,17 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<Square className="h-4 w-4 mr-1" /> Box
+									<Square className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Box</span>
 								</Button>
 								<Button
 									variant="secondary"
-									onClick={() => addElement("line")}
+									onClick={() => {
+										addElement("line");
+										toast.success("Line element added", { duration: 1500 });
+									}}
 									draggable
 									onDragStart={(e) => {
 										console.log("[DND] dragstart: line");
@@ -1273,85 +1296,140 @@ export default function TemplateDesignerPage() {
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}
-									className="w-full justify-start"
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 								>
-									{" "}
-									<Minus className="h-4 w-4 mr-1" /> Line
+									<Minus className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Line</span>
 								</Button>
 							</div>
-							<div className="mt-4">
-								<div className="text-xs uppercase text-neutral-500 mb-2">
-									Elements
+							<div className="mt-5">
+								<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
+									<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+									<span>Elements</span>
+									<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
 								</div>
-								<div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 									{(currentTemplate?.elements ?? []).map(
-										(el) => (
-											<ContextMenu key={el.id}>
-												<ContextMenuTrigger asChild>
-													<div
-														className={`px-2 py-2 min-w-0 w-full text-xs sm:text-sm rounded cursor-pointer truncate ${state.selectedElementId === el.id ? "bg-blue-50 text-blue-700" : "hover:bg-neutral-100"}`}
-														onClick={() =>
-															setState(
-																(
-																	s: DesignerState
-																) => ({
+										(el) => {
+											const binding = el.type === "text" ? el.binding : 
+												el.type === "input" ? el.binding :
+												el.type === "image" ? el.binding :
+												el.type === "table" ? el.itemsBinding : undefined;
+											const isRequiredField = isRequired(binding);
+											
+											return (
+												<ContextMenu key={el.id}>
+													<ContextMenuTrigger asChild>
+														<div
+															className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-lg cursor-pointer truncate transition-all duration-200 ${
+																state.selectedElementId === el.id 
+																	? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-2 border-blue-300 shadow-md" 
+																	: "hover:bg-neutral-100 hover:shadow-sm border border-transparent hover:border-neutral-200"
+															} ${isRequiredField ? "ring-1 ring-amber-300/50" : ""}`}
+															onClick={() => {
+																setState((s: DesignerState) => ({
 																	...s,
-																	selectedElementId:
-																		el.id,
-																})
-															)
-														}
-													>
-														<span className="uppercase text-[10px] text-neutral-500 mr-2">
-															{el.type}
-														</span>
-														<span className="truncate inline-block align-middle">
-															{el.type === "text"
-																? ((
-																		el as Extract<
-																			TemplateElement,
-																			{
-																				type: "text";
-																			}
-																		>
-																	).text ??
-																	"Text")
-																: el.id.slice(
-																		0,
-																		6
-																	)}
-														</span>
-													</div>
-												</ContextMenuTrigger>
-												<ContextMenuContent>
-													<ContextMenuItem
-														onClick={() =>
-															deleteElement(el.id)
-														}
-														variant="destructive"
-													>
-														Delete
-													</ContextMenuItem>
-													<ContextMenuSeparator />
-													<ContextMenuItem
-														onClick={() =>
-															setState(
-																(
-																	s: DesignerState
-																) => ({
-																	...s,
-																	selectedElementId:
-																		el.id,
-																})
-															)
-														}
-													>
-														Select
-													</ContextMenuItem>
-												</ContextMenuContent>
-											</ContextMenu>
-										)
-									)}
+																	selectedElementId: el.id,
+																}));
+															}}
+														>
+														<div className="flex items-center gap-2">
+															{isRequiredField && (
+																<Lock className="h-3 w-3 text-amber-500 shrink-0" />
+															)}
+															{el.type === "text" && (
+																<TypeIcon className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															{el.type === "image" && (
+																<ImageIcon className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															{el.type === "table" && (
+																<TableIcon className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															{el.type === "input" && (
+																<TypeIcon className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															{el.type === "box" && (
+																<Square className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															{el.type === "line" && (
+																<Minus className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
+															<span className="truncate flex-1 text-sm">
+																{(() => {
+																	const elementId = el.id;
+																	if (el.type === "text") {
+																		return (el as Extract<TemplateElement, { type: "text" }>).text ?? "Text";
+																	} else if (el.type === "table") {
+																		return "Items Table";
+																	} else if (el.type === "image") {
+																		return "Image";
+																	} else if (el.type === "input") {
+																		return "Input Field";
+																	} else if (el.type === "box") {
+																		return "Box";
+																	} else if (el.type === "line") {
+																		return "Line";
+																	}
+																	return `Element ${elementId.slice(0, 6)}`;
+																})()}
+															</span>
+														</div>
+														</div>
+													</ContextMenuTrigger>
+													<ContextMenuContent>
+														<ContextMenuItem
+															onClick={() =>
+																deleteElement(el.id)
+															}
+															variant="destructive"
+														>
+															Delete
+														</ContextMenuItem>
+														<ContextMenuSeparator />
+														<ContextMenuItem
+															onClick={() =>
+																setState(
+																	(
+																		s: DesignerState
+																	) => ({
+																		...s,
+																		selectedElementId:
+																			el.id,
+																	})
+																)
+															}
+														>
+															Select
+														</ContextMenuItem>
+													</ContextMenuContent>
+												</ContextMenu>
+											);
+										})}
 								</div>
 							</div>
 						</div>
@@ -1425,7 +1503,7 @@ export default function TemplateDesignerPage() {
 							</div>
 						</div>
 						<div
-							className="flex-1 overflow-auto bg-neutral-100 grid place-items-center"
+							className="flex-1 overflow-auto bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-50 grid place-items-center"
 							onDragOver={(e) => {
 								e.preventDefault();
 								console.log("[DND] container dragover");
@@ -1456,7 +1534,7 @@ export default function TemplateDesignerPage() {
 							)}
 							<div
 								ref={pageRef}
-								className="bg-white shadow-xl relative"
+								className="bg-white shadow-2xl relative rounded-sm border-4 border-neutral-200 transition-all duration-300 hover:shadow-3xl"
 								style={{
 									width: 794 * state.zoom,
 									height: 1123 * state.zoom,
@@ -1597,15 +1675,15 @@ export default function TemplateDesignerPage() {
 											});
 										}}
 									>
-										{/* Lock icon for required fields */}
-										{isRequiredField && (
-											<div
-												className="absolute -top-2 -left-2 bg-amber-500 text-white rounded-full p-0.5 z-50 shadow-sm"
-												title="Required field for compliance"
-											>
-												<Lock className="w-3 h-3" />
-											</div>
-										)}
+											{/* Lock icon for required fields */}
+											{isRequiredField && (
+												<div
+													className="absolute -top-2 -left-2 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-full p-1 z-50 shadow-md border-2 border-white animate-pulse"
+													title="Required field for compliance"
+												>
+													<Lock className="w-3 h-3" />
+												</div>
+											)}
 										{/* resize handles */}
 										{state.selectedElementId === el.id && (
 											<>
@@ -1876,18 +1954,34 @@ export default function TemplateDesignerPage() {
 							<div className="space-y-4">
 								{/* Compliance Status Indicator */}
 								{complianceStatus && (
-									<Alert className={complianceStatus.valid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}>
+									<Alert className={`transition-all duration-300 ${
+										complianceStatus.valid 
+											? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-md" 
+											: "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300 shadow-md"
+									}`}>
 										{complianceStatus.valid ? (
-											<CheckCircle2 className="h-4 w-4 text-green-600" />
+											<CheckCircle2 className="h-5 w-5 text-green-600 animate-pulse" />
 										) : (
-											<AlertCircle className="h-4 w-4 text-amber-600" />
+											<AlertCircle className="h-5 w-5 text-amber-600" />
 										)}
 										<AlertDescription className="text-xs">
-											<div className="font-medium mb-1">
-												{complianceStatus.valid ? "✅ Compliant" : "⚠️ Missing Required Fields"}
+											<div className={`font-semibold mb-1.5 text-sm ${
+												complianceStatus.valid ? "text-green-700" : "text-amber-700"
+											}`}>
+												{complianceStatus.valid ? (
+													<span className="flex items-center gap-1.5">
+														<span>✅</span>
+														<span>Fully Compliant</span>
+													</span>
+												) : (
+													<span className="flex items-center gap-1.5">
+														<span>⚠️</span>
+														<span>Missing Required Fields</span>
+													</span>
+												)}
 											</div>
-											<div className="text-neutral-600">
-												Region: {complianceStatus.region}
+											<div className="text-neutral-600 text-xs mb-2">
+												Region: <span className="font-medium">{complianceStatus.region}</span>
 											</div>
 											{!complianceStatus.valid && complianceStatus.missingBindings.length > 0 && (
 												<div className="mt-2">
@@ -1899,13 +1993,13 @@ export default function TemplateDesignerPage() {
 																? determineElementTypeForBinding(binding, fieldMetadata.format)
 																: "text";
 															return (
-																<div key={binding} className="flex items-center justify-between gap-2 p-1.5 bg-amber-50 rounded border border-amber-200">
+																<div key={binding} className="flex items-center justify-between gap-2 p-2.5 bg-white/80 rounded-lg border border-amber-200/60 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
 																	<div className="flex-1 min-w-0">
-																		<div className="text-xs font-medium text-amber-800 truncate">
+																		<div className="text-xs font-semibold text-amber-900 truncate">
 																			{fieldMetadata?.label || binding}
 																		</div>
 																		{fieldMetadata?.description && (
-																			<div className="text-xs text-amber-600 truncate">
+																			<div className="text-xs text-amber-700/70 truncate mt-0.5">
 																				{fieldMetadata.description}
 																			</div>
 																		)}
@@ -1913,14 +2007,17 @@ export default function TemplateDesignerPage() {
 																	<Button
 																		size="sm"
 																		variant="outline"
-																		className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-																		onClick={() => addRequiredElement(
-																			binding,
-																			fieldMetadata?.label || binding,
-																			elementType
-																		)}
+																		className="h-7 px-3 text-xs border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 shrink-0 shadow-sm hover:shadow transition-all duration-200 hover:scale-105 active:scale-95"
+																		onClick={() => {
+																			addRequiredElement(
+																				binding,
+																				fieldMetadata?.label || binding,
+																				elementType
+																			);
+																			toast.success(`Added ${fieldMetadata?.label || binding}`, { duration: 2000 });
+																		}}
 																	>
-																		<Plus className="h-3 w-3 mr-1" />
+																		<Plus className="h-3.5 w-3.5 mr-1.5" />
 																		Add
 																	</Button>
 																</div>
