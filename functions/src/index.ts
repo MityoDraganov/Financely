@@ -68,6 +68,7 @@ export { deployManualSite } from "./functions/deploy-manual-site";
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";
 export { generateProposalSuggestion } from "./functions/generate-proposal-suggestion";
+export { generateInvoiceTemplate } from "./functions/generate-invoice-template";
 
 // Product functions
 export { createProduct } from "./functions/create-product";

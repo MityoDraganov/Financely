@@ -197,6 +197,64 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async generateInvoiceTemplate(payload: {
+    organizationId: string;
+    region?: "US" | "EU" | "CA" | "AU" | "UK";
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional";
+      includeLogo?: boolean;
+    };
+  }): Promise<{
+    orgId: string;
+    name: string;
+    description?: string;
+    pageSize: "A4" | "Letter";
+    brand: {
+      fonts: string[];
+      colors: { primary: string; secondary: string; accent: string };
+      margins: { top: number; right: number; bottom: number; left: number };
+    };
+    elements: Array<any>;
+    status: "draft" | "published";
+    compliance?: {
+      region?: "US" | "EU" | "CA" | "AU" | "UK";
+      requiredFields?: string[];
+      autoFooter?: boolean;
+      customFooter?: string;
+      complianceValidated?: boolean;
+      complianceValidatedAt?: string;
+    };
+  }> {
+    type GenerateInvoiceTemplatePayload = Parameters<
+      FunctionsService["generateInvoiceTemplate"]
+    >[0];
+    const result = await httpsCallable<
+      GenerateInvoiceTemplatePayload,
+      {
+        orgId: string;
+        name: string;
+        description?: string;
+        pageSize: "A4" | "Letter";
+        brand: {
+          fonts: string[];
+          colors: { primary: string; secondary: string; accent: string };
+          margins: { top: number; right: number; bottom: number; left: number };
+        };
+        elements: Array<any>;
+        status: "draft" | "published";
+        compliance?: {
+          region?: "US" | "EU" | "CA" | "AU" | "UK";
+          requiredFields?: string[];
+          autoFooter?: boolean;
+          customFooter?: string;
+          complianceValidated?: boolean;
+          complianceValidatedAt?: string;
+        };
+      }
+    >(firebase.functions, "generateInvoiceTemplate")(payload);
+    return result.data;
+  },
+
   async createProduct(payload) {
     type CreateProductPayload = Parameters<FunctionsService["createProduct"]>[0];
     const result = await httpsCallable<CreateProductPayload, { id: string }>(

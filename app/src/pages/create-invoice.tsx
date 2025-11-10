@@ -588,21 +588,91 @@ export default function CreateInvoicePage() {
                           {!complianceValidation.valid && complianceValidation.missingFields.length > 0 && (
                             <div className="mt-2">
                               <div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
-                              <ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
-                                {complianceValidation.missingFields.slice(0, 3).map((field) => (
-                                  <li key={field.binding}>{field.label}</li>
-                                ))}
-                                {complianceValidation.missingFields.length > 3 && (
-                                  <li>+{complianceValidation.missingFields.length - 3} more</li>
-                                )}
-                              </ul>
+                              <div className="space-y-1.5">
+                                {complianceValidation.missingFields.map((field) => {
+                                  // Try to auto-fill from organization data
+                                  const handleAutoFill = () => {
+                                    const newData = { ...formData };
+                                    let value: InvoiceDataValue | undefined;
+
+                                    // Auto-fill logic based on binding
+                                    if (field.binding === "seller.name" || field.binding === "supplier.name") {
+                                      value = currentOrganization?.name;
+                                    } else if (field.binding === "seller.address" || field.binding === "supplier.address") {
+                                      const orgAddress = currentOrganization?.settings?.address;
+                                      if (orgAddress) {
+                                        value = {
+                                          street: orgAddress.street || "",
+                                          city: orgAddress.city || "",
+                                          state: orgAddress.state || "",
+                                          zipCode: orgAddress.zipCode || "",
+                                          country: orgAddress.country || "",
+                                        };
+                                      }
+                                    } else if (field.binding === "seller.vatId" || field.binding === "supplier.vatId") {
+                                      // Try to find VAT ID in organization settings (if we add it later)
+                                      value = currentOrganization?.settings?.vatId as string | undefined;
+                                    } else if (field.binding === "invoiceDate" || field.binding === "issueDate") {
+                                      value = new Date().toISOString().split("T")[0];
+                                    } else if (field.binding === "currency") {
+                                      value = currentOrganization?.settings?.defaultCurrency || "USD";
+                                    } else if (field.binding === "invoiceNumber") {
+                                      // Generate a simple invoice number
+                                      value = `INV-${Date.now()}`;
+                                    }
+
+                                    if (value !== undefined) {
+                                      setBindingValue(newData, field.binding, value);
+                                      setFormData(newData);
+                                      toast.success(`Auto-filled ${field.label}`);
+                                    } else {
+                                      // Find the binding field and focus it
+                                      const bindingField = bindings.find(b => b.path === field.binding);
+                                      if (bindingField) {
+                                        const inputId = `binding-${field.binding}`;
+                                        const input = document.getElementById(inputId);
+                                        if (input) {
+                                          input.focus();
+                                          input.scrollIntoView({ behavior: "smooth", block: "center" });
+                                        } else {
+                                          toast.info(`Please fill in ${field.label} manually`);
+                                        }
+                                      }
+                                    }
+                                  };
+
+                                  return (
+                                    <div key={field.binding} className="flex items-center justify-between gap-2 p-1.5 bg-amber-50 rounded border border-amber-200">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-amber-800 truncate">
+                                          {field.label}
+                                        </div>
+                                        {field.description && (
+                                          <div className="text-xs text-amber-600 truncate">
+                                            {field.description}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+                                        onClick={handleAutoFill}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Fill
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                           {complianceValidation.warnings && complianceValidation.warnings.length > 0 && (
                             <div className="mt-2">
                               <div className="text-xs font-medium text-amber-700 mb-1">Warnings:</div>
-                              <ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
-                                {complianceValidation.warnings.slice(0, 2).map((warning, idx) => (
+                              <ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto">
+                                {complianceValidation.warnings.map((warning, idx) => (
                                   <li key={idx}>{warning}</li>
                                 ))}
                               </ul>
@@ -615,7 +685,7 @@ export default function CreateInvoicePage() {
                       <div key={field.path} className="space-y-2">
                         <Label htmlFor={field.path}>{field.label}</Label>
                         <Input
-                          id={field.path}
+                          id={`binding-${field.path}`}
                           type={field.type}
                           value={String(getValue(field.path) ?? "")}
                           onChange={(e) => {

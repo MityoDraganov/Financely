@@ -11,6 +11,8 @@ import {
 	Lock,
 	CheckCircle2,
 	AlertCircle,
+	Sparkles,
+	Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,8 +44,20 @@ import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { usePresence } from "@/hooks/use-presence";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
-import { isRequiredBinding } from "@/utils/invoice-compliance";
+import { useGenerateInvoiceTemplate } from "@/hooks/service-hooks/use-invoice-template-generation";
+import { toast } from "sonner";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { isRequiredBinding, getFieldMetadata } from "@/utils/invoice-compliance";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
 import { EnhancedPresenceIndicator } from "@/components/designer/enhanced-presence-indicator";
 import { LiveCursor } from "@/components/designer/live-cursor";
 import {
@@ -96,6 +110,9 @@ export default function TemplateDesignerPage() {
 		TemplateElement[] | null
 	>(null);
 	const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
+	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional">("modern");
+	const [aiIncludeLogo, setAiIncludeLogo] = useState(true);
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +124,7 @@ export default function TemplateDesignerPage() {
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
 	const createTemplate = useCreateTemplate();
+	const generateTemplate = useGenerateInvoiceTemplate();
 
 	// Handler for creating a new template
 	const handleCreateNewTemplate = async () => {
@@ -189,6 +207,181 @@ export default function TemplateDesignerPage() {
 			return isRequiredBinding(complianceStatus.region, binding);
 		};
 	}, [currentOrg, complianceStatus]);
+
+	// Helper to determine element type based on binding
+	function determineElementTypeForBinding(
+		binding: string,
+		format?: "string" | "number" | "date" | "boolean" | "object" | "array"
+	): "text" | "input" | "table" {
+		if (binding === "items" || format === "array") {
+			return "table";
+		}
+		if (format === "date" || binding.includes("Date") || binding.includes("date")) {
+			return "input";
+		}
+		if (format === "number" || binding.includes("Amount") || binding.includes("Total") || binding.includes("Rate")) {
+			return "input";
+		}
+		return "text";
+	}
+
+	// Get missing required fields with metadata for the palette
+	const missingRequiredFields = useMemo(() => {
+		if (!complianceStatus || !currentTemplate) return [];
+		
+		const region = complianceStatus.region;
+		const schema = COMPLIANCE_SCHEMAS[region];
+		const existingBindings = new Set(
+			(currentTemplate.elements ?? []).flatMap(el => {
+				const bindings: string[] = [];
+				if (el.type === "text" || el.type === "input" || el.type === "image") {
+					if (el.binding) bindings.push(el.binding);
+				}
+				if (el.type === "table" && el.itemsBinding) {
+					bindings.push(el.itemsBinding);
+				}
+				return bindings;
+			})
+		);
+		
+		return schema.requiredFields
+			.filter(field => !existingBindings.has(field.binding))
+			.map(field => ({
+				...field,
+				elementType: determineElementTypeForBinding(field.binding, field.format),
+			}));
+	}, [complianceStatus, currentTemplate]);
+
+	// Function to add required element with pre-configured binding
+	function addRequiredElement(binding: string, label: string, elementType: "text" | "input" | "table") {
+		if (!currentTemplate) return;
+		
+		// Determine position - stack them vertically
+		const existingElements = currentTemplate.elements ?? [];
+		const maxY = existingElements.length > 0 
+			? Math.max(...existingElements.map(el => el.y + el.height))
+			: 80;
+		const yPosition = maxY + 20;
+		
+		if (elementType === "table") {
+			// Add table for items
+			const tableElement: TemplateElement = {
+				id: crypto.randomUUID(),
+				type: "table",
+				x: 60,
+				y: yPosition,
+				width: 500,
+				height: 200,
+				rotation: 0,
+				zIndex: 1,
+				visible: true,
+				rowHeight: 28,
+				headerHeight: 28,
+				stripe: true,
+				columns: [
+					{
+						id: crypto.randomUUID(),
+						header: "Description",
+						width: 200,
+						align: "left",
+						type: "text",
+						binding: "description",
+						format: { kind: "none" },
+					},
+					{
+						id: crypto.randomUUID(),
+						header: "Quantity",
+						width: 80,
+						align: "right",
+						type: "number",
+						binding: "quantity",
+						format: { kind: "none" },
+					},
+					{
+						id: crypto.randomUUID(),
+						header: "Price",
+						width: 100,
+						align: "right",
+						type: "number",
+						binding: "unitPrice",
+						format: { kind: "currency", currency: "USD" },
+					},
+					{
+						id: crypto.randomUUID(),
+						header: "Total",
+						width: 100,
+						align: "right",
+						type: "number",
+						binding: "total",
+						format: { kind: "currency", currency: "USD" },
+					},
+				],
+				designRows: [],
+				itemsBinding: binding,
+				totals: [],
+			};
+			const next = [...existingElements, tableElement];
+			setDraftElements(next);
+			setState((s) => ({ ...s, selectedElementId: tableElement.id }));
+			saveMutation.mutate({ elements: next });
+		} else if (elementType === "input") {
+			// Add input element
+			const inputElement: TemplateElement = {
+				id: crypto.randomUUID(),
+				type: "input",
+				x: 60,
+				y: yPosition,
+				width: 200,
+				height: 32,
+				rotation: 0,
+				zIndex: 1,
+				visible: true,
+				placeholder: label,
+				binding: binding,
+				variant: binding.includes("Date") || binding.includes("date") ? "date" : "number",
+				align: "left",
+			};
+			const next = [...existingElements, inputElement];
+			setDraftElements(next);
+			setState((s) => ({ ...s, selectedElementId: inputElement.id }));
+			saveMutation.mutate({ elements: next });
+		} else {
+			// Add text element
+			const textElement: TemplateElement = {
+				id: crypto.randomUUID(),
+				type: "text",
+				x: 60,
+				y: yPosition,
+				width: 200,
+				height: 40,
+				rotation: 0,
+				zIndex: 1,
+				visible: true,
+				text: label,
+				binding: binding,
+				typography: {
+					fontFamily: "Inter",
+					fontSize: 12,
+					fontWeight: "normal",
+					lineHeight: 1.2,
+					letterSpacing: 0,
+					color: "#111827",
+					align: "left",
+					uppercase: false,
+					lowercase: false,
+				},
+				format: binding.includes("Date") || binding.includes("date") 
+					? { kind: "date", dateFormat: "YYYY-MM-DD" }
+					: binding.includes("Amount") || binding.includes("Total") || binding.includes("Price")
+					? { kind: "currency", currency: "USD" }
+					: { kind: "none" },
+			};
+			const next = [...existingElements, textElement];
+			setDraftElements(next);
+			setState((s) => ({ ...s, selectedElementId: textElement.id }));
+			saveMutation.mutate({ elements: next });
+		}
+	}
 
 	// Keep refs in sync for stable event handlers
 	useEffect(() => {
@@ -898,6 +1091,26 @@ export default function TemplateDesignerPage() {
 						<div className="flex items-center justify-between mb-3">
 							<div className="font-medium">Templates</div>
 						</div>
+						<div className="mb-3 space-y-2">
+							<Button
+								variant="default"
+								size="sm"
+								className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+								onClick={() => setAiBuilderOpen(true)}
+							>
+								<Sparkles className="h-4 w-4 mr-2" />
+								AI Builder
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								className="w-full"
+								onClick={handleCreateNewTemplate}
+							>
+								<Plus className="h-4 w-4 mr-2" />
+								New Template
+							</Button>
+						</div>
 						<div className="space-y-2">
 							{templates.length === 0 && (
 								<div className="text-xs text-neutral-500">
@@ -906,6 +1119,34 @@ export default function TemplateDesignerPage() {
 								</div>
 							)}
 						</div>
+						{/* Required Fields Section */}
+						{missingRequiredFields.length > 0 && currentTemplate && (
+							<div className="mt-4">
+								<div className="text-xs uppercase text-neutral-500 mb-2 flex items-center gap-1">
+									<Lock className="h-3 w-3" />
+									Required Fields
+								</div>
+								<div className="space-y-1.5">
+									{missingRequiredFields.map((field) => (
+										<Button
+											key={field.binding}
+											variant="outline"
+											size="sm"
+											onClick={() => addRequiredElement(field.binding, field.label, field.elementType)}
+											className="w-full justify-start text-xs h-auto py-2 px-2 border-amber-300 bg-amber-50 hover:bg-amber-100"
+										>
+											<Plus className="h-3 w-3 mr-1.5" />
+											<span className="text-left">
+												<div className="font-medium">{field.label}</div>
+												{field.description && (
+													<div className="text-xs text-neutral-500 font-normal">{field.description}</div>
+												)}
+											</span>
+										</Button>
+									))}
+								</div>
+							</div>
+						)}
 						<div className="mt-4">
 							<div className="text-xs uppercase text-neutral-500 mb-2">
 								Palette
@@ -1651,14 +1892,41 @@ export default function TemplateDesignerPage() {
 											{!complianceStatus.valid && complianceStatus.missingBindings.length > 0 && (
 												<div className="mt-2">
 													<div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
-													<ul className="text-xs text-amber-600 list-disc list-inside space-y-0.5">
-														{complianceStatus.missingBindings.slice(0, 5).map((binding) => (
-															<li key={binding}>{binding}</li>
-														))}
-														{complianceStatus.missingBindings.length > 5 && (
-															<li>+{complianceStatus.missingBindings.length - 5} more</li>
-														)}
-													</ul>
+													<div className="space-y-1.5">
+														{complianceStatus.missingBindings.map((binding) => {
+															const fieldMetadata = getFieldMetadata(complianceStatus.region, binding);
+															const elementType = fieldMetadata 
+																? determineElementTypeForBinding(binding, fieldMetadata.format)
+																: "text";
+															return (
+																<div key={binding} className="flex items-center justify-between gap-2 p-1.5 bg-amber-50 rounded border border-amber-200">
+																	<div className="flex-1 min-w-0">
+																		<div className="text-xs font-medium text-amber-800 truncate">
+																			{fieldMetadata?.label || binding}
+																		</div>
+																		{fieldMetadata?.description && (
+																			<div className="text-xs text-amber-600 truncate">
+																				{fieldMetadata.description}
+																			</div>
+																		)}
+																	</div>
+																	<Button
+																		size="sm"
+																		variant="outline"
+																		className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+																		onClick={() => addRequiredElement(
+																			binding,
+																			fieldMetadata?.label || binding,
+																			elementType
+																		)}
+																	>
+																		<Plus className="h-3 w-3 mr-1" />
+																		Add
+																	</Button>
+																</div>
+															);
+														})}
+													</div>
 												</div>
 											)}
 										</AlertDescription>
@@ -1767,6 +2035,115 @@ export default function TemplateDesignerPage() {
 					</div>
 				</ResizablePanel>
 			</ResizablePanelGroup>
+
+			{/* AI Builder Dialog */}
+			<Dialog open={aiBuilderOpen} onOpenChange={setAiBuilderOpen}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Sparkles className="h-5 w-5 text-purple-500" />
+							AI Invoice Template Builder
+						</DialogTitle>
+						<DialogDescription>
+							Generate a beautiful, functional, and fully compliant invoice template
+							using AI. The template will be customized based on your organization's
+							branding and compliance region.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label>Style</Label>
+							<Select
+								value={aiStyle}
+								onValueChange={(v) => setAiStyle(v as typeof aiStyle)}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="modern">Modern</SelectItem>
+									<SelectItem value="classic">Classic</SelectItem>
+									<SelectItem value="minimal">Minimal</SelectItem>
+									<SelectItem value="professional">Professional</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex items-center justify-between">
+							<Label htmlFor="include-logo">Include Logo</Label>
+							<input
+								id="include-logo"
+								type="checkbox"
+								checked={aiIncludeLogo}
+								onChange={(e) => setAiIncludeLogo(e.target.checked)}
+								className="h-4 w-4 rounded border-gray-300"
+							/>
+						</div>
+						{currentOrg && (
+							<div className="text-xs text-neutral-500">
+								Region: {currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg)}
+							</div>
+						)}
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setAiBuilderOpen(false)}
+							disabled={generateTemplate.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={async () => {
+								if (!currentOrg) {
+									toast.error("Organization not found");
+									return;
+								}
+
+								try {
+									const region = currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg);
+									const generatedTemplate = await generateTemplate.mutateAsync({
+										organizationId: currentOrg.id,
+										region,
+										options: {
+											style: aiStyle,
+											includeLogo: aiIncludeLogo,
+										},
+									});
+
+									// Create template from generated data
+									const templateId = await templateService.createDraft(generatedTemplate);
+									
+									setState((s) => ({
+										...s,
+										currentTemplateId: templateId,
+									}));
+									
+									setAiBuilderOpen(false);
+									toast.success("AI template generated successfully!");
+								} catch (error) {
+									toast.error(
+										`Failed to generate template: ${error instanceof Error ? error.message : "Unknown error"}`
+									);
+								}
+							}}
+							disabled={generateTemplate.isPending || !currentOrg}
+							className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+						>
+							{generateTemplate.isPending ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Generating...
+								</>
+							) : (
+								<>
+									<Sparkles className="h-4 w-4 mr-2" />
+									Generate Template
+								</>
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

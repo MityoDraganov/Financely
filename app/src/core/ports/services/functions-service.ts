@@ -266,6 +266,40 @@ export interface FunctionsService {
   }>;
 
   /**
+   * Generate an invoice template using AI
+   * Creates a beautiful, functional, and fully compliant invoice template
+   * based on organization context and compliance region
+   */
+  generateInvoiceTemplate(payload: {
+    organizationId: string;
+    region?: "US" | "EU" | "CA" | "AU" | "UK";
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional";
+      includeLogo?: boolean;
+    };
+  }): Promise<{
+    orgId: string;
+    name: string;
+    description?: string;
+    pageSize: "A4" | "Letter";
+    brand: {
+      fonts: string[];
+      colors: { primary: string; secondary: string; accent: string };
+      margins: { top: number; right: number; bottom: number; left: number };
+    };
+    elements: Array<any>;
+    status: "draft" | "published";
+    compliance?: {
+      region?: "US" | "EU" | "CA" | "AU" | "UK";
+      requiredFields?: string[];
+      autoFooter?: boolean;
+      customFooter?: string;
+      complianceValidated?: boolean;
+      complianceValidatedAt?: string;
+    };
+  }>;
+
+  /**
    * Create a product
    */
   createProduct(payload: {
