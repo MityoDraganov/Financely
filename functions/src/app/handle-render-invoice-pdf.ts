@@ -78,11 +78,23 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
 
     if (format.kind === "currency") {
       const num = Number(value);
-      const formatter = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: format.currency || "USD",
-      });
-      return Number.isFinite(num) ? formatter.format(num) : String(value);
+      if (!Number.isFinite(num)) return String(value);
+      
+      const currencyCode = format.currency || "USD";
+      
+      // Try to format with proper decimal places
+      try {
+        const formatter = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: currencyCode,
+          minimumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
+          maximumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
+        });
+        return formatter.format(num);
+      } catch {
+        // Fallback if currency code is invalid
+        return `${currencyCode} ${num.toFixed(2)}`;
+      }
     }
 
     if (format.kind === "date") {

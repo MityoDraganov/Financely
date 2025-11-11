@@ -295,13 +295,36 @@ Binding Requirements:
 - Currency fields should have format: { kind: "currency", currency: "USD" }
 - Date fields should have format: { kind: "date", dateFormat: "YYYY-MM-DD" }
 
-Positioning:
-- Start elements at reasonable positions (x: 40-60, y: 40-80 for header)
-- Stack elements vertically with appropriate spacing (20-40px gaps)
-- Table should be positioned after customer section
-- Footer should be near bottom (y: 900-1000)
+CRITICAL: Canvas Boundaries (A4 = 794x1123 pixels):
+- ALL elements MUST be positioned within the canvas: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
+- NEVER place elements outside these boundaries - this will cause rendering errors
+- Header section: x: 40-60, y: 40-100 (max y: 150)
+- Seller section: x: 40-60, y: 150-250
+- Customer section: x: 40-60 or 400-450 (two-column layout), y: 150-250
+- Invoice details: x: 400-450, y: 40-150 (right side)
+- Items table: x: 40-60, y: 350-450, width: 700-714 (leave 40-80px margins)
+- Totals section: x: 500-550, y: 600-700 (right-aligned)
+- Footer: x: 40-60, y: 950-1050 (near bottom, leave 50-100px margin)
 
-Generate a complete template JSON with all elements properly configured, positioned, and styled. Ensure all required compliance fields are included with correct bindings.`;
+Layout Guidelines:
+- Use consistent margins: 40-60px from edges
+- Vertical spacing: 20-40px between sections, 10-15px between related elements
+- Two-column layout for header: logo/org info (left), invoice details (right)
+- Table width should not exceed 714px (794 - 80px margins)
+- Ensure no overlapping elements - check x, y, width, height carefully
+- Group related elements visually (use boxes or consistent spacing)
+- Align elements to a grid for professional appearance
+
+Design Quality:
+- Avoid random or sloppy positioning - every element should have a clear purpose
+- Use consistent alignment (left-align text blocks, right-align numbers)
+- Create visual hierarchy with font sizes (headers: 18-24px, body: 11-14px, labels: 10-12px)
+- Use appropriate colors from organization brand colors
+- Ensure text is readable (sufficient contrast, appropriate font sizes)
+- Box elements should have subtle borders (strokeWidth: 1-2px) and optional background fills
+- Line elements should be used sparingly for section separators
+
+Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings.`;
   }
 
   private getStyleDescription(style: string): string {
@@ -312,6 +335,24 @@ Generate a complete template JSON with all elements properly configured, positio
       professional: "Corporate-style invoice with structured layout and formal appearance",
     };
     return descriptions[style] || descriptions.modern;
+  }
+
+  /**
+   * Clamp element position and size to fit within canvas boundaries (A4: 794x1123)
+   */
+  private clampToCanvas(element: { x: number; y: number; width: number; height: number }): void {
+    const CANVAS_WIDTH = 794;
+    const CANVAS_HEIGHT = 1123;
+    
+    // Clamp position
+    element.x = Math.max(0, Math.min(element.x, CANVAS_WIDTH - 20));
+    element.y = Math.max(0, Math.min(element.y, CANVAS_HEIGHT - 20));
+    
+    // Clamp width to fit within canvas
+    element.width = Math.max(20, Math.min(element.width, CANVAS_WIDTH - element.x));
+    
+    // Clamp height to fit within canvas
+    element.height = Math.max(20, Math.min(element.height, CANVAS_HEIGHT - element.y));
   }
 
   /**
@@ -340,8 +381,14 @@ Generate a complete template JSON with all elements properly configured, positio
     
     // Process generated elements
     for (const el of elements) {
+      // Clamp to canvas before normalizing
+      this.clampToCanvas(el);
+      
       const element = this.normalizeElement(el, region);
       if (element) {
+        // Double-check canvas boundaries after normalization
+        this.clampToCanvas(element);
+        
         enriched.push(element);
         // Track bindings
         if (element.type === "text" || element.type === "input") {
@@ -361,8 +408,14 @@ Generate a complete template JSON with all elements properly configured, positio
     for (const field of missingFields) {
       const element = this.createElementForBinding(field, currentY);
       if (element) {
+        // Ensure new elements are within canvas
+        this.clampToCanvas(element);
         enriched.push(element);
         currentY = element.y + element.height + 30;
+        // Prevent going beyond canvas
+        if (currentY > 1100) {
+          currentY = 100; // Reset to top if we've gone too far
+        }
       }
     }
     
@@ -413,6 +466,8 @@ Generate a complete template JSON with all elements properly configured, positio
         type: "text",
         text: el.text || "",
         binding: el.binding,
+        padding: 0,
+        opacity: 1,
         typography: el.typography || {
           fontFamily: "Inter",
           fontSize: 12,
@@ -497,6 +552,7 @@ Generate a complete template JSON with all elements properly configured, positio
         stroke: el.stroke || "#e5e7eb",
         strokeWidth: el.strokeWidth || 1,
         radius: el.radius || 0,
+        opacity: 1,
       };
     }
 
@@ -550,6 +606,8 @@ Generate a complete template JSON with all elements properly configured, positio
         visible: true,
         text: field.label,
         binding: field.binding,
+        padding: 0,
+        opacity: 1,
         typography: {
           fontFamily: "Inter",
           fontSize: 11,
@@ -656,6 +714,8 @@ Generate a complete template JSON with all elements properly configured, positio
       visible: true,
       text: field.label,
       binding: field.binding,
+      padding: 0,
+      opacity: 1,
       typography: {
         fontFamily: "Inter",
         fontSize: 12,

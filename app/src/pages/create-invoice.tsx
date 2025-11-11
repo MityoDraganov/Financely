@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,9 @@ import { FileText, Plus, Loader2, AlertCircle, CheckCircle2 } from "lucide-react
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
+import { CurrencyConversionManager } from "@/components/invoice/currency-conversion-manager";
+import { CURRENCIES, formatCurrency, getCurrency } from "@/utils/currencies";
+import type { ConversionRate } from "@/services/currency-conversion-service";
 
 type BindingField = {
   path: string;
@@ -54,6 +57,7 @@ export default function CreateInvoicePage() {
     errors?: string[];
   } | null>(null);
   const [hasAutoFilled, setHasAutoFilled] = useState(false);
+  const [conversionRates, setConversionRates] = useState<ConversionRate[]>([]);
 
   // Get selected template
   const selectedTemplate = useMemo(() => {
@@ -190,7 +194,8 @@ export default function CreateInvoicePage() {
       setFormData(newData);
       setHasAutoFilled(true);
     }
-  }, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]); // formData intentionally excluded to prevent infinite loop
 
   // Real-time compliance validation
   useEffect(() => {
@@ -309,11 +314,18 @@ export default function CreateInvoicePage() {
     }
 
     try {
+      // Store conversion rates in invoice data
+      const invoiceDataWithRates = {
+        ...formData,
+        _conversionRates: conversionRates,
+        _baseCurrency: baseCurrency,
+      };
+
       const invoicePayload = {
         orgId: currentOrganization.id,
         templateId: selectedTemplate.id,
-        data: formData,
-        status: "draft",
+        data: invoiceDataWithRates,
+        status: "draft" as const,
       };
 
       const result = await createInvoice.mutateAsync(invoicePayload);
@@ -326,6 +338,79 @@ export default function CreateInvoicePage() {
     }
   };
 
+  // Get table items for a specific table
+  const getTableItems = useCallback((itemsPath: string): TableRow[] => {
+    const parts = itemsPath.split(".");
+    let value: InvoiceDataValue = formData;
+    
+    for (const part of parts) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        value = value[part];
+      } else {
+        return [];
+      }
+    }
+    
+    if (!Array.isArray(value)) return [];
+    
+    return value.filter((item): item is TableRow => 
+      typeof item === "object" && item !== null && !Array.isArray(item)
+    );
+  }, [formData]);
+
+  // Get base currency from invoice data
+  const baseCurrency = useMemo(() => {
+    const currency = formData.currency;
+    return (typeof currency === "string" && currency) || currentOrganization?.settings?.defaultCurrency || "USD";
+  }, [formData, currentOrganization?.settings?.defaultCurrency]);
+
+  // Get all items from all tables for currency conversion
+  const allItems = useMemo(() => {
+    const items: Array<{ currency?: string; [key: string]: unknown }> = [];
+    for (const tableConfig of tableConfigs) {
+      const tableItems = getTableItems(tableConfig.itemsPath);
+      for (const item of tableItems) {
+        items.push(item as { currency?: string; [key: string]: unknown });
+      }
+    }
+    return items;
+  }, [tableConfigs, getTableItems]);
+
+  // Calculate totals with currency conversion
+  const calculatedTotals = useMemo(() => {
+    let subtotal = 0;
+    let total = 0;
+    
+    // Calculate synchronously using available conversion rates
+    for (const item of allItems) {
+      const itemCurrency = (typeof item.currency === "string" ? item.currency : baseCurrency) || baseCurrency;
+      const itemTotal = typeof item.total === "number" ? item.total : 
+                       (typeof item.amount === "number" ? item.amount : 0);
+      
+      if (itemCurrency === baseCurrency) {
+        subtotal += itemTotal;
+        total += itemTotal;
+      } else {
+        // Find conversion rate
+        const rate = conversionRates.find(
+          r => r.fromCurrency === itemCurrency && r.toCurrency === baseCurrency
+        );
+        
+        if (rate) {
+          const converted = itemTotal * rate.rate;
+          subtotal += converted;
+          total += converted;
+        } else {
+          // No rate yet, add original (will update when rate is fetched)
+          subtotal += itemTotal;
+          total += itemTotal;
+        }
+      }
+    }
+    
+    return { subtotal, total };
+  }, [allItems, baseCurrency, conversionRates]);
+
   // Add table row
   const addTableRow = (itemsPath: string, columns: TableColumn[]): void => {
     const items = getValue(itemsPath);
@@ -335,6 +420,9 @@ export default function CreateInvoicePage() {
     columns.forEach((col) => {
       newRow[col.binding] = col.type === "number" ? 0 : "";
     });
+    
+    // Set default currency for new row
+    newRow.currency = baseCurrency;
     
     setValue(itemsPath, [...itemsArray, newRow]);
   };
@@ -374,26 +462,6 @@ export default function CreateInvoicePage() {
     }
     
     setValue(itemsPath, newItemsArray);
-  };
-
-  // Get table items for a specific table
-  const getTableItems = (itemsPath: string): TableRow[] => {
-    const parts = itemsPath.split(".");
-    let value: InvoiceDataValue = formData;
-    
-    for (const part of parts) {
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        value = value[part];
-      } else {
-        return [];
-      }
-    }
-    
-    if (!Array.isArray(value)) return [];
-    
-    return value.filter((item): item is TableRow => 
-      typeof item === "object" && item !== null && !Array.isArray(item)
-    );
   };
 
   // Show loading state while organization or templates are loading
@@ -610,8 +678,9 @@ export default function CreateInvoicePage() {
                                         };
                                       }
                                     } else if (field.binding === "seller.vatId" || field.binding === "supplier.vatId") {
-                                      // Try to find VAT ID in organization settings (if we add it later)
-                                      value = currentOrganization?.settings?.vatId as string | undefined;
+                                      // VAT ID would need to be added to organization settings in the future
+                                      // For now, leave it undefined so user can fill it manually
+                                      value = undefined;
                                     } else if (field.binding === "invoiceDate" || field.binding === "issueDate") {
                                       value = new Date().toISOString().split("T")[0];
                                     } else if (field.binding === "currency") {
@@ -625,18 +694,160 @@ export default function CreateInvoicePage() {
                                       setBindingValue(newData, field.binding, value);
                                       setFormData(newData);
                                       toast.success(`Auto-filled ${field.label}`);
-                                    } else {
-                                      // Find the binding field and focus it
-                                      const bindingField = bindings.find(b => b.path === field.binding);
-                                      if (bindingField) {
-                                        const inputId = `binding-${field.binding}`;
+                                      return;
+                                    }
+
+                                    // For fields that cannot be auto-filled, focus and scroll to the field
+                                    // Handle special cases first
+                                    if (field.binding === "items" || field.binding.endsWith(".items") || field.binding.includes("items")) {
+                                      // Find the table section and scroll to it
+                                      const itemsTableConfig = tableConfigs.find(tc => 
+                                        tc.itemsPath === field.binding || 
+                                        tc.itemsPath.endsWith(field.binding) ||
+                                        field.binding.includes(tc.itemsPath) ||
+                                        tc.itemsPath.includes(field.binding.split(".").pop() || "")
+                                      );
+                                      if (itemsTableConfig) {
+                                        // Get current table items to check if empty
+                                        const currentTableItems = getTableItems(itemsTableConfig.itemsPath);
+                                        // Try to find the table card
+                                        setTimeout(() => {
+                                          const tableCard = document.querySelector(`[data-table-path="${itemsTableConfig.itemsPath}"]`);
+                                          if (tableCard) {
+                                            tableCard.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            // Try to focus the "Add Row" button first (if table is empty), then first input
+                                            setTimeout(() => {
+                                              const addButton = tableCard.querySelector('button[type="button"]');
+                                              const firstInput = tableCard.querySelector('input');
+                                              if (addButton && currentTableItems.length === 0) {
+                                                (addButton as HTMLElement).focus();
+                                                toast.info(`Please click "Add Row" to add items to ${field.label}`);
+                                              } else if (firstInput) {
+                                                firstInput.focus();
+                                                toast.info(`Please fill in ${field.label}`);
+                                              } else if (addButton) {
+                                                (addButton as HTMLElement).focus();
+                                                toast.info(`Please add items to ${field.label}`);
+                                              }
+                                            }, 200);
+                                            return;
+                                          }
+                                        }, 100);
+                                        // Fallback: scroll to tables section
+                                        const tablesSection = document.querySelector('[data-section="tables"]');
+                                        if (tablesSection) {
+                                          tablesSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                                          toast.info(`Please add items to ${field.label}`);
+                                          return;
+                                        }
+                                      } else {
+                                        // No matching table config, scroll to tables section
+                                        setTimeout(() => {
+                                          const tablesSection = document.querySelector('[data-section="tables"]');
+                                          if (tablesSection) {
+                                            tablesSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            toast.info(`Please add items to ${field.label}`);
+                                          }
+                                        }, 100);
+                                        return;
+                                      }
+                                    }
+
+                                    // Check if this is a calculated field that we can compute
+                                    const calculatedFields = ["total", "grossTotal", "netAmount", "subtotal", "vatTotal", "taxTotal"];
+                                    const isCalculatedField = calculatedFields.includes(field.binding);
+                                    
+                                    if (isCalculatedField) {
+                                      // Try to calculate the value from items
+                                      const items = getValue("items");
+                                      if (Array.isArray(items) && items.length > 0) {
+                                        let calculatedValue = 0;
+                                        
+                                        if (field.binding === "total" || field.binding === "grossTotal") {
+                                          // Calculate total from items
+                                          for (const item of items) {
+                                            if (typeof item === "object" && item !== null) {
+                                              const itemTotal = (item as TableRow).total || (item as TableRow).amount || 0;
+                                              calculatedValue += typeof itemTotal === "number" ? itemTotal : 0;
+                                            }
+                                          }
+                                          // Add VAT if it exists
+                                          const vatTotal = getValue("vatTotal");
+                                          if (typeof vatTotal === "number") {
+                                            calculatedValue += vatTotal;
+                                          }
+                                        } else if (field.binding === "netAmount" || field.binding === "subtotal") {
+                                          // Calculate subtotal (without tax)
+                                          for (const item of items) {
+                                            if (typeof item === "object" && item !== null) {
+                                              const itemTotal = (item as TableRow).total || (item as TableRow).amount || 0;
+                                              calculatedValue += typeof itemTotal === "number" ? itemTotal : 0;
+                                            }
+                                          }
+                                        } else if (field.binding === "vatTotal" || field.binding === "taxTotal") {
+                                          // VAT/tax might need to be calculated from items or set to 0
+                                          calculatedValue = 0;
+                                        }
+                                        
+                                        // Set the calculated value
+                                        setBindingValue(newData, field.binding, calculatedValue);
+                                        setFormData(newData);
+                                        toast.success(`Calculated ${field.label}: ${calculatedValue.toFixed(2)}`);
+                                        return;
+                                      } else {
+                                        // No items yet, try to find the field in bindings or create a placeholder
+                                        toast.info(`Please add items first, then ${field.label} will be calculated automatically`);
+                                        // Scroll to items table
+                                        setTimeout(() => {
+                                          const tablesSection = document.querySelector('[data-section="tables"]');
+                                          if (tablesSection) {
+                                            tablesSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                                          }
+                                        }, 100);
+                                        return;
+                                      }
+                                    }
+
+                                    // For regular input fields, find and focus them
+                                    const bindingField = bindings.find(b => b.path === field.binding);
+                                    if (bindingField) {
+                                      const inputId = `binding-${field.binding}`;
+                                      setTimeout(() => {
                                         const input = document.getElementById(inputId);
                                         if (input) {
                                           input.focus();
                                           input.scrollIntoView({ behavior: "smooth", block: "center" });
+                                          // For number inputs, select the text if it's empty or 0
+                                          if (input instanceof HTMLInputElement && input.type === "number" && (input.value === "" || input.value === "0")) {
+                                            input.select();
+                                          }
                                         } else {
                                           toast.info(`Please fill in ${field.label} manually`);
                                         }
+                                      }, 100);
+                                    } else {
+                                      // Field not found in bindings - try to find similar field names
+                                      const similarField = bindings.find(b => 
+                                        b.path.toLowerCase().includes(field.binding.toLowerCase()) ||
+                                        field.binding.toLowerCase().includes(b.path.toLowerCase())
+                                      );
+                                      
+                                      if (similarField) {
+                                        // Found a similar field, focus it
+                                        const inputId = `binding-${similarField.path}`;
+                                        setTimeout(() => {
+                                          const input = document.getElementById(inputId);
+                                          if (input) {
+                                            input.focus();
+                                            input.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            toast.info(`Focused similar field: ${similarField.label}`);
+                                          } else {
+                                            toast.info(`Field "${field.label}" not found in template. Please add it in the template designer.`);
+                                          }
+                                        }, 100);
+                                      } else {
+                                        // Field not found at all - might be missing from template
+                                        toast.warning(`Field "${field.label}" (${field.binding}) is not in the template. Please add it in the template designer.`);
                                       }
                                     }
                                   };
@@ -681,29 +892,72 @@ export default function CreateInvoicePage() {
                         </AlertDescription>
                       </Alert>
                     )}
-                    {bindings.map((field) => (
-                      <div key={field.path} className="space-y-2">
-                        <Label htmlFor={field.path}>{field.label}</Label>
-                        <Input
-                          id={`binding-${field.path}`}
-                          type={field.type}
-                          value={String(getValue(field.path) ?? "")}
-                          onChange={(e) => {
-                            const val: InvoiceDataValue =
-                              field.type === "number"
-                                ? Number(e.target.value)
-                                : e.target.value;
-                            setValue(field.path, val);
-                          }}
-                          placeholder={`Enter ${field.label.toLowerCase()}`}
-                        />
-                      </div>
-                    ))}
+                    {bindings.map((field) => {
+                      // Auto-calculate totals if they're empty and we have items
+                      const shouldAutoCalculate = (
+                        (field.path === "total" || field.path === "grossTotal") && 
+                        !getValue(field.path) &&
+                        allItems.length > 0
+                      ) || (
+                        (field.path === "subtotal" || field.path === "netAmount") &&
+                        !getValue(field.path) &&
+                        allItems.length > 0
+                      );
+                      
+                      return (
+                        <div key={field.path} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={field.path}>{field.label}</Label>
+                            {shouldAutoCalculate && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => {
+                                  if (field.path === "total" || field.path === "grossTotal") {
+                                    setValue(field.path, calculatedTotals.total);
+                                  } else if (field.path === "subtotal" || field.path === "netAmount") {
+                                    setValue(field.path, calculatedTotals.subtotal);
+                                  }
+                                }}
+                              >
+                                Auto-calculate
+                              </Button>
+                            )}
+                          </div>
+                          <Input
+                            id={`binding-${field.path}`}
+                            type={field.type}
+                            value={String(getValue(field.path) ?? "")}
+                            onChange={(e) => {
+                              const val: InvoiceDataValue =
+                                field.type === "number"
+                                  ? Number(e.target.value)
+                                  : e.target.value;
+                              setValue(field.path, val);
+                            }}
+                            placeholder={`Enter ${field.label.toLowerCase()}`}
+                          />
+                          {shouldAutoCalculate && (
+                            <p className="text-xs text-muted-foreground">
+                              Suggested: {formatCurrency(
+                                field.path === "total" || field.path === "grossTotal" 
+                                  ? calculatedTotals.total 
+                                  : calculatedTotals.subtotal,
+                                baseCurrency
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 </Card>
               )}
 
               {/* Dynamic Tables - render a card for each table in template */}
+              <div data-section="tables">
               {tableConfigs.map((tableConfig, tableIndex) => {
                 const tableItems = getTableItems(tableConfig.itemsPath);
                 const tableLabel = tableConfig.itemsPath
@@ -713,7 +967,7 @@ export default function CreateInvoicePage() {
                   .replace(/^./, (c) => c.toUpperCase());
                 
                 return (
-                  <Card key={`table-${tableIndex}`}>
+                  <Card key={`table-${tableIndex}`} data-table-path={tableConfig.itemsPath}>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle>{tableLabel}</CardTitle>
@@ -771,6 +1025,74 @@ export default function CreateInvoicePage() {
                                     />
                                   </div>
                                 ))}
+                                {/* Currency selector for each item */}
+                                <div className="space-y-2 sm:col-span-2">
+                                  <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-currency`}>
+                                    Currency
+                                  </Label>
+                                  <Select
+                                    value={String(row.currency || baseCurrency)}
+                                    onValueChange={(value) => {
+                                      updateTableCell(tableConfig.itemsPath, rowIndex, "currency", value);
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {CURRENCIES.map((currency) => (
+                                        <SelectItem key={currency.code} value={currency.code}>
+                                          {currency.code} - {currency.name} {currency.symbol ? `(${currency.symbol})` : ""}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {(() => {
+                                    const itemCurrency = typeof row.currency === "string" ? row.currency : baseCurrency;
+                                    if (itemCurrency === baseCurrency) return null;
+                                    
+                                    const itemTotal = typeof row.total === "number" ? row.total : 
+                                                     (typeof row.amount === "number" ? row.amount : 0);
+                                    const rate = conversionRates.find(
+                                      r => r.fromCurrency === itemCurrency && r.toCurrency === baseCurrency
+                                    );
+                                    const convertedAmount = rate ? itemTotal * rate.rate : itemTotal;
+                                    const fromCurrencyInfo = getCurrency(itemCurrency);
+                                    const toCurrencyInfo = getCurrency(baseCurrency);
+                                    
+                                    return (
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-muted-foreground">
+                                          This item will be converted to {baseCurrency} for totals
+                                        </p>
+                                        {rate && itemTotal > 0 && (
+                                          <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                            <div className="font-medium text-blue-900 mb-1">Conversion Preview:</div>
+                                            <div className="text-blue-700 space-y-0.5">
+                                              <div>
+                                                Original: {formatCurrency(itemTotal, itemCurrency)}
+                                                {fromCurrencyInfo?.symbol && ` (${fromCurrencyInfo.symbol})`}
+                                              </div>
+                                              <div className="font-medium">
+                                                Converted: {formatCurrency(convertedAmount, baseCurrency)}
+                                                {toCurrencyInfo?.symbol && ` (${toCurrencyInfo.symbol})`}
+                                              </div>
+                                              <div className="text-blue-600">
+                                                Rate: 1 {itemCurrency} = {rate.rate.toFixed(4)} {baseCurrency}
+                                                {rate.manualOverride ? " (Manual)" : " (Live)"}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {!rate && itemTotal > 0 && (
+                                          <p className="text-xs text-amber-600">
+                                            ⏳ Fetching conversion rate...
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -780,6 +1102,17 @@ export default function CreateInvoicePage() {
                   </Card>
                 );
               })}
+              </div>
+
+              {/* Currency Conversion Manager */}
+              {allItems.length > 0 && (
+                <CurrencyConversionManager
+                  baseCurrency={baseCurrency}
+                  items={allItems}
+                  existingRates={conversionRates}
+                  onRatesChange={setConversionRates}
+                />
+              )}
 
               {/* Submit */}
               <Card>

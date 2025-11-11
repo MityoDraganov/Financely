@@ -29,6 +29,17 @@ export const textElementSchema = templateElementBaseSchema.extend({
     uppercase: z.boolean().default(false),
     lowercase: z.boolean().default(false),
   }),
+  // Enhanced styling options
+  backgroundColor: z.string().optional(), // Background color for text element
+  padding: z.number().min(0).max(50).default(0), // Padding around text
+  opacity: z.number().min(0).max(1).default(1), // Opacity (0-1)
+  shadow: z.object({
+    enabled: z.boolean().default(false),
+    blur: z.number().min(0).max(20).default(4),
+    offsetX: z.number().min(-10).max(10).default(0),
+    offsetY: z.number().min(-10).max(10).default(2),
+    color: z.string().default("#00000040"),
+  }).optional(),
   format: z
     .object({
       kind: z.enum(["none", "currency", "date"]).default("none"),
@@ -48,9 +59,23 @@ export const imageElementSchema = templateElementBaseSchema.extend({
 export const boxElementSchema = templateElementBaseSchema.extend({
   type: z.literal("box"),
   fill: z.string().default("#ffffff00"),
+  // Gradient support (if fillGradient is set, it overrides fill)
+  fillGradient: z.object({
+    type: z.enum(["linear", "radial"]).default("linear"),
+    colors: z.array(z.string()).min(2).max(4), // Array of color stops
+    angle: z.number().min(0).max(360).default(90), // For linear gradients
+  }).optional(),
   stroke: z.string().default("#e5e7eb"),
   strokeWidth: z.number().min(0).max(10).default(1),
   radius: z.number().min(0).max(32).default(0),
+  opacity: z.number().min(0).max(1).default(1), // Opacity (0-1)
+  shadow: z.object({
+    enabled: z.boolean().default(false),
+    blur: z.number().min(0).max(20).default(4),
+    offsetX: z.number().min(-10).max(10).default(0),
+    offsetY: z.number().min(-10).max(10).default(2),
+    color: z.string().default("#00000040"),
+  }).optional(),
 });
 
 export const lineElementSchema = templateElementBaseSchema.extend({

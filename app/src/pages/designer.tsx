@@ -13,6 +13,7 @@ import {
 	AlertCircle,
 	Sparkles,
 	Loader2,
+	Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -359,6 +360,8 @@ export default function TemplateDesignerPage() {
 				visible: true,
 				text: label,
 				binding: binding,
+				padding: 0,
+				opacity: 1,
 				typography: {
 					fontFamily: "Inter",
 					fontSize: 12,
@@ -805,6 +808,8 @@ export default function TemplateDesignerPage() {
 						visible: true,
 						text: "Text",
 						binding: defaultBinding,
+						padding: 0,
+						opacity: 1,
 						typography: {
 							fontFamily: "Inter",
 							fontSize: 12,
@@ -884,6 +889,7 @@ export default function TemplateDesignerPage() {
 									stroke: "#e5e7eb",
 									strokeWidth: 1,
 									radius: 0,
+									opacity: 1,
 								}
 							: kind === "input"
 								? {
@@ -979,6 +985,36 @@ export default function TemplateDesignerPage() {
 			...s,
 			selectedElementId: undefined,
 		}));
+	}
+
+	function duplicateElement(id: string) {
+		if (!currentTemplate) return;
+		const elementToDuplicate = (currentTemplate.elements ?? []).find(
+			(e) => e.id === id
+		);
+		if (!elementToDuplicate) return;
+
+		// Create a deep copy with a new ID and offset position
+		// Clear binding to prevent duplicates
+		const duplicated: TemplateElement = {
+			...elementToDuplicate,
+			id: crypto.randomUUID(),
+			x: elementToDuplicate.x + 20,
+			y: elementToDuplicate.y + 20,
+			// Clear binding for elements that have bindings
+			...(elementToDuplicate.type === "text" && { binding: undefined }),
+			...(elementToDuplicate.type === "input" && { binding: undefined }),
+			...(elementToDuplicate.type === "image" && { binding: undefined }),
+			...(elementToDuplicate.type === "table" && { itemsBinding: undefined }),
+		};
+
+		const next = [...(currentTemplate.elements ?? []), duplicated];
+		saveMutation.mutate({ elements: next });
+		setState((s: DesignerState) => ({
+			...s,
+			selectedElementId: duplicated.id,
+		}));
+		toast.success("Element duplicated (binding cleared to prevent duplicates)");
 	}
 
 	// Global pointer handlers during drag
@@ -1125,7 +1161,7 @@ export default function TemplateDesignerPage() {
 								<div className="text-xs font-semibold uppercase text-amber-700 mb-2.5 flex items-center gap-1.5">
 									<Lock className="h-3.5 w-3.5" />
 									Required Fields
-								</div>
+							</div>
 								<div className="space-y-2">
 									{missingRequiredFields.map((field) => (
 										<Button
@@ -1318,9 +1354,9 @@ export default function TemplateDesignerPage() {
 											const isRequiredField = isRequired(binding);
 											
 											return (
-												<ContextMenu key={el.id}>
-													<ContextMenuTrigger asChild>
-														<div
+											<ContextMenu key={el.id}>
+												<ContextMenuTrigger asChild>
+													<div
 															className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-lg cursor-pointer truncate transition-all duration-200 ${
 																state.selectedElementId === el.id 
 																	? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-2 border-blue-300 shadow-md" 
@@ -1332,7 +1368,7 @@ export default function TemplateDesignerPage() {
 																	selectedElementId: el.id,
 																}));
 															}}
-														>
+													>
 														<div className="flex items-center gap-2">
 															{isRequiredField && (
 																<Lock className="h-3 w-3 text-amber-500 shrink-0" />
@@ -1397,37 +1433,46 @@ export default function TemplateDesignerPage() {
 																	}
 																	return `Element ${elementId.slice(0, 6)}`;
 																})()}
-															</span>
+														</span>
+													</div>
 														</div>
-														</div>
-													</ContextMenuTrigger>
-													<ContextMenuContent>
-														<ContextMenuItem
-															onClick={() =>
-																deleteElement(el.id)
-															}
-															variant="destructive"
-														>
-															Delete
-														</ContextMenuItem>
-														<ContextMenuSeparator />
-														<ContextMenuItem
-															onClick={() =>
-																setState(
-																	(
-																		s: DesignerState
-																	) => ({
-																		...s,
-																		selectedElementId:
-																			el.id,
-																	})
-																)
-															}
-														>
-															Select
-														</ContextMenuItem>
-													</ContextMenuContent>
-												</ContextMenu>
+												</ContextMenuTrigger>
+												<ContextMenuContent>
+													<ContextMenuItem
+														onClick={() =>
+															setState(
+																(
+																	s: DesignerState
+																) => ({
+																	...s,
+																	selectedElementId:
+																		el.id,
+																})
+															)
+														}
+													>
+														Select
+													</ContextMenuItem>
+													<ContextMenuSeparator />
+													<ContextMenuItem
+														onClick={() =>
+															duplicateElement(el.id)
+														}
+													>
+														<Copy className="mr-2 h-4 w-4" />
+														Duplicate
+													</ContextMenuItem>
+													<ContextMenuSeparator />
+													<ContextMenuItem
+														onClick={() =>
+															deleteElement(el.id)
+														}
+														variant="destructive"
+													>
+														Delete
+													</ContextMenuItem>
+												</ContextMenuContent>
+											</ContextMenu>
 											);
 										})}
 								</div>
@@ -1631,50 +1676,55 @@ export default function TemplateDesignerPage() {
 									const isRequiredField = isRequired(binding);
 									
 									return (
-									<div
-										key={el.id}
-										className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400" : ""}`}
-										style={{
-											left: el.x * state.zoom,
-											top: el.y * state.zoom,
-											width: el.width * state.zoom,
-											height: el.height * state.zoom,
-											transform: `rotate(${el.rotation}deg)`,
-											touchAction: "none",
-											zIndex: el.zIndex ?? 0,
-										}}
-										onClick={() => {
-											setState((s: DesignerState) => ({
-												...s,
-												selectedElementId: el.id,
-											}));
-											console.log("clicked", el.id);
-										}}
-										onPointerDown={(e) => {
-											console.log("pointer down", e);
-											// Begin drag for this element
-											e.preventDefault();
-											e.stopPropagation();
-											setState((s: DesignerState) => ({
-												...s,
-												selectedElementId: el.id,
-											}));
-											setDraftElements(
-												(
-													currentTemplate?.elements ??
-													[]
-												).map((x) => ({ ...x }))
-											);
-											setDrag({
-												elementId: el.id,
-												mode: "move",
-												startClientX: e.clientX,
-												startClientY: e.clientY,
-												startX: el.x,
-												startY: el.y,
-											});
-										}}
-									>
+									<ContextMenu key={el.id}>
+										<ContextMenuTrigger asChild>
+											<div
+												className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400" : ""}`}
+												style={{
+													left: el.x * state.zoom,
+													top: el.y * state.zoom,
+													width: el.width * state.zoom,
+													height: el.height * state.zoom,
+													transform: `rotate(${el.rotation}deg)`,
+													touchAction: "none",
+													zIndex: el.zIndex ?? 0,
+												}}
+												onClick={() => {
+													setState((s: DesignerState) => ({
+														...s,
+														selectedElementId: el.id,
+													}));
+													console.log("clicked", el.id);
+												}}
+												onPointerDown={(e) => {
+													// Only start drag on left mouse button (button 0)
+													// Right click (button 2) should open context menu
+													if (e.button !== 0) return;
+													
+													console.log("pointer down", e);
+													// Begin drag for this element
+													e.preventDefault();
+													e.stopPropagation();
+													setState((s: DesignerState) => ({
+														...s,
+														selectedElementId: el.id,
+													}));
+													setDraftElements(
+														(
+															currentTemplate?.elements ??
+															[]
+														).map((x) => ({ ...x }))
+													);
+													setDrag({
+														elementId: el.id,
+														mode: "move",
+														startClientX: e.clientX,
+														startClientY: e.clientY,
+														startX: el.x,
+														startY: el.y,
+													});
+												}}
+											>
 											{/* Lock icon for required fields */}
 											{isRequiredField && (
 												<div
@@ -1931,7 +1981,44 @@ export default function TemplateDesignerPage() {
 													/>
 												);
 											})()}
-									</div>
+											</div>
+										</ContextMenuTrigger>
+										<ContextMenuContent>
+											<ContextMenuItem
+												onClick={() =>
+													setState(
+														(
+															s: DesignerState
+														) => ({
+															...s,
+															selectedElementId:
+																el.id,
+														})
+													)
+												}
+											>
+												Select
+											</ContextMenuItem>
+											<ContextMenuSeparator />
+											<ContextMenuItem
+												onClick={() =>
+													duplicateElement(el.id)
+												}
+											>
+												<Copy className="mr-2 h-4 w-4" />
+												Duplicate
+											</ContextMenuItem>
+											<ContextMenuSeparator />
+											<ContextMenuItem
+												onClick={() =>
+													deleteElement(el.id)
+												}
+												variant="destructive"
+											>
+												Delete
+											</ContextMenuItem>
+										</ContextMenuContent>
+									</ContextMenu>
 								);
 								})}
 							</div>
@@ -2124,6 +2211,7 @@ export default function TemplateDesignerPage() {
 											element={selectedEl}
 											onChange={updateSelected}
 											isNarrow={isPropsNarrow}
+											allElements={draftElements ?? currentTemplate?.elements ?? []}
 										/>
 									);
 								})()}
@@ -2249,10 +2337,12 @@ function ElementProperties({
 	element,
 	onChange,
 	isNarrow,
+	allElements,
 }: {
 	element: TemplateElement;
 	onChange: (partial: Partial<TemplateElement>) => void;
 	isNarrow?: boolean;
+	allElements?: TemplateElement[];
 }) {
 	if (element.type === "text") {
 		const t = element as Extract<TemplateElement, { type: "text" }>;
@@ -2261,6 +2351,7 @@ function ElementProperties({
 				element={t}
 				onChange={onChange}
 				isNarrow={isNarrow}
+				allElements={allElements}
 			/>
 		);
 	}
@@ -2272,6 +2363,7 @@ function ElementProperties({
 				element={img}
 				onChange={onChange}
 				isNarrow={isNarrow}
+				allElements={allElements}
 			/>
 		);
 	}
@@ -2305,6 +2397,7 @@ function ElementProperties({
 				element={tbl}
 				onChange={onChange}
 				isNarrow={isNarrow}
+				allElements={allElements}
 			/>
 		);
 	}
@@ -2316,6 +2409,7 @@ function ElementProperties({
 				element={inp}
 				onChange={onChange}
 				isNarrow={isNarrow}
+				allElements={allElements}
 			/>
 		);
 	}
