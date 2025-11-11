@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { signInAnonymously } from "@firebase/auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -104,6 +105,8 @@ type SnapGuide = {
 };
 
 export default function TemplateDesignerPage() {
+	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
+	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [state, setState] = useState<DesignerState>({ zoom: 1 });
 	const [drag, setDrag] = useState<DragState | null>(null);
@@ -164,6 +167,8 @@ export default function TemplateDesignerPage() {
 				...s,
 				currentTemplateId: newTemplateId,
 			}));
+			// Navigate to the new template's URL
+			navigate(`/designer/${newTemplateId}`, { replace: true });
 		} catch (error) {
 			console.error("Failed to create template:", error);
 		}
@@ -403,15 +408,25 @@ export default function TemplateDesignerPage() {
 		}));
 	}, [state.currentTemplateId]);
 
-	// Ensure a template is selected once templates load
+	// Initialize template from URL param or auto-select first template
 	useEffect(() => {
-		if (templates.length > 0 && !state.currentTemplateId) {
-			setState((s: DesignerState) => ({
-				...s,
-				currentTemplateId: templates[0].id,
-			}));
+		if (templateIdFromUrl) {
+			// Template ID from URL - set it if it exists in templates
+			const templateExists = templates.some((t: Template) => t.id === templateIdFromUrl);
+			if (templateExists && state.currentTemplateId !== templateIdFromUrl) {
+				setState((s: DesignerState) => ({
+					...s,
+					currentTemplateId: templateIdFromUrl,
+				}));
+			} else if (!templateExists && templates.length > 0) {
+				// Template not found, redirect to templates list
+				navigate("/templates");
+			}
+		} else if (templates.length > 0 && !state.currentTemplateId) {
+			// No template ID in URL and no template selected - redirect to templates list
+			navigate("/templates");
 		}
-	}, [templates, state.currentTemplateId]);
+	}, [templates, state.currentTemplateId, templateIdFromUrl, navigate]);
 
 	// Observe sidebar width to adapt layout when user resizes the panel
 	useEffect(() => {

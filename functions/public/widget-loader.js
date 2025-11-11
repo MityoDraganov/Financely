@@ -189,6 +189,11 @@
       font-family: ${s.fontFamily};
       color: ${s.textColor};
     }
+    ${widgetClass} .financely-widget-label .financely-required-indicator {
+      color: ${s.errorColor};
+      font-weight: 600;
+      margin-left: 2px;
+    }
     ${widgetClass} .financely-widget-input,
     ${widgetClass} .financely-widget-textarea,
     ${widgetClass} .financely-widget-select {
@@ -509,9 +514,20 @@
 
     const label = document.createElement('label');
     label.className = `financely-widget-label financely-widget-${widgetType}`;
-    const requiredText = translate('required', translations, '*');
-    label.textContent = field.label + (field.required ? ' ' + requiredText : '');
     label.setAttribute('for', field.name);
+    
+    // Add label text
+    const labelText = document.createTextNode(field.label);
+    label.appendChild(labelText);
+    
+    // Add required indicator with styling
+    if (field.required) {
+      const requiredIndicator = document.createElement('span');
+      requiredIndicator.className = 'financely-required-indicator';
+      requiredIndicator.textContent = ' *';
+      requiredIndicator.setAttribute('aria-label', 'required');
+      label.appendChild(requiredIndicator);
+    }
 
     let input;
     if (field.type === 'textarea') {
@@ -539,6 +555,16 @@
       checkboxWrapper.className = `financely-widget-checkbox-label financely-widget-${widgetType}`;
       label.className = `financely-widget-label financely-widget-${widgetType}`;
       label.style.cursor = 'pointer';
+      
+      // Add required indicator for checkbox if needed
+      if (field.required) {
+        const requiredIndicator = document.createElement('span');
+        requiredIndicator.className = 'financely-required-indicator';
+        requiredIndicator.textContent = ' *';
+        requiredIndicator.setAttribute('aria-label', 'required');
+        label.appendChild(requiredIndicator);
+      }
+      
       checkboxWrapper.appendChild(input);
       checkboxWrapper.appendChild(label);
       fieldDiv.innerHTML = '';
@@ -583,8 +609,20 @@
 
     const labelEl = document.createElement('label');
     labelEl.className = `financely-widget-label financely-widget-${widgetType}`;
-    labelEl.textContent = label + (required ? ' *' : '');
     labelEl.setAttribute('for', name);
+    
+    // Add label text
+    const labelText = document.createTextNode(label);
+    labelEl.appendChild(labelText);
+    
+    // Add required indicator with styling
+    if (required) {
+      const requiredIndicator = document.createElement('span');
+      requiredIndicator.className = 'financely-required-indicator';
+      requiredIndicator.textContent = ' *';
+      requiredIndicator.setAttribute('aria-label', 'required');
+      labelEl.appendChild(requiredIndicator);
+    }
 
     let input;
     if (type === 'textarea') {

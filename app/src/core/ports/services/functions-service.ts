@@ -369,6 +369,16 @@ export interface FunctionsService {
     organizationId: string;
   }): Promise<{ invoiceId: string; invoiceNumber?: string }>;
 
+  generateInvoiceFromProposal(payload: {
+    proposalId: string;
+    templateId: string;
+    organizationId: string;
+  }): Promise<{
+    invoiceData: Record<string, unknown>;
+    invoiceNumber?: string;
+    templateId: string;
+  }>;
+
   /**
    * Generate widget styling and configuration using AI
    * 

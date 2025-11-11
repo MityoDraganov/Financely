@@ -319,12 +319,19 @@ Design Quality:
 - Avoid random or sloppy positioning - every element should have a clear purpose
 - Use consistent alignment (left-align text blocks, right-align numbers)
 - Create visual hierarchy with font sizes (headers: 18-24px, body: 11-14px, labels: 10-12px)
-- Use appropriate colors from organization brand colors
+- Use appropriate colors from organization brand colors provided in context
 - Ensure text is readable (sufficient contrast, appropriate font sizes)
 - Box elements should have subtle borders (strokeWidth: 1-2px) and optional background fills
 - Line elements should be used sparingly for section separators
 
-Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings.`;
+CRITICAL: Data Accuracy Rules
+- Use ONLY the organization data provided in the context (name, address, email, phone, brand colors, currency)
+- DO NOT invent or hallucinate organization information that is not in the context
+- If organization data is missing (e.g., no address), use empty strings or omit those fields - DO NOT make up addresses, phone numbers, or other details
+- Use the exact brand colors from the context, do not invent new colors
+- Use the exact currency from the context, do not assume a currency
+
+Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. Use only real data from the organization context provided.`;
   }
 
   private getStyleDescription(style: string): string {

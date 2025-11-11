@@ -48,6 +48,12 @@ export const proposalDataSchema = z.object({
   // AI generation metadata
   aiGenerated: z.boolean().default(false),
   aiSuggestionId: z.string().optional(), // Track if this was from an AI suggestion
+  isIncomplete: z.boolean().default(false), // True if proposal needs manual completion (e.g., missing products)
+  incompleteItems: z.array(z.object({
+    description: z.string(),
+    reason: z.string(), // Why it's incomplete (e.g., "Product not found")
+    suggestedProductId: z.string().optional(), // If a similar product exists
+  })).optional(), // Items that couldn't be matched to existing products
 });
 
 export type ProposalItem = z.infer<typeof proposalItemSchema>;

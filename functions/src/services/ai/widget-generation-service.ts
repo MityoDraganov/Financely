@@ -342,7 +342,14 @@ Configuration Guidelines:
 - Field labels should be clear and concise
 - Only suggest custom fields if they add significant value
 
-Generate a complete widget design with styling and configuration that matches the organization's brand and the specified style.`;
+CRITICAL: Data Accuracy Rules
+- Use ONLY the organization data provided in the context (name, brand colors, logo URL)
+- DO NOT invent or hallucinate organization information that is not in the context
+- Use the exact brand colors from the context - do not invent new colors
+- If brand colors are not provided, use sensible defaults but do not claim they are from the organization
+- Do not invent company names, descriptions, or other details not in the context
+
+Generate a complete widget design with styling and configuration that matches the organization's brand and the specified style. Use only real data from the organization context provided.`;
   }
 
   /**

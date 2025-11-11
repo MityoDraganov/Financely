@@ -48,8 +48,8 @@ const items = [
 		icon: FileText,
 	},
 	{
-		title: "Designer",
-		href: "/designer",
+		title: "Templates",
+		href: "/templates",
 		icon: Brush,
 	},
 	{

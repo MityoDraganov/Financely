@@ -273,6 +273,15 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async generateInvoiceFromProposal(payload) {
+    type GenerateInvoiceFromProposalPayload = Parameters<FunctionsService["generateInvoiceFromProposal"]>[0];
+    const result = await httpsCallable<
+      GenerateInvoiceFromProposalPayload,
+      Awaited<ReturnType<FunctionsService["generateInvoiceFromProposal"]>>
+    >(firebase.functions, "generateInvoiceFromProposal")(payload);
+    return result.data;
+  },
+
   async generateWidget(payload) {
     type GenerateWidgetPayload = Parameters<FunctionsService["generateWidget"]>[0];
     const result = await httpsCallable<

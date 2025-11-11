@@ -416,6 +416,13 @@ ${context}
    - Template Bindings Required: ${bindingsList}
    - Use EXACT binding names from the template (e.g., if template uses "buyer.name", use that, not "customer.name").
 
+CRITICAL: Data Accuracy Rules
+- Use ONLY data from the proposal, organization, and lead/client information provided in the context
+- DO NOT invent or hallucinate data that is not explicitly provided
+- If a field is missing from the context (e.g., customer address), use null or omit it - DO NOT make up addresses, phone numbers, VAT IDs, or other details
+- Use exact values from the proposal items - do not modify quantities or prices unless calculating totals
+- Use exact organization data from the context - do not invent company names, addresses, or contact information
+
 3. Enforce Compliance by Region (${region})
    ${region === "EU" ? `
    - MUST include invoice number with sequential format (e.g., "INV-2025-0012")

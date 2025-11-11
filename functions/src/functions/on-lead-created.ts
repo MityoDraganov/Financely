@@ -136,6 +136,7 @@ export const onLeadCreated = onDocumentCreated(
       // Generate proposal suggestion
       const proposalGenerationService = getProposalGenerationService();
       const productsForContext = products.map((p) => ({
+        id: p.id,
         name: p.name,
         description: p.description,
         price: p.price,

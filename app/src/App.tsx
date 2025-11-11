@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 
 import CreateInvoicePage from "./pages/create-invoice";
 import TemplateDesignerPage from "./pages/designer";
+import TemplatesPage from "./pages/templates/templates";
 import LandingPage from "./pages/landing";
 import SignInPage from "./pages/sign-in";
 import SignUpPage from "./pages/sign-up";
@@ -177,7 +178,17 @@ function App() {
 										}
 									/>
 									<Route
-										path="/designer"
+										path="/templates"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<TemplatesPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/designer/:id?"
 										element={
 											<ProtectedRoute>
 												<AppLayout>
