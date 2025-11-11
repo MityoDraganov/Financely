@@ -350,17 +350,17 @@ export default function LeadsPage() {
             const leadData = selectedLead.data || selectedLead;
             
             return (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Date Submitted</Label>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedLead.createdAt 
-                        ? format(new Date(selectedLead.createdAt), "PPpp")
-                        : "N/A"
-                      }
-                    </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date Submitted</Label>
+                  <div className="text-sm text-muted-foreground">
+                    {selectedLead.createdAt 
+                      ? format(new Date(selectedLead.createdAt), "PPpp")
+                      : "N/A"
+                    }
                   </div>
+                </div>
                   <div className="space-y-2">
                     <Label>Last Updated</Label>
                     <div className="text-sm text-muted-foreground">
@@ -375,35 +375,35 @@ export default function LeadsPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
                       value={leadData.status || "new"}
-                      onValueChange={(value) => handleStatusChange(selectedLead.id, value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new">New</SelectItem>
-                        <SelectItem value="viewed">Viewed</SelectItem>
-                        <SelectItem value="contacted">Contacted</SelectItem>
-                        <SelectItem value="converted">Converted</SelectItem>
-                        <SelectItem value="archived">Archived</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    onValueChange={(value) => handleStatusChange(selectedLead.id, value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="viewed">Viewed</SelectItem>
+                      <SelectItem value="contacted">Contacted</SelectItem>
+                      <SelectItem value="converted">Converted</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                   <div className="space-y-2">
                     <Label>Lead ID</Label>
                     <div className="text-sm text-muted-foreground font-mono">
                       {selectedLead.id}
                     </div>
                   </div>
-                </div>
+              </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Widget Type</Label>
+              <div className="space-y-2">
+                <Label>Widget Type</Label>
                     <Badge className={getWidgetTypeColor(leadData.widgetType || "")}>
                       {getWidgetTypeLabel(leadData.widgetType || "")}
                     </Badge>
@@ -412,68 +412,68 @@ export default function LeadsPage() {
                     <Label>Source</Label>
                     <Badge variant="outline" className="capitalize">
                       {leadData.source || "widget"}
-                    </Badge>
+                </Badge>
                   </div>
-                </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <div className="text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <div className="text-sm">
                       {leadData.firstName || leadData.lastName
                         ? `${leadData.firstName || ""} ${leadData.lastName || ""}`.trim()
-                        : "N/A"
-                      }
-                    </div>
+                      : "N/A"
+                    }
                   </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <div className="text-sm flex items-center space-x-2">
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <div className="text-sm flex items-center space-x-2">
                       {leadData.email ? (
-                        <>
-                          <Mail className="h-4 w-4 text-muted-foreground" />
+                      <>
+                        <Mail className="h-4 w-4 text-muted-foreground" />
                           <span>{leadData.email}</span>
-                        </>
-                      ) : (
-                        "N/A"
-                      )}
-                    </div>
+                      </>
+                    ) : (
+                      "N/A"
+                    )}
                   </div>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <div className="text-sm flex items-center space-x-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <div className="text-sm flex items-center space-x-2">
                       {leadData.phone ? (
-                        <>
-                          <Phone className="h-4 w-4 text-muted-foreground" />
+                      <>
+                        <Phone className="h-4 w-4 text-muted-foreground" />
                           <span>{leadData.phone}</span>
-                        </>
-                      ) : (
-                        "N/A"
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company</Label>
-                    <div className="text-sm flex items-center space-x-2">
-                      {leadData.company ? (
-                        <>
-                          <Building className="h-4 w-4 text-muted-foreground" />
-                          <span>{leadData.company}</span>
-                        </>
-                      ) : (
-                        "N/A"
-                      )}
-                    </div>
+                      </>
+                    ) : (
+                      "N/A"
+                    )}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Company</Label>
+                  <div className="text-sm flex items-center space-x-2">
+                      {leadData.company ? (
+                      <>
+                        <Building className="h-4 w-4 text-muted-foreground" />
+                          <span>{leadData.company}</span>
+                      </>
+                    ) : (
+                      "N/A"
+                    )}
+                  </div>
+                </div>
+              </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   {leadData.jobTitle && (
-                    <div className="space-y-2">
-                      <Label>Job Title</Label>
+                <div className="space-y-2">
+                  <Label>Job Title</Label>
                       <div className="text-sm">{leadData.jobTitle}</div>
                     </div>
                   )}
@@ -487,20 +487,20 @@ export default function LeadsPage() {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Message</Label>
-                  <Textarea
+              <div className="space-y-2">
+                <Label>Message</Label>
+                <Textarea
                     value={leadData.message || ""}
-                    readOnly
-                    rows={4}
-                    className="bg-muted"
+                  readOnly
+                  rows={4}
+                  className="bg-muted"
                     placeholder="No message provided"
-                  />
-                </div>
+                />
+              </div>
 
                 {leadData.formData && Object.keys(leadData.formData).length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Form Data</Label>
+                <div className="space-y-2">
+                  <Label>Form Data</Label>
                     <div className="bg-muted p-4 rounded-md space-y-2">
                       {Object.entries(leadData.formData).map(([key, value]) => (
                         <div key={key} className="flex items-start gap-2 border-b border-border pb-2 last:border-0 last:pb-0">
@@ -514,33 +514,33 @@ export default function LeadsPage() {
                           </span>
                         </div>
                       ))}
-                    </div>
                   </div>
-                )}
+                </div>
+              )}
 
                 {leadData.notes && (
-                  <div className="space-y-2">
-                    <Label>Internal Notes</Label>
-                    <Textarea
+                <div className="space-y-2">
+                  <Label>Internal Notes</Label>
+                  <Textarea
                       value={leadData.notes}
-                      readOnly
-                      rows={3}
-                      className="bg-muted"
-                    />
-                  </div>
-                )}
+                    readOnly
+                    rows={3}
+                    className="bg-muted"
+                  />
+                </div>
+              )}
 
                 {leadData.tags && leadData.tags.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Tags</Label>
-                    <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <div className="flex flex-wrap gap-2">
                       {leadData.tags.map((tag, index) => (
-                        <Badge key={index} variant="outline">{tag}</Badge>
-                      ))}
-                    </div>
+                      <Badge key={index} variant="outline">{tag}</Badge>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
             );
           })()}
           <DialogFooter>

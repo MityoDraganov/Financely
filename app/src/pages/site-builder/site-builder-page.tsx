@@ -1,20 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2, Plus, Trash2, Palette, Globe, FileText, Code } from "lucide-react";
+import { Sparkles, Loader2, Eye, Settings2, Code } from "lucide-react";
 import { useGenerateWidget } from "@/hooks/service-hooks/use-generate-widget";
 import { useRestoreWidgetVersion } from "@/hooks/service-hooks/use-widget-versioning";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ColorPicker } from "@/components/ui/color-picker";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useFileUpload } from "@/hooks/use-file-upload";
@@ -22,7 +17,15 @@ import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organization
 import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion, useDeployManualSite } from "@/hooks/service-hooks/use-brand-site";
 import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
-import { FileEditor } from "@/components/site-builder/file-editor";
+import { AIGenerationTab } from "@/components/site-builder/ai-generation-tab";
+import { ManualEditorTab } from "@/components/site-builder/manual-editor-tab";
+import { WidgetEnableToggle } from "@/components/site-builder/widget-enable-toggle";
+import { ContactFormWidgetConfig } from "@/components/site-builder/contact-form-widget-config";
+import { InvoiceRequestWidgetConfig } from "@/components/site-builder/invoice-request-widget-config";
+import { QuoteRequestWidgetConfig } from "@/components/site-builder/quote-request-widget-config";
+import { WidgetVersionHistory } from "@/components/site-builder/widget-version-history";
+import { EmbedScriptSection } from "@/components/site-builder/embed-script-section";
+import type { WidgetPosition } from "@/components/site-builder/widget-types";
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
 import { firebase } from "@/infrastructure/firebase";
 import { WidgetPreview } from "@/components/widget-preview";
@@ -67,7 +70,6 @@ export default function SiteBuilderPage() {
   const [contextImages, setContextImages] = useState<string[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
-  const contextUploadRef = useRef<HTMLInputElement>(null);
   const contextFileUpload = useFileUpload();
   const generateSite = useGenerateSite();
   const regenerateSite = useRegenerateSite();
@@ -95,9 +97,6 @@ export default function SiteBuilderPage() {
     version: number;
     widgets: Record<string, unknown>;
   } | null>(null);
-  
-  // Widget configuration state
-  type WidgetPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
   
   const [widgetsEnabled, setWidgetsEnabled] = useState(false);
 
@@ -608,481 +607,118 @@ export default function SiteBuilderPage() {
           </TabsList>
 
           <TabsContent value="ai" className="space-y-6">
-            <Card className="shadow-sm border-gray-200/50">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-3 text-lg">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
-                  </div>
-                  Site Generation
-                </CardTitle>
-                <CardDescription className="ml-11">
-                  Provide context and instructions to generate or regenerate your website.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-            {/* Context Section */}
-            <div className="space-y-3 border-b border-gray-200 pb-4">
-              <Label>Context & Instructions (Optional)</Label>
-              <Textarea
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder="Provide additional context, tasks, or instructions for the AI site builder..."
-                className="min-h-[100px]"
-              />
-              <div className="space-y-2">
-                <Label className="text-sm">Context Images (Optional)</Label>
-                <input
-                  ref={contextUploadRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleContextUpload(file);
+            <AIGenerationTab
+              context={context}
+              onContextChange={setContext}
+              contextImages={contextImages}
+              onContextImageUpload={handleContextUpload}
+              onContextImageRemove={handleContextRemove}
+              isUploading={contextFileUpload.isUploading}
+              uploadProgress={contextFileUpload.uploadProgress}
+              uploadError={contextFileUpload.error}
+              brandSites={brandSites}
+              currentBrandSite={brandSite?.data || null}
+              onGenerate={() => {
+                if (!organization?.id) return;
+                generateSite.mutate(
+                  {
+                    organizationId: organization.id,
+                    brandName: organization.settings?.branding?.companyName || organization.name,
+                    tone: "professional",
+                    context: context.trim() || undefined,
+                    contextImages: contextImages.length > 0 ? contextImages : undefined,
+                  },
+                  {
+                    onSuccess: (result) => {
+                      setCurrentBrandSiteId(result.id);
+                    },
+                  }
+                );
+              }}
+              onRegenerate={() => {
+                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                if (!brandSiteId) return;
+                regenerateSite.mutate({
+                  brandSiteId,
+                  context: context.trim() || undefined,
+                  contextImages: contextImages.length > 0 ? contextImages : undefined,
+                });
+              }}
+              isGenerating={generateSite.isPending}
+              isRegenerating={regenerateSite.isPending}
+              currentVersion={(brandSite?.data || brandSites[0])?.metadata?.version ?? null}
+              previewingVersion={previewingVersion}
+              onPreviewVersion={async (version: number) => {
+                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                if (!brandSiteId) return;
+                
+                setPreviewingVersion(version);
+                
+                try {
+                  const result = await previewVersion.mutateAsync({
+                    brandSiteId,
+                    version,
+                  });
+                  
+                  const previewUrl = result?.previewUrl;
+                  if (previewUrl) {
+                    const previewWindow = window.open(previewUrl, "_blank");
+                    if (!previewWindow) {
+                      toast.error("Popup blocked. Please allow popups for this site and try again.");
+                    } else {
+                      toast.success("Preview opened in new tab", {
+                        duration: 2000,
+                      });
                     }
-                  }}
-                />
-                <div className="flex flex-wrap gap-2">
-                  {contextImages.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Context ${index + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border border-gray-200"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-0 right-0 h-5 w-5 rounded-full bg-white shadow-sm hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleContextRemove(index)}
-                      >
-                        <X className="h-3 w-3 text-red-600" />
-                      </Button>
-                    </div>
-                  ))}
-                  <div
-                    onClick={() => contextUploadRef.current?.click()}
-                    className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg w-20 h-20 cursor-pointer hover:border-gray-400 transition-colors bg-gray-50"
-                  >
-                    <ImageIcon className="h-6 w-6 text-gray-400" />
-                  </div>
-                </div>
-                {contextFileUpload.isUploading && (
-                  <p className="text-sm text-gray-500">
-                    Uploading... {contextFileUpload.uploadProgress}%
-                  </p>
-                )}
-                {contextFileUpload.error && (
-                  <p className="text-sm text-red-600">{contextFileUpload.error}</p>
-                )}
-                <p className="text-xs text-gray-500">
-                  These images are only used for AI context and are not saved to your brand gallery.
-                </p>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              {/* Show Generate Website button only if no site exists */}
-              {brandSites.length === 0 && (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (!organization?.id) return;
-                    generateSite.mutate(
-                      {
-                        organizationId: organization.id,
-                        brandName: organization.settings?.branding?.companyName || organization.name,
-                        tone: "professional",
-                        context: context.trim() || undefined,
-                        contextImages: contextImages.length > 0 ? contextImages : undefined,
-                      },
-                      {
-                        onSuccess: (result) => {
-                          setCurrentBrandSiteId(result.id);
-                        },
-                      }
-                    );
-                  }}
-                  disabled={generateSite.isPending || !organization?.id}
-                  className="w-full shadow-sm"
-                >
-                  {generateSite.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate Website
-                    </>
-                  )}
-                </Button>
-              )}
-
-              {/* Show existing site info and regenerate button if site exists */}
-              {brandSites.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                        if (!brandSiteId) return;
-                        regenerateSite.mutate({
-                          brandSiteId,
-                          context: context.trim() || undefined,
-                          contextImages: contextImages.length > 0 ? contextImages : undefined,
-                        });
-                      }}
-                      disabled={regenerateSite.isPending || (brandSite?.data || brandSites[0])?.status === "generating" || (brandSite?.data || brandSites[0])?.status === "deploying"}
-                      className="flex-1 shadow-sm"
-                    >
-                      {regenerateSite.isPending || (brandSite?.data || brandSites[0])?.status === "generating" || (brandSite?.data || brandSites[0])?.status === "deploying" ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Regenerating...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Regenerate Site
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* Status Display - Only show if site exists */}
-                  {(brandSite?.data || brandSites[0]) && (
-                <div className={`p-4 border rounded-lg ${
-                  (brandSite?.data || brandSites[0])?.status === "success" 
-                    ? "bg-green-50 border-green-200" 
-                    : (brandSite?.data || brandSites[0])?.status === "failed"
-                    ? "bg-red-50 border-red-200"
-                    : "bg-blue-50 border-blue-200"
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      {((brandSite?.data || brandSites[0])?.status === "pending") && (
-                        <>
-                          <p className="text-sm font-medium text-blue-900">
-                            Site generation queued...
-                          </p>
-                          <p className="text-xs text-blue-700 mt-1">
-                            Waiting to start generation
-                          </p>
-                        </>
-                      )}
-                      {((brandSite?.data || brandSites[0])?.status === "generating") && (
-                        <>
-                          <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Generating site with AI...
-                          </p>
-                          <p className="text-xs text-blue-700 mt-1">
-                            This may take 1-2 minutes
-                          </p>
-                        </>
-                      )}
-                      {((brandSite?.data || brandSites[0])?.status === "deploying") && (
-                        <>
-                          <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Deploying site...
-                          </p>
-                          <p className="text-xs text-blue-700 mt-1">
-                            Setting up hosting and DNS
-                          </p>
-                        </>
-                      )}
-                      {((brandSite?.data || brandSites[0])?.status === "success") && (brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl) && (
-                        <>
-                          <p className="text-sm font-medium text-green-900">
-                            Site Generated Successfully!
-                          </p>
-                          <a
-                            href={brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-green-700 hover:text-green-900 flex items-center gap-1 mt-1"
-                          >
-                            {brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </>
-                      )}
-                      {((brandSite?.data || brandSites[0])?.status === "failed") && (
-                        <>
-                          <p className="text-sm font-medium text-red-900">
-                            Site Generation Failed
-                          </p>
-                          <p className="text-xs text-red-700 mt-1">
-                            {(brandSite?.data || brandSites[0])?.error || "Unknown error occurred"}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                  )}
-                </div>
-              )}
-
-              {generateSite.isError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">
-                    {generateSite.error instanceof Error
-                      ? generateSite.error.message
-                      : "Failed to start site generation. Please try again."}
-                  </p>
-                </div>
-              )}
-
-              {/* Version History - only show if site exists */}
-              {brandSites.length > 0 && (brandSite?.data || brandSites[0]) && (
-                <div className="border-t border-gray-200 pt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-2">
-                      <History className="h-4 w-4" />
-                      Version History
-                    </Label>
-                    {(brandSite?.data || brandSites[0])?.metadata?.version && (
-                      <span className="text-xs text-gray-500">
-                        Current: v{(brandSite?.data || brandSites[0])?.metadata?.version}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {((brandSite?.data || brandSites[0])?.versions || []).length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">
-                        No previous versions available
-                      </p>
-                    ) : (
-                      [...((brandSite?.data || brandSites[0])?.versions || [])]
-                        .sort((a, b) => b.version - a.version)
-                        .map((version) => (
-                          <div
-                            key={version.version}
-                            className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">Version {version.version}</span>
-                                {version.version === (brandSite?.data || brandSites[0])?.metadata?.version && (
-                                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                                    Current
-                                  </span>
-                                )}
-                              </div>
-                              {version.description && (
-                                <p className="text-xs text-gray-500 mt-1">{version.description}</p>
-                              )}
-                              <p className="text-xs text-gray-400 mt-1">
-                                {version.createdAt
-                                  ? new Date(version.createdAt).toLocaleDateString("en-US", {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "Unknown date"}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {/* Preview button - show if preview URL exists or can be created */}
-                              {version.previewUrl ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => window.open(version.previewUrl, "_blank")}
-                                  className="h-8"
-                                  title="Preview this version"
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  Preview
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={async () => {
-                                    const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                                    if (!brandSiteId) return;
-                                    
-                                    // Set loading state for this specific version
-                                    setPreviewingVersion(version.version);
-                                    
-                                    // Create preview and open immediately
-                                    try {
-                                      const result = await previewVersion.mutateAsync({
-                                        brandSiteId,
-                                        version: version.version,
-                                      });
-                                      
-                                      // Open the preview URL immediately after creation
-                                      // Store the URL in a variable to ensure it's captured before any state updates
-                                      const previewUrl = result?.previewUrl;
-                                      if (previewUrl) {
-                                        // Open immediately - must be in the same synchronous execution context
-                                        // as the user click to avoid popup blockers
-                                        const previewWindow = window.open(previewUrl, "_blank");
-                                        if (!previewWindow) {
-                                          // If popup was blocked, show a message
-                                          toast.error("Popup blocked. Please allow popups for this site and try again.");
-                                        } else {
-                                          toast.success("Preview opened in new tab", {
-                                            duration: 2000,
-                                          });
-                                        }
-                                      }
-                                    } catch (error) {
-                                      // Error handling is done in the hook
-                                      console.error("Failed to create preview:", error);
-                                      setPreviewingVersion(null);
-                                    } finally {
-                                      // Clear loading state after a short delay to ensure UI updates
-                                      setTimeout(() => {
-                                        setPreviewingVersion(null);
-                                      }, 500);
-                                    }
-                                  }}
-                                  disabled={previewingVersion === version.version}
-                                  className="h-8"
-                                  title={previewingVersion === version.version ? "Creating preview..." : "Create preview for this version"}
-                                >
-                                  {previewingVersion === version.version ? (
-                                    <>
-                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                      Creating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Eye className="h-3 w-3 mr-1" />
-                                      Preview
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                              {/* Live URL button - only show if this is the current version */}
-                              {version.version === (brandSite?.data || brandSites[0])?.metadata?.version && (brandSite?.data || brandSites[0])?.deployedUrl && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => window.open((brandSite?.data || brandSites[0])?.deployedUrl, "_blank")}
-                                  className="h-8"
-                                  title="View live site"
-                                >
-                                  <ExternalLink className="h-3 w-3 mr-1" />
-                                  Live
-                                </Button>
-                              )}
-                              {/* Restore button - only show for non-current versions */}
-                              {version.version !== (brandSite?.data || brandSites[0])?.metadata?.version && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                                    if (!brandSiteId) return;
-                                    if (!confirm("Are you sure you want to restore this version? This will replace your current live site.")) {
-                                      return;
-                                    }
-                                    restoreVersion.mutate({
-                                      brandSiteId,
-                                      version: version.version,
-                                    });
-                                  }}
-                                  disabled={restoreVersion.isPending}
-                                  className="h-8"
-                                >
-                                  {restoreVersion.isPending ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <RotateCcw className="h-3 w-3 mr-1" />
-                                      Restore
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Custom Domain section - only show if site exists */}
-              {brandSites.length > 0 && (
-                <div className="border-t border-gray-200 pt-4 space-y-3">
-                  <Label>Custom Domain (Optional)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="example.com"
-                      value={customDomainInput}
-                      onChange={(e) => setCustomDomainInput(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                        if (!brandSiteId || !customDomainInput) {
-                          toast.error("Please enter a domain");
-                          return;
-                        }
-                        addCustomDomain.mutate({
-                          brandSiteId,
-                          customDomain: customDomainInput,
-                        });
-                      }}
-                      disabled={addCustomDomain.isPending || !customDomainInput}
-                    >
-                      {addCustomDomain.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        "Add Domain"
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Connect your custom domain to your generated site. Make sure your domain DNS is configured correctly.
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  }
+                } catch (error) {
+                  console.error("Failed to create preview:", error);
+                  setPreviewingVersion(null);
+                } finally {
+                  setTimeout(() => {
+                    setPreviewingVersion(null);
+                  }, 500);
+                }
+              }}
+              onRestoreVersion={(version: number) => {
+                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                if (!brandSiteId) return;
+                restoreVersion.mutate({
+                  brandSiteId,
+                  version,
+                });
+              }}
+              isRestoring={restoreVersion.isPending}
+              customDomain={customDomainInput}
+              onCustomDomainChange={setCustomDomainInput}
+              onAddDomain={() => {
+                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                if (!brandSiteId || !customDomainInput) {
+                  toast.error("Please enter a domain");
+                  return;
+                }
+                addCustomDomain.mutate({
+                  brandSiteId,
+                  customDomain: customDomainInput,
+                });
+              }}
+              isAddingDomain={addCustomDomain.isPending}
+              generationError={generateSite.error instanceof Error ? generateSite.error : null}
+            />
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-6">
-            {brandSites.length === 0 ? (
-              <Card className="shadow-sm border-gray-200/50">
-                <CardContent className="p-8 text-center">
-                  <Code className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="text-lg font-semibold mb-2">No Site Created Yet</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Create a site using AI generation first, or start with a blank template.
-                  </p>
-                  <Button
-                    onClick={() => {
-                      if (!organization?.id) return;
-                      // Create a blank site with minimal HTML
-                      const blankHtml = `<!DOCTYPE html>
+            <ManualEditorTab
+              hasSite={brandSites.length > 0}
+              brandSite={brandSite?.data || brandSites[0] || null}
+              organizationId={organization?.id || ""}
+              organizationName={organization?.name || ""}
+              companyName={organization?.settings?.branding?.companyName}
+              projectId={projectId || ""}
+              onCreateBlankSite={async () => {
+                if (!organization?.id) return;
+                // Create a blank site with minimal HTML
+                const blankHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1094,150 +730,52 @@ export default function SiteBuilderPage() {
   <p>Start editing your site files!</p>
 </body>
 </html>`;
-                      generateSite.mutate(
-                        {
-                          organizationId: organization.id,
-                          brandName: organization.settings?.branding?.companyName || organization.name,
-                          tone: "professional",
-                        },
-                        {
-                          onSuccess: async (result) => {
-                            setCurrentBrandSiteId(result.id);
-                            // Update with blank HTML and files
-                            const db = getFirestore(firebase.app);
-                            await updateDoc(doc(db, "brandSites", result.id), {
-                              html: blankHtml,
-                              files: {
-                                "index.html": blankHtml,
-                              },
-                            });
-                            toast.success("Blank site created! Start editing in the file editor.");
-                            setActiveTab("manual");
-                          },
-                        }
-                      );
-                    }}
-                    disabled={generateSite.isPending || !organization?.id}
-                  >
-                    {generateSite.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Create Blank Site
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="shadow-sm border-gray-200/50">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-3 text-lg">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <Code className="h-4 w-4 text-blue-600" />
-                    </div>
-                    Code Editor
-                  </CardTitle>
-                  <CardDescription className="ml-11">
-                    Edit your site files directly. Changes are saved automatically when you deploy.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Status Display - Only show if site exists */}
-                  {(brandSite?.data || brandSites[0]) && (
-                    <div className={`p-4 border rounded-lg ${
-                      (brandSite?.data || brandSites[0])?.status === "success" 
-                        ? "bg-green-50 border-green-200" 
-                        : (brandSite?.data || brandSites[0])?.status === "failed"
-                        ? "bg-red-50 border-red-200"
-                        : "bg-blue-50 border-blue-200"
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          {((brandSite?.data || brandSites[0])?.status === "pending") && (
-                            <>
-                              <p className="text-sm font-medium text-blue-900">
-                                Site deployment queued...
-                              </p>
-                              <p className="text-xs text-blue-700 mt-1">
-                                Waiting to start deployment
-                              </p>
-                            </>
-                          )}
-                          {((brandSite?.data || brandSites[0])?.status === "deploying") && (
-                            <>
-                              <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Deploying site...
-                              </p>
-                              <p className="text-xs text-blue-700 mt-1">
-                                Setting up hosting and DNS
-                              </p>
-                            </>
-                          )}
-                          {((brandSite?.data || brandSites[0])?.status === "success") && (brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl) && (
-                            <>
-                              <p className="text-sm font-medium text-green-900">
-                                Site Deployed Successfully!
-                              </p>
-                              <a
-                                href={brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-green-700 hover:text-green-900 flex items-center gap-1 mt-1"
-                              >
-                                {brandSite?.data?.deployedUrl || brandSites[0]?.deployedUrl}
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </>
-                          )}
-                          {((brandSite?.data || brandSites[0])?.status === "failed") && (
-                            <>
-                              <p className="text-sm font-medium text-red-900">
-                                Site Deployment Failed
-                              </p>
-                              <p className="text-xs text-red-700 mt-1">
-                                {(brandSite?.data || brandSites[0])?.error || "Unknown error occurred"}
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <FileEditor
-                    files={brandSite?.data?.files || (brandSite?.data?.html ? { "index.html": brandSite.data.html } : {})}
-                    onSave={async (files) => {
-                      if (!currentBrandSiteId) return;
+                generateSite.mutate(
+                  {
+                    organizationId: organization.id,
+                    brandName: organization.settings?.branding?.companyName || organization.name,
+                    tone: "professional",
+                  },
+                  {
+                    onSuccess: async (result) => {
+                      setCurrentBrandSiteId(result.id);
+                      // Update with blank HTML and files
                       const db = getFirestore(firebase.app);
-                      await updateDoc(doc(db, "brandSites", currentBrandSiteId), {
-                        files,
-                        html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                      await updateDoc(doc(db, "brandSites", result.id), {
+                        html: blankHtml,
+                        files: {
+                          "index.html": blankHtml,
+                        },
                       });
-                    }}
-                    onDeploy={async (files) => {
-                      if (!currentBrandSiteId || !organization?.id) return;
-                      await deployManualSite.mutateAsync({
-                        brandSiteId: currentBrandSiteId,
-                        files: Object.entries(files).map(([path, content]) => ({
-                          path,
-                          content,
-                        })),
-                        versionMessage: "Manual deployment from code editor",
-                        includeWidgets: organization.settings?.widgets?.enabled || false,
-                      });
-                    }}
-                    organizationId={organization?.id || ""}
-                    projectId={projectId || ""}
-                  />
-                </CardContent>
-              </Card>
-            )}
+                      toast.success("Blank site created! Start editing in the file editor.");
+                      setActiveTab("manual");
+                    },
+                  }
+                );
+              }}
+              isCreating={generateSite.isPending}
+              onSaveFiles={async (files) => {
+                if (!currentBrandSiteId) return;
+                const db = getFirestore(firebase.app);
+                await updateDoc(doc(db, "brandSites", currentBrandSiteId), {
+                  files,
+                  html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                });
+              }}
+              onDeployFiles={async (files) => {
+                if (!currentBrandSiteId || !organization?.id) return;
+                await deployManualSite.mutateAsync({
+                  brandSiteId: currentBrandSiteId,
+                  files: Object.entries(files).map(([path, content]) => ({
+                    path,
+                    content,
+                  })),
+                  versionMessage: "Manual deployment from code editor",
+                  includeWidgets: organization.settings?.widgets?.enabled || false,
+                });
+              }}
+              widgetsEnabled={organization?.settings?.widgets?.enabled || false}
+            />
           </TabsContent>
         </Tabs>
 
@@ -1255,1217 +793,58 @@ export default function SiteBuilderPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Enable Widgets */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <Label className="text-base font-semibold">Enable Widgets</Label>
-                <p className="text-sm text-gray-500 mt-1">
-                  Allow widgets to be embedded on external websites
-                </p>
-              </div>
-              <Switch
-                checked={widgetsEnabled}
-                onCheckedChange={setWidgetsEnabled}
-              />
-            </div>
+            <WidgetEnableToggle
+              enabled={widgetsEnabled}
+              onToggle={setWidgetsEnabled}
+            />
 
             {widgetsEnabled && (
               <>
+                <ContactFormWidgetConfig
+                  config={contactFormConfig}
+                  onConfigChange={setContactFormConfig}
+                  styling={contactFormStyling}
+                  onStylingChange={setContactFormStyling}
+                  localization={contactFormLocalization}
+                  onLocalizationChange={setContactFormLocalization}
+                  builtInFields={builtInFields}
+                  onBuiltInFieldsChange={setBuiltInFields}
+                  customFields={customFields}
+                  onCustomFieldsChange={setCustomFields}
+                  onAddCustomField={handleAddCustomField}
+                  onRemoveCustomField={handleRemoveCustomField}
+                  onUpdateCustomField={handleUpdateCustomField}
+                  onOpenAiBuilder={() => {
+                    setAiWidgetType("contactForm");
+                    setAiWidgetDialogOpen(true);
+                  }}
+                />
 
-                {/* Contact Form Widget */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <Label className="text-base font-semibold">Contact Form Widget</Label>
-                        {contactFormConfig.enabled && (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setAiWidgetType("contactForm");
-                              setAiWidgetDialogOpen(true);
-                            }}
-                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
-                            size="sm"
-                          >
-                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
-                            AI Builder
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Allow visitors to submit contact information
-                      </p>
-                    </div>
-                    <Switch
-                      checked={contactFormConfig.enabled}
-                      onCheckedChange={(enabled) =>
-                        setContactFormConfig({ ...contactFormConfig, enabled })
-                      }
-                    />
-                  </div>
-                  {contactFormConfig.enabled && (
-                    <div className="space-y-4 mt-4 pl-4 border-l-2">
-                      {/* Basic Configuration */}
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label>Title</Label>
-                          <Input
-                            value={contactFormConfig.title}
-                            onChange={(e) =>
-                              setContactFormConfig({ ...contactFormConfig, title: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Description (Optional)</Label>
-                          <Textarea
-                            value={contactFormConfig.description}
-                            onChange={(e) =>
-                              setContactFormConfig({ ...contactFormConfig, description: e.target.value })
-                            }
-                            rows={2}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Display Mode</Label>
-                          <Select
-                            value={contactFormConfig.displayMode}
-                            onValueChange={(value: "floating" | "inline") =>
-                              setContactFormConfig({ ...contactFormConfig, displayMode: value })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="floating">Floating Button</SelectItem>
-                              <SelectItem value="inline">Inline Form</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-gray-500">
-                            {contactFormConfig.displayMode === "floating"
-                              ? "Shows a floating button that opens a modal form"
-                              : "Renders the form directly in the page where a placeholder element exists"}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <Label>Button Text</Label>
-                            <Input
-                              value={contactFormConfig.submitButtonText}
-                              onChange={(e) =>
-                                setContactFormConfig({ ...contactFormConfig, submitButtonText: e.target.value })
-                              }
-                            />
-                          </div>
-                          {contactFormConfig.displayMode === "floating" && (
-                            <div className="space-y-2">
-                              <Label>Position</Label>
-                              <Select
-                                value={contactFormConfig.position}
-                                onValueChange={(value: WidgetPosition) =>
-                                  setContactFormConfig({ ...contactFormConfig, position: value })
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                                  <SelectItem value="top-right">Top Right</SelectItem>
-                                  <SelectItem value="top-left">Top Left</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                        {contactFormConfig.displayMode === "inline" && (
-                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-sm text-blue-800">
-                              <strong>Inline Form Usage:</strong> Add a placeholder element in your HTML where you want the form to appear:
-                            </p>
-                            <code className="text-xs text-blue-700 mt-2 block">
-                              {`<div data-financely-widget="contactForm"></div>`}
-                            </code>
-                          </div>
-                        )}
-                        <div className="space-y-2">
-                          <Label>Success Message</Label>
-                          <Input
-                            value={contactFormConfig.successMessage}
-                            onChange={(e) =>
-                              setContactFormConfig({ ...contactFormConfig, successMessage: e.target.value })
-                            }
-                          />
-                        </div>
-                      </div>
+                <InvoiceRequestWidgetConfig
+                  config={invoiceRequestConfig}
+                  onConfigChange={setInvoiceRequestConfig}
+                  styling={invoiceRequestStyling}
+                  onStylingChange={setInvoiceRequestStyling}
+                  localization={invoiceRequestLocalization}
+                  onLocalizationChange={setInvoiceRequestLocalization}
+                  onOpenAiBuilder={() => {
+                    setAiWidgetType("invoiceRequest");
+                    setAiWidgetDialogOpen(true);
+                  }}
+                />
 
-                      {/* Widget-Specific Styling */}
-                      <Accordion type="multiple" className="w-full">
-                        <AccordionItem value="contactForm-styling">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Palette className="h-4 w-4" />
-                            <span>Styling & Appearance</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <ColorPicker
-                                label="Primary Color"
-                                value={contactFormStyling.primaryColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, primaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Secondary Color"
-                                value={contactFormStyling.secondaryColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, secondaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Background Color"
-                                value={contactFormStyling.backgroundColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, backgroundColor: color })}
-                              />
-                              <ColorPicker
-                                label="Text Color"
-                                value={contactFormStyling.textColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, textColor: color })}
-                              />
-                              <ColorPicker
-                                label="Border Color"
-                                value={contactFormStyling.borderColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, borderColor: color })}
-                              />
-                              <ColorPicker
-                                label="Error Color"
-                                value={contactFormStyling.errorColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, errorColor: color })}
-                              />
-                              <ColorPicker
-                                label="Success Color"
-                                value={contactFormStyling.successColor}
-                                onChange={(color) => setContactFormStyling({ ...contactFormStyling, successColor: color })}
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Font Family</Label>
-                                <Input
-                                  value={contactFormStyling.fontFamily}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, fontFamily: e.target.value })}
-                                  placeholder="Arial, sans-serif"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Size</Label>
-                                <Input
-                                  value={contactFormStyling.fontSize}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, fontSize: e.target.value })}
-                                  placeholder="14px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Weight</Label>
-                                <Select
-                                  value={contactFormStyling.fontWeight}
-                                  onValueChange={(value) => setContactFormStyling({ ...contactFormStyling, fontWeight: value })}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="300">Light (300)</SelectItem>
-                                    <SelectItem value="400">Normal (400)</SelectItem>
-                                    <SelectItem value="500">Medium (500)</SelectItem>
-                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
-                                    <SelectItem value="700">Bold (700)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Padding</Label>
-                                <Input
-                                  value={contactFormStyling.padding}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, padding: e.target.value })}
-                                  placeholder="12px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Gap</Label>
-                                <Input
-                                  value={contactFormStyling.gap}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, gap: e.target.value })}
-                                  placeholder="16px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Border Radius</Label>
-                                <Input
-                                  value={contactFormStyling.borderRadius}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, borderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Padding</Label>
-                                <Input
-                                  value={contactFormStyling.buttonPadding}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, buttonPadding: e.target.value })}
-                                  placeholder="12px 24px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Border Radius</Label>
-                                <Input
-                                  value={contactFormStyling.buttonBorderRadius}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, buttonBorderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Modal Max Width</Label>
-                                <Input
-                                  value={contactFormStyling.modalMaxWidth}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, modalMaxWidth: e.target.value })}
-                                  placeholder="500px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Shadow</Label>
-                                <Input
-                                  value={contactFormStyling.shadow}
-                                  onChange={(e) => setContactFormStyling({ ...contactFormStyling, shadow: e.target.value })}
-                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
-                                />
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-
-                        {/* Widget-Specific Localization */}
-                        <AccordionItem value="contactForm-localization">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Globe className="h-4 w-4" />
-                            <span>Localization & Translations</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                              <Label>Default Language</Label>
-                              <Select
-                                value={contactFormLocalization.language}
-                                onValueChange={(value) => setContactFormLocalization({ ...contactFormLocalization, language: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="en">English</SelectItem>
-                                  <SelectItem value="es">Spanish</SelectItem>
-                                  <SelectItem value="fr">French</SelectItem>
-                                  <SelectItem value="de">German</SelectItem>
-                                  <SelectItem value="it">Italian</SelectItem>
-                                  <SelectItem value="pt">Portuguese</SelectItem>
-                                  <SelectItem value="ru">Russian</SelectItem>
-                                  <SelectItem value="zh">Chinese</SelectItem>
-                                  <SelectItem value="ja">Japanese</SelectItem>
-                                  <SelectItem value="ko">Korean</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Custom Translations</Label>
-                              <p className="text-xs text-gray-500 mb-2">
-                                Add custom translations for widget text. Use keys like "contactUs", "sendMessage", etc.
-                              </p>
-                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                                {Object.entries(contactFormLocalization.translations).map(([key, value]) => (
-                                  <div key={key} className="flex gap-2">
-                                    <Input
-                                      value={key}
-                                      onChange={(e) => {
-                                        const newTranslations = { ...contactFormLocalization.translations };
-                                        delete newTranslations[key];
-                                        newTranslations[e.target.value] = value;
-                                        setContactFormLocalization({ ...contactFormLocalization, translations: newTranslations });
-                                      }}
-                                      placeholder="Translation key"
-                                      className="flex-1"
-                                    />
-                                    <Input
-                                      value={value}
-                                      onChange={(e) => {
-                                        setContactFormLocalization({
-                                          ...contactFormLocalization,
-                                          translations: { ...contactFormLocalization.translations, [key]: e.target.value },
-                                        });
-                                      }}
-                                      placeholder="Translated text"
-                                      className="flex-1"
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        const newTranslations = { ...contactFormLocalization.translations };
-                                        delete newTranslations[key];
-                                        setContactFormLocalization({ ...contactFormLocalization, translations: newTranslations });
-                                      }}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newKey = `key_${Object.keys(contactFormLocalization.translations).length + 1}`;
-                                    setContactFormLocalization({
-                                      ...contactFormLocalization,
-                                      translations: { ...contactFormLocalization.translations, [newKey]: "" },
-                                    });
-                                  }}
-                                  className="w-full"
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Translation
-                                </Button>
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-
-                        {/* Field Configuration - Only for Contact Form */}
-                        <AccordionItem value="contactForm-fields">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            <span>Field Configuration</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            {/* Built-in Fields */}
-                            <div className="space-y-3">
-                              <Label className="text-base font-semibold">Built-in Fields</Label>
-                              {Object.entries(builtInFields).map(([fieldKey, fieldConfig]) => (
-                                <div key={fieldKey} className="p-3 border rounded-lg space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        checked={fieldConfig.enabled}
-                                        onCheckedChange={(checked) =>
-                                          setBuiltInFields({
-                                            ...builtInFields,
-                                            [fieldKey]: { ...fieldConfig, enabled: checked as boolean },
-                                          })
-                                        }
-                                      />
-                                      <Label className="font-medium capitalize">{fieldKey}</Label>
-                                    </div>
-                                  </div>
-                                  {fieldConfig.enabled && (
-                                    <div className="grid grid-cols-2 gap-3 pl-6">
-                                      <div className="space-y-2">
-                                        <Label>Label</Label>
-                                        <Input
-                                          value={fieldConfig.label}
-                                          onChange={(e) =>
-                                            setBuiltInFields({
-                                              ...builtInFields,
-                                              [fieldKey]: { ...fieldConfig, label: e.target.value },
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-2 pt-6">
-                                        <Checkbox
-                                          checked={fieldConfig.required}
-                                          onCheckedChange={(checked) =>
-                                            setBuiltInFields({
-                                              ...builtInFields,
-                                              [fieldKey]: { ...fieldConfig, required: checked as boolean },
-                                            })
-                                          }
-                                        />
-                                        <Label>Required</Label>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Custom Fields */}
-                            <div className="space-y-3 border-t pt-4">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-base font-semibold">Custom Fields</Label>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleAddCustomField}
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Custom Field
-                                </Button>
-                              </div>
-                              {customFields.map((field) => (
-                                <div key={field.id} className="p-4 border rounded-lg space-y-3">
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                      <Label>Field Name (ID)</Label>
-                                      <Input
-                                        value={field.name}
-                                        onChange={(e) => handleUpdateCustomField(field.id, { name: e.target.value })}
-                                        placeholder="field_name"
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Field Label</Label>
-                                      <Input
-                                        value={field.label}
-                                        onChange={(e) => handleUpdateCustomField(field.id, { label: e.target.value })}
-                                        placeholder="Field Label"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                      <Label>Field Type</Label>
-                                      <Select
-                                        value={field.type}
-                                        onValueChange={(value) => handleUpdateCustomField(field.id, { type: value as typeof field.type })}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="text">Text</SelectItem>
-                                          <SelectItem value="email">Email</SelectItem>
-                                          <SelectItem value="tel">Phone</SelectItem>
-                                          <SelectItem value="textarea">Textarea</SelectItem>
-                                          <SelectItem value="number">Number</SelectItem>
-                                          <SelectItem value="select">Select</SelectItem>
-                                          <SelectItem value="checkbox">Checkbox</SelectItem>
-                                          <SelectItem value="date">Date</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="flex items-center gap-2 pt-6">
-                                      <Checkbox
-                                        checked={field.required}
-                                        onCheckedChange={(checked) => handleUpdateCustomField(field.id, { required: checked as boolean })}
-                                      />
-                                      <Label>Required</Label>
-                                    </div>
-                                  </div>
-                                  {field.type === "select" && (
-                                    <div className="space-y-2">
-                                      <Label>Options (one per line)</Label>
-                                      <Textarea
-                                        value={field.options?.join("\n") || ""}
-                                        onChange={(e) =>
-                                          handleUpdateCustomField(field.id, {
-                                            options: e.target.value.split("\n").filter((o) => o.trim()),
-                                          })
-                                        }
-                                        placeholder="Option 1&#10;Option 2&#10;Option 3"
-                                        rows={3}
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="space-y-2">
-                                    <Label>Placeholder (Optional)</Label>
-                                    <Input
-                                      value={field.placeholder || ""}
-                                      onChange={(e) => handleUpdateCustomField(field.id, { placeholder: e.target.value })}
-                                      placeholder="Enter placeholder text"
-                                    />
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRemoveCustomField(field.id)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Remove Field
-                                  </Button>
-                                </div>
-                              ))}
-                              {customFields.length === 0 && (
-                                <p className="text-sm text-gray-500 text-center py-4">
-                                  No custom fields added. Click "Add Custom Field" to create one.
-                                </p>
-                              )}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                </div>
-
-                {/* Invoice Request Widget */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <Label className="text-base font-semibold">Invoice Request Widget</Label>
-                        {invoiceRequestConfig.enabled && (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setAiWidgetType("invoiceRequest");
-                              setAiWidgetDialogOpen(true);
-                            }}
-                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
-                            size="sm"
-                          >
-                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
-                            AI Builder
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Allow customers to request invoices
-                      </p>
-                    </div>
-                    <Switch
-                      checked={invoiceRequestConfig.enabled}
-                      onCheckedChange={(enabled) =>
-                        setInvoiceRequestConfig({ ...invoiceRequestConfig, enabled })
-                      }
-                    />
-                  </div>
-                  {invoiceRequestConfig.enabled && (
-                    <div className="space-y-4 mt-4 pl-4 border-l-2">
-                      {/* Basic Configuration */}
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label>Title</Label>
-                          <Input
-                            value={invoiceRequestConfig.title}
-                            onChange={(e) =>
-                              setInvoiceRequestConfig({ ...invoiceRequestConfig, title: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Description (Optional)</Label>
-                          <Textarea
-                            value={invoiceRequestConfig.description}
-                            onChange={(e) =>
-                              setInvoiceRequestConfig({ ...invoiceRequestConfig, description: e.target.value })
-                            }
-                            rows={2}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <Label>Button Text</Label>
-                            <Input
-                              value={invoiceRequestConfig.submitButtonText}
-                              onChange={(e) =>
-                                setInvoiceRequestConfig({ ...invoiceRequestConfig, submitButtonText: e.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Position</Label>
-                            <Select
-                              value={invoiceRequestConfig.position}
-                              onValueChange={(value: WidgetPosition) =>
-                                setInvoiceRequestConfig({ ...invoiceRequestConfig, position: value })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                                <SelectItem value="top-right">Top Right</SelectItem>
-                                <SelectItem value="top-left">Top Left</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Success Message</Label>
-                          <Input
-                            value={invoiceRequestConfig.successMessage}
-                            onChange={(e) =>
-                              setInvoiceRequestConfig({ ...invoiceRequestConfig, successMessage: e.target.value })
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      {/* Widget-Specific Styling & Localization */}
-                      <Accordion type="multiple" className="w-full">
-                        <AccordionItem value="invoiceRequest-styling">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Palette className="h-4 w-4" />
-                            <span>Styling & Appearance</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <ColorPicker
-                                label="Primary Color"
-                                value={invoiceRequestStyling.primaryColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, primaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Secondary Color"
-                                value={invoiceRequestStyling.secondaryColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, secondaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Background Color"
-                                value={invoiceRequestStyling.backgroundColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, backgroundColor: color })}
-                              />
-                              <ColorPicker
-                                label="Text Color"
-                                value={invoiceRequestStyling.textColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, textColor: color })}
-                              />
-                              <ColorPicker
-                                label="Border Color"
-                                value={invoiceRequestStyling.borderColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, borderColor: color })}
-                              />
-                              <ColorPicker
-                                label="Error Color"
-                                value={invoiceRequestStyling.errorColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, errorColor: color })}
-                              />
-                              <ColorPicker
-                                label="Success Color"
-                                value={invoiceRequestStyling.successColor}
-                                onChange={(color) => setInvoiceRequestStyling({ ...invoiceRequestStyling, successColor: color })}
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Font Family</Label>
-                                <Input
-                                  value={invoiceRequestStyling.fontFamily}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontFamily: e.target.value })}
-                                  placeholder="Arial, sans-serif"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Size</Label>
-                                <Input
-                                  value={invoiceRequestStyling.fontSize}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontSize: e.target.value })}
-                                  placeholder="14px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Weight</Label>
-                                <Select
-                                  value={invoiceRequestStyling.fontWeight}
-                                  onValueChange={(value) => setInvoiceRequestStyling({ ...invoiceRequestStyling, fontWeight: value })}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="300">Light (300)</SelectItem>
-                                    <SelectItem value="400">Normal (400)</SelectItem>
-                                    <SelectItem value="500">Medium (500)</SelectItem>
-                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
-                                    <SelectItem value="700">Bold (700)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Padding</Label>
-                                <Input
-                                  value={invoiceRequestStyling.padding}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, padding: e.target.value })}
-                                  placeholder="12px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Gap</Label>
-                                <Input
-                                  value={invoiceRequestStyling.gap}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, gap: e.target.value })}
-                                  placeholder="16px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Border Radius</Label>
-                                <Input
-                                  value={invoiceRequestStyling.borderRadius}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, borderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Padding</Label>
-                                <Input
-                                  value={invoiceRequestStyling.buttonPadding}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, buttonPadding: e.target.value })}
-                                  placeholder="12px 24px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Border Radius</Label>
-                                <Input
-                                  value={invoiceRequestStyling.buttonBorderRadius}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, buttonBorderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Modal Max Width</Label>
-                                <Input
-                                  value={invoiceRequestStyling.modalMaxWidth}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, modalMaxWidth: e.target.value })}
-                                  placeholder="500px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Shadow</Label>
-                                <Input
-                                  value={invoiceRequestStyling.shadow}
-                                  onChange={(e) => setInvoiceRequestStyling({ ...invoiceRequestStyling, shadow: e.target.value })}
-                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
-                                />
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="invoiceRequest-localization">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Globe className="h-4 w-4" />
-                            <span>Localization & Translations</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                              <Label>Default Language</Label>
-                              <Select
-                                value={invoiceRequestLocalization.language}
-                                onValueChange={(value) => setInvoiceRequestLocalization({ ...invoiceRequestLocalization, language: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="en">English</SelectItem>
-                                  <SelectItem value="es">Spanish</SelectItem>
-                                  <SelectItem value="fr">French</SelectItem>
-                                  <SelectItem value="de">German</SelectItem>
-                                  <SelectItem value="it">Italian</SelectItem>
-                                  <SelectItem value="pt">Portuguese</SelectItem>
-                                  <SelectItem value="ru">Russian</SelectItem>
-                                  <SelectItem value="zh">Chinese</SelectItem>
-                                  <SelectItem value="ja">Japanese</SelectItem>
-                                  <SelectItem value="ko">Korean</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Custom Translations</Label>
-                              <p className="text-xs text-gray-500 mb-2">
-                                Add custom translations for widget text. Use keys like "requestInvoice", "submitButton", etc.
-                              </p>
-                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                                {Object.entries(invoiceRequestLocalization.translations).map(([key, value]) => (
-                                  <div key={key} className="flex gap-2">
-                                    <Input
-                                      value={key}
-                                      onChange={(e) => {
-                                        const newTranslations = { ...invoiceRequestLocalization.translations };
-                                        delete newTranslations[key];
-                                        newTranslations[e.target.value] = value;
-                                        setInvoiceRequestLocalization({ ...invoiceRequestLocalization, translations: newTranslations });
-                                      }}
-                                      placeholder="Translation key"
-                                      className="flex-1"
-                                    />
-                                    <Input
-                                      value={value}
-                                      onChange={(e) => {
-                                        setInvoiceRequestLocalization({
-                                          ...invoiceRequestLocalization,
-                                          translations: { ...invoiceRequestLocalization.translations, [key]: e.target.value },
-                                        });
-                                      }}
-                                      placeholder="Translated text"
-                                      className="flex-1"
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        const newTranslations = { ...invoiceRequestLocalization.translations };
-                                        delete newTranslations[key];
-                                        setInvoiceRequestLocalization({ ...invoiceRequestLocalization, translations: newTranslations });
-                                      }}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newKey = `key_${Object.keys(invoiceRequestLocalization.translations).length + 1}`;
-                                    setInvoiceRequestLocalization({
-                                      ...invoiceRequestLocalization,
-                                      translations: { ...invoiceRequestLocalization.translations, [newKey]: "" },
-                                    });
-                                  }}
-                                  className="w-full"
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Translation
-                                </Button>
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                </div>
-
-                {/* Quote Request Widget */}
-                <div className="space-y-4 p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <Label className="text-base font-semibold">Quote Request Widget</Label>
-                        {quoteRequestConfig.enabled && (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setAiWidgetType("quoteRequest");
-                              setAiWidgetDialogOpen(true);
-                            }}
-                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
-                            size="sm"
-                          >
-                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
-                            AI Builder
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Allow customers to request quotes
-                      </p>
-                    </div>
-                    <Switch
-                      checked={quoteRequestConfig.enabled}
-                      onCheckedChange={(enabled) =>
-                        setQuoteRequestConfig({ ...quoteRequestConfig, enabled })
-                      }
-                    />
-                  </div>
-                  {quoteRequestConfig.enabled && (
-                    <div className="space-y-4 mt-4 pl-4 border-l-2">
-                      {/* Basic Configuration */}
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label>Title</Label>
-                          <Input
-                            value={quoteRequestConfig.title}
-                            onChange={(e) =>
-                              setQuoteRequestConfig({ ...quoteRequestConfig, title: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Description (Optional)</Label>
-                          <Textarea
-                            value={quoteRequestConfig.description}
-                            onChange={(e) =>
-                              setQuoteRequestConfig({ ...quoteRequestConfig, description: e.target.value })
-                            }
-                            rows={2}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <Label>Button Text</Label>
-                            <Input
-                              value={quoteRequestConfig.submitButtonText}
-                              onChange={(e) =>
-                                setQuoteRequestConfig({ ...quoteRequestConfig, submitButtonText: e.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Position</Label>
-                            <Select
-                              value={quoteRequestConfig.position}
-                              onValueChange={(value: WidgetPosition) =>
-                                setQuoteRequestConfig({ ...quoteRequestConfig, position: value })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                                <SelectItem value="top-right">Top Right</SelectItem>
-                                <SelectItem value="top-left">Top Left</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Success Message</Label>
-                          <Input
-                            value={quoteRequestConfig.successMessage}
-                            onChange={(e) =>
-                              setQuoteRequestConfig({ ...quoteRequestConfig, successMessage: e.target.value })
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      {/* Widget-Specific Styling & Localization */}
-                      <Accordion type="multiple" className="w-full">
-                        <AccordionItem value="quoteRequest-styling">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Palette className="h-4 w-4" />
-                            <span>Styling & Appearance</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <ColorPicker
-                                label="Primary Color"
-                                value={quoteRequestStyling.primaryColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, primaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Secondary Color"
-                                value={quoteRequestStyling.secondaryColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, secondaryColor: color })}
-                              />
-                              <ColorPicker
-                                label="Background Color"
-                                value={quoteRequestStyling.backgroundColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, backgroundColor: color })}
-                              />
-                              <ColorPicker
-                                label="Text Color"
-                                value={quoteRequestStyling.textColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, textColor: color })}
-                              />
-                              <ColorPicker
-                                label="Border Color"
-                                value={quoteRequestStyling.borderColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, borderColor: color })}
-                              />
-                              <ColorPicker
-                                label="Error Color"
-                                value={quoteRequestStyling.errorColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, errorColor: color })}
-                              />
-                              <ColorPicker
-                                label="Success Color"
-                                value={quoteRequestStyling.successColor}
-                                onChange={(color) => setQuoteRequestStyling({ ...quoteRequestStyling, successColor: color })}
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Font Family</Label>
-                                <Input
-                                  value={quoteRequestStyling.fontFamily}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, fontFamily: e.target.value })}
-                                  placeholder="Arial, sans-serif"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Size</Label>
-                                <Input
-                                  value={quoteRequestStyling.fontSize}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, fontSize: e.target.value })}
-                                  placeholder="14px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Font Weight</Label>
-                                <Select
-                                  value={quoteRequestStyling.fontWeight}
-                                  onValueChange={(value) => setQuoteRequestStyling({ ...quoteRequestStyling, fontWeight: value })}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="300">Light (300)</SelectItem>
-                                    <SelectItem value="400">Normal (400)</SelectItem>
-                                    <SelectItem value="500">Medium (500)</SelectItem>
-                                    <SelectItem value="600">Semi-bold (600)</SelectItem>
-                                    <SelectItem value="700">Bold (700)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Padding</Label>
-                                <Input
-                                  value={quoteRequestStyling.padding}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, padding: e.target.value })}
-                                  placeholder="12px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Gap</Label>
-                                <Input
-                                  value={quoteRequestStyling.gap}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, gap: e.target.value })}
-                                  placeholder="16px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Border Radius</Label>
-                                <Input
-                                  value={quoteRequestStyling.borderRadius}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, borderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Padding</Label>
-                                <Input
-                                  value={quoteRequestStyling.buttonPadding}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, buttonPadding: e.target.value })}
-                                  placeholder="12px 24px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Button Border Radius</Label>
-                                <Input
-                                  value={quoteRequestStyling.buttonBorderRadius}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, buttonBorderRadius: e.target.value })}
-                                  placeholder="8px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Modal Max Width</Label>
-                                <Input
-                                  value={quoteRequestStyling.modalMaxWidth}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, modalMaxWidth: e.target.value })}
-                                  placeholder="500px"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Shadow</Label>
-                                <Input
-                                  value={quoteRequestStyling.shadow}
-                                  onChange={(e) => setQuoteRequestStyling({ ...quoteRequestStyling, shadow: e.target.value })}
-                                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
-                                />
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="quoteRequest-localization">
-                          <AccordionTrigger className="flex items-center gap-2">
-                            <Globe className="h-4 w-4" />
-                            <span>Localization & Translations</span>
-                          </AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                              <Label>Default Language</Label>
-                              <Select
-                                value={quoteRequestLocalization.language}
-                                onValueChange={(value) => setQuoteRequestLocalization({ ...quoteRequestLocalization, language: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="en">English</SelectItem>
-                                  <SelectItem value="es">Spanish</SelectItem>
-                                  <SelectItem value="fr">French</SelectItem>
-                                  <SelectItem value="de">German</SelectItem>
-                                  <SelectItem value="it">Italian</SelectItem>
-                                  <SelectItem value="pt">Portuguese</SelectItem>
-                                  <SelectItem value="ru">Russian</SelectItem>
-                                  <SelectItem value="zh">Chinese</SelectItem>
-                                  <SelectItem value="ja">Japanese</SelectItem>
-                                  <SelectItem value="ko">Korean</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Custom Translations</Label>
-                              <p className="text-xs text-gray-500 mb-2">
-                                Add custom translations for widget text. Use keys like "requestQuote", "submitButton", etc.
-                              </p>
-                              <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                                {Object.entries(quoteRequestLocalization.translations).map(([key, value]) => (
-                                  <div key={key} className="flex gap-2">
-                                    <Input
-                                      value={key}
-                                      onChange={(e) => {
-                                        const newTranslations = { ...quoteRequestLocalization.translations };
-                                        delete newTranslations[key];
-                                        newTranslations[e.target.value] = value;
-                                        setQuoteRequestLocalization({ ...quoteRequestLocalization, translations: newTranslations });
-                                      }}
-                                      placeholder="Translation key"
-                                      className="flex-1"
-                                    />
-                                    <Input
-                                      value={value}
-                                      onChange={(e) => {
-                                        setQuoteRequestLocalization({
-                                          ...quoteRequestLocalization,
-                                          translations: { ...quoteRequestLocalization.translations, [key]: e.target.value },
-                                        });
-                                      }}
-                                      placeholder="Translated text"
-                                      className="flex-1"
-                                    />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        const newTranslations = { ...quoteRequestLocalization.translations };
-                                        delete newTranslations[key];
-                                        setQuoteRequestLocalization({ ...quoteRequestLocalization, translations: newTranslations });
-                                      }}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newKey = `key_${Object.keys(quoteRequestLocalization.translations).length + 1}`;
-                                    setQuoteRequestLocalization({
-                                      ...quoteRequestLocalization,
-                                      translations: { ...quoteRequestLocalization.translations, [newKey]: "" },
-                                    });
-                                  }}
-                                  className="w-full"
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Translation
-                                </Button>
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                </div>
+                <QuoteRequestWidgetConfig
+                  config={quoteRequestConfig}
+                  onConfigChange={setQuoteRequestConfig}
+                  styling={quoteRequestStyling}
+                  onStylingChange={setQuoteRequestStyling}
+                  localization={quoteRequestLocalization}
+                  onLocalizationChange={setQuoteRequestLocalization}
+                  onOpenAiBuilder={() => {
+                    setAiWidgetType("quoteRequest");
+                    setAiWidgetDialogOpen(true);
+                  }}
+                />
 
                 {/* Save Button and Version History */}
                 <div className="space-y-3">
@@ -2484,130 +863,42 @@ export default function SiteBuilderPage() {
                     )}
                   </Button>
 
-                  {/* Version History */}
                   {organization?.settings?.widgets?.versions && organization.settings.widgets.versions.length > 0 && (
-                    <div className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="flex items-center gap-2 text-sm font-semibold">
-                          <History className="h-4 w-4" />
-                          Version History
-                        </Label>
-                        {organization.settings.widgets.metadata?.version && (
-                          <span className="text-xs text-muted-foreground">
-                            Current: v{organization.settings.widgets.metadata.version}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {[...organization.settings.widgets.versions]
-                          .sort((a, b) => b.version - a.version)
-                          .map((version) => (
-                            <div
-                              key={version.version}
-                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium">Version {version.version}</span>
-                                  {version.version === organization.settings?.widgets?.metadata?.version && (
-                                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                                      Current
-                                    </span>
-                                  )}
-                                </div>
-                                {version.description && (
-                                  <p className="text-xs text-gray-500 mt-1">{version.description}</p>
-                                )}
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {version.createdAt
-                                    ? new Date(version.createdAt).toLocaleDateString("en-US", {
-                                        year: "numeric",
-                                        month: "short",
-                                        day: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : "Unknown date"}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setPreviewWidgetVersion({
-                                      version: version.version,
-                                      widgets: version.widgets as Record<string, unknown>,
-                                    });
-                                    setPreviewWidgetDialogOpen(true);
-                                  }}
-                                >
-                                  <Eye className="h-3.5 w-3.5 mr-1" />
-                                  Preview
-                                </Button>
-                                {version.version !== (organization.settings?.widgets?.metadata?.version ?? 0) && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                      if (!organization?.id) return;
-                                      await restoreWidgetVersion.mutateAsync({
-                                        organizationId: organization.id,
-                                        version: version.version,
-                                        widgetType: "all",
-                                      });
-                                    }}
-                                    disabled={restoreWidgetVersion.isPending}
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                                    Restore
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
+                    <WidgetVersionHistory
+                      versions={organization.settings.widgets.versions.map((v) => ({
+                        version: v.version,
+                        widgetType: v.widgetType,
+                        widgets: v.widgets,
+                        createdAt: v.createdAt,
+                        description: v.description,
+                      }))}
+                      currentVersion={organization.settings.widgets.metadata?.version ?? null}
+                      onPreviewVersion={(version) => {
+                        setPreviewWidgetVersion({
+                          version: version.version,
+                          widgets: version.widgets,
+                        });
+                        setPreviewWidgetDialogOpen(true);
+                      }}
+                      onRestoreVersion={async (version) => {
+                        if (!organization?.id) return;
+                        await restoreWidgetVersion.mutateAsync({
+                          organizationId: organization.id,
+                          version,
+                          widgetType: "all",
+                        });
+                      }}
+                      isRestoring={restoreWidgetVersion.isPending}
+                    />
                   )}
                 </div>
 
                 {/* Embed Script */}
-                <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">Embed Script</Label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyScript}
-                    >
-                      {copiedScript ? (
-                        <>
-                          <Check className="h-4 w-4 mr-2" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Script
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Copy this script and paste it into your website's HTML to embed the widgets.
-                  </p>
-                  <div className="relative">
-                    <Textarea
-                      value={getEmbedScript()}
-                      readOnly
-                      className="font-mono text-xs bg-white"
-                      rows={3}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    The script will automatically load your widget configuration. No need to update it when you make changes.
-                  </p>
-                </div>
+                <EmbedScriptSection
+                  script={getEmbedScript()}
+                  copied={copiedScript}
+                  onCopy={handleCopyScript}
+                />
               </>
             )}
           </CardContent>
