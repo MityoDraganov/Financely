@@ -7,7 +7,6 @@ import { defineSecret } from "firebase-functions/params";
 import { loggerService } from "../services/logger-service";
 import { getDatabaseService } from "../services/database-service";
 import { getProposalRepository } from "../repositories/proposal-repository";
-import { getTemplateRepository } from "../repositories/template-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
@@ -15,6 +14,8 @@ import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-service";
 import { invoiceDataSchema } from "../core/entities/invoice";
+import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
+import { Template } from "../core/entities/template";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -36,6 +37,7 @@ export const convertProposalToInvoice = onCall<
   {
     region: "us-central1",
     cors: true,
+    invoker: "public", // Allow CORS preflight (OPTIONS) requests without auth
     secrets: [geminiApiKey],
     timeoutSeconds: 540, // 9 minutes max for AI generation
     memory: "512MiB",
@@ -65,7 +67,6 @@ export const convertProposalToInvoice = onCall<
       // Get repositories
       const databaseService = getDatabaseService();
       const proposalRepository = getProposalRepository(databaseService);
-      const templateRepository = getTemplateRepository(databaseService);
       const organizationRepository = getOrganizationRepository(databaseService);
       const leadRepository = getLeadRepository(databaseService);
       const invoiceRepository = getInvoiceRepository(databaseService);
@@ -76,11 +77,34 @@ export const convertProposalToInvoice = onCall<
         throw new HttpsError("not-found", "Proposal not found");
       }
 
-      // Fetch template
-      const template = await templateRepository.get({ id: templateId });
+      // Fetch template from Realtime Database (templates are stored in RTDB, not Firestore)
+      const template = await realtimeDatabaseService.get<Template>("templates", templateId);
       if (!template) {
-        throw new HttpsError("not-found", "Template not found");
+        loggerService.error("Template not found in Realtime Database", {
+          templateId,
+          organizationId,
+        });
+        throw new HttpsError("not-found", `Template not found: ${templateId}`);
       }
+      
+      // Verify template belongs to the organization
+      if (template.orgId !== organizationId) {
+        loggerService.error("Template organization mismatch", {
+          templateId,
+          templateOrgId: template.orgId,
+          requestedOrgId: organizationId,
+        });
+        throw new HttpsError(
+          "permission-denied",
+          "Template does not belong to this organization"
+        );
+      }
+      
+      loggerService.info("Template found and verified", {
+        templateId,
+        templateName: template.name,
+        organizationId,
+      });
 
       // Fetch organization
       const organization = await organizationRepository.get({ id: organizationId });
@@ -134,7 +158,7 @@ export const convertProposalToInvoice = onCall<
 
       // Validate invoice data
       const validatedData = invoiceDataSchema.parse({
-        organizationId,
+        orgId: organizationId, // Use orgId (not organizationId) as per invoice schema
         templateId,
         data: conversionResult.invoiceData,
         status: "draft",

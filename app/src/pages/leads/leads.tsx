@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye, Sparkles} from "lucide-react";
+import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye, Sparkles, FileText, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useLeadsByOrg, useUpdateLead } from "@/hooks/repository-hooks/use-leads";
 import { useOrganizationContext } from "@/contexts/organization-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { Lead } from "@/core";
+import { Lead, ProposalData, ProposalItem } from "@/core";
 import { format } from "date-fns";
 import { ProposalSuggestionDialog } from "@/components/proposal-suggestion-dialog";
+import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { getAllCurrencyCodes } from "@/utils/currencies";
 
 export default function LeadsPage() {
   const { currentOrganization } = useOrganizationContext();
@@ -24,6 +28,8 @@ export default function LeadsPage() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isSuggestionDialogOpen, setIsSuggestionDialogOpen] = useState(false);
   const [leadForSuggestion, setLeadForSuggestion] = useState<Lead | null>(null);
+  const [isManualProposalDialogOpen, setIsManualProposalDialogOpen] = useState(false);
+  const [leadForManualProposal, setLeadForManualProposal] = useState<Lead | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [widgetTypeFilter, setWidgetTypeFilter] = useState<string>("all");
 
@@ -84,6 +90,11 @@ export default function LeadsPage() {
   const openSuggestionDialog = (lead: Lead) => {
     setLeadForSuggestion(lead);
     setIsSuggestionDialogOpen(true);
+  };
+
+  const openManualProposalDialog = (lead: Lead) => {
+    setLeadForManualProposal(lead);
+    setIsManualProposalDialogOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -287,9 +298,17 @@ export default function LeadsPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openSuggestionDialog(lead)}
-                            title="Generate proposal suggestion"
+                            title="Generate proposal with AI"
                           >
                             <Sparkles className="h-4 w-4 text-purple-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openManualProposalDialog(lead)}
+                            title="Create proposal manually"
+                          >
+                            <FileText className="h-4 w-4 text-blue-500" />
                           </Button>
                           <Select
                             value={leadData.status || "new"}
@@ -326,151 +345,204 @@ export default function LeadsPage() {
               View complete information about this lead submission
             </DialogDescription>
           </DialogHeader>
-          {selectedLead && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date Submitted</Label>
-                  <div className="text-sm text-muted-foreground">
-                    {selectedLead.createdAt 
-                      ? format(new Date(selectedLead.createdAt), "PPpp")
-                      : "N/A"
-                    }
+          {selectedLead && (() => {
+            // Use the same data access pattern as in the table (lead.data || lead)
+            const leadData = selectedLead.data || selectedLead;
+            
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Date Submitted</Label>
+                    <div className="text-sm text-muted-foreground">
+                      {selectedLead.createdAt 
+                        ? format(new Date(selectedLead.createdAt), "PPpp")
+                        : "N/A"
+                      }
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Updated</Label>
+                    <div className="text-sm text-muted-foreground">
+                      {selectedLead.updatedAt 
+                        ? format(new Date(selectedLead.updatedAt), "PPpp")
+                        : selectedLead.createdAt
+                          ? format(new Date(selectedLead.createdAt), "PPpp")
+                          : "N/A"
+                      }
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={selectedLead.data?.status || "new"}
-                    onValueChange={(value) => handleStatusChange(selectedLead.id, value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="viewed">Viewed</SelectItem>
-                      <SelectItem value="contacted">Contacted</SelectItem>
-                      <SelectItem value="converted">Converted</SelectItem>
-                      <SelectItem value="archived">Archived</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Widget Type</Label>
-                <Badge className={getWidgetTypeColor(selectedLead.data?.widgetType || "")}>
-                  {getWidgetTypeLabel(selectedLead.data?.widgetType || "")}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <div className="text-sm">
-                    {selectedLead.data?.firstName || selectedLead.data?.lastName
-                      ? `${selectedLead.data?.firstName || ""} ${selectedLead.data?.lastName || ""}`.trim()
-                      : "N/A"
-                    }
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={leadData.status || "new"}
+                      onValueChange={(value) => handleStatusChange(selectedLead.id, value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="viewed">Viewed</SelectItem>
+                        <SelectItem value="contacted">Contacted</SelectItem>
+                        <SelectItem value="converted">Converted</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Lead ID</Label>
+                    <div className="text-sm text-muted-foreground font-mono">
+                      {selectedLead.id}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <div className="text-sm flex items-center space-x-2">
-                    {selectedLead.data?.email ? (
-                      <>
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedLead.data.email}</span>
-                      </>
-                    ) : (
-                      "N/A"
-                    )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Widget Type</Label>
+                    <Badge className={getWidgetTypeColor(leadData.widgetType || "")}>
+                      {getWidgetTypeLabel(leadData.widgetType || "")}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Source</Label>
+                    <Badge variant="outline" className="capitalize">
+                      {leadData.source || "widget"}
+                    </Badge>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <div className="text-sm flex items-center space-x-2">
-                    {selectedLead.data?.phone ? (
-                      <>
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedLead.data.phone}</span>
-                      </>
-                    ) : (
-                      "N/A"
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <div className="text-sm">
+                      {leadData.firstName || leadData.lastName
+                        ? `${leadData.firstName || ""} ${leadData.lastName || ""}`.trim()
+                        : "N/A"
+                      }
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <div className="text-sm flex items-center space-x-2">
+                      {leadData.email ? (
+                        <>
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span>{leadData.email}</span>
+                        </>
+                      ) : (
+                        "N/A"
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Company</Label>
-                  <div className="text-sm flex items-center space-x-2">
-                    {selectedLead.data?.company ? (
-                      <>
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedLead.data.company}</span>
-                      </>
-                    ) : (
-                      "N/A"
-                    )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <div className="text-sm flex items-center space-x-2">
+                      {leadData.phone ? (
+                        <>
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <span>{leadData.phone}</span>
+                        </>
+                      ) : (
+                        "N/A"
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Company</Label>
+                    <div className="text-sm flex items-center space-x-2">
+                      {leadData.company ? (
+                        <>
+                          <Building className="h-4 w-4 text-muted-foreground" />
+                          <span>{leadData.company}</span>
+                        </>
+                      ) : (
+                        "N/A"
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {selectedLead.data?.jobTitle && (
-                <div className="space-y-2">
-                  <Label>Job Title</Label>
-                  <div className="text-sm">{selectedLead.data.jobTitle}</div>
+                <div className="grid grid-cols-2 gap-4">
+                  {leadData.jobTitle && (
+                    <div className="space-y-2">
+                      <Label>Job Title</Label>
+                      <div className="text-sm">{leadData.jobTitle}</div>
+                    </div>
+                  )}
+                  {leadData.contactId && (
+                    <div className="space-y-2">
+                      <Label>Linked Contact</Label>
+                      <div className="text-sm text-muted-foreground">
+                        Contact ID: {leadData.contactId}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <Label>Message</Label>
-                <Textarea
-                  value={selectedLead.data?.message || ""}
-                  readOnly
-                  rows={4}
-                  className="bg-muted"
-                />
-              </div>
-
-              {selectedLead.data?.formData && Object.keys(selectedLead.data.formData).length > 0 && (
                 <div className="space-y-2">
-                  <Label>Form Data</Label>
-                  <div className="bg-muted p-4 rounded-md">
-                    <pre className="text-xs overflow-auto">
-                      {JSON.stringify(selectedLead.data.formData, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {selectedLead.data?.notes && (
-                <div className="space-y-2">
-                  <Label>Internal Notes</Label>
+                  <Label>Message</Label>
                   <Textarea
-                    value={selectedLead.data.notes}
+                    value={leadData.message || ""}
                     readOnly
-                    rows={3}
+                    rows={4}
                     className="bg-muted"
+                    placeholder="No message provided"
                   />
                 </div>
-              )}
 
-              {selectedLead.data?.tags && selectedLead.data.tags.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Tags</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedLead.data.tags.map((tag, index) => (
-                      <Badge key={index} variant="outline">{tag}</Badge>
-                    ))}
+                {leadData.formData && Object.keys(leadData.formData).length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Form Data</Label>
+                    <div className="bg-muted p-4 rounded-md space-y-2">
+                      {Object.entries(leadData.formData).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-2 border-b border-border pb-2 last:border-0 last:pb-0">
+                          <span className="font-medium text-sm min-w-[120px] capitalize">
+                            {key.replace(/([A-Z])/g, " $1").trim()}:
+                          </span>
+                          <span className="text-sm text-muted-foreground flex-1">
+                            {typeof value === "object" && value !== null
+                              ? JSON.stringify(value, null, 2)
+                              : String(value || "N/A")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+
+                {leadData.notes && (
+                  <div className="space-y-2">
+                    <Label>Internal Notes</Label>
+                    <Textarea
+                      value={leadData.notes}
+                      readOnly
+                      rows={3}
+                      className="bg-muted"
+                    />
+                  </div>
+                )}
+
+                {leadData.tags && leadData.tags.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Tags</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {leadData.tags.map((tag, index) => (
+                        <Badge key={index} variant="outline">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
               Close
@@ -489,7 +561,298 @@ export default function LeadsPage() {
           organizationName={organization?.name}
         />
       )}
+
+      {/* Manual Proposal Creation Dialog */}
+      {leadForManualProposal && organization && (
+        <ManualProposalDialog
+          open={isManualProposalDialogOpen}
+          onOpenChange={setIsManualProposalDialogOpen}
+          lead={leadForManualProposal}
+          organization={organization}
+        />
+      )}
     </div>
+  );
+}
+
+// Manual Proposal Creation Dialog Component
+function ManualProposalDialog({
+  open,
+  onOpenChange,
+  lead,
+  organization,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  lead: Lead;
+  organization?: { id?: string; settings?: { defaultCurrency?: string } };
+}) {
+  const navigate = useNavigate();
+  const leadData = lead.data || lead;
+  const [proposalTitle, setProposalTitle] = useState(
+    `Proposal for ${leadData.company || [leadData.firstName, leadData.lastName].filter(Boolean).join(" ") || "Lead"}`
+  );
+  const [proposalDescription, setProposalDescription] = useState(leadData.message || "");
+  const [proposalItems, setProposalItems] = useState<ProposalItem[]>([
+    { description: "", qty: 1, unitPrice: 0, taxPct: 0 },
+  ]);
+  const [currency, setCurrency] = useState(organization?.settings?.defaultCurrency || "USD");
+  const [terms, setTerms] = useState("Net 30");
+  const [notes, setNotes] = useState("");
+
+  const createProposalMutation = useCreateProposal();
+
+  const handleAddItem = () => {
+    setProposalItems([...proposalItems, { description: "", qty: 1, unitPrice: 0, taxPct: 0 }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (proposalItems.length > 1) {
+      setProposalItems(proposalItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleUpdateItem = (index: number, field: keyof ProposalItem, value: string | number) => {
+    const updated = [...proposalItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setProposalItems(updated);
+  };
+
+  const calculateTotals = () => {
+    const subtotal = proposalItems.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+    const taxTotal = proposalItems.reduce(
+      (sum, item) => sum + (item.qty * item.unitPrice * (item.taxPct || 0)) / 100,
+      0
+    );
+    return { subtotal, taxTotal, total: subtotal + taxTotal };
+  };
+
+  const handleCreate = async () => {
+    if (!proposalTitle.trim()) {
+      toast.error("Proposal title is required");
+      return;
+    }
+
+    if (proposalItems.length === 0 || proposalItems.some(item => !item.description.trim())) {
+      toast.error("Please add at least one item with a description");
+      return;
+    }
+
+    if (!organization?.id) {
+      toast.error("Organization not found");
+      return;
+    }
+
+    const totals = calculateTotals();
+
+    const proposalData: ProposalData = {
+      organizationId: organization.id,
+      leadId: lead.id,
+      title: proposalTitle,
+      description: proposalDescription || undefined,
+      status: "DRAFT",
+      items: proposalItems,
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      total: totals.total,
+      currency,
+      terms: terms || undefined,
+      notes: notes || undefined,
+      aiGenerated: false, // Manual proposal creation
+    };
+
+    try {
+      const proposalId = await createProposalMutation.mutateAsync(proposalData);
+      toast.success("Proposal created successfully");
+      onOpenChange(false);
+      // Navigate to the proposal detail page
+      navigate(`/proposals/${proposalId}`);
+    } catch (error) {
+      toast.error(
+        `Failed to create proposal: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  };
+
+  const totals = calculateTotals();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create Proposal Manually</DialogTitle>
+          <DialogDescription>
+            Create a new proposal for this lead. The lead information will be pre-filled.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Proposal Title *</Label>
+            <Input
+              value={proposalTitle}
+              onChange={(e) => setProposalTitle(e.target.value)}
+              placeholder="Enter proposal title"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Textarea
+              value={proposalDescription}
+              onChange={(e) => setProposalDescription(e.target.value)}
+              placeholder="Enter proposal description"
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Items *</Label>
+              <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add Item
+              </Button>
+            </div>
+            <div className="space-y-3 border rounded-lg p-4">
+              {proposalItems.map((item, index) => (
+                <div key={index} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-5">
+                    <Label className="text-xs">Description</Label>
+                    <Input
+                      value={item.description}
+                      onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
+                      placeholder="Item description"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Qty</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.qty}
+                      onChange={(e) => handleUpdateItem(index, "qty", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Unit Price</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(e) => handleUpdateItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Tax %</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={item.taxPct || 0}
+                      onChange={(e) => handleUpdateItem(index, "taxPct", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    {proposalItems.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveItem(index)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Remove item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {getAllCurrencyCodes().map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Terms</Label>
+              <Input
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+                placeholder="e.g., Net 30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Subtotal</Label>
+              <div className="text-sm font-semibold pt-2">
+                {new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency,
+                }).format(totals.subtotal)}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tax Total</Label>
+              <div className="text-sm font-semibold pt-2">
+                {new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency,
+                }).format(totals.taxTotal)}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Total</Label>
+              <div className="text-lg font-bold pt-2">
+                {new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency,
+                }).format(totals.total)}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Additional notes"
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={createProposalMutation.isPending}
+          >
+            {createProposalMutation.isPending ? "Creating..." : "Create Proposal"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

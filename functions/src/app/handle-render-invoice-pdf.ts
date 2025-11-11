@@ -1,7 +1,7 @@
 import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
-import { getTemplateRepository } from "../repositories/template-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
+import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { getStorage } from "firebase-admin/storage";
 import { Template } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
@@ -63,6 +63,27 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
   }
 
   /**
+   * Format an address object into a readable string
+   *
+   * @param {unknown} value - The address object
+   * @return {string} Formatted address string
+   */
+  function formatAddress(value: unknown): string {
+    if (!value || typeof value !== "object") return "";
+    
+    const addr = value as Record<string, unknown>;
+    const parts: string[] = [];
+    
+    if (addr.street && typeof addr.street === "string") parts.push(addr.street);
+    if (addr.city && typeof addr.city === "string") parts.push(addr.city);
+    if (addr.state && typeof addr.state === "string") parts.push(addr.state);
+    if (addr.zipCode && typeof addr.zipCode === "string") parts.push(addr.zipCode);
+    if (addr.country && typeof addr.country === "string") parts.push(addr.country);
+    
+    return parts.filter(Boolean).join(", ") || "";
+  }
+
+  /**
    * Format value based on format type
    *
    * @param {unknown} value - The value to format
@@ -73,8 +94,29 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
    * @return {string} The formatted value
    */
   function formatValue(value: unknown, format?: { kind: string; currency?: string; dateFormat?: string }): string {
-    if (value == null) return "";
-    if (!format || format.kind === "none") return String(value);
+    if (value == null || value === undefined) return "";
+    
+    // Handle objects - check if it's an address-like object
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const obj = value as Record<string, unknown>;
+      // Check if it looks like an address object
+      if ("street" in obj || "city" in obj || "country" in obj) {
+        return formatAddress(value);
+      }
+      // For other objects, try to format them nicely
+      const entries = Object.entries(obj)
+        .filter(([_, v]) => v != null && v !== undefined && v !== "")
+        .map(([k, v]) => `${k}: ${String(v)}`);
+      return entries.length > 0 ? entries.join(", ") : "";
+    }
+    
+    if (!format || format.kind === "none") {
+      // Handle arrays
+      if (Array.isArray(value)) {
+        return value.map(v => String(v)).join(", ");
+      }
+      return String(value);
+    }
 
     if (format.kind === "currency") {
       const num = Number(value);
@@ -84,12 +126,12 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       
       // Try to format with proper decimal places
       try {
-      const formatter = new Intl.NumberFormat("en-US", {
-        style: "currency",
+        const formatter = new Intl.NumberFormat("en-US", {
+          style: "currency",
           currency: currencyCode,
           minimumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
           maximumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
-      });
+        });
         return formatter.format(num);
       } catch {
         // Fallback if currency code is invalid
@@ -127,9 +169,13 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       let display = el.text || "";
       if (el.binding) {
         const bound = getByPath(invoice.data, el.binding);
-        display = el.format ?
-          formatValue(bound, el.format) :
-          String(bound ?? "");
+        if (bound != null && bound !== undefined) {
+          display = el.format ?
+            formatValue(bound, el.format) :
+            formatValue(bound); // Use formatValue to handle objects properly
+        } else {
+          display = ""; // Don't show "undefined" or "null"
+        }
       }
 
       return `
@@ -187,7 +233,10 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         const cellsHTML = el.columns.map((col) => {
           const binding = col.binding || col.id;
           const raw = getByPath(row, binding);
-          const text = formatValue(raw, col.format);
+          // Use formatValue to handle objects, arrays, and null/undefined properly
+          const text = raw != null && raw !== undefined 
+            ? formatValue(raw, col.format)
+            : "";
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";
 
           return `
@@ -280,7 +329,6 @@ export async function handleRenderInvoicePdf(
 ): Promise<string> {
   const databaseService = getDatabaseService();
   const invoiceRepository = getInvoiceRepository(databaseService);
-  const templateRepository = getTemplateRepository(databaseService);
   const organizationRepository = getOrganizationRepository(databaseService);
 
   // Fetch invoice
@@ -289,8 +337,8 @@ export async function handleRenderInvoicePdf(
     throw new Error(`Invoice not found: ${invoiceId}`);
   }
 
-  // Fetch template
-  const template = await templateRepository.get({ id: invoice.templateId });
+  // Fetch template from Realtime Database (templates are stored in RTDB, not Firestore)
+  const template = await realtimeDatabaseService.get<Template>("templates", invoice.templateId);
   if (!template) {
     throw new Error(`Template not found: ${invoice.templateId}`);
   }

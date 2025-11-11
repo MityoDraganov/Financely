@@ -108,7 +108,8 @@ function getStatusColor(status: string): "default" | "secondary" | "destructive"
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const { data: currentOrganization } = useCurrentOrganization();
-  const { data: invoices, isLoading, isError } = useInvoices(currentOrganization?.id);
+  const { data: invoices, isLoading, isError, error } = useInvoices(currentOrganization?.id);
+  console.log(error);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
