@@ -132,15 +132,15 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 				<div className="space-y-1 col-span-2">
 					<Label className="text-xs">Data Binding (Optional)</Label>
 					<div className="space-y-1.5">
-						<Input
-							placeholder="e.g., company.logoUrl"
+					<Input
+						placeholder="e.g., company.logoUrl"
 							value={bindingInput}
 							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-							onChange={(e) => {
+						onChange={(e) => {
 								const newValue = e.target.value;
 								setBindingInput(newValue);
 								// Update immediately, but show warning if duplicate
-								const img = element as Extract<TemplateElement, { type: "image" }>;
+							const img = element as Extract<TemplateElement, { type: "image" }>;
 								onChange({ ...img, binding: newValue || undefined });
 							}}
 						/>
@@ -173,8 +173,8 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 								</div>
 							</div>
 						)}
-						<div className="text-xs text-muted-foreground">
-							Leave empty to use default URL. Set a binding to override with data from invoice.
+					<div className="text-xs text-muted-foreground">
+						Leave empty to use default URL. Set a binding to override with data from invoice.
 						</div>
 					</div>
 				</div>

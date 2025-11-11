@@ -264,6 +264,42 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async convertProposalToInvoice(payload) {
+    type ConvertProposalToInvoicePayload = Parameters<FunctionsService["convertProposalToInvoice"]>[0];
+    const result = await httpsCallable<
+      ConvertProposalToInvoicePayload,
+      { invoiceId: string; invoiceNumber?: string }
+    >(firebase.functions, "convertProposalToInvoice")(payload);
+    return result.data;
+  },
+
+  async generateWidget(payload) {
+    type GenerateWidgetPayload = Parameters<FunctionsService["generateWidget"]>[0];
+    const result = await httpsCallable<
+      GenerateWidgetPayload,
+      Awaited<ReturnType<FunctionsService["generateWidget"]>>
+    >(firebase.functions, "generateWidget")(payload);
+    return result.data;
+  },
+
+  async restoreWidgetVersion(payload) {
+    type RestoreWidgetVersionPayload = Parameters<FunctionsService["restoreWidgetVersion"]>[0];
+    const result = await httpsCallable<
+      RestoreWidgetVersionPayload,
+      Awaited<ReturnType<FunctionsService["restoreWidgetVersion"]>>
+    >(firebase.functions, "restoreWidgetVersion")(payload);
+    return result.data;
+  },
+
+  async saveWidgetVersion(payload) {
+    type SaveWidgetVersionPayload = Parameters<FunctionsService["saveWidgetVersion"]>[0];
+    const result = await httpsCallable<
+      SaveWidgetVersionPayload,
+      Awaited<ReturnType<FunctionsService["saveWidgetVersion"]>>
+    >(firebase.functions, "saveWidgetVersion")(payload);
+    return result.data;
+  },
+
   async getAnalyticsMetrics(payload) {
     type GetAnalyticsMetricsPayload = Parameters<FunctionsService["getAnalyticsMetrics"]>[0];
     const result = await httpsCallable<

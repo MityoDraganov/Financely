@@ -1,17 +1,33 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, FileText } from "lucide-react";
+import { ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2, MessageSquare, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useProposal } from "@/hooks/repository-hooks/use-proposals";
+import { useLead } from "@/hooks/repository-hooks/use-leads";
 import { PROPOSAL_STATUSES } from "@/core";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useConvertProposalToInvoice } from "@/hooks/service-hooks/use-convert-proposal-to-invoice";
+import { toast } from "sonner";
 
 export default function ProposalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: proposal, isLoading } = useProposal(id);
+  const { data: lead, isLoading: isLeadLoading } = useLead(proposal?.leadId);
+  const { data: currentOrganization } = useCurrentOrganization();
+  const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
+  const convertProposal = useConvertProposalToInvoice();
+  
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -200,6 +216,119 @@ export default function ProposalDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Lead/Client Information */}
+            {proposal.leadId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Client Information
+                  </CardTitle>
+                  <CardDescription>
+                    {isLeadLoading ? "Loading..." : lead ? "Linked to lead" : "Lead not found"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLeadLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                    </div>
+                  ) : lead ? (
+                    <div className="space-y-4">
+                      {/* Contact Name */}
+                      {(lead.data?.firstName || lead.data?.lastName) && (
+                        <div className="flex items-start gap-3">
+                          <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium">
+                              {[lead.data.firstName, lead.data.lastName].filter(Boolean).join(" ") || "Unknown"}
+                            </p>
+                            {lead.data.jobTitle && (
+                              <p className="text-xs text-muted-foreground">{lead.data.jobTitle}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Company */}
+                      {lead.data?.company && (
+                        <div className="flex items-start gap-3">
+                          <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium">{lead.data.company}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Email */}
+                      {lead.data?.email && (
+                        <div className="flex items-start gap-3">
+                          <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <a 
+                              href={`mailto:${lead.data.email}`}
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {lead.data.email}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Phone */}
+                      {lead.data?.phone && (
+                        <div className="flex items-start gap-3">
+                          <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <a 
+                              href={`tel:${lead.data.phone}`}
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {lead.data.phone}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Message */}
+                      {lead.data?.message && (
+                        <div className="flex items-start gap-3 pt-2 border-t">
+                          <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Message:</p>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {lead.data.message}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Lead Status */}
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Lead Status</span>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {lead.data?.status || "new"}
+                          </Badge>
+                        </div>
+                        {lead.data?.widgetType && (
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-muted-foreground">Source</span>
+                            <Badge variant="secondary" className="text-xs capitalize">
+                              {lead.data.widgetType.replace(/([A-Z])/g, " $1").trim()}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Lead information not available</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Metadata */}
             <Card>
               <CardHeader>
@@ -224,8 +353,124 @@ export default function ProposalDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Convert to Invoice */}
+            {!proposal.invoiceId && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => setConvertDialogOpen(true)}
+                    className="w-full"
+                    variant="default"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Convert to Invoice (AI)
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
+
+        {/* Convert to Invoice Dialog */}
+        <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              Convert Proposal to Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Use AI to automatically convert this proposal into a compliant invoice. Select an invoice template to use.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Invoice Template</Label>
+              {isTemplatesLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <Select
+                  value={selectedTemplateId}
+                  onValueChange={setSelectedTemplateId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates?.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name || template.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {templates && templates.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No templates available. Please create an invoice template first.
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConvertDialogOpen(false)}
+              disabled={convertProposal.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedTemplateId) {
+                  toast.error("Please select a template");
+                  return;
+                }
+                if (!proposal) {
+                  toast.error("Proposal not found");
+                  return;
+                }
+                if (!currentOrganization) {
+                  toast.error("Organization not found");
+                  return;
+                }
+
+                try {
+                  const result = await convertProposal.mutateAsync({
+                    proposalId: proposal.id,
+                    templateId: selectedTemplateId,
+                    organizationId: currentOrganization.id,
+                  });
+                  
+                  toast.success("Invoice created successfully!");
+                  setConvertDialogOpen(false);
+                  navigate(`/invoices/${result.invoiceId}`);
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : "Unknown error";
+                  toast.error(`Failed to convert proposal: ${message}`);
+                }
+              }}
+              disabled={convertProposal.isPending || !selectedTemplateId || !templates || templates.length === 0}
+            >
+              {convertProposal.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Convert to Invoice
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
   );
 }

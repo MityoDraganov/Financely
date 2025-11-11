@@ -64,11 +64,15 @@ export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-p
 export { getWidgetConfig } from "./functions/get-widget-config";
 export { submitWidgetForm } from "./functions/submit-widget-form";
 export { deployManualSite } from "./functions/deploy-manual-site";
+export { restoreWidgetVersion } from "./functions/restore-widget-version";
+export { saveWidgetVersion } from "./functions/save-widget-version";
 
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";
 export { generateProposalSuggestion } from "./functions/generate-proposal-suggestion";
 export { generateInvoiceTemplate } from "./functions/generate-invoice-template";
+export { convertProposalToInvoice } from "./functions/convert-proposal-to-invoice";
+export { generateWidget } from "./functions/generate-widget";
 
 // Product functions
 export { createProduct } from "./functions/create-product";

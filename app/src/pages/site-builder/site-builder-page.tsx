@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Sparkles, ExternalLink, RefreshCw, Loader2, History, RotateCcw, Eye, Image as ImageIcon, X, Copy, Check, Settings2, Plus, Trash2, Palette, Globe, FileText, Code } from "lucide-react";
+import { useGenerateWidget } from "@/hooks/service-hooks/use-generate-widget";
+import { useRestoreWidgetVersion } from "@/hooks/service-hooks/use-widget-versioning";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +25,7 @@ import { projectId } from "@/infrastructure/firebase";
 import { FileEditor } from "@/components/site-builder/file-editor";
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
 import { firebase } from "@/infrastructure/firebase";
+import { WidgetPreview } from "@/components/widget-preview";
 
 // Build default styling from organization branding
 function buildDefaultStylingFromBranding(brandColors?: { primary?: string; secondary?: string; accent?: string }) {
@@ -74,6 +78,23 @@ export default function SiteBuilderPage() {
   const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(null);
   const brandSite = useBrandSite(currentBrandSiteId);
   const [activeTab, setActiveTab] = useState<"ai" | "manual">("ai");
+  
+  // AI Widget Generation
+  const generateWidget = useGenerateWidget();
+  const [aiWidgetDialogOpen, setAiWidgetDialogOpen] = useState(false);
+  const [aiWidgetType, setAiWidgetType] = useState<"contactForm" | "invoiceRequest" | "quoteRequest">("contactForm");
+  const [aiWidgetStyle, setAiWidgetStyle] = useState<"modern" | "classic" | "minimal" | "professional" | "bold" | "elegant">("modern");
+  const [aiWidgetContext, setAiWidgetContext] = useState("");
+  
+  // Widget Versioning
+  const restoreWidgetVersion = useRestoreWidgetVersion();
+  
+  // Widget Preview
+  const [previewWidgetDialogOpen, setPreviewWidgetDialogOpen] = useState(false);
+  const [previewWidgetVersion, setPreviewWidgetVersion] = useState<{
+    version: number;
+    widgets: Record<string, unknown>;
+  } | null>(null);
   
   // Widget configuration state
   type WidgetPosition = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
@@ -366,10 +387,19 @@ export default function SiteBuilderPage() {
 
     try {
       const existingSettings = organization.settings || {};
+      const existingWidgets = existingSettings.widgets;
       
       // Build widgets object, only including enabled widgets (Firestore doesn't accept undefined)
       const widgets: {
         enabled: boolean;
+        metadata?: { version: number; lastSavedAt?: string };
+        versions?: Array<{
+          version: number;
+          widgetType: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
+          widgets: Record<string, unknown>;
+          createdAt: string;
+          description?: string;
+        }>;
         contactForm?: {
           enabled: boolean;
           title: string;
@@ -432,13 +462,63 @@ export default function SiteBuilderPage() {
           localization: quoteRequestLocalization,
         };
       }
+
+      // Save current version to history before updating (if widgets exist)
+      const currentVersion = existingWidgets?.metadata?.version || 1;
+      const existingVersions: Array<{
+        version: number;
+        widgetType: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
+        widgets: Record<string, unknown>;
+        createdAt: string;
+        description?: string;
+      }> = (existingWidgets?.versions || []).filter((v): v is {
+        version: number;
+        widgetType: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
+        widgets: Record<string, unknown>;
+        createdAt: string;
+        description?: string;
+      } => v.widgets != null);
+      
+      if (existingWidgets?.enabled) {
+        widgets.versions = [
+          ...existingVersions,
+          {
+            version: currentVersion,
+            widgetType: "all",
+            widgets: {
+              enabled: existingWidgets.enabled,
+              contactForm: existingWidgets.contactForm,
+              invoiceRequest: existingWidgets.invoiceRequest,
+              quoteRequest: existingWidgets.quoteRequest,
+            },
+            createdAt: new Date().toISOString(),
+            description: "Version before save",
+          },
+        ];
+        widgets.metadata = {
+          version: currentVersion + 1,
+          lastSavedAt: new Date().toISOString(),
+        };
+      } else {
+        widgets.metadata = {
+          version: 1,
+          lastSavedAt: new Date().toISOString(),
+        };
+        widgets.versions = [];
+      }
+      
+      // Ensure versions is always an array (not undefined)
+      const widgetsToSave = {
+        ...widgets,
+        versions: widgets.versions || [],
+      };
       
       await updateOrganization.mutateAsync({
         id: organization.id,
         data: {
           settings: {
             ...existingSettings,
-            widgets,
+            widgets: widgetsToSave,
           },
         },
       });
@@ -1195,8 +1275,24 @@ export default function SiteBuilderPage() {
                 {/* Contact Form Widget */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-base font-semibold">Contact Form Widget</Label>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-base font-semibold">Contact Form Widget</Label>
+                        {contactFormConfig.enabled && (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setAiWidgetType("contactForm");
+                              setAiWidgetDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
+                            size="sm"
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
+                            AI Builder
+                          </Button>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 mt-1">
                         Allow visitors to submit contact information
                       </p>
@@ -1710,8 +1806,24 @@ export default function SiteBuilderPage() {
                 {/* Invoice Request Widget */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-base font-semibold">Invoice Request Widget</Label>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-base font-semibold">Invoice Request Widget</Label>
+                        {invoiceRequestConfig.enabled && (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setAiWidgetType("invoiceRequest");
+                              setAiWidgetDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
+                            size="sm"
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
+                            AI Builder
+                          </Button>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 mt-1">
                         Allow customers to request invoices
                       </p>
@@ -2026,8 +2138,24 @@ export default function SiteBuilderPage() {
                 {/* Quote Request Widget */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-base font-semibold">Quote Request Widget</Label>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-base font-semibold">Quote Request Widget</Label>
+                        {quoteRequestConfig.enabled && (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setAiWidgetType("quoteRequest");
+                              setAiWidgetDialogOpen(true);
+                            }}
+                            className="bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] h-8 px-3 text-xs"
+                            size="sm"
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
+                            AI Builder
+                          </Button>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 mt-1">
                         Allow customers to request quotes
                       </p>
@@ -2339,21 +2467,109 @@ export default function SiteBuilderPage() {
                   )}
                 </div>
 
-                {/* Save Button */}
-                <Button
-                  onClick={handleSaveWidgets}
-                  disabled={updateOrganization.isPending}
-                  className="w-full"
-                >
-                  {updateOrganization.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Widget Configuration"
+                {/* Save Button and Version History */}
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleSaveWidgets}
+                    disabled={updateOrganization.isPending}
+                    className="w-full"
+                  >
+                    {updateOrganization.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Widget Configuration"
+                    )}
+                  </Button>
+
+                  {/* Version History */}
+                  {organization?.settings?.widgets?.versions && organization.settings.widgets.versions.length > 0 && (
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2 text-sm font-semibold">
+                          <History className="h-4 w-4" />
+                          Version History
+                        </Label>
+                        {organization.settings.widgets.metadata?.version && (
+                          <span className="text-xs text-muted-foreground">
+                            Current: v{organization.settings.widgets.metadata.version}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {[...organization.settings.widgets.versions]
+                          .sort((a, b) => b.version - a.version)
+                          .map((version) => (
+                            <div
+                              key={version.version}
+                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">Version {version.version}</span>
+                                  {version.version === organization.settings?.widgets?.metadata?.version && (
+                                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
+                                      Current
+                                    </span>
+                                  )}
+                                </div>
+                                {version.description && (
+                                  <p className="text-xs text-gray-500 mt-1">{version.description}</p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {version.createdAt
+                                    ? new Date(version.createdAt).toLocaleDateString("en-US", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "Unknown date"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPreviewWidgetVersion({
+                                      version: version.version,
+                                      widgets: version.widgets as Record<string, unknown>,
+                                    });
+                                    setPreviewWidgetDialogOpen(true);
+                                  }}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  Preview
+                                </Button>
+                                {version.version !== (organization.settings?.widgets?.metadata?.version ?? 0) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (!organization?.id) return;
+                                      await restoreWidgetVersion.mutateAsync({
+                                        organizationId: organization.id,
+                                        version: version.version,
+                                        widgetType: "all",
+                                      });
+                                    }}
+                                    disabled={restoreWidgetVersion.isPending}
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                                    Restore
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
                   )}
-                </Button>
+                </div>
 
                 {/* Embed Script */}
                 <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
@@ -2397,7 +2613,332 @@ export default function SiteBuilderPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
+
+      {/* AI Widget Generation Dialog */}
+      <Dialog open={aiWidgetDialogOpen} onOpenChange={setAiWidgetDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              Generate Widget with AI
+            </DialogTitle>
+            <DialogDescription>
+              Let AI create a beautiful, conversion-optimized widget design based on your organization's branding and preferences.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Widget Type</Label>
+              <Select
+                value={aiWidgetType}
+                onValueChange={(value) => setAiWidgetType(value as typeof aiWidgetType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contactForm">Contact Form</SelectItem>
+                  <SelectItem value="invoiceRequest">Invoice Request</SelectItem>
+                  <SelectItem value="quoteRequest">Quote Request</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Design Style</Label>
+              <Select
+                value={aiWidgetStyle}
+                onValueChange={(value) => setAiWidgetStyle(value as typeof aiWidgetStyle)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="modern">Modern - Clean lines, contemporary colors</SelectItem>
+                  <SelectItem value="classic">Classic - Traditional, conservative</SelectItem>
+                  <SelectItem value="minimal">Minimal - Lots of white space, simple</SelectItem>
+                  <SelectItem value="professional">Professional - Business-focused, trustworthy</SelectItem>
+                  <SelectItem value="bold">Bold - Vibrant colors, eye-catching</SelectItem>
+                  <SelectItem value="elegant">Elegant - Sophisticated, refined</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Additional Context (Optional)</Label>
+              <Textarea
+                value={aiWidgetContext}
+                onChange={(e) => setAiWidgetContext(e.target.value)}
+                placeholder="E.g., 'Make it friendly and approachable', 'Use a dark theme', 'Focus on mobile users'..."
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Provide any specific design preferences or requirements for the widget.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAiWidgetDialogOpen(false)}
+              disabled={generateWidget.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!organization?.id) {
+                  toast.error("Organization not found");
+                  return;
+                }
+
+                try {
+                  const result = await generateWidget.mutateAsync({
+                    organizationId: organization.id,
+                    widgetType: aiWidgetType,
+                    options: {
+                      style: aiWidgetStyle,
+                      context: aiWidgetContext.trim() || undefined,
+                    },
+                  });
+
+                  // Apply generated styling and configuration
+                  if (aiWidgetType === "contactForm") {
+                    setContactFormStyling(result.styling);
+                    setContactFormConfig({
+                      ...contactFormConfig,
+                      title: result.configuration.title,
+                      description: result.configuration.description || "",
+                      submitButtonText: result.configuration.submitButtonText,
+                      successMessage: result.configuration.successMessage,
+                    });
+                    if (result.configuration.builtInFields) {
+                      setBuiltInFields({
+                        name: result.configuration.builtInFields.name || { enabled: true, required: true, label: "Name" },
+                        email: result.configuration.builtInFields.email || { enabled: true, required: true, label: "Email" },
+                        phone: result.configuration.builtInFields.phone || { enabled: false, required: false, label: "Phone" },
+                        company: result.configuration.builtInFields.company || { enabled: false, required: false, label: "Company" },
+                        message: result.configuration.builtInFields.message || { enabled: true, required: false, label: "Message" },
+                      });
+                    }
+                    if (result.configuration.customFields && result.configuration.customFields.length > 0) {
+                      setCustomFields(result.configuration.customFields);
+                    }
+                  } else if (aiWidgetType === "invoiceRequest") {
+                    setInvoiceRequestStyling(result.styling);
+                    setInvoiceRequestConfig({
+                      ...invoiceRequestConfig,
+                      title: result.configuration.title,
+                      description: result.configuration.description || "",
+                      submitButtonText: result.configuration.submitButtonText,
+                      successMessage: result.configuration.successMessage,
+                    });
+                  } else if (aiWidgetType === "quoteRequest") {
+                    setQuoteRequestStyling(result.styling);
+                    setQuoteRequestConfig({
+                      ...quoteRequestConfig,
+                      title: result.configuration.title,
+                      description: result.configuration.description || "",
+                      submitButtonText: result.configuration.submitButtonText,
+                      successMessage: result.configuration.successMessage,
+                    });
+                  }
+
+                  toast.success("Widget design generated successfully!");
+                  setAiWidgetDialogOpen(false);
+                  setAiWidgetContext("");
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : "Unknown error";
+                  toast.error(`Failed to generate widget: ${message}`);
+                }
+              }}
+              disabled={generateWidget.isPending || !organization?.id}
+            >
+              {generateWidget.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate Widget
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Widget Version Preview Dialog */}
+        <Dialog open={previewWidgetDialogOpen} onOpenChange={setPreviewWidgetDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-blue-500" />
+                Preview Widget Version {previewWidgetVersion?.version}
+              </DialogTitle>
+              <DialogDescription>
+                This is a preview of how the widgets looked in version {previewWidgetVersion?.version}. This preview is read-only.
+              </DialogDescription>
+            </DialogHeader>
+            {previewWidgetVersion && (
+              <div className="space-y-6 py-4">
+                {/* Contact Form Preview */}
+                {Boolean(previewWidgetVersion.widgets.contactForm && typeof previewWidgetVersion.widgets.contactForm === "object") && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Contact Form Widget</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-6 border rounded-lg bg-gray-50">
+                        <WidgetPreview
+                          widgetType="contactForm"
+                          config={{
+                            title: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.title as string) || "Contact Us",
+                            description: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.description as string) || undefined,
+                            submitButtonText: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                            successMessage: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                            builtInFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.builtInFields as Record<string, unknown>) || undefined,
+                            customFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.customFields as Array<{
+                              id: string;
+                              name: string;
+                              label: string;
+                              type: "text" | "email" | "tel" | "textarea" | "number" | "select" | "checkbox" | "date";
+                              required: boolean;
+                              placeholder?: string;
+                              options?: string[];
+                              order: number;
+                            }>) || undefined,
+                          }}
+                          styling={((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.styling || {}) as Partial<{
+                            primaryColor: string;
+                            secondaryColor: string;
+                            backgroundColor: string;
+                            textColor: string;
+                            borderColor: string;
+                            errorColor: string;
+                            successColor: string;
+                            fontFamily: string;
+                            fontSize: string;
+                            fontWeight: string;
+                            padding: string;
+                            gap: string;
+                            borderRadius: string;
+                            buttonPadding: string;
+                            buttonBorderRadius: string;
+                            buttonFontWeight: string;
+                            modalBackdropOpacity: string;
+                            modalBorderRadius: string;
+                            modalMaxWidth: string;
+                            shadow: string;
+                          }>}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Invoice Request Preview */}
+                {Boolean(previewWidgetVersion.widgets.invoiceRequest && typeof previewWidgetVersion.widgets.invoiceRequest === "object") && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Invoice Request Widget</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-6 border rounded-lg bg-gray-50">
+                        <WidgetPreview
+                          widgetType="invoiceRequest"
+                          config={{
+                            title: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.title as string) || "Request Invoice",
+                            description: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.description as string) || undefined,
+                            submitButtonText: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                            successMessage: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                          }}
+                          styling={((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.styling || {}) as Partial<{
+                            primaryColor: string;
+                            secondaryColor: string;
+                            backgroundColor: string;
+                            textColor: string;
+                            borderColor: string;
+                            errorColor: string;
+                            successColor: string;
+                            fontFamily: string;
+                            fontSize: string;
+                            fontWeight: string;
+                            padding: string;
+                            gap: string;
+                            borderRadius: string;
+                            buttonPadding: string;
+                            buttonBorderRadius: string;
+                            buttonFontWeight: string;
+                            modalBackdropOpacity: string;
+                            modalBorderRadius: string;
+                            modalMaxWidth: string;
+                            shadow: string;
+                          }>}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Quote Request Preview */}
+                {Boolean(previewWidgetVersion.widgets.quoteRequest && typeof previewWidgetVersion.widgets.quoteRequest === "object") && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Quote Request Widget</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-6 border rounded-lg bg-gray-50">
+                        <WidgetPreview
+                          widgetType="quoteRequest"
+                          config={{
+                            title: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.title as string) || "Request Quote",
+                            description: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.description as string) || undefined,
+                            submitButtonText: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                            successMessage: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                          }}
+                          styling={((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.styling || {}) as Partial<{
+                            primaryColor: string;
+                            secondaryColor: string;
+                            backgroundColor: string;
+                            textColor: string;
+                            borderColor: string;
+                            errorColor: string;
+                            successColor: string;
+                            fontFamily: string;
+                            fontSize: string;
+                            fontWeight: string;
+                            padding: string;
+                            gap: string;
+                            borderRadius: string;
+                            buttonPadding: string;
+                            buttonBorderRadius: string;
+                            buttonFontWeight: string;
+                            modalBackdropOpacity: string;
+                            modalBorderRadius: string;
+                            modalMaxWidth: string;
+                            shadow: string;
+                          }>}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!previewWidgetVersion.widgets.contactForm &&
+                  !previewWidgetVersion.widgets.invoiceRequest &&
+                  !previewWidgetVersion.widgets.quoteRequest && (
+                    <div className="text-center py-8 text-gray-500">
+                      No widget configuration found in this version.
+                    </div>
+                  )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
 

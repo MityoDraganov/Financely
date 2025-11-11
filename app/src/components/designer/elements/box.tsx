@@ -105,13 +105,13 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 							}}
 							className="w-12 h-9 p-1 cursor-pointer"
 						/>
-						<Input
-							placeholder="#RRGGBB"
-							value={element.fill}
-							onChange={(e) => {
+					<Input
+						placeholder="#RRGGBB"
+						value={element.fill}
+						onChange={(e) => {
 								onChange({ ...element, fill: e.target.value });
-							}}
-						/>
+						}}
+					/>
 					</div>
 				</div>
 				<div className="space-y-1">
@@ -125,13 +125,13 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 							}}
 							className="w-12 h-9 p-1 cursor-pointer"
 						/>
-						<Input
-							placeholder="#RRGGBB"
-							value={element.stroke}
-							onChange={(e) => {
+					<Input
+						placeholder="#RRGGBB"
+						value={element.stroke}
+						onChange={(e) => {
 								onChange({ ...element, stroke: e.target.value });
-							}}
-						/>
+						}}
+					/>
 					</div>
 				</div>
 				<div className="space-y-1">

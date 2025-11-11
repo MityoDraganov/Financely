@@ -180,8 +180,8 @@ export function TableProperties({
 				<div className="space-y-1 col-span-2">
 					<Label className="text-xs">Items binding</Label>
 					<div className="space-y-1.5">
-						<Input
-							placeholder=""
+					<Input
+						placeholder=""
 							value={bindingInput}
 							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
 							onChange={(e) => {

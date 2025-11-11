@@ -14,6 +14,10 @@ export * from "./service-hooks/use-proposal-generation";
 export * from "./service-hooks/use-workflow-functions";
 export * from "./service-hooks/use-product-functions";
 export * from "./service-hooks/use-analytics-metrics";
+export * from "./service-hooks/use-generate-widget";
+export * from "./service-hooks/use-convert-proposal-to-invoice";
+export * from "./service-hooks/use-invoice-template-generation";
+export * from "./service-hooks/use-widget-versioning";
 
 // Utility hooks
 export * from "./use-onboarding";

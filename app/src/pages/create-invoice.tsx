@@ -905,9 +905,9 @@ export default function CreateInvoicePage() {
                       );
                       
                       return (
-                        <div key={field.path} className="space-y-2">
+                      <div key={field.path} className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <Label htmlFor={field.path}>{field.label}</Label>
+                        <Label htmlFor={field.path}>{field.label}</Label>
                             {shouldAutoCalculate && (
                               <Button
                                 type="button"
@@ -926,19 +926,19 @@ export default function CreateInvoicePage() {
                               </Button>
                             )}
                           </div>
-                          <Input
+                        <Input
                             id={`binding-${field.path}`}
-                            type={field.type}
-                            value={String(getValue(field.path) ?? "")}
-                            onChange={(e) => {
-                              const val: InvoiceDataValue =
-                                field.type === "number"
-                                  ? Number(e.target.value)
-                                  : e.target.value;
-                              setValue(field.path, val);
-                            }}
-                            placeholder={`Enter ${field.label.toLowerCase()}`}
-                          />
+                          type={field.type}
+                          value={String(getValue(field.path) ?? "")}
+                          onChange={(e) => {
+                            const val: InvoiceDataValue =
+                              field.type === "number"
+                                ? Number(e.target.value)
+                                : e.target.value;
+                            setValue(field.path, val);
+                          }}
+                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                        />
                           {shouldAutoCalculate && (
                             <p className="text-xs text-muted-foreground">
                               Suggested: {formatCurrency(
@@ -949,7 +949,7 @@ export default function CreateInvoicePage() {
                               )}
                             </p>
                           )}
-                        </div>
+                      </div>
                       );
                     })}
                   </CardContent>

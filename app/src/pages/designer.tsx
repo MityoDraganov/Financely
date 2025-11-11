@@ -1680,51 +1680,51 @@ export default function TemplateDesignerPage() {
 										<ContextMenuTrigger asChild>
 											<div
 												className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400" : ""}`}
-												style={{
-													left: el.x * state.zoom,
-													top: el.y * state.zoom,
-													width: el.width * state.zoom,
-													height: el.height * state.zoom,
-													transform: `rotate(${el.rotation}deg)`,
-													touchAction: "none",
-													zIndex: el.zIndex ?? 0,
-												}}
-												onClick={() => {
-													setState((s: DesignerState) => ({
-														...s,
-														selectedElementId: el.id,
-													}));
-													console.log("clicked", el.id);
-												}}
-												onPointerDown={(e) => {
+										style={{
+											left: el.x * state.zoom,
+											top: el.y * state.zoom,
+											width: el.width * state.zoom,
+											height: el.height * state.zoom,
+											transform: `rotate(${el.rotation}deg)`,
+											touchAction: "none",
+											zIndex: el.zIndex ?? 0,
+										}}
+										onClick={() => {
+											setState((s: DesignerState) => ({
+												...s,
+												selectedElementId: el.id,
+											}));
+											console.log("clicked", el.id);
+										}}
+										onPointerDown={(e) => {
 													// Only start drag on left mouse button (button 0)
 													// Right click (button 2) should open context menu
 													if (e.button !== 0) return;
 													
-													console.log("pointer down", e);
-													// Begin drag for this element
-													e.preventDefault();
-													e.stopPropagation();
-													setState((s: DesignerState) => ({
-														...s,
-														selectedElementId: el.id,
-													}));
-													setDraftElements(
-														(
-															currentTemplate?.elements ??
-															[]
-														).map((x) => ({ ...x }))
-													);
-													setDrag({
-														elementId: el.id,
-														mode: "move",
-														startClientX: e.clientX,
-														startClientY: e.clientY,
-														startX: el.x,
-														startY: el.y,
-													});
-												}}
-											>
+											console.log("pointer down", e);
+											// Begin drag for this element
+											e.preventDefault();
+											e.stopPropagation();
+											setState((s: DesignerState) => ({
+												...s,
+												selectedElementId: el.id,
+											}));
+											setDraftElements(
+												(
+													currentTemplate?.elements ??
+													[]
+												).map((x) => ({ ...x }))
+											);
+											setDrag({
+												elementId: el.id,
+												mode: "move",
+												startClientX: e.clientX,
+												startClientY: e.clientY,
+												startX: el.x,
+												startY: el.y,
+											});
+										}}
+									>
 											{/* Lock icon for required fields */}
 											{isRequiredField && (
 												<div
@@ -1981,7 +1981,7 @@ export default function TemplateDesignerPage() {
 													/>
 												);
 											})()}
-											</div>
+									</div>
 										</ContextMenuTrigger>
 										<ContextMenuContent>
 											<ContextMenuItem

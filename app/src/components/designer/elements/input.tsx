@@ -211,27 +211,27 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 				<div className="space-y-1 col-span-2">
 					<Label className="text-xs">Binding</Label>
 					<div className="space-y-1.5">
-						<Input
-							placeholder="invoice.customerName"
+					<Input
+						placeholder="invoice.customerName"
 							value={bindingInput}
 							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
 							onChange={(e) => {
 								const newValue = e.target.value;
 								setBindingInput(newValue);
 								// Update immediately, but show warning if duplicate
-								onChange({
-									id: element.id,
-									type: "input",
-									x: element.x,
-									y: element.y,
-									width: element.width,
-									height: element.height,
-									rotation: element.rotation,
-									zIndex: element.zIndex,
-									visible: element.visible,
-									placeholder: inp.placeholder,
-									variant: inp.variant,
-									align: inp.align,
+							onChange({
+								id: element.id,
+								type: "input",
+								x: element.x,
+								y: element.y,
+								width: element.width,
+								height: element.height,
+								rotation: element.rotation,
+								zIndex: element.zIndex,
+								visible: element.visible,
+								placeholder: inp.placeholder,
+								variant: inp.variant,
+								align: inp.align,
 									binding: newValue || undefined,
 								});
 							}}

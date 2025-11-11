@@ -353,4 +353,114 @@ export interface FunctionsService {
       indexUrl?: string;
     };
   }>;
+
+  /**
+   * Convert a proposal to an invoice using AI
+   * 
+   * @param payload - The conversion payload
+   * @param payload.proposalId - Proposal ID to convert
+   * @param payload.templateId - Invoice template ID to use
+   * @param payload.organizationId - Organization ID
+   * @returns Promise with the created invoice ID and invoice number
+   */
+  convertProposalToInvoice(payload: {
+    proposalId: string;
+    templateId: string;
+    organizationId: string;
+  }): Promise<{ invoiceId: string; invoiceNumber?: string }>;
+
+  /**
+   * Generate widget styling and configuration using AI
+   * 
+   * @param payload - The generation payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.widgetType - Widget type (contactForm, invoiceRequest, quoteRequest)
+   * @param payload.options - Optional generation options (style, context)
+   * @returns Promise with generated styling and configuration
+   */
+  generateWidget(payload: {
+    organizationId: string;
+    widgetType: "contactForm" | "invoiceRequest" | "quoteRequest";
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional" | "bold" | "elegant";
+      context?: string;
+    };
+  }): Promise<{
+    styling: {
+      primaryColor: string;
+      secondaryColor: string;
+      backgroundColor: string;
+      textColor: string;
+      borderColor: string;
+      errorColor: string;
+      successColor: string;
+      fontFamily: string;
+      fontSize: string;
+      fontWeight: string;
+      padding: string;
+      gap: string;
+      borderRadius: string;
+      buttonPadding: string;
+      buttonBorderRadius: string;
+      buttonFontWeight: string;
+      modalBackdropOpacity: string;
+      modalBorderRadius: string;
+      modalMaxWidth: string;
+      shadow: string;
+    };
+    configuration: {
+      title: string;
+      description?: string;
+      submitButtonText: string;
+      successMessage: string;
+      builtInFields?: {
+        name?: { enabled: boolean; required: boolean; label: string };
+        email?: { enabled: boolean; required: boolean; label: string };
+        phone?: { enabled: boolean; required: boolean; label: string };
+        company?: { enabled: boolean; required: boolean; label: string };
+        message?: { enabled: boolean; required: boolean; label: string };
+      };
+      customFields?: Array<{
+        id: string;
+        name: string;
+        label: string;
+        type: "text" | "email" | "tel" | "textarea" | "number" | "select" | "checkbox" | "date";
+        required: boolean;
+        placeholder?: string;
+        options?: string[];
+        validation?: { min?: number; max?: number; pattern?: string };
+        order: number;
+      }>;
+    };
+  }>;
+
+  /**
+   * Restore a previous version of widget configuration
+   * 
+   * @param payload - The restore payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.version - Version number to restore
+   * @param payload.widgetType - Optional widget type filter
+   * @returns Promise with restore result
+   */
+  restoreWidgetVersion(payload: {
+    organizationId: string;
+    version: number;
+    widgetType?: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
+  }): Promise<{ success: boolean; organizationId: string; restoredVersion: number }>;
+
+  /**
+   * Save current widget configuration as a new version
+   * 
+   * @param payload - The save payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.widgetType - Optional widget type filter
+   * @param payload.description - Optional description for the version
+   * @returns Promise with save result
+   */
+  saveWidgetVersion(payload: {
+    organizationId: string;
+    widgetType?: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
+    description?: string;
+  }): Promise<{ success: boolean; organizationId: string; version: number }>;
 }

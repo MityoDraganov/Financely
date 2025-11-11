@@ -147,6 +147,23 @@ export const organizationDataSchema = z.object({
       widgets: z
         .object({
           enabled: z.boolean().default(false),
+          // Version metadata for widgets
+          metadata: z
+            .object({
+              version: z.number().int().default(1),
+              lastSavedAt: z.string().optional(),
+            })
+            .optional(),
+          // Version history - stores previous versions of widget configurations
+          versions: z.array(
+            z.object({
+              version: z.number().int(),
+              widgetType: z.enum(["contactForm", "invoiceRequest", "quoteRequest", "all"]),
+              widgets: z.any(), // Full widget configuration snapshot
+              createdAt: z.string(),
+              description: z.string().optional(),
+            })
+          ).default([]),
           contactForm: z
             .object({
               enabled: z.boolean().default(false),

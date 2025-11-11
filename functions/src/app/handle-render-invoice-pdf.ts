@@ -84,12 +84,12 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       
       // Try to format with proper decimal places
       try {
-        const formatter = new Intl.NumberFormat("en-US", {
-          style: "currency",
+      const formatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
           currency: currencyCode,
           minimumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
           maximumFractionDigits: currencyCode === "JPY" || currencyCode === "KRW" ? 0 : 2,
-        });
+      });
         return formatter.format(num);
       } catch {
         // Fallback if currency code is invalid

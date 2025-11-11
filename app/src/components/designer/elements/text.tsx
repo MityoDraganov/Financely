@@ -162,31 +162,31 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 			<div className="space-y-1">
 				<Label className="text-xs">Data Binding</Label>
 				<div className="space-y-1.5">
-					<Input
-						placeholder="e.g., invoice.customerName"
+				<Input
+					placeholder="e.g., invoice.customerName"
 						value={bindingInput}
 						className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
 						onChange={(e) => {
 							const newValue = e.target.value;
 							setBindingInput(newValue);
 							// Update immediately, but show warning if duplicate
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
+						onChange({
+							id: element.id,
+							type: "text",
+							x: element.x,
+							y: element.y,
+							width: element.width,
+							height: element.height,
+							rotation: element.rotation,
+							zIndex: element.zIndex,
+							visible: element.visible,
+							text: t.text,
 								binding: newValue || undefined,
-								typography: t.typography,
-								format: t.format,
+							typography: t.typography,
+							format: t.format,
 							});
 						}}
-					/>
+				/>
 					{bindingError && suggestedBinding && (
 						<div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
 							<AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
