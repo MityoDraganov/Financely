@@ -5,7 +5,14 @@ export const contactDataSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Valid email is required"),
-  phone: z.string().optional(),
+  phone: z.union([z.string(), z.array(z.string())]).optional().transform((val) => {
+    // Normalize: convert single string to array, or keep array
+    if (!val) return [];
+    if (typeof val === "string") {
+      return val.trim() ? [val.trim()] : [];
+    }
+    return val.filter(p => p && p.trim()).map(p => p.trim());
+  }),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
   address: z.object({

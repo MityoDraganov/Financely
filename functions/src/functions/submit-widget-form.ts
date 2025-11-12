@@ -193,24 +193,22 @@ export const submitWidgetForm = onRequest(
 				return c.data || (c as unknown as ContactData);
 			};
 
-			// Check for existing contact by normalized email or phone
-			for (const contact of allContacts) {
-				const contactData = getContactData(contact);
-				const contactEmail = (contactData.email || "")
-					.trim()
-					.toLowerCase();
-				const contactPhone = (contactData.phone || "").trim();
-
-				// Match by email (case-insensitive, normalized)
-				if (email && contactEmail && contactEmail === email) {
-					existingContact = contact;
-					break;
-				}
-
-				// Match by phone (if both are provided and non-empty)
-				if (phone && contactPhone && contactPhone === phone) {
-					existingContact = contact;
-					break;
+			// Check for existing contact by normalized email (primary identifier)
+			// Email is the primary identifier - if email matches, we update the contact
+			// We do NOT create duplicates based on email
+			if (email) {
+				const emailNormalized = email.trim().toLowerCase();
+				for (const contact of allContacts) {
+					const contactData = getContactData(contact);
+					const contactEmail = (contactData.email || "")
+						.trim()
+						.toLowerCase();
+					
+					// Match by email (case-insensitive, normalized) - PRIMARY MATCH
+					if (contactEmail === emailNormalized) {
+						existingContact = contact;
+						break;
+					}
 				}
 			}
 
@@ -232,12 +230,22 @@ export const submitWidgetForm = onRequest(
 				if (email) {
 					updateData.email = email;
 				}
-				if (
-					phone &&
-					phone !== (existingContactData.phone || "").trim()
-				) {
-					updateData.phone = phone;
+				
+				// Handle multiple phone numbers - merge new phone if different
+				if (phone) {
+					const phoneTrimmed = phone.trim();
+					const existingPhones = Array.isArray(existingContactData.phone)
+						? existingContactData.phone
+						: existingContactData.phone
+						? [existingContactData.phone]
+						: [];
+					
+					// Add new phone if it's different and not already in the list
+					if (phoneTrimmed && !existingPhones.includes(phoneTrimmed)) {
+						updateData.phone = [...existingPhones, phoneTrimmed];
+					}
 				}
+				
 				if (company) {
 					updateData.company = company;
 				}
@@ -280,7 +288,7 @@ export const submitWidgetForm = onRequest(
 					firstName: firstName || "",
 					lastName: lastName || "",
 					email: email || "",
-					phone: phone || undefined,
+					phone: phone?.trim() ? [phone.trim()] : [],
 					company,
 					jobTitle,
 					notes: buildSubmissionNote(widgetType, data, message),

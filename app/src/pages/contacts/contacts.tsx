@@ -15,6 +15,7 @@ import { useContactsByOrg, useCreateContact, useUpdateContact, useDeleteContact,
 import { useOrganizationContext } from "@/contexts/organization-context";
 import { ContactData, Contact } from "@/core";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 interface ContactFormData {
   firstName: string;
@@ -103,8 +104,73 @@ export default function ContactsPage() {
   const handleCreateContact = async (data: ContactFormData) => {
     if (!currentOrganization?.id) return;
 
+    // Normalize email for comparison
+    const normalizedEmail = data.email.trim().toLowerCase();
+
+    // Check if contact with this email already exists
+    const existingContact = contacts.find((contact) => {
+      const contactData = contact.data || contact;
+      const contactEmail = (contactData.email || "").trim().toLowerCase();
+      return contactEmail === normalizedEmail;
+    });
+
+    if (existingContact) {
+      // Contact exists - update it and merge phone numbers
+      const existingContactData = existingContact.data || existingContact;
+      const existingPhones = Array.isArray(existingContactData.phone)
+        ? existingContactData.phone
+        : existingContactData.phone
+        ? [existingContactData.phone]
+        : [];
+
+      const newPhone = data.phone?.trim();
+      const updatedPhones = [...existingPhones];
+
+      // Add new phone if it's different and not already in the list
+      if (newPhone && !existingPhones.includes(newPhone)) {
+        updatedPhones.push(newPhone);
+      }
+
+      // Prepare update data
+      const updateData: Partial<ContactData> = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: updatedPhones.length > 0 ? updatedPhones : [],
+        company: data.company,
+        jobTitle: data.jobTitle,
+        address: data.address,
+        tags: data.tags,
+        notes: data.notes,
+        status: data.status,
+        preferences: data.preferences,
+        socialMedia: data.socialMedia,
+        organizationId: currentOrganization.id,
+      };
+
+      try {
+        await updateContactMutation.mutateAsync({
+          id: existingContact.id,
+          data: updateData,
+        });
+        setIsCreateDialogOpen(false);
+        form.reset();
+        toast.success(
+          newPhone && !existingPhones.includes(newPhone)
+            ? "Contact updated. New phone number added."
+            : "Contact updated."
+        );
+      } catch (error) {
+        console.error("Failed to update contact:", error);
+        toast.error("Failed to update contact");
+      }
+      return;
+    }
+
+    // No existing contact - create new one
     const contactData: ContactData = {
       ...data,
+      phone: data.phone?.trim() ? [data.phone.trim()] : [],
       organizationId: currentOrganization.id,
     };
 
@@ -112,27 +178,57 @@ export default function ContactsPage() {
       await createContactMutation.mutateAsync(contactData);
       setIsCreateDialogOpen(false);
       form.reset();
+      toast.success("Contact created successfully");
     } catch (error) {
       console.error("Failed to create contact:", error);
+      toast.error("Failed to create contact");
     }
   };
 
   const handleUpdateContact = async (data: ContactFormData) => {
     if (!editingContact?.id) return;
 
+    // Get existing phone numbers
+    const existingContactData = editingContact.data || editingContact;
+    const existingPhones = Array.isArray(existingContactData.phone)
+      ? existingContactData.phone
+      : existingContactData.phone
+      ? [existingContactData.phone]
+      : [];
+
+    // If new phone is provided and different, add it to the list
+    const newPhone = data.phone?.trim();
+    const updatedPhones = [...existingPhones];
+    if (newPhone && !existingPhones.includes(newPhone)) {
+      updatedPhones.push(newPhone);
+    }
+
     try {
       await updateContactMutation.mutateAsync({
         id: editingContact.id,
         data: {
-          ...data,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: updatedPhones.length > 0 ? updatedPhones : [],
+          company: data.company,
+          jobTitle: data.jobTitle,
+          address: data.address,
+          tags: data.tags,
+          notes: data.notes,
+          status: data.status,
+          preferences: data.preferences,
+          socialMedia: data.socialMedia,
           organizationId: currentOrganization?.id || "",
         },
       });
       setIsEditDialogOpen(false);
       setEditingContact(null);
       form.reset();
+      toast.success("Contact updated successfully");
     } catch (error) {
       console.error("Failed to update contact:", error);
+      toast.error("Failed to update contact");
     }
   };
 
@@ -156,7 +252,9 @@ export default function ContactsPage() {
       firstName: contactData.firstName || "",
       lastName: contactData.lastName || "",
       email: contactData.email || "",
-      phone: contactData.phone || "",
+      phone: Array.isArray(contactData.phone)
+        ? contactData.phone[0] || ""
+        : contactData.phone || "",
       company: contactData.company || "",
       jobTitle: contactData.jobTitle || "",
       address: contactData.address || {
@@ -424,12 +522,23 @@ export default function ContactsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {contactData.phone && (
-                          <div className="flex items-center space-x-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span>{contactData.phone}</span>
-                          </div>
-                        )}
+                        {(() => {
+                          const phones = Array.isArray(contactData.phone)
+                            ? contactData.phone
+                            : contactData.phone
+                            ? [contactData.phone]
+                            : [];
+                          return phones.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {phones.map((phone, idx) => (
+                                <div key={idx} className="flex items-center space-x-2">
+                                  <Phone className="h-4 w-4 text-muted-foreground" />
+                                  <span>{phone}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
