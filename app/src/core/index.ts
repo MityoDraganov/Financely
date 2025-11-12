@@ -10,6 +10,7 @@ export * from "./entities/product";
 export * from "./entities/buyer";
 export * from "./entities/seller";
 export * from "./entities/template";
+export * from "./entities/currency-field";
 export * from "./entities/workflow";
 export * from "./entities/contact";
 export * from "./entities/lead";

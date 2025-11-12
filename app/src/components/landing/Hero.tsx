@@ -14,9 +14,9 @@ export function Hero(): React.ReactElement {
           <h1 className="text-5xl font-extrabold leading-[1.1] tracking-tight md:text-6xl">Automate Invoices, Approvals & Renewals</h1>
           <p className="mt-6 max-w-xl text-lg text-gray-100">Financely is a finance ops hub: create legally compliant invoices, route proposals for approval, and never miss a contract renewal.</p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Button variant="outline" className="rounded-xl bg-white px-7 py-3 font-semibold text-[#166534] shadow">Start Free Trial</Button>
-            <Button variant="outline" className="rounded-xl border-white px-7 py-3 transition-colors text-[#166534]">Book a Demo</Button>
-            <span className="ml-2 text-sm text-gray-200">No credit card · Cancel anytime</span>
+            <Button variant="outline" className="rounded-xl bg-white dark:bg-[#2a2d35] px-7 py-3 font-semibold text-[#166534] dark:text-gray-100 shadow dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">Start Free Trial</Button>
+            <Button variant="outline" className="rounded-xl border-white dark:border-gray-400 px-7 py-3 transition-colors text-white dark:text-gray-100 hover:bg-white/10 dark:hover:bg-gray-400/10">Book a Demo</Button>
+            <span className="ml-2 text-sm text-gray-200 dark:text-gray-300">No credit card · Cancel anytime</span>
           </div>
         </motion.div>
 

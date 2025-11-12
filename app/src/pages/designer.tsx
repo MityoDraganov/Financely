@@ -15,6 +15,7 @@ import {
 	Sparkles,
 	Loader2,
 	Copy,
+	CircleDollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ import { Label } from "@/components/ui/label";
 import { isRequiredBinding, getFieldMetadata } from "@/utils/invoice-compliance";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
+import { generateUniqueTemplateName } from "@/utils/template-naming";
 import { EnhancedPresenceIndicator } from "@/components/designer/enhanced-presence-indicator";
 import { LiveCursor } from "@/components/designer/live-cursor";
 import {
@@ -76,6 +78,7 @@ import {
 	TableElement,
 	TableProperties,
 } from "@/components/designer/elements";
+import CurrencyElement, { CurrencyProperties } from "@/components/designer/elements/currency";
 
 type DesignerState = {
 	currentTemplateId?: string;
@@ -135,9 +138,12 @@ export default function TemplateDesignerPage() {
 		// Detect region from organization for compliance
 		const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
 		
+		// Generate unique template name
+		const uniqueName = generateUniqueTemplateName("New Template", templates);
+		
 		const templateData: TemplateData = {
 			orgId,
-			name: "New Template",
+			name: uniqueName,
 			description: "A new template",
 			pageSize: "A4",
 			brand: {
@@ -237,10 +243,10 @@ export default function TemplateDesignerPage() {
 		
 		const region = complianceStatus.region;
 		const schema = COMPLIANCE_SCHEMAS[region];
-		const existingBindings = new Set(
+			const existingBindings = new Set(
 			(currentTemplate.elements ?? []).flatMap(el => {
 				const bindings: string[] = [];
-				if (el.type === "text" || el.type === "input" || el.type === "image") {
+				if (el.type === "text" || el.type === "input" || el.type === "image" || el.type === "currency") {
 					if (el.binding) bindings.push(el.binding);
 				}
 				if (el.type === "table" && el.itemsBinding) {
@@ -408,7 +414,7 @@ export default function TemplateDesignerPage() {
 		}));
 	}, [state.currentTemplateId]);
 
-	// Initialize template from URL param or auto-select first template
+	// Initialize template from URL param or auto-create new template
 	useEffect(() => {
 		if (templateIdFromUrl) {
 			// Template ID from URL - set it if it exists in templates
@@ -422,11 +428,17 @@ export default function TemplateDesignerPage() {
 				// Template not found, redirect to templates list
 				navigate("/templates");
 			}
-		} else if (templates.length > 0 && !state.currentTemplateId) {
-			// No template ID in URL and no template selected - redirect to templates list
-			navigate("/templates");
+		} else if (!state.currentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
+			// No template ID in URL and no template selected - auto-create a new one
+			// This handles the case when user clicks "Create New Template" from templates page
+			handleCreateNewTemplate().catch((error) => {
+				console.error("Failed to auto-create template:", error);
+				// If creation fails, redirect back to templates
+				navigate("/templates");
+			});
 		}
-	}, [templates, state.currentTemplateId, templateIdFromUrl, navigate]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [templates, state.currentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
 
 	// Observe sidebar width to adapt layout when user resizes the panel
 	useEffect(() => {
@@ -457,9 +469,12 @@ export default function TemplateDesignerPage() {
 			// Detect region from organization for compliance
 			const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
 			
+			// Generate unique template name
+			const uniqueName = generateUniqueTemplateName("New Invoice Template", templates);
+			
 			const empty: TemplateData = {
 				orgId: orgId,
-				name: "New Invoice Template",
+				name: uniqueName,
 				description: "",
 				pageSize: "A4",
 				brand: {
@@ -922,7 +937,25 @@ export default function TemplateDesignerPage() {
 										variant: "text",
 										align: "left",
 									}
-								: {
+								: kind === "currency"
+									? {
+											id: crypto.randomUUID(),
+											type: "currency",
+											x: at?.x ?? 60,
+											y: at?.y ?? 260,
+											width: 200,
+											height: 32,
+											rotation: 0,
+											zIndex: 1,
+											visible: true,
+											placeholder: "0.00",
+											binding: defaultBinding,
+											currency: "USD",
+											currencyLinks: [],
+											mode: "independent",
+											align: "left",
+										}
+									: {
 										id: crypto.randomUUID(),
 										type: "line",
 										x: at?.x ?? 40,
@@ -1352,6 +1385,30 @@ export default function TemplateDesignerPage() {
 									<Minus className="h-4 w-4 mr-2 text-neutral-600" /> 
 									<span className="font-medium">Line</span>
 								</Button>
+								<Button
+									variant="secondary"
+									onClick={() => {
+										addElement("currency");
+										toast.success("Currency element added", { duration: 1500 });
+									}}
+									draggable
+									onDragStart={(e) => {
+										console.log("[DND] dragstart: currency");
+										e.dataTransfer.setData(
+											"application/x-template-element",
+											"currency"
+										);
+										e.dataTransfer.setData(
+											"text/plain",
+											"currency"
+										);
+										e.dataTransfer.effectAllowed = "copy";
+									}}
+									className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+								>
+									<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" /> 
+									<span className="font-medium">Currency</span>
+								</Button>
 							</div>
 							<div className="mt-5">
 								<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
@@ -1416,6 +1473,13 @@ export default function TemplateDesignerPage() {
 																		: "text-neutral-500"
 																}`} />
 															)}
+															{el.type === "currency" && (
+																<CircleDollarSign className={`h-4 w-4 shrink-0 ${
+																	state.selectedElementId === el.id 
+																		? "text-blue-600" 
+																		: "text-neutral-500"
+																}`} />
+															)}
 															{el.type === "box" && (
 																<Square className={`h-4 w-4 shrink-0 ${
 																	state.selectedElementId === el.id 
@@ -1441,6 +1505,8 @@ export default function TemplateDesignerPage() {
 																		return "Image";
 																	} else if (el.type === "input") {
 																		return "Input Field";
+																	} else if (el.type === "currency") {
+																		return "Currency Field";
 																	} else if (el.type === "box") {
 																		return "Box";
 																	} else if (el.type === "line") {
@@ -1687,6 +1753,7 @@ export default function TemplateDesignerPage() {
 									const binding = el.type === "text" ? el.binding : 
 										el.type === "input" ? el.binding :
 										el.type === "image" ? el.binding :
+										el.type === "currency" ? el.binding :
 										el.type === "table" ? el.itemsBinding : undefined;
 									const isRequiredField = isRequired(binding);
 									
@@ -1897,6 +1964,17 @@ export default function TemplateDesignerPage() {
 														{ type: "line" }
 													>
 												}
+											/>
+										)}
+										{el.type === "currency" && (
+											<CurrencyElement
+												element={
+													el as Extract<
+														TemplateElement,
+														{ type: "currency" }
+													>
+												}
+												zoom={state.zoom}
 											/>
 										)}
 										{el.type === "table" &&
@@ -2310,8 +2388,16 @@ export default function TemplateDesignerPage() {
 										},
 									});
 
+									// Ensure unique template name
+									const baseName = generatedTemplate.name || "AI Generated Template";
+									const uniqueName = generateUniqueTemplateName(baseName, templates);
+									const templateWithUniqueName = {
+										...generatedTemplate,
+										name: uniqueName,
+									};
+
 									// Create template from generated data
-									const templateId = await templateService.createDraft(generatedTemplate);
+									const templateId = await templateService.createDraft(templateWithUniqueName);
 									
 									setState((s) => ({
 										...s,
@@ -2428,6 +2514,19 @@ function ElementProperties({
 			/>
 		);
 	}
+
+	if (element.type === "currency") {
+		const curr = element as Extract<TemplateElement, { type: "currency" }>;
+		return (
+			<CurrencyProperties
+				element={curr}
+				onChange={onChange}
+				isNarrow={isNarrow}
+				allElements={allElements}
+			/>
+		);
+	}
+
 	return (
 		<div className="text-xs text-neutral-500">
 			Select an element to edit.

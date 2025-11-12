@@ -19,7 +19,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
@@ -42,7 +41,7 @@ export default function TemplatesPage() {
       await deleteTemplate.mutateAsync(templateToDelete.id);
       setDeleteDialogOpen(false);
       setTemplateToDelete(null);
-    } catch (error) {
+    } catch {
       // Error is handled by the mutation
     }
   };

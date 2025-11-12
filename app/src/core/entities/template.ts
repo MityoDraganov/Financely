@@ -1,9 +1,10 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { currencyFieldLinkSchema } from "./currency-field";
 
 export const templateElementBaseSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["text", "image", "table", "box", "line", "input"]),
+  type: z.enum(["text", "image", "table", "box", "line", "input", "currency"]),
   x: z.number().min(0),
   y: z.number().min(0),
   width: z.number().min(0),
@@ -95,6 +96,16 @@ export const inputElementSchema = templateElementBaseSchema.extend({
   align: z.enum(["left", "center", "right"]).default("left"),
 });
 
+export const currencyElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("currency"),
+  placeholder: z.string().default(""),
+  binding: z.string().optional(),
+  currency: z.string().length(3).default("USD"), // ISO 4217 currency code (e.g., "USD", "EUR")
+  currencyLinks: z.array(currencyFieldLinkSchema).default([]), // Field linking configuration
+  mode: z.enum(["independent", "linked", "formula"]).default("independent"), // Field mode
+  align: z.enum(["left", "center", "right"]).default("left"),
+});
+
 export const tableColumnSchema = z.object({
   id: z.string().min(1),
   header: z.string().default("Column"),
@@ -147,6 +158,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   boxElementSchema,
   lineElementSchema,
   inputElementSchema,
+  currencyElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;
