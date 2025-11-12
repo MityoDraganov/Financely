@@ -5,7 +5,6 @@ import {
   Shield,
   Settings,
   ChevronRight,
-  CreditCard,
   Palette,
   Globe,
   UserCheck,
@@ -32,12 +31,6 @@ const settingsSections = [
         href: "/settings/organization/branding",
         description: "Logo, colors, and customization",
         icon: Palette,
-      },
-      {
-        title: "Billing",
-        href: "/settings/organization/billing",
-        description: "Subscription and payment",
-        icon: CreditCard,
       },
       {
         title: "AI Settings",

@@ -1,7 +1,8 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { useOnboardingStatus } from "@/hooks/use-onboarding";
+import { LoadingScreen } from "./loading-screen";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,42 +10,58 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
-  const { needsOnboarding, isLoading } = useOnboardingStatus();
+  const { needsOnboarding, isLoading, organizations } = useOnboardingStatus();
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
+    // Reset redirect flag when location changes
+    hasRedirectedRef.current = false;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    // Don't redirect if we've already redirected or are still loading
+    if (hasRedirectedRef.current || isLoading || !isLoaded) {
+      return;
+    }
+
     // Redirect to sign-in if not authenticated
-    if (isLoaded && !isSignedIn) {
+    if (!isSignedIn) {
+      hasRedirectedRef.current = true;
       navigate("/sign-in", { replace: true });
       return;
     }
 
-    // Only redirect if we're not already on the onboarding page
-    if (isLoaded && isSignedIn && !isLoading && needsOnboarding && !window.location.pathname.includes('/onboarding')) {
+    const isOnOnboardingPage = location.pathname === "/onboarding";
+    
+    // Only redirect if we're certain - not loading AND confirmed no organizations
+    // This prevents redirecting while organizations are still being fetched
+    if (
+      isSignedIn && 
+      !isOnOnboardingPage && 
+      !isLoading && 
+      needsOnboarding && 
+      organizations.length === 0
+    ) {
+      hasRedirectedRef.current = true;
       navigate("/onboarding", { replace: true });
     }
-  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, navigate]);
+  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, organizations.length, navigate, location.pathname]);
 
   // Show loading state while checking authentication and onboarding status
   if (!isLoaded || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#166534] mx-auto" />
-          <p className="text-gray-600">Loading your workspace...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
-  // If not signed in, don't render children (redirect will happen)
+  // If not signed in, show loading (redirect will happen)
   if (!isSignedIn) {
-    return null;
+    return <LoadingScreen />;
   }
 
-  // If user needs onboarding, don't render children (redirect will happen)
-  if (needsOnboarding) {
-    return null;
+  // If user needs onboarding and we're not on onboarding page, show loading (redirect will happen)
+  if (needsOnboarding && location.pathname !== "/onboarding") {
+    return <LoadingScreen />;
   }
 
   // User is authenticated and properly onboarded, render the protected content
