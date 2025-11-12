@@ -26,6 +26,7 @@ export class InvoiceTemplateGenerationService {
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       includeLogo?: boolean;
+      customPrompt?: string;
     }
   ): Promise<TemplateData> {
     // Build context from organization data
@@ -79,7 +80,7 @@ export class InvoiceTemplateGenerationService {
             type: "object" as const,
             properties: {
               id: { type: "string" as const },
-              type: { type: "string" as const, enum: ["text", "image", "table", "box", "line", "input"] },
+              type: { type: "string" as const, enum: ["text", "image", "table", "box", "line", "input", "currency"] },
               x: { type: "number" as const },
               y: { type: "number" as const },
               width: { type: "number" as const },
@@ -109,7 +110,7 @@ export class InvoiceTemplateGenerationService {
         };
         elements: Array<{
           id: string;
-          type: "text" | "image" | "table" | "box" | "line" | "input";
+          type: "text" | "image" | "table" | "box" | "line" | "input" | "currency";
           x: number;
           y: number;
           width: number;
@@ -237,6 +238,7 @@ export class InvoiceTemplateGenerationService {
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       includeLogo?: boolean;
+      customPrompt?: string;
     }
   ): string {
     const style = options?.style || "modern";
@@ -262,15 +264,23 @@ IMPORTANT: You MUST create elements for EVERY single required field listed above
 
 Design Requirements:
 - Style: ${style} (${this.getStyleDescription(style)})
-- Page size: A4 (794x1123 pixels)
+- Page size: A4 (794x1123 pixels) - CANVAS DIMENSIONS ARE FIXED: width=794px, height=1123px
 - Include organization logo: ${includeLogo ? "Yes" : "No"}
 - All required compliance fields must be present with correct bindings
 - Layout should be professional and easy to read
 - Use appropriate typography hierarchy
 - Include proper spacing and alignment
 - Table for line items must use binding "items" for itemsBinding
-- Currency fields should use currency formatting
-- Date fields should use date formatting
+
+🚨 CRITICAL: Currency Element Usage (MANDATORY):
+- ALL monetary values MUST use Currency elements, NOT Input elements
+- Use Currency elements for: total, subtotal, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.
+- NEVER use Input elements for monetary amounts - this is incorrect
+- Currency elements automatically format with currency symbol and proper locale formatting
+- Set currency code (e.g., "USD", "EUR", "GBP") from organization context
+- For table price columns (unitPrice, lineTotal, etc.), set column type to "currency" and specify currency code
+
+- Date fields should use Input elements with variant="date" or Text elements with date formatting
 
 Template Structure:
 1. Header section (top): Logo (if included), organization name, invoice title
@@ -284,7 +294,19 @@ Template Structure:
 Element Guidelines:
 - Text elements: Use for labels, headers, static text. Set appropriate typography (font size, weight, color)
 - Table elements: Use for line items. Must have itemsBinding="items" and columns with bindings like "description", "quantity", "unitPrice", "total"
-- Input elements: Use for date fields or numeric inputs
+  * 🚨 MANDATORY: Table columns with price bindings (unitPrice, lineTotal, total, etc.) MUST have type="currency"
+  * When creating price columns in tables, ALWAYS set column type to "currency" (NOT "number" or "text")
+  * Specify the currency code in the column (e.g., currency: "USD", "EUR", "GBP") from organization context
+  * Currency columns automatically format with currency symbol and proper locale formatting
+  * Currency columns support field linking for automatic conversion between currencies
+  * Example: { id: "col-price", header: "Price", type: "currency", currency: "USD", binding: "unitPrice", width: 100, align: "right" }
+- Input elements: Use ONLY for date fields (variant="date") or basic text inputs. NEVER use Input elements for monetary amounts.
+- 🚨 Currency elements: MANDATORY for ALL monetary values (totals, subtotals, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.)
+  * Automatically formats with currency symbol and proper locale formatting
+  * Set currency code (e.g., "USD", "EUR", "GBP") from organization context
+  * Set binding to the monetary field (e.g., binding: "total", binding: "subtotal")
+  * Supports field linking for automatic conversion between currencies
+  * Example: { type: "currency", currency: "USD", binding: "total", x: 550, y: 650, width: 200, height: 32 }
 - Box elements: Use for sections/containers with borders
 - Line elements: Use for separators
 
@@ -295,25 +317,48 @@ Binding Requirements:
 - Currency fields should have format: { kind: "currency", currency: "USD" }
 - Date fields should have format: { kind: "date", dateFormat: "YYYY-MM-DD" }
 
-CRITICAL: Canvas Boundaries (A4 = 794x1123 pixels):
-- ALL elements MUST be positioned within the canvas: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
-- NEVER place elements outside these boundaries - this will cause rendering errors
-- Header section: x: 40-60, y: 40-100 (max y: 150)
-- Seller section: x: 40-60, y: 150-250
-- Customer section: x: 40-60 or 400-450 (two-column layout), y: 150-250
-- Invoice details: x: 400-450, y: 40-150 (right side)
-- Items table: x: 40-60, y: 350-450, width: 700-714 (leave 40-80px margins)
-- Totals section: x: 500-550, y: 600-700 (right-aligned)
-- Footer: x: 40-60, y: 950-1050 (near bottom, leave 50-100px margin)
+🚨 CRITICAL: Canvas Boundaries (A4 = 794x1123 pixels) - ABSOLUTE REQUIREMENT:
+- Canvas dimensions are FIXED: width = 794px, height = 1123px
+- ALL elements MUST satisfy these constraints:
+  * x >= 0 AND x + width <= 794 (element must fit horizontally)
+  * y >= 0 AND y + height <= 1123 (element must fit vertically)
+- BEFORE setting any element position, CALCULATE: x + width <= 794 and y + height <= 1123
+- If an element would overflow, REDUCE its width/height or move it to a valid position
+- NEVER create elements that violate these boundaries - they will cause rendering errors
+
+Recommended Safe Zones (with margins):
+- Header section: x: 40-60, y: 40-100, max width: 714px (794 - 80px margins), max y: 150
+- Seller section: x: 40-60, y: 150-250, max width: 350px
+- Customer section: x: 40-60 or 400-450, y: 150-250, max width: 350px
+- Invoice details: x: 400-450, y: 40-150, max width: 344px (794 - 450)
+- Items table: x: 40-60, y: 350-450, width: 700-714px MAX (794 - 80px margins), ensure x + width <= 794
+- Totals section: x: 500-550, y: 600-700, max width: 244px (794 - 550), ensure x + width <= 794
+- Footer: x: 40-60, y: 950-1050, max width: 714px, ensure y + height <= 1123
+
+VALIDATION CHECKLIST for each element:
+1. Is x >= 0? ✓
+2. Is y >= 0? ✓
+3. Is x + width <= 794? ✓ (CRITICAL - check this!)
+4. Is y + height <= 1123? ✓ (CRITICAL - check this!)
+5. If any check fails, ADJUST the element before including it in output
 
 Layout Guidelines:
 - Use consistent margins: 40-60px from edges
 - Vertical spacing: 20-40px between sections, 10-15px between related elements
 - Two-column layout for header: logo/org info (left), invoice details (right)
-- Table width should not exceed 714px (794 - 80px margins)
+- Table width calculation: MAX width = 794 - x - 40 (leave 40px right margin). If x=40, max width = 714px. ALWAYS verify: x + width <= 794
 - Ensure no overlapping elements - check x, y, width, height carefully
 - Group related elements visually (use boxes or consistent spacing)
 - Align elements to a grid for professional appearance
+
+🚨 ELEMENT POSITIONING VALIDATION (MANDATORY):
+Before including ANY element in the output, verify:
+1. Calculate: element.x + element.width. This MUST be <= 794
+2. Calculate: element.y + element.height. This MUST be <= 1123
+3. If either calculation fails, REDUCE width/height or adjust position
+4. For tables: table.x + table.width <= 794 (critical for wide tables)
+5. For text elements: text.x + text.width <= 794 (text can overflow if too wide)
+6. Double-check all numeric values are within bounds before finalizing
 
 Design Quality:
 - Avoid random or sloppy positioning - every element should have a clear purpose
@@ -331,7 +376,18 @@ CRITICAL: Data Accuracy Rules
 - Use the exact brand colors from the context, do not invent new colors
 - Use the exact currency from the context, do not assume a currency
 
-Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. Use only real data from the organization context provided.`;
+${options?.customPrompt ? `\n\nADDITIONAL USER INSTRUCTIONS:\n${options.customPrompt}\n\nPlease incorporate these specific requirements into the template design while maintaining compliance and professional appearance.` : ""}
+
+FINAL VALIDATION BEFORE OUTPUT:
+1. ✅ All monetary fields (total, subtotal, taxTotal, etc.) use Currency elements (NOT Input)
+2. ✅ All table price columns have type="currency" with currency code specified
+3. ✅ Every element satisfies: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
+4. ✅ No elements overflow canvas boundaries
+5. ✅ All required compliance fields have elements with correct bindings
+
+Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. Use only real data from the organization context provided.
+
+REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position.`;
   }
 
   private getStyleDescription(style: string): string {
@@ -345,21 +401,58 @@ Generate a complete template JSON with all elements properly configured, positio
   }
 
   /**
+   * Validate all elements are within canvas boundaries
+   */
+  private validateCanvasBounds(elements: TemplateElement[]): { valid: boolean; errors: string[] } {
+    const CANVAS_WIDTH = 794;
+    const CANVAS_HEIGHT = 1123;
+    const errors: string[] = [];
+    
+    for (const el of elements) {
+      if (el.x < 0) {
+        errors.push(`Element ${el.id} (${el.type}): x=${el.x} is negative`);
+      }
+      if (el.y < 0) {
+        errors.push(`Element ${el.id} (${el.type}): y=${el.y} is negative`);
+      }
+      if (el.x + el.width > CANVAS_WIDTH) {
+        errors.push(`Element ${el.id} (${el.type}): x + width = ${el.x + el.width} exceeds canvas width ${CANVAS_WIDTH}`);
+      }
+      if (el.y + el.height > CANVAS_HEIGHT) {
+        errors.push(`Element ${el.id} (${el.type}): y + height = ${el.y + el.height} exceeds canvas height ${CANVAS_HEIGHT}`);
+      }
+    }
+    
+    return { valid: errors.length === 0, errors };
+  }
+
+  /**
    * Clamp element position and size to fit within canvas boundaries (A4: 794x1123)
+   * This is a safety net - AI should generate elements within bounds, but we enforce it here
    */
   private clampToCanvas(element: { x: number; y: number; width: number; height: number }): void {
     const CANVAS_WIDTH = 794;
     const CANVAS_HEIGHT = 1123;
     
-    // Clamp position
+    // Clamp position to valid range
     element.x = Math.max(0, Math.min(element.x, CANVAS_WIDTH - 20));
     element.y = Math.max(0, Math.min(element.y, CANVAS_HEIGHT - 20));
     
-    // Clamp width to fit within canvas
-    element.width = Math.max(20, Math.min(element.width, CANVAS_WIDTH - element.x));
+    // Clamp width to ensure element fits within canvas
+    const maxWidth = CANVAS_WIDTH - element.x;
+    element.width = Math.max(20, Math.min(element.width, maxWidth));
     
-    // Clamp height to fit within canvas
-    element.height = Math.max(20, Math.min(element.height, CANVAS_HEIGHT - element.y));
+    // Clamp height to ensure element fits within canvas
+    const maxHeight = CANVAS_HEIGHT - element.y;
+    element.height = Math.max(20, Math.min(element.height, maxHeight));
+    
+    // Final validation: ensure x + width and y + height are within bounds
+    if (element.x + element.width > CANVAS_WIDTH) {
+      element.width = CANVAS_WIDTH - element.x;
+    }
+    if (element.y + element.height > CANVAS_HEIGHT) {
+      element.height = CANVAS_HEIGHT - element.y;
+    }
   }
 
   /**
@@ -368,7 +461,7 @@ Generate a complete template JSON with all elements properly configured, positio
   private enrichElements(
     elements: Array<{
       id: string;
-      type: "text" | "image" | "table" | "box" | "line" | "input";
+      type: "text" | "image" | "table" | "box" | "line" | "input" | "currency";
       x: number;
       y: number;
       width: number;
@@ -398,7 +491,7 @@ Generate a complete template JSON with all elements properly configured, positio
         
         enriched.push(element);
         // Track bindings
-        if (element.type === "text" || element.type === "input") {
+        if (element.type === "text" || element.type === "input" || element.type === "currency") {
           if (element.binding) existingBindings.add(element.binding);
         } else if (element.type === "table" && element.itemsBinding) {
           existingBindings.add(element.itemsBinding);
@@ -426,11 +519,22 @@ Generate a complete template JSON with all elements properly configured, positio
       }
     }
     
+    // Validate canvas boundaries
+    const boundsValidation = this.validateCanvasBounds(enriched);
+    if (!boundsValidation.valid) {
+      logger.warn("Canvas boundary violations detected, clamping elements", {
+        errors: boundsValidation.errors,
+        elementCount: enriched.length,
+      });
+      // Clamp all elements to ensure they fit
+      enriched.forEach(el => this.clampToCanvas(el));
+    }
+    
     // Final validation - log if any are still missing
     const finalBindings = new Set(
       enriched.flatMap(el => {
         const bindings: string[] = [];
-        if (el.type === "text" || el.type === "input") {
+        if (el.type === "text" || el.type === "input" || el.type === "currency") {
           if (el.binding) bindings.push(el.binding);
         } else if (el.type === "table" && el.itemsBinding) {
           bindings.push(el.itemsBinding);
@@ -531,8 +635,9 @@ Generate a complete template JSON with all elements properly configured, positio
             header: "Price",
             width: 100,
             align: "right",
-            type: "number",
+            type: "currency",
             binding: "unitPrice",
+            currency: "USD",
             format: { kind: "currency", currency: "USD" },
           },
           {
@@ -540,14 +645,28 @@ Generate a complete template JSON with all elements properly configured, positio
             header: "Total",
             width: 100,
             align: "right",
-            type: "number",
+            type: "currency",
             binding: "total",
+            currency: "USD",
             format: { kind: "currency", currency: "USD" },
           },
         ],
         designRows: [],
         itemsBinding: el.itemsBinding || "items",
         totals: [],
+      };
+    }
+
+    if (el.type === "currency") {
+      return {
+        ...base,
+        type: "currency",
+        placeholder: el.placeholder || "",
+        binding: el.binding,
+        currency: el.currency || "USD",
+        currencyLinks: el.currencyLinks || [],
+        mode: el.mode || "independent",
+        align: el.align || "right",
       };
     }
 
@@ -632,12 +751,17 @@ Generate a complete template JSON with all elements properly configured, positio
     
     if (field.binding === "items" || field.format === "array") {
       // Create table for items
+      // Ensure table fits within canvas: x + width <= 794
+      const tableX = 60;
+      const maxTableWidth = 794 - tableX - 40; // Leave 40px right margin
+      const tableWidth = Math.min(700, maxTableWidth); // Max 700px or whatever fits
+      
       return {
         id: `el-${Date.now()}-table`,
         type: "table",
-        x: 60,
+        x: tableX,
         y: yPosition,
-        width: 500,
+        width: tableWidth,
         height: 200,
         rotation: 0,
         zIndex: 1,
@@ -708,13 +832,58 @@ Generate a complete template JSON with all elements properly configured, positio
       };
     }
 
-    // Create text element
+    // Check if this is a monetary field - use Currency element instead of Text
+    const isMonetaryField = 
+      field.format === "currency" ||
+      field.format === "number" ||
+      field.binding.toLowerCase().includes("amount") ||
+      field.binding.toLowerCase().includes("total") ||
+      field.binding.toLowerCase().includes("subtotal") ||
+      field.binding.toLowerCase().includes("tax") ||
+      field.binding.toLowerCase().includes("vat") ||
+      field.binding.toLowerCase().includes("price") ||
+      field.binding.toLowerCase().includes("fee") ||
+      field.binding.toLowerCase().includes("discount") ||
+      field.binding.toLowerCase().includes("cost");
+    
+    if (isMonetaryField) {
+      // Create Currency element for monetary values
+      // Ensure it fits within canvas: x + width <= 794
+      const currencyX = 550; // Right-aligned for totals
+      const maxWidth = 794 - currencyX - 40; // Leave 40px right margin
+      const currencyWidth = Math.min(200, maxWidth);
+      
+      return {
+        id: `el-${Date.now()}-currency`,
+        type: "currency",
+        x: currencyX,
+        y: yPosition,
+        width: currencyWidth,
+        height: 32,
+        rotation: 0,
+        zIndex: 1,
+        visible: true,
+        placeholder: "0.00",
+        binding: field.binding,
+        currency: "USD", // Will be overridden by organization currency if available
+        currencyLinks: [],
+        mode: "independent",
+        align: "right",
+      };
+    }
+    
+    // Create text element for non-monetary fields
+    // Ensure it fits within canvas: x + width <= 794
+    const textX = 60;
+    const maxTextWidth = 794 - textX - 40; // Leave 40px right margin
+    const textWidth = Math.min(200, maxTextWidth);
+    
     return {
       id: `el-${Date.now()}-text`,
       type: "text",
-      x: 60,
+      x: textX,
       y: yPosition,
-      width: 200,
+      width: textWidth,
       height: 40,
       rotation: 0,
       zIndex: 1,
@@ -734,9 +903,7 @@ Generate a complete template JSON with all elements properly configured, positio
         uppercase: false,
         lowercase: false,
       },
-      format: field.format === "number" || field.binding.includes("Amount") || field.binding.includes("Total")
-        ? { kind: "currency", currency: "USD" }
-        : { kind: "none" },
+      format: { kind: "none" },
     };
   }
 

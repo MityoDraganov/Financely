@@ -16,6 +16,7 @@ interface GenerateInvoiceTemplatePayload {
   options?: {
     style?: "modern" | "classic" | "minimal" | "professional";
     includeLogo?: boolean;
+    customPrompt?: string;
   };
 }
 

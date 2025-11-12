@@ -280,6 +280,7 @@ export interface FunctionsService {
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       includeLogo?: boolean;
+      customPrompt?: string;
     };
   }): Promise<{
     orgId: string;

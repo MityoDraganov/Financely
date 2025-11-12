@@ -17,6 +17,7 @@ export const useGenerateInvoiceTemplate = () => {
       options?: {
         style?: "modern" | "classic" | "minimal" | "professional";
         includeLogo?: boolean;
+        customPrompt?: string;
       };
     }): Promise<TemplateData> => {
       const result = await functionsService.generateInvoiceTemplate({

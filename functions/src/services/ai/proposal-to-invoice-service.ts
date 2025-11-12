@@ -118,6 +118,11 @@ export class ProposalToInvoiceService {
         if (inputEl.binding) {
           bindings.add(inputEl.binding);
         }
+      } else if (element.type === "currency") {
+        const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
+        if (currencyEl.binding) {
+          bindings.add(currencyEl.binding);
+        }
       } else if (element.type === "image") {
         // Image elements may have optional binding property
         const imageEl = element as Extract<TemplateElement, { type: "image" }> & { binding?: string };

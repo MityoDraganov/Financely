@@ -107,7 +107,11 @@ export default function CreateInvoicePage() {
       } else if (element.type === "input") {
         const inputEl = element as Extract<TemplateElement, { type: "input" }>;
         binding = inputEl.binding;
-        type = inputEl.variant || "text";
+        type = inputEl.variant === "number" ? "number" : inputEl.variant === "date" ? "date" : "text";
+      } else if (element.type === "currency") {
+        const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
+        binding = currencyEl.binding;
+        type = "number"; // Currency fields are numeric
       } else if (element.type === "image") {
         const imageEl = element as Extract<TemplateElement, { type: "image" }>;
         binding = imageEl.binding;

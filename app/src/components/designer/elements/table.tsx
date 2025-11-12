@@ -9,9 +9,25 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { TemplateElement } from "@/core";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown } from "lucide-react";
+import { CURRENCIES, getCurrency } from "@/utils/currencies";
+import { cn } from "@/lib/utils";
+import { CurrencyFieldLinking } from "../currency-field-linking";
 
 interface TableElementProps {
 	element: Extract<TemplateElement, { type: "table" }>;
@@ -278,7 +294,17 @@ export function TableProperties({
 										value={c.type ?? "text"}
 										onValueChange={(v) => {
 											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-											const next = base.map((col) => (col.id === c.id ? { ...col, type: v as "text" | "number" | "date" } : col));
+											const newType = v as "text" | "number" | "date" | "currency";
+											const updatedCol = { ...c, type: newType };
+											
+											// Initialize currency fields when switching to currency type
+											if (newType === "currency" && !updatedCol.currency) {
+												updatedCol.currency = "USD";
+												updatedCol.mode = "independent";
+												updatedCol.currencyLinks = [];
+											}
+											
+											const next = base.map((col) => (col.id === c.id ? updatedCol : col));
 											onChange({ ...tbl, columns: next });
 										}}
 									>
@@ -289,6 +315,7 @@ export function TableProperties({
 											<SelectItem value="text">Text</SelectItem>
 											<SelectItem value="number">Number</SelectItem>
 											<SelectItem value="date">Date</SelectItem>
+											<SelectItem value="currency">Currency</SelectItem>
 										</SelectContent>
 									</Select>
 									<Button
@@ -304,6 +331,142 @@ export function TableProperties({
 										Remove
 									</Button>
 								</div>
+								
+								{/* Currency-specific configuration */}
+								{c.type === "currency" && (
+									<div className="space-y-2 pt-2 pl-2 border-l-2 border-blue-200 bg-blue-50/30 rounded">
+										<div className="text-xs font-medium text-blue-900">Currency Configuration</div>
+										<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+											<div className="space-y-1 col-span-2">
+												<Label className="text-xs">Currency</Label>
+												<Popover>
+													<PopoverTrigger asChild>
+														<Button
+															variant="outline"
+															role="combobox"
+															className="w-full justify-between h-9 text-xs"
+														>
+															{c.currency
+																? (() => {
+																		const curr = getCurrency(c.currency || "USD");
+																		return curr
+																			? `${curr.code} - ${curr.name}${curr.symbol ? ` (${curr.symbol})` : ""}`
+																			: c.currency;
+																	})()
+																: "Select currency..."}
+															<ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+														</Button>
+													</PopoverTrigger>
+													<PopoverContent className="w-[300px] p-0" align="start">
+														<Command>
+															<CommandInput placeholder="Search currency..." />
+															<CommandList>
+																<CommandEmpty>No currency found.</CommandEmpty>
+																<CommandGroup>
+																	{CURRENCIES.map((curr) => (
+																		<CommandItem
+																			key={curr.code}
+																			value={`${curr.code} ${curr.name} ${curr.symbol || ""}`}
+																			onSelect={() => {
+																				const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																				const next = base.map((col) => 
+																					col.id === c.id 
+																						? { ...col, currency: curr.code }
+																						: col
+																				);
+																				onChange({ ...tbl, columns: next });
+																			}}
+																			className="text-xs cursor-pointer"
+																		>
+																			<Check
+																				className={cn(
+																					"mr-2 h-3 w-3",
+																					c.currency === curr.code
+																						? "opacity-100"
+																						: "opacity-0"
+																				)}
+																			/>
+																			<span className="font-medium">{curr.code}</span>
+																			<span className="ml-2 text-neutral-500">
+																				- {curr.name}
+																			</span>
+																			{curr.symbol && (
+																				<span className="ml-1 text-neutral-400">
+																					({curr.symbol})
+																				</span>
+																			)}
+																		</CommandItem>
+																	))}
+																</CommandGroup>
+															</CommandList>
+														</Command>
+													</PopoverContent>
+												</Popover>
+											</div>
+											
+											<div className="space-y-1">
+												<Label className="text-xs">Mode</Label>
+												<Select
+													value={c.mode || "independent"}
+													onValueChange={(v) => {
+														const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+														const next = base.map((col) => 
+															col.id === c.id 
+																? { ...col, mode: v as "independent" | "linked" | "formula" }
+																: col
+														);
+														onChange({ ...tbl, columns: next });
+													}}
+												>
+													<SelectTrigger>
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="independent">Independent</SelectItem>
+														<SelectItem value="linked">Linked</SelectItem>
+														<SelectItem value="formula" disabled>Formula (Coming Soon)</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+										</div>
+										
+										{/* Field Linking UI for currency columns */}
+										{c.mode === "linked" && (
+											<div className="pt-2">
+												<CurrencyFieldLinking
+													currentField={{
+														...c,
+														id: c.id,
+														type: "currency" as const,
+														x: 0,
+														y: 0,
+														width: 0,
+														height: 0,
+														rotation: 0,
+														zIndex: 0,
+														visible: true,
+														placeholder: "",
+														currency: c.currency || "USD",
+														currencyLinks: c.currencyLinks || [],
+														mode: c.mode || "independent",
+														align: c.align,
+													}}
+													allFields={allElements || []}
+													onLinkChange={(links) => {
+														const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+														const next = base.map((col) => 
+															col.id === c.id 
+																? { ...col, currencyLinks: links }
+																: col
+														);
+														onChange({ ...tbl, columns: next });
+													}}
+												/>
+											</div>
+										)}
+									</div>
+								)}
+								
 								<div className="h-px bg-border" />
 							</div>
 						));

@@ -3,7 +3,7 @@ import { baseEntitySchema } from "./base";
 
 export const templateElementBaseSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["text", "image", "table", "box", "line", "input"]),
+  type: z.enum(["text", "image", "table", "box", "line", "input", "currency"]),
   x: z.number().min(0),
   y: z.number().min(0),
   width: z.number().min(0),
@@ -94,12 +94,32 @@ export const inputElementSchema = templateElementBaseSchema.extend({
   align: z.enum(["left", "center", "right"]).default("left"),
 });
 
+export const currencyElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("currency"),
+  placeholder: z.string().default(""),
+  binding: z.string().optional(),
+  currency: z.string().length(3).default("USD"), // ISO 4217 currency code (e.g., "USD", "EUR")
+  currencyLinks: z.array(z.object({
+    id: z.string().min(1),
+    sourceFieldId: z.string().min(1),
+    linkType: z.enum(["FX_PAIR", "FIXED_MULTIPLIER", "FORMULA"]),
+    targetCurrency: z.string().length(3).optional(),
+    multiplier: z.number().optional(),
+    formula: z.string().optional(),
+    rateSource: z.enum(["api", "manual"]).optional(),
+    rateDate: z.string().optional(),
+    rate: z.number().optional(),
+  })).default([]),
+  mode: z.enum(["independent", "linked", "formula"]).default("independent"),
+  align: z.enum(["left", "center", "right"]).default("left"),
+});
+
 export const tableColumnSchema = z.object({
   id: z.string().min(1),
   header: z.string().default("Column"),
   width: z.number().min(20).default(80),
   align: z.enum(["left", "center", "right"]).default("left"),
-  type: z.enum(["text", "number", "date"]).default("text"),
+  type: z.enum(["text", "number", "date", "currency"]).default("text"),
   binding: z.string().optional(),
   calc: z.string().optional(),
   format: z
@@ -109,6 +129,20 @@ export const tableColumnSchema = z.object({
       dateFormat: z.string().optional(),
     })
     .default({ kind: "none" }),
+  // Currency-specific fields (similar to currency element)
+  currency: z.string().length(3).optional(), // ISO 4217 currency code (e.g., "USD", "EUR")
+  currencyLinks: z.array(z.object({
+    id: z.string().min(1),
+    sourceFieldId: z.string().min(1),
+    linkType: z.enum(["FX_PAIR", "FIXED_MULTIPLIER", "FORMULA"]),
+    targetCurrency: z.string().length(3).optional(),
+    multiplier: z.number().optional(),
+    formula: z.string().optional(),
+    rateSource: z.enum(["api", "manual"]).optional(),
+    rateDate: z.string().optional(),
+    rate: z.number().optional(),
+  })).optional(), // Field linking configuration
+  mode: z.enum(["independent", "linked", "formula"]).optional(), // Field mode
 });
 
 export const tableElementSchema = templateElementBaseSchema.extend({
@@ -146,6 +180,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   boxElementSchema,
   lineElementSchema,
   inputElementSchema,
+  currencyElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;

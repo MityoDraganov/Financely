@@ -111,7 +111,7 @@ export const tableColumnSchema = z.object({
   header: z.string().default("Column"),
   width: z.number().min(20).default(80),
   align: z.enum(["left", "center", "right"]).default("left"),
-  type: z.enum(["text", "number", "date"]).default("text"),
+  type: z.enum(["text", "number", "date", "currency"]).default("text"),
   binding: z.string().optional(),
   calc: z.string().optional(),
   format: z
@@ -121,6 +121,10 @@ export const tableColumnSchema = z.object({
       dateFormat: z.string().optional(),
     })
     .default({ kind: "none" }),
+  // Currency-specific fields (similar to currency element)
+  currency: z.string().length(3).optional(), // ISO 4217 currency code (e.g., "USD", "EUR")
+  currencyLinks: z.array(currencyFieldLinkSchema).optional(), // Field linking configuration
+  mode: z.enum(["independent", "linked", "formula"]).optional(), // Field mode
 });
 
 export const tableElementSchema = templateElementBaseSchema.extend({

@@ -3,7 +3,7 @@ import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { getStorage } from "firebase-admin/storage";
-import { Template } from "../core/entities/template";
+import { Template, TemplateElement } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
 import puppeteer from "puppeteer";
 import chromium from "@sparticuz/chromium";
@@ -222,6 +222,81 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       `;
     }
 
+    if (el.type === "input") {
+      const inp = el as Extract<TemplateElement, { type: "input" }>;
+      const boundValue = inp.binding ? getByPath(invoice.data, inp.binding) : undefined;
+      const displayValue = boundValue != null ? String(boundValue) : "";
+      
+      return `
+        <div style="${commonStyle}">
+          <div style="
+            width: 100%;
+            height: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            color: ${displayValue ? "#111827" : "#9ca3af"};
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            text-align: ${inp.align || "left"};
+            overflow: hidden;
+            box-sizing: border-box;
+          ">${displayValue || inp.placeholder || ""}</div>
+        </div>
+      `;
+    }
+
+    if (el.type === "currency") {
+      const curr = el as Extract<TemplateElement, { type: "currency" }>;
+      const boundValue = curr.binding ? getByPath(invoice.data, curr.binding) : undefined;
+      
+      // Format as currency
+      let displayValue = "";
+      if (boundValue != null) {
+        const num = Number(boundValue);
+        if (Number.isFinite(num)) {
+          const currency = curr.currency || "USD";
+          try {
+            const formatter = new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency,
+            });
+            displayValue = formatter.format(num);
+          } catch {
+            displayValue = `${currency} ${num.toFixed(2)}`;
+          }
+        } else {
+          displayValue = String(boundValue);
+        }
+      }
+      
+      return `
+        <div style="${commonStyle}">
+          <div style="
+            width: 100%;
+            height: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            color: ${displayValue ? "#111827" : "#9ca3af"};
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-align: ${curr.align || "left"};
+            overflow: hidden;
+            box-sizing: border-box;
+          ">
+            <span style="font-size: 10px; color: #6b7280; font-weight: 500;">${curr.currency || "USD"}</span>
+            <span style="flex: 1;">${displayValue || curr.placeholder || "0.00"}</span>
+          </div>
+        </div>
+      `;
+    }
+
     if (el.type === "table") {
       const items = getByPath(invoice.data, el.itemsBinding) as Array<Record<string, unknown>> || [];
 
@@ -233,10 +308,36 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         const cellsHTML = el.columns.map((col) => {
           const binding = col.binding || col.id;
           const raw = getByPath(row, binding);
-          // Use formatValue to handle objects, arrays, and null/undefined properly
-          const text = raw != null && raw !== undefined 
-            ? formatValue(raw, col.format)
-            : "";
+          
+          // Handle currency type columns
+          let text: string;
+          if (col.type === "currency") {
+            if (raw != null && raw !== undefined) {
+              const num = Number(raw);
+              if (Number.isFinite(num)) {
+                const currency = col.currency || col.format?.currency || "USD";
+                try {
+                  const formatter = new Intl.NumberFormat(undefined, {
+                    style: "currency",
+                    currency,
+                  });
+                  text = formatter.format(num);
+                } catch {
+                  text = `${currency} ${num.toFixed(2)}`;
+                }
+              } else {
+                text = String(raw);
+              }
+            } else {
+              text = "";
+            }
+          } else {
+            // Use formatValue to handle objects, arrays, and null/undefined properly
+            text = raw != null && raw !== undefined 
+              ? formatValue(raw, col.format)
+              : "";
+          }
+          
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";
 
           return `

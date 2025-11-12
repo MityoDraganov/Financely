@@ -167,6 +167,61 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             );
         }
 
+        if (el.type === "currency") {
+            const curr = el as Extract<TemplateElement, { type: "currency" }>;
+            // Get the bound value from context
+            const boundValue = curr.binding ? getByPath<unknown>(context, curr.binding) : undefined;
+            
+            // Format as currency
+            let displayValue = "";
+            if (boundValue != null) {
+                const num = Number(boundValue);
+                if (Number.isFinite(num)) {
+                    const currency = curr.currency || "USD";
+                    const formatter = new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency,
+                    });
+                    displayValue = formatter.format(num);
+                } else {
+                    displayValue = String(boundValue);
+                }
+            }
+            
+            // Determine text alignment
+            const textAlign = curr.align || "left";
+            
+            return (
+                <div key={curr.id} style={commonStyle}>
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "4px",
+                            padding: `${4 * zoom}px ${8 * zoom}px`,
+                            fontSize: 12 * zoom,
+                            color: displayValue ? "#111827" : "#9ca3af",
+                            backgroundColor: "#ffffff",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: `${4 * zoom}px`,
+                            textAlign,
+                            overflow: "hidden",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        <span style={{ fontSize: 10 * zoom, color: "#6b7280", fontWeight: 500 }}>
+                            {curr.currency || "USD"}
+                        </span>
+                        <span style={{ flex: 1 }}>
+                            {displayValue || curr.placeholder || "0.00"}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
+
         if (el.type === "table") {
             const tbl = el as Extract<TemplateElement, { type: "table" }>;
             const items = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];
@@ -186,7 +241,29 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                     {tbl.columns.map((c) => {
                                         const columnBinding = c.binding || c.id;
                                         const raw = getByPath<unknown>(row, columnBinding);
-                                        const text = formatValue(raw, c.format?.kind ?? "none", c.format?.currency, c.format?.dateFormat);
+                                        
+                                        // Handle currency type columns
+                                        let text: string;
+                                        if (c.type === "currency") {
+                                            if (raw != null) {
+                                                const num = Number(raw);
+                                                if (Number.isFinite(num)) {
+                                                    const currency = c.currency || c.format?.currency || "USD";
+                                                    const formatter = new Intl.NumberFormat(undefined, {
+                                                        style: "currency",
+                                                        currency,
+                                                    });
+                                                    text = formatter.format(num);
+                                                } else {
+                                                    text = String(raw);
+                                                }
+                                            } else {
+                                                text = "";
+                                            }
+                                        } else {
+                                            text = formatValue(raw, c.format?.kind ?? "none", c.format?.currency, c.format?.dateFormat);
+                                        }
+                                        
                                         const justify = c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start";
                                         
                                         return (

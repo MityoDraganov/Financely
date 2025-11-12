@@ -58,6 +58,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { isRequiredBinding, getFieldMetadata } from "@/utils/invoice-compliance";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
@@ -120,6 +121,7 @@ export default function TemplateDesignerPage() {
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional">("modern");
 	const [aiIncludeLogo, setAiIncludeLogo] = useState(true);
+	const [aiPrompt, setAiPrompt] = useState("");
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
@@ -2315,7 +2317,13 @@ export default function TemplateDesignerPage() {
 			</ResizablePanelGroup>
 
 			{/* AI Builder Dialog */}
-			<Dialog open={aiBuilderOpen} onOpenChange={setAiBuilderOpen}>
+			<Dialog open={aiBuilderOpen} onOpenChange={(open) => {
+				setAiBuilderOpen(open);
+				if (!open) {
+					// Reset prompt when dialog closes
+					setAiPrompt("");
+				}
+			}}>
 				<DialogContent className="max-w-md">
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
@@ -2356,6 +2364,20 @@ export default function TemplateDesignerPage() {
 								className="h-4 w-4 rounded border-gray-300"
 							/>
 						</div>
+						<div className="space-y-2">
+							<Label htmlFor="ai-prompt">Additional Instructions (Optional)</Label>
+							<Textarea
+								id="ai-prompt"
+								placeholder="E.g., 'Use a two-column layout for the header', 'Make the totals section more prominent', 'Add a payment terms section'..."
+								value={aiPrompt}
+								onChange={(e) => setAiPrompt(e.target.value)}
+								className="min-h-[80px] resize-none"
+								rows={3}
+							/>
+							<p className="text-xs text-neutral-500">
+								Provide any specific design preferences or requirements for the template.
+							</p>
+						</div>
 						{currentOrg && (
 							<div className="text-xs text-neutral-500">
 								Region: {currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg)}
@@ -2385,6 +2407,7 @@ export default function TemplateDesignerPage() {
 										options: {
 											style: aiStyle,
 											includeLogo: aiIncludeLogo,
+											customPrompt: aiPrompt.trim() || undefined,
 										},
 									});
 
