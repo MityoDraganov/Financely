@@ -42,6 +42,8 @@ export default function InvitesPage() {
     switch (status) {
       case "active":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "sent":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "used":
         return <CheckCircle className="h-4 w-4 text-blue-500" />;
       case "expired":
@@ -57,6 +59,8 @@ export default function InvitesPage() {
     switch (status) {
       case "active":
         return <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>;
+      case "sent":
+        return <Badge variant="default" className="bg-green-100 text-green-800">Sent</Badge>;
       case "used":
         return <Badge variant="default" className="bg-blue-100 text-blue-800">Used</Badge>;
       case "expired":
@@ -196,7 +200,7 @@ export default function InvitesPage() {
                         <Copy className="h-4 w-4 mr-1" />
                         Copy
                       </Button>
-                      {invite.status === "active" && !isExpired(invite.expiresAt) && (
+                      {(invite.status === "active" || invite.status === "sent") && !isExpired(invite.expiresAt) && (
                         <Button
                           variant="outline"
                           size="sm"

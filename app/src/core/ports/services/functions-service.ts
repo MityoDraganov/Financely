@@ -87,6 +87,10 @@ export interface FunctionsService {
     organizationId: string;
   }): Promise<{ sent: boolean }>;
 
+  acceptInvite(payload: {
+    code: string;
+  }): Promise<{ success: boolean; organizationId: string; message: string }>;
+
   /**
    * Create a workflow with the specified configuration.
    * 

@@ -63,7 +63,11 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       });
 
       // Prepare email content
-      const inviteUrl = `https://financely.app/accept-invite?token=${inviteData.token}`;
+      // Use code instead of token - invites have a code field, not token
+      if (!inviteData.code) {
+        throw new HttpsError("internal", "Invite code is missing");
+      }
+      const inviteUrl = `https://financely.app/accept-invite?code=${inviteData.code}`;
       const subject = `You're invited to join ${orgData.name}`;
       const html = `
         <h1>You're Invited!</h1>
@@ -78,12 +82,23 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       `;
 
       // Send the email
-      await emailService.sendEmail({
+      const emailResult = await emailService.sendEmail({
         to: { email: inviteData.email, name: inviteData.name },
         from: { email: resendFromEmail.value(), name: resendFromName.value() },
         subject,
         html,
       });
+
+      // Check if email was actually sent
+      if (!emailResult.success) {
+        loggerService.error("Failed to send invite email", {
+          inviteId,
+          email: inviteData.email,
+          error: emailResult.error,
+          organizationName: orgData.name,
+        });
+        throw new HttpsError("internal", `Failed to send invite email: ${emailResult.error || 'Unknown error'}`);
+      }
 
       // Update invite status to "sent"
       await db.collection("invites").doc(inviteId).update({
@@ -94,6 +109,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       loggerService.info("Invite email sent successfully", {
         inviteId,
         email: inviteData.email,
+        messageId: emailResult.messageId,
         organizationName: orgData.name,
       });
 

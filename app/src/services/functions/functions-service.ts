@@ -61,6 +61,14 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async acceptInvite(payload: { code: string }): Promise<{ success: boolean; organizationId: string; message: string }> {
+    const result = await httpsCallable<{ code: string }, { success: boolean; organizationId: string; message: string }>(
+      firebase.functions,
+      "acceptInvite",
+    )(payload);
+    return result.data;
+  },
+
   async createWorkflow(payload) {
     type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
     const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(

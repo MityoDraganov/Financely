@@ -11,9 +11,9 @@ export interface InviteService {
   getInvites: (organizationId: string) => Promise<Invite[]>;
   getInviteByToken: (token: string) => Promise<Invite | null>;
   getInviteByCode: (code: string) => Promise<Invite | null>;
-  acceptInvite: (code: string, user: AuthUser) => Promise<void>;
-  revokeInvite: (inviteId: string) => Promise<void>;
-  resendInvite: (inviteId: string) => Promise<void>;
+  acceptInvite: (code: string, user: AuthUser) => Promise<void>; // user param kept for interface compatibility but not used (Cloud Function gets user from auth)
+  revokeInvite: (inviteId: string) => Promise<Invite>;
+  resendInvite: (inviteId: string) => Promise<Invite>;
   getOrganizationName: (organizationId: string) => Promise<string>;
   addUserToOrganization: (organizationId: string, userId: string, role: string) => Promise<void>;
 }
@@ -60,7 +60,7 @@ export const inviteService: InviteService = {
       DatabaseCollection.INVITES,
       [
         { field: "organizationId", operator: "==", value: organizationId },
-        { field: "status", operator: "==", value: "pending" }
+        { field: "status", operator: "==", value: "active" }
       ],
       { limit: 50 },
       { field: "createdAt", direction: "desc" }
@@ -81,49 +81,25 @@ export const inviteService: InviteService = {
     );
   },
 
-  async acceptInvite(code: string, user: AuthUser) {
-    // Get the invite by code
-    const invite = await this.getInviteByCode(code);
-    if (!invite) {
-      throw new Error("Invalid invite code");
-    }
-
-    // Check if invite is still valid
-    if (invite.status !== "active") {
-      throw new Error("Invite has already been used or revoked");
-    }
-
-    if (new Date(invite.expiresAt) < new Date()) {
-      throw new Error("Invite has expired");
-    }
-
-    // Update the invite status
-    await databaseService.update(
-      DatabaseCollection.INVITES,
-      invite.id,
-      {
-        status: "used",
-        usedAt: new Date().toISOString(),
-        usedBy: user.uid,
-      }
-    );
-
-    // Add user to organization with member role
-    await inviteService.addUserToOrganization(invite.organizationId, user.uid, "member");
-
-    // Send welcome email
-    try {
-      await functionsService.sendWelcomeEmail({
-        userId: user.uid,
-        organizationId: invite.organizationId,
-      });
-    } catch (error) {
-      console.error("Failed to send welcome email:", error);
-      // Don't throw here - the user is still added to the organization
-    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async acceptInvite(code: string, _user: AuthUser) {
+    // Call the Cloud Function to accept the invite
+    // This ensures server-side validation, transaction safety, and prevents race conditions
+    // The user is authenticated via Firebase Auth in the Cloud Function, so user param is kept for interface compatibility but not used
+    await functionsService.acceptInvite({ code });
   },
 
-  async revokeInvite(inviteId: string) {
+  async revokeInvite(inviteId: string): Promise<Invite> {
+    // Get the invite first to return it with organizationId
+    const invite = await databaseService.get<Invite>(
+      DatabaseCollection.INVITES,
+      inviteId
+    );
+    
+    if (!invite) {
+      throw new Error("Invite not found");
+    }
+
     await databaseService.update(
       DatabaseCollection.INVITES,
       inviteId,
@@ -132,9 +108,16 @@ export const inviteService: InviteService = {
         revokedAt: new Date().toISOString(),
       }
     );
+
+    // Return updated invite with organizationId
+    return {
+      ...invite,
+      status: "revoked",
+      revokedAt: new Date().toISOString(),
+    };
   },
 
-  async resendInvite(inviteId: string) {
+  async resendInvite(inviteId: string): Promise<Invite> {
     const invite = await databaseService.get<Invite>(
       DatabaseCollection.INVITES,
       inviteId
@@ -144,8 +127,9 @@ export const inviteService: InviteService = {
       throw new Error("Invite not found");
     }
 
-    if (invite.status !== "active") {
-      throw new Error("Can only resend active invites");
+    // Allow resending invites that are "active" (not yet sent) or "sent" (already sent but can be resent)
+    if (invite.status !== "active" && invite.status !== "sent") {
+      throw new Error("Can only resend active or sent invites");
     }
 
     // Send email via Cloud Function
@@ -153,6 +137,8 @@ export const inviteService: InviteService = {
       inviteId: inviteId,
       organizationId: invite.organizationId,
     });
+
+    return invite;
   },
 
   // Helper methods

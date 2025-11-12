@@ -7,7 +7,7 @@ export const inviteDataSchema = z.object({
   invitedBy: z.string().min(1), // User ID who created the invite
   email: z.string().email(), // Email of the person being invited
   role: z.enum(["admin", "member", "viewer"]).default("member"), // Role for the invite
-  status: z.enum(["active", "used", "expired", "revoked"]).default("active"),
+  status: z.enum(["active", "sent", "used", "expired", "revoked"]).default("active"),
   expiresAt: z.string(), // ISO date string
   usedAt: z.string().optional(), // ISO date string when used
   usedBy: z.string().optional(), // User ID who used the invite
@@ -38,7 +38,8 @@ export type CreateInviteInput = Pick<InviteData, "organizationId" | "invitedBy" 
 export function isInviteActive(invite: Invite): boolean {
   const now = new Date();
   const expiresAt = new Date(invite.expiresAt);
-  return invite.status === "active" && expiresAt > now;
+  // An invite is active if it's in "active" or "sent" status and not expired
+  return (invite.status === "active" || invite.status === "sent") && expiresAt > now;
 }
 
 /**

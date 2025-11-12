@@ -33,6 +33,7 @@ export {
 
 // Invite functions
 export { createInvite } from "./functions/create-invite";
+export { acceptInvite } from "./functions/accept-invite";
 export { revokeInvite } from "./functions/revoke-invite";
 
 // Email functions

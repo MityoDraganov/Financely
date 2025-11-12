@@ -50,11 +50,16 @@ export function useAcceptInvite() {
         throw new Error("User not authenticated");
       }
 
+      // Cloud Function gets user from Firebase Auth, so we don't need to pass it
       return inviteService.acceptInvite(code, authUser);
     },
     onSuccess: () => {
       toast.success("Successfully joined the organization!");
+      // Invalidate all organization-related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["current-organization"] });
     },
     onError: (error) => {
       toast.error(`Failed to accept invite: ${error.message}`);
@@ -67,9 +72,10 @@ export function useRevokeInvite() {
 
   return useMutation({
     mutationFn: inviteService.revokeInvite,
-    onSuccess: () => {
+    onSuccess: (invite) => {
       toast.success("Invite revoked");
-      queryClient.invalidateQueries({ queryKey: ["invites"] });
+      // Invalidate the specific organization's invites query
+      queryClient.invalidateQueries({ queryKey: ["invites", invite.organizationId] });
     },
     onError: (error) => {
       toast.error(`Failed to revoke invite: ${error.message}`);
@@ -78,10 +84,14 @@ export function useRevokeInvite() {
 }
 
 export function useResendInvite() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: inviteService.resendInvite,
-    onSuccess: () => {
+    onSuccess: (invite) => {
       toast.success("Invite resent");
+      // Invalidate the specific organization's invites query
+      queryClient.invalidateQueries({ queryKey: ["invites", invite.organizationId] });
     },
     onError: (error) => {
       toast.error(`Failed to resend invite: ${error.message}`);

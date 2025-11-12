@@ -50,7 +50,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
       setEmail("");
       setRole("member");
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       // Error is handled by the mutation
     }
   };
