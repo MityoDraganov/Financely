@@ -500,4 +500,61 @@ export interface FunctionsService {
     translations: Record<string, string>;
     translatedCount: number;
   }>;
+
+  /**
+   * Generate consent banner styling using AI
+   * 
+   * @param payload - The generation payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.options - Optional generation options (style, context, existingStyling)
+   * @returns Promise with generated styling
+   */
+  generateConsentBanner(payload: {
+    organizationId: string;
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional" | "bold" | "elegant";
+      context?: string;
+      existingStyling?: Partial<{
+        backgroundColor: string;
+        textColor: string;
+        buttonBackgroundColor: string;
+        buttonTextColor: string;
+        linkColor: string;
+        borderColor: string;
+        borderRadius: string;
+        padding: string;
+        fontSize: string;
+        fontFamily: string;
+        fontWeight: string;
+        shadow: string;
+        position: "bottom" | "top" | "center";
+        maxWidth: string;
+        acceptButtonText: string;
+        rejectButtonText: string;
+        message: string;
+        showRejectButton: boolean;
+      }>;
+    };
+  }): Promise<{
+    styling: {
+      backgroundColor: string;
+      textColor: string;
+      buttonBackgroundColor: string;
+      buttonTextColor: string;
+      linkColor: string;
+      borderColor: string;
+      borderRadius: string;
+      padding: string;
+      fontSize: string;
+      fontFamily: string;
+      fontWeight: string;
+      shadow: string;
+      position: "bottom" | "top" | "center";
+      maxWidth: string;
+      acceptButtonText: string;
+      rejectButtonText: string;
+      message: string;
+      showRejectButton: boolean;
+    };
+  }>;
 }

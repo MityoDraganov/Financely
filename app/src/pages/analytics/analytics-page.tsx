@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart3, Settings, ExternalLink, CheckCircle2, XCircle, Calendar, Monitor, Globe, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { ConsentBannerCustomizer } from "@/components/analytics/consent-banner-customizer";
+import { ConsentBannerStyling, consentBannerStylingSchema } from "@/core/entities/analytics-config";
 
 export default function AnalyticsPage() {
   const { data: organization, isLoading: orgLoading } = useCurrentOrganization();
@@ -61,6 +63,7 @@ export default function AnalyticsPage() {
     consentDefault: "denied" | "granted";
     bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
     enableBigQueryServerLogs: boolean;
+    consentBannerStyling?: ConsentBannerStyling;
   }>({
     enabled: false,
     enableGA4: false,
@@ -97,6 +100,19 @@ export default function AnalyticsPage() {
         }
       }
       
+      // Parse consent banner styling if it exists, otherwise use defaults
+      let consentBannerStyling: ConsentBannerStyling | undefined;
+      if (analyticsConfig.consentBannerStyling) {
+        // Validate and parse existing styling
+        const parsed = consentBannerStylingSchema.safeParse(analyticsConfig.consentBannerStyling);
+        if (parsed.success) {
+          consentBannerStyling = parsed.data;
+        } else {
+          // Use defaults if parsing fails
+          consentBannerStyling = consentBannerStylingSchema.parse({});
+        }
+      }
+      
       setLocalConfig({
         enabled: analyticsConfig.enabled ?? false,
         enableGA4,
@@ -109,8 +125,9 @@ export default function AnalyticsPage() {
         umamiScriptUrl: analyticsConfig.umamiScriptUrl ?? "",
         umamiWebsiteId: analyticsConfig.umamiWebsiteId ?? "",
         consentDefault: analyticsConfig.consentDefault ?? "denied",
-        bannerProvider: analyticsConfig.bannerProvider ?? "custom",
+        bannerProvider: "custom", // Always use custom banner provider
         enableBigQueryServerLogs: analyticsConfig.enableBigQueryServerLogs ?? false,
+        consentBannerStyling,
       });
     }
   }, [analyticsConfig]);
@@ -128,7 +145,7 @@ export default function AnalyticsPage() {
         enableUmami: boolean;
         enableClarity: boolean;
         consentDefault: "denied" | "granted";
-        bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
+        bannerProvider: "custom";
         enableBigQueryServerLogs: boolean;
         orgId: string;
         siteId?: string;
@@ -138,6 +155,7 @@ export default function AnalyticsPage() {
         plausibleDomain?: string;
         umamiScriptUrl?: string;
         umamiWebsiteId?: string;
+        consentBannerStyling?: ConsentBannerStyling;
       } = {
         enabled: localConfig.enabled,
         enableGA4: localConfig.enableGA4,
@@ -145,12 +163,17 @@ export default function AnalyticsPage() {
         enableUmami: localConfig.enableUmami,
         enableClarity: localConfig.enableClarity,
         consentDefault: localConfig.consentDefault,
-        bannerProvider: localConfig.bannerProvider,
+        bannerProvider: "custom", // Always use custom banner provider
         enableBigQueryServerLogs: localConfig.enableBigQueryServerLogs,
         orgId: organization.id,
         siteId: brandSites?.[0]?.id || undefined,
         brandName: organization.settings?.branding?.companyName || organization.name || undefined,
       };
+
+      // Include consent banner styling if it exists
+      if (localConfig.consentBannerStyling) {
+        configData.consentBannerStyling = localConfig.consentBannerStyling;
+      }
 
       // Only include provider-specific fields if they have values
       if (localConfig.ga4MeasurementId) {
@@ -867,6 +890,21 @@ export default function AnalyticsPage() {
                       Default consent state for analytics tracking
                     </p>
                   </div>
+
+                  {/* Consent Banner Customizer - Only show when consent is denied */}
+                  {localConfig.consentDefault === "denied" && (
+                    <div className="pt-4 border-t">
+                      <ConsentBannerCustomizer
+                        styling={
+                          localConfig.consentBannerStyling ||
+                          consentBannerStylingSchema.parse({})
+                        }
+                        onStylingChange={(styling) =>
+                          setLocalConfig({ ...localConfig, consentBannerStyling: styling })
+                        }
+                      />
+                    </div>
+                  )}
                 </>
               )}
 

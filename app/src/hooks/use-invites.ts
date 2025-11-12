@@ -74,8 +74,11 @@ export function useRevokeInvite() {
     mutationFn: inviteService.revokeInvite,
     onSuccess: (invite) => {
       toast.success("Invite revoked");
-      // Invalidate the specific organization's invites query
-      queryClient.invalidateQueries({ queryKey: ["invites", invite.organizationId] });
+      // Invalidate and refetch the specific organization's invites query
+      queryClient.invalidateQueries({ 
+        queryKey: ["invites", invite.organizationId],
+        refetchType: "active"
+      });
     },
     onError: (error) => {
       toast.error(`Failed to revoke invite: ${error.message}`);
@@ -90,8 +93,11 @@ export function useResendInvite() {
     mutationFn: inviteService.resendInvite,
     onSuccess: (invite) => {
       toast.success("Invite resent");
-      // Invalidate the specific organization's invites query
-      queryClient.invalidateQueries({ queryKey: ["invites", invite.organizationId] });
+      // Invalidate and refetch the specific organization's invites query
+      queryClient.invalidateQueries({ 
+        queryKey: ["invites", invite.organizationId],
+        refetchType: "active"
+      });
     },
     onError: (error) => {
       toast.error(`Failed to resend invite: ${error.message}`);

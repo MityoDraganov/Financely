@@ -19,6 +19,30 @@ interface BrandContext {
   context?: string;
   contextImages?: string[];
   products?: Array<{ name: string; description?: string; price: number; currency: string; category?: string; images?: string[] }>;
+  widgets?: {
+    enabled: boolean;
+    contactForm?: {
+      enabled: boolean;
+      title: string;
+      description?: string;
+      position: string;
+      displayMode?: string;
+    };
+    invoiceRequest?: {
+      enabled: boolean;
+      title: string;
+      description?: string;
+      position: string;
+      displayMode?: string;
+    };
+    quoteRequest?: {
+      enabled: boolean;
+      title: string;
+      description?: string;
+      position: string;
+      displayMode?: string;
+    };
+  };
 }
 
 interface GeminiResponse {
@@ -232,7 +256,7 @@ export class GeminiService {
   }
 
   private buildPrompt(brandContext: BrandContext): string {
-    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages, products } = brandContext;
+    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages, products, widgets } = brandContext;
 
     let prompt = `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
 
@@ -289,6 +313,93 @@ The website should prominently feature these products/services:`;
         prompt += `\n${productInfo}`;
       });
       prompt += `\n\nCreate a products/services section showcasing these items with their descriptions, prices, and images. Make it visually appealing and easy to browse.`;
+    }
+
+    // Add widget context and instructions
+    if (widgets && widgets.enabled) {
+      prompt += `\n\n🚨 CRITICAL: Widget Integration Instructions - READ CAREFULLY 🚨
+The organization has configured fully functional widgets that will be automatically loaded via a script tag. These widgets are REAL, WORKING components that handle form submissions, validation, and data processing.
+
+⚠️ STRICT PROHIBITION: 
+- DO NOT create ANY contact forms, invoice request forms, or quote request forms in the HTML
+- DO NOT create placeholder forms, mock forms, or non-functional form elements
+- DO NOT create <form> tags, <input> fields, or <button> elements for these purposes
+- DO NOT create buttons with text like "Request a Quote", "Request an Invoice", "Contact Us", "Get a Quote", "Request a Personalized Quote" - these are widget-related actions
+- DO NOT create any HTML that looks like a contact/invoice/quote form or button
+- These widgets are already implemented and will be injected automatically
+
+Available Widgets (These are REAL, functional widgets - not placeholders):`;
+      
+      const inlineWidgets: string[] = [];
+      
+      if (widgets.contactForm?.enabled) {
+        const displayMode = widgets.contactForm.displayMode || "floating";
+        prompt += `\n- Contact Form Widget: "${widgets.contactForm.title}"${widgets.contactForm.description ? ` - ${widgets.contactForm.description}` : ""}
+  Position: ${widgets.contactForm.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("contactForm");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
+  <div data-financely-widget="contactForm"></div>
+  The widget-loader.js will automatically replace this div with the functional contact form.`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
+        }
+      }
+      
+      if (widgets.invoiceRequest?.enabled) {
+        const displayMode = widgets.invoiceRequest.displayMode || "floating";
+        prompt += `\n- Invoice Request Widget: "${widgets.invoiceRequest.title}"${widgets.invoiceRequest.description ? ` - ${widgets.invoiceRequest.description}` : ""}
+  Position: ${widgets.invoiceRequest.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("invoiceRequest");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
+  <div data-financely-widget="invoiceRequest"></div>
+  The widget-loader.js will automatically replace this div with the functional invoice request form.`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
+        }
+      }
+      
+      if (widgets.quoteRequest?.enabled) {
+        const displayMode = widgets.quoteRequest.displayMode || "floating";
+        prompt += `\n- Quote Request Widget: "${widgets.quoteRequest.title}"${widgets.quoteRequest.description ? ` - ${widgets.quoteRequest.description}` : ""}
+  Position: ${widgets.quoteRequest.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("quoteRequest");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
+  <div data-financely-widget="quoteRequest"></div>
+  The widget-loader.js will automatically replace this div with the functional quote request form.`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
+        }
+      }
+      
+      prompt += `\n\n✅ WHAT YOU SHOULD DO INSTEAD:
+- Focus on creating engaging content: hero sections, product showcases, service descriptions, testimonials, company information
+- Create general call-to-action buttons for general actions (e.g., "Learn More", "View Products", "See Our Work", "Explore Services")
+- DO NOT create buttons specifically for contact/invoice/quote actions - the widgets handle those
+- For inline widgets: Add the required placeholder div (<div data-financely-widget="widgetType"></div>) in an appropriate location within your content
+- For floating widgets: Do nothing - the widget-loader.js will create the floating button automatically
+- Create compelling content that naturally leads users to want to contact, request quotes, or request invoices
+
+🔧 TECHNICAL DETAILS:
+- The widget script (<script src="/widget-loader.js">) will be automatically injected before the closing </body> tag
+- Floating widgets: widget-loader.js automatically creates a floating button based on the configured position (bottom-right, top-left, etc.)
+- Inline widgets: widget-loader.js looks for <div data-financely-widget="widgetType"></div> and replaces it with the functional form
+- All widget functionality (forms, validation, submissions) is handled by widget-loader.js - you do NOT implement any of this
+- Widgets integrate with the organization's backend automatically
+
+REMEMBER: 
+- NO form elements, NO widget-related buttons (like "Request Quote", "Contact Us", "Get Invoice")
+- For inline widgets: Add the placeholder div with the correct data attribute
+- For floating widgets: Do nothing - the button appears automatically
+- Focus on content, not widget functionality`;
     }
 
     prompt += `\n\nThe HTML should be complete and ready to deploy. Include:
@@ -479,13 +590,13 @@ Output ONLY the HTML code, no markdown, no explanations, just the HTML.`;
     sectionType: "hero" | "about" | "features" | "contact",
     currentHtml: string,
   ): string {
-    const { brandName, colors, tone, products } = brandContext;
+    const { brandName, colors, tone, products, widgets } = brandContext;
 
     const sectionDescriptions = {
       hero: "hero section with a compelling headline, subheadline, and call-to-action button",
       about: "about section describing the brand, its mission, and values",
       features: "features/services section showcasing key offerings with icons or visual elements",
-      contact: "contact section with a contact form or contact information",
+      contact: "contact section with contact information and call-to-action",
     };
 
     let prompt = `Generate a new ${sectionDescriptions[sectionType]} HTML section for the brand "${brandName}".
@@ -502,6 +613,85 @@ Requirements:
 3. Brand tone: ${tone}
 4. Make it responsive and modern
 5. Ensure it fits seamlessly with the rest of the page`;
+
+    // Add widget context and instructions (especially important for contact section)
+    if (widgets && widgets.enabled) {
+      prompt += `\n\n🚨 CRITICAL: Widget Integration Instructions
+The organization has configured fully functional widgets that will be automatically loaded. DO NOT create any contact forms, invoice request forms, or quote request forms in this section.
+
+⚠️ STRICT PROHIBITION: 
+- DO NOT create <form> tags, <input> fields, or form buttons
+- DO NOT create placeholder or mock forms
+- DO NOT create buttons with text like "Contact Us", "Request a Quote", "Get an Invoice", "Request a Personalized Quote" - these are widget-related actions
+- These widgets are already implemented and will be injected automatically
+
+Available Widgets:`;
+      
+      const inlineWidgets: string[] = [];
+      
+      if (widgets.contactForm?.enabled) {
+        const displayMode = widgets.contactForm.displayMode || "floating";
+        prompt += `\n- Contact Form Widget: "${widgets.contactForm.title}"${widgets.contactForm.description ? ` - ${widgets.contactForm.description}` : ""}
+  Position: ${widgets.contactForm.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("contactForm");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add: <div data-financely-widget="contactForm"></div>`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: widget-loader.js creates the button automatically - do nothing`;
+        }
+      }
+      
+      if (widgets.invoiceRequest?.enabled) {
+        const displayMode = widgets.invoiceRequest.displayMode || "floating";
+        prompt += `\n- Invoice Request Widget: "${widgets.invoiceRequest.title}"${widgets.invoiceRequest.description ? ` - ${widgets.invoiceRequest.description}` : ""}
+  Position: ${widgets.invoiceRequest.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("invoiceRequest");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add: <div data-financely-widget="invoiceRequest"></div>`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: widget-loader.js creates the button automatically - do nothing`;
+        }
+      }
+      
+      if (widgets.quoteRequest?.enabled) {
+        const displayMode = widgets.quoteRequest.displayMode || "floating";
+        prompt += `\n- Quote Request Widget: "${widgets.quoteRequest.title}"${widgets.quoteRequest.description ? ` - ${widgets.quoteRequest.description}` : ""}
+  Position: ${widgets.quoteRequest.position}
+  Display Mode: ${displayMode}`;
+        
+        if (displayMode === "inline") {
+          inlineWidgets.push("quoteRequest");
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add: <div data-financely-widget="quoteRequest"></div>`;
+        } else {
+          prompt += `\n  ✅ FLOATING MODE: widget-loader.js creates the button automatically - do nothing`;
+        }
+      }
+      
+      if (sectionType === "contact") {
+        prompt += `\n\nFor the contact section specifically:
+- Create contact information (address, phone, email) if available
+- Create general CTA buttons like "Learn More", "View Our Services", "Explore Products" - NOT widget-specific buttons
+- DO NOT create buttons like "Contact Us", "Get in Touch", "Send a Message" - the widget handles those
+- DO NOT create any form HTML - the widget will handle all form functionality`;
+        
+        if (inlineWidgets.includes("contactForm")) {
+          prompt += `\n- Since contactForm is in INLINE mode, add the placeholder div: <div data-financely-widget="contactForm"></div> where you want the form to appear`;
+        }
+      } else {
+        prompt += `\n\n✅ WHAT TO DO:
+- Create engaging content and general CTAs (not widget-specific)
+- Focus on content that drives engagement
+- The widgets will handle all form functionality automatically`;
+        
+        if (inlineWidgets.length > 0) {
+          prompt += `\n- For inline widgets, add the required placeholder divs: ${inlineWidgets.map(w => `<div data-financely-widget="${w}"></div>`).join(", ")}`;
+        }
+      }
+    }
 
     // Add products context for features section
     if (sectionType === "features" && products && products.length > 0) {

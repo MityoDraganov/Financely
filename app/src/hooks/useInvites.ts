@@ -9,7 +9,7 @@ interface Invite {
   code: string;
   organizationId: string;
   invitedBy: string;
-  status: "active" | "used" | "expired" | "revoked";
+  status: "active" | "sent" | "used" | "expired" | "revoked";
   expiresAt: string;
   usedAt?: string;
   usedBy?: string;
@@ -60,10 +60,15 @@ export function useInvites() {
       );
       
       const querySnapshot = await getDocs(invitesQuery);
-      return querySnapshot.docs.map(doc => ({
+      const allInvites = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       } as Invite));
+      
+      // Filter to only include active and sent invites (exclude revoked, used, expired)
+      return allInvites.filter(invite => 
+        invite.status === "active" || invite.status === "sent"
+      );
     },
     enabled: !!currentOrganization?.id && !isOrgLoading,
   });
@@ -113,21 +118,42 @@ export function useInvites() {
         { success: boolean; invite: Invite; message: string }
       >(functions, "revokeInvite");
 
-      const result = await revokeInviteFn(params);
+      try {
+        const result = await revokeInviteFn(params);
+        
+        if (!result.data?.success) {
+          throw new Error(result.data?.message || "Failed to revoke invite");
+        }
 
-      if (!result.data.success) {
-        throw new Error(result.data.message || "Failed to revoke invite");
+        return result.data.invite;
+      } catch (error: any) {
+        // Handle Firebase Functions errors
+        // Firebase Functions errors can have different structures
+        let errorMessage = "Failed to revoke invite";
+        
+        if (error?.message) {
+          errorMessage = error.message;
+        } else if (error?.details) {
+          errorMessage = error.details;
+        } else if (typeof error === "string") {
+          errorMessage = error;
+        }
+        
+        console.error("Error revoking invite:", error);
+        throw new Error(errorMessage);
       }
-
-      return result.data.invite;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invites", currentOrganization?.id] });
+      // Invalidate and refetch the invites query
+      queryClient.invalidateQueries({ 
+        queryKey: ["invites", currentOrganization?.id],
+        refetchType: "active"
+      });
       toast.success("Invite revoked successfully");
     },
     onError: (error) => {
       console.error("Error revoking invite:", error);
-      toast.error("Failed to revoke invite");
+      toast.error(error.message || "Failed to revoke invite");
     },
   });
 

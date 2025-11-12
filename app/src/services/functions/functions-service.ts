@@ -359,4 +359,13 @@ export const functionsService: FunctionsService = {
       pageViewsOverTime: data.pageViewsOverTime || [],
     };
   },
+
+  async generateConsentBanner(payload) {
+    type GenerateConsentBannerPayload = Parameters<FunctionsService["generateConsentBanner"]>[0];
+    const result = await httpsCallable<
+      GenerateConsentBannerPayload,
+      Awaited<ReturnType<FunctionsService["generateConsentBanner"]>>
+    >(firebase.functions, "generateConsentBanner")(payload);
+    return result.data;
+  },
 };

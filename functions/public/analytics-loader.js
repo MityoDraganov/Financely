@@ -65,6 +65,16 @@
     config.consentDefault = currentScript.getAttribute('data-analytics-consent-default') || 'denied';
     config.bannerProvider = currentScript.getAttribute('data-analytics-banner-provider') || 'custom';
     
+    // Read consent banner styling if available
+    const stylingAttr = currentScript.getAttribute('data-consent-banner-styling');
+    if (stylingAttr) {
+      try {
+        config.consentBannerStyling = JSON.parse(decodeURIComponent(stylingAttr));
+      } catch (e) {
+        console.warn('Financely Analytics: Failed to parse consent banner styling', e);
+      }
+    }
+    
     // Legacy strategy field (for backward compatibility)
     config.strategy = currentScript.getAttribute('data-analytics-strategy') || null;
     
@@ -135,6 +145,9 @@
 
   // Update consent (called when user accepts/rejects)
   window.updateAnalyticsConsent = function(granted) {
+    const consentKey = 'financely_analytics_consent_' + config.orgId;
+    localStorage.setItem(consentKey, granted ? 'granted' : 'denied');
+    
     if (typeof window.gtag === 'function') {
       window.gtag('consent', 'update', {
         ad_storage: granted ? 'granted' : 'denied',
@@ -151,7 +164,169 @@
       org_id: config.orgId,
       site_id: config.siteId,
     });
+
+    // If consent was granted and analytics weren't loaded yet, reload the page to initialize
+    if (granted && !window.financelyAnalyticsLoaded) {
+      window.location.reload();
+    }
   };
+
+  // Show consent banner
+  function showConsentBanner() {
+    const styling = config.consentBannerStyling || {
+      backgroundColor: '#ffffff',
+      textColor: '#000000',
+      buttonBackgroundColor: '#166534',
+      buttonTextColor: '#ffffff',
+      linkColor: '#166534',
+      borderColor: '#e5e7eb',
+      borderRadius: '8px',
+      padding: '16px',
+      fontSize: '14px',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      fontWeight: '400',
+      shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+      position: 'bottom',
+      maxWidth: '600px',
+      acceptButtonText: 'Accept',
+      rejectButtonText: 'Reject',
+      message: 'We use cookies to enhance your browsing experience and analyze site traffic.',
+      showRejectButton: true,
+    };
+
+    // Function to actually create and append the banner
+    function createAndAppendBanner() {
+      // Check if banner already exists
+      if (document.getElementById('financely-consent-banner')) {
+        return;
+      }
+
+    // Create banner element
+    const banner = document.createElement('div');
+    banner.id = 'financely-consent-banner';
+    banner.style.cssText = `
+      position: fixed;
+      ${styling.position === 'top' ? 'top: 0;' : styling.position === 'center' ? 'top: 50%; transform: translateY(-50%);' : 'bottom: 0;'}
+      left: 0;
+      right: 0;
+      background-color: ${styling.backgroundColor};
+      color: ${styling.textColor};
+      padding: ${styling.padding};
+      border-top: ${styling.position === 'top' ? 'none' : '1px solid ' + styling.borderColor};
+      border-bottom: ${styling.position === 'bottom' ? 'none' : '1px solid ' + styling.borderColor};
+      box-shadow: ${styling.shadow};
+        z-index: 999999;
+      font-family: ${styling.fontFamily};
+      font-size: ${styling.fontSize};
+      font-weight: ${styling.fontWeight};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      max-width: ${styling.maxWidth};
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    `;
+
+    const message = document.createElement('div');
+    message.textContent = styling.message;
+    message.style.cssText = `
+      flex: 1;
+      min-width: 200px;
+    `;
+
+    const buttons = document.createElement('div');
+    buttons.style.cssText = `
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    `;
+
+    const acceptButton = document.createElement('button');
+    acceptButton.textContent = styling.acceptButtonText;
+    acceptButton.style.cssText = `
+      background-color: ${styling.buttonBackgroundColor};
+      color: ${styling.buttonTextColor};
+      border: none;
+      padding: 8px 16px;
+      border-radius: ${styling.borderRadius};
+      cursor: pointer;
+      font-family: ${styling.fontFamily};
+      font-size: ${styling.fontSize};
+      font-weight: ${styling.fontWeight};
+      transition: opacity 0.2s;
+    `;
+    acceptButton.onmouseover = function() { this.style.opacity = '0.9'; };
+    acceptButton.onmouseout = function() { this.style.opacity = '1'; };
+    acceptButton.onclick = function() {
+      window.updateAnalyticsConsent(true);
+      banner.remove();
+    };
+
+    buttons.appendChild(acceptButton);
+
+    if (styling.showRejectButton) {
+      const rejectButton = document.createElement('button');
+      rejectButton.textContent = styling.rejectButtonText;
+      rejectButton.style.cssText = `
+        background-color: transparent;
+        color: ${styling.textColor};
+        border: 1px solid ${styling.borderColor};
+        padding: 8px 16px;
+        border-radius: ${styling.borderRadius};
+        cursor: pointer;
+        font-family: ${styling.fontFamily};
+        font-size: ${styling.fontSize};
+        font-weight: ${styling.fontWeight};
+        transition: opacity 0.2s;
+      `;
+      rejectButton.onmouseover = function() { this.style.opacity = '0.7'; };
+      rejectButton.onmouseout = function() { this.style.opacity = '1'; };
+      rejectButton.onclick = function() {
+        window.updateAnalyticsConsent(false);
+        banner.remove();
+      };
+      buttons.appendChild(rejectButton);
+    }
+
+    container.appendChild(message);
+    container.appendChild(buttons);
+    banner.appendChild(container);
+      
+      // Append to body when available
+      if (document.body) {
+    document.body.appendChild(banner);
+      } else {
+        // Wait for body to be available
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            if (document.body && !document.getElementById('financely-consent-banner')) {
+              document.body.appendChild(banner);
+            }
+          });
+        } else {
+          // DOM already loaded, try to append after a short delay
+          setTimeout(function() {
+            if (document.body && !document.getElementById('financely-consent-banner')) {
+              document.body.appendChild(banner);
+            }
+          }, 0);
+        }
+      }
+
+    // Mark that banner was shown
+    window.financelyConsentBannerShown = true;
+    }
+
+    // Call the function to create and append the banner
+    createAndAppendBanner();
+  }
 
   // Track page view
   function trackPageView() {
@@ -558,10 +733,29 @@
     enabled: config.enabled,
   });
 
+  // Check if user has already given consent
+  const consentKey = 'financely_analytics_consent_' + config.orgId;
+  const storedConsent = localStorage.getItem(consentKey);
+  let userConsent = storedConsent === 'granted' ? 'granted' : (storedConsent === 'denied' ? 'denied' : null);
+
+  // Show consent banner if consent is denied by default and user hasn't made a choice
+  if (config.consentDefault === 'denied' && config.bannerProvider === 'custom' && userConsent === null) {
+    showConsentBanner();
+    // Don't load analytics until consent is given
+    return;
+  }
+
+  // If user explicitly denied, don't load analytics
+  if (userConsent === 'denied') {
+    console.log('Financely Analytics: User denied consent, analytics not loaded');
+    return;
+  }
+
   // Initialize consent mode first (must be before any GA4/GTM scripts)
   initConsentMode();
   console.log('Financely Analytics: Consent mode initialized', {
     default: config.consentDefault,
+    userConsent: userConsent || 'default',
   });
 
   // Load all enabled analytics providers (can use multiple simultaneously)
@@ -593,6 +787,9 @@
     });
     loadClarity();
   }
+
+  // Mark analytics as loaded
+  window.financelyAnalyticsLoaded = true;
 
   // Track initial page view
   trackPageView();

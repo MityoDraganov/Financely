@@ -56,14 +56,20 @@ export const inviteService: InviteService = {
   },
 
   async getInvites(organizationId: string) {
-    return await databaseService.getPaginated<Invite>(
+    // Fetch all invites for the organization (we'll filter by status client-side)
+    // This allows us to include both "active" and "sent" statuses
+    const allInvites = await databaseService.getPaginated<Invite>(
       DatabaseCollection.INVITES,
       [
-        { field: "organizationId", operator: "==", value: organizationId },
-        { field: "status", operator: "==", value: "active" }
+        { field: "organizationId", operator: "==", value: organizationId }
       ],
       { limit: 50 },
       { field: "createdAt", direction: "desc" }
+    );
+    
+    // Filter to only include active and sent invites (exclude revoked, used, expired)
+    return allInvites.filter(invite => 
+      invite.status === "active" || invite.status === "sent"
     );
   },
 

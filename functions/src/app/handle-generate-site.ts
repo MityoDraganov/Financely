@@ -207,6 +207,39 @@ export async function handleGenerateSite(
         images: p.images,
       }));
 
+      // Prepare widget configuration for section regeneration
+      const widgets = organization.settings?.widgets;
+      const widgetContext = widgets?.enabled ? {
+        enabled: true,
+        contactForm: widgets.contactForm?.enabled ? {
+          enabled: true,
+          title: widgets.contactForm.title || "Contact Us",
+          description: widgets.contactForm.description || "",
+          position: widgets.contactForm.position || "bottom-right",
+          displayMode: widgets.contactForm.displayMode || "floating",
+          submitButtonText: widgets.contactForm.submitButtonText || "Send Message",
+          successMessage: widgets.contactForm.successMessage || "Thank you! We'll get back to you soon.",
+        } : undefined,
+        invoiceRequest: widgets.invoiceRequest?.enabled ? {
+          enabled: true,
+          title: widgets.invoiceRequest.title || "Request Invoice",
+          description: widgets.invoiceRequest.description || "",
+          position: widgets.invoiceRequest.position || "bottom-right",
+          displayMode: "floating", // Invoice request widgets are always floating
+          submitButtonText: widgets.invoiceRequest.submitButtonText || "Request Invoice",
+          successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
+        } : undefined,
+        quoteRequest: widgets.quoteRequest?.enabled ? {
+          enabled: true,
+          title: widgets.quoteRequest.title || "Request Quote",
+          description: widgets.quoteRequest.description || "",
+          position: widgets.quoteRequest.position || "bottom-right",
+          displayMode: "floating", // Quote request widgets are always floating
+          submitButtonText: widgets.quoteRequest.submitButtonText || "Request Quote",
+          successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
+        } : undefined,
+      } : undefined;
+
       html = await geminiService.regenerateSection(
         {
           brandName,
@@ -218,13 +251,13 @@ export async function handleGenerateSite(
             context: brandSite.context,
             contextImages: brandSite.contextImages || [],
             products: productsForContext,
+            widgets: widgetContext,
         },
         sectionType,
         brandSite.html,
       );
 
       // Inject widget script if widgets are enabled (for section regeneration)
-      const widgets = organization.settings?.widgets;
       if (widgets?.enabled) {
         const widgetScript = generateWidgetScript(organization.id, config.firebaseProjectId || "");
         // Inject before closing </body> tag
@@ -287,6 +320,40 @@ export async function handleGenerateSite(
         images: p.images,
       }));
 
+      // Prepare widget configuration for AI context
+      // Include complete widget information so AI knows what widgets are available
+      const widgets = organization.settings?.widgets;
+      const widgetContext = widgets?.enabled ? {
+        enabled: true,
+        contactForm: widgets.contactForm?.enabled ? {
+          enabled: true,
+          title: widgets.contactForm.title || "Contact Us",
+          description: widgets.contactForm.description || "",
+          position: widgets.contactForm.position || "bottom-right",
+          displayMode: widgets.contactForm.displayMode || "floating",
+          submitButtonText: widgets.contactForm.submitButtonText || "Send Message",
+          successMessage: widgets.contactForm.successMessage || "Thank you! We'll get back to you soon.",
+        } : undefined,
+        invoiceRequest: widgets.invoiceRequest?.enabled ? {
+          enabled: true,
+          title: widgets.invoiceRequest.title || "Request Invoice",
+          description: widgets.invoiceRequest.description || "",
+          position: widgets.invoiceRequest.position || "bottom-right",
+          displayMode: "floating", // Invoice request widgets are always floating
+          submitButtonText: widgets.invoiceRequest.submitButtonText || "Request Invoice",
+          successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
+        } : undefined,
+        quoteRequest: widgets.quoteRequest?.enabled ? {
+          enabled: true,
+          title: widgets.quoteRequest.title || "Request Quote",
+          description: widgets.quoteRequest.description || "",
+          position: widgets.quoteRequest.position || "bottom-right",
+          displayMode: "floating", // Quote request widgets are always floating
+          submitButtonText: widgets.quoteRequest.submitButtonText || "Request Quote",
+          successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
+        } : undefined,
+      } : undefined;
+
       html = await geminiService.generateSiteHtml({
         brandName,
         colors: brandColors,
@@ -297,10 +364,10 @@ export async function handleGenerateSite(
           context: brandSite.context,
           contextImages: brandSite.contextImages || [],
           products: productsForContext,
+          widgets: widgetContext,
       });
 
       // Inject widget script if widgets are enabled
-      const widgets = organization.settings?.widgets;
       if (widgets?.enabled) {
         const widgetScript = generateWidgetScript(organization.id, config.firebaseProjectId || "");
         // Inject before closing </body> tag
@@ -1022,6 +1089,12 @@ function generateAnalyticsScript(
     : "";
   if (legacyUrl) {
     attributes.push(`data-analytics-function-url="${legacyUrl}"`);
+  }
+
+  // Add consent banner styling if it exists and consent is denied
+  if (analyticsConfig.consentDefault === "denied" && analyticsConfig.bannerProvider === "custom" && analyticsConfig.consentBannerStyling) {
+    const styling = analyticsConfig.consentBannerStyling;
+    attributes.push(`data-consent-banner-styling="${encodeURIComponent(JSON.stringify(styling))}"`);
   }
 
   return `<script src="/analytics-loader.js" ${attributes.join(" ")}></script>`;

@@ -305,13 +305,19 @@ function generateAnalyticsScript(
 
   // Add Firebase project ID as data attribute so analytics-loader can call functions
   attributes.push(`data-firebase-project="${projectId || ""}"`);
-
+  
   // Add function URL
   const legacyUrl = projectId 
     ? `https://us-central1-${projectId}.cloudfunctions.net/storeAnalyticsEvent`
     : "";
   if (legacyUrl) {
     attributes.push(`data-analytics-function-url="${legacyUrl}"`);
+  }
+
+  // Add consent banner styling if it exists and consent is denied
+  if (analyticsConfig.consentDefault === "denied" && analyticsConfig.bannerProvider === "custom" && analyticsConfig.consentBannerStyling) {
+    const styling = analyticsConfig.consentBannerStyling;
+    attributes.push(`data-consent-banner-styling="${encodeURIComponent(JSON.stringify(styling))}"`);
   }
 
   return `<script src="/analytics-loader.js" ${attributes.join(" ")}></script>`;

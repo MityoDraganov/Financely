@@ -76,6 +76,7 @@ export { generateInvoiceTemplate } from "./functions/generate-invoice-template";
 export { convertProposalToInvoice } from "./functions/convert-proposal-to-invoice";
 export { generateInvoiceFromProposal } from "./functions/generate-invoice-from-proposal";
 export { generateWidget } from "./functions/generate-widget";
+export { generateConsentBanner } from "./functions/generate-consent-banner";
 
 // Product functions
 export { createProduct } from "./functions/create-product";

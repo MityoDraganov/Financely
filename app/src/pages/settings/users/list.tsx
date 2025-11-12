@@ -143,15 +143,6 @@ export default function UsersListPage() {
                 Manage team member roles and permissions
               </CardDescription>
             </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={selectedUsers.length === filteredMembers.length && filteredMembers.length > 0}
-                onChange={handleSelectAll}
-                className="rounded border-gray-300 shadow-sm"
-              />
-              <span className="text-sm font-medium text-gray-600">Select All</span>
-            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -160,12 +151,6 @@ export default function UsersListPage() {
               <div key={member.id} className="p-6 hover:bg-gray-50/50 transition-all duration-200 border-l-4 border-transparent hover:border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedUsers.includes(member.id)}
-                      onChange={() => handleSelectUser(member.id)}
-                      className="rounded border-gray-300 shadow-sm"
-                    />
                     <Avatar className="h-12 w-12 ring-2 ring-gray-100">
                       <AvatarImage src={member.avatarUrl} alt={member.name} />
                       <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
@@ -199,15 +184,6 @@ export default function UsersListPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="shadow-lg">
-                        <DropdownMenuItem>
-                          <Mail className="h-4 w-4 mr-2" />
-                          Send Message
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Shield className="h-4 w-4 mr-2" />
-                          Change Role
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600">
                           <UserX className="h-4 w-4 mr-2" />
                           Remove Member
