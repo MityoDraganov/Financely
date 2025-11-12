@@ -203,8 +203,8 @@ export const organizationDataSchema = z.object({
               // Widget-specific localization
               localization: z
                 .object({
-                  language: z.string().default("en"),
-                  translations: z.record(z.string(), z.string()).default({}),
+                  defaultLanguage: z.literal("en").default("en"),
+                  languages: z.record(z.string(), z.record(z.string(), z.string())).default({}),
                 })
                 .optional(),
               // Built-in fields configuration
@@ -278,8 +278,8 @@ export const organizationDataSchema = z.object({
               // Widget-specific localization
               localization: z
                 .object({
-                  language: z.string().default("en"),
-                  translations: z.record(z.string(), z.string()).default({}),
+                  defaultLanguage: z.literal("en").default("en"),
+                  languages: z.record(z.string(), z.record(z.string(), z.string())).default({}),
                 })
                 .optional(),
               submitButtonText: z.string().default("Request Invoice"),
@@ -326,8 +326,8 @@ export const organizationDataSchema = z.object({
               // Widget-specific localization
               localization: z
                 .object({
-                  language: z.string().default("en"),
-                  translations: z.record(z.string(), z.string()).default({}),
+                  defaultLanguage: z.literal("en").default("en"),
+                  languages: z.record(z.string(), z.record(z.string(), z.string())).default({}),
                 })
                 .optional(),
               submitButtonText: z.string().default("Request Quote"),

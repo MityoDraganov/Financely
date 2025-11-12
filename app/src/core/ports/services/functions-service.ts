@@ -473,4 +473,27 @@ export interface FunctionsService {
     widgetType?: "contactForm" | "invoiceRequest" | "quoteRequest" | "all";
     description?: string;
   }): Promise<{ success: boolean; organizationId: string; version: number }>;
+
+  /**
+   * Translate widget text using AI
+   * 
+   * @param payload - The translation payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.languageCode - Target language code (ISO 639-1)
+   * @param payload.languageName - Target language name
+   * @param payload.translations - Array of translation keys and English text
+   * @returns Promise with translated text
+   */
+  translateWidgetText(payload: {
+    organizationId: string;
+    languageCode: string;
+    languageName: string;
+    translations: Array<{
+      key: string;
+      english: string;
+    }>;
+  }): Promise<{
+    translations: Record<string, string>;
+    translatedCount: number;
+  }>;
 }

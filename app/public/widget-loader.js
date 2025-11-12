@@ -14,6 +14,7 @@
     orgId: null,
     apiUrl: null,
     widgetConfig: null,
+    language: null, // Override language (e.g., 'bg', 'es', 'fr')
   };
 
   // Get configuration from script tag
@@ -23,6 +24,7 @@
     config.apiUrl = currentScript.getAttribute('data-api-url') || 
       currentScript.getAttribute('data-api-base-url') ||
       'https://us-central1-YOUR_PROJECT.cloudfunctions.net';
+    config.language = currentScript.getAttribute('data-language');
   }
 
   if (!config.orgId) {
@@ -313,6 +315,95 @@
     return translations[key] || defaultValue;
   }
 
+  // Get translations for current browser language
+  function getTranslationsForLanguage(localization, defaultTranslations) {
+    if (!localization) {
+      return defaultTranslations || {};
+    }
+
+    // Handle old format (backward compatibility)
+    if (localization.language && localization.translations) {
+      return localization.translations;
+    }
+
+    // Handle new format
+    if (localization.defaultLanguage && localization.languages) {
+      // Use override language if provided, otherwise detect browser language
+      let targetLang = config.language;
+      if (!targetLang) {
+        const browserLang = navigator.language || navigator.userLanguage || 'en';
+        targetLang = browserLang.split('-')[0].toLowerCase(); // Extract base language code (e.g., 'es' from 'es-ES')
+      }
+      
+      // Try to find matching language translations
+      const languageTranslations = localization.languages[targetLang.toLowerCase()];
+      
+      if (languageTranslations) {
+        // Merge English defaults with language-specific translations
+        // This ensures all keys are available, with translations overriding defaults
+        return {
+          ...defaultTranslations,
+          ...languageTranslations,
+        };
+      }
+      
+      // Fall back to English (defaultLanguage)
+      return defaultTranslations || {};
+    }
+
+    return defaultTranslations || {};
+  }
+
+  // Build default translations from widget config (English defaults)
+  function buildDefaultTranslations(widgetConfig, widgetType) {
+    const defaults = {};
+    
+    // Widget-specific keys
+    if (widgetType === 'contactForm') {
+      defaults.contactUs = widgetConfig.title || 'Contact Us';
+      if (widgetConfig.description) {
+        defaults.description = widgetConfig.description;
+      }
+    } else if (widgetType === 'invoiceRequest') {
+      defaults.requestInvoice = widgetConfig.title || 'Request Invoice';
+      if (widgetConfig.description) {
+        defaults.description = widgetConfig.description;
+      }
+    } else if (widgetType === 'quoteRequest') {
+      defaults.requestQuote = widgetConfig.title || 'Request Quote';
+      if (widgetConfig.description) {
+        defaults.description = widgetConfig.description;
+      }
+    }
+    
+    defaults.submitButton = widgetConfig.submitButtonText || 'Submit';
+    defaults.successMessage = widgetConfig.successMessage || 'Thank you!';
+    
+    // Built-in fields (for contact form)
+    if (widgetConfig.builtInFields && widgetType === 'contactForm') {
+      Object.entries(widgetConfig.builtInFields).forEach(([key, config]) => {
+        if (config && config.enabled) {
+          defaults[`${key}Label`] = config.label || key;
+          defaults[`${key}Placeholder`] = '';
+        }
+      });
+    } else if (widgetType === 'invoiceRequest' || widgetType === 'quoteRequest') {
+      defaults.name = 'Name';
+      defaults.email = 'Email';
+      defaults.message = 'Message';
+    }
+    
+    // Custom fields
+    if (widgetConfig.customFields && Array.isArray(widgetConfig.customFields)) {
+      widgetConfig.customFields.forEach(field => {
+        defaults[`${field.name}Label`] = field.label;
+        defaults[`${field.name}Placeholder`] = field.placeholder || '';
+      });
+    }
+    
+    return defaults;
+  }
+
   // Inject styles for a specific widget
   function injectWidgetStyles(widgetType, styling) {
     const styleId = `financely-widget-styles-${widgetType}`;
@@ -360,7 +451,18 @@
     
     button.style.backgroundColor = primaryColor;
     button.style.color = bgColor;
-    button.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    
+    // Get button text based on widget type
+    let buttonText = widgetConfig.title || 'Contact Us';
+    if (widgetType === 'invoiceRequest') {
+      buttonText = translate('requestInvoice', translations, widgetConfig.title || 'Request Invoice');
+    } else if (widgetType === 'quoteRequest') {
+      buttonText = translate('requestQuote', translations, widgetConfig.title || 'Request Quote');
+    } else {
+      buttonText = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    }
+    
+    button.textContent = buttonText;
     button.onclick = () => openWidget(widgetType, widgetConfig, branding, styling, translations);
     return button;
   }
@@ -388,7 +490,18 @@
     
     const title = document.createElement('h2');
     title.className = 'financely-widget-title';
-    title.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    
+    // Get title based on widget type
+    let titleText = widgetConfig.title || 'Contact Us';
+    if (widgetType === 'invoiceRequest') {
+      titleText = translate('requestInvoice', translations, widgetConfig.title || 'Request Invoice');
+    } else if (widgetType === 'quoteRequest') {
+      titleText = translate('requestQuote', translations, widgetConfig.title || 'Request Quote');
+    } else {
+      titleText = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    }
+    
+    title.textContent = titleText;
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'financely-widget-close';
@@ -732,7 +845,18 @@
 
     const title = document.createElement('h2');
     title.className = `financely-widget-inline-title financely-widget-${widgetType}`;
-    title.textContent = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    
+    // Get title based on widget type
+    let titleText = widgetConfig.title || 'Contact Us';
+    if (widgetType === 'invoiceRequest') {
+      titleText = translate('requestInvoice', translations, widgetConfig.title || 'Request Invoice');
+    } else if (widgetType === 'quoteRequest') {
+      titleText = translate('requestQuote', translations, widgetConfig.title || 'Request Quote');
+    } else {
+      titleText = translate('contactUs', translations, widgetConfig.title || 'Contact Us');
+    }
+    
+    title.textContent = titleText;
     container.appendChild(title);
 
     if (widgetConfig.description) {
@@ -810,8 +934,8 @@
     // Create contact form widget with widget-specific styling and localization
     if (widgets.contactForm && widgets.contactForm.enabled) {
       const contactFormStyling = mergeStyling(brandingDefaultStyling, widgets.contactForm.styling);
-      const contactFormLocalization = widgets.contactForm.localization || { language: 'en', translations: {} };
-      const contactFormTranslations = contactFormLocalization.translations || {};
+      const defaultTranslations = buildDefaultTranslations(widgets.contactForm, 'contactForm');
+      const contactFormTranslations = getTranslationsForLanguage(widgets.contactForm.localization, defaultTranslations);
       
       const displayMode = widgets.contactForm.displayMode || 'floating';
       if (displayMode === 'inline') {
@@ -825,8 +949,8 @@
     // Create invoice request widget with widget-specific styling and localization
     if (widgets.invoiceRequest && widgets.invoiceRequest.enabled) {
       const invoiceRequestStyling = mergeStyling(brandingDefaultStyling, widgets.invoiceRequest.styling);
-      const invoiceRequestLocalization = widgets.invoiceRequest.localization || { language: 'en', translations: {} };
-      const invoiceRequestTranslations = invoiceRequestLocalization.translations || {};
+      const defaultTranslations = buildDefaultTranslations(widgets.invoiceRequest, 'invoiceRequest');
+      const invoiceRequestTranslations = getTranslationsForLanguage(widgets.invoiceRequest.localization, defaultTranslations);
       
       const button = createWidgetButton('invoiceRequest', widgets.invoiceRequest, branding, invoiceRequestStyling, invoiceRequestTranslations);
       document.body.appendChild(button);
@@ -835,8 +959,8 @@
     // Create quote request widget with widget-specific styling and localization
     if (widgets.quoteRequest && widgets.quoteRequest.enabled) {
       const quoteRequestStyling = mergeStyling(brandingDefaultStyling, widgets.quoteRequest.styling);
-      const quoteRequestLocalization = widgets.quoteRequest.localization || { language: 'en', translations: {} };
-      const quoteRequestTranslations = quoteRequestLocalization.translations || {};
+      const defaultTranslations = buildDefaultTranslations(widgets.quoteRequest, 'quoteRequest');
+      const quoteRequestTranslations = getTranslationsForLanguage(widgets.quoteRequest.localization, defaultTranslations);
       
       const button = createWidgetButton('quoteRequest', widgets.quoteRequest, branding, quoteRequestStyling, quoteRequestTranslations);
       document.body.appendChild(button);

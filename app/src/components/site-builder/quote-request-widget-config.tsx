@@ -18,6 +18,7 @@ interface QuoteRequestWidgetConfigProps {
   localization: WidgetLocalization;
   onLocalizationChange: (localization: WidgetLocalization) => void;
   onOpenAiBuilder: () => void;
+  organizationId: string;
 }
 
 export function QuoteRequestWidgetConfig({
@@ -28,6 +29,7 @@ export function QuoteRequestWidgetConfig({
   localization,
   onLocalizationChange,
   onOpenAiBuilder,
+  organizationId,
 }: QuoteRequestWidgetConfigProps) {
   const updateConfig = (updates: Partial<QuoteRequestConfig>) => {
     onConfigChange({ ...config, ...updates });
@@ -123,6 +125,14 @@ export function QuoteRequestWidgetConfig({
             <WidgetLocalizationAccordion
               localization={localization}
               onLocalizationChange={onLocalizationChange}
+              widgetType="quoteRequest"
+              config={{
+                title: config.title,
+                description: config.description,
+                submitButtonText: config.submitButtonText,
+                successMessage: config.successMessage,
+                organizationId: organizationId,
+              }}
               helpText='Add custom translations for widget text. Use keys like "requestQuote", "submitButton", etc.'
             />
           </Accordion>

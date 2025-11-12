@@ -35,6 +35,7 @@ interface ContactFormWidgetConfigProps {
   onRemoveCustomField: (id: string) => void;
   onUpdateCustomField: (id: string, updates: Partial<CustomField>) => void;
   onOpenAiBuilder: () => void;
+  organizationId: string;
 }
 
 export function ContactFormWidgetConfig({
@@ -52,6 +53,7 @@ export function ContactFormWidgetConfig({
   onRemoveCustomField,
   onUpdateCustomField,
   onOpenAiBuilder,
+  organizationId,
 }: ContactFormWidgetConfigProps) {
   const updateConfig = (updates: Partial<ContactFormConfig>) => {
     onConfigChange({ ...config, ...updates });
@@ -186,6 +188,16 @@ export function ContactFormWidgetConfig({
             <WidgetLocalizationAccordion
               localization={localization}
               onLocalizationChange={onLocalizationChange}
+              widgetType="contactForm"
+              config={{
+                title: config.title,
+                description: config.description,
+                submitButtonText: config.submitButtonText,
+                successMessage: config.successMessage,
+                organizationId: organizationId,
+              }}
+              builtInFields={builtInFields}
+              customFields={customFields}
               helpText='Add custom translations for widget text. Use keys like "contactUs", "sendMessage", etc.'
             />
             <AccordionItem value="contactForm-fields">

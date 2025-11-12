@@ -309,6 +309,15 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async translateWidgetText(payload) {
+    type TranslateWidgetTextPayload = Parameters<FunctionsService["translateWidgetText"]>[0];
+    const result = await httpsCallable<
+      TranslateWidgetTextPayload,
+      Awaited<ReturnType<FunctionsService["translateWidgetText"]>>
+    >(firebase.functions, "translateWidgetText")(payload);
+    return result.data;
+  },
+
   async getAnalyticsMetrics(payload) {
     type GetAnalyticsMetricsPayload = Parameters<FunctionsService["getAnalyticsMetrics"]>[0];
     const result = await httpsCallable<

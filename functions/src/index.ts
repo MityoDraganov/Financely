@@ -66,6 +66,7 @@ export { submitWidgetForm } from "./functions/submit-widget-form";
 export { deployManualSite } from "./functions/deploy-manual-site";
 export { restoreWidgetVersion } from "./functions/restore-widget-version";
 export { saveWidgetVersion } from "./functions/save-widget-version";
+export { translateWidgetText } from "./functions/translate-widget-text";
 
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";

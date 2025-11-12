@@ -26,8 +26,8 @@ export interface WidgetStyling {
 }
 
 export interface WidgetLocalization {
-  language: string;
-  translations: Record<string, string>;
+  defaultLanguage: "en"; // Always English
+  languages: Record<string, Record<string, string>>; // language code -> translations
 }
 
 export interface BuiltInField {

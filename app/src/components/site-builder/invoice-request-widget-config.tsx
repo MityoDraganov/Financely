@@ -18,6 +18,7 @@ interface InvoiceRequestWidgetConfigProps {
   localization: WidgetLocalization;
   onLocalizationChange: (localization: WidgetLocalization) => void;
   onOpenAiBuilder: () => void;
+  organizationId: string;
 }
 
 export function InvoiceRequestWidgetConfig({
@@ -28,6 +29,7 @@ export function InvoiceRequestWidgetConfig({
   localization,
   onLocalizationChange,
   onOpenAiBuilder,
+  organizationId,
 }: InvoiceRequestWidgetConfigProps) {
   const updateConfig = (updates: Partial<InvoiceRequestConfig>) => {
     onConfigChange({ ...config, ...updates });
@@ -123,6 +125,14 @@ export function InvoiceRequestWidgetConfig({
             <WidgetLocalizationAccordion
               localization={localization}
               onLocalizationChange={onLocalizationChange}
+              widgetType="invoiceRequest"
+              config={{
+                title: config.title,
+                description: config.description,
+                submitButtonText: config.submitButtonText,
+                successMessage: config.successMessage,
+                organizationId: organizationId,
+              }}
               helpText='Add custom translations for widget text. Use keys like "requestInvoice", "submitButton", etc.'
             />
           </Accordion>

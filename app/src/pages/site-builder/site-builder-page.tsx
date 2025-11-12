@@ -124,18 +124,67 @@ export default function SiteBuilderPage() {
     }
   }, [organization?.settings?.brandColors, organization?.settings?.widgets]);
 
+  // Helper function to normalize localization (backward compatibility)
+  const normalizeLocalization = (localization: unknown): { defaultLanguage: "en"; languages: Record<string, Record<string, string>> } => {
+    if (!localization || typeof localization !== "object") {
+      return { defaultLanguage: "en", languages: {} };
+    }
+
+    // New format
+    if ("defaultLanguage" in localization && "languages" in localization) {
+      return {
+        defaultLanguage: "en",
+        languages: (localization as { languages?: Record<string, Record<string, string>> }).languages || {},
+      };
+    }
+
+    // Old format (backward compatibility)
+    if ("language" in localization && "translations" in localization) {
+      const oldLoc = localization as { language?: string; translations?: Record<string, string> };
+      const lang = oldLoc.language || "en";
+      const translations = oldLoc.translations || {};
+      
+      // If language is not "en", migrate to new format
+      if (lang !== "en") {
+        return {
+          defaultLanguage: "en",
+          languages: {
+            [lang]: translations,
+          },
+        };
+      }
+      
+      // If language is "en", return empty languages (English is default)
+      return {
+        defaultLanguage: "en",
+        languages: {},
+      };
+    }
+
+    return { defaultLanguage: "en", languages: {} };
+  };
+
   // Widget-specific localization state
-  const [contactFormLocalization, setContactFormLocalization] = useState({
-    language: "en",
-    translations: {} as Record<string, string>,
+  const [contactFormLocalization, setContactFormLocalization] = useState<{
+    defaultLanguage: "en";
+    languages: Record<string, Record<string, string>>;
+  }>({
+    defaultLanguage: "en",
+    languages: {},
   });
-  const [invoiceRequestLocalization, setInvoiceRequestLocalization] = useState({
-    language: "en",
-    translations: {} as Record<string, string>,
+  const [invoiceRequestLocalization, setInvoiceRequestLocalization] = useState<{
+    defaultLanguage: "en";
+    languages: Record<string, Record<string, string>>;
+  }>({
+    defaultLanguage: "en",
+    languages: {},
   });
-  const [quoteRequestLocalization, setQuoteRequestLocalization] = useState({
-    language: "en",
-    translations: {} as Record<string, string>,
+  const [quoteRequestLocalization, setQuoteRequestLocalization] = useState<{
+    defaultLanguage: "en";
+    languages: Record<string, Record<string, string>>;
+  }>({
+    defaultLanguage: "en",
+    languages: {},
   });
 
   // Built-in fields state
@@ -296,10 +345,7 @@ export default function SiteBuilderPage() {
       
       // Load contact form localization
       if (widgets.contactForm.localization) {
-        setContactFormLocalization({
-          language: widgets.contactForm.localization.language || "en",
-          translations: widgets.contactForm.localization.translations || {},
-        });
+        setContactFormLocalization(normalizeLocalization(widgets.contactForm.localization));
       }
       
       // Load built-in fields
@@ -342,10 +388,7 @@ export default function SiteBuilderPage() {
       
       // Load invoice request localization
       if (widgets.invoiceRequest.localization) {
-        setInvoiceRequestLocalization({
-          language: widgets.invoiceRequest.localization.language || "en",
-          translations: widgets.invoiceRequest.localization.translations || {},
-        });
+        setInvoiceRequestLocalization(normalizeLocalization(widgets.invoiceRequest.localization));
       }
     }
     
@@ -372,10 +415,7 @@ export default function SiteBuilderPage() {
       
       // Load quote request localization
       if (widgets.quoteRequest.localization) {
-        setQuoteRequestLocalization({
-          language: widgets.quoteRequest.localization.language || "en",
-          translations: widgets.quoteRequest.localization.translations || {},
-        });
+        setQuoteRequestLocalization(normalizeLocalization(widgets.quoteRequest.localization));
       }
     }
   }, [organization?.settings?.widgets, organization?.settings?.brandColors]);
@@ -517,7 +557,7 @@ export default function SiteBuilderPage() {
         data: {
           settings: {
             ...existingSettings,
-            widgets: widgetsToSave,
+            widgets: widgetsToSave as unknown as typeof existingWidgets,
           },
         },
       });
@@ -818,6 +858,7 @@ export default function SiteBuilderPage() {
                     setAiWidgetType("contactForm");
                     setAiWidgetDialogOpen(true);
                   }}
+                  organizationId={organization?.id || ""}
                 />
 
                 <InvoiceRequestWidgetConfig
@@ -831,6 +872,7 @@ export default function SiteBuilderPage() {
                     setAiWidgetType("invoiceRequest");
                     setAiWidgetDialogOpen(true);
                   }}
+                  organizationId={organization?.id || ""}
                 />
 
                 <QuoteRequestWidgetConfig
@@ -844,6 +886,7 @@ export default function SiteBuilderPage() {
                     setAiWidgetType("quoteRequest");
                     setAiWidgetDialogOpen(true);
                   }}
+                  organizationId={organization?.id || ""}
                 />
 
                 {/* Save Button and Version History */}
