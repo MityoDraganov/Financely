@@ -10,30 +10,85 @@ import {
   Plus, 
   Brush, 
   DollarSign, 
-  Calendar,
-  Users,
   Settings,
   ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
+import type { Invoice } from "@/core/entities/invoice";
+
+// Helper to safely get a value from dynamic invoice data
+function getInvoiceValue(invoice: Invoice, path: string): string {
+  const parts = path.split(".");
+  let value: unknown = invoice.data;
+  
+  for (const part of parts) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      value = (value as Record<string, unknown>)[part];
+    } else {
+      return "";
+    }
+  }
+  
+  return value ? String(value) : "";
+}
+
+// Helper to get total amount from invoice (checks multiple field names)
+function getInvoiceAmount(invoice: Invoice): number {
+  const total =
+    getInvoiceValue(invoice, "total") ||
+    getInvoiceValue(invoice, "totalAmount") ||
+    getInvoiceValue(invoice, "grandTotal") ||
+    getInvoiceValue(invoice, "amount");
+  
+  if (total) {
+    // Remove any currency symbols and parse
+    const cleaned = total.replace(/[^0-9.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  }
+  
+  return 0;
+}
 
 export default function DashboardPage() {
   const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
   const { data: invoices, isLoading: isInvoicesLoading } = useInvoices(currentOrganization?.id);
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
 
-  // Calculate dashboard metrics
+  // Calculate dashboard metrics from real data
   const totalInvoices = invoices?.length || 0;
   const totalTemplates = templates?.length || 0;
-  const recentInvoices = invoices?.slice(0, 5) || [];
+  
+  // Calculate invoice metrics by status
+  const paidInvoices = invoices?.filter(inv => inv.status === 'paid') || [];
+  const unpaidInvoices = invoices?.filter(inv => inv.status === 'sent') || [];
+  const draftInvoices = invoices?.filter(inv => inv.status === 'draft') || [];
+  
+  // Calculate revenue - only from paid invoices
+  const paidRevenue = paidInvoices.reduce((sum, invoice) => {
+    return sum + getInvoiceAmount(invoice);
+  }, 0);
+  
+  // Calculate total outstanding (unpaid invoices)
+  const outstandingAmount = unpaidInvoices.reduce((sum, invoice) => {
+    return sum + getInvoiceAmount(invoice);
+  }, 0);
+  
+  // Calculate draft invoices total amount
+  const draftAmount = draftInvoices.reduce((sum, invoice) => {
+    return sum + getInvoiceAmount(invoice);
+  }, 0);
+  
+  // Sort invoices by updated date (most recent first)
+  const sortedInvoices = invoices ? [...invoices].sort((a, b) => {
+    const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return dateB - dateA;
+  }) : [];
+  
+  const recentInvoices = sortedInvoices.slice(0, 5);
   const recentTemplates = templates?.slice(0, 3) || [];
-
-  // Mock revenue calculation (you can replace with actual calculation)
-  const totalRevenue = invoices?.reduce((sum, invoice) => {
-    const amount = invoice.data?.totalAmount || invoice.data?.amount || 0;
-    return sum + (typeof amount === 'number' ? amount : 0);
-  }, 0) || 0;
 
   if (isOrgLoading) {
     return (
@@ -52,7 +107,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">
@@ -97,25 +152,76 @@ export default function DashboardPage() {
               {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : totalInvoices}
             </div>
             <p className="text-xs text-muted-foreground">
-              +2 from last month
+              {paidInvoices.length} paid, {unpaidInvoices.length} unpaid
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${totalRevenue.toLocaleString()}`}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              +12.5% from last month
-            </p>
-          </CardContent>
-        </Card>
+        {paidInvoices.length > 0 || unpaidInvoices.length > 0 ? (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Paid Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${paidRevenue.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {paidInvoices.length} paid invoice{paidInvoices.length !== 1 ? 's' : ''}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${outstandingAmount.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {unpaidInvoices.length} unpaid invoice{unpaidInvoices.length !== 1 ? 's' : ''}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Draft Invoices</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : draftInvoices.length}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {draftAmount > 0 ? `$${draftAmount.toLocaleString()} in drafts` : 'No drafts yet'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${(paidRevenue + outstandingAmount + draftAmount).toLocaleString()}`}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Across all invoices
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -131,27 +237,12 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Organization</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {currentOrganization?.subscription?.plan || 'Free'}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {currentOrganization?.subscription?.status || 'Active'}
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Recent Invoices */}
-        <Card className="col-span-4">
+        <Card className="col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -189,19 +280,36 @@ export default function DashboardPage() {
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {String(invoice.data?.invoiceNumber || `Invoice #${invoice.id.slice(-6)}`)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium leading-none">
+                          {String(invoice.data?.invoiceNumber || `Invoice #${invoice.id.slice(-6)}`)}
+                        </p>
+                        <Badge 
+                          variant={
+                            invoice.status === 'paid' ? 'default' :
+                            invoice.status === 'sent' ? 'secondary' :
+                            invoice.status === 'cancelled' ? 'destructive' :
+                            'outline'
+                          }
+                          className="text-xs"
+                        >
+                          {invoice.status || 'draft'}
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        {String(invoice.data?.clientName || 'Unknown Client')}
+                        {getInvoiceValue(invoice, "buyer.name") ||
+                         getInvoiceValue(invoice, "customer.name") ||
+                         getInvoiceValue(invoice, "client.name") ||
+                         getInvoiceValue(invoice, "clientName") ||
+                         "Unknown Client"}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">
-                        ${(invoice.data?.totalAmount || invoice.data?.amount || 0).toLocaleString()}
+                        ${getInvoiceAmount(invoice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {invoice.updatedAt ? format(new Date(invoice.updatedAt), 'MMM dd') : 'Recently'}
+                        {invoice.updatedAt ? format(new Date(invoice.updatedAt), 'MMM dd, yyyy') : 'Recently'}
                       </p>
                     </div>
                   </div>
@@ -227,8 +335,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Templates & Organization Info */}
-        <div className="col-span-3 space-y-6">
+        {/* Templates & Invoice Status */}
+        <div className="col-span-2 space-y-4">
           {/* Templates */}
           <Card>
             <CardHeader>
@@ -287,43 +395,90 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Organization Status */}
+          {/* Invoice Status Summary */}
           <Card>
             <CardHeader>
-              <CardTitle>Organization</CardTitle>
+              <CardTitle>Invoice Status</CardTitle>
               <CardDescription>
-                Current plan and status
+                Breakdown by status
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{currentOrganization?.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {currentOrganization?.subscription?.plan || 'Free'} Plan
+            <CardContent className="space-y-3">
+              {isInvoicesLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : totalInvoices > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-sm">Paid</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{paidInvoices.length}</p>
+                      {paidRevenue > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          ${paidRevenue.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500" />
+                      <span className="text-sm">Sent</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{unpaidInvoices.length}</p>
+                      {outstandingAmount > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          ${outstandingAmount.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-gray-400" />
+                      <span className="text-sm">Draft</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{draftInvoices.length}</p>
+                      {draftAmount > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          ${draftAmount.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {invoices && invoices.some(inv => inv.status === 'cancelled') && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-red-500" />
+                        <span className="text-sm">Cancelled</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">
+                          {invoices.filter(inv => inv.status === 'cancelled').length}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <FileText className="mx-auto h-8 w-8 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    No invoices yet
                   </p>
                 </div>
-                <Badge 
-                  variant={currentOrganization?.subscription?.status === 'active' ? 'default' : 'secondary'}
-                >
-                  {currentOrganization?.subscription?.status || 'Active'}
-                </Badge>
-              </div>
-              
-              {currentOrganization?.subscription?.currentPeriodEnd && (
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>
-                    Renews {format(new Date(currentOrganization.subscription.currentPeriodEnd), 'MMM dd, yyyy')}
-                  </span>
-                </div>
               )}
-
-              <Button variant="outline" size="sm" className="w-full" asChild>
-                <Link to="/settings/organization/billing">
-                  Manage Billing
-                </Link>
-              </Button>
             </CardContent>
           </Card>
         </div>
