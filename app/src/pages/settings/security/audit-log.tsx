@@ -5,10 +5,6 @@ import {
   AuditLogQueryFilters,
   AuditLog,
 } from "@/core";
-import { useUser } from "@clerk/clerk-react";
-import { useOrganizationContext } from "@/contexts/organization-context";
-import { logAuditEvent } from "@/utils/audit-log";
-import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -17,14 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -42,7 +30,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Search,
   Download,
   RefreshCw,
   Eye,
@@ -50,82 +37,22 @@ import {
   CheckCircle,
   XCircle,
   Info,
-  Activity,
   FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-// Action type categories for filtering
-const actionCategories = {
-  Authentication: [
-    "user.login",
-    "user.logout",
-    "user.created",
-    "user.updated",
-    "user.deleted",
-    "user.suspended",
-    "user.reactivated",
-  ],
-  Organization: [
-    "organization.created",
-    "organization.updated",
-    "organization.deleted",
-    "organization.settings.updated",
-    "organization.branding.updated",
-    "organization.billing.updated",
-  ],
-  Invoices: [
-    "invoice.created",
-    "invoice.updated",
-    "invoice.deleted",
-    "invoice.sent",
-    "invoice.paid",
-    "invoice.overdue",
-  ],
-  Proposals: [
-    "proposal.created",
-    "proposal.updated",
-    "proposal.deleted",
-    "proposal.sent",
-    "proposal.accepted",
-    "proposal.rejected",
-  ],
-  Products: [
-    "product.created",
-    "product.updated",
-    "product.deleted",
-    "product.archived",
-  ],
-  Workflows: [
-    "workflow.created",
-    "workflow.updated",
-    "workflow.deleted",
-    "workflow.activated",
-    "workflow.executed",
-  ],
-  Security: [
-    "access.granted",
-    "access.revoked",
-    "permission.changed",
-    "api_key.created",
-    "api_key.revoked",
-  ],
-} as const;
-
 export default function AuditLogPage() {
-  const { user } = useUser();
-  const { currentOrganization } = useOrganizationContext();
-  const [filters, setFilters] = useState<AuditLogQueryFilters>({});
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filters] = useState<AuditLogQueryFilters>({});
+  const [searchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<{
+  const [dateRange] = useState<{
     start?: string;
     end?: string;
   }>({});
 
-  const { data, isLoading, error, refetch } = useAuditLogs({
+  const { data, isLoading, isFetching, error, refetch } = useAuditLogs({
     filters: {
       ...filters,
       ...(searchQuery && { search: searchQuery }),
@@ -138,19 +65,6 @@ export default function AuditLogPage() {
 
   const logs = data?.logs || [];
   const total = data?.total || 0;
-
-  const handleFilterChange = (key: keyof AuditLogQueryFilters, value: string | undefined) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value || undefined,
-    }));
-  };
-
-  const clearFilters = () => {
-    setFilters({});
-    setSearchQuery("");
-    setDateRange({});
-  };
 
   const getSeverityColor = (severity: AuditLogSeverity) => {
     switch (severity) {
@@ -192,41 +106,6 @@ export default function AuditLogPage() {
     }
   };
 
-  const handleCreateTestLog = async () => {
-    if (!user || !currentOrganization) {
-      toast.error("User or organization not found");
-      return;
-    }
-
-    try {
-      await logAuditEvent("system.warning.issued", {
-        organizationId: currentOrganization.id,
-        userId: user.id,
-        clerkId: user.id,
-        email: user.primaryEmailAddress?.emailAddress || "",
-        name: user.fullName || "",
-        resource: {
-          type: "audit-log",
-          id: "test",
-          name: "Test Audit Log Entry",
-        },
-        metadata: {
-          source: "web",
-          sourceDetails: "Manual test log creation",
-          tags: ["test", "manual"],
-        },
-        outcome: {
-          status: "success",
-          message: "Test audit log created successfully",
-        },
-      });
-      toast.success("Test audit log created!");
-      refetch();
-    } catch (error) {
-      toast.error(`Failed to create test log: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -236,130 +115,6 @@ export default function AuditLogPage() {
           Track and monitor all activities and changes in your organization
         </p>
       </div>
-
-      {/* Filters Card */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Filters</CardTitle>
-              <CardDescription>
-                Filter audit logs by action, user, severity, and more
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearFilters}
-              className="text-gray-600"
-            >
-              Clear All
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by user, action, or resource..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Action Filter */}
-            <Select
-              value={filters.action || "all"}
-              onValueChange={(value) =>
-                handleFilterChange("action", value === "all" ? undefined : value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Actions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Actions</SelectItem>
-                {Object.entries(actionCategories).map(([category, actions]) => (
-                  <div key={category}>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-500">
-                      {category}
-                    </div>
-                    {actions.map((action) => (
-                      <SelectItem key={action} value={action}>
-                        {formatAction(action)}
-                      </SelectItem>
-                    ))}
-                  </div>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Severity Filter */}
-            <Select
-              value={filters.severity || "all"}
-              onValueChange={(value) =>
-                handleFilterChange("severity", value === "all" ? undefined : value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Status Filter */}
-            <Select
-              value={filters.status || "all"}
-              onValueChange={(value) =>
-                handleFilterChange("status", value === "all" ? undefined : value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="failure">Failure</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Date Range */}
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                placeholder="Start Date"
-                value={dateRange.start || ""}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, start: e.target.value }))
-                }
-                className="flex-1"
-              />
-              <Input
-                type="date"
-                placeholder="End Date"
-                value={dateRange.end || ""}
-                onChange={(e) =>
-                  setDateRange((prev) => ({ ...prev, end: e.target.value }))
-                }
-                className="flex-1"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Results Card */}
       <Card className="border border-gray-200 shadow-sm">
@@ -375,20 +130,11 @@ export default function AuditLogPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCreateTestLog}
-                className="text-gray-600"
-                disabled={!user || !currentOrganization}
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                Create Test Log
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={() => refetch()}
+                disabled={isFetching}
                 className="text-gray-600"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
                 Refresh
               </Button>
               <Button variant="outline" size="sm" className="text-gray-600">
@@ -399,7 +145,7 @@ export default function AuditLogPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading || isFetching ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
             </div>
@@ -418,19 +164,8 @@ export default function AuditLogPage() {
                   <p className="text-sm text-gray-500 mb-4">
                     {Object.keys(filters).length > 0 || searchQuery || dateRange.start || dateRange.end
                       ? "Try adjusting your filters to see more results."
-                      : "Create a product or invoice to generate audit logs, or click 'Create Test Log' to add a sample entry."}
+                      : "Create a product or invoice to generate audit logs."}
                   </p>
-                  {Object.keys(filters).length === 0 && !searchQuery && !dateRange.start && !dateRange.end && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCreateTestLog}
-                      disabled={!user || !currentOrganization}
-                    >
-                      <Activity className="h-4 w-4 mr-2" />
-                      Create Test Log
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>

@@ -58,12 +58,6 @@ const settingsSections = [
         description: "Manage team invites",
         icon: UserPlus,
       },
-      {
-        title: "Roles",
-        href: "/settings/roles",
-        description: "Custom roles and permissions",
-        icon: Shield,
-      },
     ],
   },
   {
