@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { CheckCircle, XCircle, Loader2, Users } from "lucide-react";
+import { CheckCircle, XCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAcceptInvite } from "@/hooks/use-invites";
@@ -133,23 +133,31 @@ export default function AcceptInvitePage() {
 
   if (status === "checking-auth" || status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-              <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
-            </div>
-            <CardTitle>
-              {status === "checking-auth" ? "Checking Authentication" : "Accepting Invitation"}
-            </CardTitle>
-            <CardDescription>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="text-center space-y-6">
+          {/* Logo/Brand */}
+          <div className="space-y-4">
+            <h1 className="text-5xl font-bold text-[#166534] dark:text-[#22c55e] tracking-tight">
+              Financely
+            </h1>
+            <div className="h-1 w-24 bg-[#166534] dark:bg-[#22c55e] mx-auto rounded-full" />
+          </div>
+
+          {/* Spinner */}
+          <div className="flex justify-center pt-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-[#166534] dark:border-t-[#22c55e]" />
+          </div>
+
+          {/* Status Message */}
+          <div className="h-8 flex items-center justify-center">
+            <p className="text-gray-600 dark:text-gray-400 text-lg font-medium">
               {status === "checking-auth" 
-                ? "Please wait while we verify your authentication..." 
-                : "Please wait while we add you to the organization..."
+                ? "Verifying your authentication..." 
+                : "Accepting your invitation..."
               }
-            </CardDescription>
-          </CardHeader>
-        </Card>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -189,27 +197,47 @@ export default function AcceptInvitePage() {
 
   if (status === "success") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="text-center space-y-6">
+          {/* Logo/Brand */}
+          <div className="space-y-4">
+            <h1 className="text-5xl font-bold text-[#166534] dark:text-[#22c55e] tracking-tight">
+              Financely
+            </h1>
+            <div className="h-1 w-24 bg-[#166534] dark:bg-[#22c55e] mx-auto rounded-full" />
+          </div>
+
+          {/* Success Icon */}
+          <div className="flex justify-center pt-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+              <CheckCircle className="h-10 w-10 text-[#166534] dark:text-[#22c55e]" />
             </div>
-            <CardTitle>Welcome to the Team!</CardTitle>
-            <CardDescription>
+          </div>
+
+          {/* Success Message */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              Welcome to the Team!
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 text-lg font-medium max-w-md mx-auto">
               You've successfully joined the organization. You can now access all the features and collaborate with your team.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-2">
               <Users className="h-4 w-4" />
               <span>You're now part of the team</span>
             </div>
-            <Button onClick={() => navigate("/dashboard")} className="w-full">
+          </div>
+
+          {/* Action Button */}
+          <div className="pt-4">
+            <Button 
+              onClick={() => navigate("/dashboard")} 
+              className="bg-[#166534] hover:bg-[#14532d] dark:bg-[#22c55e] dark:hover:bg-[#16a34a] text-white px-8 py-2"
+            >
               Go to Dashboard
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
