@@ -10,6 +10,7 @@ if (!getApps().length) {
 // Invoice functions
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
+export { sendInvoiceEmail } from "./functions/send-invoice-email";
 
 // Workflow functions
 export { createWorkflow } from "./functions/create-workflow";
