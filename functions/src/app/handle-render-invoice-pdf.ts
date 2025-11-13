@@ -333,10 +333,10 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
               text = "";
             }
           } else {
-            // Use formatValue to handle objects, arrays, and null/undefined properly
+          // Use formatValue to handle objects, arrays, and null/undefined properly
             text = raw != null && raw !== undefined 
-              ? formatValue(raw, col.format)
-              : "";
+            ? formatValue(raw, col.format)
+            : "";
           }
           
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";

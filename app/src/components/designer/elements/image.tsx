@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
+import { typography, spacing, separators, components, colors } from "../design-system";
 
 interface ImageElementProps {
 	element: Extract<TemplateElement, { type: "image" }>;
@@ -78,126 +79,139 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 	}, [element.binding]);
 	// Common position/size controls
 	const common = (
-		<div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
+		<section className={`${components.section} ${separators.subsectionDivider}`}>
+			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<div className={isNarrow ? components.gridNarrow : components.grid}>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>X</Label>
+					<Input
+						type="number"
+						value={element.x}
+						onChange={(e) => onChange({ x: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Y</Label>
+					<Input
+						type="number"
+						value={element.y}
+						onChange={(e) => onChange({ y: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Width</Label>
+					<Input
+						type="number"
+						value={element.width}
+						onChange={(e) => onChange({ width: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Height</Label>
+					<Input
+						type="number"
+						value={element.height}
+						onChange={(e) => onChange({ height: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
 			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
+		</section>
 	);
 
 	return (
-		<div className="space-y-2">
-			<div className="text-xs font-medium">Image</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Image URL (Default)</Label>
-					<Input
-						placeholder="https://..."
-						value={element.src}
-						onChange={(e) => {
-							const img = element as Extract<TemplateElement, { type: "image" }>;
-							onChange({ ...img, src: e.target.value });
-						}}
-					/>
-				</div>
-				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Data Binding (Optional)</Label>
-					<div className="space-y-1.5">
-					<Input
-						placeholder="e.g., company.logoUrl"
-							value={bindingInput}
-							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-						onChange={(e) => {
-								const newValue = e.target.value;
-								setBindingInput(newValue);
-								// Update immediately, but show warning if duplicate
-							const img = element as Extract<TemplateElement, { type: "image" }>;
-								onChange({ ...img, binding: newValue || undefined });
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>Image</h3>
+			
+			{/* Image Settings */}
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<div className={components.grid}>
+					<div className={`${components.field} col-span-full`}>
+						<Label className={typography.fieldLabel}>Image URL (Default)</Label>
+						<Input
+							placeholder="https://..."
+							value={element.src}
+							onChange={(e) => {
+								const img = element as Extract<TemplateElement, { type: "image" }>;
+								onChange({ ...img, src: e.target.value });
 							}}
+							className={components.inputHeight}
 						/>
-						{bindingError && suggestedBinding && (
-							<div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-								<AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-								<div className="flex-1 min-w-0">
-									<p className="text-xs font-medium text-amber-800 mb-1">
-										This binding is already used by another element
-									</p>
-									<div className="flex items-center gap-2">
-										<p className="text-xs text-amber-700 flex-1 truncate">
-											Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+					</div>
+					<div className={`${components.field} col-span-full`}>
+						<Label className={typography.fieldLabel}>Data Binding (Optional)</Label>
+						<div className={spacing.fieldGroupGap}>
+							<Input
+								placeholder="e.g., company.logoUrl"
+								value={bindingInput}
+								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
+								onChange={(e) => {
+									const newValue = e.target.value;
+									setBindingInput(newValue);
+									const img = element as Extract<TemplateElement, { type: "image" }>;
+									onChange({ ...img, binding: newValue || undefined });
+								}}
+							/>
+							{bindingError && suggestedBinding && (
+								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
+									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className={`${typography.errorText} mb-1.5`}>
+											This binding is already used by another element
 										</p>
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-											onClick={() => {
-												setBindingInput(suggestedBinding);
-												const img = element as Extract<TemplateElement, { type: "image" }>;
-												onChange({ ...img, binding: suggestedBinding });
-											}}
-										>
-											<Check className="h-3 w-3 mr-1" />
-											Use
-										</Button>
+										<div className="flex items-center gap-2">
+											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
+												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+											</p>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												onClick={() => {
+													setBindingInput(suggestedBinding);
+													const img = element as Extract<TemplateElement, { type: "image" }>;
+													onChange({ ...img, binding: suggestedBinding });
+												}}
+											>
+												<Check className="h-3 w-3 mr-1" />
+												Use
+											</Button>
+										</div>
 									</div>
 								</div>
-							</div>
-						)}
-					<div className="text-xs text-muted-foreground">
-						Leave empty to use default URL. Set a binding to override with data from invoice.
+							)}
+							<p className={typography.helperText}>
+								Leave empty to use default URL. Set a binding to override with data from invoice.
+							</p>
 						</div>
 					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Object Fit</Label>
+						<Select
+							value={element.objectFit}
+							onValueChange={(v) => {
+								const img = element as Extract<TemplateElement, { type: "image" }>;
+								onChange({ ...img, objectFit: v as Extract<TemplateElement, { type: "image" }>["objectFit"] });
+							}}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="contain">Contain</SelectItem>
+								<SelectItem value="cover">Cover</SelectItem>
+								<SelectItem value="fill">Fill</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
 				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Object fit</Label>
-					<Select
-						value={element.objectFit}
-						onValueChange={(v) => {
-							const img = element as Extract<TemplateElement, { type: "image" }>;
-							onChange({ ...img, objectFit: v as Extract<TemplateElement, { type: "image" }>["objectFit"] });
-						}}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="contain">Contain</SelectItem>
-							<SelectItem value="cover">Cover</SelectItem>
-							<SelectItem value="fill">Fill</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-			</div>
+			</section>
+			
 			{common}
 		</div>
 	);

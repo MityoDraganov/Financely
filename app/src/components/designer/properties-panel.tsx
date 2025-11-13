@@ -57,6 +57,7 @@ export function PropertiesPanel({
 	onPropsNarrowChange,
 }: PropertiesPanelProps) {
 	const propertiesRef = useRef<HTMLDivElement>(null);
+	const elementPropertiesRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		const el = propertiesRef.current;
@@ -70,6 +71,32 @@ export function PropertiesPanel({
 		ro.observe(el);
 		return () => ro.disconnect();
 	}, [onPropsNarrowChange]);
+
+	// Scroll to element properties when an element is selected
+	useEffect(() => {
+		if (selectedElementId && elementPropertiesRef.current && propertiesRef.current) {
+			// Use setTimeout to ensure the element is rendered before scrolling
+			const timeoutId = setTimeout(() => {
+				const container = propertiesRef.current;
+				const target = elementPropertiesRef.current;
+				if (container && target) {
+					// Calculate the scroll position to show the element properties section
+					const containerRect = container.getBoundingClientRect();
+					const targetRect = target.getBoundingClientRect();
+					const scrollTop = container.scrollTop;
+					const targetTop = targetRect.top - containerRect.top + scrollTop;
+					
+					// Scroll with smooth behavior, offset by a small amount for better visibility
+					container.scrollTo({
+						top: targetTop - 16, // 16px offset for better visibility
+						behavior: "smooth",
+					});
+				}
+			}, 50); // Small delay to ensure DOM is updated
+
+			return () => clearTimeout(timeoutId);
+		}
+	}, [selectedElementId]);
 
 	if (!template) {
 		return (
@@ -197,7 +224,7 @@ export function PropertiesPanel({
 				
 				{/* Element Properties */}
 				{selectedElement && (
-					<div className={separators.sectionDivider}>
+					<div ref={elementPropertiesRef} className={separators.sectionDivider}>
 						<ElementProperties
 							element={selectedElement}
 							onChange={onUpdateElement}

@@ -10,6 +10,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
+import { typography, spacing, separators, components } from "../design-system";
 
 interface BoxElementProps {
 	element: Extract<TemplateElement, { type: "box" }>;
@@ -54,119 +55,125 @@ interface BoxPropertiesProps {
 export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProps) {
 	// Common position/size controls
 	const common = (
-		<div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
+		<section className={`${components.section} ${separators.subsectionDivider}`}>
+			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<div className={isNarrow ? components.gridNarrow : components.grid}>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>X</Label>
+					<Input
+						type="number"
+						value={element.x}
+						onChange={(e) => onChange({ x: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Y</Label>
+					<Input
+						type="number"
+						value={element.y}
+						onChange={(e) => onChange({ y: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Width</Label>
+					<Input
+						type="number"
+						value={element.width}
+						onChange={(e) => onChange({ width: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Height</Label>
+					<Input
+						type="number"
+						value={element.height}
+						onChange={(e) => onChange({ height: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
 			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
+		</section>
 	);
 
 	return (
-		<div className="space-y-2">
-			<div className="text-xs font-medium">Box</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1">
-					<Label className="text-xs">Fill</Label>
-					<div className="flex gap-2">
-						<Input
-							type="color"
-							value={element.fill || "#ffffff"}
-							onChange={(e) => {
-								onChange({ ...element, fill: e.target.value });
-							}}
-							className="w-12 h-9 p-1 cursor-pointer"
-						/>
-					<Input
-						placeholder="#RRGGBB"
-						value={element.fill}
-						onChange={(e) => {
-								onChange({ ...element, fill: e.target.value });
-						}}
-					/>
-					</div>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Stroke</Label>
-					<div className="flex gap-2">
-						<Input
-							type="color"
-							value={element.stroke || "#e5e7eb"}
-							onChange={(e) => {
-								onChange({ ...element, stroke: e.target.value });
-							}}
-							className="w-12 h-9 p-1 cursor-pointer"
-						/>
-					<Input
-						placeholder="#RRGGBB"
-						value={element.stroke}
-						onChange={(e) => {
-								onChange({ ...element, stroke: e.target.value });
-						}}
-					/>
-					</div>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Stroke width</Label>
-					<Input
-						type="number"
-						placeholder="1"
-						value={element.strokeWidth}
-						onChange={(e) => {
-							onChange({ ...element, strokeWidth: Number(e.target.value) });
-						}}
-					/>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Corner radius</Label>
-					<Input
-						type="number"
-						placeholder="0"
-						value={element.radius}
-						onChange={(e) => {
-							onChange({ ...element, radius: Number(e.target.value) });
-						}}
-					/>
-				</div>
-			</div>
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>Box</h3>
 			
-			<Separator className="my-3" />
-			
-			{/* Enhanced Styling Section */}
-			<div className="space-y-3">
-				<div className="text-xs font-semibold text-neutral-600">Enhanced Styling</div>
-				
-				<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Opacity</Label>
+			{/* Box Styling */}
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Styling</h4>
+				<div className={components.grid}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Fill</Label>
+						<div className="flex gap-2">
+							<Input
+								type="color"
+								value={element.fill || "#ffffff"}
+								onChange={(e) => {
+									onChange({ ...element, fill: e.target.value });
+								}}
+								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
+							/>
+							<Input
+								placeholder="#RRGGBB"
+								value={element.fill}
+								onChange={(e) => {
+									onChange({ ...element, fill: e.target.value });
+								}}
+								className={components.inputHeight}
+							/>
+						</div>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Stroke</Label>
+						<div className="flex gap-2">
+							<Input
+								type="color"
+								value={element.stroke || "#e5e7eb"}
+								onChange={(e) => {
+									onChange({ ...element, stroke: e.target.value });
+								}}
+								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
+							/>
+							<Input
+								placeholder="#RRGGBB"
+								value={element.stroke}
+								onChange={(e) => {
+									onChange({ ...element, stroke: e.target.value });
+								}}
+								className={components.inputHeight}
+							/>
+						</div>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Stroke Width</Label>
+						<Input
+							type="number"
+							placeholder="1"
+							value={element.strokeWidth}
+							onChange={(e) => {
+								onChange({ ...element, strokeWidth: Number(e.target.value) });
+							}}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Corner Radius</Label>
+						<Input
+							type="number"
+							placeholder="0"
+							value={element.radius}
+							onChange={(e) => {
+								onChange({ ...element, radius: Number(e.target.value) });
+							}}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Opacity</Label>
 						<div className="flex gap-2 items-center">
 							<Input
 								type="range"
@@ -179,7 +186,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								}}
 								className="flex-1"
 							/>
-							<span className="text-xs w-10 text-right">
+							<span className={`${typography.helperText} w-10 text-right`}>
 								{Math.round((element.opacity ?? 1) * 100)}%
 							</span>
 						</div>
@@ -187,9 +194,9 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 				</div>
 				
 				{/* Gradient Controls */}
-				<div className="space-y-2 p-3 bg-neutral-50 rounded-md border">
+				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className="text-xs">Gradient Fill</Label>
+						<Label className={typography.fieldLabel}>Gradient Fill</Label>
 						<Switch
 							checked={!!element.fillGradient}
 							onCheckedChange={(checked) => {
@@ -208,9 +215,9 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					</div>
 					
 					{element.fillGradient && (
-						<div className="space-y-2 mt-2">
-							<div className="space-y-1">
-								<Label className="text-xs">Gradient Type</Label>
+						<div className={spacing.fieldGroupGap}>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Gradient Type</Label>
 								<Select
 									value={element.fillGradient.type}
 									onValueChange={(v) => {
@@ -223,7 +230,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 										});
 									}}
 								>
-									<SelectTrigger>
+									<SelectTrigger className={components.inputHeight}>
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -234,8 +241,8 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 							</div>
 							
 							{element.fillGradient.type === "linear" && (
-								<div className="space-y-1">
-									<Label className="text-xs">Angle (degrees)</Label>
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Angle (degrees)</Label>
 									<Input
 										type="number"
 										min="0"
@@ -250,13 +257,14 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 												},
 											});
 										}}
+										className={components.inputHeight}
 									/>
 								</div>
 							)}
 							
-							<div className="space-y-1">
-								<Label className="text-xs">Colors (2-4 colors)</Label>
-								<div className="space-y-2">
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Colors (2-4 colors)</Label>
+								<div className={spacing.fieldGroupGap}>
 									{element.fillGradient.colors.map((color, idx) => (
 										<div key={idx} className="flex gap-2">
 											<Input
@@ -273,7 +281,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 														},
 													});
 												}}
-												className="w-12 h-9 p-1 cursor-pointer"
+												className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 											/>
 											<Input
 												value={color}
@@ -288,6 +296,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 														},
 													});
 												}}
+												className={components.inputHeight}
 											/>
 										</div>
 									))}
@@ -298,9 +307,9 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 				</div>
 				
 				{/* Shadow Controls */}
-				<div className="space-y-2 p-3 bg-neutral-50 rounded-md border">
+				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className="text-xs">Shadow</Label>
+						<Label className={typography.fieldLabel}>Shadow</Label>
 						<Switch
 							checked={element.shadow?.enabled || false}
 							onCheckedChange={(checked) => {
@@ -321,9 +330,9 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					</div>
 					
 					{element.shadow?.enabled && (
-						<div className="grid grid-cols-2 gap-2 mt-2">
-							<div className="space-y-1">
-								<Label className="text-xs">Blur</Label>
+						<div className={components.grid}>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Blur</Label>
 								<Input
 									type="number"
 									min="0"
@@ -338,10 +347,11 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 											},
 										});
 									}}
+									className={components.inputHeight}
 								/>
 							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Offset Y</Label>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Offset Y</Label>
 								<Input
 									type="number"
 									min="-10"
@@ -356,10 +366,11 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 											},
 										});
 									}}
+									className={components.inputHeight}
 								/>
 							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Shadow Color</Label>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Shadow Color</Label>
 								<div className="flex gap-2">
 									<Input
 										type="color"
@@ -373,7 +384,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 												},
 											});
 										}}
-										className="w-12 h-9 p-1 cursor-pointer"
+										className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 									/>
 									<Input
 										value={element.shadow.color || "#00000040"}
@@ -386,13 +397,14 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 												},
 											});
 										}}
+										className={components.inputHeight}
 									/>
 								</div>
 							</div>
 						</div>
 					)}
 				</div>
-			</div>
+			</section>
 			
 			{common}
 		</div>

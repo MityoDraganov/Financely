@@ -34,6 +34,7 @@ import { CurrencyFieldLinking } from "../currency-field-linking";
 import { FormulaBuilder } from "../formula-builder";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
+import { typography, spacing, separators, components, colors } from "../design-system";
 
 interface CurrencyElementProps {
   element: Extract<TemplateElement, { type: "currency" }>;
@@ -104,223 +105,236 @@ export function CurrencyProperties({
 
   // Common position/size controls
   const common = (
-    <div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-      <div className="space-y-1">
-        <Label className="text-xs">X</Label>
-        <Input
-          type="number"
-          value={element.x}
-          onChange={(e) => onChange({ x: Number(e.target.value) })}
-        />
+    <section className={`${components.section} ${separators.subsectionDivider}`}>
+      <h4 className={typography.subsectionTitle}>Position & Size</h4>
+      <div className={isNarrow ? components.gridNarrow : components.grid}>
+        <div className={components.field}>
+          <Label className={typography.fieldLabel}>X</Label>
+          <Input
+            type="number"
+            value={element.x}
+            onChange={(e) => onChange({ x: Number(e.target.value) })}
+            className={components.inputHeight}
+          />
+        </div>
+        <div className={components.field}>
+          <Label className={typography.fieldLabel}>Y</Label>
+          <Input
+            type="number"
+            value={element.y}
+            onChange={(e) => onChange({ y: Number(e.target.value) })}
+            className={components.inputHeight}
+          />
+        </div>
+        <div className={components.field}>
+          <Label className={typography.fieldLabel}>Width</Label>
+          <Input
+            type="number"
+            value={element.width}
+            onChange={(e) => onChange({ width: Number(e.target.value) })}
+            className={components.inputHeight}
+          />
+        </div>
+        <div className={components.field}>
+          <Label className={typography.fieldLabel}>Height</Label>
+          <Input
+            type="number"
+            value={element.height}
+            onChange={(e) => onChange({ height: Number(e.target.value) })}
+            className={components.inputHeight}
+          />
+        </div>
       </div>
-      <div className="space-y-1">
-        <Label className="text-xs">Y</Label>
-        <Input
-          type="number"
-          value={element.y}
-          onChange={(e) => onChange({ y: Number(e.target.value) })}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs">Width</Label>
-        <Input
-          type="number"
-          value={element.width}
-          onChange={(e) => onChange({ width: Number(e.target.value) })}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs">Height</Label>
-        <Input
-          type="number"
-          value={element.height}
-          onChange={(e) => onChange({ height: Number(e.target.value) })}
-        />
-      </div>
-    </div>
+    </section>
   );
 
   return (
-    <div className="space-y-2">
-      <div className="text-xs font-medium">Currency</div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-        <div className="space-y-1 col-span-2">
-          <Label className="text-xs">Placeholder</Label>
-          <Input
-            placeholder="Placeholder"
-            value={element.placeholder}
-            onChange={(e) =>
-              onChange({
-                ...element,
-                placeholder: e.target.value,
-              })
-            }
-          />
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Currency</Label>
-          <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className="w-full justify-between h-9 text-xs"
-              >
-                {element.currency
-                  ? (() => {
-                      const curr = getCurrency(element.currency);
-                      return curr
-                        ? `${curr.code} - ${curr.name}${curr.symbol ? ` (${curr.symbol})` : ""}`
-                        : element.currency;
-                    })()
-                  : "Select currency..."}
-                <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Search currency..." />
-                <CommandList>
-                  <CommandEmpty>No currency found.</CommandEmpty>
-                  <CommandGroup>
-                    {CURRENCIES.map((curr) => (
-                      <CommandItem
-                        key={curr.code}
-                        value={`${curr.code} ${curr.name} ${curr.symbol || ""}`}
-                        onSelect={() => {
-                          onChange({
-                            ...element,
-                            currency: curr.code,
-                          });
-                          setCurrencyPopoverOpen(false);
-                        }}
-                        className="text-xs cursor-pointer"
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-3 w-3",
-                            element.currency === curr.code
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                        <span className="font-medium">{curr.code}</span>
-                        <span className="ml-2 text-neutral-500">
-                          - {curr.name}
-                        </span>
-                        {curr.symbol && (
-                          <span className="ml-1 text-neutral-400">
-                            ({curr.symbol})
-                          </span>
-                        )}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Align</Label>
-          <Select
-            value={element.align}
-            onValueChange={(v) =>
-              onChange({
-                ...element,
-                align: v as typeof element.align,
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="left">Left</SelectItem>
-              <SelectItem value="center">Center</SelectItem>
-              <SelectItem value="right">Right</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Mode</Label>
-          <Select
-            value={element.mode || "independent"}
-            onValueChange={(v) =>
-              onChange({
-                ...element,
-                mode: v as "independent" | "linked" | "formula",
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="independent">Independent</SelectItem>
-              <SelectItem value="linked">Linked</SelectItem>
-              <SelectItem value="formula">Formula</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1 col-span-2">
-          <Label className="text-xs">Binding</Label>
-          <div className="space-y-1.5">
+    <div className={components.section}>
+      <h3 className={typography.sectionTitle}>Currency</h3>
+      
+      {/* Currency Settings */}
+      <section className={components.subsection}>
+        <h4 className={typography.subsectionTitle}>Settings</h4>
+        <div className={components.grid}>
+          <div className={`${components.field} col-span-full`}>
+            <Label className={typography.fieldLabel}>Placeholder</Label>
             <Input
-              placeholder="invoice.total"
-              value={bindingInput}
-              className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                setBindingInput(newValue);
+              placeholder="Placeholder"
+              value={element.placeholder}
+              onChange={(e) =>
                 onChange({
                   ...element,
-                  binding: newValue || undefined,
-                });
-              }}
+                  placeholder: e.target.value,
+                })
+              }
+              className={components.inputHeight}
             />
-            {bindingError && suggestedBinding && (
-              <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-amber-800 mb-1">
-                    This binding is already used by another element
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-amber-700 flex-1 truncate">
-                      Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+          </div>
+
+          <div className={components.field}>
+            <Label className={typography.fieldLabel}>Currency</Label>
+            <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className={`w-full justify-between ${components.inputHeight} text-xs`}
+                >
+                  {element.currency
+                    ? (() => {
+                        const curr = getCurrency(element.currency);
+                        return curr
+                          ? `${curr.code} - ${curr.name}${curr.symbol ? ` (${curr.symbol})` : ""}`
+                          : element.currency;
+                      })()
+                    : "Select currency..."}
+                  <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search currency..." />
+                  <CommandList>
+                    <CommandEmpty>No currency found.</CommandEmpty>
+                    <CommandGroup>
+                      {CURRENCIES.map((curr) => (
+                        <CommandItem
+                          key={curr.code}
+                          value={`${curr.code} ${curr.name} ${curr.symbol || ""}`}
+                          onSelect={() => {
+                            onChange({
+                              ...element,
+                              currency: curr.code,
+                            });
+                            setCurrencyPopoverOpen(false);
+                          }}
+                          className="text-xs cursor-pointer"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-3 w-3",
+                              element.currency === curr.code
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          <span className="font-medium">{curr.code}</span>
+                          <span className="ml-2 text-neutral-500">
+                            - {curr.name}
+                          </span>
+                          {curr.symbol && (
+                            <span className="ml-1 text-neutral-400">
+                              ({curr.symbol})
+                            </span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className={components.field}>
+            <Label className={typography.fieldLabel}>Align</Label>
+            <Select
+              value={element.align}
+              onValueChange={(v) =>
+                onChange({
+                  ...element,
+                  align: v as typeof element.align,
+                })
+              }
+            >
+              <SelectTrigger className={components.inputHeight}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Left</SelectItem>
+                <SelectItem value="center">Center</SelectItem>
+                <SelectItem value="right">Right</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className={components.field}>
+            <Label className={typography.fieldLabel}>Mode</Label>
+            <Select
+              value={element.mode || "independent"}
+              onValueChange={(v) =>
+                onChange({
+                  ...element,
+                  mode: v as "independent" | "linked" | "formula",
+                })
+              }
+            >
+              <SelectTrigger className={components.inputHeight}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="independent">Independent</SelectItem>
+                <SelectItem value="linked">Linked</SelectItem>
+                <SelectItem value="formula">Formula</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className={`${components.field} col-span-full`}>
+            <Label className={typography.fieldLabel}>Data Binding</Label>
+            <div className={spacing.fieldGroupGap}>
+              <Input
+                placeholder="e.g., invoice.total"
+                value={bindingInput}
+                className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  setBindingInput(newValue);
+                  onChange({
+                    ...element,
+                    binding: newValue || undefined,
+                  });
+                }}
+              />
+              {bindingError && suggestedBinding && (
+                <div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`${typography.errorText} mb-1.5`}>
+                      This binding is already used by another element
                     </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-                      onClick={() => {
-                        setBindingInput(suggestedBinding);
-                        onChange({
-                          ...element,
-                          binding: suggestedBinding,
-                        });
-                      }}
-                    >
-                      <Check className="h-3 w-3 mr-1" />
-                      Use
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <p className={`${typography.errorTextSecondary} flex-1 truncate`}>
+                        Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+                        onClick={() => {
+                          setBindingInput(suggestedBinding);
+                          onChange({
+                            ...element,
+                            binding: suggestedBinding,
+                          });
+                        }}
+                      >
+                        <Check className="h-3 w-3 mr-1" />
+                        Use
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Field Linking UI */}
       {element.mode === "linked" && (
-        <div className="pt-3 border-t border-neutral-200">
+        <section className={`${components.subsection} ${separators.subsectionDivider}`}>
           <CurrencyFieldLinking
             currentField={element}
             allFields={allElements || []}
@@ -331,12 +345,12 @@ export function CurrencyProperties({
               })
             }
           />
-        </div>
+        </section>
       )}
 
       {/* Formula Builder for Formula Mode */}
       {element.mode === "formula" && (
-        <div className="pt-4 border-t border-neutral-200">
+        <section className={`${components.subsection} ${separators.subsectionDivider}`}>
           <FormulaBuilder
             formula={element.formula}
             onChange={(formula) =>
@@ -348,7 +362,7 @@ export function CurrencyProperties({
             currentElement={element}
             allElements={allElements}
           />
-        </div>
+        </section>
       )}
 
       {common}

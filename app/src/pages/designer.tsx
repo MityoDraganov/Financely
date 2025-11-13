@@ -166,7 +166,7 @@ export default function TemplateDesignerPage() {
 		
 		const region = complianceStatus.region;
 		const schema = COMPLIANCE_SCHEMAS[region];
-			const existingBindings = new Set(
+		const existingBindings = new Set(
 			(currentTemplate.elements ?? []).flatMap(el => {
 				const bindings: string[] = [];
 				if (el.type === "text" || el.type === "input" || el.type === "image" || el.type === "currency") {
@@ -910,9 +910,9 @@ export default function TemplateDesignerPage() {
 											currency: "USD",
 											currencyLinks: [],
 											mode: "independent",
-											align: "left",
-										}
-									: {
+										align: "left",
+									}
+								: {
 										id: crypto.randomUUID(),
 										type: "line",
 										x: at?.x ?? 40,
@@ -1156,9 +1156,9 @@ export default function TemplateDesignerPage() {
 							isSubscribed={isSubscribed}
 							activeUsers={activeUsers}
 							onTemplateChange={async (id: string) => {
-								if (id === "new") {
-									await handleCreateNewTemplate();
-								} else {
+									if (id === "new") {
+										await handleCreateNewTemplate();
+									} else {
 									// Reset draft state when switching templates
 									setDraftElements(null);
 									setDraftBrand(null);
@@ -1179,48 +1179,48 @@ export default function TemplateDesignerPage() {
 							activeUsers={activeUsers}
 							currentUserId={authUser?.uid}
 							pageRef={pageRef}
-							onDragOver={handleCanvasDragOver}
-							onDrop={handleCanvasDrop}
-							onMouseMove={(e) => {
-								if (!state.currentTemplateId) return;
-								const rect = pageRef.current?.getBoundingClientRect();
-								if (!rect) return;
-								const x = (e.clientX - rect.left) / state.zoom;
-								const y = (e.clientY - rect.top) / state.zoom;
-								updateCursor({ x, y });
-							}}
+								onDragOver={handleCanvasDragOver}
+								onDrop={handleCanvasDrop}
+								onMouseMove={(e) => {
+									if (!state.currentTemplateId) return;
+									const rect = pageRef.current?.getBoundingClientRect();
+									if (!rect) return;
+									const x = (e.clientX - rect.left) / state.zoom;
+									const y = (e.clientY - rect.top) / state.zoom;
+									updateCursor({ x, y });
+								}}
 							onSelectElement={(id) => setState((s) => ({ ...s, selectedElementId: id }))}
 							onStartDrag={(el, e) => {
-								if (e.button !== 0) return;
-								e.preventDefault();
-								e.stopPropagation();
+													if (e.button !== 0) return;
+											e.preventDefault();
+											e.stopPropagation();
 								setState((s) => ({ ...s, selectedElementId: el.id }));
 								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-								setDrag({
-									elementId: el.id,
-									mode: "move",
-									startClientX: e.clientX,
-									startClientY: e.clientY,
-									startX: el.x,
-									startY: el.y,
-								});
-							}}
+											setDrag({
+												elementId: el.id,
+												mode: "move",
+												startClientX: e.clientX,
+												startClientY: e.clientY,
+												startX: el.x,
+												startY: el.y,
+											});
+										}}
 							onStartResize={(el, edge, e) => {
-								e.preventDefault();
-								e.stopPropagation();
+															e.preventDefault();
+															e.stopPropagation();
 								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-								setDrag({
+															setDrag({
 									elementId: el.id,
-									mode: "resize",
+																mode: "resize",
 									edge,
 									startClientX: e.clientX,
 									startClientY: e.clientY,
-									startX: el.x,
-									startY: el.y,
+																startX: el.x,
+																startY: el.y,
 									startWidth: el.width,
 									startHeight: el.height,
-								});
-							}}
+															});
+														}}
 							onDuplicateElement={duplicateElement}
 							onDeleteElement={deleteElement}
 							onCreateTemplate={() => createMutation.mutate()}
@@ -1232,7 +1232,7 @@ export default function TemplateDesignerPage() {
 								const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
 									{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 									{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-								];
+																		];
 								const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
 								setDraftElements((prev) => {
 									const base = prev ?? currentTemplateRef.current?.elements ?? [];
@@ -1241,9 +1241,9 @@ export default function TemplateDesignerPage() {
 								saveMutation.mutate({
 									elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
 										it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
-									),
+																	),
 								});
-							}}
+														}}
 							currentTemplateRef={currentTemplateRef}
 							saveMutation={saveMutation}
 						/>

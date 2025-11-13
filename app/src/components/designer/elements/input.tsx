@@ -12,6 +12,7 @@ import {
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
 import { FormulaBuilder } from "../formula-builder";
+import { typography, spacing, separators, components, colors } from "../design-system";
 interface InputElementProps {
 	element: Extract<TemplateElement, { type: "input" }>;
 }
@@ -80,211 +81,223 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 	
 	// Common position/size controls
 	const common = (
-		<div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
+		<section className={`${components.section} ${separators.subsectionDivider}`}>
+			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<div className={isNarrow ? components.gridNarrow : components.grid}>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>X</Label>
+					<Input
+						type="number"
+						value={element.x}
+						onChange={(e) => onChange({ x: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Y</Label>
+					<Input
+						type="number"
+						value={element.y}
+						onChange={(e) => onChange({ y: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Width</Label>
+					<Input
+						type="number"
+						value={element.width}
+						onChange={(e) => onChange({ width: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Height</Label>
+					<Input
+						type="number"
+						value={element.height}
+						onChange={(e) => onChange({ height: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
 			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
+		</section>
 	);
 
 	return (
-		<div className="space-y-2">
-			<div className="text-xs font-medium">Input</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Placeholder</Label>
-					<Input
-						placeholder="Placeholder"
-						value={inp.placeholder}
-						onChange={(e) =>
-							onChange({
-								id: element.id,
-								type: "input",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								placeholder: e.target.value,
-								variant: inp.variant,
-								align: inp.align,
-								binding: inp.binding,
-							})
-						}
-					/>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Variant</Label>
-					<Select
-						value={inp.variant}
-						onValueChange={(v) =>
-							onChange({
-								id: element.id,
-								type: "input",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								placeholder: inp.placeholder,
-								variant: v as typeof inp.variant,
-								align: inp.align,
-								binding: inp.binding,
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="text">Text</SelectItem>
-							<SelectItem value="number">Number</SelectItem>
-							<SelectItem value="date">Date</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Align</Label>
-					<Select
-						value={inp.align}
-						onValueChange={(v) =>
-							onChange({
-								id: element.id,
-								type: "input",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								placeholder: inp.placeholder,
-								variant: inp.variant,
-								align: v as typeof inp.align,
-								binding: inp.binding,
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="left">Left</SelectItem>
-							<SelectItem value="center">Center</SelectItem>
-							<SelectItem value="right">Right</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Binding</Label>
-					<div className="space-y-1.5">
-					<Input
-						placeholder="invoice.customerName"
-							value={bindingInput}
-							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-							onChange={(e) => {
-								const newValue = e.target.value;
-								setBindingInput(newValue);
-								// Update immediately, but show warning if duplicate
-							onChange({
-								id: element.id,
-								type: "input",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								placeholder: inp.placeholder,
-								variant: inp.variant,
-								align: inp.align,
-									binding: newValue || undefined,
-								});
-							}}
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>Input</h3>
+			
+			{/* Input Settings */}
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<div className={components.grid}>
+					<div className={`${components.field} col-span-full`}>
+						<Label className={typography.fieldLabel}>Placeholder</Label>
+						<Input
+							placeholder="Placeholder"
+							value={inp.placeholder}
+							onChange={(e) =>
+								onChange({
+									id: element.id,
+									type: "input",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									placeholder: e.target.value,
+									variant: inp.variant,
+									align: inp.align,
+									binding: inp.binding,
+								})
+							}
+							className={components.inputHeight}
 						/>
-						{bindingError && suggestedBinding && (
-							<div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-								<AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-								<div className="flex-1 min-w-0">
-									<p className="text-xs font-medium text-amber-800 mb-1">
-										This binding is already used by another element
-									</p>
-									<div className="flex items-center gap-2">
-										<p className="text-xs text-amber-700 flex-1 truncate">
-											Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Variant</Label>
+						<Select
+							value={inp.variant}
+							onValueChange={(v) =>
+								onChange({
+									id: element.id,
+									type: "input",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									placeholder: inp.placeholder,
+									variant: v as typeof inp.variant,
+									align: inp.align,
+									binding: inp.binding,
+								})
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="text">Text</SelectItem>
+								<SelectItem value="number">Number</SelectItem>
+								<SelectItem value="date">Date</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Align</Label>
+						<Select
+							value={inp.align}
+							onValueChange={(v) =>
+								onChange({
+									id: element.id,
+									type: "input",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									placeholder: inp.placeholder,
+									variant: inp.variant,
+									align: v as typeof inp.align,
+									binding: inp.binding,
+								})
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="left">Left</SelectItem>
+								<SelectItem value="center">Center</SelectItem>
+								<SelectItem value="right">Right</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className={`${components.field} col-span-full`}>
+						<Label className={typography.fieldLabel}>Data Binding</Label>
+						<div className={spacing.fieldGroupGap}>
+							<Input
+								placeholder="e.g., invoice.customerName"
+								value={bindingInput}
+								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
+								onChange={(e) => {
+									const newValue = e.target.value;
+									setBindingInput(newValue);
+									onChange({
+										id: element.id,
+										type: "input",
+										x: element.x,
+										y: element.y,
+										width: element.width,
+										height: element.height,
+										rotation: element.rotation,
+										zIndex: element.zIndex,
+										visible: element.visible,
+										placeholder: inp.placeholder,
+										variant: inp.variant,
+										align: inp.align,
+										binding: newValue || undefined,
+									});
+								}}
+							/>
+							{bindingError && suggestedBinding && (
+								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
+									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className={`${typography.errorText} mb-1.5`}>
+											This binding is already used by another element
 										</p>
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-											onClick={() => {
-												setBindingInput(suggestedBinding);
-												onChange({
-													id: element.id,
-													type: "input",
-													x: element.x,
-													y: element.y,
-													width: element.width,
-													height: element.height,
-													rotation: element.rotation,
-													zIndex: element.zIndex,
-													visible: element.visible,
-													placeholder: inp.placeholder,
-													variant: inp.variant,
-													align: inp.align,
-													binding: suggestedBinding,
-												});
-											}}
-										>
-											<Check className="h-3 w-3 mr-1" />
-											Use
-										</Button>
+										<div className="flex items-center gap-2">
+											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
+												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+											</p>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												onClick={() => {
+													setBindingInput(suggestedBinding);
+													onChange({
+														id: element.id,
+														type: "input",
+														x: element.x,
+														y: element.y,
+														width: element.width,
+														height: element.height,
+														rotation: element.rotation,
+														zIndex: element.zIndex,
+														visible: element.visible,
+														placeholder: inp.placeholder,
+														variant: inp.variant,
+														align: inp.align,
+														binding: suggestedBinding,
+													});
+												}}
+											>
+												<Check className="h-3 w-3 mr-1" />
+												Use
+											</Button>
+										</div>
 									</div>
 								</div>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 				</div>
-			</div>
+			</section>
 
 			{/* Formula Builder for Number Variant */}
 			{inp.variant === "number" && (
-				<div className="pt-4 border-t border-neutral-200">
+				<section className={`${components.subsection} ${separators.subsectionDivider}`}>
 					<FormulaBuilder
 						formula={inp.formula}
 						onChange={(formula) =>
@@ -296,7 +309,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 						currentElement={element}
 						allElements={allElements}
 					/>
-				</div>
+				</section>
 			)}
 
 			{common}

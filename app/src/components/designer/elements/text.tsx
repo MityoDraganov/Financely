@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
+import { typography, spacing, separators, components, colors } from "../design-system";
 
 interface TextElementProps {
 	element: Extract<TemplateElement, { type: "text" }>;
@@ -97,290 +98,307 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 	
 	// Common position/size controls
 	const common = (
-		<div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
+		<section className={`${components.section} ${separators.subsectionDivider}`}>
+			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<div className={isNarrow ? components.gridNarrow : components.grid}>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>X</Label>
+					<Input
+						type="number"
+						value={element.x}
+						onChange={(e) => onChange({ x: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Y</Label>
+					<Input
+						type="number"
+						value={element.y}
+						onChange={(e) => onChange({ y: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Width</Label>
+					<Input
+						type="number"
+						value={element.width}
+						onChange={(e) => onChange({ width: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Height</Label>
+					<Input
+						type="number"
+						value={element.height}
+						onChange={(e) => onChange({ height: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
 			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
+		</section>
 	);
 
 	return (
-		<div className="space-y-2">
-			<div className="text-xs font-medium">Text</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Text</Label>
-				<Input
-					value={t.text ?? ""}
-					onChange={(e) =>
-						onChange({
-							id: element.id,
-							type: "text",
-							x: element.x,
-							y: element.y,
-							width: element.width,
-							height: element.height,
-							rotation: element.rotation,
-							zIndex: element.zIndex,
-							visible: element.visible,
-							text: e.target.value,
-							binding: t.binding,
-							typography: t.typography,
-							format: t.format,
-						})
-					}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Data Binding</Label>
-				<div className="space-y-1.5">
-				<Input
-					placeholder="e.g., invoice.customerName"
-						value={bindingInput}
-						className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-						onChange={(e) => {
-							const newValue = e.target.value;
-							setBindingInput(newValue);
-							// Update immediately, but show warning if duplicate
-						onChange({
-							id: element.id,
-							type: "text",
-							x: element.x,
-							y: element.y,
-							width: element.width,
-							height: element.height,
-							rotation: element.rotation,
-							zIndex: element.zIndex,
-							visible: element.visible,
-							text: t.text,
-								binding: newValue || undefined,
-							typography: t.typography,
-							format: t.format,
-							});
-						}}
-				/>
-					{bindingError && suggestedBinding && (
-						<div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-							<AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-							<div className="flex-1 min-w-0">
-								<p className="text-xs font-medium text-amber-800 mb-1">
-									This binding is already used by another element
-								</p>
-								<div className="flex items-center gap-2">
-									<p className="text-xs text-amber-700 flex-1 truncate">
-										Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
-									</p>
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-										onClick={() => {
-											setBindingInput(suggestedBinding);
-											onChange({
-												id: element.id,
-												type: "text",
-												x: element.x,
-												y: element.y,
-												width: element.width,
-												height: element.height,
-												rotation: element.rotation,
-												zIndex: element.zIndex,
-												visible: element.visible,
-												text: t.text,
-												binding: suggestedBinding,
-												typography: t.typography,
-												format: t.format,
-											});
-										}}
-									>
-										<Check className="h-3 w-3 mr-1" />
-										Use
-									</Button>
-								</div>
-							</div>
-						</div>
-					)}
-				</div>
-			</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1">
-					<Label className="text-xs">Font size</Label>
-					<Input
-						type="number"
-						value={t.typography.fontSize}
-					onChange={(e) =>
-						onChange({
-							id: element.id,
-							type: "text",
-							x: element.x,
-							y: element.y,
-							width: element.width,
-							height: element.height,
-							rotation: element.rotation,
-							zIndex: element.zIndex,
-							visible: element.visible,
-							text: t.text,
-							binding: t.binding,
-							typography: { ...t.typography, fontSize: Number(e.target.value) },
-							format: t.format,
-						})
-					}
-					/>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Weight</Label>
-					<Select
-						value={t.typography.fontWeight}
-						onValueChange={(v) =>
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
-								binding: t.binding,
-								typography: { ...t.typography, fontWeight: v as typeof t.typography.fontWeight },
-								format: t.format,
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="normal">Normal</SelectItem>
-							<SelectItem value="medium">Medium</SelectItem>
-							<SelectItem value="semibold">Semibold</SelectItem>
-							<SelectItem value="bold">Bold</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Color</Label>
-					<Input
-						placeholder="#111827"
-						value={t.typography.color}
-						onChange={(e) =>
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
-								binding: t.binding,
-								typography: { ...t.typography, color: e.target.value },
-								format: t.format,
-							})
-						}
-					/>
-				</div>
-			</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1">
-					<Label className="text-xs">Alignment</Label>
-					<Select
-						value={t.typography.align}
-						onValueChange={(v) =>
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
-								binding: t.binding,
-								typography: { ...t.typography, align: v as typeof t.typography.align },
-								format: t.format,
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="left">Left</SelectItem>
-							<SelectItem value="center">Center</SelectItem>
-							<SelectItem value="right">Right</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Uppercase</Label>
-					<Switch
-						checked={t.typography.uppercase}
-						onCheckedChange={(checked) =>
-							onChange({
-								id: element.id,
-								type: "text",
-								x: element.x,
-								y: element.y,
-								width: element.width,
-								height: element.height,
-								rotation: element.rotation,
-								zIndex: element.zIndex,
-								visible: element.visible,
-								text: t.text,
-								binding: t.binding,
-								typography: { ...t.typography, uppercase: checked, lowercase: checked ? false : t.typography.lowercase },
-								format: t.format,
-							})
-						}
-					/>
-				</div>
-			</div>
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>Text</h3>
 			
-			<Separator className="my-3" />
+			{/* Content */}
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Content</h4>
+				<div className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Text</Label>
+						<Input
+							value={t.text ?? ""}
+							onChange={(e) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: e.target.value,
+									binding: t.binding,
+									typography: t.typography,
+									format: t.format,
+								})
+							}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Data Binding</Label>
+						<div className={spacing.fieldGroupGap}>
+							<Input
+								placeholder="e.g., invoice.customerName"
+								value={bindingInput}
+								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
+								onChange={(e) => {
+									const newValue = e.target.value;
+									setBindingInput(newValue);
+									onChange({
+										id: element.id,
+										type: "text",
+										x: element.x,
+										y: element.y,
+										width: element.width,
+										height: element.height,
+										rotation: element.rotation,
+										zIndex: element.zIndex,
+										visible: element.visible,
+										text: t.text,
+										binding: newValue || undefined,
+										typography: t.typography,
+										format: t.format,
+									});
+								}}
+							/>
+							{bindingError && suggestedBinding && (
+								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
+									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className={`${typography.errorText} mb-1.5`}>
+											This binding is already used by another element
+										</p>
+										<div className="flex items-center gap-2">
+											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
+												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+											</p>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												onClick={() => {
+													setBindingInput(suggestedBinding);
+													onChange({
+														id: element.id,
+														type: "text",
+														x: element.x,
+														y: element.y,
+														width: element.width,
+														height: element.height,
+														rotation: element.rotation,
+														zIndex: element.zIndex,
+														visible: element.visible,
+														text: t.text,
+														binding: suggestedBinding,
+														typography: t.typography,
+														format: t.format,
+													});
+												}}
+											>
+												<Check className="h-3 w-3 mr-1" />
+												Use
+											</Button>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
+					</div>
+				</div>
+			</section>
+			{/* Typography */}
+			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
+				<h4 className={typography.subsectionTitle}>Typography</h4>
+				<div className={components.grid}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Font Size</Label>
+						<Input
+							type="number"
+							value={t.typography.fontSize}
+							onChange={(e) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: t.text,
+									binding: t.binding,
+									typography: { ...t.typography, fontSize: Number(e.target.value) },
+									format: t.format,
+								})
+							}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Weight</Label>
+						<Select
+							value={t.typography.fontWeight}
+							onValueChange={(v) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: t.text,
+									binding: t.binding,
+									typography: { ...t.typography, fontWeight: v as typeof t.typography.fontWeight },
+									format: t.format,
+								})
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="normal">Normal</SelectItem>
+								<SelectItem value="medium">Medium</SelectItem>
+								<SelectItem value="semibold">Semibold</SelectItem>
+								<SelectItem value="bold">Bold</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Color</Label>
+						<Input
+							placeholder="#111827"
+							value={t.typography.color}
+							onChange={(e) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: t.text,
+									binding: t.binding,
+									typography: { ...t.typography, color: e.target.value },
+									format: t.format,
+								})
+							}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Alignment</Label>
+						<Select
+							value={t.typography.align}
+							onValueChange={(v) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: t.text,
+									binding: t.binding,
+									typography: { ...t.typography, align: v as typeof t.typography.align },
+									format: t.format,
+								})
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="left">Left</SelectItem>
+								<SelectItem value="center">Center</SelectItem>
+								<SelectItem value="right">Right</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Uppercase</Label>
+						<div className="flex items-center h-9">
+							<Switch
+								checked={t.typography.uppercase}
+								onCheckedChange={(checked) =>
+									onChange({
+										id: element.id,
+										type: "text",
+										x: element.x,
+										y: element.y,
+										width: element.width,
+										height: element.height,
+										rotation: element.rotation,
+										zIndex: element.zIndex,
+										visible: element.visible,
+										text: t.text,
+										binding: t.binding,
+										typography: { ...t.typography, uppercase: checked, lowercase: checked ? false : t.typography.lowercase },
+										format: t.format,
+									})
+								}
+							/>
+						</div>
+					</div>
+				</div>
+			</section>
 			
 			{/* Enhanced Styling Section */}
-			<div className="space-y-3">
-				<div className="text-xs font-semibold text-neutral-600">Enhanced Styling</div>
-				
-				<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Background Color</Label>
+			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
+				<h4 className={typography.subsectionTitle}>Styling</h4>
+				<div className={components.grid}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Background Color</Label>
 						<div className="flex gap-2">
 							<Input
 								type="color"
@@ -392,7 +410,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 										backgroundColor: newBg,
 									});
 								}}
-								className="w-12 h-9 p-1 cursor-pointer"
+								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 							/>
 							<Input
 								placeholder="#ffffff or transparent"
@@ -404,12 +422,13 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 										backgroundColor: newBg,
 									});
 								}}
+								className={components.inputHeight}
 							/>
 						</div>
 					</div>
 					
-					<div className="space-y-1">
-						<Label className="text-xs">Padding (px)</Label>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Padding (px)</Label>
 						<Input
 							type="number"
 							min="0"
@@ -421,11 +440,12 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 									padding: Number(e.target.value) || 0,
 								});
 							}}
+							className={components.inputHeight}
 						/>
 					</div>
 					
-					<div className="space-y-1">
-						<Label className="text-xs">Opacity</Label>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Opacity</Label>
 						<div className="flex gap-2 items-center">
 							<Input
 								type="range"
@@ -441,7 +461,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								}}
 								className="flex-1"
 							/>
-							<span className="text-xs w-10 text-right">
+							<span className={`${typography.helperText} w-10 text-right`}>
 								{Math.round((t.opacity ?? 1) * 100)}%
 							</span>
 						</div>
@@ -449,9 +469,9 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 				</div>
 				
 				{/* Shadow Controls */}
-				<div className="space-y-2 p-3 bg-neutral-50 rounded-md border">
+				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className="text-xs">Shadow</Label>
+						<Label className={typography.fieldLabel}>Shadow</Label>
 						<Switch
 							checked={t.shadow?.enabled || false}
 							onCheckedChange={(checked) => {
@@ -472,9 +492,9 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					</div>
 					
 					{t.shadow?.enabled && (
-						<div className="grid grid-cols-2 gap-2 mt-2">
-							<div className="space-y-1">
-								<Label className="text-xs">Blur</Label>
+						<div className={components.grid}>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Blur</Label>
 								<Input
 									type="number"
 									min="0"
@@ -489,10 +509,11 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 											},
 										});
 									}}
+									className={components.inputHeight}
 								/>
 							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Offset Y</Label>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Offset Y</Label>
 								<Input
 									type="number"
 									min="-10"
@@ -507,10 +528,11 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 											},
 										});
 									}}
+									className={components.inputHeight}
 								/>
 							</div>
-							<div className="space-y-1">
-								<Label className="text-xs">Shadow Color</Label>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Shadow Color</Label>
 								<div className="flex gap-2">
 									<Input
 										type="color"
@@ -524,7 +546,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 												},
 											});
 										}}
-										className="w-12 h-9 p-1 cursor-pointer"
+										className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 									/>
 									<Input
 										value={t.shadow.color || "#00000040"}
@@ -537,13 +559,14 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 												},
 											});
 										}}
+										className={components.inputHeight}
 									/>
 								</div>
 							</div>
 						</div>
 					)}
 				</div>
-			</div>
+			</section>
 			
 			{common}
 		</div>

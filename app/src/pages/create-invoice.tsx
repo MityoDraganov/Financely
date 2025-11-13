@@ -1662,8 +1662,8 @@ export default function CreateInvoicePage() {
                                           </span>
                                         )}
                                     </Label>
-                                      <Input
-                                        id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
+                                    <Input
+                                      id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
                                         type={col.type === "currency" ? "number" : col.type}
                                         value={(() => {
                                           const val = row[col.binding];
@@ -1681,7 +1681,7 @@ export default function CreateInvoicePage() {
                                           }
                                           return String(val ?? "");
                                         })()}
-                                        onChange={(e) => {
+                                      onChange={(e) => {
                                           const inputValue = e.target.value;
                                           let val: InvoiceDataValue;
                                           
@@ -1712,8 +1712,8 @@ export default function CreateInvoicePage() {
                                             val = inputValue;
                                           }
                                           
-                                          updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
-                                        }}
+                                        updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
+                                      }}
                                         onBlur={(e) => {
                                           // On blur, convert valid partial numbers to actual numbers
                                           if (col.type === "number" || col.type === "currency") {
@@ -1731,10 +1731,10 @@ export default function CreateInvoicePage() {
                                             }
                                           }
                                         }}
-                                        placeholder={`Enter ${col.header.toLowerCase()}`}
+                                      placeholder={`Enter ${col.header.toLowerCase()}`}
                                         readOnly={isLinkedColumn || hasFormula}
                                         className={isLinkedColumn || hasFormula ? "bg-muted cursor-not-allowed" : ""}
-                                      />
+                                    />
                                   </div>
                                   );
                                 })}

@@ -141,41 +141,41 @@ export function TableProperties({
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
 					<Label className={typography.fieldLabel}>X</Label>
-					<Input
-						type="number"
-						value={element.x}
-						onChange={(e) => onChange({ x: Number(e.target.value) })}
+				<Input
+					type="number"
+					value={element.x}
+					onChange={(e) => onChange({ x: Number(e.target.value) })}
 						className={components.inputHeight}
-					/>
-				</div>
+				/>
+			</div>
 				<div className={components.field}>
 					<Label className={typography.fieldLabel}>Y</Label>
-					<Input
-						type="number"
-						value={element.y}
-						onChange={(e) => onChange({ y: Number(e.target.value) })}
+				<Input
+					type="number"
+					value={element.y}
+					onChange={(e) => onChange({ y: Number(e.target.value) })}
 						className={components.inputHeight}
-					/>
-				</div>
+				/>
+			</div>
 				<div className={components.field}>
 					<Label className={typography.fieldLabel}>Width</Label>
-					<Input
-						type="number"
-						value={element.width}
-						onChange={(e) => onChange({ width: Number(e.target.value) })}
+				<Input
+					type="number"
+					value={element.width}
+					onChange={(e) => onChange({ width: Number(e.target.value) })}
 						className={components.inputHeight}
-					/>
-				</div>
+				/>
+			</div>
 				<div className={components.field}>
 					<Label className={typography.fieldLabel}>Height</Label>
-					<Input
-						type="number"
-						value={element.height}
-						onChange={(e) => onChange({ height: Number(e.target.value) })}
+				<Input
+					type="number"
+					value={element.height}
+					onChange={(e) => onChange({ height: Number(e.target.value) })}
 						className={components.inputHeight}
-					/>
-				</div>
+				/>
 			</div>
+		</div>
 		</section>
 	);
 
@@ -189,77 +189,77 @@ export function TableProperties({
 				<div className={components.grid}>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Row Height</Label>
-						<Input
-							type="number"
-							placeholder="28"
-							value={tbl.rowHeight}
-							onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
+					<Input
+						type="number"
+						placeholder="28"
+						value={tbl.rowHeight}
+						onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
 							className={components.inputHeight}
-						/>
-					</div>
+					/>
+				</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Header Height</Label>
-						<Input
-							type="number"
-							placeholder="28"
-							value={tbl.headerHeight}
-							onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
+					<Input
+						type="number"
+						placeholder="28"
+						value={tbl.headerHeight}
+						onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
 							className={components.inputHeight}
-						/>
-					</div>
+					/>
+				</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Stripe Rows</Label>
 						<div className="flex items-center h-9">
-							<Switch
-								checked={tbl.stripe}
-								onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
-							/>
-						</div>
+					<Switch
+						checked={tbl.stripe}
+						onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
+					/>
+				</div>
 					</div>
 					<div className={`${components.field} col-span-full`}>
 						<Label className={typography.fieldLabel}>Items Binding</Label>
 						<div className={spacing.fieldGroupGap}>
-							<Input
+					<Input
 								placeholder="e.g., items"
-								value={bindingInput}
+							value={bindingInput}
 								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
-								onChange={(e) => {
-									const newValue = e.target.value;
-									setBindingInput(newValue);
-									onChange({ ...tbl, itemsBinding: newValue || undefined });
-								}}
-							/>
-							{bindingError && suggestedBinding && (
+							onChange={(e) => {
+								const newValue = e.target.value;
+								setBindingInput(newValue);
+								onChange({ ...tbl, itemsBinding: newValue || undefined });
+							}}
+						/>
+						{bindingError && suggestedBinding && (
 								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
 									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-									<div className="flex-1 min-w-0">
+								<div className="flex-1 min-w-0">
 										<p className={`${typography.errorText} mb-1.5`}>
-											This binding is already used by another element
-										</p>
-										<div className="flex items-center gap-2">
+										This binding is already used by another element
+									</p>
+									<div className="flex items-center gap-2">
 											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
-											</p>
-											<Button
-												type="button"
-												size="sm"
-												variant="outline"
+											Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+										</p>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
 												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-												onClick={() => {
-													setBindingInput(suggestedBinding);
-													onChange({ ...tbl, itemsBinding: suggestedBinding });
-												}}
-											>
-												<Check className="h-3 w-3 mr-1" />
-												Use
-											</Button>
-										</div>
+											onClick={() => {
+												setBindingInput(suggestedBinding);
+												onChange({ ...tbl, itemsBinding: suggestedBinding });
+											}}
+										>
+											<Check className="h-3 w-3 mr-1" />
+											Use
+										</Button>
 									</div>
 								</div>
-							)}
-						</div>
+							</div>
+						)}
 					</div>
 				</div>
+			</div>
 			</section>
 
 			{/* Columns Configuration */}
@@ -274,58 +274,58 @@ export function TableProperties({
 								<div className={components.grid}>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>Header</Label>
-										<Input
+									<Input
 											placeholder="Column header"
-											value={c.header}
-											onChange={(e) => {
-												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-												const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
-												onChange({ ...tbl, columns: next });
-											}}
+										value={c.header}
+										onChange={(e) => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+											const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
+											onChange({ ...tbl, columns: next });
+										}}
 											className={components.inputHeight}
-										/>
+									/>
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>Width</Label>
-										<Input
-											type="number"
+									<Input
+										type="number"
 											placeholder="120"
-											value={c.width}
-											onChange={(e) => {
-												const w = Math.max(20, Number(e.target.value));
-												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-												const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
-												onChange({ ...tbl, columns: next });
-											}}
+										value={c.width}
+										onChange={(e) => {
+											const w = Math.max(20, Number(e.target.value));
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+											const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
+											onChange({ ...tbl, columns: next });
+										}}
 											className={components.inputHeight}
-										/>
+									/>
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>Align</Label>
-										<Select
-											value={c.align}
-											onValueChange={(v) => {
-												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-												const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
-												onChange({ ...tbl, columns: next });
-											}}
-										>
+									<Select
+										value={c.align}
+										onValueChange={(v) => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+											const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
+											onChange({ ...tbl, columns: next });
+										}}
+									>
 											<SelectTrigger className={components.inputHeight}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="left">Left</SelectItem>
-												<SelectItem value="center">Center</SelectItem>
-												<SelectItem value="right">Right</SelectItem>
-											</SelectContent>
-										</Select>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="left">Left</SelectItem>
+											<SelectItem value="center">Center</SelectItem>
+											<SelectItem value="right">Right</SelectItem>
+										</SelectContent>
+									</Select>
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>Type</Label>
-										<Select
-											value={c.type ?? "text"}
-											onValueChange={(v) => {
-												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+									<Select
+										value={c.type ?? "text"}
+										onValueChange={(v) => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
 												const newType = v as "text" | "number" | "date" | "currency";
 												
 												// Initialize currency fields when switching to currency type
@@ -342,35 +342,35 @@ export function TableProperties({
 												} else {
 													const updatedCol = { ...c, type: newType };
 													const next = base.map((col) => (col.id === c.id ? updatedCol : col));
-													onChange({ ...tbl, columns: next });
+											onChange({ ...tbl, columns: next });
 												}
-											}}
-										>
+										}}
+									>
 											<SelectTrigger className={components.inputHeight}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="text">Text</SelectItem>
-												<SelectItem value="number">Number</SelectItem>
-												<SelectItem value="date">Date</SelectItem>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="text">Text</SelectItem>
+											<SelectItem value="number">Number</SelectItem>
+											<SelectItem value="date">Date</SelectItem>
 												<SelectItem value="currency">Currency</SelectItem>
-											</SelectContent>
-										</Select>
+										</SelectContent>
+									</Select>
 									</div>
 									<div className={`${components.field} flex items-end`}>
-										<Button
-											variant="ghost"
-											size="sm"
+									<Button
+										variant="ghost"
+										size="sm"
 											className="h-9 text-xs"
-											onClick={() => {
-												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-												const next = base.filter((col) => col.id !== c.id);
-												onChange({ ...tbl, columns: next });
-											}}
-										>
-											Remove
-										</Button>
-									</div>
+										onClick={() => {
+											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+											const next = base.filter((col) => col.id !== c.id);
+											onChange({ ...tbl, columns: next });
+										}}
+									>
+										Remove
+									</Button>
+								</div>
 								</div>
 								
 								{/* Currency-specific configuration */}
