@@ -2490,10 +2490,8 @@ export default function TemplateDesignerPage() {
 														watermark: {
 															...currentWatermark,
 															enabled: e.target.checked,
-															// Auto-set image URL from organization logo if available
-															imageUrl: e.target.checked && !currentWatermark.imageUrl && !currentWatermark.text && currentOrg?.settings?.branding?.customLogo
-																? currentOrg.settings.branding.customLogo
-																: currentWatermark.imageUrl,
+															// Don't auto-fill from organization logo - user must explicitly configure watermark
+															imageUrl: currentWatermark.imageUrl,
 														},
 													},
 												});

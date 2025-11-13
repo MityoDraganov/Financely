@@ -29,12 +29,11 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     },
     // Preserve watermark from template brand
     watermark: brand.watermark,
+    // Preserve backgroundImage from template brand (don't auto-add organization logo)
+    // The old behavior of automatically adding organization logo as background is removed
+    // Users should configure watermarks explicitly through the template designer
+    backgroundImage: brand.backgroundImage,
   };
-
-  // Add organization logo to brand if available
-  if (organization?.settings?.branding?.customLogo && !finalBrand.backgroundImage) {
-    finalBrand.backgroundImage = organization.settings.branding.customLogo;
-  }
 
   // Page dimensions
   const pageSizes = {
@@ -385,10 +384,11 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     return "";
   }).join("");
 
-  // Generate watermark HTML if enabled
+  // Generate watermark HTML if enabled AND has valid imageUrl or text
+  // This prevents rendering empty watermarks or old/incomplete configurations
   let watermarkHTML = "";
   const watermark = finalBrand.watermark;
-  if (watermark?.enabled) {
+  if (watermark?.enabled && (watermark.imageUrl || watermark.text)) {
     // Only use the explicitly configured watermark image URL or text
     // Don't fallback to organization logo - that would be a separate feature
     const watermarkImageUrl = watermark.imageUrl;
