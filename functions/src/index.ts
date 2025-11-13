@@ -11,6 +11,7 @@ if (!getApps().length) {
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
+export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 
 // Workflow functions
 export { createWorkflow } from "./functions/create-workflow";
