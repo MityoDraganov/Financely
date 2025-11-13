@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -155,7 +155,7 @@ export default function ProductsPage() {
         images: formData.images || [],
       } as CreateProductInput;
 
-      const result = await createProductMutation.mutateAsync(productPayload);
+      await createProductMutation.mutateAsync(productPayload);
 
       setIsCreateDialogOpen(false);
       setFormData({
@@ -823,19 +823,10 @@ export default function ProductsPage() {
         </Card>
       </div>
 
-      {/* Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Products</CardTitle>
-          <CardDescription>
-            {searchTerm.trim() || statusFilter !== "all"
-              ? `Showing ${filteredProducts.length} of ${products.length} products`
-              : `Showing all ${products.length} products`
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6">
-          {filteredProducts.length === 0 ? (
+      {/* Products Table - Desktop */}
+      {filteredProducts.length === 0 ? (
+        <Card>
+          <CardContent>
             <div className="text-center py-8 px-4">
               <Package className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-2 text-sm font-semibold text-gray-900">No products</h3>
@@ -845,12 +836,15 @@ export default function ProductsPage() {
                   : "Get started by creating a new product."}
               </p>
             </div>
-          ) : (
-            <>
-              {/* Desktop Table View */}
-              <div className="hidden md:block w-full">
-                <div className="w-full overflow-hidden">
-                  <table className="w-full caption-bottom text-sm border-collapse table-auto">
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <Card className="hidden md:block">
+            <CardContent className="p-0 sm:p-6">
+              <div className="w-full overflow-hidden">
+                <table className="w-full caption-bottom text-sm border-collapse table-auto">
                     <colgroup>
                       <col className="w-auto min-w-[200px] max-w-[350px]" />
                       <col className="w-auto min-w-[80px] max-w-[120px]" />
@@ -984,119 +978,130 @@ export default function ProductsPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-4 p-4">
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold">All Products</h2>
+                <p className="text-sm text-muted-foreground">
+                  {searchTerm.trim() || statusFilter !== "all"
+                    ? `Showing ${filteredProducts.length} of ${products.length} products`
+                    : `Showing all ${products.length} products`
+                  }
+                </p>
+              </div>
+              <div className="space-y-3">
                 {filteredProducts.map((product) => (
-                  <Card key={product.id}>
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            {product.images && product.images.length > 0 ? (
-                              <div className="relative shrink-0">
-                                <img
-                                  src={product.images[0]}
-                                  alt={product.name}
-                                  className="h-12 w-12 rounded object-cover"
-                                />
-                                {product.images.length > 1 && (
-                                  <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] px-1 py-0.5 rounded">
-                                    +{product.images.length - 1}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center shrink-0">
-                                <ImageIcon className="h-6 w-6 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium truncate">{product.name}</h3>
-                              {product.description && (
-                                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                                  {product.description}
-                                </p>
+                  <div
+                    key={product.id}
+                    className="rounded-lg border bg-card p-4 shadow-sm"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          {product.images && product.images.length > 0 ? (
+                            <div className="relative shrink-0">
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="h-12 w-12 rounded object-cover"
+                              />
+                              {product.images.length > 1 && (
+                                <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] px-1 py-0.5 rounded">
+                                  +{product.images.length - 1}
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Price:</span>
-                            <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Status:</span>
-                            <div className="mt-1">
-                              <Badge className={getStatusColor(product.status)}>
-                                {product.status}
-                              </Badge>
-                            </div>
-                          </div>
-                          {product.sku && (
-                            <div>
-                              <span className="text-muted-foreground">SKU:</span>
-                              <p className="font-medium">{product.sku}</p>
+                          ) : (
+                            <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-6 w-6 text-gray-400" />
                             </div>
                           )}
-                          {product.category && (
-                            <div>
-                              <span className="text-muted-foreground">Category:</span>
-                              <p className="font-medium">{product.category}</p>
-                            </div>
-                          )}
-                          {product.trackInventory && (
-                            <div>
-                              <span className="text-muted-foreground">Stock:</span>
-                              <p className="font-medium">
-                                {product.stockQuantity ?? 0}
-                                {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
-                                  <Badge variant="destructive" className="ml-2">Low</Badge>
-                                )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium truncate">{product.name}</h3>
+                            {product.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {product.description}
                               </p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-end space-x-2 pt-2 border-t">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedProduct({ id: product.id })}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditProduct(product.id)}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteProduct(product.id)}
-                            disabled={deleteProductMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Price:</span>
+                          <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>
+                          <div className="mt-1">
+                            <Badge className={getStatusColor(product.status)}>
+                              {product.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        {product.sku && (
+                          <div>
+                            <span className="text-muted-foreground">SKU:</span>
+                            <p className="font-medium">{product.sku}</p>
+                          </div>
+                        )}
+                        {product.category && (
+                          <div>
+                            <span className="text-muted-foreground">Category:</span>
+                            <p className="font-medium">{product.category}</p>
+                          </div>
+                        )}
+                        {product.trackInventory && (
+                          <div>
+                            <span className="text-muted-foreground">Stock:</span>
+                            <p className="font-medium">
+                              {product.stockQuantity ?? 0}
+                              {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
+                                <Badge variant="destructive" className="ml-2">Low</Badge>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedProduct({ id: product.id })}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditProduct(product.id)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteProduct(product.id)}
+                          disabled={deleteProductMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+          </>
+        )}
 
       {/* Product Detail Dialog */}
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>

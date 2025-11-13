@@ -155,13 +155,13 @@ export default function InvoicesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+      <div className="container mx-auto px-4 py-4 space-y-4 max-w-7xl">
         {/* Header Section */}
-        <div className="space-y-4 sm:space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Invoices</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-0.5">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Invoices</h1>
+              <p className="text-sm text-muted-foreground">
                 Manage and track your invoices
               </p>
             </div>
@@ -172,43 +172,43 @@ export default function InvoicesPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center space-x-3">
-                  <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <CardContent className="p-2.5">
+                <div className="flex items-center space-x-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                    <FileText className="h-3.5 w-3.5 text-primary" />
                   </div>
-                  <div>
-                    <p className="text-xl sm:text-2xl font-bold">{totalInvoices}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Total Invoices</p>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold leading-tight">{totalInvoices}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Total Invoices</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
             
             <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center space-x-3">
-                  <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <CardContent className="p-2.5">
+                <div className="flex items-center space-x-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                    <DollarSign className="h-3.5 w-3.5 text-primary" />
                   </div>
-                  <div>
-                    <p className="text-xl sm:text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Total Revenue</p>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold leading-tight">${totalRevenue.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Total Revenue</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
             
             <Card className="hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center space-x-3">
-                  <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-primary/10">
-                    <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <CardContent className="p-2.5">
+                <div className="flex items-center space-x-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
                   </div>
-                  <div>
-                    <p className="text-xl sm:text-2xl font-bold">
+                  <div className="min-w-0">
+                    <p className="text-base font-bold leading-tight">
                       {invoices?.filter(inv => {
                         const date = new Date(inv.updatedAt || inv.createdAt || '');
                         const now = new Date();
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
                         return diffDays <= 30;
                       }).length || 0}
                     </p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">This Month</p>
+                    <p className="text-xs text-muted-foreground leading-tight">This Month</p>
                   </div>
                 </div>
               </CardContent>
@@ -225,18 +225,18 @@ export default function InvoicesPage() {
           </div>
 
           {/* Search and Filter Bar */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search invoices by number or customer..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-10 sm:h-11"
+                className="pl-9 h-9"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] h-10 sm:h-11">
+              <SelectTrigger className="w-full sm:w-[160px] h-9">
                 <Filter className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -253,17 +253,17 @@ export default function InvoicesPage() {
 
         {/* Content */}
         {isLoading && (
-          <div className="space-y-3 sm:space-y-4">
+          <div className="space-y-2.5">
             {Array.from({ length: 5 }).map((_, i) => (
               <Card key={i}>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <Skeleton className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg" />
-                    <div className="space-y-2 flex-1">
+                <CardContent className="p-3">
+                  <div className="flex items-center space-x-3">
+                    <Skeleton className="h-9 w-9 rounded-md" />
+                    <div className="space-y-1.5 flex-1">
                       <Skeleton className="h-4 w-[150px] sm:w-[200px]" />
                       <Skeleton className="h-3 w-[100px] sm:w-[150px]" />
                     </div>
-                    <Skeleton className="h-8 w-[80px] sm:w-[100px]" />
+                    <Skeleton className="h-7 w-[80px] sm:w-[100px]" />
                   </div>
                 </CardContent>
               </Card>
@@ -273,11 +273,11 @@ export default function InvoicesPage() {
 
         {isError && (
           <Card>
-            <CardContent className="p-6 sm:p-8 text-center">
+            <CardContent className="p-6 text-center">
               <div className="text-destructive">
-                <FileText className="mx-auto h-12 w-12 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Failed to load invoices</h3>
-                <p className="text-muted-foreground">Please try again later.</p>
+                <FileText className="mx-auto h-10 w-10 mb-3" />
+                <h3 className="text-base font-semibold mb-1.5">Failed to load invoices</h3>
+                <p className="text-sm text-muted-foreground">Please try again later.</p>
               </div>
             </CardContent>
           </Card>
@@ -287,12 +287,12 @@ export default function InvoicesPage() {
           <>
             {filteredInvoices.length === 0 ? (
               <Card>
-                <CardContent className="p-8 sm:p-12 text-center">
-                  <FileText className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
+                <CardContent className="p-6 text-center">
+                  <FileText className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                  <h3 className="text-base font-semibold mb-1.5">
                     {searchTerm || statusFilter !== "all" ? "No invoices found" : "No invoices yet"}
                   </h3>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
                     {searchTerm || statusFilter !== "all" 
                       ? "Try adjusting your search or filter criteria."
                       : "Get started by creating your first invoice."
@@ -305,7 +305,7 @@ export default function InvoicesPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                 {filteredInvoices.map((invoice) => {
                   const invoiceNumber = getInvoiceNumber(invoice);
                   const invoiceDate = getInvoiceDate(invoice);
@@ -314,32 +314,32 @@ export default function InvoicesPage() {
 
                   return (
                     <Card key={invoice.id} className="group hover:shadow-md transition-all duration-200 cursor-pointer" onClick={() => navigate(`/invoices/${invoice.id}`)}>
-                      <CardContent className="p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          {/* Left Section - Invoice Info */}
-                          <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
-                            <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                              <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                      <CardContent className="p-3">
+                        <div className="flex flex-col gap-3">
+                          {/* Top Section - Invoice Info */}
+                          <div className="flex items-start space-x-2.5 flex-1 min-w-0">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                             </div>
                             
                             <div className="flex-1 min-w-0">
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                                <h3 className="font-semibold text-base sm:text-lg truncate">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 mb-1.5">
+                                <h3 className="font-semibold text-sm sm:text-base truncate">
                                   {invoiceNumber}
                                 </h3>
-                                <Badge variant={getStatusColor(invoice.status)} className="shrink-0 w-fit">
+                                <Badge variant={getStatusColor(invoice.status)} className="shrink-0 w-fit text-xs">
                                   {invoice.status}
                                 </Badge>
                               </div>
                               
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-muted-foreground">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                                 <div className="flex items-center space-x-1">
-                                  <User className="h-4 w-4 shrink-0" />
+                                  <User className="h-3.5 w-3.5 shrink-0" />
                                   <span className="truncate">{buyerName}</span>
                                 </div>
                                 {invoiceDate && (
                                   <div className="flex items-center space-x-1">
-                                    <Calendar className="h-4 w-4 shrink-0" />
+                                    <Calendar className="h-3.5 w-3.5 shrink-0" />
                                     <span>{invoiceDate}</span>
                                   </div>
                                 )}
@@ -347,15 +347,15 @@ export default function InvoicesPage() {
                             </div>
                           </div>
 
-                          {/* Right Section - Amount and Actions */}
-                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                            <div className="text-left sm:text-right">
-                              <p className="text-lg sm:text-xl font-semibold">
+                          {/* Bottom Section - Amount and Actions */}
+                          <div className="flex items-center justify-between gap-2.5 pt-2 border-t">
+                            <div className="text-left">
+                              <p className="text-base sm:text-lg font-semibold">
                                 ${totalAmount}
                               </p>
                             </div>
                             
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -364,9 +364,9 @@ export default function InvoicesPage() {
                                   handleGeneratePdf(invoice.id, e);
                                 }}
                                 disabled={renderPdf.isPending}
-                                className="hidden sm:flex"
+                                className="hidden sm:flex text-xs h-8"
                               >
-                                <Download className="mr-2 h-4 w-4" />
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
                                 PDF
                               </Button>
                               
@@ -376,6 +376,7 @@ export default function InvoicesPage() {
                                     variant="ghost" 
                                     size="sm"
                                     onClick={(e) => e.stopPropagation()}
+                                    className="h-8 w-8 p-0"
                                   >
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
@@ -407,9 +408,9 @@ export default function InvoicesPage() {
       <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
         <DialogContent className="max-w-4xl w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Invoice Preview</DialogTitle>
+            <DialogTitle className="text-lg">Invoice Preview</DialogTitle>
           </DialogHeader>
-          <div className="aspect-[1/1.414] w-full overflow-hidden rounded border bg-muted">
+          <div className="aspect-[1/1.414] w-full overflow-hidden rounded-md border bg-muted">
             {previewUrl ? (
               <iframe title="invoice-preview" src={previewUrl} className="h-full w-full" />
             ) : null}
