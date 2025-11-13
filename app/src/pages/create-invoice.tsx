@@ -21,6 +21,7 @@ import { CurrencyConversionManager } from "@/components/invoice/currency-convers
 import { CURRENCIES, formatCurrency, getCurrency } from "@/utils/currencies";
 import type { ConversionRate } from "@/services/currency-conversion-service";
 import type { CurrencyFieldLink } from "@/core/entities/currency-field";
+import { FormulaService } from "@/services/formula-service";
 
 type BindingField = {
   path: string;
@@ -215,23 +216,50 @@ export default function CreateInvoicePage() {
         const inputEl = element as Extract<TemplateElement, { type: "input" }>;
         binding = inputEl.binding;
         type = inputEl.variant === "number" ? "number" : inputEl.variant === "date" ? "date" : "text";
+        
+        // Check if this input has a formula (for number variant)
+        const hasFormula = inputEl.variant === "number" && !!inputEl.formula;
+        
+        if (binding) {
+          const existingField = fields.get(binding);
+          if (existingField) {
+            existingField.hasFormula = hasFormula;
+            existingField.elementId = element.id;
+          } else {
+            fields.set(binding, {
+              path: binding,
+              label: binding
+                .split(".")
+                .pop()!
+                .replace(/([A-Z])/g, " $1")
+                .replace(/^./, (c) => c.toUpperCase()),
+              type,
+              hasFormula,
+              elementId: element.id,
+            });
+          }
+          continue;
+        }
       } else if (element.type === "currency") {
         const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
         binding = currencyEl.binding;
         type = "number"; // Currency fields are numeric
         
-        // Check if this currency field is linked (has currencyLinks)
+        // Check if this currency field is linked (has currencyLinks) or has formula
         const isLinked = currencyEl.mode === "linked" && 
                         currencyEl.currencyLinks && 
                         currencyEl.currencyLinks.length > 0;
+        const hasFormula = currencyEl.mode === "formula" && !!currencyEl.formula;
         
         if (binding) {
           const existingField = fields.get(binding);
           if (existingField) {
-            // Update existing field to mark it as linked if it is
+            // Update existing field to mark it as linked or formula if it is
             existingField.isLinkedCurrency = isLinked;
+            existingField.hasFormula = hasFormula;
+            existingField.elementId = element.id;
           } else {
-            // Add new field with linked status
+            // Add new field with linked/formula status
             fields.set(binding, {
               path: binding,
               label: binding
@@ -241,6 +269,8 @@ export default function CreateInvoicePage() {
                 .replace(/^./, (c) => c.toUpperCase()),
               type,
               isLinkedCurrency: isLinked,
+              hasFormula,
+              elementId: element.id,
             });
           }
           continue; // Skip the duplicate addition below
@@ -333,6 +363,111 @@ export default function CreateInvoicePage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]); // formData intentionally excluded to prevent infinite loop
+
+  // Formula evaluation: evaluate all formulas when formData changes
+  useEffect(() => {
+    if (!selectedTemplate || !formData) return;
+    
+    const elements = selectedTemplate.elements ?? [];
+    const formulaElements: Array<{
+      element: TemplateElement;
+      binding: string;
+      formula: string;
+    }> = [];
+    
+    // Collect all elements with formulas
+    for (const element of elements) {
+      if (element.type === "input") {
+        const inputEl = element as Extract<TemplateElement, { type: "input" }>;
+        if (inputEl.variant === "number" && inputEl.formula && inputEl.binding) {
+          formulaElements.push({
+            element,
+            binding: inputEl.binding,
+            formula: inputEl.formula,
+          });
+        }
+      } else if (element.type === "currency") {
+        const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
+        if (currencyEl.mode === "formula" && currencyEl.formula && currencyEl.binding) {
+          formulaElements.push({
+            element,
+            binding: currencyEl.binding,
+            formula: currencyEl.formula,
+          });
+        }
+      }
+    }
+    
+    // Also check table columns with formulas
+    for (const element of elements) {
+      if (element.type === "table") {
+        const tableEl = element as Extract<TemplateElement, { type: "table" }>;
+        if (!tableEl.itemsBinding) continue;
+        
+        const items = getValue(tableEl.itemsBinding);
+        const itemsArray = Array.isArray(items) ? items : [];
+        
+        for (const col of tableEl.columns ?? []) {
+          if ((col.type === "number" || col.type === "currency") && col.calc) {
+            // Evaluate formula for each row
+            for (let rowIndex = 0; rowIndex < itemsArray.length; rowIndex++) {
+              const rowBinding = `${tableEl.itemsBinding}[${rowIndex}].${col.binding || col.id}`;
+              formulaElements.push({
+                element: tableEl,
+                binding: rowBinding,
+                formula: col.calc,
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    if (formulaElements.length === 0) return;
+    
+    // Create a map of element IDs to their current values for formula evaluation
+    const elementValues = new Map<string, number>();
+    for (const el of elements) {
+      if ((el.type === "input" && el.variant === "number") || el.type === "currency") {
+        if (el.binding) {
+          const value = getValue(el.binding);
+          if (typeof value === "number") {
+            elementValues.set(el.id, value);
+          }
+        }
+      }
+    }
+    
+    // Evaluate all formulas
+    let hasUpdates = false;
+    const updatedData = { ...formData };
+    
+    for (const { element, binding, formula } of formulaElements) {
+      try {
+        const result = FormulaService.evaluate(
+          formula,
+          updatedData,
+          elements,
+          elementValues
+        );
+        
+        // Update the value if it changed
+        const currentValue = getBindingValue(updatedData, binding);
+        if (currentValue !== result) {
+          setBindingValue(updatedData, binding, result);
+          elementValues.set(element.id, result);
+          hasUpdates = true;
+        }
+      } catch (error) {
+        console.error("Formula evaluation error:", error, { element, binding, formula });
+      }
+    }
+    
+    if (hasUpdates) {
+      setFormData(updatedData);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, selectedTemplate]);
 
   // Real-time compliance validation
   useEffect(() => {
@@ -1337,6 +1472,11 @@ export default function CreateInvoicePage() {
                               (Linked - read-only)
                             </span>
                           )}
+                          {field.hasFormula && (
+                            <span className="ml-2 text-xs text-muted-foreground font-normal">
+                              (Formula - read-only)
+                            </span>
+                          )}
                         </Label>
                             {shouldAutoCalculate && (
                               <Button
@@ -1426,8 +1566,8 @@ export default function CreateInvoicePage() {
                             }
                           }}
                           placeholder={`Enter ${field.label.toLowerCase()}`}
-                          readOnly={field.isLinkedCurrency}
-                          className={field.isLinkedCurrency ? "bg-muted cursor-not-allowed" : ""}
+                          readOnly={field.isLinkedCurrency || field.hasFormula}
+                          className={field.isLinkedCurrency || field.hasFormula ? "bg-muted cursor-not-allowed" : ""}
                         />
                           {shouldAutoCalculate && (
                             <p className="text-xs text-muted-foreground">
@@ -1500,6 +1640,13 @@ export default function CreateInvoicePage() {
                                   const tableLinks = tableColumnCurrencyLinks.get(tableConfig.itemsPath);
                                   const isLinkedColumn = tableLinks?.has(col.binding) || false;
                                   
+                                  // Check if this column has a formula
+                                  const tableEl = selectedTemplate?.elements?.find(
+                                    (e) => e.type === "table" && e.itemsBinding === tableConfig.itemsPath
+                                  ) as Extract<TemplateElement, { type: "table" }> | undefined;
+                                  const columnDef = tableEl?.columns?.find((c) => c.id === col.id);
+                                  const hasFormula = !!(columnDef?.calc) || (columnDef?.type === "currency" && columnDef?.mode === "formula" && columnDef?.formula);
+                                  
                                   return (
                                   <div key={col.id} className="space-y-2">
                                     <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
@@ -1507,6 +1654,11 @@ export default function CreateInvoicePage() {
                                         {isLinkedColumn && (
                                           <span className="ml-2 text-xs text-muted-foreground font-normal">
                                             (Linked - read-only)
+                                          </span>
+                                        )}
+                                        {hasFormula && (
+                                          <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                            (Formula - read-only)
                                           </span>
                                         )}
                                     </Label>
@@ -1580,8 +1732,8 @@ export default function CreateInvoicePage() {
                                           }
                                         }}
                                         placeholder={`Enter ${col.header.toLowerCase()}`}
-                                        readOnly={isLinkedColumn}
-                                        className={isLinkedColumn ? "bg-muted cursor-not-allowed" : ""}
+                                        readOnly={isLinkedColumn || hasFormula}
+                                        className={isLinkedColumn || hasFormula ? "bg-muted cursor-not-allowed" : ""}
                                       />
                                   </div>
                                   );

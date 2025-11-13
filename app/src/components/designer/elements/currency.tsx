@@ -31,6 +31,7 @@ import { TemplateElement } from "@/core";
 import { AlertCircle, Check, ChevronsUpDown } from "lucide-react";
 import CurrencyInputElement from "./currency-input";
 import { CurrencyFieldLinking } from "../currency-field-linking";
+import { FormulaBuilder } from "../formula-builder";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
 
@@ -261,7 +262,7 @@ export function CurrencyProperties({
             <SelectContent>
               <SelectItem value="independent">Independent</SelectItem>
               <SelectItem value="linked">Linked</SelectItem>
-              <SelectItem value="formula" disabled>Formula (Coming Soon)</SelectItem>
+              <SelectItem value="formula">Formula</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -329,6 +330,23 @@ export function CurrencyProperties({
                 currencyLinks: links,
               })
             }
+          />
+        </div>
+      )}
+
+      {/* Formula Builder for Formula Mode */}
+      {element.mode === "formula" && (
+        <div className="pt-3 border-t border-neutral-200">
+          <FormulaBuilder
+            formula={element.formula}
+            onChange={(formula) =>
+              onChange({
+                ...element,
+                formula,
+              })
+            }
+            currentElement={element}
+            allElements={allElements}
           />
         </div>
       )}

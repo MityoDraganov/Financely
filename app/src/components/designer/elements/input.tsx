@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
+import { FormulaBuilder } from "../formula-builder";
 interface InputElementProps {
 	element: Extract<TemplateElement, { type: "input" }>;
 }
@@ -280,6 +281,24 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 					</div>
 				</div>
 			</div>
+
+			{/* Formula Builder for Number Variant */}
+			{inp.variant === "number" && (
+				<div className="pt-3 border-t border-neutral-200">
+					<FormulaBuilder
+						formula={inp.formula}
+						onChange={(formula) =>
+							onChange({
+								...element,
+								formula,
+							})
+						}
+						currentElement={element}
+						allElements={allElements}
+					/>
+				</div>
+			)}
+
 			{common}
 		</div>
 	);

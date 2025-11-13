@@ -362,6 +362,100 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }).join("");
 
+      // Totaling Row HTML
+      let totalsHTML = "";
+      if (el.totals && el.totals.length > 0) {
+        const totalsCellsHTML = el.columns.map((col) => {
+          // Find the total entry for this column
+          const totalEntry = el.totals?.find((t) => {
+            if (t.calc.includes(col.binding || col.id)) return true;
+            return false;
+          });
+          
+          let text = "";
+          if (totalEntry) {
+            try {
+              // Evaluate the totaling formula
+              const columnBinding = col.binding || col.id;
+              const columnValues = items
+                .map((row) => {
+                  const val = getByPath(row, columnBinding);
+                  if (val != null) {
+                    const num = Number(val);
+                    return Number.isFinite(num) ? num : 0;
+                  }
+                  return 0;
+                })
+                .filter((v) => typeof v === "number");
+              
+              // Simple SUM evaluation
+              const sum = columnValues.reduce((s, v) => s + v, 0);
+              
+              // Replace SUM(column) with the actual sum
+              let formula = totalEntry.calc.replace(
+                new RegExp(`SUM\\(${columnBinding}\\)`, "g"),
+                String(sum)
+              );
+              
+              // Simple arithmetic evaluation (only for basic operations)
+              // For more complex formulas, we'd need a proper formula evaluator
+              try {
+                // Use Function constructor for safe evaluation (only math operations)
+                const cleaned = formula.replace(/\s/g, "");
+                if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
+                  const result = new Function(`return ${cleaned}`)() as number;
+                  
+                  // Format the result
+                  if (col.type === "currency") {
+                    const currency = col.currency || col.format?.currency || "USD";
+                    try {
+                      const formatter = new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency,
+                      });
+                      text = formatter.format(result);
+                    } catch {
+                      text = `${currency} ${result.toFixed(2)}`;
+                    }
+                  } else {
+                    text = formatValue(result, col.format);
+                  }
+                } else {
+                  text = totalEntry.label || "";
+                }
+              } catch {
+                text = totalEntry.label || "";
+              }
+            } catch (error) {
+              console.error("Error evaluating totaling formula:", error);
+              text = totalEntry.label || "";
+            }
+          }
+          
+          const justify = totalEntry?.align === "right" ? "flex-end" : totalEntry?.align === "center" ? "center" : "flex-start";
+          
+          return `
+            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify};">
+              ${text || (totalEntry?.label || "")}
+            </div>
+          `;
+        }).join("");
+        
+        totalsHTML = `
+          <div style="
+            display: grid;
+            grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
+            border-top: 2px solid #111827;
+            border-bottom: 1px solid #e5e7eb;
+            height: ${el.rowHeight}px;
+            background-color: #f9fafb;
+            font-weight: 600;
+          ">
+            ${totalsCellsHTML}
+          </div>
+        `;
+      }
+
       return `
         <div style="${commonStyle}">
           <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: hidden;">
@@ -375,6 +469,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             </div>
             <div style="height: calc(100% - ${el.headerHeight}px); overflow: hidden;">
               ${rowsHTML}
+              ${totalsHTML}
             </div>
           </div>
         </div>

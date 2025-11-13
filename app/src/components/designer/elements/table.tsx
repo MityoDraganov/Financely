@@ -28,6 +28,7 @@ import { AlertCircle, Check, ChevronsUpDown } from "lucide-react";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
 import { CurrencyFieldLinking } from "../currency-field-linking";
+import { FormulaBuilder } from "../formula-builder";
 
 interface TableElementProps {
 	element: Extract<TemplateElement, { type: "table" }>;
@@ -90,6 +91,12 @@ export function TableProperties({
 }: TablePropertiesProps) {
 	const tbl = element;
 	const [bindingInput, setBindingInput] = useState(tbl.itemsBinding ?? "");
+	
+	// Default columns for fallback
+	const defaultTwo = [
+		{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+		{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+	];
 	
 	// Check for duplicate bindings
 	const hasDuplicateBinding = (binding: string | undefined): boolean => {
@@ -243,10 +250,6 @@ export function TableProperties({
 				<div className="text-xs text-neutral-500">Columns</div>
 				<div className="space-y-2">
 					{(() => {
-						const defaultTwo = [
-							{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-							{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-						];
 						const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
 						return derivedColumns.map((c) => (
 							<div key={c.id} className="space-y-2">
@@ -295,17 +298,23 @@ export function TableProperties({
 										onValueChange={(v) => {
 											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
 											const newType = v as "text" | "number" | "date" | "currency";
-											const updatedCol = { ...c, type: newType };
 											
 											// Initialize currency fields when switching to currency type
-											if (newType === "currency" && !updatedCol.currency) {
-												updatedCol.currency = "USD";
-												updatedCol.mode = "independent";
-												updatedCol.currencyLinks = [];
+											if (newType === "currency") {
+												const updatedCol = {
+													...c,
+													type: "currency" as const,
+													currency: (c.type === "currency" ? c.currency : undefined) || "USD",
+													mode: (c.type === "currency" ? c.mode : undefined) || "independent" as const,
+													currencyLinks: (c.type === "currency" ? c.currencyLinks : undefined) || [],
+												};
+												const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+												onChange({ ...tbl, columns: next });
+											} else {
+												const updatedCol = { ...c, type: newType };
+												const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+												onChange({ ...tbl, columns: next });
 											}
-											
-											const next = base.map((col) => (col.id === c.id ? updatedCol : col));
-											onChange({ ...tbl, columns: next });
 										}}
 									>
 										<SelectTrigger className="min-w-0 w-full">
@@ -424,7 +433,7 @@ export function TableProperties({
 													<SelectContent>
 														<SelectItem value="independent">Independent</SelectItem>
 														<SelectItem value="linked">Linked</SelectItem>
-														<SelectItem value="formula" disabled>Formula (Coming Soon)</SelectItem>
+														<SelectItem value="formula">Formula</SelectItem>
 													</SelectContent>
 												</Select>
 											</div>
@@ -491,6 +500,80 @@ export function TableProperties({
 												})()}
 											</div>
 										)}
+										
+										{/* Formula Builder for currency columns */}
+										{c.mode === "formula" && (
+											<div className="pt-2">
+												<FormulaBuilder
+													formula={c.calc}
+													onChange={(formula) => {
+														const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+														const next = base.map((col) => 
+															col.id === c.id 
+																? { ...col, calc: formula }
+																: col
+														);
+														onChange({ ...tbl, columns: next });
+													}}
+													currentElement={element}
+													allElements={allElements}
+													tableContext={{
+														tableElement: element,
+														columnId: c.id,
+													}}
+												/>
+											</div>
+										)}
+									</div>
+								)}
+								
+								{/* Formula Builder for number columns */}
+								{c.type === "number" && (
+									<div className="space-y-2 pt-2 pl-2 border-l-2 border-green-200 bg-green-50/30 rounded">
+										<div className="text-xs font-medium text-green-900">Formula Configuration</div>
+										<FormulaBuilder
+											formula={c.calc}
+											onChange={(formula) => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+												const next = base.map((col) => 
+													col.id === c.id 
+														? { ...col, calc: formula }
+														: col
+												);
+												onChange({ ...tbl, columns: next });
+											}}
+											currentElement={element}
+											allElements={allElements}
+											tableContext={{
+												tableElement: element,
+												columnId: c.id,
+											}}
+										/>
+									</div>
+								)}
+								
+								{/* Formula Builder for currency columns (when not in formula mode) */}
+								{c.type === "currency" && c.mode !== "formula" && (
+									<div className="space-y-2 pt-2 pl-2 border-l-2 border-green-200 bg-green-50/30 rounded">
+										<div className="text-xs font-medium text-green-900">Formula Configuration</div>
+										<FormulaBuilder
+											formula={c.calc}
+											onChange={(formula) => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+												const next = base.map((col) => 
+													col.id === c.id 
+														? { ...col, calc: formula }
+														: col
+												);
+												onChange({ ...tbl, columns: next });
+											}}
+											currentElement={element}
+											allElements={allElements}
+											tableContext={{
+												tableElement: element,
+												columnId: c.id,
+											}}
+										/>
 									</div>
 								)}
 								
@@ -512,6 +595,109 @@ export function TableProperties({
 						Add column
 					</Button>
 				</div>
+			</div>
+
+			{/* Totaling Row Configuration */}
+			<div className="space-y-2 pt-3 border-t border-neutral-200">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs font-medium">Totaling Row</Label>
+					<Switch
+						checked={tbl.totals && tbl.totals.length > 0}
+						onCheckedChange={(checked) => {
+							if (checked) {
+								// Add default totaling row entries for numeric columns
+								const numericColumns = (tbl.columns || defaultTwo).filter(
+									(col) => col.type === "number" || col.type === "currency"
+								);
+								const defaultTotals = numericColumns.map((col) => ({
+									id: crypto.randomUUID(),
+									label: `Total ${col.header}`,
+									calc: `SUM(${col.binding || col.id})`,
+									align: col.align || "right" as const,
+								}));
+								onChange({ ...tbl, totals: defaultTotals });
+							} else {
+								onChange({ ...tbl, totals: [] });
+							}
+						}}
+					/>
+				</div>
+				
+				{tbl.totals && tbl.totals.length > 0 && (
+					<div className="space-y-2">
+						{tbl.totals.map((total) => (
+							<div key={total.id} className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2 items-start p-2 bg-neutral-50 rounded border">
+								<Input
+									placeholder="Label"
+									value={total.label}
+									onChange={(e) => {
+										const next = tbl.totals!.map((t) =>
+											t.id === total.id ? { ...t, label: e.target.value } : t
+										);
+										onChange({ ...tbl, totals: next });
+									}}
+								/>
+								<Input
+									placeholder="Formula (e.g., SUM(price))"
+									value={total.calc}
+									onChange={(e) => {
+										const next = tbl.totals!.map((t) =>
+											t.id === total.id ? { ...t, calc: e.target.value } : t
+										);
+										onChange({ ...tbl, totals: next });
+									}}
+									className="font-mono text-xs"
+								/>
+								<Select
+									value={total.align}
+									onValueChange={(v) => {
+										const next = tbl.totals!.map((t) =>
+											t.id === total.id ? { ...t, align: v as typeof total.align } : t
+										);
+										onChange({ ...tbl, totals: next });
+									}}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="left">Left</SelectItem>
+										<SelectItem value="center">Center</SelectItem>
+										<SelectItem value="right">Right</SelectItem>
+									</SelectContent>
+								</Select>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => {
+										const next = tbl.totals!.filter((t) => t.id !== total.id);
+										onChange({ ...tbl, totals: next });
+									}}
+								>
+									Remove
+								</Button>
+							</div>
+						))}
+						<Button
+							variant="secondary"
+							size="sm"
+							onClick={() => {
+								const next = [
+									...(tbl.totals || []),
+									{
+										id: crypto.randomUUID(),
+										label: "Total",
+										calc: "",
+										align: "right" as const,
+									},
+								];
+								onChange({ ...tbl, totals: next });
+							}}
+						>
+							Add Total
+						</Button>
+					</div>
+				)}
 			</div>
 
 			{common}

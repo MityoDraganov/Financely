@@ -94,6 +94,7 @@ export const inputElementSchema = templateElementBaseSchema.extend({
   binding: z.string().optional(),
   variant: z.enum(["text", "number", "date"]).default("text"),
   align: z.enum(["left", "center", "right"]).default("left"),
+  formula: z.string().optional(), // Formula for number variant (Excel-like syntax)
 });
 
 export const currencyElementSchema = templateElementBaseSchema.extend({
@@ -103,6 +104,7 @@ export const currencyElementSchema = templateElementBaseSchema.extend({
   currency: z.string().length(3).default("USD"), // ISO 4217 currency code (e.g., "USD", "EUR")
   currencyLinks: z.array(currencyFieldLinkSchema).default([]), // Field linking configuration
   mode: z.enum(["independent", "linked", "formula"]).default("independent"), // Field mode
+  formula: z.string().optional(), // Formula for formula mode (Excel-like syntax)
   align: z.enum(["left", "center", "right"]).default("left"),
 });
 
