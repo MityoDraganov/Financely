@@ -117,6 +117,7 @@ export default function TemplateDesignerPage() {
 	const [draftElements, setDraftElements] = useState<
 		TemplateElement[] | null
 	>(null);
+	const [draftBrand, setDraftBrand] = useState<Template["brand"] | null>(null);
 	const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional">("modern");
@@ -192,11 +193,16 @@ export default function TemplateDesignerPage() {
 	);
 
 	const currentTemplate = useMemo(() => {
-		return (
-			templates.find((t: Template) => t.id === state.currentTemplateId) ??
-			templates[0]
-		);
-	}, [templates, state.currentTemplateId]);
+		const template = templates.find((t: Template) => t.id === state.currentTemplateId) ?? templates[0];
+		if (!template) return undefined;
+		
+		// Merge draft state for optimistic UI updates
+		return {
+			...template,
+			elements: draftElements ?? template.elements ?? [],
+			brand: draftBrand ?? template.brand,
+		} as Template;
+	}, [templates, state.currentTemplateId, draftElements, draftBrand]);
 
 	// Compliance validation for current template
 	const complianceStatus = useMemo(() => {
@@ -460,10 +466,55 @@ export default function TemplateDesignerPage() {
 	const saveMutation = useMutation({
 		mutationFn: async (partial: Partial<TemplateData>) => {
 			if (!currentTemplate) return;
+			// For brand updates, we need to ensure we merge with existing brand data
+			// since Firebase Realtime Database update does shallow merge
+			if (partial.brand && currentTemplate.brand) {
+				partial = {
+					...partial,
+					brand: {
+						...currentTemplate.brand,
+						...partial.brand,
+						// Deep merge watermark if it exists in both
+						watermark: partial.brand.watermark
+							? {
+									...(currentTemplate.brand.watermark || {}),
+									...partial.brand.watermark,
+								}
+							: currentTemplate.brand.watermark,
+					},
+				};
+			}
 			await templateService.updateDraft(currentTemplate.id, partial);
 		},
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: ["templates", orgId] }),
+		onMutate: async (partial: Partial<TemplateData>) => {
+			// Optimistic update for brand changes
+			if (partial.brand) {
+				// Get the base template (not merged with drafts) for the optimistic update
+				const baseTemplate = templates.find((t: Template) => t.id === state.currentTemplateId) ?? templates[0];
+				if (baseTemplate) {
+					const optimisticBrand = {
+						...baseTemplate.brand,
+						...partial.brand,
+						watermark: partial.brand.watermark
+							? {
+									...(baseTemplate.brand.watermark || {}),
+									...partial.brand.watermark,
+								}
+							: baseTemplate.brand.watermark,
+					};
+					setDraftBrand(optimisticBrand);
+				}
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
+			// Clear draft brand after successful save (real-time update will handle it)
+			setTimeout(() => setDraftBrand(null), 100);
+		},
+		onError: () => {
+			// Revert draft brand on error
+			setDraftBrand(null);
+		},
 	});
 
 	const createMutation = useMutation({
@@ -1666,6 +1717,7 @@ export default function TemplateDesignerPage() {
 								style={{
 									width: 794 * state.zoom,
 									height: 1123 * state.zoom,
+									position: "relative",
 								}}
 								onDragOver={handleCanvasDragOver}
 								onDrop={handleCanvasDrop}
@@ -1746,6 +1798,129 @@ export default function TemplateDesignerPage() {
 										/>
 									))}
 								
+								{/* Watermark */}
+								{(() => {
+									// Debug logging
+									const watermarkEnabled = currentTemplate?.brand?.watermark?.enabled;
+									const watermark = currentTemplate?.brand?.watermark;
+									
+									console.log("[WATERMARK DEBUG] Checking watermark", {
+										hasCurrentTemplate: !!currentTemplate,
+										hasBrand: !!currentTemplate?.brand,
+										hasWatermark: !!watermark,
+										watermarkEnabled,
+										watermark,
+										draftBrand: draftBrand,
+										currentTemplateBrand: currentTemplate?.brand,
+									});
+									
+									if (!watermarkEnabled || !watermark) {
+										console.log("[WATERMARK DEBUG] Not enabled or missing", { watermarkEnabled, watermark });
+										return null;
+									}
+									
+									// Only use the explicitly configured watermark image URL or text
+									// Don't fallback to organization logo - that would be a separate feature
+									const watermarkImageUrl = watermark.imageUrl;
+									const watermarkText = watermark.text;
+									
+									// Don't render if neither image nor text is set
+									if (!watermarkImageUrl && !watermarkText) {
+										console.log("[WATERMARK] Not rendering: no image or text", { watermarkImageUrl, watermarkText, watermark, orgLogo: currentOrg?.settings?.branding?.customLogo });
+										return null;
+									}
+									
+									console.log("[WATERMARK] Rendering watermark", { watermarkEnabled, watermarkImageUrl, watermarkText, watermark, position: watermark.position, opacity: watermark.opacity });
+									
+									// Calculate position
+									let positionStyle: React.CSSProperties = {};
+									if (watermark.x !== undefined && watermark.y !== undefined) {
+										positionStyle = {
+											left: watermark.x * state.zoom,
+											top: watermark.y * state.zoom,
+											transform: `translate(0, 0) rotate(${watermark.rotation || 0}deg)`,
+										};
+									} else {
+										const positions: Record<string, React.CSSProperties> = {
+											"center": {
+												left: "50%",
+												top: "50%",
+												transform: `translate(-50%, -50%) rotate(${watermark.rotation || 0}deg)`,
+											},
+											"top-left": { left: 0, top: 0, transform: `rotate(${watermark.rotation || 0}deg)` },
+											"top-right": { right: 0, top: 0, transform: `rotate(${watermark.rotation || 0}deg)` },
+											"bottom-left": { left: 0, bottom: 0, transform: `rotate(${watermark.rotation || 0}deg)` },
+											"bottom-right": { right: 0, bottom: 0, transform: `rotate(${watermark.rotation || 0}deg)` },
+											"top-center": { left: "50%", top: 0, transform: `translateX(-50%) rotate(${watermark.rotation || 0}deg)` },
+											"bottom-center": { left: "50%", bottom: 0, transform: `translateX(-50%) rotate(${watermark.rotation || 0}deg)` },
+											"left-center": { left: 0, top: "50%", transform: `translateY(-50%) rotate(${watermark.rotation || 0}deg)` },
+											"right-center": { right: 0, top: "50%", transform: `translateY(-50%) rotate(${watermark.rotation || 0}deg)` },
+										};
+										positionStyle = positions[watermark.position || "center"] || positions.center;
+									}
+
+									const width = (watermark.width || 200) * state.zoom;
+									const height = watermark.height ? watermark.height * state.zoom : undefined;
+									const opacity = watermark.opacity ?? 0.1;
+									const blendMode = watermark.blendMode || "normal";
+
+									console.log("[WATERMARK] Final render values", { width, height, opacity, positionStyle, blendMode });
+
+									if (watermarkImageUrl) {
+										return (
+											<div
+												key="watermark-image"
+												style={{
+													position: "absolute",
+													...positionStyle,
+													width,
+													height: height || width,
+													opacity,
+													mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
+													pointerEvents: "none",
+													zIndex: 1000, // Above all elements (elements have zIndex: 10)
+												}}
+											>
+												<img
+													src={watermarkImageUrl}
+													alt="Watermark"
+													style={{ width: "100%", height: "100%", objectFit: "contain" }}
+													onLoad={() => {
+														console.log("[WATERMARK] Image loaded successfully:", watermarkImageUrl);
+													}}
+													onError={(e) => {
+														console.error("[WATERMARK] Image failed to load:", watermarkImageUrl, e);
+													}}
+												/>
+											</div>
+										);
+									} else if (watermarkText) {
+										return (
+											<div
+												key="watermark-text"
+												style={{
+													position: "absolute",
+													...positionStyle,
+													width,
+													minWidth: width,
+													opacity,
+													mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
+													pointerEvents: "none",
+													zIndex: 1000, // Above all elements (elements have zIndex: 10)
+													fontSize: Math.max(24, width / 10) * state.zoom,
+													fontWeight: "bold",
+													color: "#999999",
+													textAlign: "center",
+													whiteSpace: "nowrap",
+												}}
+											>
+												{watermarkText}
+											</div>
+										);
+									}
+									return null;
+								})()}
+								
 								{/* elements */}
 								{(
 									draftElements ??
@@ -1771,7 +1946,7 @@ export default function TemplateDesignerPage() {
 											height: el.height * state.zoom,
 											transform: `rotate(${el.rotation}deg)`,
 											touchAction: "none",
-											zIndex: el.zIndex ?? 0,
+											zIndex: el.zIndex ?? 10,
 										}}
 										onClick={() => {
 											setState((s: DesignerState) => ({
@@ -2289,6 +2464,556 @@ export default function TemplateDesignerPage() {
 									<p className="text-xs text-neutral-400 mt-1">
 										Determines which compliance requirements apply
 									</p>
+								</div>
+								{/* Watermark Configuration */}
+								<div className="space-y-3 pt-2 border-t">
+									<div className="text-xs font-semibold text-neutral-600 mb-2">Watermark</div>
+									<div className="flex items-center justify-between">
+										<Label htmlFor="watermark-enabled" className="text-xs">Enable Watermark</Label>
+										<input
+											id="watermark-enabled"
+											type="checkbox"
+											checked={currentTemplate.brand.watermark?.enabled ?? false}
+											onChange={(e) => {
+												const currentWatermark = currentTemplate.brand.watermark || {
+													enabled: false,
+													position: "center" as const,
+													width: 200,
+													rotation: 0,
+													opacity: 0.1,
+													blendMode: "normal" as const,
+													repeat: "none" as const,
+												};
+												saveMutation.mutate({
+													brand: {
+														...currentTemplate.brand,
+														watermark: {
+															...currentWatermark,
+															enabled: e.target.checked,
+															// Auto-set image URL from organization logo if available
+															imageUrl: e.target.checked && !currentWatermark.imageUrl && !currentWatermark.text && currentOrg?.settings?.branding?.customLogo
+																? currentOrg.settings.branding.customLogo
+																: currentWatermark.imageUrl,
+														},
+													},
+												});
+											}}
+											className="h-4 w-4 rounded border-gray-300"
+										/>
+									</div>
+									{currentTemplate.brand.watermark?.enabled && (
+										<div className="space-y-3 pl-2 border-l-2 border-neutral-200">
+											<div className="space-y-2">
+												<Label htmlFor="watermark-type" className="text-xs">Type</Label>
+												<Select
+													value={currentTemplate.brand.watermark?.imageUrl ? "image" : "text"}
+													onValueChange={(v) => {
+														const currentWatermark = currentTemplate.brand.watermark || {
+															enabled: true,
+															position: "center" as const,
+															width: 200,
+															rotation: 0,
+															opacity: 0.1,
+															blendMode: "normal" as const,
+															repeat: "none" as const,
+														};
+														saveMutation.mutate({
+															brand: {
+																...currentTemplate.brand,
+																watermark: {
+																	...currentWatermark,
+																	imageUrl: v === "image" ? (currentOrg?.settings?.branding?.customLogo || currentWatermark.imageUrl) : undefined,
+																	text: v === "text" ? (currentWatermark.text || "CONFIDENTIAL") : undefined,
+																},
+															},
+														});
+													}}
+												>
+													<SelectTrigger className="h-8">
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="image">Image</SelectItem>
+														<SelectItem value="text">Text</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											{currentTemplate.brand.watermark?.imageUrl ? (
+												<div className="space-y-2">
+													<Label htmlFor="watermark-image-url" className="text-xs">Image URL</Label>
+													<Input
+														id="watermark-image-url"
+														value={currentTemplate.brand.watermark.imageUrl || ""}
+														onChange={(e) => {
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		imageUrl: e.target.value || undefined,
+																	},
+																},
+															});
+														}}
+														placeholder="https://example.com/logo.png"
+														className="h-8 text-xs"
+													/>
+												</div>
+											) : (
+												<div className="space-y-2">
+													<Label htmlFor="watermark-text" className="text-xs">Text</Label>
+													<Input
+														id="watermark-text"
+														value={currentTemplate.brand.watermark?.text || ""}
+														onChange={(e) => {
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		text: e.target.value || undefined,
+																	},
+																},
+															});
+														}}
+														placeholder="CONFIDENTIAL"
+														className="h-8 text-xs"
+													/>
+												</div>
+											)}
+											<div className="space-y-2">
+												<Label htmlFor="watermark-position" className="text-xs">Position</Label>
+												<Select
+													value={currentTemplate.brand.watermark?.position || "center"}
+													onValueChange={(v) => {
+														const currentWatermark = currentTemplate.brand.watermark || {
+															enabled: true,
+															position: "center" as const,
+															width: 200,
+															rotation: 0,
+															opacity: 0.1,
+															blendMode: "normal" as const,
+															repeat: "none" as const,
+														};
+														saveMutation.mutate({
+															brand: {
+																...currentTemplate.brand,
+																watermark: {
+																	...currentWatermark,
+																	position: v as typeof currentWatermark.position,
+																},
+															},
+														});
+													}}
+												>
+													<SelectTrigger className="h-8">
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="center">Center</SelectItem>
+														<SelectItem value="top-left">Top Left</SelectItem>
+														<SelectItem value="top-right">Top Right</SelectItem>
+														<SelectItem value="bottom-left">Bottom Left</SelectItem>
+														<SelectItem value="bottom-right">Bottom Right</SelectItem>
+														<SelectItem value="top-center">Top Center</SelectItem>
+														<SelectItem value="bottom-center">Bottom Center</SelectItem>
+														<SelectItem value="left-center">Left Center</SelectItem>
+														<SelectItem value="right-center">Right Center</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="grid grid-cols-2 gap-2">
+												<div className="space-y-2">
+													<Label htmlFor="watermark-width" className="text-xs">Width (px)</Label>
+													<Input
+														id="watermark-width"
+														type="number"
+													
+														
+														value={currentTemplate.brand.watermark?.width ?? ""}
+														onChange={(e) => {
+															const inputValue = e.target.value;
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															
+															// Allow empty value while typing
+															let widthValue: number | undefined;
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																widthValue = undefined;
+															} else {
+																const numValue = Number(inputValue);
+																widthValue = isNaN(numValue) ? undefined : numValue;
+															}
+															
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		width: widthValue ?? currentWatermark.width ?? 200,
+																	},
+																},
+															});
+														}}
+														onBlur={(e) => {
+															// On blur, set default if empty
+															const inputValue = e.target.value.trim();
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																const currentWatermark = currentTemplate.brand.watermark || {
+																	enabled: true,
+																	position: "center" as const,
+																	width: 200,
+																	rotation: 0,
+																	opacity: 0.1,
+																	blendMode: "normal" as const,
+																	repeat: "none" as const,
+																};
+																saveMutation.mutate({
+																	brand: {
+																		...currentTemplate.brand,
+																		watermark: {
+																			...currentWatermark,
+																			width: 200, // Default on blur if empty
+																		},
+																	},
+																});
+															}
+														}}
+														className="h-8 text-xs"
+													/>
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="watermark-height" className="text-xs">Height (px)</Label>
+													<Input
+														id="watermark-height"
+														type="number"
+														min={50}
+														max={1000}
+														value={currentTemplate.brand.watermark?.height || ""}
+														onChange={(e) => {
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		height: e.target.value ? Number(e.target.value) : undefined,
+																	},
+																},
+															});
+														}}
+														placeholder="Auto"
+														className="h-8 text-xs"
+													/>
+												</div>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="watermark-rotation" className="text-xs">Rotation</Label>
+												<div className="flex items-center gap-2">
+													<Input
+														id="watermark-rotation-slider"
+														type="range"
+														min={-180}
+														max={180}
+														value={currentTemplate.brand.watermark?.rotation || 0}
+														onChange={(e) => {
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		rotation: Number(e.target.value),
+																	},
+																},
+															});
+														}}
+														className="h-2 flex-1"
+													/>
+													<Input
+														id="watermark-rotation-input"
+														type="number"
+														min={-180}
+														max={180}
+														step={1}
+														value={currentTemplate.brand.watermark?.rotation ?? ""}
+														onChange={(e) => {
+															const inputValue = e.target.value;
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															
+															let rotationValue: number;
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																rotationValue = currentWatermark.rotation ?? 0;
+															} else {
+																const numValue = Number(inputValue);
+																rotationValue = isNaN(numValue) ? currentWatermark.rotation ?? 0 : Math.max(-180, Math.min(180, numValue));
+															}
+															
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		rotation: rotationValue,
+																	},
+																},
+															});
+														}}
+														onBlur={(e) => {
+															const inputValue = e.target.value.trim();
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																const currentWatermark = currentTemplate.brand.watermark || {
+																	enabled: true,
+																	position: "center" as const,
+																	width: 200,
+																	rotation: 0,
+																	opacity: 0.1,
+																	blendMode: "normal" as const,
+																	repeat: "none" as const,
+																};
+																saveMutation.mutate({
+																	brand: {
+																		...currentTemplate.brand,
+																		watermark: {
+																			...currentWatermark,
+																			rotation: currentWatermark.rotation ?? 0,
+																		},
+																	},
+																});
+															}
+														}}
+														className="h-8 w-20 text-xs"
+														placeholder="0"
+													/>
+													<span className="text-xs text-muted-foreground w-4">°</span>
+												</div>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="watermark-opacity" className="text-xs">Opacity</Label>
+												<div className="flex items-center gap-2">
+													<Input
+														id="watermark-opacity-slider"
+														type="range"
+														min={0}
+														max={100}
+														step={1}
+														value={Math.round((currentTemplate.brand.watermark?.opacity || 0.1) * 100)}
+														onChange={(e) => {
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		opacity: Number(e.target.value) / 100,
+																	},
+																},
+															});
+														}}
+														className="h-2 flex-1"
+													/>
+													<Input
+														id="watermark-opacity-input"
+														type="number"
+														min={0}
+														max={100}
+														step={1}
+														value={(() => {
+															const opacity = currentTemplate.brand.watermark?.opacity ?? 0.1;
+															return Math.round(opacity * 100);
+														})()}
+														onChange={(e) => {
+															const inputValue = e.target.value;
+															const currentWatermark = currentTemplate.brand.watermark || {
+																enabled: true,
+																position: "center" as const,
+																width: 200,
+																rotation: 0,
+																opacity: 0.1,
+																blendMode: "normal" as const,
+																repeat: "none" as const,
+															};
+															
+															let opacityValue: number;
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																opacityValue = currentWatermark.opacity ?? 0.1;
+															} else {
+																const numValue = Number(inputValue);
+																opacityValue = isNaN(numValue) ? currentWatermark.opacity ?? 0.1 : Math.max(0, Math.min(100, numValue)) / 100;
+															}
+															
+															saveMutation.mutate({
+																brand: {
+																	...currentTemplate.brand,
+																	watermark: {
+																		...currentWatermark,
+																		opacity: opacityValue,
+																	},
+																},
+															});
+														}}
+														onBlur={(e) => {
+															const inputValue = e.target.value.trim();
+															if (inputValue === "" || inputValue === null || inputValue === undefined) {
+																const currentWatermark = currentTemplate.brand.watermark || {
+																	enabled: true,
+																	position: "center" as const,
+																	width: 200,
+																	rotation: 0,
+																	opacity: 0.1,
+																	blendMode: "normal" as const,
+																	repeat: "none" as const,
+																};
+																saveMutation.mutate({
+																	brand: {
+																		...currentTemplate.brand,
+																		watermark: {
+																			...currentWatermark,
+																			opacity: currentWatermark.opacity ?? 0.1,
+																		},
+																	},
+																});
+															}
+														}}
+														className="h-8 w-20 text-xs"
+														placeholder="10"
+													/>
+													<span className="text-xs text-muted-foreground w-4">%</span>
+												</div>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="watermark-blend-mode" className="text-xs">Blend Mode</Label>
+												<Select
+													value={currentTemplate.brand.watermark?.blendMode || "normal"}
+													onValueChange={(v) => {
+														const currentWatermark = currentTemplate.brand.watermark || {
+															enabled: true,
+															position: "center" as const,
+															width: 200,
+															rotation: 0,
+															opacity: 0.1,
+															blendMode: "normal" as const,
+															repeat: "none" as const,
+														};
+														saveMutation.mutate({
+															brand: {
+																...currentTemplate.brand,
+																watermark: {
+																	...currentWatermark,
+																	blendMode: v as typeof currentWatermark.blendMode,
+																},
+															},
+														});
+													}}
+												>
+													<SelectTrigger className="h-8">
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="normal">Normal</SelectItem>
+														<SelectItem value="multiply">Multiply</SelectItem>
+														<SelectItem value="screen">Screen</SelectItem>
+														<SelectItem value="overlay">Overlay</SelectItem>
+														<SelectItem value="soft-light">Soft Light</SelectItem>
+														<SelectItem value="hard-light">Hard Light</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="watermark-repeat" className="text-xs">Repeat</Label>
+												<Select
+													value={currentTemplate.brand.watermark?.repeat || "none"}
+													onValueChange={(v) => {
+														const currentWatermark = currentTemplate.brand.watermark || {
+															enabled: true,
+															position: "center" as const,
+															width: 200,
+															rotation: 0,
+															opacity: 0.1,
+															blendMode: "normal" as const,
+															repeat: "none" as const,
+														};
+														saveMutation.mutate({
+															brand: {
+																...currentTemplate.brand,
+																watermark: {
+																	...currentWatermark,
+																	repeat: v as typeof currentWatermark.repeat,
+																},
+															},
+														});
+													}}
+												>
+													<SelectTrigger className="h-8">
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="none">None</SelectItem>
+														<SelectItem value="repeat">Repeat</SelectItem>
+														<SelectItem value="repeat-x">Repeat X</SelectItem>
+														<SelectItem value="repeat-y">Repeat Y</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+										</div>
+									)}
 								</div>
 								{(() => {
 									if (!state.selectedElementId) return null;

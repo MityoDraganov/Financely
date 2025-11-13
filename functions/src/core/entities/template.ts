@@ -185,6 +185,21 @@ export const templateElementSchema = z.discriminatedUnion("type", [
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;
 
+export const templateWatermarkSchema = z.object({
+  enabled: z.boolean().default(false),
+  imageUrl: z.string().optional(), // URL to the watermark image
+  text: z.string().optional(), // Text watermark (alternative to image)
+  position: z.enum(["center", "top-left", "top-right", "bottom-left", "bottom-right", "top-center", "bottom-center", "left-center", "right-center"]).default("center"),
+  x: z.number().optional(), // Custom X position in pixels (overrides position)
+  y: z.number().optional(), // Custom Y position in pixels (overrides position)
+  width: z.number().min(50).max(1000).default(200), // Watermark width in pixels
+  height: z.number().min(50).max(1000).optional(), // Watermark height in pixels (maintains aspect ratio if not set)
+  rotation: z.number().min(-180).max(180).default(0), // Rotation in degrees
+  opacity: z.number().min(0).max(1).default(0.1), // Opacity (0-1)
+  blendMode: z.enum(["normal", "multiply", "screen", "overlay", "soft-light", "hard-light"]).default("normal"),
+  repeat: z.enum(["none", "repeat", "repeat-x", "repeat-y"]).default("none"), // For tiling watermarks
+});
+
 export const templateBrandSchema = z.object({
   fonts: z.array(z.string()).default(["Inter"]),
   colors: z
@@ -198,6 +213,7 @@ export const templateBrandSchema = z.object({
     .object({ top: z.number(), right: z.number(), bottom: z.number(), left: z.number() })
     .default({ top: 40, right: 40, bottom: 40, left: 40 }),
   backgroundImage: z.string().optional(),
+  watermark: templateWatermarkSchema.optional(),
 });
 
 export const templateComplianceMetadataSchema = z.object({

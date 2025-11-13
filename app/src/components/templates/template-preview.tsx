@@ -316,12 +316,99 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         return null;
     }
 
+    // Generate watermark element if enabled
+    const watermark = template.brand.watermark;
+    let watermarkElement: React.ReactNode = null;
+    if (watermark?.enabled) {
+        // Only use the explicitly configured watermark image URL or text
+        // Don't fallback to organization logo - that would be a separate feature
+        const watermarkImageUrl = watermark.imageUrl;
+        const watermarkText = watermark.text;
+        
+        // Calculate position
+        let positionStyle: React.CSSProperties = {};
+        if (watermark.x !== undefined && watermark.y !== undefined) {
+            positionStyle = {
+                left: watermark.x * zoom,
+                top: watermark.y * zoom,
+                transform: `translate(0, 0) rotate(${watermark.rotation}deg)`,
+            };
+        } else {
+            const positions: Record<string, React.CSSProperties> = {
+                "center": {
+                    left: "50%",
+                    top: "50%",
+                    transform: `translate(-50%, -50%) rotate(${watermark.rotation}deg)`,
+                },
+                "top-left": { left: 0, top: 0, transform: `rotate(${watermark.rotation}deg)` },
+                "top-right": { right: 0, top: 0, transform: `rotate(${watermark.rotation}deg)` },
+                "bottom-left": { left: 0, bottom: 0, transform: `rotate(${watermark.rotation}deg)` },
+                "bottom-right": { right: 0, bottom: 0, transform: `rotate(${watermark.rotation}deg)` },
+                "top-center": { left: "50%", top: 0, transform: `translateX(-50%) rotate(${watermark.rotation}deg)` },
+                "bottom-center": { left: "50%", bottom: 0, transform: `translateX(-50%) rotate(${watermark.rotation}deg)` },
+                "left-center": { left: 0, top: "50%", transform: `translateY(-50%) rotate(${watermark.rotation}deg)` },
+                "right-center": { right: 0, top: "50%", transform: `translateY(-50%) rotate(${watermark.rotation}deg)` },
+            };
+            positionStyle = positions[watermark.position] || positions.center;
+        }
+
+        const width = (watermark.width || 200) * zoom;
+        const height = watermark.height ? watermark.height * zoom : undefined;
+        const opacity = watermark.opacity ?? 0.1;
+        const blendMode = watermark.blendMode || "normal";
+
+        if (watermarkImageUrl) {
+            watermarkElement = (
+                <div
+                    style={{
+                        position: "absolute",
+                        ...positionStyle,
+                        width,
+                        height,
+                        opacity,
+                        mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
+                        pointerEvents: "none",
+                        zIndex: 0,
+                    }}
+                >
+                    <img
+                        src={watermarkImageUrl}
+                        alt="Watermark"
+                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    />
+                </div>
+            );
+        } else if (watermarkText) {
+            watermarkElement = (
+                <div
+                    style={{
+                        position: "absolute",
+                        ...positionStyle,
+                        width,
+                        opacity,
+                        mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
+                        pointerEvents: "none",
+                        zIndex: 0,
+                        fontSize: Math.max(24, width / 10) * zoom,
+                        fontWeight: "bold",
+                        color: "#999999",
+                        textAlign: "center",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {watermarkText}
+                </div>
+            );
+        }
+    }
+
     return (
         <div className="grid place-items-center">
             <div
                 className="bg-white shadow relative border"
                 style={{ width: size.w * zoom, height: size.h * zoom }}
             >
+                {watermarkElement}
                 {(template.elements ?? []).map((el) => renderElement(el))}
             </div>
         </div>

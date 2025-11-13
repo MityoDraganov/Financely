@@ -168,11 +168,11 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 						<SelectTrigger>
 							<SelectValue />
 						</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="text">Text</SelectItem>
-						<SelectItem value="number">Number</SelectItem>
-						<SelectItem value="date">Date</SelectItem>
-					</SelectContent>
+						<SelectContent>
+							<SelectItem value="text">Text</SelectItem>
+							<SelectItem value="number">Number</SelectItem>
+							<SelectItem value="date">Date</SelectItem>
+						</SelectContent>
 					</Select>
 				</div>
 				<div className="space-y-1">

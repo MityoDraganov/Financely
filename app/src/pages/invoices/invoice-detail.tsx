@@ -33,17 +33,17 @@ export default function InvoiceDetailPage() {
     // Automatically load preview when invoice is available
     useEffect(() => {
         if (invoice && !previewUrl && !renderPdf.isPending) {
-            renderPdf.mutate(
-                { invoiceId: invoice.id },
-                {
-                    onSuccess: (result) => {
-                        setPreviewUrl(result.url);
-                    },
-                    onError: (error) => {
-                        toast.error(`Failed to generate preview: ${error.message}`);
-                    },
-                }
-            );
+        renderPdf.mutate(
+            { invoiceId: invoice.id },
+            {
+                onSuccess: (result) => {
+                    setPreviewUrl(result.url);
+                },
+                onError: (error) => {
+                    toast.error(`Failed to generate preview: ${error.message}`);
+                },
+            }
+        );
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [invoice?.id]);
@@ -109,15 +109,15 @@ export default function InvoiceDetailPage() {
                             <div className="flex items-center justify-between">
                                 <CardTitle>Invoice Preview</CardTitle>
                                 <div className="flex items-center gap-2">
-                                    <Button 
-                                        variant="outline" 
-                                        onClick={handleGenerateShareLink}
-                                        disabled={generateShareLink.isPending}
+                                <Button 
+                                    variant="outline" 
+                                    onClick={handleGenerateShareLink}
+                                    disabled={generateShareLink.isPending}
                                         size="sm"
-                                    >
-                                        <LinkIcon className="mr-2 h-4 w-4" /> 
+                                >
+                                    <LinkIcon className="mr-2 h-4 w-4" /> 
                                         {generateShareLink.isPending ? "Generating..." : "Share"}
-                                    </Button>
+                                </Button>
                                 </div>
                             </div>
                             {shareLink && (

@@ -27,6 +27,8 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       secondary: organization?.settings?.brandColors?.secondary || brand.colors.secondary,
       accent: organization?.settings?.brandColors?.accent || brand.colors.accent,
     },
+    // Preserve watermark from template brand
+    watermark: brand.watermark,
   };
 
   // Add organization logo to brand if available
@@ -383,6 +385,122 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     return "";
   }).join("");
 
+  // Generate watermark HTML if enabled
+  let watermarkHTML = "";
+  const watermark = finalBrand.watermark;
+  if (watermark?.enabled) {
+    // Only use the explicitly configured watermark image URL or text
+    // Don't fallback to organization logo - that would be a separate feature
+    const watermarkImageUrl = watermark.imageUrl;
+    
+    // Calculate position
+    let positionStyle = "";
+    if (watermark.x !== undefined && watermark.y !== undefined) {
+      // Custom position
+      positionStyle = `left: ${watermark.x}px; top: ${watermark.y}px; transform: translate(0, 0) rotate(${watermark.rotation}deg);`;
+    } else {
+      // Preset position
+      const positions: Record<string, string> = {
+        "center": `left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(${watermark.rotation}deg);`,
+        "top-left": `left: 0; top: 0; transform: rotate(${watermark.rotation}deg);`,
+        "top-right": `right: 0; top: 0; transform: rotate(${watermark.rotation}deg);`,
+        "bottom-left": `left: 0; bottom: 0; transform: rotate(${watermark.rotation}deg);`,
+        "bottom-right": `right: 0; bottom: 0; transform: rotate(${watermark.rotation}deg);`,
+        "top-center": `left: 50%; top: 0; transform: translateX(-50%) rotate(${watermark.rotation}deg);`,
+        "bottom-center": `left: 50%; bottom: 0; transform: translateX(-50%) rotate(${watermark.rotation}deg);`,
+        "left-center": `left: 0; top: 50%; transform: translateY(-50%) rotate(${watermark.rotation}deg);`,
+        "right-center": `right: 0; top: 50%; transform: translateY(-50%) rotate(${watermark.rotation}deg);`,
+      };
+      positionStyle = positions[watermark.position] || positions.center;
+    }
+
+    const width = watermark.width || 200;
+    const height = watermark.height ? `${watermark.height}px` : "auto";
+    const opacity = watermark.opacity ?? 0.1;
+    const blendMode = watermark.blendMode || "normal";
+    const repeat = watermark.repeat || "none";
+
+    if (watermarkImageUrl) {
+      // Image watermark
+      if (repeat === "none") {
+        watermarkHTML = `
+          <div style="
+            position: absolute;
+            ${positionStyle}
+            width: ${width}px;
+            height: ${height};
+            opacity: ${opacity};
+            mix-blend-mode: ${blendMode};
+            pointer-events: none;
+            z-index: 1000;
+          ">
+            <img src="${watermarkImageUrl}" alt="Watermark" style="width: 100%; height: 100%; object-fit: contain;" />
+          </div>
+        `;
+      } else {
+        // Tiled watermark
+        const backgroundSize = repeat === "repeat" ? `${width}px ${watermark.height || width}px` :
+                              repeat === "repeat-x" ? `${width}px auto` :
+                              `${width}px auto`;
+        watermarkHTML = `
+          <div style="
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url(${watermarkImageUrl});
+            background-repeat: ${repeat};
+            background-size: ${backgroundSize};
+            opacity: ${opacity};
+            mix-blend-mode: ${blendMode};
+            pointer-events: none;
+            z-index: 1000;
+            transform: rotate(${watermark.rotation}deg);
+          "></div>
+        `;
+      }
+    } else if (watermark.text) {
+      // Text watermark
+      if (repeat === "none") {
+        watermarkHTML = `
+          <div style="
+            position: absolute;
+            ${positionStyle}
+            width: ${width}px;
+            opacity: ${opacity};
+            mix-blend-mode: ${blendMode};
+            pointer-events: none;
+            z-index: 1000;
+            font-size: ${Math.max(24, width / 10)}px;
+            font-weight: bold;
+            color: #999999;
+            text-align: center;
+            white-space: nowrap;
+          ">${watermark.text}</div>
+        `;
+      } else {
+        // Tiled text watermark (using background pattern would be complex, so we'll use a single centered one)
+        watermarkHTML = `
+          <div style="
+            position: absolute;
+            ${positionStyle}
+            width: ${width}px;
+            opacity: ${opacity};
+            mix-blend-mode: ${blendMode};
+            pointer-events: none;
+            z-index: 1000;
+            font-size: ${Math.max(24, width / 10)}px;
+            font-weight: bold;
+            color: #999999;
+            text-align: center;
+            white-space: nowrap;
+          ">${watermark.text}</div>
+        `;
+      }
+    }
+  }
+
   // Complete HTML document
   return `
     <!DOCTYPE html>
@@ -404,6 +522,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
           ${finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
           background-size: cover;
         ">
+          ${watermarkHTML}
           ${elementsHTML}
         </div>
       </body>

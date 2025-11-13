@@ -443,14 +443,15 @@ export default function CreateInvoicePage() {
     
     // Use startTransition to mark state update as non-urgent for better typing performance
     startTransition(() => {
-      setFormData(newData);
+    setFormData(newData);
     });
     
     // Debounce currency conversion calculations
     // Check if this is a source field for any linked currency fields
     // currencyFieldLinks maps: target binding -> { source binding, link, element }
     // So we need to find all targets that have this path as their source
-    if (typeof value === "number") {
+    // Only process conversions for actual numbers (not empty strings)
+    if (typeof value === "number" && !isNaN(value) && isFinite(value)) {
       // Clear existing timer
       if (currencyConversionTimer.current) {
         clearTimeout(currencyConversionTimer.current);
@@ -749,8 +750,9 @@ export default function CreateInvoicePage() {
     });
     
     // Debounce currency conversion calculations for table columns
+    // Only process conversions for actual numbers (not empty strings)
     const tableLinks = tableColumnCurrencyLinks.get(itemsPath);
-    if (tableLinks && typeof value === "number") {
+    if (tableLinks && typeof value === "number" && !isNaN(value) && isFinite(value)) {
       // Create a unique key for this table row and column
       const timerKey = `${itemsPath}-${rowIndex}-${binding}`;
       
@@ -789,7 +791,17 @@ export default function CreateInvoicePage() {
           }
           
           // Get current source value from the row
-          const sourceValue = typeof row[binding] === "number" ? row[binding] : (typeof currentValue === "number" ? currentValue : 0);
+          // Handle empty string values - don't convert to 0
+          const sourceValue = (() => {
+            const rowValue = row[binding];
+            if (typeof rowValue === "number" && !isNaN(rowValue) && isFinite(rowValue)) {
+              return rowValue;
+            }
+            if (typeof currentValue === "number" && !isNaN(currentValue) && isFinite(currentValue)) {
+              return currentValue;
+            }
+            return 0; // Fallback only if we have no valid number
+          })();
           
           const linkedColumns = Array.from(tableLinks.entries()).filter(
             ([targetBinding]) => targetBinding !== binding
@@ -1347,13 +1359,71 @@ export default function CreateInvoicePage() {
                         <Input
                             id={`binding-${field.path}`}
                           type={field.type}
-                          value={String(getValue(field.path) ?? "")}
+                          value={(() => {
+                            const val = getValue(field.path);
+                            if (field.type === "number") {
+                              // For number inputs, show empty string if value is null/undefined/empty
+                              // Allow empty string to be displayed while typing
+                              if (val === null || val === undefined || val === "") {
+                                return "";
+                              }
+                              // If it's a number, convert to string for display
+                              if (typeof val === "number") {
+                                return String(val);
+                              }
+                              return String(val);
+                            }
+                            return String(val ?? "");
+                          })()}
                           onChange={async (e) => {
-                            const val: InvoiceDataValue =
-                              field.type === "number"
-                                ? Number(e.target.value)
-                                : e.target.value;
+                            const inputValue = e.target.value;
+                            let val: InvoiceDataValue;
+                            
+                            if (field.type === "number") {
+                              // Allow empty string while typing - don't convert to number yet
+                              if (inputValue === "" || inputValue === null || inputValue === undefined) {
+                                val = "";
+                              } else {
+                                // Check if it's a valid number (including partial numbers like "12." or "-")
+                                // Allow partial input like "12." or "-" to remain as string
+                                const trimmed = inputValue.trim();
+                                if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-.") {
+                                  val = "";
+                                } else {
+                                  // Try to parse as number, but keep as string if it's a partial number
+                                  const numValue = Number(trimmed);
+                                  // If it's a valid complete number, convert it
+                                  // Otherwise keep as string to allow partial input
+                                  if (!isNaN(numValue) && isFinite(numValue) && trimmed === String(numValue)) {
+                                    val = numValue;
+                                  } else {
+                                    // Partial number (like "12." or "-5"), keep as string temporarily
+                                    val = trimmed;
+                                  }
+                                }
+                              }
+                            } else {
+                              val = inputValue;
+                            }
+                            
                             await setValue(field.path, val);
+                          }}
+                          onBlur={async (e) => {
+                            // On blur, convert valid partial numbers to actual numbers
+                            if (field.type === "number") {
+                              const inputValue = e.target.value.trim();
+                              if (inputValue === "" || inputValue === "-" || inputValue === "." || inputValue === "-.") {
+                                await setValue(field.path, "");
+                              } else {
+                                const numValue = Number(inputValue);
+                                if (!isNaN(numValue) && isFinite(numValue)) {
+                                  await setValue(field.path, numValue);
+                                } else if (inputValue !== "") {
+                                  // Invalid number, clear it
+                                  await setValue(field.path, "");
+                                }
+                              }
+                            }
                           }}
                           placeholder={`Enter ${field.label.toLowerCase()}`}
                           readOnly={field.isLinkedCurrency}
@@ -1431,31 +1501,89 @@ export default function CreateInvoicePage() {
                                   const isLinkedColumn = tableLinks?.has(col.binding) || false;
                                   
                                   return (
-                                    <div key={col.id} className="space-y-2">
-                                      <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
-                                        {col.header}
+                                  <div key={col.id} className="space-y-2">
+                                    <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
+                                      {col.header}
                                         {isLinkedColumn && (
                                           <span className="ml-2 text-xs text-muted-foreground font-normal">
                                             (Linked - read-only)
                                           </span>
                                         )}
-                                      </Label>
+                                    </Label>
                                       <Input
                                         id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
                                         type={col.type === "currency" ? "number" : col.type}
-                                        value={String(row[col.binding] ?? "")}
+                                        value={(() => {
+                                          const val = row[col.binding];
+                                          if (col.type === "number" || col.type === "currency") {
+                                            // For number/currency inputs, show empty string if value is null/undefined/empty
+                                            // Allow empty string to be displayed while typing
+                                            if (val === null || val === undefined || val === "") {
+                                              return "";
+                                            }
+                                            // If it's a number, convert to string for display
+                                            if (typeof val === "number") {
+                                              return String(val);
+                                            }
+                                            return String(val);
+                                          }
+                                          return String(val ?? "");
+                                        })()}
                                         onChange={(e) => {
-                                          const val: InvoiceDataValue =
-                                            col.type === "number" || col.type === "currency"
-                                              ? Number(e.target.value)
-                                              : e.target.value;
+                                          const inputValue = e.target.value;
+                                          let val: InvoiceDataValue;
+                                          
+                                          if (col.type === "number" || col.type === "currency") {
+                                            // Allow empty string while typing - don't convert to number yet
+                                            if (inputValue === "" || inputValue === null || inputValue === undefined) {
+                                              val = "";
+                                            } else {
+                                              // Check if it's a valid number (including partial numbers like "12." or "-")
+                                              // Allow partial input like "12." or "-" to remain as string
+                                              const trimmed = inputValue.trim();
+                                              if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-.") {
+                                                val = "";
+                                              } else {
+                                                // Try to parse as number, but keep as string if it's a partial number
+                                                const numValue = Number(trimmed);
+                                                // If it's a valid complete number, convert it
+                                                // Otherwise keep as string to allow partial input
+                                                if (!isNaN(numValue) && isFinite(numValue) && trimmed === String(numValue)) {
+                                                  val = numValue;
+                                                } else {
+                                                  // Partial number (like "12." or "-5"), keep as string temporarily
+                                                  val = trimmed;
+                                                }
+                                              }
+                                            }
+                                          } else {
+                                            val = inputValue;
+                                          }
+                                          
                                           updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
+                                        }}
+                                        onBlur={(e) => {
+                                          // On blur, convert valid partial numbers to actual numbers
+                                          if (col.type === "number" || col.type === "currency") {
+                                            const inputValue = e.target.value.trim();
+                                            if (inputValue === "" || inputValue === "-" || inputValue === "." || inputValue === "-.") {
+                                              updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, "");
+                                            } else {
+                                              const numValue = Number(inputValue);
+                                              if (!isNaN(numValue) && isFinite(numValue)) {
+                                                updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, numValue);
+                                              } else if (inputValue !== "") {
+                                                // Invalid number, clear it
+                                                updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, "");
+                                              }
+                                            }
+                                          }
                                         }}
                                         placeholder={`Enter ${col.header.toLowerCase()}`}
                                         readOnly={isLinkedColumn}
                                         className={isLinkedColumn ? "bg-muted cursor-not-allowed" : ""}
                                       />
-                                    </div>
+                                  </div>
                                   );
                                 })}
                                 {/* Currency selector for each item */}
