@@ -433,35 +433,62 @@ export function TableProperties({
 										{/* Field Linking UI for currency columns */}
 										{c.mode === "linked" && (
 											<div className="pt-2">
-												<CurrencyFieldLinking
-													currentField={{
-														...c,
-														id: c.id,
-														type: "currency" as const,
-														x: 0,
-														y: 0,
-														width: 0,
-														height: 0,
-														rotation: 0,
-														zIndex: 0,
-														visible: true,
-														placeholder: "",
-														currency: c.currency || "USD",
-														currencyLinks: c.currencyLinks || [],
-														mode: c.mode || "independent",
-														align: c.align,
-													}}
-													allFields={allElements || []}
-													onLinkChange={(links) => {
-														const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-														const next = base.map((col) => 
-															col.id === c.id 
-																? { ...col, currencyLinks: links }
-																: col
-														);
-														onChange({ ...tbl, columns: next });
-													}}
-												/>
+												{(() => {
+													// Only show other currency columns from the same table as available fields
+													const sameTableCurrencyColumns = (tbl.columns || defaultTwo)
+														.filter((col) => col.id !== c.id && col.type === "currency")
+														.map((col) => ({
+															...col,
+															id: col.id,
+															type: "currency" as const,
+															x: 0,
+															y: 0,
+															width: 0,
+															height: 0,
+															rotation: 0,
+															zIndex: 0,
+															visible: true,
+															placeholder: "",
+															currency: col.currency || "USD",
+															currencyLinks: col.currencyLinks || [],
+															mode: col.mode || "independent",
+															align: col.align,
+															binding: col.binding,
+														}));
+													
+													return (
+														<CurrencyFieldLinking
+															currentField={{
+																...c,
+																id: c.id,
+																type: "currency" as const,
+																x: 0,
+																y: 0,
+																width: 0,
+																height: 0,
+																rotation: 0,
+																zIndex: 0,
+																visible: true,
+																placeholder: "",
+																currency: c.currency || "USD",
+																currencyLinks: c.currencyLinks || [],
+																mode: c.mode || "independent",
+																align: c.align,
+																binding: c.binding,
+															}}
+															allFields={sameTableCurrencyColumns}
+															onLinkChange={(links) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { ...col, currencyLinks: links }
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+														/>
+													);
+												})()}
 											</div>
 										)}
 									</div>

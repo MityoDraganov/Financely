@@ -206,20 +206,12 @@ export interface ExchangeRates {
   [currencyCode: string]: number;
 }
 
-let cachedRates: ExchangeRates | null = null;
-let ratesCacheTime: number = 0;
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-
 /**
  * Fetch exchange rates from free API
+ * Always fetches fresh rates - no caching
  * Falls back to a basic conversion if API fails
  */
 export async function fetchExchangeRates(baseCurrency: string = "USD"): Promise<ExchangeRates> {
-  // Check cache
-  if (cachedRates && Date.now() - ratesCacheTime < CACHE_DURATION) {
-    return cachedRates;
-  }
-
   try {
     // Using exchangerate-api.com free tier (no API key needed for basic usage)
     const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${baseCurrency}`);
@@ -230,8 +222,7 @@ export async function fetchExchangeRates(baseCurrency: string = "USD"): Promise<
 
     const data = await response.json();
     const rates: ExchangeRates = data.rates;
-    cachedRates = rates;
-    ratesCacheTime = Date.now();
+    
     return rates;
   } catch (error) {
     console.warn("Failed to fetch exchange rates, using fallback:", error);
@@ -239,8 +230,6 @@ export async function fetchExchangeRates(baseCurrency: string = "USD"): Promise<
     // Fallback: return basic rates (1:1 for same currency, 0 for others)
     // In production, you might want to use a different fallback strategy
     const fallbackRates: ExchangeRates = { [baseCurrency]: 1 };
-    cachedRates = fallbackRates;
-    ratesCacheTime = Date.now();
     return fallbackRates;
   }
 }

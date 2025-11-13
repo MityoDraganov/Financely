@@ -100,13 +100,14 @@ export function CurrencyFieldLinking({
     }
 
     // Validate linking doesn't create cycles
+    // For table columns, allFields only contains columns from the same table
     const fieldsForValidation = (allFields || []).map((f) => ({
       id: f.id,
       links:
         f.id === currentField.id
           ? [...(currentField.currencyLinks || []), newLink]
           : f.type === "currency"
-          ? f.currencyLinks || []
+          ? (f.currencyLinks || [])
           : [],
     }));
 
@@ -136,6 +137,10 @@ export function CurrencyFieldLinking({
 
   const getSourceFieldName = (fieldId: string) => {
     const field = availableFields.find((f) => f.id === fieldId);
+    // For table columns, prefer header over binding
+    if (field && "header" in field && field.header) {
+      return field.header;
+    }
     return field?.binding || field?.placeholder || `Field ${fieldId.slice(0, 6)}`;
   };
 
@@ -235,12 +240,24 @@ export function CurrencyFieldLinking({
                   <SelectValue placeholder="Select source field" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableFields.map((field) => (
-                    <SelectItem key={field.id} value={field.id}>
-                      {field.binding || field.placeholder || `Field ${field.id.slice(0, 6)}`}
-                      {field.currency && ` (${field.currency})`}
+                  {availableFields.length === 0 ? (
+                    <SelectItem value="" disabled>
+                      No other currency columns available in this table
                     </SelectItem>
-                  ))}
+                  ) : (
+                    availableFields.map((field) => {
+                      // For table columns, prefer header over binding
+                      const displayName = ("header" in field && field.header) 
+                        ? field.header 
+                        : field.binding || field.placeholder || `Field ${field.id.slice(0, 6)}`;
+                      return (
+                        <SelectItem key={field.id} value={field.id}>
+                          {displayName}
+                          {field.currency && ` (${field.currency})`}
+                        </SelectItem>
+                      );
+                    })
+                  )}
                 </SelectContent>
               </Select>
             </div>

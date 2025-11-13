@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,18 +20,20 @@ import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
 import { CurrencyConversionManager } from "@/components/invoice/currency-conversion-manager";
 import { CURRENCIES, formatCurrency, getCurrency } from "@/utils/currencies";
 import type { ConversionRate } from "@/services/currency-conversion-service";
+import type { CurrencyFieldLink } from "@/core/entities/currency-field";
 
 type BindingField = {
   path: string;
   label: string;
   type: "text" | "number" | "date";
+  isLinkedCurrency?: boolean; // True if this is a currency field with links
 };
 
 type TableColumn = {
   id: string;
   header: string;
   binding: string;
-  type: "text" | "number" | "date";
+  type: "text" | "number" | "date" | "currency";
 };
 
 type TableConfig = {
@@ -58,6 +60,10 @@ export default function CreateInvoicePage() {
   } | null>(null);
   const [hasAutoFilled, setHasAutoFilled] = useState(false);
   const [conversionRates, setConversionRates] = useState<ConversionRate[]>([]);
+  
+  // Debounce timers for currency conversions
+  const currencyConversionTimer = useRef<NodeJS.Timeout | null>(null);
+  const tableConversionTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Get selected template
   const selectedTemplate = useMemo(() => {
@@ -90,6 +96,107 @@ export default function CreateInvoicePage() {
       }));
   }, [selectedTemplate]);
 
+  // Map of currency field links: target binding -> { source binding, link config, element }
+  const currencyFieldLinks = useMemo(() => {
+    const links = new Map<string, {
+      sourceBinding: string;
+      link: CurrencyFieldLink;
+      element: Extract<TemplateElement, { type: "currency" }>;
+    }>();
+    
+    if (!selectedTemplate) return links;
+    
+    const elements = selectedTemplate.elements ?? [];
+    
+    for (const element of elements) {
+      if (element.type === "currency") {
+        const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
+        if (currencyEl.binding && 
+            currencyEl.mode === "linked" && 
+            currencyEl.currencyLinks && 
+            currencyEl.currencyLinks.length > 0) {
+          // Get the first link (support multiple links later if needed)
+          const link = currencyEl.currencyLinks[0];
+          if (link.type === "FX_PAIR" && link.sourceFieldId) {
+            // Find the source field element
+            const sourceElement = elements.find((e) => e.id === link.sourceFieldId);
+            if (sourceElement && sourceElement.type === "currency" && sourceElement.binding) {
+              links.set(currencyEl.binding, {
+                sourceBinding: sourceElement.binding,
+                link,
+                element: currencyEl,
+              });
+            }
+          } else if (link.type === "FIXED_MULTIPLIER" && link.multiplier !== undefined) {
+            // For fixed multiplier, we still need a source field
+            // This will be handled differently - for now, skip
+          }
+        }
+      }
+    }
+    
+    return links;
+  }, [selectedTemplate]);
+
+  // Map of table column currency links: table path -> column binding -> { source column binding, link config }
+  const tableColumnCurrencyLinks = useMemo(() => {
+    const links = new Map<string, Map<string, {
+      sourceColumnBinding: string;
+      link: CurrencyFieldLink;
+      column: { id: string; binding: string; currency?: string };
+    }>>();
+    
+    if (!selectedTemplate) return links;
+    
+    const elements = selectedTemplate.elements ?? [];
+    
+    for (const element of elements) {
+      if (element.type === "table") {
+        const tableEl = element as Extract<TemplateElement, { type: "table" }>;
+        if (tableEl.itemsBinding && tableEl.columns) {
+          const tableLinks = new Map<string, {
+            sourceColumnBinding: string;
+            link: CurrencyFieldLink;
+            column: { id: string; binding: string; currency?: string };
+          }>();
+          
+          for (const col of tableEl.columns) {
+            if (col.type === "currency" && 
+                col.binding &&
+                col.mode === "linked" && 
+                col.currencyLinks && 
+                col.currencyLinks.length > 0) {
+              const link = col.currencyLinks[0];
+              if (link.type === "FX_PAIR" && link.sourceFieldId) {
+                // Find the source column in the same table
+                const sourceCol = tableEl.columns.find((c) => c.id === link.sourceFieldId);
+                if (sourceCol && sourceCol.binding) {
+                  tableLinks.set(col.binding, {
+                    sourceColumnBinding: sourceCol.binding,
+                    link,
+                    column: {
+                      id: col.id,
+                      binding: col.binding,
+                      currency: col.currency,
+                    },
+                  });
+                }
+              } else if (link.type === "FIXED_MULTIPLIER" && link.multiplier !== undefined) {
+                // For fixed multiplier, we need a source - skip for now
+              }
+            }
+          }
+          
+          if (tableLinks.size > 0) {
+            links.set(tableEl.itemsBinding, tableLinks);
+          }
+        }
+      }
+    }
+    
+    return links;
+  }, [selectedTemplate]);
+
   // Extract bindings from template elements (depends on tableConfigs)
   const bindings = useMemo((): BindingField[] => {
     if (!selectedTemplate) return [];
@@ -112,6 +219,32 @@ export default function CreateInvoicePage() {
         const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
         binding = currencyEl.binding;
         type = "number"; // Currency fields are numeric
+        
+        // Check if this currency field is linked (has currencyLinks)
+        const isLinked = currencyEl.mode === "linked" && 
+                        currencyEl.currencyLinks && 
+                        currencyEl.currencyLinks.length > 0;
+        
+        if (binding) {
+          const existingField = fields.get(binding);
+          if (existingField) {
+            // Update existing field to mark it as linked if it is
+            existingField.isLinkedCurrency = isLinked;
+          } else {
+            // Add new field with linked status
+            fields.set(binding, {
+              path: binding,
+              label: binding
+                .split(".")
+                .pop()!
+                .replace(/([A-Z])/g, " $1")
+                .replace(/^./, (c) => c.toUpperCase()),
+              type,
+              isLinkedCurrency: isLinked,
+            });
+          }
+          continue; // Skip the duplicate addition below
+        }
       } else if (element.type === "image") {
         const imageEl = element as Extract<TemplateElement, { type: "image" }>;
         binding = imageEl.binding;
@@ -242,8 +375,45 @@ export default function CreateInvoicePage() {
     return value ?? "";
   };
 
+  // Compute linked currency field value
+  const computeLinkedCurrencyValue = async (
+    sourceValue: number,
+    sourceCurrency: string,
+    link: CurrencyFieldLink,
+    targetCurrency: string
+  ): Promise<number> => {
+    try {
+      if (link.type === "FX_PAIR") {
+        // Import getExchangeRate directly to ensure we get the correct rate
+        const { getExchangeRate } = await import("@/utils/currencies");
+        
+        // Fetch rate directly from API with sourceCurrency as base
+        // This ensures we get: 1 sourceCurrency = X targetCurrency
+        const rate = await getExchangeRate(sourceCurrency, targetCurrency);
+        
+        // Calculate: sourceValue * rate = targetValue
+        // Example: 10 BGN * 0.511 = 5.11 EUR
+        const result = sourceValue * rate;
+        
+        console.log(`Currency conversion: ${sourceValue} ${sourceCurrency} * ${rate} = ${result} ${targetCurrency}`);
+        return result;
+      } else if (link.type === "FIXED_MULTIPLIER" && link.multiplier !== undefined) {
+        return sourceValue * link.multiplier;
+      }
+      return sourceValue;
+    } catch (error) {
+      console.error("Error computing linked currency value:", error, {
+        sourceValue,
+        sourceCurrency,
+        targetCurrency,
+        linkType: link.type,
+      });
+      return sourceValue;
+    }
+  };
+
   // Set value at nested path (creates new references at each level for proper React re-rendering)
-  const setValue = (path: string, value: InvoiceDataValue): void => {
+  const setValue = async (path: string, value: InvoiceDataValue): Promise<void> => {
     const parts = path.split(".");
     
     // Create a deep clone with new references at each level in the path
@@ -271,7 +441,93 @@ export default function CreateInvoicePage() {
     // Set the final value
     current[parts[parts.length - 1]] = value;
     
-    setFormData(newData);
+    // Use startTransition to mark state update as non-urgent for better typing performance
+    startTransition(() => {
+      setFormData(newData);
+    });
+    
+    // Debounce currency conversion calculations
+    // Check if this is a source field for any linked currency fields
+    // currencyFieldLinks maps: target binding -> { source binding, link, element }
+    // So we need to find all targets that have this path as their source
+    if (typeof value === "number") {
+      // Clear existing timer
+      if (currencyConversionTimer.current) {
+        clearTimeout(currencyConversionTimer.current);
+      }
+      
+      // Debounce the conversion calculation
+      // Capture the current value to avoid stale closures
+      const currentValue = value;
+      currencyConversionTimer.current = setTimeout(async () => {
+        // Use functional update to get the latest formData
+        setFormData((prevFormData) => {
+          const updatedData = { ...prevFormData };
+          
+          // Get the current source value from the latest formData
+          const sourceValue = (() => {
+            const parts = path.split(".");
+            let val: InvoiceDataValue = prevFormData;
+            for (const part of parts) {
+              if (val && typeof val === "object" && !Array.isArray(val)) {
+                val = val[part];
+              } else {
+                return currentValue; // Fallback to captured value
+              }
+            }
+            return val ?? currentValue;
+          })();
+          
+          if (typeof sourceValue !== "number") {
+            return prevFormData; // No update needed
+          }
+          
+          for (const [targetBinding, linkInfo] of currencyFieldLinks.entries()) {
+            if (linkInfo.sourceBinding === path) {
+              // This field is a source for targetBinding
+              // Find the source currency element to get its currency
+              const sourceElement = selectedTemplate?.elements?.find(
+                (e) => e.type === "currency" && e.binding === path
+              ) as Extract<TemplateElement, { type: "currency" }> | undefined;
+              
+              const sourceCurrency = sourceElement?.currency || baseCurrency;
+              const targetCurrency = linkInfo.element.currency || baseCurrency;
+              
+              // Compute linked value (this is async, so we'll handle it separately)
+              computeLinkedCurrencyValue(
+                sourceValue,
+                sourceCurrency,
+                linkInfo.link,
+                targetCurrency
+              ).then((linkedValue) => {
+                // Use functional update again to ensure we have the latest state
+                setFormData((latestFormData) => {
+                  const finalData = { ...latestFormData };
+                  
+                  // Update the linked field
+                  if (targetBinding) {
+                    const linkedParts = targetBinding.split(".");
+                    let linkedCurrent: Record<string, InvoiceDataValue> = finalData;
+                    for (let i = 0; i < linkedParts.length - 1; i++) {
+                      const part = linkedParts[i];
+                      if (!linkedCurrent[part] || typeof linkedCurrent[part] !== "object" || Array.isArray(linkedCurrent[part])) {
+                        linkedCurrent[part] = {};
+                      }
+                      linkedCurrent = linkedCurrent[part] as Record<string, InvoiceDataValue>;
+                    }
+                    linkedCurrent[linkedParts[linkedParts.length - 1]] = linkedValue;
+                  }
+                  
+                  return finalData;
+                });
+              });
+            }
+          }
+          
+          return updatedData;
+        });
+      }, 500); // 500ms debounce delay
+    }
   };
 
   // Handle form submission
@@ -416,7 +672,7 @@ export default function CreateInvoicePage() {
   }, [allItems, baseCurrency, conversionRates]);
 
   // Add table row
-  const addTableRow = (itemsPath: string, columns: TableColumn[]): void => {
+  const addTableRow = async (itemsPath: string, columns: TableColumn[]): Promise<void> => {
     const items = getValue(itemsPath);
     const itemsArray = Array.isArray(items) ? items : [];
     
@@ -428,15 +684,15 @@ export default function CreateInvoicePage() {
     // Set default currency for new row
     newRow.currency = baseCurrency;
     
-    setValue(itemsPath, [...itemsArray, newRow]);
+    await setValue(itemsPath, [...itemsArray, newRow]);
   };
 
   // Remove table row
-  const removeTableRow = (itemsPath: string, index: number): void => {
+  const removeTableRow = async (itemsPath: string, index: number): Promise<void> => {
     const items = getValue(itemsPath);
     const itemsArray = Array.isArray(items) ? items : [];
     
-    setValue(
+    await setValue(
       itemsPath,
       itemsArray.filter((_: InvoiceDataValue, i: number) => i !== index)
     );
@@ -465,7 +721,158 @@ export default function CreateInvoicePage() {
       newItemsArray[rowIndex] = newRow;
     }
     
-    setValue(itemsPath, newItemsArray);
+    // Update table data immediately for responsive UI (synchronous update)
+    const parts = itemsPath.split(".");
+    const newData = { ...formData };
+    let current: Record<string, InvoiceDataValue> = newData;
+    
+    // Navigate to the parent of the target, creating new object references
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const next = current[part];
+      
+      if (next && typeof next === "object" && !Array.isArray(next)) {
+        current[part] = { ...next as Record<string, InvoiceDataValue> };
+      } else {
+        current[part] = {};
+      }
+      
+      current = current[part] as Record<string, InvoiceDataValue>;
+    }
+    
+    // Set the final value
+    current[parts[parts.length - 1]] = newItemsArray;
+    
+    // Use startTransition to mark state update as non-urgent for better typing performance
+    startTransition(() => {
+      setFormData(newData);
+    });
+    
+    // Debounce currency conversion calculations for table columns
+    const tableLinks = tableColumnCurrencyLinks.get(itemsPath);
+    if (tableLinks && typeof value === "number") {
+      // Create a unique key for this table row and column
+      const timerKey = `${itemsPath}-${rowIndex}-${binding}`;
+      
+      // Clear existing timer for this specific cell
+      const existingTimer = tableConversionTimers.current.get(timerKey);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+      
+      // Debounce the conversion calculation
+      // Capture current values to avoid stale closures
+      const currentValue = value;
+      const timer = setTimeout(() => {
+        // Use functional update to get the latest formData
+        setFormData((prevFormData) => {
+          // Get current items from latest formData
+          const currentItems = (() => {
+            const parts = itemsPath.split(".");
+            let val: InvoiceDataValue = prevFormData;
+            for (const part of parts) {
+              if (val && typeof val === "object" && !Array.isArray(val)) {
+                val = val[part];
+              } else {
+                return [];
+              }
+            }
+            return Array.isArray(val) ? val : [];
+          })();
+          
+          const currentItemsArray = [...currentItems];
+          const row = currentItemsArray[rowIndex] as TableRow | undefined;
+          
+          if (!row) {
+            tableConversionTimers.current.delete(timerKey);
+            return prevFormData;
+          }
+          
+          // Get current source value from the row
+          const sourceValue = typeof row[binding] === "number" ? row[binding] : (typeof currentValue === "number" ? currentValue : 0);
+          
+          const linkedColumns = Array.from(tableLinks.entries()).filter(
+            ([targetBinding]) => targetBinding !== binding
+          );
+          
+          // Process all linked columns
+          const conversionPromises = linkedColumns
+            .filter(([, linkInfo]) => linkInfo.sourceColumnBinding === binding)
+            .map(async ([targetBinding, linkInfo]) => {
+              // Get source currency from the template element (not tableConfig)
+              // Find the table element in the template
+              const tableElement = selectedTemplate?.elements?.find(
+                (e) => e.type === "table" && e.itemsBinding === itemsPath
+              ) as Extract<TemplateElement, { type: "table" }> | undefined;
+              
+              // Find source and target columns in the table
+              const sourceCol = tableElement?.columns?.find(c => c.binding === binding);
+              const targetCol = tableElement?.columns?.find(c => c.binding === targetBinding);
+              
+              // Get currencies from the actual column definitions
+              const sourceCurrencyStr = (sourceCol && sourceCol.type === "currency" && sourceCol.currency)
+                ? sourceCol.currency
+                : baseCurrency;
+              const targetCurrencyStr = (targetCol && targetCol.type === "currency" && targetCol.currency)
+                ? targetCol.currency
+                : baseCurrency;
+              
+              // Compute linked value
+              const linkedValue = await computeLinkedCurrencyValue(
+                sourceValue,
+                sourceCurrencyStr,
+                linkInfo.link,
+                targetCurrencyStr
+              );
+              
+              return { targetBinding, linkedValue };
+            });
+          
+          // Wait for all conversions and update
+          Promise.all(conversionPromises).then((results) => {
+            setFormData((latestFormData) => {
+              const finalData = { ...latestFormData };
+              const parts = itemsPath.split(".");
+              let current: Record<string, InvoiceDataValue> = finalData;
+              
+              // Navigate to the items array
+              for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                const next = current[part];
+                
+                if (next && typeof next === "object" && !Array.isArray(next)) {
+                  current[part] = { ...next as Record<string, InvoiceDataValue> };
+                } else {
+                  current[part] = {};
+                }
+                
+                current = current[part] as Record<string, InvoiceDataValue>;
+              }
+              
+              // Get current items array
+              const items = current[parts[parts.length - 1]];
+              const itemsArray = Array.isArray(items) ? [...items] : [];
+              const updatedRow = { ...(itemsArray[rowIndex] as TableRow || {}) };
+              
+              // Apply all conversions
+              for (const { targetBinding, linkedValue } of results) {
+                updatedRow[targetBinding] = linkedValue;
+              }
+              
+              itemsArray[rowIndex] = updatedRow;
+              current[parts[parts.length - 1]] = itemsArray;
+              
+              tableConversionTimers.current.delete(timerKey);
+              return finalData;
+            });
+          });
+          
+          return prevFormData; // Return unchanged for now, async update will happen
+        });
+      }, 500); // 500ms debounce delay
+      
+      tableConversionTimers.current.set(timerKey, timer);
+    }
   };
 
   // Show loading state while organization or templates are loading
@@ -911,7 +1318,14 @@ export default function CreateInvoicePage() {
                       return (
                       <div key={field.path} className="space-y-2">
                           <div className="flex items-center justify-between">
-                        <Label htmlFor={field.path}>{field.label}</Label>
+                        <Label htmlFor={field.path}>
+                          {field.label}
+                          {field.isLinkedCurrency && (
+                            <span className="ml-2 text-xs text-muted-foreground font-normal">
+                              (Linked - read-only)
+                            </span>
+                          )}
+                        </Label>
                             {shouldAutoCalculate && (
                               <Button
                                 type="button"
@@ -934,14 +1348,16 @@ export default function CreateInvoicePage() {
                             id={`binding-${field.path}`}
                           type={field.type}
                           value={String(getValue(field.path) ?? "")}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const val: InvoiceDataValue =
                               field.type === "number"
                                 ? Number(e.target.value)
                                 : e.target.value;
-                            setValue(field.path, val);
+                            await setValue(field.path, val);
                           }}
                           placeholder={`Enter ${field.label.toLowerCase()}`}
+                          readOnly={field.isLinkedCurrency}
+                          className={field.isLinkedCurrency ? "bg-muted cursor-not-allowed" : ""}
                         />
                           {shouldAutoCalculate && (
                             <p className="text-xs text-muted-foreground">
@@ -979,7 +1395,7 @@ export default function CreateInvoicePage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => addTableRow(tableConfig.itemsPath, tableConfig.columns)}
+                          onClick={async () => await addTableRow(tableConfig.itemsPath, tableConfig.columns)}
                         >
                           <Plus className="mr-2 h-4 w-4" />
                           Add Row
@@ -1002,33 +1418,46 @@ export default function CreateInvoicePage() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => removeTableRow(tableConfig.itemsPath, rowIndex)}
+                                  onClick={async () => await removeTableRow(tableConfig.itemsPath, rowIndex)}
                                   className="text-destructive hover:text-destructive"
                                 >
                                   Remove
                                 </Button>
                               </div>
                               <div className="grid gap-3 sm:grid-cols-2">
-                                {tableConfig.columns.map((col) => (
-                                  <div key={col.id} className="space-y-2">
-                                    <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
-                                      {col.header}
-                                    </Label>
-                                    <Input
-                                      id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
-                                      type={col.type}
-                                      value={String(row[col.binding] ?? "")}
-                                      onChange={(e) => {
-                                        const val: InvoiceDataValue =
-                                          col.type === "number"
-                                            ? Number(e.target.value)
-                                            : e.target.value;
-                                        updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
-                                      }}
-                                      placeholder={`Enter ${col.header.toLowerCase()}`}
-                                    />
-                                  </div>
-                                ))}
+                                {tableConfig.columns.map((col) => {
+                                  // Check if this column is linked
+                                  const tableLinks = tableColumnCurrencyLinks.get(tableConfig.itemsPath);
+                                  const isLinkedColumn = tableLinks?.has(col.binding) || false;
+                                  
+                                  return (
+                                    <div key={col.id} className="space-y-2">
+                                      <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}>
+                                        {col.header}
+                                        {isLinkedColumn && (
+                                          <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                            (Linked - read-only)
+                                          </span>
+                                        )}
+                                      </Label>
+                                      <Input
+                                        id={`${tableConfig.itemsPath}-${rowIndex}-${col.binding}`}
+                                        type={col.type === "currency" ? "number" : col.type}
+                                        value={String(row[col.binding] ?? "")}
+                                        onChange={(e) => {
+                                          const val: InvoiceDataValue =
+                                            col.type === "number" || col.type === "currency"
+                                              ? Number(e.target.value)
+                                              : e.target.value;
+                                          updateTableCell(tableConfig.itemsPath, rowIndex, col.binding, val);
+                                        }}
+                                        placeholder={`Enter ${col.header.toLowerCase()}`}
+                                        readOnly={isLinkedColumn}
+                                        className={isLinkedColumn ? "bg-muted cursor-not-allowed" : ""}
+                                      />
+                                    </div>
+                                  );
+                                })}
                                 {/* Currency selector for each item */}
                                 <div className="space-y-2 sm:col-span-2">
                                   <Label htmlFor={`${tableConfig.itemsPath}-${rowIndex}-currency`}>

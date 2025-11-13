@@ -17,8 +17,41 @@ function getByPath<T>(obj: unknown, path: string): T | null {
     return current as T;
 }
 
+/**
+ * Format an address object into a readable string
+ */
+function formatAddress(value: unknown): string {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+    
+    const addr = value as Record<string, unknown>;
+    const parts: string[] = [];
+    
+    if (addr.street && typeof addr.street === "string") parts.push(addr.street);
+    if (addr.city && typeof addr.city === "string") parts.push(addr.city);
+    if (addr.state && typeof addr.state === "string") parts.push(addr.state);
+    if (addr.zipCode && typeof addr.zipCode === "string") parts.push(addr.zipCode);
+    if (addr.country && typeof addr.country === "string") parts.push(addr.country);
+    
+    return parts.filter(Boolean).join(", ") || "";
+}
+
 function formatValue(value: unknown, kind: "none" | "currency" | "date", currency?: string, dateFormat?: string): string {
     if (value == null) return "";
+    
+    // Handle objects - check if it's an address-like object
+    if (typeof value === "object" && !Array.isArray(value) && kind === "none") {
+        // Check if it looks like an address object
+        const obj = value as Record<string, unknown>;
+        if (obj.street || obj.city || obj.state || obj.zipCode || obj.country) {
+            return formatAddress(value);
+        }
+        // For other objects, try to format them nicely
+        return Object.entries(obj)
+            .filter(([_, v]) => v != null)
+            .map(([k, v]) => `${k}: ${String(v)}`)
+            .join(", ");
+    }
+    
     if (kind === "none") return String(value);
     if (kind === "currency") {
         const num = Number(value);
@@ -69,7 +102,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                 const bound = getByPath<unknown>(context, t.binding);
                 display = t.format
                     ? formatValue(bound, t.format.kind, t.format.currency, t.format.dateFormat)
-                    : String(bound ?? "");
+                    : formatValue(bound, "none"); // Use formatValue to handle objects properly
             }
             return (
                 <div key={t.id} style={commonStyle}>
@@ -137,7 +170,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             const inp = el as Extract<TemplateElement, { type: "input" }>;
             // Get the bound value from context
             const boundValue = inp.binding ? getByPath<unknown>(context, inp.binding) : undefined;
-            const displayValue = boundValue != null ? String(boundValue) : "";
+            const displayValue = boundValue != null ? formatValue(boundValue, "none") : "";
             
             // Determine text alignment
             const textAlign = inp.align || "left";
@@ -184,7 +217,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                     });
                     displayValue = formatter.format(num);
                 } else {
-                    displayValue = String(boundValue);
+                    displayValue = formatValue(boundValue, "none");
                 }
             }
             
@@ -255,7 +288,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                                     });
                                                     text = formatter.format(num);
                                                 } else {
-                                                    text = String(raw);
+                                                    text = formatValue(raw, "none");
                                                 }
                                             } else {
                                                 text = "";
