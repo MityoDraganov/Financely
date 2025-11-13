@@ -621,9 +621,6 @@ export default function SiteBuilderPage() {
       {/* Header */}
       <div className="space-y-2">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-50 rounded-lg">
-            <Sparkles className="h-5 w-5 text-purple-600" />
-          </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">AI Site Builder</h1>
             <p className="text-muted-foreground">

@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BarChart3, Settings, ExternalLink, CheckCircle2, XCircle, Calendar, Monitor, Globe, TrendingUp } from "lucide-react";
+import { Loader2, BarChart3, Settings, ExternalLink, CheckCircle2, XCircle, Monitor, Globe, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { ConsentBannerCustomizer } from "@/components/analytics/consent-banner-customizer";
@@ -233,7 +233,7 @@ export default function AnalyticsPage() {
   );
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Analytics</h1>
@@ -260,29 +260,27 @@ export default function AnalyticsPage() {
         <TabsContent value="overview" className="space-y-6">
           {/* Date Range Selector */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Date Range
-              </CardTitle>
-              <CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Date Range</CardTitle>
+              <CardDescription className="text-sm">
                 Select the time period for analytics data
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                <div className="flex-1 space-y-2 min-w-0">
+                  <Label htmlFor="startDate" className="text-sm">Start Date</Label>
                   <Input
                     id="startDate"
                     type="date"
                     value={dateRange.start}
                     onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                     max={dateRange.end}
+                    className="h-9"
                   />
                 </div>
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
+                <div className="flex-1 space-y-2 min-w-0">
+                  <Label htmlFor="endDate" className="text-sm">End Date</Label>
                   <Input
                     id="endDate"
                     type="date"
@@ -290,9 +288,10 @@ export default function AnalyticsPage() {
                     onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
                     min={dateRange.start}
                     max={new Date().toISOString().split("T")[0]}
+                    className="h-9"
                   />
                 </div>
-                <div className="flex gap-2 pt-6">
+                <div className="flex gap-2 shrink-0">
                   <Button
                     variant="outline"
                     size="sm"
@@ -305,6 +304,7 @@ export default function AnalyticsPage() {
                         end: end.toISOString().split("T")[0],
                       });
                     }}
+                    className="h-9"
                   >
                     7d
                   </Button>
@@ -320,6 +320,7 @@ export default function AnalyticsPage() {
                         end: end.toISOString().split("T")[0],
                       });
                     }}
+                    className="h-9"
                   >
                     30d
                   </Button>
@@ -335,6 +336,7 @@ export default function AnalyticsPage() {
                         end: end.toISOString().split("T")[0],
                       });
                     }}
+                    className="h-9"
                   >
                     90d
                   </Button>
