@@ -29,6 +29,7 @@ import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
 import { CurrencyFieldLinking } from "../currency-field-linking";
 import { FormulaBuilder } from "../formula-builder";
+import { typography, spacing, separators, components, colors } from "../design-system";
 
 interface TableElementProps {
 	element: Extract<TemplateElement, { type: "table" }>;
@@ -94,8 +95,8 @@ export function TableProperties({
 	
 	// Default columns for fallback
 	const defaultTwo = [
-		{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-		{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+		{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 	];
 	
 	// Check for duplicate bindings
@@ -135,225 +136,256 @@ export function TableProperties({
 	
 	// Common position/size controls
 	const common = (
-		<div className={isNarrow ? "grid grid-cols-1 gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2"}>
-			<div className="space-y-1">
-				<Label className="text-xs">X</Label>
-				<Input
-					type="number"
-					value={element.x}
-					onChange={(e) => onChange({ x: Number(e.target.value) })}
-				/>
+		<section className={`${components.section} ${separators.subsectionDivider}`}>
+			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<div className={isNarrow ? components.gridNarrow : components.grid}>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>X</Label>
+					<Input
+						type="number"
+						value={element.x}
+						onChange={(e) => onChange({ x: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Y</Label>
+					<Input
+						type="number"
+						value={element.y}
+						onChange={(e) => onChange({ y: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Width</Label>
+					<Input
+						type="number"
+						value={element.width}
+						onChange={(e) => onChange({ width: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
+				<div className={components.field}>
+					<Label className={typography.fieldLabel}>Height</Label>
+					<Input
+						type="number"
+						value={element.height}
+						onChange={(e) => onChange({ height: Number(e.target.value) })}
+						className={components.inputHeight}
+					/>
+				</div>
 			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Y</Label>
-				<Input
-					type="number"
-					value={element.y}
-					onChange={(e) => onChange({ y: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Width</Label>
-				<Input
-					type="number"
-					value={element.width}
-					onChange={(e) => onChange({ width: Number(e.target.value) })}
-				/>
-			</div>
-			<div className="space-y-1">
-				<Label className="text-xs">Height</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-				/>
-			</div>
-		</div>
+		</section>
 	);
 
 	return (
-		<div className="space-y-2">
-			<div className="text-xs font-medium">Table</div>
-			<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-				<div className="space-y-1">
-					<Label className="text-xs">Row height</Label>
-					<Input
-						type="number"
-						placeholder="28"
-						value={tbl.rowHeight}
-						onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
-					/>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Header height</Label>
-					<Input
-						type="number"
-						placeholder="28"
-						value={tbl.headerHeight}
-						onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
-					/>
-				</div>
-				<div className="space-y-1">
-					<Label className="text-xs">Stripe rows</Label>
-					<Switch
-						checked={tbl.stripe}
-						onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
-					/>
-				</div>
-				<div className="space-y-1 col-span-2">
-					<Label className="text-xs">Items binding</Label>
-					<div className="space-y-1.5">
-					<Input
-						placeholder=""
-							value={bindingInput}
-							className={bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-							onChange={(e) => {
-								const newValue = e.target.value;
-								setBindingInput(newValue);
-								// Update immediately, but show warning if duplicate
-								onChange({ ...tbl, itemsBinding: newValue || undefined });
-							}}
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>Table</h3>
+			
+			{/* Table Settings */}
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<div className={components.grid}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Row Height</Label>
+						<Input
+							type="number"
+							placeholder="28"
+							value={tbl.rowHeight}
+							onChange={(e) => onChange({ ...tbl, rowHeight: Number(e.target.value) })}
+							className={components.inputHeight}
 						/>
-						{bindingError && suggestedBinding && (
-							<div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-								<AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-								<div className="flex-1 min-w-0">
-									<p className="text-xs font-medium text-amber-800 mb-1">
-										This binding is already used by another element
-									</p>
-									<div className="flex items-center gap-2">
-										<p className="text-xs text-amber-700 flex-1 truncate">
-											Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Header Height</Label>
+						<Input
+							type="number"
+							placeholder="28"
+							value={tbl.headerHeight}
+							onChange={(e) => onChange({ ...tbl, headerHeight: Number(e.target.value) })}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Stripe Rows</Label>
+						<div className="flex items-center h-9">
+							<Switch
+								checked={tbl.stripe}
+								onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
+							/>
+						</div>
+					</div>
+					<div className={`${components.field} col-span-full`}>
+						<Label className={typography.fieldLabel}>Items Binding</Label>
+						<div className={spacing.fieldGroupGap}>
+							<Input
+								placeholder="e.g., items"
+								value={bindingInput}
+								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
+								onChange={(e) => {
+									const newValue = e.target.value;
+									setBindingInput(newValue);
+									onChange({ ...tbl, itemsBinding: newValue || undefined });
+								}}
+							/>
+							{bindingError && suggestedBinding && (
+								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
+									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className={`${typography.errorText} mb-1.5`}>
+											This binding is already used by another element
 										</p>
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											className="h-6 px-2 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
-											onClick={() => {
-												setBindingInput(suggestedBinding);
-												onChange({ ...tbl, itemsBinding: suggestedBinding });
-											}}
-										>
-											<Check className="h-3 w-3 mr-1" />
-											Use
-										</Button>
+										<div className="flex items-center gap-2">
+											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
+												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+											</p>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												onClick={() => {
+													setBindingInput(suggestedBinding);
+													onChange({ ...tbl, itemsBinding: suggestedBinding });
+												}}
+											>
+												<Check className="h-3 w-3 mr-1" />
+												Use
+											</Button>
+										</div>
 									</div>
 								</div>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 				</div>
-			</div>
+			</section>
 
-			<div className="space-y-1">
-				<div className="text-xs text-neutral-500">Columns</div>
-				<div className="space-y-2">
+			{/* Columns Configuration */}
+			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
+				<h4 className={typography.subsectionTitle}>Columns</h4>
+				<div className={spacing.fieldGroupGap}>
 					{(() => {
 						const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
 						return derivedColumns.map((c) => (
-							<div key={c.id} className="space-y-2">
-								<div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2 items-start min-w-0">
-									<Input
-										className="min-w-0 w-full"
-										placeholder="Header"
-										value={c.header}
-										onChange={(e) => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-											const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
-											onChange({ ...tbl, columns: next });
-										}}
-									/>
-									<Input
-										type="number"
-										placeholder="Width"
-										value={c.width}
-										className="min-w-0 w-full"
-										onChange={(e) => {
-											const w = Math.max(20, Number(e.target.value));
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-											const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
-											onChange({ ...tbl, columns: next });
-										}}
-									/>
-									<Select
-										value={c.align}
-										onValueChange={(v) => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-											const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
-											onChange({ ...tbl, columns: next });
-										}}
-									>
-										<SelectTrigger className="min-w-0 w-full">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="left">Left</SelectItem>
-											<SelectItem value="center">Center</SelectItem>
-											<SelectItem value="right">Right</SelectItem>
-										</SelectContent>
-									</Select>
-									<Select
-										value={c.type ?? "text"}
-										onValueChange={(v) => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-											const newType = v as "text" | "number" | "date" | "currency";
-											
-											// Initialize currency fields when switching to currency type
-											if (newType === "currency") {
-												const updatedCol = {
-													...c,
-													type: "currency" as const,
-													currency: (c.type === "currency" ? c.currency : undefined) || "USD",
-													mode: (c.type === "currency" ? c.mode : undefined) || "independent" as const,
-													currencyLinks: (c.type === "currency" ? c.currencyLinks : undefined) || [],
-												};
-												const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+							<div key={c.id} className={`${components.card} ${spacing.fieldGroupGap}`}>
+								{/* Column Basic Settings */}
+								<div className={components.grid}>
+									<div className={components.field}>
+										<Label className={typography.fieldLabel}>Header</Label>
+										<Input
+											placeholder="Column header"
+											value={c.header}
+											onChange={(e) => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+												const next = base.map((col) => col.id === c.id ? { ...col, header: e.target.value } : col);
 												onChange({ ...tbl, columns: next });
-											} else {
-												const updatedCol = { ...c, type: newType };
-												const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+											}}
+											className={components.inputHeight}
+										/>
+									</div>
+									<div className={components.field}>
+										<Label className={typography.fieldLabel}>Width</Label>
+										<Input
+											type="number"
+											placeholder="120"
+											value={c.width}
+											onChange={(e) => {
+												const w = Math.max(20, Number(e.target.value));
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+												const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
 												onChange({ ...tbl, columns: next });
-											}
-										}}
-									>
-										<SelectTrigger className="min-w-0 w-full">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="text">Text</SelectItem>
-											<SelectItem value="number">Number</SelectItem>
-											<SelectItem value="date">Date</SelectItem>
-											<SelectItem value="currency">Currency</SelectItem>
-										</SelectContent>
-									</Select>
-									<Button
-										variant="ghost"
-										size="sm"
-										className="justify-self-start"
-										onClick={() => {
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-											const next = base.filter((col) => col.id !== c.id);
-											onChange({ ...tbl, columns: next });
-										}}
-									>
-										Remove
-									</Button>
+											}}
+											className={components.inputHeight}
+										/>
+									</div>
+									<div className={components.field}>
+										<Label className={typography.fieldLabel}>Align</Label>
+										<Select
+											value={c.align}
+											onValueChange={(v) => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+												const next = base.map((col) => (col.id === c.id ? { ...col, align: v as typeof c.align } : col));
+												onChange({ ...tbl, columns: next });
+											}}
+										>
+											<SelectTrigger className={components.inputHeight}>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="left">Left</SelectItem>
+												<SelectItem value="center">Center</SelectItem>
+												<SelectItem value="right">Right</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+									<div className={components.field}>
+										<Label className={typography.fieldLabel}>Type</Label>
+										<Select
+											value={c.type ?? "text"}
+											onValueChange={(v) => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+												const newType = v as "text" | "number" | "date" | "currency";
+												
+												// Initialize currency fields when switching to currency type
+												if (newType === "currency") {
+													const updatedCol = {
+														...c,
+														type: "currency" as const,
+														currency: (c.type === "currency" ? c.currency : undefined) || "USD",
+														mode: (c.type === "currency" ? c.mode : undefined) || "independent" as const,
+														currencyLinks: (c.type === "currency" ? c.currencyLinks : undefined) || [],
+													};
+													const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+													onChange({ ...tbl, columns: next });
+												} else {
+													const updatedCol = { ...c, type: newType };
+													const next = base.map((col) => (col.id === c.id ? updatedCol : col));
+													onChange({ ...tbl, columns: next });
+												}
+											}}
+										>
+											<SelectTrigger className={components.inputHeight}>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="text">Text</SelectItem>
+												<SelectItem value="number">Number</SelectItem>
+												<SelectItem value="date">Date</SelectItem>
+												<SelectItem value="currency">Currency</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+									<div className={`${components.field} flex items-end`}>
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-9 text-xs"
+											onClick={() => {
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+												const next = base.filter((col) => col.id !== c.id);
+												onChange({ ...tbl, columns: next });
+											}}
+										>
+											Remove
+										</Button>
+									</div>
 								</div>
 								
 								{/* Currency-specific configuration */}
 								{c.type === "currency" && (
-									<div className="space-y-2 pt-2 pl-2 border-l-2 border-blue-200 bg-blue-50/30 rounded">
-										<div className="text-xs font-medium text-blue-900">Currency Configuration</div>
-										<div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-											<div className="space-y-1 col-span-2">
-												<Label className="text-xs">Currency</Label>
+									<div className={`${separators.nestedContent} ${colors.bgAccent} rounded-md p-3 ${spacing.fieldGroupGap}`}>
+										<h5 className={`${typography.subsectionTitle} text-blue-700`}>Currency</h5>
+										<div className={components.grid}>
+											<div className={`${components.field} col-span-full`}>
+												<Label className={typography.fieldLabel}>Currency</Label>
 												<Popover>
 													<PopoverTrigger asChild>
 														<Button
 															variant="outline"
 															role="combobox"
-															className="w-full justify-between h-9 text-xs"
+															className={`w-full justify-between ${components.inputHeight} text-xs`}
 														>
 															{c.currency
 																? (() => {
@@ -441,7 +473,7 @@ export function TableProperties({
 										
 										{/* Field Linking UI for currency columns */}
 										{c.mode === "linked" && (
-											<div className="pt-2">
+											<div className={`${separators.subsectionDivider} pt-3`}>
 												{(() => {
 													// Only show other currency columns from the same table as available fields
 													const sameTableCurrencyColumns = (tbl.columns || defaultTwo)
@@ -503,7 +535,7 @@ export function TableProperties({
 										
 										{/* Formula Builder for currency columns */}
 										{c.mode === "formula" && (
-											<div className="pt-2">
+											<div className={`${separators.subsectionDivider} pt-3`}>
 												<FormulaBuilder
 													formula={c.calc}
 													onChange={(formula) => {
@@ -529,8 +561,7 @@ export function TableProperties({
 								
 								{/* Formula Builder for number columns */}
 								{c.type === "number" && (
-									<div className="space-y-2 pt-2 pl-2 border-l-2 border-green-200 bg-green-50/30 rounded">
-										<div className="text-xs font-medium text-green-900">Formula Configuration</div>
+									<div className={`${separators.subsectionDivider} pt-3`}>
 										<FormulaBuilder
 											formula={c.calc}
 											onChange={(formula) => {
@@ -554,8 +585,7 @@ export function TableProperties({
 								
 								{/* Formula Builder for currency columns (when not in formula mode) */}
 								{c.type === "currency" && c.mode !== "formula" && (
-									<div className="space-y-2 pt-2 pl-2 border-l-2 border-green-200 bg-green-50/30 rounded">
-										<div className="text-xs font-medium text-green-900">Formula Configuration</div>
+									<div className={`${separators.subsectionDivider} pt-3`}>
 										<FormulaBuilder
 											formula={c.calc}
 											onChange={(formula) => {
@@ -577,128 +607,189 @@ export function TableProperties({
 									</div>
 								)}
 								
-								<div className="h-px bg-border" />
+								{/* Total Row Configuration (only for number/currency columns) */}
+								{(c.type === "number" || c.type === "currency") && (
+									<div className={`${separators.subsectionDivider} pt-3 ${spacing.fieldGroupGap}`}>
+										<div className="flex items-center justify-between">
+											<Label className={typography.fieldLabel}>Show Total</Label>
+											<Switch
+												checked={c.showTotal || false}
+												onCheckedChange={(checked) => {
+													const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+													const next = base.map((col) => 
+														col.id === c.id 
+															? { 
+																...col, 
+																showTotal: checked,
+																totalStyle: checked && !("totalStyle" in col && col.totalStyle) ? {
+																	backgroundColor: "#f9fafb",
+																	fontWeight: "bold" as const,
+																	borderTop: "2px solid #111827",
+																} : ("totalStyle" in col && col.totalStyle ? col.totalStyle : undefined)
+															}
+															: col
+													);
+													onChange({ ...tbl, columns: next });
+												}}
+											/>
+										</div>
+										
+										{c.showTotal && (
+											<div className={`${separators.nestedContent} ${colors.bgSuccess} rounded-md p-3 ${spacing.fieldGroupGap}`}>
+												<h5 className={`${typography.subsectionTitle} text-green-700`}>Total Styling</h5>
+												<div className={components.grid}>
+													<div className={components.field}>
+														<Label className={typography.fieldLabel}>Background Color</Label>
+														<Input
+															type="color"
+															value={("totalStyle" in c && c.totalStyle?.backgroundColor) || "#f9fafb"}
+															onChange={(e) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { 
+																			...col, 
+																			totalStyle: {
+																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																				...("totalStyle" in col ? col.totalStyle : {}),
+																				backgroundColor: e.target.value,
+																			}
+																		}
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+															className={components.inputHeightSmall}
+														/>
+													</div>
+													<div className={components.field}>
+														<Label className={typography.fieldLabel}>Text Color</Label>
+														<Input
+															type="color"
+															value={("totalStyle" in c && c.totalStyle?.color) || "#111827"}
+															onChange={(e) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { 
+																			...col, 
+																			totalStyle: {
+																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																				...("totalStyle" in col ? col.totalStyle : {}),
+																				color: e.target.value,
+																			}
+																		}
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+															className={components.inputHeightSmall}
+														/>
+													</div>
+													<div className={components.field}>
+														<Label className={typography.fieldLabel}>Font Weight</Label>
+														<Select
+															value={("totalStyle" in c && c.totalStyle?.fontWeight) || "bold"}
+															onValueChange={(v) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { 
+																			...col, 
+																			totalStyle: {
+																				...("totalStyle" in col ? col.totalStyle : {}),
+																				fontWeight: v as "normal" | "bold" | "600" | "700",
+																			}
+																		}
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+														>
+															<SelectTrigger className={components.inputHeightSmall}>
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value="normal">Normal</SelectItem>
+																<SelectItem value="600">Semi-bold</SelectItem>
+																<SelectItem value="bold">Bold</SelectItem>
+																<SelectItem value="700">Extra Bold</SelectItem>
+															</SelectContent>
+														</Select>
+													</div>
+													<div className={components.field}>
+														<Label className={typography.fieldLabel}>Font Size</Label>
+														<Input
+															type="number"
+															placeholder="Auto"
+															value={("totalStyle" in c && c.totalStyle?.fontSize) || ""}
+															onChange={(e) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { 
+																			...col, 
+																			totalStyle: {
+																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																				...("totalStyle" in col ? col.totalStyle : {}),
+																				fontSize: e.target.value ? Number(e.target.value) : undefined,
+																			}
+																		}
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+															className={`${components.inputHeightSmall} text-xs`}
+														/>
+													</div>
+													<div className={`${components.field} col-span-full`}>
+														<Label className={typography.fieldLabel}>Top Border</Label>
+														<Input
+															placeholder="e.g., 2px solid #111827"
+															value={("totalStyle" in c && c.totalStyle?.borderTop) || "2px solid #111827"}
+															onChange={(e) => {
+																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																const next = base.map((col) => 
+																	col.id === c.id 
+																		? { 
+																			...col, 
+																			totalStyle: {
+																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																				...("totalStyle" in col ? col.totalStyle : {}),
+																				borderTop: e.target.value,
+																			}
+																		}
+																		: col
+																);
+																onChange({ ...tbl, columns: next });
+															}}
+															className={`${components.inputHeightSmall} text-xs`}
+														/>
+													</div>
+												</div>
+											</div>
+										)}
+									</div>
+								)}
 							</div>
 						));
 					})()}
 					<Button
 						variant="secondary"
 						size="sm"
+						className={`${components.inputHeight} text-xs`}
 						onClick={() => {
 							const next = [
 								...tbl.columns,
-								{ id: crypto.randomUUID(), header: `Column ${tbl.columns.length + 1}`, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+								{ id: crypto.randomUUID(), header: `Column ${tbl.columns.length + 1}`, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 							];
 							onChange({ ...tbl, columns: next });
 						}}
 					>
-						Add column
+						Add Column
 					</Button>
 				</div>
-			</div>
-
-			{/* Totaling Row Configuration */}
-			<div className="space-y-2 pt-3 border-t border-neutral-200">
-				<div className="flex items-center justify-between">
-					<Label className="text-xs font-medium">Totaling Row</Label>
-					<Switch
-						checked={tbl.totals && tbl.totals.length > 0}
-						onCheckedChange={(checked) => {
-							if (checked) {
-								// Add default totaling row entries for numeric columns
-								const numericColumns = (tbl.columns || defaultTwo).filter(
-									(col) => col.type === "number" || col.type === "currency"
-								);
-								const defaultTotals = numericColumns.map((col) => ({
-									id: crypto.randomUUID(),
-									label: `Total ${col.header}`,
-									calc: `SUM(${col.binding || col.id})`,
-									align: col.align || "right" as const,
-								}));
-								onChange({ ...tbl, totals: defaultTotals });
-							} else {
-								onChange({ ...tbl, totals: [] });
-							}
-						}}
-					/>
-				</div>
-				
-				{tbl.totals && tbl.totals.length > 0 && (
-					<div className="space-y-2">
-						{tbl.totals.map((total) => (
-							<div key={total.id} className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2 items-start p-2 bg-neutral-50 rounded border">
-								<Input
-									placeholder="Label"
-									value={total.label}
-									onChange={(e) => {
-										const next = tbl.totals!.map((t) =>
-											t.id === total.id ? { ...t, label: e.target.value } : t
-										);
-										onChange({ ...tbl, totals: next });
-									}}
-								/>
-								<Input
-									placeholder="Formula (e.g., SUM(price))"
-									value={total.calc}
-									onChange={(e) => {
-										const next = tbl.totals!.map((t) =>
-											t.id === total.id ? { ...t, calc: e.target.value } : t
-										);
-										onChange({ ...tbl, totals: next });
-									}}
-									className="font-mono text-xs"
-								/>
-								<Select
-									value={total.align}
-									onValueChange={(v) => {
-										const next = tbl.totals!.map((t) =>
-											t.id === total.id ? { ...t, align: v as typeof total.align } : t
-										);
-										onChange({ ...tbl, totals: next });
-									}}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="left">Left</SelectItem>
-										<SelectItem value="center">Center</SelectItem>
-										<SelectItem value="right">Right</SelectItem>
-									</SelectContent>
-								</Select>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => {
-										const next = tbl.totals!.filter((t) => t.id !== total.id);
-										onChange({ ...tbl, totals: next });
-									}}
-								>
-									Remove
-								</Button>
-							</div>
-						))}
-						<Button
-							variant="secondary"
-							size="sm"
-							onClick={() => {
-								const next = [
-									...(tbl.totals || []),
-									{
-										id: crypto.randomUUID(),
-										label: "Total",
-										calc: "",
-										align: "right" as const,
-									},
-								];
-								onChange({ ...tbl, totals: next });
-							}}
-						>
-							Add Total
-						</Button>
-					</div>
-				)}
-			</div>
+			</section>
 
 			{common}
 		</div>

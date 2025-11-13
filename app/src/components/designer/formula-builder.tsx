@@ -1,20 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calculator, X, Plus, Minus, Divide, X as MultiplyIcon, AlertCircle } from "lucide-react";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Calculator, Plus, Minus, Divide, X as MultiplyIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { FormulaService } from "@/services/formula-service";
 import type { TemplateElement } from "@/core";
 import { cn } from "@/lib/utils";
@@ -44,6 +43,14 @@ export function FormulaBuilder({
 }: FormulaBuilderProps) {
 	const [formulaInput, setFormulaInput] = useState(formula || "");
 	const [showHelper, setShowHelper] = useState(false);
+	const [isExpanded, setIsExpanded] = useState(!!formula);
+	const hasFormula = !!formula && formula.trim() !== "";
+
+	// Sync formula input when formula prop changes
+	useEffect(() => {
+		setFormulaInput(formula || "");
+		setIsExpanded(!!formula);
+	}, [formula]);
 
 	// Get available field references (other number/currency fields)
 	const availableFields = useMemo(() => {
@@ -55,7 +62,7 @@ export function FormulaBuilder({
 				.map((col) => ({
 					id: `${tableElement.id}.${col.id}`,
 					label: `${col.header} (${col.binding || col.id})`,
-					reference: col.binding || col.id, // Reference by binding or column ID
+					reference: col.binding || col.id,
 					type: "table-column" as const,
 				}));
 			
@@ -98,7 +105,6 @@ export function FormulaBuilder({
 				if (el.type === "input" && el.variant === "number") return true;
 				if (el.type === "currency") return true;
 				if (el.type === "table") {
-					// Include table columns of type number or currency
 					return el.columns.some((col) => col.type === "number" || col.type === "currency");
 				}
 				return false;
@@ -156,6 +162,20 @@ export function FormulaBuilder({
 		}
 	};
 
+	const handleToggleFormula = (enabled: boolean) => {
+		if (enabled) {
+			// Set a default "=" to enable formula mode
+			const defaultFormula = "=";
+			setFormulaInput(defaultFormula);
+			setIsExpanded(true);
+			onChange(defaultFormula);
+		} else {
+			handleFormulaChange("");
+			setIsExpanded(false);
+			onChange(undefined);
+		}
+	};
+
 	const insertReference = (reference: string, event?: React.MouseEvent) => {
 		event?.preventDefault();
 		event?.stopPropagation();
@@ -164,7 +184,6 @@ export function FormulaBuilder({
 		const newFormula = formulaInput.slice(0, cursorPos) + reference + formulaInput.slice(cursorPos);
 		handleFormulaChange(newFormula);
 		setShowHelper(false);
-		// Focus back on input without scrolling
 		setTimeout(() => {
 			if (input) {
 				input.focus({ preventScroll: true });
@@ -202,147 +221,236 @@ export function FormulaBuilder({
 	};
 
 	return (
-		<div className="space-y-2">
-			<div className="flex items-center justify-between">
-				<Label className="text-xs">Formula</Label>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					className="h-6 px-2 text-xs"
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						handleFormulaChange("");
-					}}
-				>
-					<X className="h-3 w-3 mr-1" />
-					Clear
-				</Button>
-			</div>
-			
-			<div className="space-y-2">
-				<div className="relative">
-					<Input
-						data-formula-input
-						value={formulaInput}
-						onChange={(e) => handleFormulaChange(e.target.value)}
-						placeholder="=SUM(A1, B1) or =A1 + B1"
-						className={cn(
-							"font-mono text-xs",
-							!validation.valid && formulaInput.trim() ? "border-red-500 focus-visible:ring-red-500" : ""
-						)}
-					/>
-				</div>
-				
-				{!validation.valid && formulaInput.trim() && (
-					<div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
-						<AlertCircle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
-						<p className="text-xs text-red-800">{validation.error || "Invalid formula syntax"}</p>
+		<div className="space-y-3">
+			{/* Toggle Switch */}
+			<div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+				<div className="flex items-center gap-2">
+					<Sparkles className={cn("h-4 w-4", hasFormula ? "text-blue-600" : "text-neutral-400")} />
+					<div>
+						<Label className="text-sm font-medium cursor-pointer" htmlFor="formula-toggle">
+							Use Formula
+						</Label>
+						<p className="text-xs text-neutral-500 mt-0.5">
+							Calculate value from other fields
+						</p>
 					</div>
-				)}
-			</div>
-
-			{/* Quick Insert Buttons */}
-			<div className="flex flex-wrap gap-1.5">
-				<Popover open={showHelper} onOpenChange={setShowHelper}>
-					<PopoverTrigger asChild>
-						<Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs">
-							<Calculator className="h-3 w-3 mr-1" />
-							Fields
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent className="w-64 p-2" align="start">
-						<div className="space-y-1">
-							<div className="text-xs font-semibold text-neutral-700 mb-2">Available Fields</div>
-							{availableFields.length === 0 ? (
-								<div className="text-xs text-neutral-500 p-2">No number or currency fields available</div>
-							) : (
-								<div className="max-h-48 overflow-y-auto space-y-1">
-									{availableFields.map((field) => (
-										<Button
-											key={field.id}
-											type="button"
-											variant="ghost"
-											size="sm"
-											className="w-full justify-start h-auto py-1.5 px-2 text-xs"
-											onClick={(e) => insertReference(field.reference, e)}
-										>
-											<span className="font-mono">{field.reference}</span>
-											<span className="ml-2 text-neutral-500 truncate">{field.label}</span>
-										</Button>
-									))}
-								</div>
-							)}
-						</div>
-					</PopoverContent>
-				</Popover>
-
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 px-2 text-xs"
-					onClick={(e) => insertOperator("+", e)}
-				>
-					<Plus className="h-3 w-3" />
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 px-2 text-xs"
-					onClick={(e) => insertOperator("-", e)}
-				>
-					<Minus className="h-3 w-3" />
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 px-2 text-xs"
-					onClick={(e) => insertOperator("*", e)}
-				>
-					<MultiplyIcon className="h-3 w-3" />
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 px-2 text-xs"
-					onClick={(e) => insertOperator("/", e)}
-				>
-					<Divide className="h-3 w-3" />
-				</Button>
-
-				<Select onValueChange={insertFunction}>
-					<SelectTrigger className="h-7 px-2 text-xs w-auto">
-						<SelectValue placeholder="Functions" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="SUM">SUM()</SelectItem>
-						<SelectItem value="AVERAGE">AVERAGE()</SelectItem>
-						<SelectItem value="MIN">MIN()</SelectItem>
-						<SelectItem value="MAX">MAX()</SelectItem>
-						<SelectItem value="COUNT">COUNT()</SelectItem>
-						<SelectItem value="ROUND">ROUND()</SelectItem>
-						<SelectItem value="IF">IF()</SelectItem>
-						<SelectItem value="ABS">ABS()</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Formula Help */}
-			<div className="text-xs text-neutral-500 space-y-1">
-				<div className="font-semibold">Examples:</div>
-				<div className="font-mono text-[10px] space-y-0.5">
-					<div>=SUM(A1, B1)</div>
-					<div>=A1 + B1</div>
-					<div>=items.total * 0.2</div>
-					<div>=ROUND(A1 * 1.1, 2)</div>
 				</div>
+				<Switch
+					id="formula-toggle"
+					checked={hasFormula}
+					onCheckedChange={handleToggleFormula}
+				/>
 			</div>
+
+			{/* Formula Input Section */}
+			{hasFormula && (
+				<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+					<div className="space-y-2">
+						<CollapsibleTrigger asChild>
+							<Button
+								type="button"
+								variant="ghost"
+								className="w-full justify-between h-auto p-2 hover:bg-neutral-50"
+							>
+								<div className="flex items-center gap-2">
+									{isExpanded ? (
+										<ChevronDown className="h-4 w-4 text-neutral-500" />
+									) : (
+										<ChevronRight className="h-4 w-4 text-neutral-500" />
+									)}
+									<span className="text-xs font-medium text-neutral-700">Formula Editor</span>
+									{validation.valid && formulaInput.trim() && (
+										<CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+									)}
+									{!validation.valid && formulaInput.trim() && (
+										<AlertCircle className="h-3.5 w-3.5 text-red-600" />
+									)}
+								</div>
+							</Button>
+						</CollapsibleTrigger>
+
+						<CollapsibleContent className="space-y-3">
+							{/* Formula Input */}
+							<div className="space-y-2">
+								<Label className="text-xs font-medium text-neutral-700">Formula Expression</Label>
+								<div className="relative">
+									<Input
+										data-formula-input
+										value={formulaInput}
+										onChange={(e) => handleFormulaChange(e.target.value)}
+										placeholder="=SUM(A1, B1) or =A1 + B1"
+										className={cn(
+											"font-mono text-sm",
+											!validation.valid && formulaInput.trim()
+												? "border-red-500 focus-visible:ring-red-500"
+												: hasFormula
+												? "border-blue-300 focus-visible:ring-blue-500"
+												: ""
+										)}
+									/>
+									{validation.valid && formulaInput.trim() && (
+										<div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+											<span className="text-xs text-green-600 font-medium">Valid</span>
+										</div>
+									)}
+								</div>
+								
+								{!validation.valid && formulaInput.trim() && (
+									<div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
+										<AlertCircle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
+										<p className="text-xs text-red-800">{validation.error || "Invalid formula syntax"}</p>
+									</div>
+								)}
+							</div>
+
+							{/* Quick Actions */}
+							<div className="space-y-2">
+								<Label className="text-xs font-medium text-neutral-700">Quick Insert</Label>
+								<div className="flex flex-wrap gap-1.5">
+									<Popover open={showHelper} onOpenChange={setShowHelper}>
+										<PopoverTrigger asChild>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-8 text-xs"
+											>
+												<Calculator className="h-3.5 w-3.5 mr-1.5" />
+												Fields
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-72 p-2" align="start">
+											<div className="space-y-1">
+												<div className="text-xs font-semibold text-neutral-700 mb-2 px-1">
+													Available Fields
+												</div>
+												{availableFields.length === 0 ? (
+													<div className="text-xs text-neutral-500 p-2">
+														No number or currency fields available
+													</div>
+												) : (
+													<div className="max-h-48 overflow-y-auto space-y-0.5">
+														{availableFields.map((field) => (
+															<Button
+																key={field.id}
+																type="button"
+																variant="ghost"
+																size="sm"
+																className="w-full justify-start h-auto py-2 px-2 text-xs"
+																onClick={(e) => insertReference(field.reference, e)}
+															>
+																<span className="font-mono text-blue-600">{field.reference}</span>
+																<span className="ml-2 text-neutral-500 truncate">{field.label}</span>
+															</Button>
+														))}
+													</div>
+												)}
+											</div>
+										</PopoverContent>
+									</Popover>
+
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2 text-xs"
+										onClick={(e) => insertOperator("+", e)}
+									>
+										<Plus className="h-3.5 w-3.5" />
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2 text-xs"
+										onClick={(e) => insertOperator("-", e)}
+									>
+										<Minus className="h-3.5 w-3.5" />
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2 text-xs"
+										onClick={(e) => insertOperator("*", e)}
+									>
+										<MultiplyIcon className="h-3.5 w-3.5" />
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2 text-xs"
+										onClick={(e) => insertOperator("/", e)}
+									>
+										<Divide className="h-3.5 w-3.5" />
+									</Button>
+
+									<Popover>
+										<PopoverTrigger asChild>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-8 text-xs"
+											>
+												<Calculator className="h-3.5 w-3.5 mr-1.5" />
+												Functions
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-64 p-2" align="start">
+											<div className="space-y-1">
+												<div className="text-xs font-semibold text-neutral-700 mb-2 px-1">
+													Available Functions
+												</div>
+												<div className="max-h-48 overflow-y-auto space-y-0.5">
+													{[
+														{ name: "SUM", description: "Sum of values" },
+														{ name: "AVERAGE", description: "Average of values" },
+														{ name: "MIN", description: "Minimum value" },
+														{ name: "MAX", description: "Maximum value" },
+														{ name: "COUNT", description: "Count of values" },
+														{ name: "ROUND", description: "Round to decimals" },
+														{ name: "IF", description: "Conditional logic" },
+														{ name: "ABS", description: "Absolute value" },
+													].map((func) => (
+														<Button
+															key={func.name}
+															type="button"
+															variant="ghost"
+															size="sm"
+															className="w-full justify-start h-auto py-2 px-2 text-xs"
+															onClick={(e) => {
+																e.preventDefault();
+																e.stopPropagation();
+																insertFunction(func.name);
+															}}
+														>
+															<span className="font-mono text-blue-600">{func.name}()</span>
+															<span className="ml-2 text-neutral-500">{func.description}</span>
+														</Button>
+													))}
+												</div>
+											</div>
+										</PopoverContent>
+									</Popover>
+								</div>
+							</div>
+
+							{/* Examples */}
+							<div className="p-2 bg-neutral-50 rounded-md border border-neutral-200">
+								<div className="text-xs font-medium text-neutral-700 mb-1.5">Examples</div>
+								<div className="font-mono text-[10px] space-y-1 text-neutral-600">
+									<div>=SUM(A1, B1)</div>
+									<div>=A1 + B1</div>
+									<div>=items.total * 0.2</div>
+									<div>=ROUND(A1 * 1.1, 2)</div>
+								</div>
+							</div>
+						</CollapsibleContent>
+					</div>
+				</Collapsible>
+			)}
 		</div>
 	);
 }
-

@@ -284,7 +284,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 
 			{/* Formula Builder for Number Variant */}
 			{inp.variant === "number" && (
-				<div className="pt-3 border-t border-neutral-200">
+				<div className="pt-4 border-t border-neutral-200">
 					<FormulaBuilder
 						formula={inp.formula}
 						onChange={(formula) =>

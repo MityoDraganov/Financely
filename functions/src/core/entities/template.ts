@@ -143,6 +143,17 @@ export const tableColumnSchema = z.object({
     rate: z.number().optional(),
   })).optional(), // Field linking configuration
   mode: z.enum(["independent", "linked", "formula"]).optional(), // Field mode
+  // Total row configuration (only for number/currency columns)
+  showTotal: z.boolean().default(false),
+  totalStyle: z
+    .object({
+      backgroundColor: z.string().optional(),
+      fontWeight: z.enum(["normal", "bold", "600", "700"]).default("bold"),
+      fontSize: z.number().optional(),
+      color: z.string().optional(),
+      borderTop: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const tableElementSchema = templateElementBaseSchema.extend({
@@ -158,16 +169,6 @@ export const tableElementSchema = templateElementBaseSchema.extend({
       z.object({
         id: z.string().min(1),
         values: z.record(z.string(), z.string()).default({}),
-      }),
-    )
-    .default([]),
-  totals: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        label: z.string().min(1),
-        calc: z.string().min(1),
-        align: z.enum(["left", "center", "right"]).default("right"),
       }),
     )
     .default([]),

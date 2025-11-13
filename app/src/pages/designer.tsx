@@ -222,6 +222,7 @@ export default function TemplateDesignerPage() {
 						type: "text",
 						binding: "description",
 						format: { kind: "none" },
+						showTotal: false,
 					},
 					{
 						id: crypto.randomUUID(),
@@ -231,6 +232,7 @@ export default function TemplateDesignerPage() {
 						type: "number",
 						binding: "quantity",
 						format: { kind: "none" },
+						showTotal: false,
 					},
 					{
 						id: crypto.randomUUID(),
@@ -240,6 +242,7 @@ export default function TemplateDesignerPage() {
 						type: "number",
 						binding: "unitPrice",
 						format: { kind: "currency", currency: "USD" },
+						showTotal: false,
 					},
 					{
 						id: crypto.randomUUID(),
@@ -249,11 +252,11 @@ export default function TemplateDesignerPage() {
 						type: "number",
 						binding: "total",
 						format: { kind: "currency", currency: "USD" },
+						showTotal: false,
 					},
 				],
 				designRows: [],
 				itemsBinding: binding,
-				totals: [],
 			};
 			const next = [...existingElements, tableElement];
 			setDraftElements(next);
@@ -843,6 +846,7 @@ export default function TemplateDesignerPage() {
 										align: "left",
 										type: "text",
 										format: { kind: "none" },
+										showTotal: false,
 									},
 									{
 										id: crypto.randomUUID(),
@@ -851,11 +855,11 @@ export default function TemplateDesignerPage() {
 										align: "left",
 										type: "text",
 										format: { kind: "none" },
+										showTotal: false,
 									},
 								],
 								designRows: [],
 								itemsBinding: "items",
-								totals: [],
 							}
 						: kind === "box"
 							? {
@@ -950,7 +954,9 @@ export default function TemplateDesignerPage() {
 
 	function updateSelected(partial: Partial<TemplateElement>) {
 		if (!currentTemplate || !state.selectedElementId) return;
-		const next = (currentTemplate.elements ?? []).map(
+		// Use draftElements if available, otherwise use currentTemplate.elements
+		const currentElements = draftElements ?? currentTemplate.elements ?? [];
+		const next = currentElements.map(
 			(el: TemplateElement) =>
 				el.id === state.selectedElementId
 					? ((): TemplateElement => {
@@ -1153,7 +1159,12 @@ export default function TemplateDesignerPage() {
 								if (id === "new") {
 									await handleCreateNewTemplate();
 								} else {
-									setState((s) => ({ ...s, currentTemplateId: id }));
+									// Reset draft state when switching templates
+									setDraftElements(null);
+									setDraftBrand(null);
+									setState((s) => ({ ...s, currentTemplateId: id, selectedElementId: undefined }));
+									// Navigate to the selected template's URL
+									navigate(`/designer/${id}`, { replace: true });
 								}
 							}}
 							onCreateNewTemplate={handleCreateNewTemplate}

@@ -10,6 +10,7 @@ import {
 import { Template } from "@/core";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { TemplateData } from "@/core";
+import { typography, spacing, separators, components } from "./design-system";
 
 type WatermarkConfigProps = {
 	template: Template;
@@ -19,82 +20,46 @@ type WatermarkConfigProps = {
 
 export function WatermarkConfig({ template, organizationLogo, saveMutation }: WatermarkConfigProps) {
 	return (
-		<div className="space-y-3 pt-2 border-t">
-			<div className="text-xs font-semibold text-neutral-600 mb-2">Watermark</div>
-			<div className="flex items-center justify-between">
-				<Label htmlFor="watermark-enabled" className="text-xs">Enable Watermark</Label>
-				<input
-					id="watermark-enabled"
-					type="checkbox"
-					checked={template.brand.watermark?.enabled ?? false}
-					onChange={(e) => {
-						const currentWatermark = template.brand.watermark || {
-							enabled: false,
-							position: "center" as const,
-							width: 200,
-							rotation: 0,
-							opacity: 0.1,
-							blendMode: "normal" as const,
-							repeat: "none" as const,
-						};
-						saveMutation.mutate({
-							brand: {
-								...template.brand,
-								watermark: {
-									...currentWatermark,
-									enabled: e.target.checked,
-									imageUrl: currentWatermark.imageUrl,
+		<section className={`${components.section} ${separators.sectionDivider}`}>
+			<h3 className={typography.sectionTitle}>Watermark</h3>
+			<div className={components.subsection}>
+				<div className={`${components.field} flex items-center justify-between`}>
+					<Label htmlFor="watermark-enabled" className={typography.fieldLabel}>Enable Watermark</Label>
+					<input
+						id="watermark-enabled"
+						type="checkbox"
+						checked={template.brand.watermark?.enabled ?? false}
+						onChange={(e) => {
+							const currentWatermark = template.brand.watermark || {
+								enabled: false,
+								position: "center" as const,
+								width: 200,
+								rotation: 0,
+								opacity: 0.1,
+								blendMode: "normal" as const,
+								repeat: "none" as const,
+							};
+							saveMutation.mutate({
+								brand: {
+									...template.brand,
+									watermark: {
+										...currentWatermark,
+										enabled: e.target.checked,
+										imageUrl: currentWatermark.imageUrl,
+									},
 								},
-							},
-						});
-					}}
-					className="h-4 w-4 rounded border-gray-300"
-				/>
-			</div>
-			{template.brand.watermark?.enabled && (
-				<div className="space-y-3 pl-2 border-l-2 border-neutral-200">
-					<div className="space-y-2">
-						<Label htmlFor="watermark-type" className="text-xs">Type</Label>
-						<Select
-							value={template.brand.watermark?.imageUrl ? "image" : "text"}
-							onValueChange={(v) => {
-								const currentWatermark = template.brand.watermark || {
-									enabled: true,
-									position: "center" as const,
-									width: 200,
-									rotation: 0,
-									opacity: 0.1,
-									blendMode: "normal" as const,
-									repeat: "none" as const,
-								};
-								saveMutation.mutate({
-									brand: {
-										...template.brand,
-										watermark: {
-											...currentWatermark,
-											imageUrl: v === "image" ? (organizationLogo || currentWatermark.imageUrl) : undefined,
-											text: v === "text" ? (currentWatermark.text || "CONFIDENTIAL") : undefined,
-										},
-									},
-								});
-							}}
-						>
-							<SelectTrigger className="h-8">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="image">Image</SelectItem>
-								<SelectItem value="text">Text</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					{template.brand.watermark?.imageUrl ? (
-						<div className="space-y-2">
-							<Label htmlFor="watermark-image-url" className="text-xs">Image URL</Label>
-							<Input
-								id="watermark-image-url"
-								value={template.brand.watermark.imageUrl || ""}
-								onChange={(e) => {
+							});
+						}}
+						className="h-4 w-4 rounded border-gray-300"
+					/>
+				</div>
+				{template.brand.watermark?.enabled && (
+					<div className={`${separators.nestedContent} ${spacing.fieldGroupGap}`}>
+						<div className={components.field}>
+							<Label htmlFor="watermark-type" className={typography.fieldLabel}>Type</Label>
+							<Select
+								value={template.brand.watermark?.imageUrl ? "image" : "text"}
+								onValueChange={(v) => {
 									const currentWatermark = template.brand.watermark || {
 										enabled: true,
 										position: "center" as const,
@@ -109,22 +74,88 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											...template.brand,
 											watermark: {
 												...currentWatermark,
-												imageUrl: e.target.value || undefined,
+												imageUrl: v === "image" ? (organizationLogo || currentWatermark.imageUrl) : undefined,
+												text: v === "text" ? (currentWatermark.text || "CONFIDENTIAL") : undefined,
 											},
 										},
 									});
 								}}
-								placeholder="https://example.com/logo.png"
-								className="h-8 text-xs"
-							/>
+							>
+								<SelectTrigger className={components.inputHeight}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="image">Image</SelectItem>
+									<SelectItem value="text">Text</SelectItem>
+								</SelectContent>
+							</Select>
 						</div>
-					) : (
-						<div className="space-y-2">
-							<Label htmlFor="watermark-text" className="text-xs">Text</Label>
-							<Input
-								id="watermark-text"
-								value={template.brand.watermark?.text || ""}
-								onChange={(e) => {
+						{template.brand.watermark?.imageUrl ? (
+							<div className={components.field}>
+								<Label htmlFor="watermark-image-url" className={typography.fieldLabel}>Image URL</Label>
+								<Input
+									id="watermark-image-url"
+									value={template.brand.watermark.imageUrl || ""}
+									onChange={(e) => {
+										const currentWatermark = template.brand.watermark || {
+											enabled: true,
+											position: "center" as const,
+											width: 200,
+											rotation: 0,
+											opacity: 0.1,
+											blendMode: "normal" as const,
+											repeat: "none" as const,
+										};
+										saveMutation.mutate({
+											brand: {
+												...template.brand,
+												watermark: {
+													...currentWatermark,
+													imageUrl: e.target.value || undefined,
+												},
+											},
+										});
+									}}
+									placeholder="https://example.com/logo.png"
+									className={`${components.inputHeight} text-xs`}
+								/>
+							</div>
+						) : (
+							<div className={components.field}>
+								<Label htmlFor="watermark-text" className={typography.fieldLabel}>Text</Label>
+								<Input
+									id="watermark-text"
+									value={template.brand.watermark?.text || ""}
+									onChange={(e) => {
+										const currentWatermark = template.brand.watermark || {
+											enabled: true,
+											position: "center" as const,
+											width: 200,
+											rotation: 0,
+											opacity: 0.1,
+											blendMode: "normal" as const,
+											repeat: "none" as const,
+										};
+										saveMutation.mutate({
+											brand: {
+												...template.brand,
+												watermark: {
+													...currentWatermark,
+													text: e.target.value || undefined,
+												},
+											},
+										});
+									}}
+									placeholder="CONFIDENTIAL"
+									className={`${components.inputHeight} text-xs`}
+								/>
+							</div>
+						)}
+						<div className={components.field}>
+							<Label htmlFor="watermark-position" className={typography.fieldLabel}>Position</Label>
+							<Select
+								value={template.brand.watermark?.position || "center"}
+								onValueChange={(v) => {
 									const currentWatermark = template.brand.watermark || {
 										enabled: true,
 										position: "center" as const,
@@ -139,60 +170,31 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											...template.brand,
 											watermark: {
 												...currentWatermark,
-												text: e.target.value || undefined,
+												position: v as typeof currentWatermark.position,
 											},
 										},
 									});
 								}}
-								placeholder="CONFIDENTIAL"
-								className="h-8 text-xs"
-							/>
+							>
+								<SelectTrigger className={components.inputHeight}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="center">Center</SelectItem>
+									<SelectItem value="top-left">Top Left</SelectItem>
+									<SelectItem value="top-right">Top Right</SelectItem>
+									<SelectItem value="bottom-left">Bottom Left</SelectItem>
+									<SelectItem value="bottom-right">Bottom Right</SelectItem>
+									<SelectItem value="top-center">Top Center</SelectItem>
+									<SelectItem value="bottom-center">Bottom Center</SelectItem>
+									<SelectItem value="left-center">Left Center</SelectItem>
+									<SelectItem value="right-center">Right Center</SelectItem>
+								</SelectContent>
+							</Select>
 						</div>
-					)}
-					<div className="space-y-2">
-						<Label htmlFor="watermark-position" className="text-xs">Position</Label>
-						<Select
-							value={template.brand.watermark?.position || "center"}
-							onValueChange={(v) => {
-								const currentWatermark = template.brand.watermark || {
-									enabled: true,
-									position: "center" as const,
-									width: 200,
-									rotation: 0,
-									opacity: 0.1,
-									blendMode: "normal" as const,
-									repeat: "none" as const,
-								};
-								saveMutation.mutate({
-									brand: {
-										...template.brand,
-										watermark: {
-											...currentWatermark,
-											position: v as typeof currentWatermark.position,
-										},
-									},
-								});
-							}}
-						>
-							<SelectTrigger className="h-8">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="center">Center</SelectItem>
-								<SelectItem value="top-left">Top Left</SelectItem>
-								<SelectItem value="top-right">Top Right</SelectItem>
-								<SelectItem value="bottom-left">Bottom Left</SelectItem>
-								<SelectItem value="bottom-right">Bottom Right</SelectItem>
-								<SelectItem value="top-center">Top Center</SelectItem>
-								<SelectItem value="bottom-center">Bottom Center</SelectItem>
-								<SelectItem value="left-center">Left Center</SelectItem>
-								<SelectItem value="right-center">Right Center</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="grid grid-cols-2 gap-2">
-						<div className="space-y-2">
-							<Label htmlFor="watermark-width" className="text-xs">Width (px)</Label>
+						<div className={components.grid}>
+							<div className={components.field}>
+								<Label htmlFor="watermark-width" className={typography.fieldLabel}>Width (px)</Label>
 							<Input
 								id="watermark-width"
 								type="number"
@@ -250,11 +252,11 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										});
 									}
 								}}
-								className="h-8 text-xs"
+								className={`${components.inputHeight} text-xs`}
 							/>
 						</div>
-						<div className="space-y-2">
-							<Label htmlFor="watermark-height" className="text-xs">Height (px)</Label>
+						<div className={components.field}>
+							<Label htmlFor="watermark-height" className={typography.fieldLabel}>Height (px)</Label>
 							<Input
 								id="watermark-height"
 								type="number"
@@ -282,12 +284,12 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 									});
 								}}
 								placeholder="Auto"
-								className="h-8 text-xs"
+								className={`${components.inputHeight} text-xs`}
 							/>
 						</div>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="watermark-rotation" className="text-xs">Rotation</Label>
+					<div className={components.field}>
+						<Label htmlFor="watermark-rotation" className={typography.fieldLabel}>Rotation</Label>
 						<div className="flex items-center gap-2">
 							<Input
 								id="watermark-rotation-slider"
@@ -377,14 +379,14 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										});
 									}
 								}}
-								className="h-8 w-20 text-xs"
+								className={`${components.inputHeightSmall} w-20 text-xs`}
 								placeholder="0"
 							/>
-							<span className="text-xs text-muted-foreground w-4">°</span>
+							<span className={`${typography.helperText} w-4`}>°</span>
 						</div>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="watermark-opacity" className="text-xs">Opacity</Label>
+					<div className={components.field}>
+						<Label htmlFor="watermark-opacity" className={typography.fieldLabel}>Opacity</Label>
 						<div className="flex items-center gap-2">
 							<Input
 								id="watermark-opacity-slider"
@@ -478,14 +480,14 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										});
 									}
 								}}
-								className="h-8 w-20 text-xs"
+								className={`${components.inputHeightSmall} w-20 text-xs`}
 								placeholder="10"
 							/>
-							<span className="text-xs text-muted-foreground w-4">%</span>
+							<span className={`${typography.helperText} w-4`}>%</span>
 						</div>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="watermark-blend-mode" className="text-xs">Blend Mode</Label>
+					<div className={components.field}>
+						<Label htmlFor="watermark-blend-mode" className={typography.fieldLabel}>Blend Mode</Label>
 						<Select
 							value={template.brand.watermark?.blendMode || "normal"}
 							onValueChange={(v) => {
@@ -509,7 +511,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								});
 							}}
 						>
-							<SelectTrigger className="h-8">
+							<SelectTrigger className={components.inputHeight}>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -522,8 +524,8 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="watermark-repeat" className="text-xs">Repeat</Label>
+					<div className={components.field}>
+						<Label htmlFor="watermark-repeat" className={typography.fieldLabel}>Repeat</Label>
 						<Select
 							value={template.brand.watermark?.repeat || "none"}
 							onValueChange={(v) => {
@@ -547,7 +549,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								});
 							}}
 						>
-							<SelectTrigger className="h-8">
+							<SelectTrigger className={components.inputHeight}>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -560,7 +562,8 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 					</div>
 				</div>
 			)}
-		</div>
+			</div>
+		</section>
 	);
 }
 

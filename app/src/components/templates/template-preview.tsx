@@ -309,31 +309,26 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                 </div>
                             ))}
                             
-                            {/* Totaling Row */}
-                            {tbl.totals && tbl.totals.length > 0 && (
+                            {/* Totaling Row - per column */}
+                            {tbl.columns.some((c) => c.showTotal) && (
                                 <div style={{ 
                                     display: "grid", 
                                     gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", 
-                                    borderTop: "2px solid #111827",
                                     borderBottom: "1px solid #e5e7eb",
                                     height: tbl.rowHeight * zoom,
-                                    backgroundColor: "#f9fafb",
-                                    fontWeight: 600,
                                 }}>
                                     {tbl.columns.map((c) => {
-                                        // Find the total entry for this column (by matching column binding or position)
-                                        const totalEntry = tbl.totals?.find((t) => {
-                                            // Try to match by column binding
-                                            if (t.calc.includes(c.binding || c.id)) return true;
-                                            // Or match by position if no binding
-                                            return false;
-                                        });
-                                        
                                         let text = "";
-                                        if (totalEntry) {
+                                        let cellStyle: React.CSSProperties = {
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
+                                            padding: `${4 * zoom}px`,
+                                        };
+                                        
+                                        if (c.showTotal && (c.type === "number" || c.type === "currency")) {
                                             try {
-                                                // Evaluate the totaling formula
-                                                // For SUM formulas, sum all values in the column
+                                                // Sum all values in the column
                                                 const columnBinding = c.binding || c.id;
                                                 const columnValues = items
                                                     .map((row) => {
@@ -346,25 +341,43 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                                     })
                                                     .filter((v) => typeof v === "number");
                                                 
-                                                // Evaluate formula (e.g., SUM(price) or SUM(price) * 0.2)
-                                                const formula = totalEntry.calc.replace(
-                                                    new RegExp(`SUM\\(${columnBinding}\\)`, "g"),
-                                                    String(columnValues.reduce((sum, v) => sum + v, 0))
-                                                );
+                                                const sum = columnValues.reduce((s, v) => s + v, 0);
                                                 
-                                                const result = FormulaService.evaluate(formula, context, []);
-                                                text = formatValue(result, c.format?.kind ?? "none", c.currency || c.format?.currency, c.format?.dateFormat);
+                                                // Apply column-specific formatting
+                                                text = formatValue(sum, c.format?.kind ?? "none", c.currency || c.format?.currency, c.format?.dateFormat);
+                                                
+                                                // Apply total cell styling
+                                                if (c.totalStyle) {
+                                                    if (c.totalStyle.backgroundColor) {
+                                                        cellStyle.backgroundColor = c.totalStyle.backgroundColor;
+                                                    }
+                                                    if (c.totalStyle.color) {
+                                                        cellStyle.color = c.totalStyle.color;
+                                                    }
+                                                    if (c.totalStyle.fontWeight) {
+                                                        cellStyle.fontWeight = c.totalStyle.fontWeight;
+                                                    }
+                                                    if (c.totalStyle.fontSize) {
+                                                        cellStyle.fontSize = c.totalStyle.fontSize * zoom;
+                                                    }
+                                                    if (c.totalStyle.borderTop) {
+                                                        cellStyle.borderTop = c.totalStyle.borderTop;
+                                                    }
+                                                } else {
+                                                    // Default styling
+                                                    cellStyle.backgroundColor = "#f9fafb";
+                                                    cellStyle.fontWeight = "bold";
+                                                    cellStyle.borderTop = "2px solid #111827";
+                                                }
                                             } catch (error) {
-                                                console.error("Error evaluating totaling formula:", error);
-                                                text = totalEntry.label || "";
+                                                console.error("Error calculating column total:", error);
+                                                text = "";
                                             }
                                         }
                                         
-                                        const justify = totalEntry?.align === "right" ? "flex-end" : totalEntry?.align === "center" ? "center" : "flex-start";
-                                        
                                         return (
-                                            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `${4 * zoom}px` }}>
-                                                {text || (totalEntry?.label || "")}
+                                            <div key={c.id} style={cellStyle}>
+                                                {text}
                                             </div>
                                         );
                                     })}

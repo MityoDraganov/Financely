@@ -362,20 +362,21 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }).join("");
 
-      // Totaling Row HTML
+      // Totaling Row HTML - per column
       let totalsHTML = "";
-      if (el.totals && el.totals.length > 0) {
+      if (el.columns.some((c) => c.showTotal)) {
         const totalsCellsHTML = el.columns.map((col) => {
-          // Find the total entry for this column
-          const totalEntry = el.totals?.find((t) => {
-            if (t.calc.includes(col.binding || col.id)) return true;
-            return false;
-          });
-          
           let text = "";
-          if (totalEntry) {
+          let cellStyle: Record<string, string> = {
+            padding: "4px",
+            display: "flex",
+            "align-items": "center",
+            "justify-content": col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start",
+          };
+          
+          if (col.showTotal && (col.type === "number" || col.type === "currency")) {
             try {
-              // Evaluate the totaling formula
+              // Sum all values in the column
               const columnBinding = col.binding || col.id;
               const columnValues = items
                 .map((row) => {
@@ -388,55 +389,60 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
                 })
                 .filter((v) => typeof v === "number");
               
-              // Simple SUM evaluation
               const sum = columnValues.reduce((s, v) => s + v, 0);
               
-              // Replace SUM(column) with the actual sum
-              let formula = totalEntry.calc.replace(
-                new RegExp(`SUM\\(${columnBinding}\\)`, "g"),
-                String(sum)
-              );
-              
-              // Simple arithmetic evaluation (only for basic operations)
-              // For more complex formulas, we'd need a proper formula evaluator
-              try {
-                // Use Function constructor for safe evaluation (only math operations)
-                const cleaned = formula.replace(/\s/g, "");
-                if (/^[0-9+\-*/().\s]+$/.test(cleaned)) {
-                  const result = new Function(`return ${cleaned}`)() as number;
-                  
-                  // Format the result
-                  if (col.type === "currency") {
-                    const currency = col.currency || col.format?.currency || "USD";
-                    try {
-                      const formatter = new Intl.NumberFormat(undefined, {
-                        style: "currency",
-                        currency,
-                      });
-                      text = formatter.format(result);
-                    } catch {
-                      text = `${currency} ${result.toFixed(2)}`;
-                    }
-                  } else {
-                    text = formatValue(result, col.format);
-                  }
-                } else {
-                  text = totalEntry.label || "";
+              // Format the result
+              if (col.type === "currency") {
+                const currency = col.currency || col.format?.currency || "USD";
+                try {
+                  const formatter = new Intl.NumberFormat(undefined, {
+                    style: "currency",
+                    currency,
+                  });
+                  text = formatter.format(sum);
+                } catch {
+                  text = `${currency} ${sum.toFixed(2)}`;
                 }
-              } catch {
-                text = totalEntry.label || "";
+              } else {
+                text = formatValue(sum, col.format);
+              }
+              
+              // Apply total cell styling
+              if (col.totalStyle) {
+                if (col.totalStyle.backgroundColor) {
+                  cellStyle["background-color"] = col.totalStyle.backgroundColor;
+                }
+                if (col.totalStyle.color) {
+                  cellStyle.color = col.totalStyle.color;
+                }
+                if (col.totalStyle.fontWeight) {
+                  cellStyle["font-weight"] = col.totalStyle.fontWeight;
+                }
+                if (col.totalStyle.fontSize) {
+                  cellStyle["font-size"] = `${col.totalStyle.fontSize}px`;
+                }
+                if (col.totalStyle.borderTop) {
+                  cellStyle["border-top"] = col.totalStyle.borderTop;
+                }
+              } else {
+                // Default styling
+                cellStyle["background-color"] = "#f9fafb";
+                cellStyle["font-weight"] = "bold";
+                cellStyle["border-top"] = "2px solid #111827";
               }
             } catch (error) {
-              console.error("Error evaluating totaling formula:", error);
-              text = totalEntry.label || "";
+              console.error("Error calculating column total:", error);
+              text = "";
             }
           }
-          
-          const justify = totalEntry?.align === "right" ? "flex-end" : totalEntry?.align === "center" ? "center" : "flex-start";
-          
+
+          const styleString = Object.entries(cellStyle)
+            .map(([key, value]) => `${key.replace(/([A-Z])/g, "-$1").toLowerCase()}: ${value}`)
+            .join("; ");
+
           return `
-            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify};">
-              ${text || (totalEntry?.label || "")}
+            <div style="${styleString}">
+              ${text}
             </div>
           `;
         }).join("");
@@ -445,11 +451,8 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
           <div style="
             display: grid;
             grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
-            border-top: 2px solid #111827;
             border-bottom: 1px solid #e5e7eb;
             height: ${el.rowHeight}px;
-            background-color: #f9fafb;
-            font-weight: 600;
           ">
             ${totalsCellsHTML}
           </div>

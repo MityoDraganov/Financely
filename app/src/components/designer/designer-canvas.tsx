@@ -112,6 +112,12 @@ export function DesignerCanvas({
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onMouseMove={onMouseMove}
+				onClick={(e) => {
+					// Deselect if clicking on empty space
+					// Elements stop propagation, so if we reach here, it's empty space
+					// Just deselect - elements will have already handled their own clicks
+					onSelectElement("");
+				}}
 			>
 				{/* Grid */}
 				<div
@@ -185,7 +191,10 @@ export function DesignerCanvas({
 										touchAction: "none",
 										zIndex: el.zIndex ?? 10,
 									}}
-									onClick={() => onSelectElement(el.id)}
+									onClick={(e) => {
+										e.stopPropagation(); // Prevent page onClick from firing
+										onSelectElement(el.id);
+									}}
 									onPointerDown={(e) => {
 										if (e.button !== 0) return;
 										e.preventDefault();

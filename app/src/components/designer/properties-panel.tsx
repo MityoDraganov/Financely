@@ -23,6 +23,7 @@ import {
 } from "@/components/designer/elements";
 import { CurrencyProperties } from "@/components/designer/elements/currency";
 import type { Organization } from "@/core";
+import { typography, spacing, separators, components, colors } from "./design-system";
 
 type PropertiesPanelProps = {
 	template: Template | undefined;
@@ -74,12 +75,12 @@ export function PropertiesPanel({
 		return (
 			<div
 				ref={propertiesRef}
-				className="h-full p-3 border-l bg-neutral-50 space-y-3 overflow-auto min-w-0"
+				className={`h-full ${spacing.panelPadding} border-l ${colors.bgDefault} overflow-auto min-w-0`}
 			>
-				<div className="font-medium">Properties</div>
-				<div className="text-sm text-neutral-500">
+				<h2 className={typography.sectionTitle}>Properties</h2>
+				<p className={`${typography.helperText} mt-2`}>
 					Create a template to begin.
-				</div>
+				</p>
 			</div>
 		);
 	}
@@ -92,10 +93,11 @@ export function PropertiesPanel({
 	return (
 		<div
 			ref={propertiesRef}
-			className="h-full p-3 border-l bg-neutral-50 space-y-3 overflow-auto min-w-0"
+			className={`h-full ${spacing.panelPadding} border-l ${colors.bgDefault} ${spacing.sectionGap} overflow-auto min-w-0`}
 		>
-			<div className="font-medium">Properties</div>
-			<div className="space-y-4">
+			<h2 className={typography.sectionTitle}>Properties</h2>
+			
+			<div className={spacing.sectionGap}>
 				{/* Compliance Status Indicator */}
 				{complianceStatus && (
 					<ComplianceStatus
@@ -105,86 +107,103 @@ export function PropertiesPanel({
 						determineElementTypeForBinding={determineElementTypeForBinding}
 					/>
 				)}
+				
 				{/* Template Properties */}
-				<div>
-					<div className="text-xs text-neutral-500 mb-1">Name</div>
-					<Input
-						value={template.name}
-						onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-							saveMutation.mutate({
-								name: e.target.value,
-							})
-						}
-					/>
-				</div>
-				<div>
-					<div className="text-xs text-neutral-500 mb-1">Page Size</div>
-					<Select
-						value={template.pageSize}
-						onValueChange={(v: string) =>
-							saveMutation.mutate({
-								pageSize: v as TemplateData["pageSize"],
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="A4">A4</SelectItem>
-							<SelectItem value="Letter">Letter</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
+				<section className={components.section}>
+					<h3 className={typography.sectionTitle}>Template</h3>
+					<div className={components.subsection}>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>Name</Label>
+							<Input
+								value={template.name}
+								onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+									saveMutation.mutate({
+										name: e.target.value,
+									})
+								}
+								className={components.inputHeight}
+							/>
+						</div>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>Page Size</Label>
+							<Select
+								value={template.pageSize}
+								onValueChange={(v: string) =>
+									saveMutation.mutate({
+										pageSize: v as TemplateData["pageSize"],
+									})
+								}
+							>
+								<SelectTrigger className={components.inputHeight}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="A4">A4</SelectItem>
+									<SelectItem value="Letter">Letter</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+				</section>
+				
 				{/* Compliance Region */}
-				<div>
-					<div className="text-xs text-neutral-500 mb-1">Compliance Region</div>
-					<Select
-						value={template.compliance?.region || (organization ? invoiceComplianceService.detectRegion(organization) : "US")}
-						onValueChange={(v: string) => {
-							const currentCompliance = template.compliance || {
-								region: "US" as const,
-								requiredFields: [],
-								autoFooter: true,
-								complianceValidated: false,
-							};
-							saveMutation.mutate({
-								compliance: {
-									...currentCompliance,
-									region: v as "US" | "EU" | "CA" | "AU" | "UK",
-									complianceValidated: false,
-								},
-							});
-						}}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="US">🇺🇸 United States</SelectItem>
-							<SelectItem value="EU">🇪🇺 European Union</SelectItem>
-							<SelectItem value="CA">🇨🇦 Canada</SelectItem>
-							<SelectItem value="AU">🇦🇺 Australia</SelectItem>
-							<SelectItem value="UK">🇬🇧 United Kingdom</SelectItem>
-						</SelectContent>
-					</Select>
-					<p className="text-xs text-neutral-400 mt-1">
-						Determines which compliance requirements apply
-					</p>
-				</div>
+				<section className={`${components.section} ${separators.sectionDivider}`}>
+					<h3 className={typography.sectionTitle}>Compliance</h3>
+					<div className={components.subsection}>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>Region</Label>
+							<Select
+								value={template.compliance?.region || (organization ? invoiceComplianceService.detectRegion(organization) : "US")}
+								onValueChange={(v: string) => {
+									const currentCompliance = template.compliance || {
+										region: "US" as const,
+										requiredFields: [],
+										autoFooter: true,
+										complianceValidated: false,
+									};
+									saveMutation.mutate({
+										compliance: {
+											...currentCompliance,
+											region: v as "US" | "EU" | "CA" | "AU" | "UK",
+											complianceValidated: false,
+										},
+									});
+								}}
+							>
+								<SelectTrigger className={components.inputHeight}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="US">🇺🇸 United States</SelectItem>
+									<SelectItem value="EU">🇪🇺 European Union</SelectItem>
+									<SelectItem value="CA">🇨🇦 Canada</SelectItem>
+									<SelectItem value="AU">🇦🇺 Australia</SelectItem>
+									<SelectItem value="UK">🇬🇧 United Kingdom</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className={typography.helperText}>
+								Determines which compliance requirements apply
+							</p>
+						</div>
+					</div>
+				</section>
+				
 				{/* Watermark Configuration */}
 				<WatermarkConfig
 					template={template}
 					organizationLogo={organization?.settings?.branding?.customLogo}
 					saveMutation={saveMutation}
 				/>
+				
 				{/* Element Properties */}
 				{selectedElement && (
-					<ElementProperties
-						element={selectedElement}
-						onChange={onUpdateElement}
-						allElements={elements}
-					/>
+					<div className={separators.sectionDivider}>
+						<ElementProperties
+							element={selectedElement}
+							onChange={onUpdateElement}
+							allElements={elements}
+						/>
+					</div>
 				)}
 			</div>
 		</div>
@@ -266,7 +285,7 @@ function ElementProperties({
 	}
 
 	return (
-		<div className="text-xs text-neutral-500">
+		<div className={typography.helperText}>
 			Select an element to edit.
 		</div>
 	);

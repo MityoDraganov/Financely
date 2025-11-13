@@ -336,7 +336,7 @@ export function CurrencyProperties({
 
       {/* Formula Builder for Formula Mode */}
       {element.mode === "formula" && (
-        <div className="pt-3 border-t border-neutral-200">
+        <div className="pt-4 border-t border-neutral-200">
           <FormulaBuilder
             formula={element.formula}
             onChange={(formula) =>
