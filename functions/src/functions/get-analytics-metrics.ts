@@ -49,15 +49,31 @@ export const getAnalyticsMetrics = onCall<GetAnalyticsMetricsPayload>(
 
       const analyticsService = new AnalyticsService();
 
+      logger.info("Analytics config retrieved", {
+        orgId,
+        enabled: analyticsConfig.enabled,
+        siteId: analyticsConfig.siteId || "none",
+        hasGA4: !!analyticsConfig.ga4MeasurementId,
+      });
+
       // Try to get metrics from stored events first (real-time data)
+      // If siteId is not set, query all events for the org
       const storedMetrics = await analyticsService.getStoredAnalyticsEvents(
         orgId,
-        analyticsConfig.siteId,
+        analyticsConfig.siteId || undefined,
         start,
         end,
       );
 
+      // If we got metrics (even if empty), return them
+      // Empty metrics are valid - it means no events in the date range
       if (storedMetrics) {
+        logger.info("Returning stored analytics metrics", {
+          orgId,
+          pageViews: storedMetrics.pageViews,
+          visitors: storedMetrics.visitors,
+          hasData: storedMetrics.pageViews > 0 || storedMetrics.visitors > 0,
+        });
         return storedMetrics;
       }
 

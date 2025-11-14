@@ -620,6 +620,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "text",
             binding: "description",
             format: { kind: "none" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-2`,
@@ -629,6 +630,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "number",
             binding: "quantity",
             format: { kind: "none" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-3`,
@@ -639,6 +641,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             binding: "unitPrice",
             currency: "USD",
             format: { kind: "currency", currency: "USD" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-4`,
@@ -649,11 +652,11 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             binding: "total",
             currency: "USD",
             format: { kind: "currency", currency: "USD" },
+            showTotal: false,
           },
         ],
         designRows: [],
         itemsBinding: el.itemsBinding || "items",
-        totals: [],
       };
     }
 
@@ -778,6 +781,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "text",
             binding: "description",
             format: { kind: "none" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-2`,
@@ -787,6 +791,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "number",
             binding: "quantity",
             format: { kind: "none" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-3`,
@@ -796,6 +801,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "number",
             binding: "unitPrice",
             format: { kind: "currency", currency: "USD" },
+            showTotal: false,
           },
           {
             id: `col-${Date.now()}-4`,
@@ -805,11 +811,11 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             type: "number",
             binding: "total",
             format: { kind: "currency", currency: "USD" },
+            showTotal: false,
           },
         ],
         designRows: [],
         itemsBinding: field.binding,
-        totals: [],
       };
     }
 

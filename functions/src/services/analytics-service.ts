@@ -97,8 +97,20 @@ export class AnalyticsService {
         .doc(orgId)
         .collection("analyticsEvents");
 
-      const startTimestamp = firestore.Timestamp.fromDate(new Date(startDate));
-      const endTimestamp = firestore.Timestamp.fromDate(new Date(endDate + "T23:59:59Z"));
+      // Parse dates correctly - ensure we're using UTC midnight for start and end of day
+      const startDateObj = new Date(startDate + "T00:00:00.000Z");
+      const endDateObj = new Date(endDate + "T23:59:59.999Z");
+      const startTimestamp = firestore.Timestamp.fromDate(startDateObj);
+      const endTimestamp = firestore.Timestamp.fromDate(endDateObj);
+      
+      logger.info("Querying analytics events", {
+        orgId,
+        siteId: siteId || "all",
+        startDate,
+        endDate,
+        startTimestamp: startTimestamp.toMillis(),
+        endTimestamp: endTimestamp.toMillis(),
+      });
       
       let snapshot: QuerySnapshot<DocumentData>;
       let indexError: { message: string; indexUrl?: string } | undefined;
@@ -113,6 +125,11 @@ export class AnalyticsService {
             .where("timestamp", ">=", startTimestamp)
             .where("timestamp", "<=", endTimestamp);
           snapshot = await compositeQuery.get();
+          logger.info("Composite query executed", {
+            orgId,
+            siteId,
+            count: snapshot.size,
+          });
         } catch (error: any) {
           // If index doesn't exist yet, fall back to timestamp-only query
           if (error?.code === 9 || error?.message?.includes("index")) {
@@ -137,6 +154,11 @@ export class AnalyticsService {
               .where("timestamp", ">=", startTimestamp)
               .where("timestamp", "<=", endTimestamp);
             snapshot = await timestampQuery.get();
+            logger.info("Timestamp-only query executed (fallback)", {
+              orgId,
+              siteId,
+              count: snapshot.size,
+            });
           } else {
             throw error;
           }
@@ -147,43 +169,129 @@ export class AnalyticsService {
           .where("timestamp", ">=", startTimestamp)
           .where("timestamp", "<=", endTimestamp);
         snapshot = await timestampQuery.get();
+        logger.info("Timestamp-only query executed", {
+          orgId,
+          count: snapshot.size,
+        });
       }
 
       if (snapshot.empty) {
-        const emptyResult: AnalyticsMetrics = {
-          pageViews: 0,
-          visitors: 0,
-          bounceRate: 0,
-          avgSessionDuration: 0,
-          topPages: [],
-          trafficSources: [],
-          devices: [],
-          browsers: [],
-          referrers: [],
-          pageViewsOverTime: [],
-          dateRange: { start: startDate, end: endDate },
-        };
+        logger.warn("No analytics events found with siteId filter", {
+          orgId,
+          siteId: siteId || "all",
+          startDate,
+          endDate,
+        });
         
-        // Attach index error if present
-        if (indexError) {
-          emptyResult.warning = "Using fallback query - composite index not ready";
-          emptyResult.indexError = indexError;
+        // If we filtered by siteId and found nothing, try querying all events for the org
+        // to see if there are any events at all (in case siteId doesn't match)
+        if (siteId) {
+          logger.info("Trying fallback query without siteId filter", {
+            orgId,
+            startDate,
+            endDate,
+          });
+          
+          const fallbackQuery = eventsRef
+            .where("timestamp", ">=", startTimestamp)
+            .where("timestamp", "<=", endTimestamp);
+          const fallbackSnapshot = await fallbackQuery.get();
+          
+          if (!fallbackSnapshot.empty) {
+            logger.warn("Found events without siteId filter - siteId may not match stored events", {
+              orgId,
+              siteId,
+              totalEvents: fallbackSnapshot.size,
+            });
+            // Continue with fallback snapshot - we'll filter by siteId in memory below
+            snapshot = fallbackSnapshot;
+          } else {
+            logger.info("No events found even without siteId filter", {
+              orgId,
+              startDate,
+              endDate,
+            });
+            
+            const emptyResult: AnalyticsMetrics = {
+              pageViews: 0,
+              visitors: 0,
+              bounceRate: 0,
+              avgSessionDuration: 0,
+              topPages: [],
+              trafficSources: [],
+              devices: [],
+              browsers: [],
+              referrers: [],
+              pageViewsOverTime: [],
+              dateRange: { start: startDate, end: endDate },
+            };
+            
+            // Attach index error if present
+            if (indexError) {
+              emptyResult.warning = "Using fallback query - composite index not ready";
+              emptyResult.indexError = indexError;
+            }
+            
+            return emptyResult;
+          }
+        } else {
+          // No siteId filter was used, so there really are no events
+          const emptyResult: AnalyticsMetrics = {
+            pageViews: 0,
+            visitors: 0,
+            bounceRate: 0,
+            avgSessionDuration: 0,
+            topPages: [],
+            trafficSources: [],
+            devices: [],
+            browsers: [],
+            referrers: [],
+            pageViewsOverTime: [],
+            dateRange: { start: startDate, end: endDate },
+          };
+          
+          // Attach index error if present
+          if (indexError) {
+            emptyResult.warning = "Using fallback query - composite index not ready";
+            emptyResult.indexError = indexError;
+          }
+          
+          return emptyResult;
         }
-        
-        return emptyResult;
       }
 
       let events = snapshot.docs.map((doc) => doc.data() as Record<string, unknown>);
       
+      logger.info("Events retrieved from query", {
+        orgId,
+        siteId: siteId || "all",
+        totalEvents: events.length,
+      });
+      
       // If siteId was not used in query, filter by siteId in memory
       if (!siteId) {
         // No siteId filter needed - use all events
+        logger.info("No siteId filter applied - using all events");
       } else {
         // Double-check siteId filter (in case query didn't use it)
+        // Match events where site_id exactly equals the provided siteId
+        const beforeFilter = events.length;
         events = events.filter((e: Record<string, unknown>) => e.site_id === siteId);
+        logger.info("SiteId filter applied", {
+          orgId,
+          siteId,
+          beforeFilter,
+          afterFilter: events.length,
+        });
       }
       
       const pageViewEvents = events.filter((e: Record<string, unknown>) => e.event === "page_view");
+      
+      logger.info("Page view events filtered", {
+        orgId,
+        totalEvents: events.length,
+        pageViewEvents: pageViewEvents.length,
+      });
       const uniqueVisitors = new Set(events.map((e: Record<string, unknown>) => e.client_id || e.user_id)).size;
       
       // Calculate metrics

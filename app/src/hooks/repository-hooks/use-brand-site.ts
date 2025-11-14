@@ -141,8 +141,9 @@ export const useBrandSitesByOrganization = (organizationId: string | null | unde
         return sites;
       } catch (error: any) {
         // If index doesn't exist, fallback to query without orderBy
-        if (error?.code === "failed-precondition") {
-          console.warn("Firestore index not found, fetching without orderBy. Create index for brandSites: organizationId, createdAt");
+        if (error?.code === "failed-precondition" || error?.code === 9) {
+          // Silently fallback - index will be created automatically by Firebase
+          // or can be deployed via: firebase deploy --only firestore:indexes
           const brandSitesQuery = query(
             collection(db, "brandSites"),
             where("organizationId", "==", organizationId)
@@ -155,10 +156,37 @@ export const useBrandSitesByOrganization = (organizationId: string | null | unde
           } as BrandSite));
           
           // Sort manually by createdAt (most recent first)
+          // Handle different timestamp formats: Firestore Timestamp, ISO string, or number
           return sites.sort((a, b) => {
-            const aTime = a.metadata?.generatedAt || (a as any).createdAt?.toMillis?.() || 0;
-            const bTime = b.metadata?.generatedAt || (b as any).createdAt?.toMillis?.() || 0;
-            return bTime - aTime;
+            const getTimestamp = (site: BrandSite): number => {
+              // Try metadata.generatedAt first (ISO string)
+              if (site.metadata?.generatedAt) {
+                return new Date(site.metadata.generatedAt).getTime();
+              }
+              
+              // Try createdAt field (could be Firestore Timestamp or ISO string)
+              const createdAt = (site as any).createdAt;
+              if (createdAt) {
+                // Firestore Timestamp object
+                if (typeof createdAt.toMillis === "function") {
+                  return createdAt.toMillis();
+                }
+                // ISO string
+                if (typeof createdAt === "string") {
+                  return new Date(createdAt).getTime();
+                }
+                // Number (milliseconds)
+                if (typeof createdAt === "number") {
+                  return createdAt;
+                }
+              }
+              
+              return 0;
+            };
+            
+            const aTime = getTimestamp(a);
+            const bTime = getTimestamp(b);
+            return bTime - aTime; // Descending order (most recent first)
           });
         }
         throw error;
