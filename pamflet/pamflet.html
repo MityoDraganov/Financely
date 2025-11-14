@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financely - Print Marketing Pamphlet</title>
     <style>
         * {
             margin: 0;
@@ -11,9 +10,17 @@
             box-sizing: border-box;
         }
 
+        /* 
+         * PAGE SIZE OPTIONS:
+         * - A4 Landscape: 11.69in 8.27in (297mm x 210mm)
+         * - A3 Portrait: 11.69in 16.54in (297mm x 420mm)
+         * - A3 Landscape: 16.54in 11.69in (420mm x 297mm)
+         * - US Letter Landscape (current): 11in 8.5in
+         */
         @page {
-            size: 11in 8.5in;
+            size: A4 landscape; /* Change to 'A3 portrait' or 'A3 landscape' for A3 */
             margin: 0;
+            /* Remove browser headers/footers - must also disable in print dialog */
         }
 
         body {
@@ -28,9 +35,15 @@
             margin: 0 auto;
         }
 
+        /* 
+         * PAGE DIMENSIONS:
+         * A4 Landscape: 11.69in x 8.27in (297mm x 210mm)
+         * A3 Portrait: 11.69in x 16.54in (297mm x 420mm)
+         * A3 Landscape: 16.54in x 11.69in (420mm x 297mm)
+         */
         .page {
-            width: 11in;
-            height: 8.5in;
+            width: 11.69in; /* A4 landscape width - change to 11.69in for A3 portrait, 16.54in for A3 landscape */
+            height: 8.27in;  /* A4 landscape height - change to 16.54in for A3 portrait, 11.69in for A3 landscape */
             background: #ffffff;
             margin: 0 auto 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
@@ -106,6 +119,23 @@
             color: #166534;
             font-size: 11px;
             line-height: 1.5;
+        }
+
+        /* Actual Images - Remove borders and use aspect ratio */
+        .image-placeholder:has(img) {
+            border: none;
+            background: transparent;
+            padding: 0;
+            overflow: hidden;
+            max-width: 100%;
+        }
+
+        .image-placeholder img {
+            width: 100%;
+            height: auto;
+            max-width: 100%;
+            display: block;
+            border-radius: 10px;
         }
 
         .image-placeholder-icon {
@@ -444,18 +474,48 @@
             margin-top: 20px;
         }
 
+        /* Remove fixed height when image is present, allow to grow but prevent overflow */
+        .img-cover:has(img) {
+            height: auto;
+            max-height: 400px;
+            min-height: 200px;
+        }
+
         .img-problem {
             height: 170px;
             margin-top: 12px;
+        }
+
+        /* Remove fixed height when image is present, allow to grow but prevent overflow */
+        .img-problem:has(img) {
+            height: auto;
+            max-height: 350px;
+            min-height: 170px;
+            margin-top: -35px;
         }
 
         .img-cta {
             height: 160px;
         }
 
+        /* Remove fixed height when image is present, allow to grow but prevent overflow */
+        .img-cta:has(img) {
+            height: auto;
+            max-height: 300px;
+            min-height: 160px;
+        }
+
         .img-why {
             height: 110px;
             margin-top: auto;
+        }
+
+        /* Remove fixed height when image is present, allow to grow but prevent overflow */
+        .img-why:has(img) {
+            height: auto;
+            max-height: 250px;
+            min-height: 110px;
+            margin-top: -30px;
         }
 
         .print-note {
@@ -471,22 +531,102 @@
         }
 
         @media print {
+            /* Force browsers to print all colors and backgrounds */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+            
             body {
                 background: white;
                 padding: 0;
             }
+            
+            /* Hide print instructions only */
             .page::before,
             .print-note {
                 display: none;
             }
+            
+            /* Keep all styling - don't remove shadows, just make them print-friendly */
             .page {
-                box-shadow: none;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
                 margin: 0;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+            
+            /* Ensure all backgrounds print */
+            .panel-1,
+            .panel-2,
+            .panel-3 {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            /* Preserve gradients */
+            .front .panel-1,
+            .front .panel-3,
+            .back .panel-2 {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            /* Preserve all colored elements */
+            .benefit-number,
+            .flow-number,
+            .highlight-box,
+            .quote-box {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            /* Ensure images and placeholders print */
+            .image-placeholder {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                border: 2px solid #166534;
             }
         }
     </style>
 </head>
 <body>
+    <!-- 
+    ========================================
+    HOW TO EXPORT TO PDF (1:1 IDENTICAL):
+    ========================================
+    
+    METHOD 1: Chrome/Edge Print to PDF (RECOMMENDED)
+    1. Open this file in Chrome or Edge
+    2. Press Cmd+P (Mac) or Ctrl+P (Windows)
+    3. Select "Save as PDF" as destination
+    4. In Settings (MORE SETTINGS):
+       - Paper size: A4 (or A3)
+       - Orientation: Landscape (for A4) or Portrait/Landscape (for A3)
+       - Margins: None
+       - ⚠️ UNCHECK "Headers and footers" (REMOVES URL/DATE FROM PDF)
+       - ✅ CHECK "Background graphics" (CRITICAL for colors/gradients)
+    5. Click "Save"
+    
+    METHOD 2: Firefox Print to PDF
+    1. Open this file in Firefox
+    2. Press Cmd+P (Mac) or Ctrl+P (Windows)
+    3. Select "Save to PDF"
+    4. In Page Setup:
+       - Format: A4 (or A3)
+       - Orientation: Landscape
+       - ⚠️ UNCHECK "Print headers and footers" (REMOVES URL/DATE FROM PDF)
+       - ✅ CHECK "Print Background Colors" (CRITICAL)
+       - ✅ CHECK "Print Background Images" (CRITICAL)
+    5. Click "Save"
+    
+    ⚠️ CRITICAL: UNCHECK "Headers and footers" to remove URL/date from PDF
+    ✅ CRITICAL: CHECK "Background graphics" to preserve all colors/gradients
+    
+    CURRENT SETTING: A4 Landscape (297mm x 210mm)
+    ========================================
+    -->
     <div class="print-container">
         <div class="print-note">
             📄 ИНСТРУКЦИИ ЗА ПЕЧАТ: Отпечатайте страница 1 → Обърнете хартията хоризонтално → Отпечатайте страница 2 → Сгънете на три части
@@ -539,9 +679,7 @@
                     </div>
                     
                     <div class="image-placeholder img-why">
-                        <div class="image-placeholder-icon">🎨</div>
-                        <div class="image-label">Your Image Here</div>
-                        <div class="image-desc">Brand consistency visual</div>
+                        <img src="trust.png" alt="Brand consistency visual">
                     </div>
                 </div>
             </div>
@@ -564,10 +702,8 @@
                         Бързо, AI-подсилено, сигурно и без излишна сложност
                     </p>
                     
-                    <div class="image-placeholder img-cta" style="border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.1);">
-                        <div class="image-placeholder-icon" style="filter: brightness(0) invert(1);">💻</div>
-                        <div class="image-label" style="color: white;">Your Image Here</div>
-                        <div class="image-desc" style="color: #dcfce7;">Modern dashboard interface</div>
+                    <div class="image-placeholder img-cta">
+                        <img src="hero.png" alt="Modern dashboard interface">
                     </div>
                 </div>
             </div>
@@ -589,10 +725,8 @@
                         <strong style="color: #22c55e;">Financely обединява всичко в една синхронизирана платформа.</strong>
                     </p>
                     
-                    <div class="image-placeholder img-cover" style="border-color: #22c55e; background: rgba(34, 197, 94, 0.1);">
-                        <div class="image-placeholder-icon" style="filter: brightness(0) invert(1);">🚀</div>
-                        <div class="image-label" style="color: #22c55e;">Your Image Here</div>
-                        <div class="image-desc" style="color: #94a3b8;">Unified platform visual</div>
+                    <div class="image-placeholder img-cover">
+                        <img src="lifecycle.png" alt="Unified platform visual">
                     </div>
                 </div>
             </div>
@@ -623,9 +757,7 @@
                     </div>
                     
                     <div class="image-placeholder img-problem">
-                        <div class="image-placeholder-icon">🔗</div>
-                        <div class="image-label">Your Image Here</div>
-                        <div class="image-desc">Disconnected tools chaos</div>
+                        <img src="chaos.png" alt="Disconnected tools chaos">
                     </div>
                 </div>
             </div>
@@ -641,7 +773,7 @@
                             <div class="flow-number">1</div>
                             <div class="flow-content">
                                 <div class="flow-title">Lead Capture</div>
-                                <div class="flow-desc">Branded widget, който се вгражда в сайта. Всеки нов lead влиза директно в CRM потока.</div>
+                                <div class="flow-desc">Брандирани widget-и, които се вграждат в сайта. Всеки нов lead влиза директно.</div>
                             </div>
                         </div>
                         
@@ -649,7 +781,7 @@
                             <div class="flow-number">2</div>
                             <div class="flow-content">
                                 <div class="flow-title">AI Proposal Builder</div>
-                                <div class="flow-desc">На база brand kit, ценоразпис и продукти, системата създава професионално предложение. Структуриран документ с динамични компоненти, блокове, секции, pricing модули.</div>
+                                <div class="flow-desc">На база brand kit и продукти, системата създава професионално предложение. Структуриран документ с динамични компоненти, блокове, секции.</div>
                             </div>
                         </div>
                         
@@ -657,7 +789,7 @@
                             <div class="flow-number">3</div>
                             <div class="flow-content">
                                 <div class="flow-title">Invoice Generation</div>
-                                <div class="flow-desc">С един клик превръщате proposal → invoice. Мултивалутна поддръжка с конвертиране на валути.</div>
+                                <div class="flow-desc">С един клик превръщате предложение → фактура. Мултивалутна поддръжка с конвертиране на валути.</div>
                             </div>
                         </div>
                     
