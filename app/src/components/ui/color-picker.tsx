@@ -163,9 +163,11 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hueSliderRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isHueDragging, setIsHueDragging] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<'bottom' | 'top'>('bottom');
   
   // Track which input is focused
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -194,6 +196,35 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
       setHsvInput(`${currentHsv.h}, ${currentHsv.s}, ${currentHsv.v}`);
     }
   }, [internalColor, focusedInput]);
+
+  // Calculate popover position based on available space
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    // Use requestAnimationFrame to ensure DOM is updated
+    const updatePosition = () => {
+      if (!popoverRef.current || !containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const popoverHeight = 420; // Approximate height of the popover
+      const spaceBelow = window.innerHeight - containerRect.bottom - 20; // 20px margin
+      const spaceAbove = containerRect.top - 20; // 20px margin
+
+      // Position above if not enough space below, but enough space above
+      if (spaceBelow < popoverHeight && spaceAbove > spaceBelow) {
+        setPopoverPosition('top');
+      } else {
+        setPopoverPosition('bottom');
+      }
+    };
+
+    // Use requestAnimationFrame for better timing
+    const rafId = requestAnimationFrame(() => {
+      setTimeout(updatePosition, 0);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [isOpen]);
 
   const getInitialHsv = () => {
     const rgb = hexToRgb(value || "#000000");
@@ -603,7 +634,12 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
             aria-label="Pick color"
           />
           {isOpen && (
-            <div className="absolute z-50 left-0 mt-2 p-4 bg-white border border-gray-200 rounded-lg shadow-xl w-[240px]">
+            <div 
+              ref={popoverRef}
+              className={`absolute z-[100] left-0 ${
+                popoverPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+              } p-4 bg-white border border-gray-200 rounded-lg shadow-xl w-[240px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto`}
+            >
               <div className="space-y-4">
                 <div className="relative">
                   <canvas

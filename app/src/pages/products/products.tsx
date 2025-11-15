@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,25 +59,27 @@ export default function ProductsPage() {
   const imageUpload = useFileUpload();
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter products
-  const filteredProducts = products.filter((product) => {
-    // Status filter
-    if (statusFilter !== "all" && product.status !== statusFilter) {
-      return false;
-    }
+  // Filter products - memoized to prevent recalculation on every render
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      // Status filter
+      if (statusFilter !== "all" && product.status !== statusFilter) {
+        return false;
+      }
 
-    // Search filter
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      const name = (product.name || "").toLowerCase();
-      const description = (product.description || "").toLowerCase();
-      const sku = (product.sku || "").toLowerCase();
-      
-      return name.includes(searchLower) || description.includes(searchLower) || sku.includes(searchLower);
-    }
+      // Search filter
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase();
+        const name = (product.name || "").toLowerCase();
+        const description = (product.description || "").toLowerCase();
+        const sku = (product.sku || "").toLowerCase();
+        
+        return name.includes(searchLower) || description.includes(searchLower) || sku.includes(searchLower);
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [products, statusFilter, searchTerm]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,28 +108,32 @@ export default function ProductsPage() {
     const url = await imageUpload.uploadFile(file, path);
 
     if (url) {
-      setFormData({
-        ...formData,
-        images: [...(formData.images || []), url],
-      });
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), url],
+      }));
       toast.success("Image uploaded successfully");
     } else {
       toast.error(imageUpload.error || "Failed to upload image");
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const newImages = formData.images?.filter((_, i) => i !== index) || [];
-    setFormData({ ...formData, images: newImages });
-  };
+  const handleRemoveImage = useCallback((index: number) => {
+    setFormData((prev) => {
+      const newImages = prev.images?.filter((_, i) => i !== index) || [];
+      return { ...prev, images: newImages };
+    });
+  }, []);
 
-  const handleSetFeaturedImage = (index: number) => {
-    if (!formData.images || formData.images.length === 0) return;
-    const newImages = [...formData.images];
-    const [featured] = newImages.splice(index, 1);
-    newImages.unshift(featured);
-    setFormData({ ...formData, images: newImages });
-  };
+  const handleSetFeaturedImage = useCallback((index: number) => {
+    setFormData((prev) => {
+      if (!prev.images || prev.images.length === 0) return prev;
+      const newImages = [...prev.images];
+      const [featured] = newImages.splice(index, 1);
+      newImages.unshift(featured);
+      return { ...prev, images: newImages };
+    });
+  }, []);
 
   const handleCreateProduct = async () => {
     if (!currentOrganization?.id) {
@@ -331,7 +337,7 @@ export default function ProductsPage() {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     placeholder="Enter product name"
                   />
                 </div>
@@ -340,7 +346,7 @@ export default function ProductsPage() {
                   <Input
                     id="sku"
                     value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
                     placeholder="Product SKU"
                   />
                 </div>
@@ -351,7 +357,7 @@ export default function ProductsPage() {
                 <Textarea
                   id="description"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Product description"
                   rows={3}
                 />
@@ -366,7 +372,7 @@ export default function ProductsPage() {
                     step="0.01"
                     min="0"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                     placeholder="0.00"
                   />
                 </div>
@@ -374,7 +380,7 @@ export default function ProductsPage() {
                   <Label htmlFor="currency">Currency</Label>
                   <Select
                     value={formData.currency}
-                    onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select currency" />
@@ -396,7 +402,7 @@ export default function ProductsPage() {
                   <Input
                     id="category"
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
                     placeholder="Product category"
                   />
                 </div>
@@ -404,7 +410,7 @@ export default function ProductsPage() {
                   <Label htmlFor="status">Status</Label>
                   <Select
                     value={formData.status}
-                    onValueChange={(value: "active" | "inactive" | "archived") => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select status" />
@@ -426,7 +432,7 @@ export default function ProductsPage() {
                     type="number"
                     min="0"
                     value={formData.stockQuantity || ""}
-                    onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
                     placeholder="0"
                   />
                 </div>
@@ -436,7 +442,7 @@ export default function ProductsPage() {
                       type="checkbox"
                       id="trackInventory"
                       checked={formData.trackInventory}
-                      onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
                       className="rounded border-gray-300"
                     />
                     <Label htmlFor="trackInventory" className="cursor-pointer">Track Inventory</Label>
@@ -574,7 +580,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                       placeholder="Enter product name"
                     />
                   </div>
@@ -583,7 +589,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-sku"
                       value={formData.sku}
-                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
                       placeholder="Product SKU"
                     />
                   </div>
@@ -594,7 +600,7 @@ export default function ProductsPage() {
                   <Textarea
                     id="edit-description"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Product description"
                     rows={3}
                   />
@@ -609,7 +615,7 @@ export default function ProductsPage() {
                       step="0.01"
                       min="0"
                       value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                       placeholder="0.00"
                     />
                   </div>
@@ -617,7 +623,7 @@ export default function ProductsPage() {
                     <Label htmlFor="edit-currency">Currency</Label>
                     <Select
                       value={formData.currency}
-                      onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select currency" />
@@ -639,7 +645,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-category"
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
                       placeholder="Product category"
                     />
                   </div>
@@ -647,7 +653,7 @@ export default function ProductsPage() {
                     <Label htmlFor="edit-status">Status</Label>
                     <Select
                       value={formData.status}
-                      onValueChange={(value: "active" | "inactive" | "archived") => setFormData({ ...formData, status: value })}
+                      onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
@@ -669,7 +675,7 @@ export default function ProductsPage() {
                       type="number"
                       min="0"
                       value={formData.stockQuantity || ""}
-                      onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
                       placeholder="0"
                     />
                   </div>
@@ -679,7 +685,7 @@ export default function ProductsPage() {
                         type="checkbox"
                         id="edit-trackInventory"
                         checked={formData.trackInventory}
-                        onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
                         className="rounded border-gray-300"
                       />
                       <Label htmlFor="edit-trackInventory" className="cursor-pointer">Track Inventory</Label>
