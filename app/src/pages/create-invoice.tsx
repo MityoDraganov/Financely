@@ -515,11 +515,11 @@ export default function CreateInvoicePage() {
 
 	// Function to evaluate formulas for given form data
 	const evaluateFormulas = useCallback(
-		(dataToEvaluate: Record<string, InvoiceDataValue>) => {
+		(dataToEvaluate: Record<string, InvoiceDataValue>): { data: Record<string, InvoiceDataValue>; updatedFields: Array<{ binding: string; value: number }> } => {
 			console.log("evaluateFormulas: Called with data:", dataToEvaluate);
 			if (!selectedTemplate || !dataToEvaluate) {
 				console.log("evaluateFormulas: Early return - no template or data");
-				return dataToEvaluate;
+				return { data: dataToEvaluate, updatedFields: [] };
 			}
 
 			const elements = selectedTemplate.elements ?? [];
@@ -646,7 +646,7 @@ export default function CreateInvoicePage() {
 			console.log("evaluateFormulas: Found", formulaElements.length, "formula elements");
 			if (formulaElements.length === 0) {
 				console.log("evaluateFormulas: No formulas to evaluate, returning original data");
-				return dataToEvaluate;
+				return { data: dataToEvaluate, updatedFields: [] };
 			}
 
 			// Create a map of element IDs to their current values for formula evaluation
@@ -669,6 +669,9 @@ export default function CreateInvoicePage() {
 			// Create a deep copy to avoid mutating the original
 			const updatedData = JSON.parse(JSON.stringify(dataToEvaluate));
 			console.log("evaluateFormulas: Starting evaluation with data:", updatedData);
+
+			// Track which fields were updated by formulas (for currency linking)
+			const updatedFields: Array<{ binding: string; value: number }> = [];
 
 			for (const { element, binding, formula, tableContext } of formulaElements) {
 				try {
@@ -708,6 +711,10 @@ export default function CreateInvoicePage() {
 						setBindingValue(updatedData, binding, result);
 						// Update elementValues for subsequent formula evaluations that might reference this
 						elementValues.set(element.id, result);
+						// Track this update for currency linking
+						if (typeof result === "number") {
+							updatedFields.push({ binding, value: result });
+						}
 						console.log("evaluateFormulas: Updated binding", binding, "to", result);
 					} else {
 						console.log("evaluateFormulas: Value unchanged for binding", binding);
@@ -723,23 +730,182 @@ export default function CreateInvoicePage() {
 			}
 
 			console.log("evaluateFormulas: Final data:", updatedData);
-			return updatedData;
+			// Return both the updated data and the list of updated fields
+			return { data: updatedData, updatedFields };
 		},
 		[selectedTemplate]
 	);
+
+	// Get base currency from invoice data
+	const baseCurrency = useMemo(() => {
+		const currency = formData.currency;
+		return (
+			(typeof currency === "string" && currency) ||
+			currentOrganization?.settings?.defaultCurrency ||
+			"USD"
+		);
+	}, [formData.currency, currentOrganization?.settings?.defaultCurrency]);
+
+	// Compute linked currency field value
+	const computeLinkedCurrencyValue = useCallback(async (
+		sourceValue: number,
+		sourceCurrency: string,
+		link: CurrencyFieldLink,
+		targetCurrency: string
+	): Promise<number> => {
+		try {
+			if (link.type === "FX_PAIR") {
+				// Import getExchangeRate directly to ensure we get the correct rate
+				const { getExchangeRate } = await import("@/utils/currencies");
+
+				// Fetch rate directly from API with sourceCurrency as base
+				// This ensures we get: 1 sourceCurrency = X targetCurrency
+				const rate = await getExchangeRate(
+					sourceCurrency,
+					targetCurrency
+				);
+
+				// Calculate: sourceValue * rate = targetValue
+				// Example: 10 BGN * 0.511 = 5.11 EUR
+				const result = sourceValue * rate;
+
+				console.log(
+					`Currency conversion: ${sourceValue} ${sourceCurrency} * ${rate} = ${result} ${targetCurrency}`
+				);
+				return result;
+			} else if (
+				link.type === "FIXED_MULTIPLIER" &&
+				link.multiplier !== undefined
+			) {
+				return sourceValue * link.multiplier;
+			}
+			return sourceValue;
+		} catch (error) {
+			console.error("Error computing linked currency value:", error, {
+				sourceValue,
+				sourceCurrency,
+				targetCurrency,
+				linkType: link.type,
+			});
+			return sourceValue;
+		}
+	}, []);
+
+	// Function to update linked currency fields after a source field changes
+	const updateLinkedCurrencyFields = useCallback(async (
+		data: Record<string, InvoiceDataValue>,
+		updatedBinding: string,
+		updatedValue: number
+	): Promise<Record<string, InvoiceDataValue>> => {
+		const updatedData = JSON.parse(JSON.stringify(data)); // Deep copy
+		const updates: Array<{ binding: string; value: number }> = [];
+
+		// Check regular currency field links
+		for (const [targetBinding, linkInfo] of currencyFieldLinks.entries()) {
+			if (linkInfo.sourceBinding === updatedBinding) {
+				// This field is a source for targetBinding
+				const sourceElement = selectedTemplate?.elements?.find(
+					(e) => e.type === "currency" && e.binding === updatedBinding
+				) as Extract<TemplateElement, { type: "currency" }> | undefined;
+
+				const sourceCurrency = sourceElement?.currency || baseCurrency;
+				const targetCurrency = linkInfo.element.currency || baseCurrency;
+
+				try {
+					const linkedValue = await computeLinkedCurrencyValue(
+						updatedValue,
+						sourceCurrency,
+						linkInfo.link,
+						targetCurrency
+					);
+					updates.push({ binding: targetBinding, value: linkedValue });
+				} catch (error) {
+					console.error("Error computing linked currency value:", error);
+				}
+			}
+		}
+
+		// Check table column currency links
+		for (const [tablePath, tableLinks] of tableColumnCurrencyLinks.entries()) {
+			// Check if the updated binding is in this table
+			const tableMatch = updatedBinding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+			if (tableMatch) {
+				const [, arrayPath, indexStr, fieldPath] = tableMatch;
+				if (arrayPath === tablePath) {
+					// The updated field is in this table
+					for (const [targetColumnBinding, linkInfo] of tableLinks.entries()) {
+						if (linkInfo.sourceColumnBinding === fieldPath) {
+							// This column is a source for targetColumnBinding
+							const targetBinding = `${tablePath}[${indexStr}].${targetColumnBinding}`;
+							
+							// Find source and target currency elements
+							const tableEl = selectedTemplate?.elements?.find(
+								(e) => e.type === "table" && (e as Extract<TemplateElement, { type: "table" }>).itemsBinding === tablePath
+							) as Extract<TemplateElement, { type: "table" }> | undefined;
+
+							const sourceCol = tableEl?.columns?.find(
+								(c) => c.binding === linkInfo.sourceColumnBinding
+							);
+							const targetCol = tableEl?.columns?.find(
+								(c) => c.binding === targetColumnBinding
+							);
+
+							const sourceCurrency = sourceCol?.currency || baseCurrency;
+							const targetCurrency = targetCol?.currency || baseCurrency;
+
+							try {
+								const linkedValue = await computeLinkedCurrencyValue(
+									updatedValue,
+									sourceCurrency,
+									linkInfo.link,
+									targetCurrency
+								);
+								updates.push({ binding: targetBinding, value: linkedValue });
+							} catch (error) {
+								console.error("Error computing linked currency value for table column:", error);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Apply all updates
+		for (const { binding, value } of updates) {
+			setBindingValue(updatedData, binding, value);
+			console.log("updateLinkedCurrencyFields: Updated", binding, "to", value);
+		}
+
+		return updatedData;
+	}, [selectedTemplate, tableColumnCurrencyLinks, currencyFieldLinks, baseCurrency, computeLinkedCurrencyValue]);
 
 	// Formula evaluation: evaluate all formulas when formData changes
 	useEffect(() => {
 		if (!selectedTemplate || !formData) return;
 
-		const updatedData = evaluateFormulas(formData);
+		const { data: updatedData, updatedFields } = evaluateFormulas(formData);
 		
 		// Only update if there are changes (compare by serializing to avoid unnecessary updates)
 		const hasChanges = JSON.stringify(updatedData) !== JSON.stringify(formData);
 		if (hasChanges) {
 			setFormData(updatedData);
+			
+			// Update linked currency fields for all fields that were updated by formulas
+			if (updatedFields.length > 0) {
+				// Process currency conversions asynchronously
+				(async () => {
+					let finalData = updatedData;
+					for (const { binding, value } of updatedFields) {
+						finalData = await updateLinkedCurrencyFields(finalData, binding, value);
+					}
+					// Only update if currency conversions changed anything
+					if (JSON.stringify(finalData) !== JSON.stringify(updatedData)) {
+						setFormData(finalData);
+					}
+				})();
+			}
 		}
-	}, [formData, selectedTemplate, evaluateFormulas]);
+	}, [formData, selectedTemplate, evaluateFormulas, updateLinkedCurrencyFields]);
 
 	// Real-time compliance validation
 	useEffect(() => {
@@ -796,51 +962,6 @@ export default function CreateInvoicePage() {
 		},
 		[formData]
 	);
-
-	// Compute linked currency field value
-	const computeLinkedCurrencyValue = async (
-		sourceValue: number,
-		sourceCurrency: string,
-		link: CurrencyFieldLink,
-		targetCurrency: string
-	): Promise<number> => {
-		try {
-			if (link.type === "FX_PAIR") {
-				// Import getExchangeRate directly to ensure we get the correct rate
-				const { getExchangeRate } = await import("@/utils/currencies");
-
-				// Fetch rate directly from API with sourceCurrency as base
-				// This ensures we get: 1 sourceCurrency = X targetCurrency
-				const rate = await getExchangeRate(
-					sourceCurrency,
-					targetCurrency
-				);
-
-				// Calculate: sourceValue * rate = targetValue
-				// Example: 10 BGN * 0.511 = 5.11 EUR
-				const result = sourceValue * rate;
-
-				console.log(
-					`Currency conversion: ${sourceValue} ${sourceCurrency} * ${rate} = ${result} ${targetCurrency}`
-				);
-				return result;
-			} else if (
-				link.type === "FIXED_MULTIPLIER" &&
-				link.multiplier !== undefined
-			) {
-				return sourceValue * link.multiplier;
-			}
-			return sourceValue;
-		} catch (error) {
-			console.error("Error computing linked currency value:", error, {
-				sourceValue,
-				sourceCurrency,
-				targetCurrency,
-				linkType: link.type,
-			});
-			return sourceValue;
-		}
-	};
 
 	// Set value at nested path (creates new references at each level for proper React re-rendering)
 	const setValue = useCallback(async (
@@ -940,13 +1061,27 @@ export default function CreateInvoicePage() {
 		// Evaluate formulas immediately after updating the value
 		// This ensures calculated fields update in real-time when any input changes
 		console.log("setValue: Evaluating formulas for path", path, "with data:", newData);
-		const dataWithFormulas = evaluateFormulas(newData);
+		const { data: dataWithFormulas, updatedFields } = evaluateFormulas(newData);
 		console.log("setValue: Formulas evaluated, result:", dataWithFormulas);
 
 		// Use startTransition to mark state update as non-urgent for better typing performance
 		startTransition(() => {
 			setFormData(dataWithFormulas);
 		});
+		
+		// Update linked currency fields for all fields that were updated by formulas
+		if (updatedFields.length > 0) {
+			(async () => {
+				let finalData = dataWithFormulas;
+				for (const { binding, value } of updatedFields) {
+					finalData = await updateLinkedCurrencyFields(finalData, binding, value);
+				}
+				// Only update if currency conversions changed anything
+				if (JSON.stringify(finalData) !== JSON.stringify(dataWithFormulas)) {
+					setFormData(finalData);
+				}
+			})();
+		}
 
 		// Debounce currency conversion calculations
 		// Check if this is a source field for any linked currency fields
@@ -1070,7 +1205,7 @@ export default function CreateInvoicePage() {
 				});
 			}, 500); // 500ms debounce delay
 		}
-	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks]);
+	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks, baseCurrency, computeLinkedCurrencyValue, updateLinkedCurrencyFields]);
 
 	// Handle product selection for a specific table row
 	const handleProductSelectForRow = useCallback(
@@ -1261,8 +1396,22 @@ export default function CreateInvoicePage() {
 				// Evaluate formulas after updating form data with product mapping
 				// Make sure the data structure is correct before evaluating
 				// The newData should already have all the product values set correctly
-				const dataWithFormulas = evaluateFormulas(newData);
+				const { data: dataWithFormulas, updatedFields } = evaluateFormulas(newData);
 				setFormData(dataWithFormulas);
+				
+				// Update linked currency fields for all fields that were updated by formulas
+				if (updatedFields.length > 0) {
+					(async () => {
+						let finalData = dataWithFormulas;
+						for (const { binding, value } of updatedFields) {
+							finalData = await updateLinkedCurrencyFields(finalData, binding, value);
+						}
+						// Only update if currency conversions changed anything
+						if (JSON.stringify(finalData) !== JSON.stringify(dataWithFormulas)) {
+							setFormData(finalData);
+						}
+					})();
+				}
 				setProductLockedFields((prev) => {
 					const next = new Map(prev);
 					next.set(rowKey, lockedFields);
@@ -1297,7 +1446,7 @@ export default function CreateInvoicePage() {
 				});
 			}
 		},
-		[selectedTemplate, currentOrganization, formData, products, getValue, evaluateFormulas]
+		[selectedTemplate, currentOrganization, formData, products, getValue, evaluateFormulas, updateLinkedCurrencyFields]
 	);
 
 	// Clear product selection for a specific row
@@ -1439,16 +1588,6 @@ export default function CreateInvoicePage() {
 		},
 		[formData]
 	);
-
-	// Get base currency from invoice data
-	const baseCurrency = useMemo(() => {
-		const currency = formData.currency;
-		return (
-			(typeof currency === "string" && currency) ||
-			currentOrganization?.settings?.defaultCurrency ||
-			"USD"
-		);
-	}, [formData, currentOrganization?.settings?.defaultCurrency]);
 
 	// Get all items from all tables for currency conversion
 	const allItems = useMemo(() => {
