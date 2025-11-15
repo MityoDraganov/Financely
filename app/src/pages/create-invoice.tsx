@@ -513,141 +513,233 @@ export default function CreateInvoicePage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]); // formData intentionally excluded to prevent infinite loop
 
-	// Formula evaluation: evaluate all formulas when formData changes
-	useEffect(() => {
-		if (!selectedTemplate || !formData) return;
+	// Function to evaluate formulas for given form data
+	const evaluateFormulas = useCallback(
+		(dataToEvaluate: Record<string, InvoiceDataValue>) => {
+			console.log("evaluateFormulas: Called with data:", dataToEvaluate);
+			if (!selectedTemplate || !dataToEvaluate) {
+				console.log("evaluateFormulas: Early return - no template or data");
+				return dataToEvaluate;
+			}
 
-		const elements = selectedTemplate.elements ?? [];
-		const formulaElements: Array<{
-			element: TemplateElement;
-			binding: string;
-			formula: string;
-		}> = [];
+			const elements = selectedTemplate.elements ?? [];
+			const formulaElements: Array<{
+				element: TemplateElement;
+				binding: string;
+				formula: string;
+				tableContext?: {
+					itemsBinding: string;
+					rowIndex: number;
+					columns: Array<{
+						id: string;
+						binding?: string;
+						type?: string;
+					}>;
+				};
+			}> = [];
 
-		// Collect all elements with formulas
-		for (const element of elements) {
-			if (element.type === "input") {
-				const inputEl = element as Extract<
-					TemplateElement,
-					{ type: "input" }
-				>;
-				if (
-					inputEl.variant === "number" &&
-					inputEl.formula &&
-					inputEl.binding
-				) {
-					formulaElements.push({
-						element,
-						binding: inputEl.binding,
-						formula: inputEl.formula,
-					});
+			// Helper to get value from data (handles array indices like items[0].unitPrice)
+			const getValueFromData = (path: string): InvoiceDataValue => {
+				// Handle array indices in path (e.g., "items[0].unitPrice")
+				const arrayIndexMatch = path.match(/^(.+)\[(\d+)\]\.(.+)$/);
+				if (arrayIndexMatch) {
+					const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
+					const index = parseInt(indexStr, 10);
+					
+					// Get the array
+					const arrayValue = getBindingValue(dataToEvaluate, arrayPath);
+					if (!Array.isArray(arrayValue) || !arrayValue[index]) {
+						return "";
+					}
+					
+					// Get the field from the array item
+					const arrayItem = arrayValue[index];
+					if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
+						return "";
+					}
+					
+					return (arrayItem as Record<string, InvoiceDataValue>)[fieldPath] ?? "";
 				}
-			} else if (element.type === "currency") {
-				const currencyEl = element as Extract<
-					TemplateElement,
-					{ type: "currency" }
-				>;
-				if (
-					currencyEl.mode === "formula" &&
-					currencyEl.formula &&
-					currencyEl.binding
-				) {
-					formulaElements.push({
-						element,
-						binding: currencyEl.binding,
-						formula: currencyEl.formula,
-					});
+				
+				// Handle simple dot notation
+				return getBindingValue(dataToEvaluate, path) ?? "";
+			};
+
+			// Collect all elements with formulas
+			for (const element of elements) {
+				if (element.type === "input") {
+					const inputEl = element as Extract<
+						TemplateElement,
+						{ type: "input" }
+					>;
+					if (
+						inputEl.variant === "number" &&
+						inputEl.formula &&
+						inputEl.binding
+					) {
+						formulaElements.push({
+							element,
+							binding: inputEl.binding,
+							formula: inputEl.formula,
+						});
+					}
+				} else if (element.type === "currency") {
+					const currencyEl = element as Extract<
+						TemplateElement,
+						{ type: "currency" }
+					>;
+					if (
+						currencyEl.mode === "formula" &&
+						currencyEl.formula &&
+						currencyEl.binding
+					) {
+						formulaElements.push({
+							element,
+							binding: currencyEl.binding,
+							formula: currencyEl.formula,
+						});
+					}
 				}
 			}
-		}
 
-		// Also check table columns with formulas
-		for (const element of elements) {
-			if (element.type === "table") {
-				const tableEl = element as Extract<
-					TemplateElement,
-					{ type: "table" }
-				>;
-				if (!tableEl.itemsBinding) continue;
+			// Also check table columns with formulas
+			for (const element of elements) {
+				if (element.type === "table") {
+					const tableEl = element as Extract<
+						TemplateElement,
+						{ type: "table" }
+					>;
+					if (!tableEl.itemsBinding) continue;
 
-				const items = getValue(tableEl.itemsBinding);
-				const itemsArray = Array.isArray(items) ? items : [];
+					const items = getValueFromData(tableEl.itemsBinding);
+					const itemsArray = Array.isArray(items) ? items : [];
 
-				for (const col of tableEl.columns ?? []) {
-					if (
-						(col.type === "number" || col.type === "currency") &&
-						col.calc
-					) {
-						// Evaluate formula for each row
-						for (
-							let rowIndex = 0;
-							rowIndex < itemsArray.length;
-							rowIndex++
+					for (const col of tableEl.columns ?? []) {
+						if (
+							(col.type === "number" || col.type === "currency") &&
+							col.calc
 						) {
-							const rowBinding = `${tableEl.itemsBinding}[${rowIndex}].${col.binding || col.id}`;
-							formulaElements.push({
-								element: tableEl,
-								binding: rowBinding,
-								formula: col.calc,
-							});
+							// Evaluate formula for each row
+							for (
+								let rowIndex = 0;
+								rowIndex < itemsArray.length;
+								rowIndex++
+							) {
+								const rowBinding = `${tableEl.itemsBinding}[${rowIndex}].${col.binding || col.id}`;
+								formulaElements.push({
+									element: tableEl,
+									binding: rowBinding,
+									formula: col.calc,
+									// Add table context for resolving column references
+									tableContext: {
+										itemsBinding: tableEl.itemsBinding,
+										rowIndex,
+										columns: tableEl.columns ?? [],
+									},
+								});
+							}
 						}
 					}
 				}
 			}
-		}
 
-		if (formulaElements.length === 0) return;
+			console.log("evaluateFormulas: Found", formulaElements.length, "formula elements");
+			if (formulaElements.length === 0) {
+				console.log("evaluateFormulas: No formulas to evaluate, returning original data");
+				return dataToEvaluate;
+			}
 
-		// Create a map of element IDs to their current values for formula evaluation
-		const elementValues = new Map<string, number>();
-		for (const el of elements) {
-			if (
-				(el.type === "input" && el.variant === "number") ||
-				el.type === "currency"
-			) {
-				if (el.binding) {
-					const value = getValue(el.binding);
-					if (typeof value === "number") {
-						elementValues.set(el.id, value);
+			// Create a map of element IDs to their current values for formula evaluation
+			const elementValues = new Map<string, number>();
+			for (const el of elements) {
+				if (
+					(el.type === "input" && el.variant === "number") ||
+					el.type === "currency"
+				) {
+					if (el.binding) {
+						const value = getValueFromData(el.binding);
+						if (typeof value === "number") {
+							elementValues.set(el.id, value);
+						}
 					}
 				}
 			}
-		}
 
-		// Evaluate all formulas
-		let hasUpdates = false;
-		const updatedData = { ...formData };
+			// Evaluate all formulas
+			// Create a deep copy to avoid mutating the original
+			const updatedData = JSON.parse(JSON.stringify(dataToEvaluate));
+			console.log("evaluateFormulas: Starting evaluation with data:", updatedData);
 
-		for (const { element, binding, formula } of formulaElements) {
-			try {
-				const result = FormulaService.evaluate(
-					formula,
-					updatedData,
-					elements,
-					elementValues
-				);
+			for (const { element, binding, formula, tableContext } of formulaElements) {
+				try {
+					console.log("evaluateFormulas: Evaluating formula", formula, "for binding", binding, "with tableContext", tableContext);
+					
+					// If this is a table column formula, resolve column references to full binding paths
+					let processedFormula = formula;
+					if (tableContext) {
+						// Replace column references (e.g., "quantity", "unitPriceBGN") with full paths (e.g., "items[0].quantity", "items[0].unitPriceBGN")
+						for (const col of tableContext.columns) {
+							const colBinding = col.binding || col.id;
+							// Create the full binding path for this row
+							const fullPath = `${tableContext.itemsBinding}[${tableContext.rowIndex}].${colBinding}`;
+							// Replace column references in the formula (using word boundaries to avoid partial matches)
+							// Match: word boundary + column binding + word boundary (but not if it's already part of a path like items[0].quantity)
+							const regex = new RegExp(`\\b${colBinding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\[\\]])`, 'g');
+							processedFormula = processedFormula.replace(regex, fullPath);
+						}
+						console.log("evaluateFormulas: Processed formula", processedFormula, "from original", formula);
+					}
+					
+					// FormulaService.evaluate uses resolveReference which reads from formData
+					// Make sure it can access the updated values
+					const result = FormulaService.evaluate(
+						processedFormula,
+						updatedData,
+						elements,
+						elementValues
+					);
 
-				// Update the value if it changed
-				const currentValue = getBindingValue(updatedData, binding);
-				if (currentValue !== result) {
-					setBindingValue(updatedData, binding, result);
-					elementValues.set(element.id, result);
-					hasUpdates = true;
+					console.log("evaluateFormulas: Formula result:", result, "for binding", binding);
+
+					// Update the value if it changed
+					const currentValue = getBindingValue(updatedData, binding);
+					console.log("evaluateFormulas: Current value:", currentValue, "New result:", result);
+					if (currentValue !== result) {
+						setBindingValue(updatedData, binding, result);
+						// Update elementValues for subsequent formula evaluations that might reference this
+						elementValues.set(element.id, result);
+						console.log("evaluateFormulas: Updated binding", binding, "to", result);
+					} else {
+						console.log("evaluateFormulas: Value unchanged for binding", binding);
+					}
+				} catch (error) {
+					console.error("Formula evaluation error:", error, {
+						element,
+						binding,
+						formula,
+						data: updatedData,
+					});
 				}
-			} catch (error) {
-				console.error("Formula evaluation error:", error, {
-					element,
-					binding,
-					formula,
-				});
 			}
-		}
 
-		if (hasUpdates) {
+			console.log("evaluateFormulas: Final data:", updatedData);
+			return updatedData;
+		},
+		[selectedTemplate]
+	);
+
+	// Formula evaluation: evaluate all formulas when formData changes
+	useEffect(() => {
+		if (!selectedTemplate || !formData) return;
+
+		const updatedData = evaluateFormulas(formData);
+		
+		// Only update if there are changes (compare by serializing to avoid unnecessary updates)
+		const hasChanges = JSON.stringify(updatedData) !== JSON.stringify(formData);
+		if (hasChanges) {
 			setFormData(updatedData);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [formData, selectedTemplate]);
+	}, [formData, selectedTemplate, evaluateFormulas]);
 
 	// Real-time compliance validation
 	useEffect(() => {
@@ -751,10 +843,71 @@ export default function CreateInvoicePage() {
 	};
 
 	// Set value at nested path (creates new references at each level for proper React re-rendering)
-	const setValue = async (
+	const setValue = useCallback(async (
 		path: string,
 		value: InvoiceDataValue
 	): Promise<void> => {
+		// Handle array indices in path (e.g., "items[0].quantity")
+		const arrayIndexMatch = path.match(/^(.+)\[(\d+)\]\.(.+)$/);
+		
+		if (arrayIndexMatch) {
+			// Handle array index path like "items[0].quantity"
+			const [, arrayPath, indexStr, fieldName] = arrayIndexMatch;
+			const index = parseInt(indexStr, 10);
+			
+			// Create a deep clone
+			const newData = { ...formData };
+			
+			// Get the array
+			const arrayValue = getBindingValue(newData, arrayPath);
+			if (!Array.isArray(arrayValue)) {
+				// Array doesn't exist, create it
+				const newArray: Array<Record<string, InvoiceDataValue>> = [];
+				while (newArray.length <= index) {
+					newArray.push({});
+				}
+				newArray[index] = { [fieldName]: value };
+				setBindingValue(newData, arrayPath, newArray);
+			} else {
+				// Create a copy of the array
+				const arrayCopy = [...arrayValue];
+				
+				// Ensure the array has enough items
+				while (arrayCopy.length <= index) {
+					arrayCopy.push({});
+				}
+				
+				// Update the array item
+				if (
+					arrayCopy[index] &&
+					typeof arrayCopy[index] === "object" &&
+					!Array.isArray(arrayCopy[index])
+				) {
+					arrayCopy[index] = {
+						...(arrayCopy[index] as Record<string, InvoiceDataValue>),
+						[fieldName]: value,
+					};
+				} else {
+					arrayCopy[index] = { [fieldName]: value };
+				}
+				
+				setBindingValue(newData, arrayPath, arrayCopy);
+			}
+			
+			// Evaluate formulas immediately after updating the value
+			console.log("setValue: Evaluating formulas for array path", path, "with data:", newData);
+			const dataWithFormulas = evaluateFormulas(newData);
+			console.log("setValue: Formulas evaluated, result:", dataWithFormulas);
+			
+			// Use startTransition to mark state update as non-urgent for better typing performance
+			startTransition(() => {
+				setFormData(dataWithFormulas);
+			});
+			
+			return;
+		}
+		
+		// Handle simple dot notation path (e.g., "seller.name")
 		const parts = path.split(".");
 
 		// Create a deep clone with new references at each level in the path
@@ -784,9 +937,15 @@ export default function CreateInvoicePage() {
 		// Set the final value
 		current[parts[parts.length - 1]] = value;
 
+		// Evaluate formulas immediately after updating the value
+		// This ensures calculated fields update in real-time when any input changes
+		console.log("setValue: Evaluating formulas for path", path, "with data:", newData);
+		const dataWithFormulas = evaluateFormulas(newData);
+		console.log("setValue: Formulas evaluated, result:", dataWithFormulas);
+
 		// Use startTransition to mark state update as non-urgent for better typing performance
 		startTransition(() => {
-			setFormData(newData);
+			setFormData(dataWithFormulas);
 		});
 
 		// Debounce currency conversion calculations
@@ -911,7 +1070,7 @@ export default function CreateInvoicePage() {
 				});
 			}, 500); // 500ms debounce delay
 		}
-	};
+	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks]);
 
 	// Handle product selection for a specific table row
 	const handleProductSelectForRow = useCallback(
@@ -1099,7 +1258,11 @@ export default function CreateInvoicePage() {
 					}
 				}
 
-				setFormData(newData);
+				// Evaluate formulas after updating form data with product mapping
+				// Make sure the data structure is correct before evaluating
+				// The newData should already have all the product values set correctly
+				const dataWithFormulas = evaluateFormulas(newData);
+				setFormData(dataWithFormulas);
 				setProductLockedFields((prev) => {
 					const next = new Map(prev);
 					next.set(rowKey, lockedFields);
@@ -1134,7 +1297,7 @@ export default function CreateInvoicePage() {
 				});
 			}
 		},
-		[selectedTemplate, currentOrganization, formData, products, getValue]
+		[selectedTemplate, currentOrganization, formData, products, getValue, evaluateFormulas]
 	);
 
 	// Clear product selection for a specific row

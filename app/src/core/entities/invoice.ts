@@ -124,15 +124,38 @@ export function validateInvoiceBindings(
 
 /**
  * Helper function to get a value from invoice data using a binding path.
+ * Supports array indices in paths (e.g., "items[0].lineTotalBGN").
  * 
  * @param data - The invoice data
- * @param binding - Dot-notation path (e.g., "seller.name", "items")
+ * @param binding - Dot-notation path (e.g., "seller.name", "items", "items[0].lineTotalBGN")
  * @returns The value at the binding path, or undefined if not found
  */
 export function getBindingValue(
   data: Record<string, InvoiceDataValue>,
   binding: string
 ): InvoiceDataValue | undefined {
+  // Handle array indices in path (e.g., "items[0].lineTotalBGN")
+  const arrayIndexMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+  if (arrayIndexMatch) {
+    const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
+    const index = parseInt(indexStr, 10);
+    
+    // Get the array
+    const arrayValue = getBindingValue(data, arrayPath);
+    if (!Array.isArray(arrayValue) || !arrayValue[index]) {
+      return undefined;
+    }
+    
+    // Get the field from the array item
+    const arrayItem = arrayValue[index];
+    if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
+      return undefined;
+    }
+    
+    return getBindingValue(arrayItem as Record<string, InvoiceDataValue>, fieldPath);
+  }
+  
+  // Handle simple dot notation path (e.g., "seller.name")
   const parts = binding.split(".");
   let current: InvoiceDataValue = data;
   
@@ -149,9 +172,10 @@ export function getBindingValue(
 /**
  * Helper function to set a value in invoice data using a binding path.
  * Creates nested objects as needed.
+ * Supports array indices in paths (e.g., "items[0].lineTotalBGN").
  * 
  * @param data - The invoice data (will be mutated)
- * @param binding - Dot-notation path (e.g., "seller.name")
+ * @param binding - Dot-notation path (e.g., "seller.name", "items[0].lineTotalBGN")
  * @param value - The value to set
  */
 export function setBindingValue(
@@ -159,6 +183,36 @@ export function setBindingValue(
   binding: string,
   value: InvoiceDataValue
 ): void {
+  // Handle array indices in path (e.g., "items[0].lineTotalBGN")
+  const arrayIndexMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+  if (arrayIndexMatch) {
+    const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
+    const index = parseInt(indexStr, 10);
+    
+    // Get the array
+    const arrayValue = getBindingValue(data, arrayPath);
+    if (!Array.isArray(arrayValue)) {
+      // Array doesn't exist or is not an array, can't set value
+      return;
+    }
+    
+    // Ensure the array has enough elements
+    while (arrayValue.length <= index) {
+      arrayValue.push({});
+    }
+    
+    // Get the array item
+    const arrayItem = arrayValue[index];
+    if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
+      arrayValue[index] = {};
+    }
+    
+    // Set the field in the array item
+    setBindingValue(arrayItem as Record<string, InvoiceDataValue>, fieldPath, value);
+    return;
+  }
+  
+  // Handle simple dot notation path (e.g., "seller.name")
   const parts = binding.split(".");
   let current: Record<string, InvoiceDataValue> = data;
   

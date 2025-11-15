@@ -278,7 +278,7 @@ export function FormulaBuilder({
 										data-formula-input
 										value={formulaInput}
 										onChange={(e) => handleFormulaChange(e.target.value)}
-										placeholder="=SUM(A1, B1) or =A1 + B1"
+										placeholder="=SUM(...)"
 										className={cn(
 											"font-mono text-sm",
 											!validation.valid && formulaInput.trim()
@@ -434,17 +434,6 @@ export function FormulaBuilder({
 											</div>
 										</PopoverContent>
 									</Popover>
-								</div>
-							</div>
-
-							{/* Examples */}
-							<div className="p-2 bg-neutral-50 rounded-md border border-neutral-200">
-								<div className="text-xs font-medium text-neutral-700 mb-1.5">Examples</div>
-								<div className="font-mono text-[10px] space-y-1 text-neutral-600">
-									<div>=SUM(A1, B1)</div>
-									<div>=A1 + B1</div>
-									<div>=items.total * 0.2</div>
-									<div>=ROUND(A1 * 1.1, 2)</div>
 								</div>
 							</div>
 						</CollapsibleContent>
