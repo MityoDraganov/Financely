@@ -62,7 +62,26 @@ export interface FunctionsService {
     data: Record<string, unknown>;
     status?: "draft" | "sent" | "paid" | "cancelled";
     notes?: string;
+    productIds?: string[]; // Product IDs for quantity deduction (one per item)
   }): Promise<{ id: string }>;
+
+  /**
+   * Map product data to invoice fields using AI.
+   * Analyzes the template bindings and intelligently maps product data to appropriate invoice fields.
+   * 
+   * @param payload - The mapping payload
+   * @param payload.productId - Product ID to map
+   * @param payload.templateId - Template ID to understand field structure
+   * @param payload.organizationId - Organization ID
+   * @param payload.currentFormData - Current form data to preserve existing values
+   * @returns Promise with mapped fields
+   */
+  mapProductToInvoiceFields(payload: {
+    productId: string;
+    templateId: string;
+    organizationId: string;
+    currentFormData: Record<string, unknown>;
+  }): Promise<{ mappedFields: Record<string, unknown> }>;
 
   renderInvoicePdf(payload: {
     invoiceId: string;

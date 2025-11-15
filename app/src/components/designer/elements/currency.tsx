@@ -353,12 +353,21 @@ export function CurrencyProperties({
         <section className={`${components.subsection} ${separators.subsectionDivider}`}>
           <FormulaBuilder
             formula={element.formula}
-            onChange={(formula) =>
-              onChange({
-                ...element,
-                formula,
-              })
-            }
+            onChange={(formula) => {
+              // If formula is cleared (undefined), also reset mode to independent and remove formula property
+              if (formula === undefined) {
+                const { formula: _, ...elementWithoutFormula } = element;
+                onChange({
+                  ...elementWithoutFormula,
+                  mode: "independent",
+                });
+              } else {
+                onChange({
+                  ...element,
+                  formula,
+                });
+              }
+            }}
             currentElement={element}
             allElements={allElements}
           />

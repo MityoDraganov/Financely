@@ -21,6 +21,18 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async mapProductToInvoiceFields(payload) {
+    type MapProductToInvoiceFieldsPayload = Parameters<FunctionsService["mapProductToInvoiceFields"]>[0];
+    const result = await httpsCallable<
+      MapProductToInvoiceFieldsPayload,
+      { mappedFields: Record<string, unknown> }
+    >(
+      firebase.functions,
+      "mapProductToInvoiceFields",
+    )(payload);
+    return result.data;
+  },
+
   async renderInvoicePdf(payload) {
     const result = await httpsCallable<typeof payload, { url: string }>(
       firebase.functions,
