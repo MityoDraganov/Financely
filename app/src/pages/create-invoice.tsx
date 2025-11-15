@@ -45,7 +45,7 @@ import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
 import { CurrencyConversionManager } from "@/components/invoice/currency-conversion-manager";
-import { CURRENCIES, formatCurrency, getCurrency } from "@/utils/currencies";
+import { formatCurrency } from "@/utils/currencies";
 import type { ConversionRate } from "@/services/currency-conversion-service";
 import type { CurrencyFieldLink } from "@/core/entities/currency-field";
 import { FormulaService } from "@/services/formula-service";
@@ -736,15 +736,10 @@ export default function CreateInvoicePage() {
 		[selectedTemplate]
 	);
 
-	// Get base currency from invoice data
-	const baseCurrency = useMemo(() => {
-		const currency = formData.currency;
-		return (
-			(typeof currency === "string" && currency) ||
-			currentOrganization?.settings?.defaultCurrency ||
-			"USD"
-		);
-	}, [formData.currency, currentOrganization?.settings?.defaultCurrency]);
+	// Get default currency from organization settings (fallback only)
+	const defaultCurrency = useMemo(() => {
+		return currentOrganization?.settings?.defaultCurrency || "USD";
+	}, [currentOrganization?.settings?.defaultCurrency]);
 
 	// Compute linked currency field value
 	const computeLinkedCurrencyValue = useCallback(async (
@@ -808,8 +803,8 @@ export default function CreateInvoicePage() {
 					(e) => e.type === "currency" && e.binding === updatedBinding
 				) as Extract<TemplateElement, { type: "currency" }> | undefined;
 
-				const sourceCurrency = sourceElement?.currency || baseCurrency;
-				const targetCurrency = linkInfo.element.currency || baseCurrency;
+				const sourceCurrency = sourceElement?.currency || defaultCurrency;
+				const targetCurrency = linkInfo.element.currency || defaultCurrency;
 
 				try {
 					const linkedValue = await computeLinkedCurrencyValue(
@@ -850,8 +845,8 @@ export default function CreateInvoicePage() {
 								(c) => c.binding === targetColumnBinding
 							);
 
-							const sourceCurrency = sourceCol?.currency || baseCurrency;
-							const targetCurrency = targetCol?.currency || baseCurrency;
+							const sourceCurrency = sourceCol?.currency || defaultCurrency;
+							const targetCurrency = targetCol?.currency || defaultCurrency;
 
 							try {
 								const linkedValue = await computeLinkedCurrencyValue(
@@ -877,7 +872,7 @@ export default function CreateInvoicePage() {
 		}
 
 		return updatedData;
-	}, [selectedTemplate, tableColumnCurrencyLinks, currencyFieldLinks, baseCurrency, computeLinkedCurrencyValue]);
+	}, [selectedTemplate, tableColumnCurrencyLinks, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
 
 	// Formula evaluation: evaluate all formulas when formData changes
 	useEffect(() => {
@@ -1144,9 +1139,9 @@ export default function CreateInvoicePage() {
 									| undefined;
 
 							const sourceCurrency =
-								sourceElement?.currency || baseCurrency;
+								sourceElement?.currency || defaultCurrency;
 							const targetCurrency =
-								linkInfo.element.currency || baseCurrency;
+								linkInfo.element.currency || defaultCurrency;
 
 							// Compute linked value (this is async, so we'll handle it separately)
 							computeLinkedCurrencyValue(
@@ -1205,7 +1200,7 @@ export default function CreateInvoicePage() {
 				});
 			}, 500); // 500ms debounce delay
 		}
-	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks, baseCurrency, computeLinkedCurrencyValue, updateLinkedCurrencyFields]);
+	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue, updateLinkedCurrencyFields]);
 
 	// Handle product selection for a specific table row
 	const handleProductSelectForRow = useCallback(
@@ -1517,10 +1512,10 @@ export default function CreateInvoicePage() {
 		try {
 			// Store conversion rates in invoice data
 			const invoiceDataWithRates = {
-				...formData,
-				_conversionRates: conversionRates,
-				_baseCurrency: baseCurrency,
-			};
+			...formData,
+			_conversionRates: conversionRates,
+			_defaultCurrency: defaultCurrency,
+		};
 
 			// Collect product IDs from all rows for quantity deduction
 			// Match product IDs to items by row index to ensure correct order
@@ -1608,12 +1603,8 @@ export default function CreateInvoicePage() {
 		let subtotal = 0;
 		let total = 0;
 
-		// Calculate synchronously using available conversion rates
+		// Calculate totals - currency is handled per-field, so we just sum all totals
 		for (const item of allItems) {
-			const itemCurrency =
-				(typeof item.currency === "string"
-					? item.currency
-					: baseCurrency) || baseCurrency;
 			const itemTotal =
 				typeof item.total === "number"
 					? item.total
@@ -1621,31 +1612,12 @@ export default function CreateInvoicePage() {
 						? item.amount
 						: 0;
 
-			if (itemCurrency === baseCurrency) {
-				subtotal += itemTotal;
-				total += itemTotal;
-			} else {
-				// Find conversion rate
-				const rate = conversionRates.find(
-					(r) =>
-						r.fromCurrency === itemCurrency &&
-						r.toCurrency === baseCurrency
-				);
-
-				if (rate) {
-					const converted = itemTotal * rate.rate;
-					subtotal += converted;
-					total += converted;
-				} else {
-					// No rate yet, add original (will update when rate is fetched)
-					subtotal += itemTotal;
-					total += itemTotal;
-				}
-			}
+			subtotal += itemTotal;
+			total += itemTotal;
 		}
 
 		return { subtotal, total };
-	}, [allItems, baseCurrency, conversionRates]);
+	}, [allItems]);
 
 	// Add table row
 	const addTableRow = async (
@@ -1659,9 +1631,6 @@ export default function CreateInvoicePage() {
 		columns.forEach((col) => {
 			newRow[col.binding] = col.type === "number" ? 0 : "";
 		});
-
-		// Set default currency for new row
-		newRow.currency = baseCurrency;
 
 		await setValue(itemsPath, [...itemsArray, newRow]);
 	};
@@ -1850,13 +1819,13 @@ export default function CreateInvoicePage() {
 								sourceCol.type === "currency" &&
 								sourceCol.currency
 									? sourceCol.currency
-									: baseCurrency;
+									: defaultCurrency;
 							const targetCurrencyStr =
 								targetCol &&
 								targetCol.type === "currency" &&
 								targetCol.currency
 									? targetCol.currency
-									: baseCurrency;
+									: defaultCurrency;
 
 							// Compute linked value
 							const linkedValue =
@@ -2904,216 +2873,220 @@ export default function CreateInvoicePage() {
 														)}
 													</div>
 													<div className="relative">
-														<Input
-															id={`binding-${field.path}`}
-															type={field.type}
-															value={(() => {
-																const val =
-																	getValue(
-																		field.path
-																	);
-																if (
-																	field.type ===
-																	"number"
-																) {
-																	// For number inputs, show empty string if value is null/undefined/empty
-																	// Allow empty string to be displayed while typing
-																	if (
-																		val ===
-																			null ||
-																		val ===
-																			undefined ||
-																		val ===
-																			""
-																	) {
-																		return "";
-																	}
-																	// If it's a number, convert to string for display
-																	if (
-																		typeof val ===
-																		"number"
-																	) {
-																		return String(
-																			val
-																		);
-																	}
-																	return String(
-																		val
-																	);
-																}
-																return String(
-																	val ?? ""
+														{/* Check if this is an address field with object value */}
+														{(() => {
+															const val = getValue(field.path);
+															const isAddressField = field.path.endsWith(".address") || field.path.endsWith("address");
+															const isObjectValue = typeof val === "object" && val !== null && !Array.isArray(val);
+															
+															if (isAddressField && isObjectValue) {
+																// Render multiple inputs for address object
+																const addressObj = val as Record<string, InvoiceDataValue>;
+																return (
+																	<div className="space-y-2">
+																		<Input
+																			id={`${field.path}-street`}
+																			type="text"
+																			placeholder="Street Address"
+																			value={String(addressObj.street ?? "")}
+																			onChange={(e) => {
+																				setValue(field.path, {
+																					...addressObj,
+																					street: e.target.value
+																				});
+																			}}
+																		/>
+																		<div className="grid grid-cols-2 gap-2">
+																			<Input
+																				id={`${field.path}-city`}
+																				type="text"
+																				placeholder="City"
+																				value={String(addressObj.city ?? "")}
+																				onChange={(e) => {
+																					setValue(field.path, {
+																						...addressObj,
+																						city: e.target.value
+																					});
+																				}}
+																			/>
+																			<Input
+																				id={`${field.path}-state`}
+																				type="text"
+																				placeholder="State/Province"
+																				value={String(addressObj.state ?? "")}
+																				onChange={(e) => {
+																					setValue(field.path, {
+																						...addressObj,
+																						state: e.target.value
+																					});
+																				}}
+																			/>
+																		</div>
+																		<div className="grid grid-cols-2 gap-2">
+																			<Input
+																				id={`${field.path}-zipCode`}
+																				type="text"
+																				placeholder="ZIP/Postal Code"
+																				value={String(addressObj.zipCode ?? "")}
+																				onChange={(e) => {
+																					setValue(field.path, {
+																						...addressObj,
+																						zipCode: e.target.value
+																					});
+																				}}
+																			/>
+																			<Input
+																				id={`${field.path}-country`}
+																				type="text"
+																				placeholder="Country"
+																				value={String(addressObj.country ?? "")}
+																				onChange={(e) => {
+																					setValue(field.path, {
+																						...addressObj,
+																						country: e.target.value
+																					});
+																				}}
+																			/>
+																		</div>
+																	</div>
 																);
-															})()}
-															onChange={async (
-																e
-															) => {
-																const inputValue =
-																	e.target
-																		.value;
-																let val: InvoiceDataValue;
-
-																if (
-																	field.type ===
-																	"number"
-																) {
-																	// Allow empty string while typing - don't convert to number yet
-																	if (
-																		inputValue ===
-																			"" ||
-																		inputValue ===
-																			null ||
-																		inputValue ===
-																			undefined
-																	) {
-																		val =
-																			"";
-																	} else {
-																		// Check if it's a valid number (including partial numbers like "12." or "-")
-																		// Allow partial input like "12." or "-" to remain as string
-																		const trimmed =
-																			inputValue.trim();
-																		if (
-																			trimmed ===
-																				"" ||
-																			trimmed ===
-																				"-" ||
-																			trimmed ===
-																				"." ||
-																			trimmed ===
-																				"-."
-																		) {
-																			val =
-																				"";
-																		} else {
-																			// Try to parse as number, but keep as string if it's a partial number
-																			const numValue =
-																				Number(
-																					trimmed
-																				);
-																			// If it's a valid complete number, convert it
-																			// Otherwise keep as string to allow partial input
+															}
+															
+															// Regular input field
+															return (
+																<Input
+																	id={`binding-${field.path}`}
+																	type={field.type}
+																	value={(() => {
+																		if (field.type === "number") {
+																			// For number inputs, show empty string if value is null/undefined/empty
+																			// Allow empty string to be displayed while typing
 																			if (
-																				!isNaN(
-																					numValue
-																				) &&
-																				isFinite(
-																					numValue
-																				) &&
-																				trimmed ===
-																					String(
-																						numValue
-																					)
+																				val === null ||
+																				val === undefined ||
+																				val === ""
 																			) {
-																				val =
-																					numValue;
+																				return "";
+																			}
+																			// If it's a number, convert to string for display
+																			if (typeof val === "number") {
+																				return String(val);
+																			}
+																			return String(val);
+																		}
+																		// For non-number fields, handle objects by returning empty string
+																		if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+																			return "";
+																		}
+																		return String(val ?? "");
+																	})()}
+																	onChange={async (e) => {
+																		const inputValue = e.target.value;
+																		let val: InvoiceDataValue;
+
+																		if (field.type === "number") {
+																			// Allow empty string while typing - don't convert to number yet
+																			if (
+																				inputValue === "" ||
+																				inputValue === null ||
+																				inputValue === undefined
+																			) {
+																				val = "";
 																			} else {
-																				// Partial number (like "12." or "-5"), keep as string temporarily
-																				val =
-																					trimmed;
+																				// Check if it's a valid number (including partial numbers like "12." or "-")
+																				// Allow partial input like "12." or "-" to remain as string
+																				const trimmed = inputValue.trim();
+																				if (
+																					trimmed === "" ||
+																					trimmed === "-" ||
+																					trimmed === "." ||
+																					trimmed === "-."
+																				) {
+																					val = "";
+																				} else {
+																					// Try to parse as number, but keep as string if it's a partial number
+																					const numValue = Number(trimmed);
+																					// If it's a valid complete number, convert it
+																					// Otherwise keep as string to allow partial input
+																					if (
+																						!isNaN(numValue) &&
+																						isFinite(numValue) &&
+																						trimmed === String(numValue)
+																					) {
+																						val = numValue;
+																					} else {
+																						// Partial number (like "12." or "-5"), keep as string temporarily
+																						val = trimmed;
+																					}
+																				}
+																			}
+																		} else {
+																			val = inputValue;
+																		}
+
+																		await setValue(field.path, val);
+																	}}
+																	onBlur={async (e) => {
+																		// On blur, convert valid partial numbers to actual numbers
+																		if (field.type === "number") {
+																			const inputValue = e.target.value.trim();
+																			if (
+																				inputValue === "" ||
+																				inputValue === "-" ||
+																				inputValue === "." ||
+																				inputValue === "-."
+																			) {
+																				await setValue(field.path, "");
+																			} else {
+																				const numValue = Number(inputValue);
+																				if (
+																					!isNaN(numValue) &&
+																					isFinite(numValue)
+																				) {
+																					await setValue(field.path, numValue);
+																				} else if (inputValue !== "") {
+																					// Invalid number, clear it
+																					await setValue(field.path, "");
+																				}
 																			}
 																		}
+																	}}
+																	placeholder={`Enter ${field.label.toLowerCase()}`}
+																	readOnly={isReadOnly}
+																	className={
+																		isReadOnly
+																			? "bg-muted cursor-not-allowed"
+																			: ""
 																	}
-																} else {
-																	val =
-																		inputValue;
-																}
-
-																await setValue(
-																	field.path,
-																	val
-																);
-															}}
-															onBlur={async (
-																e
-															) => {
-																// On blur, convert valid partial numbers to actual numbers
-																if (
-																	field.type ===
-																	"number"
-																) {
-																	const inputValue =
-																		e.target.value.trim();
-																	if (
-																		inputValue ===
-																			"" ||
-																		inputValue ===
-																			"-" ||
-																		inputValue ===
-																			"." ||
-																		inputValue ===
-																			"-."
-																	) {
-																		await setValue(
-																			field.path,
-																			""
-																		);
-																	} else {
-																		const numValue =
-																			Number(
-																				inputValue
-																			);
-																		if (
-																			!isNaN(
-																				numValue
-																			) &&
-																			isFinite(
-																				numValue
-																			)
-																		) {
-																			await setValue(
-																				field.path,
-																				numValue
-																			);
-																		} else if (
-																			inputValue !==
-																			""
-																		) {
-																			// Invalid number, clear it
-																			await setValue(
-																				field.path,
-																				""
-																			);
-																		}
-																	}
-																}
-															}}
-															placeholder={`Enter ${field.label.toLowerCase()}`}
-															readOnly={
-																isReadOnly
-															}
-															className={
-																isReadOnly
-																	? "bg-muted cursor-not-allowed"
-																	: ""
-															}
-														/>
-														{isProductLocked && (
-															<TooltipProvider>
-																<Tooltip>
-																	<TooltipTrigger
-																		asChild
-																	>
-																		<div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-green-600 cursor-help">
-																			<CheckCircle2 className="h-3.5 w-3.5" />
-																		</div>
-																	</TooltipTrigger>
-																	<TooltipContent>
-																		<p>
-																			This
-																			field
-																			is
-																			populated
-																			from
-																			the
-																			selected
-																			product
-																		</p>
-																	</TooltipContent>
-																</Tooltip>
-															</TooltipProvider>
-														)}
-													</div>
+																/>
+															);
+														})()}
+											{isProductLocked && (
+												<TooltipProvider>
+													<Tooltip>
+														<TooltipTrigger
+															asChild
+														>
+															<div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-green-600 cursor-help">
+																<CheckCircle2 className="h-3.5 w-3.5" />
+															</div>
+														</TooltipTrigger>
+														<TooltipContent>
+															<p>
+																This
+																field
+																is
+																populated
+																from
+																the
+																selected
+																product
+															</p>
+														</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											)}
+										</div>
 													{shouldAutoCalculate && (
 														<p className="text-xs text-muted-foreground">
 															Suggested:{" "}
@@ -3124,7 +3097,7 @@ export default function CreateInvoicePage() {
 																		"grossTotal"
 																	? calculatedTotals.total
 																	: calculatedTotals.subtotal,
-																baseCurrency
+																defaultCurrency
 															)}
 														</p>
 													)}
@@ -3558,10 +3531,9 @@ export default function CreateInvoicePage() {
 																																						"number"
 																																						? formatCurrency(
 																																								val,
-																																								typeof row.currency ===
-																																									"string"
-																																									? row.currency
-																																									: product.currency
+																																								col.type === "currency" && columnDef?.currency
+																																									? columnDef.currency
+																																									: product?.currency || defaultCurrency
 																																							)
 																																						: String(
 																																								val ||
@@ -3863,180 +3835,6 @@ export default function CreateInvoicePage() {
 																					);
 																				}
 																			)}
-																			{/* Currency selector for each item */}
-																			<div className="space-y-2 sm:col-span-2">
-																				<Label
-																					htmlFor={`${tableConfig.itemsPath}-${rowIndex}-currency`}
-																				>
-																					Currency
-																				</Label>
-																				<Select
-																					value={String(
-																						row.currency ||
-																							baseCurrency
-																					)}
-																					onValueChange={(
-																						value
-																					) => {
-																						updateTableCell(
-																							tableConfig.itemsPath,
-																							rowIndex,
-																							"currency",
-																							value
-																						);
-																					}}
-																				>
-																					<SelectTrigger>
-																						<SelectValue />
-																					</SelectTrigger>
-																					<SelectContent>
-																						{CURRENCIES.map(
-																							(
-																								currency
-																							) => (
-																								<SelectItem
-																									key={
-																										currency.code
-																									}
-																									value={
-																										currency.code
-																									}
-																								>
-																									{
-																										currency.code
-																									}{" "}
-																									-{" "}
-																									{
-																										currency.name
-																									}{" "}
-																									{currency.symbol
-																										? `(${currency.symbol})`
-																										: ""}
-																								</SelectItem>
-																							)
-																						)}
-																					</SelectContent>
-																				</Select>
-																				{(() => {
-																					const itemCurrency =
-																						typeof row.currency ===
-																						"string"
-																							? row.currency
-																							: baseCurrency;
-																					if (
-																						itemCurrency ===
-																						baseCurrency
-																					)
-																						return null;
-
-																					const itemTotal =
-																						typeof row.total ===
-																						"number"
-																							? row.total
-																							: typeof row.amount ===
-																								  "number"
-																								? row.amount
-																								: 0;
-																					const rate =
-																						conversionRates.find(
-																							(
-																								r
-																							) =>
-																								r.fromCurrency ===
-																									itemCurrency &&
-																								r.toCurrency ===
-																									baseCurrency
-																						);
-																					const convertedAmount =
-																						rate
-																							? itemTotal *
-																								rate.rate
-																							: itemTotal;
-																					const fromCurrencyInfo =
-																						getCurrency(
-																							itemCurrency
-																						);
-																					const toCurrencyInfo =
-																						getCurrency(
-																							baseCurrency
-																						);
-
-																					return (
-																						<div className="space-y-1">
-																							<p className="text-xs text-muted-foreground">
-																								This
-																								item
-																								will
-																								be
-																								converted
-																								to{" "}
-																								{
-																									baseCurrency
-																								}{" "}
-																								for
-																								totals
-																							</p>
-																							{rate &&
-																								itemTotal >
-																									0 && (
-																									<div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-																										<div className="font-medium text-blue-900 mb-1">
-																											Conversion
-																											Preview:
-																										</div>
-																										<div className="text-blue-700 space-y-0.5">
-																											<div>
-																												Original:{" "}
-																												{formatCurrency(
-																													itemTotal,
-																													itemCurrency
-																												)}
-																												{fromCurrencyInfo?.symbol &&
-																													` (${fromCurrencyInfo.symbol})`}
-																											</div>
-																											<div className="font-medium">
-																												Converted:{" "}
-																												{formatCurrency(
-																													convertedAmount,
-																													baseCurrency
-																												)}
-																												{toCurrencyInfo?.symbol &&
-																													` (${toCurrencyInfo.symbol})`}
-																											</div>
-																											<div className="text-blue-600">
-																												Rate:
-																												1{" "}
-																												{
-																													itemCurrency
-																												}{" "}
-																												={" "}
-																												{rate.rate.toFixed(
-																													4
-																												)}{" "}
-																												{
-																													baseCurrency
-																												}
-																												{rate.manualOverride
-																													? " (Manual)"
-																													: " (Live)"}
-																											</div>
-																										</div>
-																									</div>
-																								)}
-																							{!rate &&
-																								itemTotal >
-																									0 && (
-																									<p className="text-xs text-amber-600">
-																										⏳
-																										Fetching
-																										conversion
-																										rate...
-																									</p>
-																								)}
-																						</div>
-																					);
-																				})()}
-																			</div>
 																		</div>
 																	</div>
 																);
@@ -4053,7 +3851,7 @@ export default function CreateInvoicePage() {
 							{/* Currency Conversion Manager */}
 							{allItems.length > 0 && (
 								<CurrencyConversionManager
-									baseCurrency={baseCurrency}
+									baseCurrency={defaultCurrency}
 									items={allItems}
 									existingRates={conversionRates}
 									onRatesChange={setConversionRates}
