@@ -20,8 +20,6 @@ import { FileText, Loader2, Plus } from "lucide-react";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
-import { CurrencyConversionManager } from "@/components/invoice/currency-conversion-manager";
-import type { ConversionRate } from "@/services/currency-conversion-service";
 import type { CurrencyFieldLink } from "@/core/entities/currency-field";
 import { FormulaService } from "@/services/formula-service";
 import { functionsService } from "@/services/functions/functions-service";
@@ -62,7 +60,6 @@ export default function CreateInvoicePage() {
 	const {
 		data: templates,
 		isLoading: isTemplatesLoading,
-		isSubscribed,
 	} = useTemplates(currentOrganization?.id);
 	const { data: products = [] } = useProductsByOrg(currentOrganization?.id);
 
@@ -94,9 +91,6 @@ export default function CreateInvoicePage() {
 		errors?: string[];
 	} | null>(null);
 	const [hasAutoFilled, setHasAutoFilled] = useState(false);
-	const [conversionRates, setConversionRates] = useState<ConversionRate[]>(
-		[]
-	);
 
 	// Debounce timers for currency conversions
 	const currencyConversionTimer = useRef<NodeJS.Timeout | null>(null);
@@ -1518,10 +1512,9 @@ export default function CreateInvoicePage() {
 		}
 
 		try {
-			// Store conversion rates in invoice data
+			// Store default currency in invoice data
 			const invoiceDataWithRates = {
 			...formData,
-			_conversionRates: conversionRates,
 			_defaultCurrency: defaultCurrency,
 		};
 
@@ -2040,7 +2033,6 @@ export default function CreateInvoicePage() {
 						<InvoicePreview
 							template={selectedTemplate}
 							formData={formData}
-							isSubscribed={isSubscribed}
 						/>
 					</div>
 
@@ -2117,16 +2109,6 @@ export default function CreateInvoicePage() {
 									);
 								})}
 							</div>
-
-							{/* Currency Conversion Manager */}
-							{allItems.length > 0 && (
-								<CurrencyConversionManager
-									baseCurrency={defaultCurrency}
-									items={allItems}
-									existingRates={conversionRates}
-									onRatesChange={setConversionRates}
-								/>
-							)}
 
 							{/* Submit */}
 							<Card>

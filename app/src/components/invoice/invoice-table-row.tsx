@@ -52,7 +52,6 @@ interface InvoiceTableRowProps {
 
 // Component for individual table cell input with cursor position preservation
 function TableCellInput({
-	cellKey,
 	cellValue,
 	col,
 	itemsPath,
@@ -64,11 +63,7 @@ function TableCellInput({
 	quantityExceedsStock,
 	onChange,
 	onBlur,
-	columnDef,
-	product,
-	defaultCurrency,
 }: {
-	cellKey: string;
 	cellValue: InvoiceDataValue;
 	col: TableColumn;
 	itemsPath: string;
@@ -80,9 +75,6 @@ function TableCellInput({
 	quantityExceedsStock: boolean;
 	onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 	onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
-	columnDef?: { currency?: string };
-	product?: Product;
-	defaultCurrency: string;
 }) {
 	const [localValue, setLocalValue] = useState<string>(() => {
 		if (col.type === "number" || col.type === "currency") {
@@ -267,7 +259,7 @@ export function InvoiceTableRow({
 	};
 
 	return (
-		<div className="p-4 border rounded-lg space-y-3 bg-muted/20">
+		<div className="p-4 border rounded-lg space-y-3 bg-muted/20 w-full min-w-0">
 			<div className="flex items-center justify-between">
 				<h4 className="text-sm font-medium">Row {rowIndex + 1}</h4>
 				<Button
@@ -283,7 +275,7 @@ export function InvoiceTableRow({
 
 			{/* Product Selection */}
 			{products.length > 0 && (
-				<div className="space-y-2 pb-3 border-b">
+				<div className="space-y-2.5 pb-3 border-b">
 					<Label>Select a product (optional)</Label>
 					<div className="flex items-center gap-2">
 						<ProductSelector
@@ -312,21 +304,21 @@ export function InvoiceTableRow({
 						</div>
 					)}
 					{selectedProductId && !isMapping && (
-						<div className="space-y-2">
-							<div className="flex items-center gap-2 text-xs">
-								<span className="text-muted-foreground">
-									{product ? product.name : "Unknown Product"}
-								</span>
+						<div className="space-y-1.5">
+							<div className="text-xs text-muted-foreground">
+								{product ? product.name : "Unknown Product"}
 							</div>
 							{rowLockedFields.size > 0 && (
 								<div className="text-xs text-muted-foreground">
-									<span className="font-medium">Mapped fields:</span>{" "}
-									{Array.from(rowLockedFields)
-										.map((field) => {
-											const col = columns.find((c) => c.binding === field);
-											return col ? col.header : field;
-										})
-										.join(", ")}
+									<span className="font-medium">Mapped fields:</span>
+									<span className="ml-1.5">
+										{Array.from(rowLockedFields)
+											.map((field) => {
+												const col = columns.find((c) => c.binding === field);
+												return col ? col.header : field;
+											})
+											.join(", ")}
+									</span>
 								</div>
 							)}
 						</div>
@@ -335,7 +327,7 @@ export function InvoiceTableRow({
 			)}
 
 			{/* Table Cells */}
-			<div className="grid gap-3 sm:grid-cols-2">
+			<div className="grid gap-3 sm:grid-cols-2 w-full min-w-0">
 				{columns.map((col) => {
 					const isLinkedColumn = tableLinks?.has(col.binding) || false;
 					const columnDef = tableEl?.columns?.find((c) => c.id === col.id);
@@ -361,34 +353,37 @@ export function InvoiceTableRow({
 						? (row[col.binding] as number | undefined)
 						: undefined;
 					const hasStockTracking =
-						product?.trackInventory &&
-						product?.stockQuantity !== undefined;
+						!!(product?.trackInventory &&
+						product?.stockQuantity !== undefined);
 					const availableStock = hasStockTracking
 						? (product.stockQuantity ?? 0)
 						: undefined;
 					const quantityExceedsStock =
-						isQuantityField &&
+						!!(isQuantityField &&
 						hasStockTracking &&
 						availableStock !== undefined &&
 						quantityValue !== undefined &&
-						quantityValue > availableStock;
+						quantityValue > availableStock);
 
 					const cellValue = row[col.binding];
 
 					return (
 						<div key={col.id} className="space-y-2">
-							<div className="flex items-center gap-2">
+							<div className="space-y-1.5">
 								<Label
 									htmlFor={`${itemsPath}-${rowIndex}-${col.binding}`}
+									className="text-sm font-medium block"
 								>
 									{col.header}
+								</Label>
+								<div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
 									{isLinkedColumn && (
-										<span className="ml-2 text-xs text-muted-foreground font-normal">
+										<span className="whitespace-nowrap">
 											(Linked - read-only)
 										</span>
 									)}
 									{hasFormula && (
-										<span className="ml-2 text-xs text-muted-foreground font-normal">
+										<span className="whitespace-nowrap">
 											(Formula - read-only)
 										</span>
 									)}
@@ -396,7 +391,7 @@ export function InvoiceTableRow({
 										<TooltipProvider>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<div className="flex items-center gap-1 ml-2 px-1.5 py-0.5 bg-green-50 border border-green-200 rounded text-green-700">
+													<div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-50 border border-green-200 rounded text-green-700 shrink-0">
 														<CheckCircle2 className="h-3 w-3" />
 													</div>
 												</TooltipTrigger>
@@ -438,15 +433,14 @@ export function InvoiceTableRow({
 									{isQuantityField &&
 										hasStockTracking &&
 										availableStock !== undefined && (
-											<span className="ml-2 text-xs text-muted-foreground font-normal">
+											<span className="whitespace-nowrap">
 												(Available: {availableStock})
 											</span>
 										)}
-								</Label>
+								</div>
 							</div>
 							<div className="relative">
 								<TableCellInput
-									cellKey={`${itemsPath}-${rowIndex}-${col.binding}`}
 									cellValue={cellValue}
 									col={col}
 									itemsPath={itemsPath}
@@ -458,9 +452,6 @@ export function InvoiceTableRow({
 									quantityExceedsStock={quantityExceedsStock}
 									onChange={(e) => handleCellChange(col.binding, e)}
 									onBlur={(e) => handleCellBlur(col.binding, e)}
-									columnDef={columnDef}
-									product={product}
-									defaultCurrency={defaultCurrency}
 								/>
 								{isProductLocked && (
 									<TooltipProvider>
@@ -482,8 +473,8 @@ export function InvoiceTableRow({
 							</div>
 							{quantityExceedsStock &&
 								availableStock !== undefined && (
-									<div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
-										<AlertCircle className="h-3.5 w-3.5 shrink-0" />
+									<div className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1">
+										<AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
 										<span>
 											Quantity ({quantityValue}) exceeds
 											available stock ({availableStock})
