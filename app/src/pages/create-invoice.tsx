@@ -971,47 +971,56 @@ export default function CreateInvoicePage() {
 			const [, arrayPath, indexStr, fieldName] = arrayIndexMatch;
 			const index = parseInt(indexStr, 10);
 			
-			// Create a deep clone
-			const newData = { ...formData };
-			
-			// Get the array
-			const arrayValue = getBindingValue(newData, arrayPath);
-			if (!Array.isArray(arrayValue)) {
-				// Array doesn't exist, create it
-				const newArray: Array<Record<string, InvoiceDataValue>> = [];
-				while (newArray.length <= index) {
-					newArray.push({});
-				}
-				newArray[index] = { [fieldName]: value };
-				setBindingValue(newData, arrayPath, newArray);
-			} else {
-				// Create a copy of the array
-				const arrayCopy = [...arrayValue];
-				
-				// Ensure the array has enough items
-				while (arrayCopy.length <= index) {
-					arrayCopy.push({});
-				}
-				
-				// Update the array item
-				if (
-					arrayCopy[index] &&
-					typeof arrayCopy[index] === "object" &&
-					!Array.isArray(arrayCopy[index])
-				) {
-					arrayCopy[index] = {
-						...(arrayCopy[index] as Record<string, InvoiceDataValue>),
-						[fieldName]: value,
-					};
-				} else {
-					arrayCopy[index] = { [fieldName]: value };
-				}
-				
-				setBindingValue(newData, arrayPath, arrayCopy);
-			}
-			
 			// Update state immediately for responsive typing (formulas will be evaluated in useEffect)
-			setFormData(newData);
+			// Use functional update to avoid stale closures when typing fast
+			setFormData((prev) => {
+				// Only update if the path actually changed to avoid unnecessary re-renders
+				const currentValue = getBindingValue(prev, path);
+				if (currentValue === value) {
+					return prev; // No change, return previous state
+				}
+				
+				// Rebuild from prev to avoid stale closures
+				const updatedData = { ...prev };
+				
+				// Get the array
+				const arrayValue = getBindingValue(updatedData, arrayPath);
+				if (!Array.isArray(arrayValue)) {
+					// Array doesn't exist, create it
+					const newArray: Array<Record<string, InvoiceDataValue>> = [];
+					while (newArray.length <= index) {
+						newArray.push({});
+					}
+					newArray[index] = { [fieldName]: value };
+					setBindingValue(updatedData, arrayPath, newArray);
+				} else {
+					// Create a copy of the array
+					const arrayCopy = [...arrayValue];
+					
+					// Ensure the array has enough items
+					while (arrayCopy.length <= index) {
+						arrayCopy.push({});
+					}
+					
+					// Update the array item
+					if (
+						arrayCopy[index] &&
+						typeof arrayCopy[index] === "object" &&
+						!Array.isArray(arrayCopy[index])
+					) {
+						arrayCopy[index] = {
+							...(arrayCopy[index] as Record<string, InvoiceDataValue>),
+							[fieldName]: value,
+						};
+					} else {
+						arrayCopy[index] = { [fieldName]: value };
+					}
+					
+					setBindingValue(updatedData, arrayPath, arrayCopy);
+				}
+				
+				return updatedData;
+			});
 			return;
 		}
 		
@@ -1042,11 +1051,40 @@ export default function CreateInvoicePage() {
 			pathToUpdate.push(current);
 		}
 
-		// Set the final value
-		current[parts[parts.length - 1]] = value;
-
 		// Update state immediately for responsive typing (formulas will be evaluated in useEffect)
-		setFormData(newData);
+		// Use functional update to avoid stale closures when typing fast
+		setFormData((prev) => {
+			// Only update if the path actually changed to avoid unnecessary re-renders
+			const currentValue = getBindingValue(prev, path);
+			if (currentValue === value) {
+				return prev; // No change, return previous state
+			}
+			
+			// Rebuild from prev to avoid stale closures
+			const updatedData = { ...prev };
+			const pathParts = path.split(".");
+			let current: Record<string, InvoiceDataValue> = updatedData;
+
+			// Navigate to the parent of the target, creating new object references
+			for (let i = 0; i < pathParts.length - 1; i++) {
+				const part = pathParts[i];
+				const next = current[part];
+
+				if (next && typeof next === "object" && !Array.isArray(next)) {
+					current[part] = {
+						...(next as Record<string, InvoiceDataValue>),
+					};
+				} else {
+					current[part] = {};
+				}
+
+				current = current[part] as Record<string, InvoiceDataValue>;
+			}
+
+			// Set the final value
+			current[pathParts[pathParts.length - 1]] = value;
+			return updatedData;
+		});
 
 		// Debounce currency conversion calculations
 		// Check if this is a source field for any linked currency fields

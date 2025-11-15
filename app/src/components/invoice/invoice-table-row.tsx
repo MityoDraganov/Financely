@@ -99,23 +99,30 @@ function TableCellInput({
 
 	const inputRef = useRef<HTMLInputElement>(null);
 	const previousValueRef = useRef<InvoiceDataValue>(cellValue);
+	const isUserTypingRef = useRef(false);
 
 	// Sync local value with prop value only when it changes externally
 	useEffect(() => {
-		if (cellValue !== previousValueRef.current) {
-			const newDisplayValue = (() => {
-				if (col.type === "number" || col.type === "currency") {
-					if (cellValue === null || cellValue === undefined || cellValue === "") {
-						return "";
-					}
-					if (typeof cellValue === "number") {
-						return String(cellValue);
-					}
+		// Skip if user is actively typing
+		if (isUserTypingRef.current) {
+			return;
+		}
+
+		const newDisplayValue = (() => {
+			if (col.type === "number" || col.type === "currency") {
+				if (cellValue === null || cellValue === undefined || cellValue === "") {
+					return "";
+				}
+				if (typeof cellValue === "number") {
 					return String(cellValue);
 				}
-				return String(cellValue ?? "");
-			})();
+				return String(cellValue);
+			}
+			return String(cellValue ?? "");
+		})();
 
+		// Only update if the value actually changed
+		if (newDisplayValue !== localValue) {
 			// Preserve cursor position when updating from external source
 			if (inputRef.current && document.activeElement === inputRef.current) {
 				const cursorPosition = inputRef.current.selectionStart;
@@ -130,16 +137,26 @@ function TableCellInput({
 			} else {
 				setLocalValue(newDisplayValue);
 			}
-			previousValueRef.current = cellValue;
 		}
-	}, [cellValue, col.type]);
+		previousValueRef.current = cellValue;
+	}, [cellValue, col.type, localValue]);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const inputValue = e.target.value;
+		
+		// Mark that user is typing
+		isUserTypingRef.current = true;
+		
 		// Update local state immediately to preserve cursor position
 		setLocalValue(inputValue);
+		
 		// Then call the parent handler
 		onChange(e);
+
+		// Clear the typing flag after a short delay to allow for fast typing
+		setTimeout(() => {
+			isUserTypingRef.current = false;
+		}, 100);
 	};
 
 	return (

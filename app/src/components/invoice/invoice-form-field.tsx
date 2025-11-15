@@ -147,47 +147,59 @@ export function InvoiceFormField({
 
 	const inputRef = useRef<HTMLInputElement>(null);
 	const previousValueRef = useRef<InvoiceDataValue>(value);
+	const isUserTypingRef = useRef(false);
+	const pendingValueRef = useRef<string | null>(null);
 
 	// Sync local value with prop value only when it changes externally (not from user typing)
 	useEffect(() => {
+		// Skip if user is actively typing
+		if (isUserTypingRef.current) {
+			return;
+		}
+
 		// Only update if the value changed externally (not from our own onChange)
-		if (value !== previousValueRef.current) {
-			const newDisplayValue = (() => {
-				if (field.type === "number") {
-					if (value === null || value === undefined || value === "") {
-						return "";
-					}
-					if (typeof value === "number") {
-						return String(value);
-					}
-					return String(value);
-				}
-				if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+		const currentDisplayValue = (() => {
+			if (field.type === "number") {
+				if (value === null || value === undefined || value === "") {
 					return "";
 				}
-				return String(value ?? "");
-			})();
+				if (typeof value === "number") {
+					return String(value);
+				}
+				return String(value);
+			}
+			if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+				return "";
+			}
+			return String(value ?? "");
+		})();
 
+		// Only update if the value actually changed
+		if (currentDisplayValue !== localValue) {
 			// Preserve cursor position when updating from external source
 			if (inputRef.current && document.activeElement === inputRef.current) {
 				const cursorPosition = inputRef.current.selectionStart;
-				setLocalValue(newDisplayValue);
+				setLocalValue(currentDisplayValue);
 				// Restore cursor position after state update
 				setTimeout(() => {
 					if (inputRef.current) {
-						const newPosition = Math.min(cursorPosition ?? 0, newDisplayValue.length);
+						const newPosition = Math.min(cursorPosition ?? 0, currentDisplayValue.length);
 						inputRef.current.setSelectionRange(newPosition, newPosition);
 					}
 				}, 0);
 			} else {
-				setLocalValue(newDisplayValue);
+				setLocalValue(currentDisplayValue);
 			}
-			previousValueRef.current = value;
 		}
-	}, [value, field.type]);
+		previousValueRef.current = value;
+	}, [value, field.type, localValue]);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const inputValue = e.target.value;
+		
+		// Mark that user is typing
+		isUserTypingRef.current = true;
+		pendingValueRef.current = inputValue;
 		
 		// Update local state immediately to preserve cursor position
 		setLocalValue(inputValue);
@@ -225,6 +237,12 @@ export function InvoiceFormField({
 		// Update parent state (non-blocking)
 		onChange(val);
 		previousValueRef.current = val;
+
+		// Clear the typing flag after a short delay to allow for fast typing
+		setTimeout(() => {
+			isUserTypingRef.current = false;
+			pendingValueRef.current = null;
+		}, 100);
 	};
 
 	const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {

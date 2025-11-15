@@ -1,5 +1,6 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { validateInvoiceCompliance } from "@/utils/invoice-compliance";
 
 /**
  * Dynamic invoice data schema.
@@ -241,8 +242,6 @@ export function isInvoiceCompliant(
   data: Record<string, InvoiceDataValue>,
   region: "US" | "EU" | "CA" | "AU" | "UK"
 ): boolean {
-  // Import dynamically to avoid circular dependencies
-  const { validateInvoiceCompliance } = require("@/utils/invoice-compliance");
   const result = validateInvoiceCompliance(data, region);
   return result.valid;
 }

@@ -96,7 +96,7 @@ export function CurrencyConversionManager({
         onRatesChange(newRates);
         toast.success("Exchange rates updated");
       } catch (error) {
-        toast.error("Failed to fetch some exchange rates");
+        toast.error(`Failed to fetch some exchange rates: ${error}`);
       } finally {
         setLoadingRates(new Set());
       }
@@ -128,7 +128,7 @@ export function CurrencyConversionManager({
       });
       toast.success("Rate refreshed");
     } catch (error) {
-      toast.error("Failed to refresh rate");
+      toast.error(`Failed to refresh rate: ${error}`);
     } finally {
       setLoadingRates(prev => {
         const next = new Set(prev);

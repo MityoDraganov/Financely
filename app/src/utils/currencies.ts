@@ -206,12 +206,35 @@ export interface ExchangeRates {
   [currencyCode: string]: number;
 }
 
+// Cache for exchange rates with TTL (Time To Live)
+interface CachedRates {
+  rates: ExchangeRates;
+  timestamp: number;
+  baseCurrency: string;
+}
+
+// In-memory cache: baseCurrency -> CachedRates
+const ratesCache = new Map<string, CachedRates>();
+
+// Cache TTL: 1 hour (3600000 ms)
+// Exchange rates typically update once per day, so 1 hour is reasonable
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 /**
- * Fetch exchange rates from free API
- * Always fetches fresh rates - no caching
+ * Fetch exchange rates from free API with caching
+ * Caches rates for 1 hour to avoid excessive API calls
  * Falls back to a basic conversion if API fails
  */
 export async function fetchExchangeRates(baseCurrency: string = "USD"): Promise<ExchangeRates> {
+  const now = Date.now();
+  const cached = ratesCache.get(baseCurrency);
+
+  // Return cached rates if they're still valid
+  if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+    console.log(`Using cached exchange rates for ${baseCurrency}`);
+    return cached.rates;
+  }
+
   try {
     // Using exchangerate-api.com free tier (no API key needed for basic usage)
     const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${baseCurrency}`);
@@ -223,9 +246,23 @@ export async function fetchExchangeRates(baseCurrency: string = "USD"): Promise<
     const data = await response.json();
     const rates: ExchangeRates = data.rates;
     
+    // Cache the rates
+    ratesCache.set(baseCurrency, {
+      rates,
+      timestamp: now,
+      baseCurrency,
+    });
+
+    console.log(`Fetched and cached exchange rates for ${baseCurrency}`);
     return rates;
   } catch (error) {
     console.warn("Failed to fetch exchange rates, using fallback:", error);
+    
+    // If we have stale cached data, use it as fallback
+    if (cached) {
+      console.log(`Using stale cached rates for ${baseCurrency} as fallback`);
+      return cached.rates;
+    }
     
     // Fallback: return basic rates (1:1 for same currency, 0 for others)
     // In production, you might want to use a different fallback strategy
