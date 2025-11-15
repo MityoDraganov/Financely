@@ -29,7 +29,7 @@ interface InvoiceFormFieldsProps {
 	bindings: BindingField[];
 	formData: Record<string, InvoiceDataValue>;
 	getValue: (path: string) => InvoiceDataValue;
-	setValue: (path: string, value: InvoiceDataValue) => Promise<void>;
+	setValue: (path: string, value: InvoiceDataValue) => void;
 	complianceValidation: ComplianceValidation | null;
 	currentOrganization: Organization | undefined;
 	onAutoFill: (field: { binding: string; label: string }) => void;

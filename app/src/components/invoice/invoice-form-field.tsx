@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatCurrency } from "@/utils/currencies";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
+import { useState, useEffect, useRef } from "react";
 
 interface BindingField {
 	path: string;
@@ -23,8 +24,8 @@ interface BindingField {
 interface InvoiceFormFieldProps {
 	field: BindingField;
 	value: InvoiceDataValue;
-	onChange: (value: InvoiceDataValue) => Promise<void>;
-	onBlur?: (e: React.FocusEvent<HTMLInputElement>) => Promise<void>;
+	onChange: (value: InvoiceDataValue) => void;
+	onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
 	isReadOnly: boolean;
 	isProductLocked: boolean;
 	shouldAutoCalculate?: boolean;
@@ -126,8 +127,8 @@ export function InvoiceFormField({
 		);
 	}
 
-	// Regular input field
-	const displayValue = (() => {
+	// Use local state to preserve cursor position during typing
+	const [localValue, setLocalValue] = useState<string>(() => {
 		if (field.type === "number") {
 			if (value === null || value === undefined || value === "") {
 				return "";
@@ -142,10 +143,55 @@ export function InvoiceFormField({
 			return "";
 		}
 		return String(value ?? "");
-	})();
+	});
 
-	const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const previousValueRef = useRef<InvoiceDataValue>(value);
+
+	// Sync local value with prop value only when it changes externally (not from user typing)
+	useEffect(() => {
+		// Only update if the value changed externally (not from our own onChange)
+		if (value !== previousValueRef.current) {
+			const newDisplayValue = (() => {
+				if (field.type === "number") {
+					if (value === null || value === undefined || value === "") {
+						return "";
+					}
+					if (typeof value === "number") {
+						return String(value);
+					}
+					return String(value);
+				}
+				if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+					return "";
+				}
+				return String(value ?? "");
+			})();
+
+			// Preserve cursor position when updating from external source
+			if (inputRef.current && document.activeElement === inputRef.current) {
+				const cursorPosition = inputRef.current.selectionStart;
+				setLocalValue(newDisplayValue);
+				// Restore cursor position after state update
+				setTimeout(() => {
+					if (inputRef.current) {
+						const newPosition = Math.min(cursorPosition ?? 0, newDisplayValue.length);
+						inputRef.current.setSelectionRange(newPosition, newPosition);
+					}
+				}, 0);
+			} else {
+				setLocalValue(newDisplayValue);
+			}
+			previousValueRef.current = value;
+		}
+	}, [value, field.type]);
+
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const inputValue = e.target.value;
+		
+		// Update local state immediately to preserve cursor position
+		setLocalValue(inputValue);
+
 		let val: InvoiceDataValue;
 
 		if (field.type === "number") {
@@ -176,25 +222,27 @@ export function InvoiceFormField({
 			val = inputValue;
 		}
 
-		await onChange(val);
+		// Update parent state (non-blocking)
+		onChange(val);
+		previousValueRef.current = val;
 	};
 
-	const handleBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+	const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
 		if (field.type === "number") {
 			const inputValue = e.target.value.trim();
 			if (inputValue === "" || inputValue === "-" || inputValue === "." || inputValue === "-.") {
-				await onChange("");
+				onChange("");
 			} else {
 				const numValue = Number(inputValue);
 				if (!isNaN(numValue) && isFinite(numValue)) {
-					await onChange(numValue);
+					onChange(numValue);
 				} else if (inputValue !== "") {
-					await onChange("");
+					onChange("");
 				}
 			}
 		}
 		if (onBlur) {
-			await onBlur(e);
+			onBlur(e);
 		}
 	};
 
@@ -245,9 +293,10 @@ export function InvoiceFormField({
 			</div>
 			<div className="relative">
 				<Input
+					ref={inputRef}
 					id={`binding-${field.path}`}
 					type={field.type}
-					value={displayValue}
+					value={localValue}
 					onChange={handleInputChange}
 					onBlur={handleBlur}
 					placeholder={`Enter ${field.label.toLowerCase()}`}

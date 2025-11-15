@@ -13,6 +13,7 @@ import { formatCurrency } from "@/utils/currencies";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import type { Product } from "@/core/entities/product";
 import type { TemplateElement } from "@/core";
+import { useState, useEffect, useRef } from "react";
 
 interface TableColumn {
 	id: string;
@@ -47,6 +48,124 @@ interface InvoiceTableRowProps {
 		>
 	>;
 	defaultCurrency: string;
+}
+
+// Component for individual table cell input with cursor position preservation
+function TableCellInput({
+	cellKey,
+	cellValue,
+	col,
+	itemsPath,
+	rowIndex,
+	isReadOnly,
+	isQuantityField,
+	hasStockTracking,
+	availableStock,
+	quantityExceedsStock,
+	onChange,
+	onBlur,
+	columnDef,
+	product,
+	defaultCurrency,
+}: {
+	cellKey: string;
+	cellValue: InvoiceDataValue;
+	col: TableColumn;
+	itemsPath: string;
+	rowIndex: number;
+	isReadOnly: boolean;
+	isQuantityField: boolean;
+	hasStockTracking: boolean;
+	availableStock: number | undefined;
+	quantityExceedsStock: boolean;
+	onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+	onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+	columnDef?: { currency?: string };
+	product?: Product;
+	defaultCurrency: string;
+}) {
+	const [localValue, setLocalValue] = useState<string>(() => {
+		if (col.type === "number" || col.type === "currency") {
+			if (cellValue === null || cellValue === undefined || cellValue === "") {
+				return "";
+			}
+			if (typeof cellValue === "number") {
+				return String(cellValue);
+			}
+			return String(cellValue);
+		}
+		return String(cellValue ?? "");
+	});
+
+	const inputRef = useRef<HTMLInputElement>(null);
+	const previousValueRef = useRef<InvoiceDataValue>(cellValue);
+
+	// Sync local value with prop value only when it changes externally
+	useEffect(() => {
+		if (cellValue !== previousValueRef.current) {
+			const newDisplayValue = (() => {
+				if (col.type === "number" || col.type === "currency") {
+					if (cellValue === null || cellValue === undefined || cellValue === "") {
+						return "";
+					}
+					if (typeof cellValue === "number") {
+						return String(cellValue);
+					}
+					return String(cellValue);
+				}
+				return String(cellValue ?? "");
+			})();
+
+			// Preserve cursor position when updating from external source
+			if (inputRef.current && document.activeElement === inputRef.current) {
+				const cursorPosition = inputRef.current.selectionStart;
+				setLocalValue(newDisplayValue);
+				// Restore cursor position after state update
+				setTimeout(() => {
+					if (inputRef.current) {
+						const newPosition = Math.min(cursorPosition ?? 0, newDisplayValue.length);
+						inputRef.current.setSelectionRange(newPosition, newPosition);
+					}
+				}, 0);
+			} else {
+				setLocalValue(newDisplayValue);
+			}
+			previousValueRef.current = cellValue;
+		}
+	}, [cellValue, col.type]);
+
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const inputValue = e.target.value;
+		// Update local state immediately to preserve cursor position
+		setLocalValue(inputValue);
+		// Then call the parent handler
+		onChange(e);
+	};
+
+	return (
+		<Input
+			ref={inputRef}
+			id={`${itemsPath}-${rowIndex}-${col.binding}`}
+			type={col.type === "currency" ? "number" : col.type}
+			max={
+				isQuantityField && hasStockTracking && availableStock !== undefined
+					? availableStock
+					: undefined
+			}
+			value={localValue}
+			onChange={handleInputChange}
+			onBlur={onBlur}
+			placeholder={`Enter ${col.header.toLowerCase()}`}
+			readOnly={isReadOnly}
+			className={`${
+				isReadOnly ? "bg-muted cursor-not-allowed" : ""
+			} ${
+				quantityExceedsStock
+					? "border-red-500 focus-visible:ring-red-500"
+					: ""
+			}`}
+		/>
+	);
 }
 
 export function InvoiceTableRow({
@@ -238,22 +357,6 @@ export function InvoiceTableRow({
 						quantityValue > availableStock;
 
 					const cellValue = row[col.binding];
-					const displayValue = (() => {
-						if (col.type === "number" || col.type === "currency") {
-							if (
-								cellValue === null ||
-								cellValue === undefined ||
-								cellValue === ""
-							) {
-								return "";
-							}
-							if (typeof cellValue === "number") {
-								return String(cellValue);
-							}
-							return String(cellValue);
-						}
-						return String(cellValue ?? "");
-					})();
 
 					return (
 						<div key={col.id} className="space-y-2">
@@ -325,30 +428,22 @@ export function InvoiceTableRow({
 								</Label>
 							</div>
 							<div className="relative">
-								<Input
-									id={`${itemsPath}-${rowIndex}-${col.binding}`}
-									type={
-										col.type === "currency" ? "number" : col.type
-									}
-									max={
-										isQuantityField &&
-										hasStockTracking &&
-										availableStock !== undefined
-											? availableStock
-											: undefined
-									}
-									value={displayValue}
+								<TableCellInput
+									cellKey={`${itemsPath}-${rowIndex}-${col.binding}`}
+									cellValue={cellValue}
+									col={col}
+									itemsPath={itemsPath}
+									rowIndex={rowIndex}
+									isReadOnly={isReadOnly}
+									isQuantityField={isQuantityField}
+									hasStockTracking={hasStockTracking}
+									availableStock={availableStock}
+									quantityExceedsStock={quantityExceedsStock}
 									onChange={(e) => handleCellChange(col.binding, e)}
 									onBlur={(e) => handleCellBlur(col.binding, e)}
-									placeholder={`Enter ${col.header.toLowerCase()}`}
-									readOnly={isReadOnly}
-									className={`${
-										isReadOnly ? "bg-muted cursor-not-allowed" : ""
-									} ${
-										quantityExceedsStock
-											? "border-red-500 focus-visible:ring-red-500"
-											: ""
-									}`}
+									columnDef={columnDef}
+									product={product}
+									defaultCurrency={defaultCurrency}
 								/>
 								{isProductLocked && (
 									<TooltipProvider>

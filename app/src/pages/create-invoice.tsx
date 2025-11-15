@@ -853,32 +853,53 @@ export default function CreateInvoicePage() {
 		return updatedData;
 	}, [selectedTemplate, tableColumnCurrencyLinks, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
 
-	// Formula evaluation: evaluate all formulas when formData changes
+	// Formula evaluation: debounced to avoid blocking typing
+	// Use a ref to track the debounce timer
+	const formulaEvaluationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	
 	useEffect(() => {
 		if (!selectedTemplate || !formData) return;
 
-		const { data: updatedData, updatedFields } = evaluateFormulas(formData);
-		
-		// Only update if there are changes (compare by serializing to avoid unnecessary updates)
-		const hasChanges = JSON.stringify(updatedData) !== JSON.stringify(formData);
-		if (hasChanges) {
-			setFormData(updatedData);
-			
-			// Update linked currency fields for all fields that were updated by formulas
-			if (updatedFields.length > 0) {
-				// Process currency conversions asynchronously
-				(async () => {
-					let finalData = updatedData;
-					for (const { binding, value } of updatedFields) {
-						finalData = await updateLinkedCurrencyFields(finalData, binding, value);
-					}
-					// Only update if currency conversions changed anything
-					if (JSON.stringify(finalData) !== JSON.stringify(updatedData)) {
-						setFormData(finalData);
-					}
-				})();
-			}
+		// Clear existing timer
+		if (formulaEvaluationTimerRef.current) {
+			clearTimeout(formulaEvaluationTimerRef.current);
 		}
+
+		// Debounce formula evaluation to avoid blocking typing
+		formulaEvaluationTimerRef.current = setTimeout(() => {
+			// Use startTransition to make this non-blocking
+			startTransition(() => {
+				const { data: updatedData, updatedFields } = evaluateFormulas(formData);
+				
+				// Only update if there are changes (compare by serializing to avoid unnecessary updates)
+				const hasChanges = JSON.stringify(updatedData) !== JSON.stringify(formData);
+				if (hasChanges) {
+					setFormData(updatedData);
+					
+					// Update linked currency fields for all fields that were updated by formulas
+					if (updatedFields.length > 0) {
+						// Process currency conversions asynchronously (fire and forget)
+						(async () => {
+							let finalData = updatedData;
+							for (const { binding, value } of updatedFields) {
+								finalData = await updateLinkedCurrencyFields(finalData, binding, value);
+							}
+							// Only update if currency conversions changed anything
+							if (JSON.stringify(finalData) !== JSON.stringify(updatedData)) {
+								setFormData(finalData);
+							}
+						})();
+					}
+				}
+			});
+		}, 150); // 150ms debounce - short enough to feel responsive, long enough to avoid blocking
+
+		// Cleanup timer on unmount or when dependencies change
+		return () => {
+			if (formulaEvaluationTimerRef.current) {
+				clearTimeout(formulaEvaluationTimerRef.current);
+			}
+		};
 	}, [formData, selectedTemplate, evaluateFormulas, updateLinkedCurrencyFields]);
 
 	// Real-time compliance validation
@@ -938,10 +959,10 @@ export default function CreateInvoicePage() {
 	);
 
 	// Set value at nested path (creates new references at each level for proper React re-rendering)
-	const setValue = useCallback(async (
+	const setValue = useCallback((
 		path: string,
 		value: InvoiceDataValue
-	): Promise<void> => {
+	): void => {
 		// Handle array indices in path (e.g., "items[0].quantity")
 		const arrayIndexMatch = path.match(/^(.+)\[(\d+)\]\.(.+)$/);
 		
@@ -989,16 +1010,8 @@ export default function CreateInvoicePage() {
 				setBindingValue(newData, arrayPath, arrayCopy);
 			}
 			
-			// Evaluate formulas immediately after updating the value
-			console.log("setValue: Evaluating formulas for array path", path, "with data:", newData);
-			const dataWithFormulas = evaluateFormulas(newData);
-			console.log("setValue: Formulas evaluated, result:", dataWithFormulas);
-			
-			// Use startTransition to mark state update as non-urgent for better typing performance
-			startTransition(() => {
-				setFormData(dataWithFormulas);
-			});
-			
+			// Update state immediately for responsive typing (formulas will be evaluated in useEffect)
+			setFormData(newData);
 			return;
 		}
 		
@@ -1032,30 +1045,8 @@ export default function CreateInvoicePage() {
 		// Set the final value
 		current[parts[parts.length - 1]] = value;
 
-		// Evaluate formulas immediately after updating the value
-		// This ensures calculated fields update in real-time when any input changes
-		console.log("setValue: Evaluating formulas for path", path, "with data:", newData);
-		const { data: dataWithFormulas, updatedFields } = evaluateFormulas(newData);
-		console.log("setValue: Formulas evaluated, result:", dataWithFormulas);
-
-		// Use startTransition to mark state update as non-urgent for better typing performance
-		startTransition(() => {
-			setFormData(dataWithFormulas);
-		});
-		
-		// Update linked currency fields for all fields that were updated by formulas
-		if (updatedFields.length > 0) {
-			(async () => {
-				let finalData = dataWithFormulas;
-				for (const { binding, value } of updatedFields) {
-					finalData = await updateLinkedCurrencyFields(finalData, binding, value);
-				}
-				// Only update if currency conversions changed anything
-				if (JSON.stringify(finalData) !== JSON.stringify(dataWithFormulas)) {
-					setFormData(finalData);
-				}
-			})();
-		}
+		// Update state immediately for responsive typing (formulas will be evaluated in useEffect)
+		setFormData(newData);
 
 		// Debounce currency conversion calculations
 		// Check if this is a source field for any linked currency fields
@@ -1179,7 +1170,7 @@ export default function CreateInvoicePage() {
 				});
 			}, 500); // 500ms debounce delay
 		}
-	}, [formData, selectedTemplate, evaluateFormulas, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue, updateLinkedCurrencyFields]);
+	}, [formData, selectedTemplate, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
 
 	// Handle product selection for a specific table row
 	const handleProductSelectForRow = useCallback(
