@@ -659,6 +659,7 @@ function ManualProposalDialog({
       terms: terms || undefined,
       notes: notes || undefined,
       aiGenerated: false, // Manual proposal creation
+      isIncomplete: false,
     };
 
     try {

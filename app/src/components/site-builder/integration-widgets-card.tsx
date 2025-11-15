@@ -15,14 +15,13 @@
  * for each widget type (ContactFormWidgetConfig, InvoiceRequestWidgetConfig, etc.)
  */
 
-import { Settings2, Sparkles, Loader2 } from "lucide-react";
+import { Settings2, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WidgetEnableToggle } from "./widget-enable-toggle";
 import { WidgetVersionHistory } from "./widget-version-history";
 import { EmbedScriptSection } from "./embed-script-section";
 import type {
-  WidgetPosition,
   WidgetStyling,
   WidgetLocalization,
   BuiltInFields,
@@ -85,7 +84,7 @@ interface IntegrationWidgetsCardProps {
   widgetVersions: WidgetVersion[];
   currentWidgetVersion: number | null;
   onPreviewWidgetVersion: (version: WidgetVersion) => void;
-  onRestoreWidgetVersion: (version: number) => void;
+  onRestoreWidgetVersion: (version: number) => Promise<void>;
   isRestoringWidgetVersion: boolean;
 
   // Embed script
@@ -160,7 +159,10 @@ export function IntegrationWidgetsCard({
 
               {widgetVersions.length > 0 && (
                 <WidgetVersionHistory
-                  versions={widgetVersions}
+                  versions={widgetVersions.map(v => ({
+                    ...v,
+                    createdAt: v.createdAt ?? new Date().toISOString(),
+                  }))}
                   currentVersion={currentWidgetVersion}
                   onPreviewVersion={onPreviewWidgetVersion}
                   onRestoreVersion={onRestoreWidgetVersion}

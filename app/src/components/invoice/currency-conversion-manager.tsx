@@ -63,7 +63,6 @@ export function CurrencyConversionManager({
       const toFetch: Array<{ from: string; to: string }> = [];
       
       for (const pair of currencyPairs) {
-        const pairKey = `${pair.from}-${pair.to}`;
         const existing = rates.find(r => 
           r.fromCurrency === pair.from && 
           r.toCurrency === pair.to &&

@@ -47,7 +47,6 @@ export function TemplateSidebar({
 	templates,
 	currentTemplate,
 	state,
-	onStateChange,
 	onCreateNewTemplate,
 	onOpenAIBuilder,
 	onAddElement,
@@ -343,7 +342,9 @@ export function TemplateSidebar({
 														} else if (el.type === "line") {
 															return "Line";
 														}
-														return `Element ${el.id.slice(0, 6)}`;
+														// Fallback for any other element type
+														const element = el as TemplateElement;
+														return `Element ${element.id.slice(0, 6)}`;
 													})()}
 												</span>
 											</div>

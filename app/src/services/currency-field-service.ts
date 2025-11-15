@@ -5,29 +5,44 @@
 
 // Use decimal.js if available, otherwise fallback to native Number
 // Install with: npm install decimal.js
-let Decimal: typeof import("decimal.js").default;
+type DecimalType = {
+  new (value: number | string): DecimalInstance;
+  set(config: { precision?: number; rounding?: number }): void;
+  ROUND_HALF_EVEN: number;
+};
+
+type DecimalInstance = {
+  value: number;
+  times(other: DecimalInstance | number): DecimalInstance;
+  dividedBy(other: DecimalInstance | number): DecimalInstance;
+  pow(exponent: number): DecimalInstance;
+  round(): DecimalInstance;
+  toNumber(): number;
+};
+
+let Decimal: DecimalType;
 try {
   Decimal = require("decimal.js").default;
 } catch {
   // Fallback: create a simple Decimal-like wrapper
-  Decimal = class {
-    private value: number;
+  class DecimalWrapper implements DecimalInstance {
+    value: number;
     constructor(value: number | string) {
       this.value = typeof value === "string" ? parseFloat(value) : value;
     }
-    times(other: Decimal | number): Decimal {
-      const otherValue = other instanceof Decimal ? other.value : other;
-      return new Decimal(this.value * otherValue);
+    times(other: DecimalInstance | number): DecimalInstance {
+      const otherValue = other instanceof DecimalWrapper ? other.value : (typeof other === "number" ? other : other.value);
+      return new DecimalWrapper(this.value * otherValue);
     }
-    dividedBy(other: Decimal | number): Decimal {
-      const otherValue = other instanceof Decimal ? other.value : other;
-      return new Decimal(this.value / otherValue);
+    dividedBy(other: DecimalInstance | number): DecimalInstance {
+      const otherValue = other instanceof DecimalWrapper ? other.value : (typeof other === "number" ? other : other.value);
+      return new DecimalWrapper(this.value / otherValue);
     }
-    pow(exponent: number): Decimal {
-      return new Decimal(Math.pow(this.value, exponent));
+    pow(exponent: number): DecimalInstance {
+      return new DecimalWrapper(Math.pow(this.value, exponent));
     }
-    round(): Decimal {
-      return new Decimal(Math.round(this.value));
+    round(): DecimalInstance {
+      return new DecimalWrapper(Math.round(this.value));
     }
     toNumber(): number {
       return this.value;
@@ -35,8 +50,9 @@ try {
     static set(_config: { precision?: number; rounding?: number }): void {
       // No-op fallback
     }
-    static ROUND_HALF_EVEN = 2;
-  } as any;
+  };
+  (DecimalWrapper as unknown as { ROUND_HALF_EVEN: number }).ROUND_HALF_EVEN = 2;
+  Decimal = DecimalWrapper as unknown as DecimalType;
 }
 import type {
   CurrencyValue,

@@ -24,6 +24,7 @@ export const useGenerateProposalSuggestion = () => {
         status: (result.status === "DRAFT" || result.status === "SENT" || result.status === "ACCEPTED" || result.status === "REJECTED" || result.status === "EXPIRED")
           ? result.status as typeof PROPOSAL_STATUSES[keyof typeof PROPOSAL_STATUSES]
           : PROPOSAL_STATUSES.DRAFT,
+        isIncomplete: ("isIncomplete" in result && typeof result.isIncomplete === "boolean") ? result.isIncomplete : false,
       };
     },
   });

@@ -69,8 +69,6 @@ export function DesignerCanvas({
 	onCreateTemplate,
 	isRequired,
 	onTableHeaderChange,
-	currentTemplateRef,
-	saveMutation,
 }: DesignerCanvasProps) {
 	const elements = draftElements ?? template?.elements ?? [];
 
@@ -112,7 +110,7 @@ export function DesignerCanvas({
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onMouseMove={onMouseMove}
-				onClick={(e) => {
+				onClick={() => {
 					// Deselect if clicking on empty space
 					// Elements stop propagation, so if we reach here, it's empty space
 					// Just deselect - elements will have already handled their own clicks

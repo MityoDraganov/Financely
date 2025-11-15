@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { languages, type Language, searchLanguages } from "@/utils/languages";
+import { languages, searchLanguages } from "@/utils/languages";
 
 interface LanguageSelectorProps {
   value?: string;

@@ -145,7 +145,10 @@ export class FormulaService {
 				const evaluatedArgs = args.map((arg) =>
 					this.evaluateExpression(arg.trim(), formData, elements, elementValues)
 				);
-				return FORMULA_FUNCTIONS[functionName](...evaluatedArgs) as number;
+				// Type assertion for spread operator - functions accept number[] and return number or unknown
+				const func = FORMULA_FUNCTIONS[functionName] as (...args: number[]) => number | unknown;
+				const result = func(...evaluatedArgs);
+				return Number(result) || 0;
 			}
 		}
 

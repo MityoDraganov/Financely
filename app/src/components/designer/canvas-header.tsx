@@ -29,7 +29,6 @@ export function CanvasHeader({
 	isSubscribed,
 	activeUsers,
 	onTemplateChange,
-	onCreateNewTemplate,
 	onZoomChange,
 }: CanvasHeaderProps) {
 	return (
