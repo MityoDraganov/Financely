@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Search, Edit, Trash2, Mail, Phone, Building, MoreHorizontal, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -295,11 +295,11 @@ export default function ContactsPage() {
 
   if (isLoadingContacts) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-            <p className="text-muted-foreground">Manage your customer contacts</p>
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-0.5">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Contacts</h1>
+            <p className="text-sm text-muted-foreground">Manage your customer contacts</p>
           </div>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -310,7 +310,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
@@ -324,7 +324,7 @@ export default function ContactsPage() {
               Add Contact
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Contact</DialogTitle>
               <DialogDescription>
@@ -332,7 +332,7 @@ export default function ContactsPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(handleCreateContact)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
                   <Input
@@ -349,7 +349,7 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email *</Label>
                   <Input
@@ -367,7 +367,7 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="company">Company</Label>
                   <Input
@@ -426,155 +426,234 @@ export default function ContactsPage() {
       </div>
 
       {/* Search and Stats */}
-      <div className="flex items-center justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             placeholder="Search contacts..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-9 h-9"
           />
         </div>
-        <div className="flex items-center space-x-4">
-          <Card className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{displayedContacts.length}</span>
-              <span className="text-sm text-muted-foreground">contacts</span>
-            </div>
-          </Card>
-        </div>
+        <Card className="p-2.5 sm:p-3 shrink-0">
+          <div className="flex items-center space-x-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{displayedContacts.length}</span>
+            <span className="text-sm text-muted-foreground hidden sm:inline">contacts</span>
+          </div>
+        </Card>
       </div>
 
-      {/* Contacts Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Contacts</CardTitle>
-          <CardDescription>
-            {searchTerm.trim() 
-              ? `Found ${searchResults.length} contacts matching "${searchTerm}"`
-              : `Showing all ${contacts.length} contacts`
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {displayedContacts.length === 0 ? (
-            <div className="text-center py-8">
-              <User className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-sm font-semibold text-gray-900">No contacts</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {searchTerm.trim() 
-                  ? "No contacts match your search criteria."
-                  : "Get started by creating your first contact."
-                }
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayedContacts.map((contact) => {
-                  // Handle both direct data structure and nested data structure
-                  const contactData = contact.data || contact;
-                  
-                  // Debug logging to understand the data structure
-                  console.log('Contact object:', contact);
-                  console.log('Contact data:', contactData);
-                  
-                  // Safety check to ensure contact has required properties
-                  if (!contact || !contact.id) {
-                    console.warn('Invalid contact object:', contact);
-                    return null;
-                  }
-                  
-                  return (
-                    <TableRow key={contact.id}>
-                      <TableCell className="font-medium">
-                        {contactData.firstName || ''} {contactData.lastName || ''}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span>{contactData.email || ''}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {contactData.company && (
-                          <div className="flex items-center space-x-2">
-                            <Building className="h-4 w-4 text-muted-foreground" />
-                            <span>{contactData.company}</span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(contactData.status || 'lead')}>
-                          {contactData.status || 'lead'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const phones = Array.isArray(contactData.phone)
-                            ? contactData.phone
-                            : contactData.phone
-                            ? [contactData.phone]
-                            : [];
-                          return phones.length > 0 ? (
-                            <div className="flex flex-col gap-1">
-                              {phones.map((phone, idx) => (
-                                <div key={idx} className="flex items-center space-x-2">
-                                  <Phone className="h-4 w-4 text-muted-foreground" />
-                                  <span>{phone}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null;
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditDialog(contact)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => setDeleteContactId(contact.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+      {/* Contacts List */}
+      {displayedContacts.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-8">
+            <User className="mx-auto h-10 w-10 text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-semibold">No contacts</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {searchTerm.trim() 
+                ? "No contacts match your search criteria."
+                : "Get started by creating your first contact."
+              }
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <Card className="hidden md:block">
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedContacts.map((contact) => {
+                      const contactData = contact.data || contact;
+                      
+                      if (!contact || !contact.id) {
+                        return null;
+                      }
+                      
+                      return (
+                        <TableRow key={contact.id}>
+                          <TableCell className="font-medium">
+                            {contactData.firstName || ''} {contactData.lastName || ''}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span>{contactData.email || ''}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {contactData.company && (
+                              <div className="flex items-center space-x-2">
+                                <Building className="h-4 w-4 text-muted-foreground" />
+                                <span>{contactData.company}</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(contactData.status || 'lead')}>
+                              {contactData.status || 'lead'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const phones = Array.isArray(contactData.phone)
+                                ? contactData.phone
+                                : contactData.phone
+                                ? [contactData.phone]
+                                : [];
+                              return phones.length > 0 ? (
+                                <div className="flex flex-col gap-1">
+                                  {phones.map((phone, idx) => (
+                                    <div key={idx} className="flex items-center space-x-2">
+                                      <Phone className="h-4 w-4 text-muted-foreground" />
+                                      <span>{phone}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null;
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(contact)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => setDeleteContactId(contact.id)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3 pt-5">
+            {displayedContacts.map((contact) => {
+              const contactData = contact.data || contact;
+              
+              if (!contact || !contact.id) {
+                return null;
+              }
+
+              const phones = Array.isArray(contactData.phone)
+                ? contactData.phone
+                : contactData.phone
+                ? [contactData.phone]
+                : [];
+
+              return (
+                <Card key={contact.id} className="p-3">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm truncate">
+                          {contactData.firstName || ''} {contactData.lastName || ''}
+                        </h3>
+                        {contactData.company && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {contactData.company}
+                          </p>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditDialog(contact)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => setDeleteContactId(contact.id)}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {contactData.email && (
+                        <div className="flex items-center space-x-2">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{contactData.email}</span>
+                        </div>
+                      )}
+                      {phones.length > 0 && (
+                        <div className="flex items-center space-x-2">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span>{phones[0]}</span>
+                          {phones.length > 1 && (
+                            <span className="text-muted-foreground">+{phones.length - 1} more</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <Badge className={getStatusColor(contactData.status || 'lead')} variant="outline">
+                        {contactData.status || 'lead'}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEditDialog(contact)}
+                        className="h-7 text-xs"
+                      >
+                        <Edit className="h-3.5 w-3.5 mr-1.5" />
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Edit Contact Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Contact</DialogTitle>
             <DialogDescription>
@@ -582,7 +661,7 @@ export default function ContactsPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(handleUpdateContact)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-firstName">First Name *</Label>
                 <Input
@@ -599,7 +678,7 @@ export default function ContactsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-email">Email *</Label>
                 <Input
@@ -617,7 +696,7 @@ export default function ContactsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-company">Company</Label>
                 <Input

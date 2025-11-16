@@ -1,7 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemplateElement } from "@/core";
-import { typography, spacing, separators, components } from "../design-system";
+import { typography, separators, components } from "../design-system";
 
 interface LineElementProps {
 	element: Extract<TemplateElement, { type: "line" }>;

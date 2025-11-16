@@ -7,6 +7,19 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import {
+	Drawer,
+	DrawerContent,
+} from "@/components/ui/drawer";
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	TabsContent,
+} from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Menu, Settings } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
@@ -27,6 +40,9 @@ import { DesignerCanvas } from "@/components/designer/designer-canvas";
 import { PropertiesPanel } from "@/components/designer/properties-panel";
 import { AIBuilderDialog } from "@/components/designer/ai-builder-dialog";
 import type { DesignerState, DragState, SnapGuide } from "@/components/designer/designer-types";
+import { useDesignerTemplate } from "@/contexts/designer-template-context";
+import { useTemplateVersions, useSaveTemplateVersion, useRestoreTemplateVersion } from "@/hooks/repository-hooks/use-template-versions";
+import { useUser } from "@clerk/clerk-react";
 
 export default function TemplateDesignerPage() {
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -45,58 +61,55 @@ export default function TemplateDesignerPage() {
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
-	const { data: templates = [], isSubscribed } = useTemplates(orgId);
+	const designerTemplateContext = useDesignerTemplate();
+	const templates = useMemo(() => designerTemplateContext?.templates ?? [], [designerTemplateContext?.templates]);
+	const contextCurrentTemplateId = designerTemplateContext?.currentTemplateId;
+	const setContextCurrentTemplateId = designerTemplateContext?.setCurrentTemplateId ?? (() => {});
+	const contextOnTemplateChange = designerTemplateContext?.onTemplateChange ?? (() => {});
+	const contextHandleCreateNewTemplate = designerTemplateContext?.onCreateNewTemplate ?? (() => {});
+	const { isSubscribed } = useTemplates(orgId);
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
+	const { user: clerkUser } = useUser();
 	const createTemplate = useCreateTemplate();
 	const generateTemplate = useGenerateInvoiceTemplate();
+	const isMobile = useMediaQuery("(max-width: 768px)");
+	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+	const [mobilePanelTab, setMobilePanelTab] = useState<"elements" | "properties">("elements");
+	
+	// Version history hooks
+	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
+	const { data: versions = [], error: versionsError, isLoading: isLoadingVersions } = useTemplateVersions(templateId);
+	console.log("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
+	const saveVersion = useSaveTemplateVersion();
+	const restoreVersion = useRestoreTemplateVersion();
+	
+	// Determine current version (latest version number)
+	const currentVersion = versions.length > 0 ? versions[0].version : null;
 
-	// Handler for creating a new template
-	const handleCreateNewTemplate = async () => {
-		// Detect region from organization for compliance
-		const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
-		
-		// Generate unique template name
-		const uniqueName = generateUniqueTemplateName("New Template", templates);
-		
-		const templateData: TemplateData = {
-			orgId,
-			name: uniqueName,
-			description: "A new template",
-			pageSize: "A4",
-			brand: {
-				colors: {
-					primary: "#000000",
-					secondary: "#666666",
-					accent: "#2563eb",
-				},
-				backgroundImage: "",
-				margins: { top: 40, right: 40, bottom: 40, left: 40 },
-				fonts: ["Inter"],
-			},
-			elements: [],
-			status: "draft",
-			// Set compliance metadata based on organization region
-			compliance: {
-				region,
-				requiredFields: [],
-				autoFooter: true,
-				complianceValidated: false,
-			},
-		};
-		
-		try {
-			const newTemplateId = await createTemplate.mutateAsync(templateData);
-			setState((s: DesignerState) => ({
-				...s,
-				currentTemplateId: newTemplateId,
-			}));
-			// Navigate to the new template's URL
-			navigate(`/designer/${newTemplateId}`, { replace: true });
-		} catch (error) {
-			console.error("Failed to create template:", error);
+	// Prevent body scroll when mobile panel is open
+	useEffect(() => {
+		if (isMobile && mobilePanelOpen) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "";
 		}
-	};
+		return () => {
+			document.body.style.overflow = "";
+		};
+	}, [isMobile, mobilePanelOpen]);
+
+	// Cleanup version creation timer on unmount or template change
+	useEffect(() => {
+		return () => {
+			if (versionCreationTimerRef.current) {
+				clearTimeout(versionCreationTimerRef.current);
+			}
+		};
+	}, [templateId]);
+
+	// Handler for creating a new template - now uses context
+	const handleCreateNewTemplate = contextHandleCreateNewTemplate;
 
 	console.log(
 		"templates",
@@ -108,7 +121,9 @@ export default function TemplateDesignerPage() {
 	);
 
 	const currentTemplate = useMemo(() => {
-		const template = templates.find((t: Template) => t.id === state.currentTemplateId) ?? templates[0];
+		// Use context's currentTemplateId if available, otherwise fall back to state
+		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
+		const template = templates.find((t: Template) => t.id === templateId) ?? templates[0];
 		if (!template) return undefined;
 		
 		// Merge draft state for optimistic UI updates
@@ -117,7 +132,7 @@ export default function TemplateDesignerPage() {
 			elements: draftElements ?? template.elements ?? [],
 			brand: draftBrand ?? template.brand,
 		} as Template;
-	}, [templates, state.currentTemplateId, draftElements, draftBrand]);
+	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements, draftBrand]);
 
 	// Compliance validation for current template
 	const complianceStatus = useMemo(() => {
@@ -340,12 +355,13 @@ export default function TemplateDesignerPage() {
 		}));
 	}, [state.currentTemplateId]);
 
-	// Initialize template from URL param or auto-create new template
+	// Sync context currentTemplateId with state and URL
 	useEffect(() => {
 		if (templateIdFromUrl) {
-			// Template ID from URL - set it if it exists in templates
+			// Template ID from URL - set it in context if it exists in templates
 			const templateExists = templates.some((t: Template) => t.id === templateIdFromUrl);
-			if (templateExists && state.currentTemplateId !== templateIdFromUrl) {
+			if (templateExists && contextCurrentTemplateId !== templateIdFromUrl) {
+				setContextCurrentTemplateId(templateIdFromUrl);
 				setState((s: DesignerState) => ({
 					...s,
 					currentTemplateId: templateIdFromUrl,
@@ -354,18 +370,27 @@ export default function TemplateDesignerPage() {
 				// Template not found, redirect to templates list
 				navigate("/templates");
 			}
-		} else if (!state.currentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
+		} else if (!contextCurrentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
 			// No template ID in URL and no template selected - auto-create a new one
-			// This handles the case when user clicks "Create New Template" from templates page
-			handleCreateNewTemplate().catch((error) => {
-				console.error("Failed to auto-create template:", error);
-				// If creation fails, redirect back to templates
-				navigate("/templates");
-			});
+			handleCreateNewTemplate();
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [templates, state.currentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
+	}, [templates, contextCurrentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
+	
+	// Sync state.currentTemplateId with context
+	useEffect(() => {
+		if (contextCurrentTemplateId && state.currentTemplateId !== contextCurrentTemplateId) {
+			setState((s: DesignerState) => ({
+				...s,
+				currentTemplateId: contextCurrentTemplateId,
+			}));
+		}
+	}, [contextCurrentTemplateId, state.currentTemplateId]);
 
+
+	// Ref to track version creation debounce timer
+	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const lastSavedElementsRef = useRef<string>("");
 
 	const saveMutation = useMutation({
 		mutationFn: async (partial: Partial<TemplateData>) => {
@@ -410,10 +435,40 @@ export default function TemplateDesignerPage() {
 				}
 			}
 		},
-		onSuccess: () => {
+		onSuccess: async (_, partial) => {
 			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
 			// Clear draft brand after successful save (real-time update will handle it)
 			setTimeout(() => setDraftBrand(null), 100);
+
+			// Auto-create version when elements are changed
+			if (partial.elements && currentTemplate && templateId && clerkUser?.id) {
+				const elementsStr = JSON.stringify(partial.elements);
+				
+				// Only create version if elements actually changed
+				if (elementsStr !== lastSavedElementsRef.current) {
+					lastSavedElementsRef.current = elementsStr;
+
+					// Clear existing timer
+					if (versionCreationTimerRef.current) {
+						clearTimeout(versionCreationTimerRef.current);
+					}
+
+					// Debounce version creation to avoid creating too many versions
+					// Wait 2 seconds after the last change before creating a version
+					versionCreationTimerRef.current = setTimeout(async () => {
+						try {
+							await saveVersion.mutateAsync({
+								templateId,
+								userId: clerkUser.id,
+								description: "Auto-saved version",
+							});
+						} catch (error) {
+							console.error("Failed to auto-create version:", error);
+							// Don't show error toast for auto-save failures
+						}
+					}, 2000);
+				}
+			}
 		},
 		onError: () => {
 			// Revert draft brand on error
@@ -1126,144 +1181,263 @@ export default function TemplateDesignerPage() {
 		};
 	}, [drag, state.zoom, saveMutation]);
 
+	const sidebarContent = (
+		<TemplateSidebar
+			templates={templates}
+			currentTemplate={currentTemplate}
+			state={state}
+			onStateChange={setState}
+			onCreateNewTemplate={handleCreateNewTemplate}
+			onOpenAIBuilder={() => {
+				setAiBuilderOpen(true);
+				if (isMobile) {
+					setMobilePanelOpen(false);
+				}
+			}}
+			onAddElement={addElement}
+			onSelectElement={(id) => {
+				setState((s) => ({ ...s, selectedElementId: id }));
+				if (isMobile) {
+					setMobilePanelTab("properties");
+					setMobilePanelOpen(true);
+				}
+			}}
+			onDuplicateElement={duplicateElement}
+			onDeleteElement={deleteElement}
+			missingRequiredFields={missingRequiredFields}
+			onAddRequiredElement={addRequiredElement}
+			isRequired={isRequired}
+		/>
+	);
+
+	const propertiesContent = (
+		<PropertiesPanel
+			template={currentTemplate}
+			selectedElementId={state.selectedElementId}
+			draftElements={draftElements}
+			organization={currentOrg ?? undefined}
+			complianceStatus={complianceStatus}
+			saveMutation={saveMutation}
+			onUpdateElement={updateSelected}
+			onAddRequiredElement={addRequiredElement}
+			determineElementTypeForBinding={determineElementTypeForBinding}
+			templateId={templateId}
+			versions={versions}
+			currentVersion={currentVersion}
+			onRestoreVersion={async (version: number) => {
+				if (!templateId) return;
+				await restoreVersion.mutateAsync({
+					templateId,
+					version,
+				});
+			}}
+			isRestoringVersion={restoreVersion.isPending}
+			currentUserId={clerkUser?.id}
+		/>
+	);
+
+	const canvasContent = (
+		<div className="h-full flex flex-col overflow-hidden">
+			<CanvasHeader
+				templates={templates}
+				currentTemplate={currentTemplate}
+				state={state}
+				isSubscribed={isSubscribed}
+				activeUsers={activeUsers}
+				onTemplateChange={async (id: string) => {
+					// Reset draft state when switching templates
+					setDraftElements(null);
+					setDraftBrand(null);
+					setState((s) => ({ ...s, selectedElementId: undefined }));
+					// Use context handler
+					await contextOnTemplateChange(id);
+				}}
+				onCreateNewTemplate={handleCreateNewTemplate}
+				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
+				isMobile={isMobile}
+			/>
+			<div className="flex-1 overflow-hidden">
+				<DesignerCanvas
+					template={currentTemplate}
+					draftElements={draftElements}
+					state={state}
+					drag={drag}
+					snapGuides={snapGuides}
+					activeUsers={activeUsers}
+					currentUserId={authUser?.uid}
+					pageRef={pageRef}
+					onDragOver={handleCanvasDragOver}
+					onDrop={handleCanvasDrop}
+					onMouseMove={(e) => {
+						if (!state.currentTemplateId) return;
+						const rect = pageRef.current?.getBoundingClientRect();
+						if (!rect) return;
+						const x = (e.clientX - rect.left) / state.zoom;
+						const y = (e.clientY - rect.top) / state.zoom;
+						updateCursor({ x, y });
+					}}
+					onSelectElement={(id) => {
+						setState((s) => ({ ...s, selectedElementId: id }));
+						if (isMobile) {
+							setMobilePanelTab("properties");
+							setMobilePanelOpen(true);
+						}
+					}}
+					onStartDrag={(el, e) => {
+						if (e.button !== 0) return;
+						e.preventDefault();
+						e.stopPropagation();
+						setState((s) => ({ ...s, selectedElementId: el.id }));
+						setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+						setDrag({
+							elementId: el.id,
+							mode: "move",
+							startClientX: e.clientX,
+							startClientY: e.clientY,
+							startX: el.x,
+							startY: el.y,
+						});
+					}}
+					onStartResize={(el, edge, e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+						setDrag({
+							elementId: el.id,
+							mode: "resize",
+							edge,
+							startClientX: e.clientX,
+							startClientY: e.clientY,
+							startX: el.x,
+							startY: el.y,
+							startWidth: el.width,
+							startHeight: el.height,
+						});
+					}}
+					onDuplicateElement={duplicateElement}
+					onDeleteElement={deleteElement}
+					onCreateTemplate={() => createMutation.mutate()}
+					isRequired={isRequired}
+					onTableHeaderChange={(tableId, columnId, header) => {
+						const elements = draftElements ?? currentTemplate?.elements ?? [];
+						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
+						if (!tbl) return;
+						const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
+							{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+						];
+						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
+						setDraftElements((prev) => {
+							const base = prev ?? currentTemplateRef.current?.elements ?? [];
+							return base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
+						});
+						saveMutation.mutate({
+							elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
+								it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
+							),
+						});
+					}}
+					currentTemplateRef={currentTemplateRef}
+					saveMutation={saveMutation}
+				/>
+			</div>
+		</div>
+	);
+
 	return (
-		<div className="flex h-screen">
-			<ResizablePanelGroup direction="horizontal">
-				<ResizablePanel defaultSize={18} minSize={16}>
-					<TemplateSidebar
-						templates={templates}
-						currentTemplate={currentTemplate}
-						state={state}
-						onStateChange={setState}
-						onCreateNewTemplate={handleCreateNewTemplate}
-						onOpenAIBuilder={() => setAiBuilderOpen(true)}
-						onAddElement={addElement}
-						onSelectElement={(id) => setState((s) => ({ ...s, selectedElementId: id }))}
-						onDuplicateElement={duplicateElement}
-						onDeleteElement={deleteElement}
-						missingRequiredFields={missingRequiredFields}
-						onAddRequiredElement={addRequiredElement}
-						isRequired={isRequired}
-					/>
-				</ResizablePanel>
-				<ResizableHandle withHandle />
-				<ResizablePanel minSize={40}>
-					<div className="h-full flex flex-col">
-						<CanvasHeader
-							templates={templates}
-							currentTemplate={currentTemplate}
-							state={state}
-							isSubscribed={isSubscribed}
-							activeUsers={activeUsers}
-							onTemplateChange={async (id: string) => {
-									if (id === "new") {
-										await handleCreateNewTemplate();
-									} else {
-									// Reset draft state when switching templates
-									setDraftElements(null);
-									setDraftBrand(null);
-									setState((s) => ({ ...s, currentTemplateId: id, selectedElementId: undefined }));
-									// Navigate to the selected template's URL
-									navigate(`/designer/${id}`, { replace: true });
-								}
-							}}
-							onCreateNewTemplate={handleCreateNewTemplate}
-							onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
-						/>
-						<DesignerCanvas
-							template={currentTemplate}
-							draftElements={draftElements}
-							state={state}
-							drag={drag}
-							snapGuides={snapGuides}
-							activeUsers={activeUsers}
-							currentUserId={authUser?.uid}
-							pageRef={pageRef}
-								onDragOver={handleCanvasDragOver}
-								onDrop={handleCanvasDrop}
-								onMouseMove={(e) => {
-									if (!state.currentTemplateId) return;
-									const rect = pageRef.current?.getBoundingClientRect();
-									if (!rect) return;
-									const x = (e.clientX - rect.left) / state.zoom;
-									const y = (e.clientY - rect.top) / state.zoom;
-									updateCursor({ x, y });
-								}}
-							onSelectElement={(id) => setState((s) => ({ ...s, selectedElementId: id }))}
-							onStartDrag={(el, e) => {
-													if (e.button !== 0) return;
-											e.preventDefault();
-											e.stopPropagation();
-								setState((s) => ({ ...s, selectedElementId: el.id }));
-								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-											setDrag({
-												elementId: el.id,
-												mode: "move",
-												startClientX: e.clientX,
-												startClientY: e.clientY,
-												startX: el.x,
-												startY: el.y,
-											});
-										}}
-							onStartResize={(el, edge, e) => {
-															e.preventDefault();
-															e.stopPropagation();
-								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-															setDrag({
-									elementId: el.id,
-																mode: "resize",
-									edge,
-									startClientX: e.clientX,
-									startClientY: e.clientY,
-																startX: el.x,
-																startY: el.y,
-									startWidth: el.width,
-									startHeight: el.height,
-															});
-														}}
-							onDuplicateElement={duplicateElement}
-							onDeleteElement={deleteElement}
-							onCreateTemplate={() => createMutation.mutate()}
-							isRequired={isRequired}
-							onTableHeaderChange={(tableId, columnId, header) => {
-								const elements = draftElements ?? currentTemplate?.elements ?? [];
-								const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
-								if (!tbl) return;
-								const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-									{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-									{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-																		];
-								const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
-								setDraftElements((prev) => {
-									const base = prev ?? currentTemplateRef.current?.elements ?? [];
-									return base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
-								});
-								saveMutation.mutate({
-									elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
-										it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
-																	),
-								});
-														}}
-							currentTemplateRef={currentTemplateRef}
-							saveMutation={saveMutation}
-						/>
+		<div className="flex h-screen overflow-hidden">
+			{isMobile ? (
+				<>
+					<div className="flex-1 flex flex-col overflow-hidden min-w-0 pb-16">
+						{canvasContent}
 					</div>
-				</ResizablePanel>
-				<ResizableHandle withHandle />
-				<ResizablePanel defaultSize={22} minSize={18}>
-					<PropertiesPanel
-						template={currentTemplate}
-						selectedElementId={state.selectedElementId}
-						draftElements={draftElements}
-						organization={currentOrg ?? undefined}
-						complianceStatus={complianceStatus}
-						saveMutation={saveMutation}
-						onUpdateElement={updateSelected}
-						onAddRequiredElement={addRequiredElement}
-						determineElementTypeForBinding={determineElementTypeForBinding}
-					/>
-				</ResizablePanel>
-			</ResizablePanelGroup>
+					{/* Mobile Bottom Navigation */}
+					<div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t md:hidden">
+						<div className="flex items-center justify-around h-16 px-2">
+							<Button
+								variant={mobilePanelOpen && mobilePanelTab === "elements" ? "secondary" : "ghost"}
+								className="flex-1 flex flex-col items-center justify-center gap-1 h-full"
+								onClick={() => {
+									if (mobilePanelOpen && mobilePanelTab === "elements") {
+										setMobilePanelOpen(false);
+									} else {
+										setMobilePanelTab("elements");
+										setMobilePanelOpen(true);
+									}
+								}}
+							>
+								<Menu className="h-5 w-5" />
+								<span className="text-xs font-medium">Elements</span>
+							</Button>
+							<Button
+								variant={mobilePanelOpen && mobilePanelTab === "properties" ? "secondary" : "ghost"}
+								className="flex-1 flex flex-col items-center justify-center gap-1 h-full"
+								onClick={() => {
+									if (mobilePanelOpen && mobilePanelTab === "properties") {
+										setMobilePanelOpen(false);
+									} else {
+										setMobilePanelTab("properties");
+										setMobilePanelOpen(true);
+									}
+								}}
+							>
+								<Settings className="h-5 w-5" />
+								<span className="text-xs font-medium">Properties</span>
+							</Button>
+						</div>
+					</div>
+					<Drawer
+						open={mobilePanelOpen}
+						onOpenChange={setMobilePanelOpen}
+						direction="bottom"
+					>
+						<DrawerContent className="max-h-[85vh] flex flex-col">
+							<Tabs
+								value={mobilePanelTab}
+								onValueChange={(v) => setMobilePanelTab(v as "elements" | "properties")}
+								className="flex flex-col flex-1 min-h-0"
+							>
+								<div className="px-4 pt-2 pb-1 border-b shrink-0">
+									<TabsList className="w-full">
+										<TabsTrigger value="elements" className="flex-1">
+											Elements
+										</TabsTrigger>
+										<TabsTrigger value="properties" className="flex-1">
+											Properties
+										</TabsTrigger>
+									</TabsList>
+								</div>
+								<div className="flex-1 overflow-y-auto min-h-0">
+									<TabsContent value="elements" className="h-full m-0 p-0 data-[state=active]:flex data-[state=active]:flex-col">
+										<div className="h-full overflow-y-auto">
+											{sidebarContent}
+										</div>
+									</TabsContent>
+									<TabsContent value="properties" className="h-full m-0 p-0 data-[state=active]:flex data-[state=active]:flex-col">
+										<div className="h-full overflow-y-auto">
+											{propertiesContent}
+										</div>
+									</TabsContent>
+								</div>
+							</Tabs>
+						</DrawerContent>
+					</Drawer>
+				</>
+			) : (
+				<ResizablePanelGroup direction="horizontal" className="w-full">
+					<ResizablePanel defaultSize={18} minSize={16} maxSize={25}>
+						{sidebarContent}
+					</ResizablePanel>
+					<ResizableHandle withHandle />
+					<ResizablePanel minSize={40}>
+						{canvasContent}
+					</ResizablePanel>
+					<ResizableHandle withHandle />
+					<ResizablePanel defaultSize={22} minSize={18} maxSize={30}>
+						{propertiesContent}
+					</ResizablePanel>
+				</ResizablePanelGroup>
+			)}
 
 			<AIBuilderDialog
 				open={aiBuilderOpen}

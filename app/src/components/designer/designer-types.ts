@@ -1,5 +1,3 @@
-import type { TemplateElement } from "@/core";
-
 export type DesignerState = {
 	currentTemplateId?: string;
 	selectedElementId?: string;

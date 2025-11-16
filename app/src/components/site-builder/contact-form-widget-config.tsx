@@ -48,7 +48,6 @@ export function ContactFormWidgetConfig({
   builtInFields,
   onBuiltInFieldsChange,
   customFields,
-  onCustomFieldsChange,
   onAddCustomField,
   onRemoveCustomField,
   onUpdateCustomField,

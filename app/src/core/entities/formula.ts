@@ -1,15 +1,4 @@
 import z from "zod";
-
-/**
- * Formula expression schema
- * Supports Excel-like formulas with field references
- * Examples:
- * - =SUM(A1, B1)
- * - =A1 + B1
- * - =A1 * 1.1
- * - =SUM(items.total)
- * - =items.total * 0.2
- */
 export const formulaSchema = z.string().refine(
 	(val) => {
 		if (!val || val.trim() === "") return true; // Empty is valid (no formula)
@@ -29,8 +18,15 @@ export type Formula = z.infer<typeof formulaSchema>;
  * - A1 (element ID reference)
  * - items.total (binding path)
  * - items[0].price (array item binding)
+ * - items[0].quantity (array item with nested property)
+ * 
+ * Pattern breakdown:
+ * - [A-Za-z0-9_]+ - starts with identifier
+ * - (?:\[[0-9]+\])? - optional array index (e.g., [0])
+ * - (?:\.[A-Za-z0-9_]+)* - zero or more dot-separated properties
+ * - (?:\[[0-9]+\])? - optional array index after properties (for nested arrays)
  */
-export const FORMULA_REFERENCE_PATTERN = /([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*(?:\[[0-9]+\])?)/g;
+export const FORMULA_REFERENCE_PATTERN = /([A-Za-z0-9_]+(?:\[[0-9]+\])?(?:\.[A-Za-z0-9_]+(?:\[[0-9]+\])?)*)/g;
 
 /**
  * Supported formula functions

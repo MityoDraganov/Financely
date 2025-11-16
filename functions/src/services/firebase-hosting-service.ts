@@ -145,6 +145,9 @@ export class FirebaseHostingService {
 					body !== undefined && body !== null
 						? JSON.stringify(body).length
 						: 0,
+        bodyPreview: body !== undefined && body !== null
+          ? JSON.stringify(body).substring(0, 200)
+          : undefined,
       });
 
       const response = await fetch(url, fetchOptions);
@@ -1308,22 +1311,150 @@ export class FirebaseHostingService {
 		const normalizedSiteId = siteId
 			.toLowerCase()
 			.replace(/[^a-z0-9-]/g, "-");
-    // According to Firebase Hosting API v1beta1, use site-scoped path
-    const endpoint = `/sites/${normalizedSiteId}/domains`;
-    const response = await this.makeRequest<{
-      domain: string;
-      status: string;
-    }>("POST", endpoint, {
-      domain,
-    });
+    
+    // According to Firebase Hosting API v1beta1 documentation:
+    // POST /v1beta1/projects/{project}/sites/{site}/customDomains?customDomainId={domain}
+    // - customDomainId (query parameter, REQUIRED): The ID of the CustomDomain, which is the domain name
+    // - Request body: Contains an instance of CustomDomain (can be empty or have optional fields)
+    // Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/create
+    
+    const endpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}/customDomains?customDomainId=${encodeURIComponent(domain)}`;
+    
+    // The request body should contain a CustomDomain instance
+    // Since customDomainId is in the query parameter, the body can be empty or contain optional fields
+    // Based on the API, the body should be a CustomDomain object (can be empty {})
+    const body: {} = {};
+    
+    try {
+      // The API returns an Operation, not a CustomDomain directly
+      // We'll need to poll or wait for the operation to complete
+      const response = await this.makeRequest<{
+        name: string;
+        done: boolean;
+        response?: {
+          name: string;
+          domain: string;
+          status: string;
+          certPreference?: string;
+          redirectTarget?: string;
+          updateTime?: string;
+        };
+        error?: {
+          code: number;
+          message: string;
+        };
+      }>("POST", endpoint, body);
 
-    logger.info("Custom domain added to Firebase Hosting", {
-      siteId,
-      domain: response.domain,
-      status: response.status,
-    });
+      logger.info("Custom domain creation initiated", {
+        siteId,
+        domain,
+        operationName: response.name,
+        done: response.done,
+      });
 
-    return response;
+      // If the operation is done, extract the domain info from response
+      if (response.done && response.response) {
+        return {
+          domain: response.response.domain,
+          status: response.response.status,
+        };
+      }
+
+      // If operation is not done, we need to poll for completion
+      // For now, return a pending status
+      // In production, you might want to implement polling or return the operation name
+      if (response.error) {
+        throw new Error(`Firebase Hosting API error: ${response.error.message}`);
+      }
+
+      // Operation is in progress - return pending status
+      // The actual domain will be created asynchronously
+      return {
+        domain: domain,
+        status: "PENDING", // Operation is in progress
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Failed to add custom domain to Firebase Hosting", {
+        siteId,
+        domain,
+        endpoint,
+        error: errorMessage,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get domain status from Firebase Hosting
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/get
+   */
+  async getDomainStatus(
+    siteId: string,
+    domain: string
+  ): Promise<{ domain: string; status: string } | null> {
+    try {
+      const normalizedSiteId = siteId
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-");
+      // Format: GET /v1beta1/projects/{project}/sites/{site}/customDomains/{domain}
+      const endpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}/customDomains/${encodeURIComponent(domain)}`;
+      const response = await this.makeRequest<{
+        name: string;
+        domain: string;
+        status: string;
+        certPreference?: string;
+        redirectTarget?: string;
+        updateTime?: string;
+      }>("GET", endpoint);
+
+      return {
+        domain: response.domain,
+        status: response.status,
+      };
+    } catch (error) {
+      logger.warn("Failed to get domain status", {
+        siteId,
+        domain,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return null;
+    }
+  }
+
+  /**
+   * List all domains for a site
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/list
+   */
+  async listDomains(siteId: string): Promise<Array<{ domain: string; status: string }>> {
+    try {
+      const normalizedSiteId = siteId
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-");
+      // Format: GET /v1beta1/projects/{project}/sites/{site}/customDomains
+      const endpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}/customDomains`;
+      const response = await this.makeRequest<{
+        customDomains?: Array<{
+          name: string;
+          domain: string;
+          status: string;
+          certPreference?: string;
+          redirectTarget?: string;
+          updateTime?: string;
+        }>;
+      }>("GET", endpoint);
+
+      return (response.customDomains || []).map((cd) => ({
+        domain: cd.domain,
+        status: cd.status,
+      }));
+    } catch (error) {
+      logger.warn("Failed to list domains", {
+        siteId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return [];
+    }
   }
 
 	/**

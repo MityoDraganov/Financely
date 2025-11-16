@@ -4,7 +4,7 @@
  * and manual rate override support
  */
 
-import { getExchangeRate, fetchExchangeRates, type ExchangeRates } from "@/utils/currencies";
+import { getExchangeRate } from "@/utils/currencies";
 
 export interface ConversionRate {
   fromCurrency: string;
@@ -139,7 +139,7 @@ export async function getInvoiceConversionRates(
  * Shows rate in an understandable format
  */
 export function formatConversionRate(rate: ConversionRate, showSource = true): string {
-  const { fromCurrency, toCurrency, rate: rateValue, source, manualOverride } = rate;
+  const { fromCurrency, toCurrency, rate: rateValue, manualOverride } = rate;
   
   let formatted = `1 ${fromCurrency} = ${rateValue.toFixed(4)} ${toCurrency}`;
   

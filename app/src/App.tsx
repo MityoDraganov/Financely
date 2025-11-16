@@ -2,8 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 
-import CreateInvoicePage from "./pages/create-invoice";
-import TemplateDesignerPage from "./pages/designer";
+import CreateInvoiceWrapper from "./pages/create-invoice-wrapper";
+import DesignerWrapper from "./pages/designer-wrapper";
 import TemplatesPage from "./pages/templates/templates";
 import LandingPage from "./pages/landing";
 import SignInPage from "./pages/sign-in";
@@ -39,7 +39,6 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
-import { AIServiceProvider } from "./components/AIServiceProvider";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +63,6 @@ function App() {
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>
 						<OrganizationProvider>
-							<AIServiceProvider>
 							<BrandingProvider>
 							<Router>
 								<Routes>
@@ -171,9 +169,7 @@ function App() {
 										path="/create-invoice"
 										element={
 											<ProtectedRoute>
-												<AppLayout>
-													<CreateInvoicePage />
-												</AppLayout>
+												<CreateInvoiceWrapper />
 											</ProtectedRoute>
 										}
 									/>
@@ -191,9 +187,7 @@ function App() {
 										path="/designer/:id?"
 										element={
 											<ProtectedRoute>
-												<AppLayout>
-													<TemplateDesignerPage />
-												</AppLayout>
+												<DesignerWrapper />
 											</ProtectedRoute>
 										}
 									/>
@@ -301,7 +295,6 @@ function App() {
 								<Toaster />
 							</Router>
 							</BrandingProvider>
-							</AIServiceProvider>
 						</OrganizationProvider>
 					</SidebarProvider>
 					</ThemeProvider>

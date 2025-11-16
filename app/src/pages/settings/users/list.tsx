@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX, Users } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,8 +8,7 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuTrigger,
-  DropdownMenuSeparator 
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -23,7 +22,6 @@ export default function UsersListPage() {
   const { data: members = [], isLoading } = useOrganizationMembers(organization?.id);
   const { data: invites = [] } = useInvites(organization?.id);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   const filteredMembers = members.filter(member =>
@@ -55,135 +53,96 @@ export default function UsersListPage() {
       .slice(0, 2);
   };
 
-  const handleSelectUser = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedUsers.length === filteredMembers.length) {
-      setSelectedUsers([]);
-    } else {
-      setSelectedUsers(filteredMembers.map(member => member.id));
-    }
-  };
-
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+      <div className="space-y-4 sm:space-y-6">
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header with proper typography hierarchy */}
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-green-50 rounded-lg">
-              <Users className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Team Members</h1>
-              <p className="text-gray-600 mt-1">
-                Manage your organization's team members and their permissions.
-              </p>
-            </div>
-          </div>
-          <Button 
-            onClick={() => setInviteDialogOpen(true)}
-            className="flex items-center gap-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
-          >
-            <Plus className="h-4 w-4" />
-            Invite Member
-          </Button>
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b">
+        <div className="space-y-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Team Members</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your organization's team members and their permissions.
+          </p>
         </div>
+        <Button 
+          onClick={() => setInviteDialogOpen(true)}
+          className="w-full sm:w-auto"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Invite Member
+        </Button>
       </div>
 
       {/* Search and Filters */}
-      <Card className="shadow-sm border-gray-200/50">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search members..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 shadow-sm"
-              />
-            </div>
-            {selectedUsers.length > 0 && (
-              <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="px-3 py-1">
-                  {selectedUsers.length} selected
-                </Badge>
-                <Button variant="outline" size="sm" className="shadow-sm">
-                  Bulk Actions
-                </Button>
-              </div>
-            )}
+      <Card>
+        <CardContent className="p-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search members..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9"
+            />
           </div>
         </CardContent>
       </Card>
 
       {/* Members List */}
-      <Card className="shadow-sm border-gray-200/50">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">All Members ({filteredMembers.length})</CardTitle>
-              <CardDescription>
-                Manage team member roles and permissions
-              </CardDescription>
-            </div>
-          </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">All Members ({filteredMembers.length})</CardTitle>
+          <CardDescription className="text-sm">
+            Manage team member roles and permissions
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y">
             {filteredMembers.map((member) => (
-              <div key={member.id} className="p-6 hover:bg-gray-50/50 transition-all duration-200 border-l-4 border-transparent hover:border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12 ring-2 ring-gray-100">
+              <div key={member.id} className="p-3 sm:p-4 hover:bg-muted/50 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Avatar className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
                       <AvatarImage src={member.avatarUrl} alt={member.name} />
-                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                         {getInitials(member.name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">{member.name}</h3>
-                        <Badge variant={getRoleBadgeVariant(member.role)} className="capitalize shadow-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-sm sm:text-base truncate">{member.name}</h3>
+                        <Badge variant={getRoleBadgeVariant(member.role)} className="text-xs capitalize">
                           {member.role}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{member.email}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{member.email}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Joined {new Date(member.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-green-700">Active</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950 rounded-md">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                      <span className="text-xs font-medium text-green-700 dark:text-green-400">Active</span>
                     </div>
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="shadow-sm">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="shadow-lg">
+                      <DropdownMenuContent align="end">
                         <DropdownMenuItem className="text-red-600">
                           <UserX className="h-4 w-4 mr-2" />
                           Remove Member
@@ -197,21 +156,19 @@ export default function UsersListPage() {
           </div>
           
           {filteredMembers.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-400 mb-4">
-                <UserCheck className="h-12 w-12 mx-auto" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <div className="text-center py-8">
+              <UserCheck className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <h3 className="text-sm font-semibold mb-1.5">
                 {searchTerm ? "No members found" : "No team members yet"}
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 {searchTerm 
                   ? "Try adjusting your search terms"
                   : "Invite your first team member to get started"
                 }
               </p>
               {!searchTerm && (
-                <Button>
+                <Button onClick={() => setInviteDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Invite Member
                 </Button>
@@ -222,50 +179,50 @@ export default function UsersListPage() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-2.5">
             <div className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{members.filter(m => m.status === "active").length}</p>
-                <p className="text-sm text-gray-600">Active Members</p>
+              <UserCheck className="h-4 w-4 text-green-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "active").length}</p>
+                <p className="text-xs text-muted-foreground leading-tight">Active</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-2.5">
             <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">{members.filter(m => m.role === "admin" || m.role === "owner").length}</p>
-                <p className="text-sm text-gray-600">Admins</p>
+              <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-bold leading-tight">{members.filter(m => m.role === "admin" || m.role === "owner").length}</p>
+                <p className="text-xs text-muted-foreground leading-tight">Admins</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-2.5">
             <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">0</p>
-                <p className="text-sm text-gray-600">Pending Invites</p>
+              <Mail className="h-4 w-4 text-orange-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-bold leading-tight">{invites.length}</p>
+                <p className="text-xs text-muted-foreground leading-tight">Pending</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-2.5">
             <div className="flex items-center gap-2">
-              <UserX className="h-5 w-5 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold">{members.filter(m => m.status === "suspended").length}</p>
-                <p className="text-sm text-gray-600">Suspended</p>
+              <UserX className="h-4 w-4 text-red-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "suspended").length}</p>
+                <p className="text-xs text-muted-foreground leading-tight">Suspended</p>
               </div>
             </div>
           </CardContent>

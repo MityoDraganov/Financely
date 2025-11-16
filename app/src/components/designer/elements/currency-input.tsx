@@ -4,7 +4,7 @@
  */
 
 import { TemplateElement } from "@/core";
-import { CURRENCIES, getCurrency } from "@/utils/currencies";
+import { getCurrency } from "@/utils/currencies";
 
 interface CurrencyInputElementProps {
   element: Extract<TemplateElement, { type: "currency" }> | Extract<TemplateElement, { type: "input"; variant: "currency" }>;
@@ -13,7 +13,6 @@ interface CurrencyInputElementProps {
 
 export default function CurrencyInputElement({
   element,
-  zoom = 1,
 }: CurrencyInputElementProps) {
   // Handle both currency element type and input variant for backward compatibility
   const currency = "currency" in element && element.currency ? element.currency : 

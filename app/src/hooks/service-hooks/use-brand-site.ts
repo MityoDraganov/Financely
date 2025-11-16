@@ -132,7 +132,12 @@ export const useAddCustomDomain = () => {
       queryClient.invalidateQueries({
         queryKey: ["brandSites", variables.brandSiteId],
       });
-      toast.success(`Custom domain ${result.customDomain} added successfully!`);
+      // Show success message with additional info if DNS needs manual configuration
+      if (result.dnsConfigured) {
+        toast.success(`Custom domain ${result.customDomain} added successfully! DNS configured automatically.`);
+      } else {
+        toast.success(`Custom domain ${result.customDomain} added! Please configure DNS as shown.`);
+      }
     },
     onError: (error: unknown) => {
       console.error("Failed to add custom domain:", error);

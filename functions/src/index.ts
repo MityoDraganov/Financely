@@ -10,6 +10,7 @@ if (!getApps().length) {
 // Invoice functions
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
+export { mapProductToInvoiceFields } from "./functions/map-product-to-invoice-fields";
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
 export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 

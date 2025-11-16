@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Building2, Globe, Mail, Phone, MapPin } from "lucide-react";
+import { Globe, Mail, Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,35 +132,25 @@ export default function OrganizationGeneralPage() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header with proper typography hierarchy */}
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center space-x-3 mb-2">
-          <div className="p-2 bg-blue-50 rounded-lg">
-            <Globe className="h-5 w-5 text-blue-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Organization Settings</h1>
-        </div>
-        <p className="text-gray-600 ml-11">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="space-y-0.5 pb-3 border-b">
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Organization Settings</h2>
+        <p className="text-sm text-muted-foreground">
           Manage your organization's basic information and contact details.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
         {/* Basic Information */}
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Building2 className="h-4 w-4 text-blue-600" />
-              </div>
-              Basic Information
-            </CardTitle>
-            <CardDescription className="ml-11">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Basic Information</CardTitle>
+            <CardDescription className="text-sm">
               Your organization's primary details and description.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Organization Name *</Label>
@@ -206,19 +196,14 @@ export default function OrganizationGeneralPage() {
         </Card>
 
         {/* Contact Information */}
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <Mail className="h-4 w-4 text-green-600" />
-              </div>
-              Contact Information
-            </CardTitle>
-            <CardDescription className="ml-11">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Contact Information</CardTitle>
+            <CardDescription className="text-sm">
               Contact details for your organization.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -253,19 +238,14 @@ export default function OrganizationGeneralPage() {
         </Card>
 
         {/* Address Information */}
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <MapPin className="h-4 w-4 text-purple-600" />
-              </div>
-              Address
-            </CardTitle>
-            <CardDescription className="ml-11">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Address</CardTitle>
+            <CardDescription className="text-sm">
               Physical address for your organization.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="address">Street Address</Label>
               <Input
@@ -315,17 +295,17 @@ export default function OrganizationGeneralPage() {
           </CardContent>
         </Card>
 
-        {/* Save Button with proper depth and visual hierarchy */}
+        {/* Save Button */}
         {hasUnsavedChanges && (
-          <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200/50 p-6 -mx-8 -mb-8 mt-8">
-            <div className="flex items-center justify-between">
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t p-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 sm:mt-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-sm font-medium">
                   You have unsaved changes
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -333,14 +313,14 @@ export default function OrganizationGeneralPage() {
                     reset();
                     setHasUnsavedChanges(false);
                   }}
-                  className="shadow-sm"
+                  className="flex-1 sm:flex-none"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateOrganization.isPending}
-                  className="shadow-sm bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                  className="flex-1 sm:flex-none"
                 >
                   {updateOrganization.isPending ? "Saving..." : "Save Changes"}
                 </Button>

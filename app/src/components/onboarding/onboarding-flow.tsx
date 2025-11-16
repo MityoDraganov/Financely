@@ -15,12 +15,25 @@ import {
   Users,
   ArrowRight,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Palette,
+  Mail,
+  SkipForward,
+  Bot,
+  Workflow,
+  FileText,
+  Target
 } from "lucide-react";
 import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useCreateUser, useUserByClerkId } from "@/hooks";
-import { useAcceptInvite } from "@/hooks/use-invites";
+import { useAcceptInvite, useInvites } from "@/hooks/use-invites";
 import { useUser } from "@clerk/clerk-react";
 import { toast } from "sonner";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Badge } from "@/components/ui/badge";
+import { useOrganizationMembers } from "@/hooks/use-organization-members";
 
 interface OrganizationFormData {
   name: string;
@@ -33,8 +46,10 @@ const STEPS = {
   CHOOSE_PATH: 1,
   BENEFITS: 2,
   CREATE_ORG: 3,
-  JOIN_ORG: 4,
-  SUCCESS: 5,
+  BRANDING: 4,
+  INVITES: 5,
+  JOIN_ORG: 6,
+  SUCCESS: 7,
 };
 
 export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
@@ -45,6 +60,12 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     website: "",
   });
   const [inviteCode, setInviteCode] = useState("");
+  const [brandingData, setBrandingData] = useState({
+    primaryColor: "#2563eb",
+    secondaryColor: "#6b7280",
+    accentColor: "#10b981",
+  });
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   // Check for pending invite code on mount
   useEffect(() => {
@@ -65,6 +86,13 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const addMember = useAddOrganizationMember();
   const updateUserRole = useUpdateUserRole();
   const acceptInvite = useAcceptInvite();
+  const { data: organization } = useCurrentOrganization();
+  const updateOrganization = useUpdateOrganization();
+  const { data: invites = [] } = useInvites(organization?.id);
+  const { data: members = [] } = useOrganizationMembers(organization?.id);
+  
+  // Check if there are any additional users (invited or accepted) besides the current user
+  const hasAdditionalUsers = invites.length > 0 || (members.length > 1);
 
   const progress = ((currentStep + 1) / Object.keys(STEPS).length) * 100;
 
@@ -203,7 +231,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
       });
 
       toast.success("Organization created successfully!");
-      setCurrentStep(STEPS.SUCCESS);
+      setCurrentStep(STEPS.BRANDING);
     } catch (error) {
       toast.error("Failed to create organization. Please try again.");
       console.error("Error creating organization:", error);
@@ -214,21 +242,273 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     onComplete();
   };
 
+  const handleBrandingSave = async () => {
+    if (!organization) {
+      setCurrentStep(STEPS.INVITES);
+      return;
+    }
+
+    try {
+      await updateOrganization.mutateAsync({
+        id: organization.id,
+        data: {
+          settings: {
+            ...organization.settings,
+            brandColors: {
+              primary: brandingData.primaryColor,
+              secondary: brandingData.secondaryColor,
+              accent: brandingData.accentColor,
+            },
+            branding: {
+              ...(organization.settings?.branding || {}),
+              brandImages: organization.settings?.branding?.brandImages || [],
+            },
+          },
+        },
+      });
+      toast.success("Branding saved!");
+      setCurrentStep(STEPS.INVITES);
+    } catch {
+      toast.error("Failed to save branding. Continuing anyway...");
+      setCurrentStep(STEPS.INVITES);
+    }
+  };
+
+  const handleBrandingSkip = () => {
+    setCurrentStep(STEPS.INVITES);
+  };
+
+  const handleInvitesSkip = () => {
+    setCurrentStep(STEPS.SUCCESS);
+  };
+
+  const handleInvitesContinue = () => {
+    setCurrentStep(STEPS.SUCCESS);
+  };
+
+  // Render buttons based on current step
+  const renderButtons = () => {
+    if (currentStep === STEPS.WELCOME) {
   return (
-    <div className="min-h-screen w-full h-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex items-center justify-center p-6">
+        <div className="flex justify-center">
+          <Button
+            onClick={handleNext}
+            size="lg"
+            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+          >
+            Get Started
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.CHOOSE_PATH) {
+      return null; // No buttons, cards are clickable
+    }
+
+    if (currentStep === STEPS.BENEFITS) {
+      return (
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <Button
+            onClick={handleBack}
+            variant="outline"
+            size="lg"
+            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+          >
+            <ArrowLeft className="mr-2 w-5 h-5" />
+            Back
+          </Button>
+          <Button
+            onClick={handleNext}
+            size="lg"
+            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+          >
+            Create Your Workspace
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.CREATE_ORG) {
+      const isLoading = createOrganization.isPending || addMember.isPending;
+      return (
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <Button
+            onClick={handleBack}
+            variant="outline"
+            size="lg"
+            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            disabled={isLoading}
+          >
+            <ArrowLeft className="mr-2 w-5 h-5" />
+            Back
+          </Button>
+          <Button
+            onClick={handleCreateOrganization}
+            size="lg"
+            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            disabled={isLoading || !formData.name.trim()}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                Create Organization
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.BRANDING) {
+      return (
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <Button
+            onClick={handleBrandingSkip}
+            variant="outline"
+            size="lg"
+            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+          >
+            <SkipForward className="mr-2 w-5 h-5" />
+            Skip for Now
+          </Button>
+          <Button
+            onClick={handleBrandingSave}
+            size="lg"
+            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            disabled={updateOrganization.isPending}
+          >
+            {updateOrganization.isPending ? (
+              <>
+                <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                Save & Continue
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.INVITES) {
+      return (
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          {!hasAdditionalUsers && (
+            <Button
+              onClick={handleInvitesSkip}
+              variant="outline"
+              size="lg"
+              className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            >
+              <SkipForward className="mr-2 w-5 h-5" />
+              Skip for Now
+            </Button>
+          )}
+          {hasAdditionalUsers && (
+            <Button
+              onClick={handleInvitesContinue}
+              size="lg"
+              className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            >
+              Continue
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.JOIN_ORG) {
+      const isLoading = acceptInvite.isPending;
+      return (
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={isLoading}
+            className="flex items-center gap-2 w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <Button
+            onClick={handleJoinOrganization}
+            disabled={isLoading || !inviteCode.trim()}
+            className="flex items-center gap-2 bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white w-full sm:w-auto"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Joining...
+              </>
+            ) : (
+              <>
+                Join Organization
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+
+    if (currentStep === STEPS.SUCCESS) {
+      return (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleComplete}
+            size="lg"
+            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-12 rounded-xl w-full sm:w-auto"
+          >
+            Go to Dashboard
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="fixed inset-0 min-h-screen w-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex flex-col md:flex-row md:items-center md:justify-center overflow-hidden">
       {/* Background decorations */}
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute -left-24 -bottom-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
 
-      <div className="w-full max-w-4xl relative z-10">
-        {/* Progress bar */}
-        <div className="mb-8">
+      {/* Sticky Header - Progress Bar (Mobile Only) */}
+      <div className="sticky top-0 z-20 bg-gradient-to-br from-[#166534] to-[#0e4424] backdrop-blur-sm pt-4 px-4 pb-4 md:hidden">
+        <div className="w-full max-w-4xl mx-auto">
+          <Progress value={progress} className="h-2 bg-white/20 [&>div]:bg-white" />
+        </div>
+      </div>
+
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto w-full md:overflow-visible md:flex-none">
+        <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-6">
+          {/* Progress bar for desktop */}
+          <div className="hidden md:block mb-8">
           <Progress value={progress} className="h-2 bg-white/20" />
         </div>
 
         <AnimatePresence mode="wait">
           {currentStep === STEPS.WELCOME && (
-            <WelcomeStep key="welcome" onNext={handleNext} userName={clerkUser?.firstName || "there"} />
+              <WelcomeStep 
+                key="welcome" 
+                userName={clerkUser?.firstName || "there"}
+                onNext={handleNext}
+              />
           )}
 
           {currentStep === STEPS.CHOOSE_PATH && (
@@ -236,7 +516,11 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           )}
 
           {currentStep === STEPS.BENEFITS && (
-            <BenefitsStep key="benefits" onNext={handleNext} onBack={handleBack} />
+              <BenefitsStep 
+                key="benefits"
+                onNext={handleNext}
+                onBack={handleBack}
+              />
           )}
 
           {currentStep === STEPS.CREATE_ORG && (
@@ -247,6 +531,28 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
               onBack={handleBack}
               onSubmit={handleCreateOrganization}
               isLoading={createOrganization.isPending || addMember.isPending}
+            />
+          )}
+
+            {currentStep === STEPS.BRANDING && (
+              <BrandingStep
+                key="branding"
+                brandingData={brandingData}
+                setBrandingData={setBrandingData}
+                onSkip={handleBrandingSkip}
+                onSave={handleBrandingSave}
+                isLoading={updateOrganization.isPending}
+              />
+            )}
+
+            {currentStep === STEPS.INVITES && (
+              <InviteStep 
+                key="invites"
+                onSkip={handleInvitesSkip}
+                onInvite={() => setInviteDialogOpen(true)}
+                onContinue={handleInvitesContinue}
+                invites={invites}
+                hasAdditionalUsers={hasAdditionalUsers}
             />
           )}
 
@@ -262,10 +568,35 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           )}
 
           {currentStep === STEPS.SUCCESS && (
-            <SuccessStep key="success" onComplete={handleComplete} orgName={formData.name} />
+              <SuccessStep 
+                key="success" 
+                orgName={formData.name}
+                onComplete={handleComplete}
+              />
           )}
         </AnimatePresence>
+        </div>
       </div>
+
+      {/* Sticky Footer - Buttons (Mobile Only) */}
+      {(() => {
+        const buttons = renderButtons();
+        return buttons && (
+          <div className="sticky bottom-0 z-20 bg-gradient-to-br from-[#166534] to-[#0e4424] backdrop-blur-sm pt-4 pb-4 px-4 border-t border-white/10 md:hidden">
+            <div className="w-full max-w-4xl mx-auto">
+              {buttons}
+      </div>
+          </div>
+        );
+      })()}
+
+      {/* Invite Dialog */}
+      {currentStep === STEPS.INVITES && (
+        <InviteUserDialog
+          open={inviteDialogOpen}
+          onOpenChange={setInviteDialogOpen}
+        />
+      )}
     </div>
   );
 }
@@ -278,20 +609,20 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
         <CardHeader className="text-center pb-8">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
             <Building2 className="h-8 w-8 text-[#166534]" />
           </div>
-          <CardTitle className="text-3xl font-bold text-gray-900 mb-4">
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words">
             Choose Your Path
           </CardTitle>
-          <CardDescription className="text-lg text-gray-600">
+          <CardDescription className="text-base sm:text-lg text-gray-600 break-words">
             How would you like to get started with Financely?
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Create Organization Option */}
             <motion.div
               whileHover={{ scale: 1.02 }}
@@ -364,15 +695,15 @@ function JoinOrgStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
         <CardHeader className="text-center pb-8">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
             <Users className="h-8 w-8 text-[#166534]" />
           </div>
-          <CardTitle className="text-3xl font-bold text-gray-900 mb-4">
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words">
             Join Organization
           </CardTitle>
-          <CardDescription className="text-lg text-gray-600">
+          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
             Enter the invite code you received to join an existing organization
           </CardDescription>
         </CardHeader>
@@ -389,12 +720,11 @@ function JoinOrgStep({
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 className="mt-1"
-                disabled={isLoading}
               />
             </div>
           </div>
 
-          <div className="flex justify-between pt-6">
+          <div className="flex justify-between pt-6 hidden md:flex">
             <Button
               variant="outline"
               onClick={onBack}
@@ -428,7 +758,7 @@ function JoinOrgStep({
   );
 }
 
-function WelcomeStep({ onNext, userName }: { onNext: () => void; userName: string }) {
+function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -436,20 +766,20 @@ function WelcomeStep({ onNext, userName }: { onNext: () => void; userName: strin
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
         <CardHeader className="text-center space-y-4 pb-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex items-center justify-center"
+            className="mx-auto w-14 h-14 lg:w-20 lg:h-20 rounded-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex items-center justify-center"
           >
-            <Sparkles className="w-10 h-10 text-white" />
+            <Sparkles className="w-full h-full text-white p-3 lg:p-5" />
           </motion.div>
-          <CardTitle className="text-4xl font-bold text-gray-900">
+          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 break-words px-2">
             Welcome to Financely, {userName}! 🎉
           </CardTitle>
-          <CardDescription className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <CardDescription className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto break-words px-2">
             We're thrilled to have you here! Let's take just 2 minutes to set up your workspace and get you started on automating your finance operations.
           </CardDescription>
         </CardHeader>
@@ -478,7 +808,7 @@ function WelcomeStep({ onNext, userName }: { onNext: () => void; userName: strin
             </div>
           </div>
 
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-center pt-4 hidden md:flex">
             <Button
               onClick={onNext}
               size="lg"
@@ -497,22 +827,28 @@ function WelcomeStep({ onNext, userName }: { onNext: () => void; userName: strin
 function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const benefits = [
     {
-      icon: Building2,
+      icon: Bot,
+      title: "AI-Powered Automation",
+      description: "Generate proposals from leads, convert to invoices, and build websites—all with AI",
+      highlight: "80% time saved",
+    },
+    {
+      icon: Target,
+      title: "End-to-End Revenue Cycle",
+      description: "Capture leads → Generate proposals → Create invoices → Get paid. All automated.",
+      highlight: "10x faster",
+    },
+    {
+      icon: Workflow,
+      title: "Smart Workflows",
+      description: "Automated approvals, payment reminders, and renewals. Your business runs itself.",
+      highlight: "Zero manual work",
+    },
+    {
+      icon: FileText,
       title: "Professional Invoices",
-      description: "Create beautiful, legally compliant invoices with our drag-and-drop designer",
-      color: "bg-blue-100 text-blue-600",
-    },
-    {
-      icon: CheckCircle2,
-      title: "Smart Approvals",
-      description: "Route proposals through your approval workflow automatically",
-      color: "bg-green-100 text-green-600",
-    },
-    {
-      icon: Zap,
-      title: "Never Miss a Renewal",
-      description: "Automated reminders ensure you never miss a contract renewal",
-      color: "bg-purple-100 text-purple-600",
+      description: "Drag-and-drop designer creates beautiful, compliant invoices with instant PDFs",
+      highlight: "Get paid faster",
     },
   ];
 
@@ -521,51 +857,63 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.3 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
-        <CardHeader className="text-center pb-8">
-          <CardTitle className="text-3xl font-bold text-gray-900">
-            Everything you need to streamline finance ops
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+        <CardHeader className="text-center pb-5">
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 break-words px-2">
+            Everything you need to grow
           </CardTitle>
-          <CardDescription className="text-lg text-gray-600">
-            Financely brings together all your finance workflows in one place
+          <CardDescription className="text-sm sm:text-base text-gray-600 break-words px-2 mt-2">
+            The complete platform that automates your revenue cycle from lead to payment
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
+        <CardContent className="space-y-4 pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {benefits.map((benefit, index) => (
               <motion.div
                 key={benefit.title}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.08, duration: 0.2 }}
+                className="group p-4 rounded-lg border border-gray-200 bg-white hover:border-[#166534]/40 hover:shadow-md transition-all"
               >
-                <div className={`w-12 h-12 rounded-lg ${benefit.color} flex items-center justify-center flex-shrink-0`}>
-                  <benefit.icon className="w-6 h-6" />
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#166534]/10 flex items-center justify-center shrink-0 group-hover:bg-[#166534]/20 transition-colors">
+                    <benefit.icon className="w-5 h-5 text-[#166534]" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{benefit.title}</h3>
-                  <p className="text-sm text-gray-600">{benefit.description}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-tight">{benefit.title}</h3>
+                      {benefit.highlight && (
+                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#166534]/10 text-[#166534] rounded-full whitespace-nowrap shrink-0">
+                          {benefit.highlight}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">{benefit.description}</p>
+                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
 
-          <div className="bg-gradient-to-r from-[#166534]/10 to-[#0e4424]/10 rounded-lg p-6 border border-[#166534]/20">
-            <div className="flex items-start gap-3">
-              <Shield className="w-6 h-6 text-[#166534] flex-shrink-0 mt-1" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Your data is safe with us</h4>
-                <p className="text-sm text-gray-600">
-                  We use industry-leading encryption and security practices. Your financial data never leaves your control.
-                </p>
+          <div className="flex items-center justify-center gap-6 pt-3 border-t border-gray-200">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-[#166534]" />
+              <span className="text-xs text-gray-600 font-medium">Bank-grade security</span>
               </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <span className="text-xs text-gray-600 font-medium">GDPR compliant</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#166534]" />
+              <span className="text-xs text-gray-600 font-medium">Team ready</span>
             </div>
           </div>
 
-          <div className="flex justify-between pt-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 pt-2 hidden md:flex">
             <Button
               onClick={onBack}
               variant="outline"
@@ -610,7 +958,7 @@ function CreateOrgStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
         <CardHeader className="text-center pb-8">
           <motion.div
             initial={{ scale: 0 }}
@@ -620,10 +968,10 @@ function CreateOrgStep({
           >
             <Building2 className="w-8 h-8 text-white" />
           </motion.div>
-          <CardTitle className="text-3xl font-bold text-gray-900">
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 break-words px-2">
             Create Your Organization
           </CardTitle>
-          <CardDescription className="text-lg text-gray-600">
+          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
             Tell us a bit about your company to personalize your experience
           </CardDescription>
         </CardHeader>
@@ -677,7 +1025,7 @@ function CreateOrgStep({
             </p>
           </div>
 
-          <div className="flex justify-between pt-4">
+          <div className="flex justify-between pt-4 hidden md:flex">
             <Button
               onClick={onBack}
               variant="outline"
@@ -713,14 +1061,242 @@ function CreateOrgStep({
   );
 }
 
-function SuccessStep({ onComplete, orgName }: { onComplete: () => void; orgName: string }) {
+function BrandingStep({
+  brandingData,
+  setBrandingData,
+  onSkip,
+  onSave,
+  isLoading,
+}: {
+  brandingData: {
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+  };
+  setBrandingData: (data: typeof brandingData) => void;
+  onSkip: () => void;
+  onSave: () => void;
+  isLoading: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.4 }}
+    >
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-visible">
+        <CardHeader className="text-center pb-8">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
+            <Palette className="h-8 w-8 text-[#166534]" />
+          </div>
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words px-2">
+            Customize Your Branding
+          </CardTitle>
+          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
+            Set up your organization's colors and branding. You can always change this later.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4 max-w-xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-900">Primary Color</Label>
+                <ColorPicker
+                  label=""
+                  value={brandingData.primaryColor}
+                  onChange={(color) => setBrandingData({ ...brandingData, primaryColor: color })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-900">Secondary Color</Label>
+                <ColorPicker
+                  label=""
+                  value={brandingData.secondaryColor}
+                  onChange={(color) => setBrandingData({ ...brandingData, secondaryColor: color })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-900">Accent Color</Label>
+                <ColorPicker
+                  label=""
+                  value={brandingData.accentColor}
+                  onChange={(color) => setBrandingData({ ...brandingData, accentColor: color })}
+                />
+              </div>
+            </div>
+
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                💡 <strong>Tip:</strong> You can customize more branding options later in Settings.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between gap-4 pt-4 hidden md:flex">
+            <Button
+              onClick={onSkip}
+              variant="outline"
+              size="lg"
+              className="rounded-xl"
+            >
+              <SkipForward className="mr-2 w-5 h-5" />
+              Skip for Now
+            </Button>
+            <Button
+              onClick={onSave}
+              size="lg"
+              className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Save & Continue
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function InviteStep({ 
+  onSkip, 
+  onInvite,
+  onContinue,
+  invites,
+  hasAdditionalUsers
+}: { 
+  onSkip: () => void; 
+  onInvite: () => void;
+  onContinue: () => void;
+  invites: Array<{ id: string; email: string; role: string; status: string }>;
+  hasAdditionalUsers: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.4 }}
+    >
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+        <CardHeader className="text-center pb-8">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
+            <Users className="h-8 w-8 text-[#166534]" />
+          </div>
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words px-2">
+            Invite Your Team
+          </CardTitle>
+          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
+            Invite team members to collaborate. You can always invite more people later.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4 max-w-xl mx-auto">
+            <div className="text-center space-y-4">
+              <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Ready to invite your team?
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Click the button below to send invitations to your team members via email.
+                </p>
+                <Button
+                  onClick={onInvite}
+                  size="lg"
+                  className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl mt-4"
+                >
+                  <Users className="mr-2 w-5 h-5" />
+                  Invite Members
+                </Button>
+              </div>
+            </div>
+
+            {invites.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-900">Invited Members</h4>
+                <div className="space-y-2">
+                  {invites.map((invite) => (
+                    <div
+                      key={invite.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#166534]/10 flex items-center justify-center">
+                          <Mail className="w-4 h-4 text-[#166534]" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{invite.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {invite.status === "sent" ? "Invitation sent" : "Pending"}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {invite.role}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                💡 <strong>Tip:</strong> You can invite team members anytime from Settings → Team Members.
+              </p>
+            </div>
+          </div>
+
+          <div className={`flex flex-col sm:flex-row ${hasAdditionalUsers ? 'justify-end' : 'justify-between'} gap-4 pt-4 hidden md:flex`}>
+            {!hasAdditionalUsers && (
+              <Button
+                onClick={onSkip}
+                variant="outline"
+                size="lg"
+                className="rounded-xl"
+              >
+                <SkipForward className="mr-2 w-5 h-5" />
+                Skip for Now
+              </Button>
+            )}
+            {hasAdditionalUsers && (
+              <Button
+                onClick={onContinue}
+                size="lg"
+                className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
+              >
+                Continue
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
         <CardContent className="text-center space-y-6 py-12">
           <motion.div
             initial={{ scale: 0 }}
@@ -732,8 +1308,8 @@ function SuccessStep({ onComplete, orgName }: { onComplete: () => void; orgName:
           </motion.div>
 
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold text-gray-900">All Set! 🎉</h2>
-            <p className="text-lg text-gray-600 max-w-md mx-auto">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 break-words px-2">All Set! 🎉</h2>
+            <p className="text-base sm:text-lg text-gray-600 max-w-md mx-auto break-words px-2">
               Your workspace <strong>{orgName}</strong> is ready to go. Let's start creating amazing invoices!
             </p>
           </div>
@@ -765,7 +1341,7 @@ function SuccessStep({ onComplete, orgName }: { onComplete: () => void; orgName:
           <Button
             onClick={onComplete}
             size="lg"
-            className="bg-[#166534] hover:bg-[#0e4424] text-white px-12 rounded-xl mt-4"
+            className="bg-[#166534] hover:bg-[#0e4424] text-white px-12 rounded-xl mt-4 hidden md:flex mx-auto"
           >
             Go to Dashboard
             <ArrowRight className="ml-2 w-5 h-5" />
@@ -775,4 +1351,5 @@ function SuccessStep({ onComplete, orgName }: { onComplete: () => void; orgName:
     </motion.div>
   );
 }
+
 

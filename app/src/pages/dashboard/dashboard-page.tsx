@@ -107,9 +107,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 min-w-0 overflow-x-hidden w-full">
       {/* Header */}
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0">
         <h1 className="text-3xl font-bold tracking-tight">
           Welcome back, {currentOrganization?.name || 'User'}
         </h1>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 min-w-0">
         <Button asChild>
           <Link to="/create-invoice">
             <Plus className="mr-2 h-4 w-4" />
@@ -141,7 +141,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 min-w-0">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
@@ -240,18 +240,18 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 min-w-0">
         {/* Recent Invoices */}
-        <Card className="col-span-2">
+        <Card className="col-span-1 md:col-span-2 min-w-0 overflow-hidden">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
                 <CardTitle>Recent Invoices</CardTitle>
                 <CardDescription>
                   Your latest invoice activity
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="shrink-0">
                 <Link to="/invoices">
                   View All
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             {isInvoicesLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -275,13 +275,13 @@ export default function DashboardPage() {
             ) : recentInvoices.length > 0 ? (
               <div className="space-y-4">
                 {recentInvoices.map((invoice) => (
-                  <div key={invoice.id} className="flex items-center space-x-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                  <div key={invoice.id} className="flex items-center space-x-4 min-w-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 shrink-0">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium leading-none">
+                    <div className="flex-1 space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-sm font-medium leading-none truncate">
                           {String(invoice.data?.invoiceNumber || `Invoice #${invoice.id.slice(-6)}`)}
                         </p>
                         <Badge 
@@ -291,12 +291,12 @@ export default function DashboardPage() {
                             invoice.status === 'cancelled' ? 'destructive' :
                             'outline'
                           }
-                          className="text-xs"
+                          className="text-xs shrink-0"
                         >
                           {invoice.status || 'draft'}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {getInvoiceValue(invoice, "buyer.name") ||
                          getInvoiceValue(invoice, "customer.name") ||
                          getInvoiceValue(invoice, "client.name") ||
@@ -304,7 +304,7 @@ export default function DashboardPage() {
                          "Unknown Client"}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-sm font-medium">
                         ${getInvoiceAmount(invoice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
@@ -336,18 +336,18 @@ export default function DashboardPage() {
         </Card>
 
         {/* Templates & Invoice Status */}
-        <div className="col-span-2 space-y-4">
+        <div className="col-span-1 md:col-span-2 space-y-4 min-w-0">
           {/* Templates */}
-          <Card>
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="min-w-0">
                   <CardTitle>Templates</CardTitle>
                   <CardDescription>
                     Your invoice templates
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" asChild>
+                <Button variant="outline" size="sm" asChild className="shrink-0">
                   <Link to="/designer">
                     <Brush className="mr-2 h-4 w-4" />
                     Design
@@ -355,7 +355,7 @@ export default function DashboardPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-w-0">
               {isTemplatesLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 2 }).map((_, i) => (
@@ -396,14 +396,14 @@ export default function DashboardPage() {
           </Card>
 
           {/* Invoice Status Summary */}
-          <Card>
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle>Invoice Status</CardTitle>
               <CardDescription>
                 Breakdown by status
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 min-w-0">
               {isInvoicesLoading ? (
                 <div className="space-y-2">
                   <Skeleton className="h-8 w-full" />

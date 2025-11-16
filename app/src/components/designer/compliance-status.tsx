@@ -1,6 +1,6 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertCircle, Plus, Lock } from "lucide-react";
+import { CheckCircle2, AlertCircle, Plus } from "lucide-react";
 import { getFieldMetadata } from "@/utils/invoice-compliance";
 import type { Template } from "@/core";
 
@@ -58,7 +58,7 @@ export function ComplianceStatus({
 						<div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
 						<div className="space-y-1.5">
 							{complianceStatus.missingBindings.map((binding) => {
-								const fieldMetadata = getFieldMetadata(complianceStatus.region, binding);
+								const fieldMetadata = getFieldMetadata(complianceStatus.region as "US" | "EU" | "CA" | "AU" | "UK", binding);
 								const elementType = fieldMetadata
 									? determineElementTypeForBinding(binding, fieldMetadata.format)
 									: "text";

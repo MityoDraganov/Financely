@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { TemplateElement } from "@/core";
 import type { CurrencyFieldLink } from "@/core/entities/currency-field";
-import { CURRENCIES } from "@/utils/currencies";
 import { validateLinking } from "@/services/currency-field-service";
 
 interface CurrencyFieldLinkingProps {
@@ -135,10 +134,10 @@ export function CurrencyFieldLinking({
     onLinkChange(updatedLinks);
   };
 
-  const getSourceFieldName = (fieldId: string) => {
+  const getSourceFieldName = (fieldId: string): string => {
     const field = availableFields.find((f) => f.id === fieldId);
     // For table columns, prefer header over binding
-    if (field && "header" in field && field.header) {
+    if (field && "header" in field && field.header && typeof field.header === "string") {
       return field.header;
     }
     return field?.binding || field?.placeholder || `Field ${fieldId.slice(0, 6)}`;
@@ -247,7 +246,7 @@ export function CurrencyFieldLinking({
                   ) : (
                     availableFields.map((field) => {
                       // For table columns, prefer header over binding
-                      const displayName = ("header" in field && field.header) 
+                      const displayName: string = ("header" in field && field.header && typeof field.header === "string") 
                         ? field.header 
                         : field.binding || field.placeholder || `Field ${field.id.slice(0, 6)}`;
                       return (

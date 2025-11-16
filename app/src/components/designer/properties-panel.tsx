@@ -8,11 +8,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Template, TemplateData, TemplateElement } from "@/core";
+import { Template, TemplateData, TemplateElement, TemplateVersion } from "@/core";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { ComplianceStatus } from "./compliance-status";
 import { WatermarkConfig } from "./watermark-config";
+import { TemplateVersionHistory } from "./template-version-history";
 import {
 	TextProperties,
 	ImageProperties,
@@ -40,6 +41,13 @@ type PropertiesPanelProps = {
 	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table") => void;
 	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table";
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
+	// Version history props
+	templateId?: string;
+	versions?: TemplateVersion[];
+	currentVersion?: number | null;
+	onRestoreVersion?: (version: number) => Promise<void>;
+	isRestoringVersion?: boolean;
+	currentUserId?: string;
 };
 
 const PROPS_NARROW_BREAKPOINT_PX = 520;
@@ -55,6 +63,12 @@ export function PropertiesPanel({
 	onAddRequiredElement,
 	determineElementTypeForBinding,
 	onPropsNarrowChange,
+	templateId,
+	versions = [],
+	currentVersion,
+	onRestoreVersion,
+	isRestoringVersion,
+	currentUserId,
 }: PropertiesPanelProps) {
 	const propertiesRef = useRef<HTMLDivElement>(null);
 	const elementPropertiesRef = useRef<HTMLDivElement>(null);
@@ -221,6 +235,20 @@ export function PropertiesPanel({
 					organizationLogo={organization?.settings?.branding?.customLogo}
 					saveMutation={saveMutation}
 				/>
+				
+				{/* Version History */}
+				{templateId && onRestoreVersion && (
+					<div className={separators.sectionDivider}>
+						<TemplateVersionHistory
+							templateId={templateId}
+							versions={versions}
+							currentVersion={currentVersion ?? null}
+							onRestoreVersion={onRestoreVersion}
+							isRestoring={isRestoringVersion ?? false}
+							currentUserId={currentUserId}
+						/>
+					</div>
+				)}
 				
 				{/* Element Properties */}
 				{selectedElement && (

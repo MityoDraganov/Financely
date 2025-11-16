@@ -540,11 +540,18 @@ export function TableProperties({
 													formula={c.calc}
 													onChange={(formula) => {
 														const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-														const next = base.map((col) => 
-															col.id === c.id 
-																? { ...col, calc: formula }
-																: col
-														);
+												const next = base.map((col) => {
+													if (col.id === c.id) {
+														// If formula is cleared (undefined), also reset mode to independent and remove calc property
+														if (formula === undefined) {
+															const colWithoutCalc = { ...col };
+															delete (colWithoutCalc as { calc?: string }).calc;
+															return { ...colWithoutCalc, mode: "independent" as const };
+														}
+														return { ...col, calc: formula };
+													}
+													return col;
+												});
 														onChange({ ...tbl, columns: next });
 													}}
 													currentElement={element}
@@ -566,11 +573,18 @@ export function TableProperties({
 											formula={c.calc}
 											onChange={(formula) => {
 												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-												const next = base.map((col) => 
-													col.id === c.id 
-														? { ...col, calc: formula }
-														: col
-												);
+												const next = base.map((col) => {
+													if (col.id === c.id) {
+														// If formula is cleared (undefined), remove calc property
+														if (formula === undefined) {
+															const colWithoutCalc = { ...col };
+															delete (colWithoutCalc as { calc?: string }).calc;
+															return colWithoutCalc;
+														}
+														return { ...col, calc: formula };
+													}
+													return col;
+												});
 												onChange({ ...tbl, columns: next });
 											}}
 											currentElement={element}

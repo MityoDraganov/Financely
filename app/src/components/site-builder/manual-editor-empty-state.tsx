@@ -3,15 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface ManualEditorEmptyStateProps {
-  organizationName: string;
-  companyName?: string;
   onCreateBlankSite: () => void;
   isCreating: boolean;
 }
 
 export function ManualEditorEmptyState({
-  organizationName,
-  companyName,
   onCreateBlankSite,
   isCreating,
 }: ManualEditorEmptyStateProps) {

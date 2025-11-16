@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -78,49 +77,39 @@ export default function AISettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+      <div className="space-y-4 sm:space-y-6">
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center space-x-3 mb-2">
-          <div className="p-2 bg-purple-50 rounded-lg">
-            <Sparkles className="h-5 w-5 text-purple-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Settings</h1>
-        </div>
-        <p className="text-gray-600 ml-11">
+      <div className="space-y-0.5 pb-3 border-b">
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">AI Settings</h2>
+        <p className="text-sm text-muted-foreground">
           Configure AI-powered features and automation for your organization.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
         {/* Proposal Suggestions */}
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <Sparkles className="h-4 w-4 text-purple-600" />
-              </div>
-              Proposal Suggestions
-            </CardTitle>
-            <CardDescription className="ml-11">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Proposal Suggestions</CardTitle>
+            <CardDescription className="text-sm">
               Automatically generate proposal suggestions when new leads are created.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
+          <CardContent>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
               <div className="space-y-0.5 flex-1">
-                <Label htmlFor="autoProposalSuggestions" className="text-base font-medium">
+                <Label htmlFor="autoProposalSuggestions" className="text-sm font-medium">
                   Automatic Proposal Suggestions
                 </Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   When enabled, AI will automatically generate proposal suggestions for new leads.
                   You can also manually request suggestions from the leads page.
                 </p>
@@ -131,6 +120,7 @@ export default function AISettingsPage() {
                 onCheckedChange={(checked) => {
                   setValue("autoProposalSuggestions", checked, { shouldDirty: true });
                 }}
+                className="shrink-0"
               />
             </div>
           </CardContent>
@@ -138,15 +128,15 @@ export default function AISettingsPage() {
 
         {/* Save Button */}
         {hasUnsavedChanges && (
-          <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200/50 p-6 -mx-8 -mb-8 mt-8">
-            <div className="flex items-center justify-between">
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t p-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 sm:mt-6">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-sm font-medium">
                   You have unsaved changes
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -154,14 +144,14 @@ export default function AISettingsPage() {
                     reset();
                     setHasUnsavedChanges(false);
                   }}
-                  className="shadow-sm"
+                  className="flex-1 sm:flex-none"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateOrganization.isPending}
-                  className="shadow-sm bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+                  className="flex-1 sm:flex-none"
                 >
                   {updateOrganization.isPending ? "Saving..." : "Save Changes"}
                 </Button>

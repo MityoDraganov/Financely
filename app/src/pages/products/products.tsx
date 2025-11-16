@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,8 +59,9 @@ export default function ProductsPage() {
   const imageUpload = useFileUpload();
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter products
-  const filteredProducts = products.filter((product) => {
+  // Filter products - memoized to prevent recalculation on every render
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
     // Status filter
     if (statusFilter !== "all" && product.status !== statusFilter) {
       return false;
@@ -78,6 +79,7 @@ export default function ProductsPage() {
 
     return true;
   });
+  }, [products, statusFilter, searchTerm]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,28 +108,32 @@ export default function ProductsPage() {
     const url = await imageUpload.uploadFile(file, path);
 
     if (url) {
-      setFormData({
-        ...formData,
-        images: [...(formData.images || []), url],
-      });
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), url],
+      }));
       toast.success("Image uploaded successfully");
     } else {
       toast.error(imageUpload.error || "Failed to upload image");
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const newImages = formData.images?.filter((_, i) => i !== index) || [];
-    setFormData({ ...formData, images: newImages });
-  };
+  const handleRemoveImage = useCallback((index: number) => {
+    setFormData((prev) => {
+      const newImages = prev.images?.filter((_, i) => i !== index) || [];
+      return { ...prev, images: newImages };
+    });
+  }, []);
 
-  const handleSetFeaturedImage = (index: number) => {
-    if (!formData.images || formData.images.length === 0) return;
-    const newImages = [...formData.images];
+  const handleSetFeaturedImage = useCallback((index: number) => {
+    setFormData((prev) => {
+      if (!prev.images || prev.images.length === 0) return prev;
+      const newImages = [...prev.images];
     const [featured] = newImages.splice(index, 1);
     newImages.unshift(featured);
-    setFormData({ ...formData, images: newImages });
-  };
+      return { ...prev, images: newImages };
+    });
+  }, []);
 
   const handleCreateProduct = async () => {
     if (!currentOrganization?.id) {
@@ -155,7 +161,7 @@ export default function ProductsPage() {
         images: formData.images || [],
       } as CreateProductInput;
 
-      const result = await createProductMutation.mutateAsync(productPayload);
+      await createProductMutation.mutateAsync(productPayload);
 
       setIsCreateDialogOpen(false);
       setFormData({
@@ -331,7 +337,7 @@ export default function ProductsPage() {
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     placeholder="Enter product name"
                   />
                 </div>
@@ -340,7 +346,7 @@ export default function ProductsPage() {
                   <Input
                     id="sku"
                     value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
                     placeholder="Product SKU"
                   />
                 </div>
@@ -351,7 +357,7 @@ export default function ProductsPage() {
                 <Textarea
                   id="description"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Product description"
                   rows={3}
                 />
@@ -366,7 +372,7 @@ export default function ProductsPage() {
                     step="0.01"
                     min="0"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                     placeholder="0.00"
                   />
                 </div>
@@ -374,7 +380,7 @@ export default function ProductsPage() {
                   <Label htmlFor="currency">Currency</Label>
                   <Select
                     value={formData.currency}
-                    onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select currency" />
@@ -396,7 +402,7 @@ export default function ProductsPage() {
                   <Input
                     id="category"
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
                     placeholder="Product category"
                   />
                 </div>
@@ -404,7 +410,7 @@ export default function ProductsPage() {
                   <Label htmlFor="status">Status</Label>
                   <Select
                     value={formData.status}
-                    onValueChange={(value: "active" | "inactive" | "archived") => setFormData({ ...formData, status: value })}
+                    onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select status" />
@@ -426,7 +432,7 @@ export default function ProductsPage() {
                     type="number"
                     min="0"
                     value={formData.stockQuantity || ""}
-                    onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
                     placeholder="0"
                   />
                 </div>
@@ -436,7 +442,7 @@ export default function ProductsPage() {
                       type="checkbox"
                       id="trackInventory"
                       checked={formData.trackInventory}
-                      onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
                       className="rounded border-gray-300"
                     />
                     <Label htmlFor="trackInventory" className="cursor-pointer">Track Inventory</Label>
@@ -574,7 +580,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                       placeholder="Enter product name"
                     />
                   </div>
@@ -583,7 +589,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-sku"
                       value={formData.sku}
-                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
                       placeholder="Product SKU"
                     />
                   </div>
@@ -594,7 +600,7 @@ export default function ProductsPage() {
                   <Textarea
                     id="edit-description"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Product description"
                     rows={3}
                   />
@@ -609,7 +615,7 @@ export default function ProductsPage() {
                       step="0.01"
                       min="0"
                       value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                       placeholder="0.00"
                     />
                   </div>
@@ -617,7 +623,7 @@ export default function ProductsPage() {
                     <Label htmlFor="edit-currency">Currency</Label>
                     <Select
                       value={formData.currency}
-                      onValueChange={(value) => setFormData({ ...formData, currency: value })}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select currency" />
@@ -639,7 +645,7 @@ export default function ProductsPage() {
                     <Input
                       id="edit-category"
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
                       placeholder="Product category"
                     />
                   </div>
@@ -647,7 +653,7 @@ export default function ProductsPage() {
                     <Label htmlFor="edit-status">Status</Label>
                     <Select
                       value={formData.status}
-                      onValueChange={(value: "active" | "inactive" | "archived") => setFormData({ ...formData, status: value })}
+                      onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select status" />
@@ -669,7 +675,7 @@ export default function ProductsPage() {
                       type="number"
                       min="0"
                       value={formData.stockQuantity || ""}
-                      onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
                       placeholder="0"
                     />
                   </div>
@@ -679,7 +685,7 @@ export default function ProductsPage() {
                         type="checkbox"
                         id="edit-trackInventory"
                         checked={formData.trackInventory}
-                        onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
                         className="rounded border-gray-300"
                       />
                       <Label htmlFor="edit-trackInventory" className="cursor-pointer">Track Inventory</Label>
@@ -823,19 +829,10 @@ export default function ProductsPage() {
         </Card>
       </div>
 
-      {/* Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Products</CardTitle>
-          <CardDescription>
-            {searchTerm.trim() || statusFilter !== "all"
-              ? `Showing ${filteredProducts.length} of ${products.length} products`
-              : `Showing all ${products.length} products`
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6">
-          {filteredProducts.length === 0 ? (
+      {/* Products Table - Desktop */}
+      {filteredProducts.length === 0 ? (
+        <Card>
+          <CardContent>
             <div className="text-center py-8 px-4">
               <Package className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-2 text-sm font-semibold text-gray-900">No products</h3>
@@ -845,12 +842,15 @@ export default function ProductsPage() {
                   : "Get started by creating a new product."}
               </p>
             </div>
-          ) : (
-            <>
-              {/* Desktop Table View */}
-              <div className="hidden md:block w-full">
-                <div className="w-full overflow-hidden">
-                  <table className="w-full caption-bottom text-sm border-collapse table-auto">
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <Card className="hidden md:block">
+            <CardContent className="p-0 sm:p-6">
+              <div className="w-full overflow-hidden">
+                <table className="w-full caption-bottom text-sm border-collapse table-auto">
                     <colgroup>
                       <col className="w-auto min-w-[200px] max-w-[350px]" />
                       <col className="w-auto min-w-[80px] max-w-[120px]" />
@@ -984,119 +984,130 @@ export default function ProductsPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-4 p-4">
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold">All Products</h2>
+                <p className="text-sm text-muted-foreground">
+                  {searchTerm.trim() || statusFilter !== "all"
+                    ? `Showing ${filteredProducts.length} of ${products.length} products`
+                    : `Showing all ${products.length} products`
+                  }
+                </p>
+              </div>
+              <div className="space-y-3">
                 {filteredProducts.map((product) => (
-                  <Card key={product.id}>
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            {product.images && product.images.length > 0 ? (
-                              <div className="relative shrink-0">
-                                <img
-                                  src={product.images[0]}
-                                  alt={product.name}
-                                  className="h-12 w-12 rounded object-cover"
-                                />
-                                {product.images.length > 1 && (
-                                  <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] px-1 py-0.5 rounded">
-                                    +{product.images.length - 1}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center shrink-0">
-                                <ImageIcon className="h-6 w-6 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium truncate">{product.name}</h3>
-                              {product.description && (
-                                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                                  {product.description}
-                                </p>
+                  <div
+                    key={product.id}
+                    className="rounded-lg border bg-card p-4 shadow-sm"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          {product.images && product.images.length > 0 ? (
+                            <div className="relative shrink-0">
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="h-12 w-12 rounded object-cover"
+                              />
+                              {product.images.length > 1 && (
+                                <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] px-1 py-0.5 rounded">
+                                  +{product.images.length - 1}
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Price:</span>
-                            <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Status:</span>
-                            <div className="mt-1">
-                              <Badge className={getStatusColor(product.status)}>
-                                {product.status}
-                              </Badge>
-                            </div>
-                          </div>
-                          {product.sku && (
-                            <div>
-                              <span className="text-muted-foreground">SKU:</span>
-                              <p className="font-medium">{product.sku}</p>
+                          ) : (
+                            <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-6 w-6 text-gray-400" />
                             </div>
                           )}
-                          {product.category && (
-                            <div>
-                              <span className="text-muted-foreground">Category:</span>
-                              <p className="font-medium">{product.category}</p>
-                            </div>
-                          )}
-                          {product.trackInventory && (
-                            <div>
-                              <span className="text-muted-foreground">Stock:</span>
-                              <p className="font-medium">
-                                {product.stockQuantity ?? 0}
-                                {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
-                                  <Badge variant="destructive" className="ml-2">Low</Badge>
-                                )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium truncate">{product.name}</h3>
+                            {product.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {product.description}
                               </p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-end space-x-2 pt-2 border-t">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedProduct({ id: product.id })}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditProduct(product.id)}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteProduct(product.id)}
-                            disabled={deleteProductMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Price:</span>
+                          <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>
+                          <div className="mt-1">
+                            <Badge className={getStatusColor(product.status)}>
+                              {product.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        {product.sku && (
+                          <div>
+                            <span className="text-muted-foreground">SKU:</span>
+                            <p className="font-medium">{product.sku}</p>
+                          </div>
+                        )}
+                        {product.category && (
+                          <div>
+                            <span className="text-muted-foreground">Category:</span>
+                            <p className="font-medium">{product.category}</p>
+                          </div>
+                        )}
+                        {product.trackInventory && (
+                          <div>
+                            <span className="text-muted-foreground">Stock:</span>
+                            <p className="font-medium">
+                              {product.stockQuantity ?? 0}
+                              {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
+                                <Badge variant="destructive" className="ml-2">Low</Badge>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedProduct({ id: product.id })}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditProduct(product.id)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteProduct(product.id)}
+                          disabled={deleteProductMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+          </>
+        )}
 
       {/* Product Detail Dialog */}
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>

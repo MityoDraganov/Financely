@@ -102,6 +102,7 @@ export class ProposalGenerationService {
         terms: result.terms,
         notes: result.notes,
         aiGenerated: true,
+        isIncomplete: false,
       };
       
       return proposalData;

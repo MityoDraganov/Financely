@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Accordion } from "@/components/ui/accordion";
 import { WidgetStylingAccordion } from "./widget-styling-accordion";
 import { WidgetLocalizationAccordion } from "./widget-localization-accordion";
 import type { InvoiceRequestConfig, WidgetStyling, WidgetLocalization, WidgetPosition } from "./widget-types";

@@ -10,7 +10,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
 import { typography, spacing, separators, components, colors } from "../design-system";

@@ -1,6 +1,5 @@
 import { Template, TemplateElement } from "@/core";
 import React from "react";
-import { FormulaService } from "@/services/formula-service";
 
 type InvoicePreviewContext = unknown;
 
@@ -48,7 +47,7 @@ function formatValue(value: unknown, kind: "none" | "currency" | "date", currenc
         }
         // For other objects, try to format them nicely
         return Object.entries(obj)
-            .filter(([_, v]) => v != null)
+            .filter(([, v]) => v != null)
             .map(([k, v]) => `${k}: ${String(v)}`)
             .join(", ");
     }
@@ -319,7 +318,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                 }}>
                                     {tbl.columns.map((c) => {
                                         let text = "";
-                                        let cellStyle: React.CSSProperties = {
+                                        const cellStyle: React.CSSProperties = {
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",

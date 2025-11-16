@@ -51,6 +51,15 @@ interface AIGenerationTabProps {
   onCustomDomainChange: (value: string) => void;
   onAddDomain: () => void;
   isAddingDomain: boolean;
+  domainStatus?: string;
+  dnsConfigured?: boolean;
+  dnsInstructions?: {
+    type: "A" | "CNAME";
+    name: string;
+    value: string;
+    ttl?: number;
+  };
+  message?: string;
 
   // Error display
   generationError: Error | null;
@@ -80,6 +89,10 @@ export function AIGenerationTab({
   onCustomDomainChange,
   onAddDomain,
   isAddingDomain,
+  domainStatus,
+  dnsConfigured,
+  dnsInstructions,
+  message,
   generationError,
 }: AIGenerationTabProps) {
   const hasExistingSite = brandSites.length > 0;
@@ -150,6 +163,10 @@ export function AIGenerationTab({
               onCustomDomainChange={onCustomDomainChange}
               onAddDomain={onAddDomain}
               isAdding={isAddingDomain}
+              domainStatus={domainStatus}
+              dnsConfigured={dnsConfigured}
+              dnsInstructions={dnsInstructions}
+              message={message}
             />
           )}
         </div>

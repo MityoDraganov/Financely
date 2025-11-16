@@ -821,10 +821,7 @@ export default function OrganizationBrandingPage() {
         {/* Save Button Footer - Always visible, sticky at bottom */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-              {hasUnsavedChanges ? "You have unsaved changes" : "All changes saved"}
-              </p>
+            <div className="flex items-center justify-end">
               <div className="flex gap-2">
               {hasUnsavedChanges ? (
                 <>

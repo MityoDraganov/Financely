@@ -31,20 +31,15 @@ export function ManualEditorTab({
   hasSite,
   brandSite,
   organizationId,
-  organizationName,
-  companyName,
   projectId,
   onCreateBlankSite,
   isCreating,
   onSaveFiles,
   onDeployFiles,
-  widgetsEnabled,
 }: ManualEditorTabProps) {
   if (!hasSite) {
     return (
       <ManualEditorEmptyState
-        organizationName={organizationName}
-        companyName={companyName}
         onCreateBlankSite={onCreateBlankSite}
         isCreating={isCreating}
       />

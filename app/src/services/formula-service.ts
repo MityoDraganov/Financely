@@ -9,12 +9,20 @@ export class FormulaService {
 	/**
 	 * Extract field references from a formula
 	 * Returns array of referenced field bindings or element IDs
+	 * @param formula - Formula string (with or without = prefix) or expression (without =)
 	 */
 	static extractReferences(formula: string): string[] {
-		if (!formula || !formula.trim().startsWith("=")) return [];
+		if (!formula) return [];
+		
+		// Remove = prefix if present (for expressions passed from evaluateExpression)
+		const expression = formula.trim().startsWith("=") 
+			? formula.trim().slice(1).trim()
+			: formula.trim();
+		
+		if (!expression) return [];
 		
 		const references: string[] = [];
-		const matches = formula.matchAll(FORMULA_REFERENCE_PATTERN);
+		const matches = expression.matchAll(FORMULA_REFERENCE_PATTERN);
 		
 		for (const match of matches) {
 			const ref = match[1];
@@ -145,7 +153,10 @@ export class FormulaService {
 				const evaluatedArgs = args.map((arg) =>
 					this.evaluateExpression(arg.trim(), formData, elements, elementValues)
 				);
-				return FORMULA_FUNCTIONS[functionName](...evaluatedArgs) as number;
+				// Type assertion for spread operator - functions accept number[] and return number or unknown
+				const func = FORMULA_FUNCTIONS[functionName] as (...args: number[]) => number | unknown;
+				const result = func(...evaluatedArgs);
+				return Number(result) || 0;
 			}
 		}
 
@@ -154,14 +165,26 @@ export class FormulaService {
 		let processedExpression = expression;
 		const references = this.extractReferences(expression);
 		
-		for (const ref of references) {
+		// Sort references by length (longest first) to avoid partial replacements
+		// e.g., replace "items[0].quantity" before "items" to avoid breaking the longer reference
+		const sortedReferences = references.sort((a, b) => b.length - a.length);
+		
+		console.log("FormulaService: Extracted references:", sortedReferences, "from expression:", expression);
+		
+		for (const ref of sortedReferences) {
 			const value = this.resolveReference(ref, formData, elements, elementValues);
-			// Replace reference with its value (handle word boundaries to avoid partial matches)
-			processedExpression = processedExpression.replace(
-				new RegExp(`\\b${this.escapeRegex(ref)}\\b`, "g"),
-				String(value)
-			);
+			console.log("FormulaService: Resolving reference", ref, "to value", value);
+			// Replace reference with its value
+			// Escape special regex characters - escapeRegex already handles brackets correctly
+			const escapedRef = this.escapeRegex(ref);
+			// Use a pattern that matches the reference as a whole
+			const replacementPattern = new RegExp(escapedRef, "g");
+			const beforeReplace = processedExpression;
+			processedExpression = processedExpression.replace(replacementPattern, String(value));
+			console.log("FormulaService: Replaced", ref, "in", beforeReplace, "->", processedExpression);
 		}
+		
+		console.log("FormulaService: Final processed expression:", processedExpression);
 
 		// Evaluate the arithmetic expression
 		try {
