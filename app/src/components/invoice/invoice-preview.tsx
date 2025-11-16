@@ -7,11 +7,13 @@ import { useRef, useEffect, useState } from "react";
 interface InvoicePreviewProps {
 	template: Template | undefined;
 	formData: Record<string, InvoiceDataValue>;
+	fullWidth?: boolean;
 }
 
 export function InvoicePreview({
 	template,
 	formData,
+	fullWidth = false,
 }: InvoicePreviewProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [zoom, setZoom] = useState(0.8);
@@ -29,8 +31,8 @@ export function InvoicePreview({
 		const updateZoom = () => {
 			if (!containerRef.current) return;
 			const containerWidth = containerRef.current.clientWidth;
-			// Leave some padding (32px = 1rem on each side)
-			const availableWidth = containerWidth - 32;
+			// Use full width if fullWidth prop is true, otherwise leave padding
+			const availableWidth = fullWidth ? containerWidth : containerWidth - 32;
 			const calculatedZoom = availableWidth / size.w;
 			// Clamp zoom between 0.3 and 1.5 for reasonable scaling
 			setZoom(Math.max(0.3, Math.min(1.5, calculatedZoom)));
@@ -43,7 +45,7 @@ export function InvoicePreview({
 		return () => {
 			resizeObserver.disconnect();
 		};
-	}, [template]);
+	}, [template, fullWidth]);
 
 	if (!template) {
 		return (

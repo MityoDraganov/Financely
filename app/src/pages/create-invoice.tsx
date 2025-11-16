@@ -10,13 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateInvoice } from "@/hooks";
-import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { TemplateElement } from "@/core";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { FileText, Loader2, Plus } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
@@ -28,6 +34,7 @@ import { InvoiceTemplateSelector } from "@/components/invoice/invoice-template-s
 import { InvoiceFormFields } from "@/components/invoice/invoice-form-fields";
 import { InvoiceTable } from "@/components/invoice/invoice-table";
 import { useInvoiceAutoFill } from "@/hooks/use-invoice-auto-fill";
+import { useInvoiceTemplate } from "@/contexts/invoice-template-context";
 
 type BindingField = {
 	path: string;
@@ -57,13 +64,15 @@ export default function CreateInvoicePage() {
 	const createInvoice = useCreateInvoice();
 	const { data: currentOrganization, isLoading: isOrgLoading } =
 		useCurrentOrganization();
-	const {
-		data: templates,
-		isLoading: isTemplatesLoading,
-	} = useTemplates(currentOrganization?.id);
+	const invoiceTemplateContext = useInvoiceTemplate();
+	const templates = invoiceTemplateContext?.templates ?? [];
+	const selectedTemplateId = invoiceTemplateContext?.selectedTemplateId ?? "";
+	const setSelectedTemplateId = invoiceTemplateContext?.setSelectedTemplateId ?? (() => {});
+	const selectedTemplate = invoiceTemplateContext?.selectedTemplate;
+	const previewDialogOpen = invoiceTemplateContext?.previewDialogOpen ?? false;
+	const setPreviewDialogOpen = invoiceTemplateContext?.setPreviewDialogOpen ?? (() => {});
 	const { data: products = [] } = useProductsByOrg(currentOrganization?.id);
-
-	const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+	const isMobile = useMediaQuery("(max-width: 768px)");
 	const [formData, setFormData] = useState<Record<string, InvoiceDataValue>>(
 		{}
 	);
@@ -98,15 +107,7 @@ export default function CreateInvoicePage() {
 		new Map()
 	);
 
-	// Get selected template
-	const selectedTemplate = useMemo(() => {
-		const list = templates ?? [];
-		if (!selectedTemplateId && list.length > 0) {
-			setSelectedTemplateId(list[0].id);
-			return list[0];
-		}
-		return list.find((t) => t.id === selectedTemplateId);
-	}, [templates, selectedTemplateId]);
+	// Get selected template - now comes from context
 
 	// Extract table configuration first (supports multiple tables)
 	const tableConfigs = useMemo((): TableConfig[] => {
@@ -1919,7 +1920,7 @@ export default function CreateInvoicePage() {
 	};
 
 	// Show loading state while organization or templates are loading
-	if (isOrgLoading || isTemplatesLoading) {
+	if (isOrgLoading || !invoiceTemplateContext) {
 		return (
 			<div className="min-h-screen bg-background">
 				<div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
@@ -1967,7 +1968,7 @@ export default function CreateInvoicePage() {
 	}
 
 	// Show error state if no templates
-	if (!isTemplatesLoading && (!templates || templates.length === 0)) {
+	if (invoiceTemplateContext && (!templates || templates.length === 0)) {
 		return (
 			<div className="min-h-screen bg-background">
 				<div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -2013,133 +2014,195 @@ export default function CreateInvoicePage() {
 		);
 	}
 
+	const formContent = (
+		<form id="invoice-form" onSubmit={handleSubmit} className="space-y-6">
+			{/* Template Selection - Hidden on mobile (shown in layout header) */}
+			<div className={isMobile ? "hidden" : ""}>
+				<InvoiceTemplateSelector
+					templates={templates ?? []}
+					selectedTemplateId={selectedTemplateId}
+					onTemplateChange={setSelectedTemplateId}
+					selectedTemplate={selectedTemplate}
+				/>
+			</div>
+
+			{/* Dynamic Fields */}
+			{bindings.length > 0 && (
+				<InvoiceFormFields
+					bindings={bindings}
+					formData={formData}
+					getValue={getValue}
+					setValue={setValue}
+					complianceValidation={complianceValidation}
+					currentOrganization={currentOrganization}
+					onAutoFill={handleAutoFill}
+					productLockedFields={new Set(
+						Array.from(productLockedFields.values()).flatMap((set) =>
+							Array.from(set)
+						)
+					)}
+					allItems={allItems}
+					calculatedTotals={calculatedTotals}
+					defaultCurrency={defaultCurrency}
+				/>
+			)}
+
+			{/* Dynamic Tables */}
+			<div data-section="tables">
+				{tableConfigs.map((tableConfig, tableIndex) => {
+					const tableItems = getTableItems(tableConfig.itemsPath);
+					const itemsPath = tableConfig.itemsPath;
+
+					return (
+						<InvoiceTable
+							key={`table-${tableIndex}`}
+							tableConfig={tableConfig}
+							tableIndex={tableIndex}
+							tableItems={tableItems}
+							products={products ?? []}
+							selectedProducts={selectedProducts}
+							productLockedFields={productLockedFields}
+							mappingProducts={mappingProducts}
+							onAddRow={async () =>
+								await addTableRow(itemsPath, tableConfig.columns)
+							}
+							onRemoveRow={async (rowIndex: number) =>
+								await removeTableRow(itemsPath, rowIndex)
+							}
+							onProductSelect={(rowIndex: number, productId: string | undefined) =>
+								handleProductSelectForRow(itemsPath, rowIndex, productId)
+							}
+							onProductClear={(rowIndex: number) =>
+								handleClearProductForRow(itemsPath, rowIndex)
+							}
+							onCellChange={(rowIndex: number, binding: string, value: InvoiceDataValue) =>
+								updateTableCell(itemsPath, rowIndex, binding, value)
+							}
+							onCellBlur={(rowIndex: number, binding: string, value: InvoiceDataValue) =>
+								updateTableCell(itemsPath, rowIndex, binding, value)
+							}
+							selectedTemplate={selectedTemplate}
+							tableColumnCurrencyLinks={tableColumnCurrencyLinks}
+							defaultCurrency={defaultCurrency}
+						/>
+					);
+				})}
+			</div>
+
+			{/* Submit - Hidden on mobile (shown in sticky footer) */}
+			<Card className={isMobile ? "hidden" : ""}>
+				<CardContent className="pt-6">
+					<Button
+						type="submit"
+						className="w-full"
+						disabled={
+							createInvoice.isPending ||
+							!selectedTemplate
+						}
+						size="lg"
+					>
+						{createInvoice.isPending ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Creating Invoice...
+							</>
+						) : (
+							<>
+								<FileText className="mr-2 h-4 w-4" />
+								Create Invoice
+							</>
+						)}
+					</Button>
+				</CardContent>
+			</Card>
+		</form>
+	);
+
+	const previewContent = (
+		<InvoicePreview
+			template={selectedTemplate}
+			formData={formData}
+			fullWidth={isMobile && previewDialogOpen}
+		/>
+	);
+
 	return (
 		<div className="min-h-screen bg-background">
-			<div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
-				{/* Header Section */}
-				<div className="space-y-2">
-					<h1 className="text-3xl font-bold tracking-tight">
-						Create Invoice
-					</h1>
-					<p className="text-muted-foreground">
-						Select a template and fill in the details. Your invoice
-						will be generated based on the template design.
-					</p>
-				</div>
-
-				<div className="grid gap-6 lg:grid-cols-3">
-					{/* Live Preview */}
-					<div className="lg:col-span-2">
-						<InvoicePreview
-							template={selectedTemplate}
-							formData={formData}
-						/>
+				{isMobile ? (
+				<>
+					{/* Mobile Form Content */}
+					<div className="container mx-auto px-4 py-4 max-w-7xl">
+						<div className="space-y-6 pb-24">
+							{formContent}
+						</div>
 					</div>
 
-					{/* Form Sidebar */}
-					<div className="space-y-6">
-						<form onSubmit={handleSubmit} className="space-y-6">
-							{/* Template Selection */}
-							<InvoiceTemplateSelector
-								templates={templates ?? []}
-								selectedTemplateId={selectedTemplateId}
-								onTemplateChange={setSelectedTemplateId}
-								selectedTemplate={selectedTemplate}
-							/>
-
-							{/* Dynamic Fields */}
-							{bindings.length > 0 && (
-								<InvoiceFormFields
-									bindings={bindings}
-									formData={formData}
-									getValue={getValue}
-									setValue={setValue}
-									complianceValidation={complianceValidation}
-									currentOrganization={currentOrganization}
-									onAutoFill={handleAutoFill}
-									productLockedFields={new Set(
-										Array.from(productLockedFields.values()).flatMap((set) =>
-											Array.from(set)
-										)
-									)}
-									allItems={allItems}
-									calculatedTotals={calculatedTotals}
-									defaultCurrency={defaultCurrency}
-								/>
+					{/* Mobile Sticky Submit Button */}
+					<div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t p-4 md:hidden">
+						<Button
+							type="submit"
+							form="invoice-form"
+							className="w-full"
+							disabled={
+								createInvoice.isPending ||
+								!selectedTemplate
+							}
+							size="lg"
+						>
+							{createInvoice.isPending ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Creating Invoice...
+								</>
+							) : (
+								<>
+									<FileText className="mr-2 h-4 w-4" />
+									Create Invoice
+								</>
 							)}
+						</Button>
+					</div>
 
-							{/* Dynamic Tables */}
-							<div data-section="tables">
-								{tableConfigs.map((tableConfig, tableIndex) => {
-									const tableItems = getTableItems(tableConfig.itemsPath);
-									const itemsPath = tableConfig.itemsPath;
-
-									return (
-										<InvoiceTable
-											key={`table-${tableIndex}`}
-											tableConfig={tableConfig}
-											tableIndex={tableIndex}
-											tableItems={tableItems}
-											products={products ?? []}
-											selectedProducts={selectedProducts}
-											productLockedFields={productLockedFields}
-											mappingProducts={mappingProducts}
-											onAddRow={async () =>
-												await addTableRow(itemsPath, tableConfig.columns)
-											}
-											onRemoveRow={async (rowIndex: number) =>
-												await removeTableRow(itemsPath, rowIndex)
-											}
-											onProductSelect={(rowIndex: number, productId: string | undefined) =>
-												handleProductSelectForRow(itemsPath, rowIndex, productId)
-											}
-											onProductClear={(rowIndex: number) =>
-												handleClearProductForRow(itemsPath, rowIndex)
-											}
-											onCellChange={(rowIndex: number, binding: string, value: InvoiceDataValue) =>
-												updateTableCell(itemsPath, rowIndex, binding, value)
-											}
-											onCellBlur={(rowIndex: number, binding: string, value: InvoiceDataValue) =>
-												updateTableCell(itemsPath, rowIndex, binding, value)
-											}
-											selectedTemplate={selectedTemplate}
-											tableColumnCurrencyLinks={tableColumnCurrencyLinks}
-											defaultCurrency={defaultCurrency}
-										/>
-									);
-								})}
+					{/* Mobile Preview Dialog */}
+					<Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+						<DialogContent className="inset-0 max-w-none max-h-screen w-full h-full m-0 p-0 rounded-none flex flex-col translate-x-0 translate-y-0 md:inset-auto md:max-w-[90vw] md:max-h-[90vh] md:rounded-lg md:translate-x-[-50%] md:translate-y-[-50%] md:top-[50%] md:left-[50%]">
+							<DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b">
+								<DialogTitle>Invoice Preview</DialogTitle>
+							</DialogHeader>
+							<div className="flex-1 overflow-y-auto min-h-0 w-full p-0">
+								<div className="w-full h-full">
+									{previewContent}
+								</div>
 							</div>
+						</DialogContent>
+					</Dialog>
+				</>
+			) : (
+				<div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+					{/* Header Section */}
+					<div className="space-y-2">
+						<h1 className="text-3xl font-bold tracking-tight">
+							Create Invoice
+						</h1>
+						<p className="text-muted-foreground">
+							Select a template and fill in the details. Your invoice
+							will be generated based on the template design.
+						</p>
+					</div>
 
-							{/* Submit */}
-							<Card>
-								<CardContent className="pt-6">
-									<Button
-										type="submit"
-										className="w-full"
-										disabled={
-											createInvoice.isPending ||
-											!selectedTemplate
-										}
-										size="lg"
-									>
-										{createInvoice.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Creating Invoice...
-											</>
-										) : (
-											<>
-												<FileText className="mr-2 h-4 w-4" />
-												Create Invoice
-											</>
-										)}
-									</Button>
-								</CardContent>
-							</Card>
-						</form>
+					<div className="grid gap-6 lg:grid-cols-3">
+						{/* Live Preview */}
+						<div className="lg:col-span-2">
+							{previewContent}
+						</div>
+
+						{/* Form Sidebar */}
+						<div className="space-y-6">
+							{formContent}
+						</div>
 					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }

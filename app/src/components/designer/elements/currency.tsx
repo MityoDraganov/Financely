@@ -362,11 +362,11 @@ export function CurrencyProperties({
                   mode: "independent",
                 });
               } else {
-                onChange({
-                  ...element,
-                  formula,
+              onChange({
+                ...element,
+                formula,
                 });
-              }
+            }
             }}
             currentElement={element}
             allElements={allElements}

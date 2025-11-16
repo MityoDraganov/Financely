@@ -18,6 +18,17 @@ import { ModeToggle } from "./ui/mode-toggle";
 import { useOrganizationBranding } from "@/hooks/use-organization-branding";
 import { Button } from "./ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useLocation } from "react-router-dom";
+import { useInvoiceTemplate } from "@/contexts/invoice-template-context";
+import { useDesignerTemplate } from "@/contexts/designer-template-context";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Eye, Plus } from "lucide-react";
 
 const items = [
 	{
@@ -83,21 +94,82 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const displayInitial = displayName.charAt(0).toUpperCase();
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const { toggleSidebar } = useSidebar();
+	const location = useLocation();
+	const isCreateInvoicePage = location.pathname === "/create-invoice";
+	const isDesignerPage = location.pathname.startsWith("/designer");
+	const invoiceTemplate = useInvoiceTemplate();
+	const designerTemplate = useDesignerTemplate();
 
 	return (
 		<div className="flex flex-1 overflow-x-hidden min-w-0">
 			{/* Mobile Header Bar */}
 			{isMobile && (
-				<div className="fixed top-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-sm border-b h-14 flex items-center px-4">
-				<Button
-					variant="ghost"
-					size="icon"
+				<div className="fixed top-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-sm border-b h-14 flex items-center gap-2 px-4">
+					<Button
+						variant="ghost"
+						size="icon"
 						className="h-9 w-9 shrink-0"
-					onClick={toggleSidebar}
-				>
+						onClick={toggleSidebar}
+					>
 						<Menu className="h-5 w-5" />
-					<span className="sr-only">Toggle Menu</span>
-				</Button>
+						<span className="sr-only">Toggle Menu</span>
+					</Button>
+					{isCreateInvoicePage && invoiceTemplate && (
+						<>
+							<div className="flex-1 min-w-0">
+								<Select
+									value={invoiceTemplate.selectedTemplateId}
+									onValueChange={invoiceTemplate.setSelectedTemplateId}
+								>
+									<SelectTrigger className="h-9 w-full">
+										<SelectValue placeholder="Select template" />
+									</SelectTrigger>
+									<SelectContent>
+										{invoiceTemplate.templates.map((t) => (
+											<SelectItem key={t.id} value={t.id}>
+												<div className="flex items-center space-x-2">
+													<FileText className="h-4 w-4" />
+													<span>{t.name}</span>
+												</div>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => invoiceTemplate.setPreviewDialogOpen(true)}
+								className="shrink-0"
+								disabled={!invoiceTemplate.selectedTemplate}
+							>
+								<Eye className="h-4 w-4 mr-1.5" />
+								Preview
+							</Button>
+						</>
+					)}
+					{isDesignerPage && designerTemplate && (
+						<div className="flex-1 min-w-0">
+							<Select
+								value={designerTemplate.currentTemplate?.id ?? ""}
+								onValueChange={designerTemplate.onTemplateChange}
+							>
+								<SelectTrigger className="h-9 w-full">
+									<SelectValue placeholder="Select template" />
+								</SelectTrigger>
+								<SelectContent>
+									{designerTemplate.templates.map((t) => (
+										<SelectItem key={t.id} value={t.id}>
+											{t.name}
+										</SelectItem>
+									))}
+									<SelectItem value="new">
+										<Plus className="h-4 w-4 mr-1" /> New template
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					)}
 				</div>
 			)}
 

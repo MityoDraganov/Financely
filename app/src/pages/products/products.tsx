@@ -62,23 +62,23 @@ export default function ProductsPage() {
   // Filter products - memoized to prevent recalculation on every render
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      // Status filter
-      if (statusFilter !== "all" && product.status !== statusFilter) {
-        return false;
-      }
+    // Status filter
+    if (statusFilter !== "all" && product.status !== statusFilter) {
+      return false;
+    }
 
-      // Search filter
-      if (searchTerm.trim()) {
-        const searchLower = searchTerm.toLowerCase();
-        const name = (product.name || "").toLowerCase();
-        const description = (product.description || "").toLowerCase();
-        const sku = (product.sku || "").toLowerCase();
-        
-        return name.includes(searchLower) || description.includes(searchLower) || sku.includes(searchLower);
-      }
+    // Search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      const name = (product.name || "").toLowerCase();
+      const description = (product.description || "").toLowerCase();
+      const sku = (product.sku || "").toLowerCase();
+      
+      return name.includes(searchLower) || description.includes(searchLower) || sku.includes(searchLower);
+    }
 
-      return true;
-    });
+    return true;
+  });
   }, [products, statusFilter, searchTerm]);
 
   const getStatusColor = (status: string) => {
@@ -129,8 +129,8 @@ export default function ProductsPage() {
     setFormData((prev) => {
       if (!prev.images || prev.images.length === 0) return prev;
       const newImages = [...prev.images];
-      const [featured] = newImages.splice(index, 1);
-      newImages.unshift(featured);
+    const [featured] = newImages.splice(index, 1);
+    newImages.unshift(featured);
       return { ...prev, images: newImages };
     });
   }, []);

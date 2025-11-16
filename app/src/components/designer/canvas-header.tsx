@@ -35,24 +35,27 @@ export function CanvasHeader({
 }: CanvasHeaderProps) {
 	return (
 		<div className="px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
-			<Select
-				value={currentTemplate?.id ?? ""}
-				onValueChange={onTemplateChange}
-			>
-				<SelectTrigger className={isMobile ? "flex-1 min-w-0" : "w-60"}>
-					<SelectValue placeholder="Select a template" />
-				</SelectTrigger>
-				<SelectContent>
-					{templates.map((t: Template) => (
-						<SelectItem key={t.id} value={t.id}>
-							{t.name}
+			{/* Template selector - hidden on mobile (shown in layout header) */}
+			{!isMobile && (
+				<Select
+					value={currentTemplate?.id ?? ""}
+					onValueChange={onTemplateChange}
+				>
+					<SelectTrigger className="w-60">
+						<SelectValue placeholder="Select a template" />
+					</SelectTrigger>
+					<SelectContent>
+						{templates.map((t: Template) => (
+							<SelectItem key={t.id} value={t.id}>
+								{t.name}
+							</SelectItem>
+						))}
+						<SelectItem value="new">
+							<Plus className="h-4 w-4 mr-1" /> New template
 						</SelectItem>
-					))}
-					<SelectItem value="new">
-						<Plus className="h-4 w-4 mr-1" /> New template
-					</SelectItem>
-				</SelectContent>
-			</Select>
+					</SelectContent>
+				</Select>
+			)}
 			{!isMobile && isSubscribed && (
 				<div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded shrink-0">
 					<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />

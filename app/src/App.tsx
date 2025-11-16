@@ -2,8 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 
-import CreateInvoicePage from "./pages/create-invoice";
-import TemplateDesignerPage from "./pages/designer";
+import CreateInvoiceWrapper from "./pages/create-invoice-wrapper";
+import DesignerWrapper from "./pages/designer-wrapper";
 import TemplatesPage from "./pages/templates/templates";
 import LandingPage from "./pages/landing";
 import SignInPage from "./pages/sign-in";
@@ -171,9 +171,7 @@ function App() {
 										path="/create-invoice"
 										element={
 											<ProtectedRoute>
-												<AppLayout>
-													<CreateInvoicePage />
-												</AppLayout>
+												<CreateInvoiceWrapper />
 											</ProtectedRoute>
 										}
 									/>
@@ -191,9 +189,7 @@ function App() {
 										path="/designer/:id?"
 										element={
 											<ProtectedRoute>
-												<AppLayout>
-													<TemplateDesignerPage />
-												</AppLayout>
+												<DesignerWrapper />
 											</ProtectedRoute>
 										}
 									/>

@@ -553,8 +553,8 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
                 onContinue={handleInvitesContinue}
                 invites={invites}
                 hasAdditionalUsers={hasAdditionalUsers}
-              />
-            )}
+            />
+          )}
 
           {currentStep === STEPS.JOIN_ORG && (
             <JoinOrgStep

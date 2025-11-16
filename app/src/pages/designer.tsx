@@ -40,6 +40,7 @@ import { DesignerCanvas } from "@/components/designer/designer-canvas";
 import { PropertiesPanel } from "@/components/designer/properties-panel";
 import { AIBuilderDialog } from "@/components/designer/ai-builder-dialog";
 import type { DesignerState, DragState, SnapGuide } from "@/components/designer/designer-types";
+import { useDesignerTemplate } from "@/contexts/designer-template-context";
 
 export default function TemplateDesignerPage() {
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -58,7 +59,13 @@ export default function TemplateDesignerPage() {
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
-	const { data: templates = [], isSubscribed } = useTemplates(orgId);
+	const designerTemplateContext = useDesignerTemplate();
+	const templates = useMemo(() => designerTemplateContext?.templates ?? [], [designerTemplateContext?.templates]);
+	const contextCurrentTemplateId = designerTemplateContext?.currentTemplateId;
+	const setContextCurrentTemplateId = designerTemplateContext?.setCurrentTemplateId ?? (() => {});
+	const contextOnTemplateChange = designerTemplateContext?.onTemplateChange ?? (() => {});
+	const contextHandleCreateNewTemplate = designerTemplateContext?.onCreateNewTemplate ?? (() => {});
+	const { isSubscribed } = useTemplates(orgId);
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
 	const createTemplate = useCreateTemplate();
@@ -79,52 +86,8 @@ export default function TemplateDesignerPage() {
 		};
 	}, [isMobile, mobilePanelOpen]);
 
-	// Handler for creating a new template
-	const handleCreateNewTemplate = async () => {
-		// Detect region from organization for compliance
-		const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
-		
-		// Generate unique template name
-		const uniqueName = generateUniqueTemplateName("New Template", templates);
-		
-		const templateData: TemplateData = {
-			orgId,
-			name: uniqueName,
-			description: "A new template",
-			pageSize: "A4",
-			brand: {
-				colors: {
-					primary: "#000000",
-					secondary: "#666666",
-					accent: "#2563eb",
-				},
-				backgroundImage: "",
-				margins: { top: 40, right: 40, bottom: 40, left: 40 },
-				fonts: ["Inter"],
-			},
-			elements: [],
-			status: "draft",
-			// Set compliance metadata based on organization region
-			compliance: {
-				region,
-				requiredFields: [],
-				autoFooter: true,
-				complianceValidated: false,
-			},
-		};
-		
-		try {
-			const newTemplateId = await createTemplate.mutateAsync(templateData);
-			setState((s: DesignerState) => ({
-				...s,
-				currentTemplateId: newTemplateId,
-			}));
-			// Navigate to the new template's URL
-			navigate(`/designer/${newTemplateId}`, { replace: true });
-		} catch (error) {
-			console.error("Failed to create template:", error);
-		}
-	};
+	// Handler for creating a new template - now uses context
+	const handleCreateNewTemplate = contextHandleCreateNewTemplate;
 
 	console.log(
 		"templates",
@@ -136,7 +99,9 @@ export default function TemplateDesignerPage() {
 	);
 
 	const currentTemplate = useMemo(() => {
-		const template = templates.find((t: Template) => t.id === state.currentTemplateId) ?? templates[0];
+		// Use context's currentTemplateId if available, otherwise fall back to state
+		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
+		const template = templates.find((t: Template) => t.id === templateId) ?? templates[0];
 		if (!template) return undefined;
 		
 		// Merge draft state for optimistic UI updates
@@ -145,7 +110,7 @@ export default function TemplateDesignerPage() {
 			elements: draftElements ?? template.elements ?? [],
 			brand: draftBrand ?? template.brand,
 		} as Template;
-	}, [templates, state.currentTemplateId, draftElements, draftBrand]);
+	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements, draftBrand]);
 
 	// Compliance validation for current template
 	const complianceStatus = useMemo(() => {
@@ -368,12 +333,13 @@ export default function TemplateDesignerPage() {
 		}));
 	}, [state.currentTemplateId]);
 
-	// Initialize template from URL param or auto-create new template
+	// Sync context currentTemplateId with state and URL
 	useEffect(() => {
 		if (templateIdFromUrl) {
-			// Template ID from URL - set it if it exists in templates
+			// Template ID from URL - set it in context if it exists in templates
 			const templateExists = templates.some((t: Template) => t.id === templateIdFromUrl);
-			if (templateExists && state.currentTemplateId !== templateIdFromUrl) {
+			if (templateExists && contextCurrentTemplateId !== templateIdFromUrl) {
+				setContextCurrentTemplateId(templateIdFromUrl);
 				setState((s: DesignerState) => ({
 					...s,
 					currentTemplateId: templateIdFromUrl,
@@ -382,17 +348,22 @@ export default function TemplateDesignerPage() {
 				// Template not found, redirect to templates list
 				navigate("/templates");
 			}
-		} else if (!state.currentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
+		} else if (!contextCurrentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
 			// No template ID in URL and no template selected - auto-create a new one
-			// This handles the case when user clicks "Create New Template" from templates page
-			handleCreateNewTemplate().catch((error) => {
-				console.error("Failed to auto-create template:", error);
-				// If creation fails, redirect back to templates
-				navigate("/templates");
-			});
+			handleCreateNewTemplate();
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [templates, state.currentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
+	}, [templates, contextCurrentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
+	
+	// Sync state.currentTemplateId with context
+	useEffect(() => {
+		if (contextCurrentTemplateId && state.currentTemplateId !== contextCurrentTemplateId) {
+			setState((s: DesignerState) => ({
+				...s,
+				currentTemplateId: contextCurrentTemplateId,
+			}));
+		}
+	}, [contextCurrentTemplateId, state.currentTemplateId]);
 
 
 	const saveMutation = useMutation({
@@ -1206,16 +1177,12 @@ export default function TemplateDesignerPage() {
 				isSubscribed={isSubscribed}
 				activeUsers={activeUsers}
 				onTemplateChange={async (id: string) => {
-					if (id === "new") {
-						await handleCreateNewTemplate();
-					} else {
-						// Reset draft state when switching templates
-						setDraftElements(null);
-						setDraftBrand(null);
-						setState((s) => ({ ...s, currentTemplateId: id, selectedElementId: undefined }));
-						// Navigate to the selected template's URL
-						navigate(`/designer/${id}`, { replace: true });
-					}
+					// Reset draft state when switching templates
+					setDraftElements(null);
+					setDraftBrand(null);
+					setState((s) => ({ ...s, selectedElementId: undefined }));
+					// Use context handler
+					await contextOnTemplateChange(id);
 				}}
 				onCreateNewTemplate={handleCreateNewTemplate}
 				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
