@@ -236,7 +236,19 @@ export interface FunctionsService {
   addCustomDomain(payload: {
     brandSiteId: string;
     customDomain: string;
-  }): Promise<{ success: boolean; customDomain: string }>;
+  }): Promise<{
+    success: boolean;
+    customDomain: string;
+    domainStatus?: string;
+    dnsConfigured?: boolean;
+    dnsInstructions?: {
+      type: "A" | "CNAME";
+      name: string;
+      value: string;
+      ttl?: number;
+    };
+    message?: string;
+  }>;
 
   restoreBrandSiteVersion(payload: {
     brandSiteId: string;

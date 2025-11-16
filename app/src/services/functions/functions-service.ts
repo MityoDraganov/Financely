@@ -125,9 +125,10 @@ export const functionsService: FunctionsService = {
     type AddCustomDomainPayload = Parameters<
       FunctionsService["addCustomDomain"]
     >[0];
+    type AddCustomDomainResponse = Awaited<ReturnType<FunctionsService["addCustomDomain"]>>;
     const result = await httpsCallable<
       AddCustomDomainPayload,
-      { success: boolean; customDomain: string }
+      AddCustomDomainResponse
     >(firebase.functions, "addCustomDomain")(payload);
     return result.data;
   },

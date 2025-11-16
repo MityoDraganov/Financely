@@ -66,6 +66,15 @@ export default function SiteBuilderPage() {
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [customDomainInput, setCustomDomainInput] = useState("");
+  const [domainStatus, setDomainStatus] = useState<string | undefined>();
+  const [dnsConfigured, setDnsConfigured] = useState<boolean | undefined>();
+  const [dnsInstructions, setDnsInstructions] = useState<{
+    type: "A" | "CNAME";
+    name: string;
+    value: string;
+    ttl?: number;
+  } | undefined>();
+  const [domainMessage, setDomainMessage] = useState<string | undefined>();
   const [context, setContext] = useState("");
   const [contextImages, setContextImages] = useState<string[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
@@ -734,12 +743,33 @@ export default function SiteBuilderPage() {
                   toast.error("Please enter a domain");
                   return;
                 }
-                addCustomDomain.mutate({
-                  brandSiteId,
-                  customDomain: customDomainInput,
-                });
+                addCustomDomain.mutate(
+                  {
+                    brandSiteId,
+                    customDomain: customDomainInput,
+                  },
+                  {
+                    onSuccess: (result) => {
+                      setDomainStatus(result.domainStatus);
+                      setDnsConfigured(result.dnsConfigured);
+                      setDnsInstructions(result.dnsInstructions);
+                      setDomainMessage(result.message);
+                    },
+                    onError: () => {
+                      // Reset state on error
+                      setDomainStatus(undefined);
+                      setDnsConfigured(undefined);
+                      setDnsInstructions(undefined);
+                      setDomainMessage(undefined);
+                    },
+                  }
+                );
               }}
               isAddingDomain={addCustomDomain.isPending}
+              domainStatus={domainStatus}
+              dnsConfigured={dnsConfigured}
+              dnsInstructions={dnsInstructions}
+              message={domainMessage}
               generationError={generateSite.error instanceof Error ? generateSite.error : null}
             />
           </TabsContent>
