@@ -254,6 +254,8 @@ export const templateVersionDataSchema = z.object({
   version: z.number().int().min(1),
   data: templateDataSchema,
   publishedAt: z.string().min(1),
+  createdBy: z.string().optional(), // User ID who created this version
+  description: z.string().optional(), // Optional description of changes
 });
 
 export type TemplateVersionData = z.infer<typeof templateVersionDataSchema>;

@@ -39,7 +39,6 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
-import { AIServiceProvider } from "./components/AIServiceProvider";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +63,6 @@ function App() {
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>
 						<OrganizationProvider>
-							<AIServiceProvider>
 							<BrandingProvider>
 							<Router>
 								<Routes>
@@ -297,7 +295,6 @@ function App() {
 								<Toaster />
 							</Router>
 							</BrandingProvider>
-							</AIServiceProvider>
 						</OrganizationProvider>
 					</SidebarProvider>
 					</ThemeProvider>

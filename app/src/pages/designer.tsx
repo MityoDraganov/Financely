@@ -41,6 +41,8 @@ import { PropertiesPanel } from "@/components/designer/properties-panel";
 import { AIBuilderDialog } from "@/components/designer/ai-builder-dialog";
 import type { DesignerState, DragState, SnapGuide } from "@/components/designer/designer-types";
 import { useDesignerTemplate } from "@/contexts/designer-template-context";
+import { useTemplateVersions, useSaveTemplateVersion, useRestoreTemplateVersion } from "@/hooks/repository-hooks/use-template-versions";
+import { useUser } from "@clerk/clerk-react";
 
 export default function TemplateDesignerPage() {
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -68,11 +70,22 @@ export default function TemplateDesignerPage() {
 	const { isSubscribed } = useTemplates(orgId);
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
+	const { user: clerkUser } = useUser();
 	const createTemplate = useCreateTemplate();
 	const generateTemplate = useGenerateInvoiceTemplate();
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const [mobilePanelTab, setMobilePanelTab] = useState<"elements" | "properties">("elements");
+	
+	// Version history hooks
+	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
+	const { data: versions = [], error: versionsError, isLoading: isLoadingVersions } = useTemplateVersions(templateId);
+	console.log("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
+	const saveVersion = useSaveTemplateVersion();
+	const restoreVersion = useRestoreTemplateVersion();
+	
+	// Determine current version (latest version number)
+	const currentVersion = versions.length > 0 ? versions[0].version : null;
 
 	// Prevent body scroll when mobile panel is open
 	useEffect(() => {
@@ -85,6 +98,15 @@ export default function TemplateDesignerPage() {
 			document.body.style.overflow = "";
 		};
 	}, [isMobile, mobilePanelOpen]);
+
+	// Cleanup version creation timer on unmount or template change
+	useEffect(() => {
+		return () => {
+			if (versionCreationTimerRef.current) {
+				clearTimeout(versionCreationTimerRef.current);
+			}
+		};
+	}, [templateId]);
 
 	// Handler for creating a new template - now uses context
 	const handleCreateNewTemplate = contextHandleCreateNewTemplate;
@@ -366,6 +388,10 @@ export default function TemplateDesignerPage() {
 	}, [contextCurrentTemplateId, state.currentTemplateId]);
 
 
+	// Ref to track version creation debounce timer
+	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const lastSavedElementsRef = useRef<string>("");
+
 	const saveMutation = useMutation({
 		mutationFn: async (partial: Partial<TemplateData>) => {
 			if (!currentTemplate) return;
@@ -409,10 +435,40 @@ export default function TemplateDesignerPage() {
 				}
 			}
 		},
-		onSuccess: () => {
+		onSuccess: async (_, partial) => {
 			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
 			// Clear draft brand after successful save (real-time update will handle it)
 			setTimeout(() => setDraftBrand(null), 100);
+
+			// Auto-create version when elements are changed
+			if (partial.elements && currentTemplate && templateId && clerkUser?.id) {
+				const elementsStr = JSON.stringify(partial.elements);
+				
+				// Only create version if elements actually changed
+				if (elementsStr !== lastSavedElementsRef.current) {
+					lastSavedElementsRef.current = elementsStr;
+
+					// Clear existing timer
+					if (versionCreationTimerRef.current) {
+						clearTimeout(versionCreationTimerRef.current);
+					}
+
+					// Debounce version creation to avoid creating too many versions
+					// Wait 2 seconds after the last change before creating a version
+					versionCreationTimerRef.current = setTimeout(async () => {
+						try {
+							await saveVersion.mutateAsync({
+								templateId,
+								userId: clerkUser.id,
+								description: "Auto-saved version",
+							});
+						} catch (error) {
+							console.error("Failed to auto-create version:", error);
+							// Don't show error toast for auto-save failures
+						}
+					}, 2000);
+				}
+			}
 		},
 		onError: () => {
 			// Revert draft brand on error
@@ -1165,6 +1221,18 @@ export default function TemplateDesignerPage() {
 			onUpdateElement={updateSelected}
 			onAddRequiredElement={addRequiredElement}
 			determineElementTypeForBinding={determineElementTypeForBinding}
+			templateId={templateId}
+			versions={versions}
+			currentVersion={currentVersion}
+			onRestoreVersion={async (version: number) => {
+				if (!templateId) return;
+				await restoreVersion.mutateAsync({
+					templateId,
+					version,
+				});
+			}}
+			isRestoringVersion={restoreVersion.isPending}
+			currentUserId={clerkUser?.id}
 		/>
 	);
 
