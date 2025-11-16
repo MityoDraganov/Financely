@@ -7,6 +7,19 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import {
+	Drawer,
+	DrawerContent,
+} from "@/components/ui/drawer";
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	TabsContent,
+} from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Menu, Settings } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
@@ -50,6 +63,21 @@ export default function TemplateDesignerPage() {
 	const authUser = useFirebaseAuthUser();
 	const createTemplate = useCreateTemplate();
 	const generateTemplate = useGenerateInvoiceTemplate();
+	const isMobile = useMediaQuery("(max-width: 768px)");
+	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+	const [mobilePanelTab, setMobilePanelTab] = useState<"elements" | "properties">("elements");
+
+	// Prevent body scroll when mobile panel is open
+	useEffect(() => {
+		if (isMobile && mobilePanelOpen) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "";
+		}
+		return () => {
+			document.body.style.overflow = "";
+		};
+	}, [isMobile, mobilePanelOpen]);
 
 	// Handler for creating a new template
 	const handleCreateNewTemplate = async () => {
@@ -1126,144 +1154,255 @@ export default function TemplateDesignerPage() {
 		};
 	}, [drag, state.zoom, saveMutation]);
 
+	const sidebarContent = (
+		<TemplateSidebar
+			templates={templates}
+			currentTemplate={currentTemplate}
+			state={state}
+			onStateChange={setState}
+			onCreateNewTemplate={handleCreateNewTemplate}
+			onOpenAIBuilder={() => {
+				setAiBuilderOpen(true);
+				if (isMobile) {
+					setMobilePanelOpen(false);
+				}
+			}}
+			onAddElement={addElement}
+			onSelectElement={(id) => {
+				setState((s) => ({ ...s, selectedElementId: id }));
+				if (isMobile) {
+					setMobilePanelTab("properties");
+					setMobilePanelOpen(true);
+				}
+			}}
+			onDuplicateElement={duplicateElement}
+			onDeleteElement={deleteElement}
+			missingRequiredFields={missingRequiredFields}
+			onAddRequiredElement={addRequiredElement}
+			isRequired={isRequired}
+		/>
+	);
+
+	const propertiesContent = (
+		<PropertiesPanel
+			template={currentTemplate}
+			selectedElementId={state.selectedElementId}
+			draftElements={draftElements}
+			organization={currentOrg ?? undefined}
+			complianceStatus={complianceStatus}
+			saveMutation={saveMutation}
+			onUpdateElement={updateSelected}
+			onAddRequiredElement={addRequiredElement}
+			determineElementTypeForBinding={determineElementTypeForBinding}
+		/>
+	);
+
+	const canvasContent = (
+		<div className="h-full flex flex-col overflow-hidden">
+			<CanvasHeader
+				templates={templates}
+				currentTemplate={currentTemplate}
+				state={state}
+				isSubscribed={isSubscribed}
+				activeUsers={activeUsers}
+				onTemplateChange={async (id: string) => {
+					if (id === "new") {
+						await handleCreateNewTemplate();
+					} else {
+						// Reset draft state when switching templates
+						setDraftElements(null);
+						setDraftBrand(null);
+						setState((s) => ({ ...s, currentTemplateId: id, selectedElementId: undefined }));
+						// Navigate to the selected template's URL
+						navigate(`/designer/${id}`, { replace: true });
+					}
+				}}
+				onCreateNewTemplate={handleCreateNewTemplate}
+				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
+				isMobile={isMobile}
+			/>
+			<div className="flex-1 overflow-hidden">
+				<DesignerCanvas
+					template={currentTemplate}
+					draftElements={draftElements}
+					state={state}
+					drag={drag}
+					snapGuides={snapGuides}
+					activeUsers={activeUsers}
+					currentUserId={authUser?.uid}
+					pageRef={pageRef}
+					onDragOver={handleCanvasDragOver}
+					onDrop={handleCanvasDrop}
+					onMouseMove={(e) => {
+						if (!state.currentTemplateId) return;
+						const rect = pageRef.current?.getBoundingClientRect();
+						if (!rect) return;
+						const x = (e.clientX - rect.left) / state.zoom;
+						const y = (e.clientY - rect.top) / state.zoom;
+						updateCursor({ x, y });
+					}}
+					onSelectElement={(id) => {
+						setState((s) => ({ ...s, selectedElementId: id }));
+						if (isMobile) {
+							setMobilePanelTab("properties");
+							setMobilePanelOpen(true);
+						}
+					}}
+					onStartDrag={(el, e) => {
+						if (e.button !== 0) return;
+						e.preventDefault();
+						e.stopPropagation();
+						setState((s) => ({ ...s, selectedElementId: el.id }));
+						setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+						setDrag({
+							elementId: el.id,
+							mode: "move",
+							startClientX: e.clientX,
+							startClientY: e.clientY,
+							startX: el.x,
+							startY: el.y,
+						});
+					}}
+					onStartResize={(el, edge, e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+						setDrag({
+							elementId: el.id,
+							mode: "resize",
+							edge,
+							startClientX: e.clientX,
+							startClientY: e.clientY,
+							startX: el.x,
+							startY: el.y,
+							startWidth: el.width,
+							startHeight: el.height,
+						});
+					}}
+					onDuplicateElement={duplicateElement}
+					onDeleteElement={deleteElement}
+					onCreateTemplate={() => createMutation.mutate()}
+					isRequired={isRequired}
+					onTableHeaderChange={(tableId, columnId, header) => {
+						const elements = draftElements ?? currentTemplate?.elements ?? [];
+						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
+						if (!tbl) return;
+						const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
+							{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+						];
+						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
+						setDraftElements((prev) => {
+							const base = prev ?? currentTemplateRef.current?.elements ?? [];
+							return base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
+						});
+						saveMutation.mutate({
+							elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
+								it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
+							),
+						});
+					}}
+					currentTemplateRef={currentTemplateRef}
+					saveMutation={saveMutation}
+				/>
+			</div>
+		</div>
+	);
+
 	return (
-		<div className="flex h-screen">
-			<ResizablePanelGroup direction="horizontal">
-				<ResizablePanel defaultSize={18} minSize={16}>
-					<TemplateSidebar
-						templates={templates}
-						currentTemplate={currentTemplate}
-						state={state}
-						onStateChange={setState}
-						onCreateNewTemplate={handleCreateNewTemplate}
-						onOpenAIBuilder={() => setAiBuilderOpen(true)}
-						onAddElement={addElement}
-						onSelectElement={(id) => setState((s) => ({ ...s, selectedElementId: id }))}
-						onDuplicateElement={duplicateElement}
-						onDeleteElement={deleteElement}
-						missingRequiredFields={missingRequiredFields}
-						onAddRequiredElement={addRequiredElement}
-						isRequired={isRequired}
-					/>
-				</ResizablePanel>
-				<ResizableHandle withHandle />
-				<ResizablePanel minSize={40}>
-					<div className="h-full flex flex-col">
-						<CanvasHeader
-							templates={templates}
-							currentTemplate={currentTemplate}
-							state={state}
-							isSubscribed={isSubscribed}
-							activeUsers={activeUsers}
-							onTemplateChange={async (id: string) => {
-									if (id === "new") {
-										await handleCreateNewTemplate();
-									} else {
-									// Reset draft state when switching templates
-									setDraftElements(null);
-									setDraftBrand(null);
-									setState((s) => ({ ...s, currentTemplateId: id, selectedElementId: undefined }));
-									// Navigate to the selected template's URL
-									navigate(`/designer/${id}`, { replace: true });
-								}
-							}}
-							onCreateNewTemplate={handleCreateNewTemplate}
-							onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
-						/>
-						<DesignerCanvas
-							template={currentTemplate}
-							draftElements={draftElements}
-							state={state}
-							drag={drag}
-							snapGuides={snapGuides}
-							activeUsers={activeUsers}
-							currentUserId={authUser?.uid}
-							pageRef={pageRef}
-								onDragOver={handleCanvasDragOver}
-								onDrop={handleCanvasDrop}
-								onMouseMove={(e) => {
-									if (!state.currentTemplateId) return;
-									const rect = pageRef.current?.getBoundingClientRect();
-									if (!rect) return;
-									const x = (e.clientX - rect.left) / state.zoom;
-									const y = (e.clientY - rect.top) / state.zoom;
-									updateCursor({ x, y });
-								}}
-							onSelectElement={(id) => setState((s) => ({ ...s, selectedElementId: id }))}
-							onStartDrag={(el, e) => {
-													if (e.button !== 0) return;
-											e.preventDefault();
-											e.stopPropagation();
-								setState((s) => ({ ...s, selectedElementId: el.id }));
-								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-											setDrag({
-												elementId: el.id,
-												mode: "move",
-												startClientX: e.clientX,
-												startClientY: e.clientY,
-												startX: el.x,
-												startY: el.y,
-											});
-										}}
-							onStartResize={(el, edge, e) => {
-															e.preventDefault();
-															e.stopPropagation();
-								setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-															setDrag({
-									elementId: el.id,
-																mode: "resize",
-									edge,
-									startClientX: e.clientX,
-									startClientY: e.clientY,
-																startX: el.x,
-																startY: el.y,
-									startWidth: el.width,
-									startHeight: el.height,
-															});
-														}}
-							onDuplicateElement={duplicateElement}
-							onDeleteElement={deleteElement}
-							onCreateTemplate={() => createMutation.mutate()}
-							isRequired={isRequired}
-							onTableHeaderChange={(tableId, columnId, header) => {
-								const elements = draftElements ?? currentTemplate?.elements ?? [];
-								const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
-								if (!tbl) return;
-								const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-									{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-									{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-																		];
-								const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
-								setDraftElements((prev) => {
-									const base = prev ?? currentTemplateRef.current?.elements ?? [];
-									return base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
-								});
-								saveMutation.mutate({
-									elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
-										it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
-																	),
-								});
-														}}
-							currentTemplateRef={currentTemplateRef}
-							saveMutation={saveMutation}
-						/>
+		<div className="flex h-screen overflow-hidden">
+			{isMobile ? (
+				<>
+					<div className="flex-1 flex flex-col overflow-hidden min-w-0 pb-16">
+						{canvasContent}
 					</div>
-				</ResizablePanel>
-				<ResizableHandle withHandle />
-				<ResizablePanel defaultSize={22} minSize={18}>
-					<PropertiesPanel
-						template={currentTemplate}
-						selectedElementId={state.selectedElementId}
-						draftElements={draftElements}
-						organization={currentOrg ?? undefined}
-						complianceStatus={complianceStatus}
-						saveMutation={saveMutation}
-						onUpdateElement={updateSelected}
-						onAddRequiredElement={addRequiredElement}
-						determineElementTypeForBinding={determineElementTypeForBinding}
-					/>
-				</ResizablePanel>
-			</ResizablePanelGroup>
+					{/* Mobile Bottom Navigation */}
+					<div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t md:hidden">
+						<div className="flex items-center justify-around h-16 px-2">
+							<Button
+								variant={mobilePanelOpen && mobilePanelTab === "elements" ? "secondary" : "ghost"}
+								className="flex-1 flex flex-col items-center justify-center gap-1 h-full"
+								onClick={() => {
+									if (mobilePanelOpen && mobilePanelTab === "elements") {
+										setMobilePanelOpen(false);
+									} else {
+										setMobilePanelTab("elements");
+										setMobilePanelOpen(true);
+									}
+								}}
+							>
+								<Menu className="h-5 w-5" />
+								<span className="text-xs font-medium">Elements</span>
+							</Button>
+							<Button
+								variant={mobilePanelOpen && mobilePanelTab === "properties" ? "secondary" : "ghost"}
+								className="flex-1 flex flex-col items-center justify-center gap-1 h-full"
+								onClick={() => {
+									if (mobilePanelOpen && mobilePanelTab === "properties") {
+										setMobilePanelOpen(false);
+									} else {
+										setMobilePanelTab("properties");
+										setMobilePanelOpen(true);
+									}
+								}}
+							>
+								<Settings className="h-5 w-5" />
+								<span className="text-xs font-medium">Properties</span>
+							</Button>
+						</div>
+					</div>
+					<Drawer
+						open={mobilePanelOpen}
+						onOpenChange={setMobilePanelOpen}
+						direction="bottom"
+					>
+						<DrawerContent className="max-h-[85vh] flex flex-col">
+							<Tabs
+								value={mobilePanelTab}
+								onValueChange={(v) => setMobilePanelTab(v as "elements" | "properties")}
+								className="flex flex-col flex-1 min-h-0"
+							>
+								<div className="px-4 pt-2 pb-1 border-b shrink-0">
+									<TabsList className="w-full">
+										<TabsTrigger value="elements" className="flex-1">
+											Elements
+										</TabsTrigger>
+										<TabsTrigger value="properties" className="flex-1">
+											Properties
+										</TabsTrigger>
+									</TabsList>
+								</div>
+								<div className="flex-1 overflow-y-auto min-h-0">
+									<TabsContent value="elements" className="h-full m-0 p-0 data-[state=active]:flex data-[state=active]:flex-col">
+										<div className="h-full overflow-y-auto">
+											{sidebarContent}
+										</div>
+									</TabsContent>
+									<TabsContent value="properties" className="h-full m-0 p-0 data-[state=active]:flex data-[state=active]:flex-col">
+										<div className="h-full overflow-y-auto">
+											{propertiesContent}
+										</div>
+									</TabsContent>
+								</div>
+							</Tabs>
+						</DrawerContent>
+					</Drawer>
+				</>
+			) : (
+				<ResizablePanelGroup direction="horizontal" className="w-full">
+					<ResizablePanel defaultSize={18} minSize={16} maxSize={25}>
+						{sidebarContent}
+					</ResizablePanel>
+					<ResizableHandle withHandle />
+					<ResizablePanel minSize={40}>
+						{canvasContent}
+					</ResizablePanel>
+					<ResizableHandle withHandle />
+					<ResizablePanel defaultSize={22} minSize={18} maxSize={30}>
+						{propertiesContent}
+					</ResizablePanel>
+				</ResizablePanelGroup>
+			)}
 
 			<AIBuilderDialog
 				open={aiBuilderOpen}
