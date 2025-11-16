@@ -277,13 +277,13 @@ export function InvoiceTableRow({
 			{products.length > 0 && (
 				<div className="space-y-2.5 pb-3 border-b">
 					<Label>Select a product (optional)</Label>
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 min-w-0">
 						<ProductSelector
 							products={products}
 							value={selectedProductId}
 							onValueChange={onProductSelect}
 							placeholder="Select a product for this item..."
-							className="flex-1"
+							className="flex-1 min-w-0"
 						/>
 						{selectedProductId && (
 							<Button
@@ -292,6 +292,7 @@ export function InvoiceTableRow({
 								size="sm"
 								onClick={onProductClear}
 								disabled={isMapping}
+								className="shrink-0"
 							>
 								Clear
 							</Button>

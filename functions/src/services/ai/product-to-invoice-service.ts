@@ -211,7 +211,7 @@ ${bindingsList}
 Field Labels and Types:
 ${fieldLabelsList}
 
-Current Form Data (preserve existing values unless product data should override):
+Current Form Data (for context only - product data will always overwrite existing values):
 ${JSON.stringify(currentFormData, null, 2)}
 
 MAPPING RULES:
@@ -224,7 +224,7 @@ MAPPING RULES:
 7. Map product SKU to SKU/reference fields
 8. Map product name to item name/description fields
 9. For quantity fields, use 1 as default (user can adjust)
-10. Preserve existing form data values unless product data should override
+10. ALWAYS overwrite existing form data values with product data when product data is available
 11. Only map fields where product data is relevant - don't force mappings
 
 COMMON MAPPINGS:
@@ -253,7 +253,7 @@ IMPORTANT:
 - Use appropriate data types (numbers for prices, strings for text)
 - For table items, use array index notation (items[0].field)
 - Don't include fields that don't have relevant product data
-- Preserve existing form data - only override when product data is more appropriate`;
+- ALWAYS overwrite existing form data with product data when product data is available and relevant`;
   }
 }
 

@@ -59,6 +59,49 @@ type TableConfig = {
 
 type TableRow = Record<string, InvoiceDataValue>;
 
+/**
+ * Round currency values to 2 decimal places
+ */
+function roundCurrency(value: InvoiceDataValue): InvoiceDataValue {
+	if (typeof value === "number") {
+		return Math.round(value * 100) / 100;
+	}
+	return value;
+}
+
+/**
+ * Check if a field is a currency field based on its binding path and template elements
+ */
+function isCurrencyField(
+	binding: string,
+	selectedTemplate: { elements?: TemplateElement[] } | undefined,
+	tableConfigs: TableConfig[]
+): boolean {
+	if (!selectedTemplate) return false;
+
+	// Check if it's a currency element
+	const currencyElement = selectedTemplate.elements?.find(
+		(e) => e.type === "currency" && e.binding === binding
+	);
+	if (currencyElement) return true;
+
+	// Check if it's a currency column in a table
+	for (const tableConfig of tableConfigs) {
+		const column = tableConfig.columns.find((c) => {
+			// Check if binding matches this column (could be items[0].unitPriceBGN)
+			const rowBindingMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+			if (rowBindingMatch) {
+				const [, basePath, , fieldName] = rowBindingMatch;
+				return basePath === tableConfig.itemsPath && c.binding === fieldName;
+			}
+			return false;
+		});
+		if (column && column.type === "currency") return true;
+	}
+
+	return false;
+}
+
 export default function CreateInvoicePage() {
 	const navigate = useNavigate();
 	const createInvoice = useCreateInvoice();
@@ -681,15 +724,23 @@ export default function CreateInvoicePage() {
 					// Update the value if it changed
 					const currentValue = getBindingValue(updatedData, binding);
 					console.log("evaluateFormulas: Current value:", currentValue, "New result:", result);
-					if (currentValue !== result) {
-						setBindingValue(updatedData, binding, result);
+					
+					// Round currency values to 2 decimal places
+					const roundedResult = isCurrencyField(binding, selectedTemplate, tableConfigs)
+						? roundCurrency(result)
+						: result;
+					
+					if (currentValue !== roundedResult) {
+						setBindingValue(updatedData, binding, roundedResult);
 						// Update elementValues for subsequent formula evaluations that might reference this
-						elementValues.set(element.id, result);
-						// Track this update for currency linking
-						if (typeof result === "number") {
-							updatedFields.push({ binding, value: result });
+						if (typeof roundedResult === "number") {
+							elementValues.set(element.id, roundedResult);
 						}
-						console.log("evaluateFormulas: Updated binding", binding, "to", result);
+						// Track this update for currency linking
+						if (typeof roundedResult === "number") {
+							updatedFields.push({ binding, value: roundedResult });
+						}
+						console.log("evaluateFormulas: Updated binding", binding, "to", roundedResult);
 					} else {
 						console.log("evaluateFormulas: Value unchanged for binding", binding);
 					}
@@ -707,7 +758,7 @@ export default function CreateInvoicePage() {
 			// Return both the updated data and the list of updated fields
 			return { data: updatedData, updatedFields };
 		},
-		[selectedTemplate]
+		[selectedTemplate, tableConfigs]
 	);
 
 	// Get default currency from organization settings (fallback only)
@@ -736,7 +787,8 @@ export default function CreateInvoicePage() {
 
 				// Calculate: sourceValue * rate = targetValue
 				// Example: 10 BGN * 0.511 = 5.11 EUR
-				const result = sourceValue * rate;
+				// Round currency values to 2 decimal places
+				const result = Math.round((sourceValue * rate) * 100) / 100;
 
 				console.log(
 					`Currency conversion: ${sourceValue} ${sourceCurrency} * ${rate} = ${result} ${targetCurrency}`
@@ -781,13 +833,21 @@ export default function CreateInvoicePage() {
 				const targetCurrency = linkInfo.element.currency || defaultCurrency;
 
 				try {
+					// Ensure updatedValue is a number
+					if (typeof updatedValue !== "number") {
+						continue;
+					}
 					const linkedValue = await computeLinkedCurrencyValue(
 						updatedValue,
 						sourceCurrency,
 						linkInfo.link,
 						targetCurrency
 					);
-					updates.push({ binding: targetBinding, value: linkedValue });
+					// Round currency values to 2 decimal places
+					const roundedLinkedValue = roundCurrency(linkedValue);
+					if (typeof roundedLinkedValue === "number") {
+						updates.push({ binding: targetBinding, value: roundedLinkedValue });
+					}
 				} catch (error) {
 					console.error("Error computing linked currency value:", error);
 				}
@@ -829,7 +889,11 @@ export default function CreateInvoicePage() {
 									linkInfo.link,
 									targetCurrency
 								);
-								updates.push({ binding: targetBinding, value: linkedValue });
+								// Round currency values to 2 decimal places
+					const roundedLinkedValue = roundCurrency(linkedValue);
+					if (typeof roundedLinkedValue === "number") {
+						updates.push({ binding: targetBinding, value: roundedLinkedValue });
+					}
 							} catch (error) {
 								console.error("Error computing linked currency value for table column:", error);
 							}
@@ -998,6 +1062,15 @@ export default function CreateInvoicePage() {
 					}
 					
 					// Update the array item
+					// Round currency values to 2 decimal places
+					const roundedValue = isCurrencyField(
+						`${arrayPath}[${index}].${fieldName}`,
+						selectedTemplate,
+						tableConfigs
+					)
+						? roundCurrency(value)
+						: value;
+
 					if (
 						arrayCopy[index] &&
 						typeof arrayCopy[index] === "object" &&
@@ -1005,10 +1078,10 @@ export default function CreateInvoicePage() {
 					) {
 						arrayCopy[index] = {
 							...(arrayCopy[index] as Record<string, InvoiceDataValue>),
-							[fieldName]: value,
+							[fieldName]: roundedValue,
 						};
 					} else {
-						arrayCopy[index] = { [fieldName]: value };
+						arrayCopy[index] = { [fieldName]: roundedValue };
 					}
 					
 					setBindingValue(updatedData, arrayPath, arrayCopy);
@@ -1190,7 +1263,7 @@ export default function CreateInvoicePage() {
 										}
 										linkedCurrent[
 											linkedParts[linkedParts.length - 1]
-										] = linkedValue;
+										] = roundCurrency(linkedValue);
 									}
 
 									return finalData;
@@ -1203,7 +1276,7 @@ export default function CreateInvoicePage() {
 				});
 			}, 500); // 500ms debounce delay
 		}
-	}, [formData, selectedTemplate, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
+	}, [formData, selectedTemplate, tableConfigs, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
 
 	// Handle product selection for a specific table row
 	const handleProductSelectForRow = useCallback(
@@ -1231,11 +1304,6 @@ export default function CreateInvoicePage() {
 
 			setMappingProducts((prev) => new Set(prev).add(rowKey));
 			try {
-				// Get current row data
-				const items = getValue(itemsPath);
-				const itemsArray = Array.isArray(items) ? items : [];
-				const currentRow = itemsArray[rowIndex] as TableRow | undefined;
-
 				// Call backend AI function to map product to invoice fields
 				const mappingResult =
 					await functionsService.mapProductToInvoiceFields({
@@ -1343,37 +1411,79 @@ export default function CreateInvoicePage() {
 				// Also try to map common product fields directly to row fields
 				const product = products.find((p) => p.id === productId);
 				if (product) {
-					// Map product data to common row fields
+					// Find the table config for this itemsPath to get actual column bindings
+					const tableConfig = tableConfigs.find((tc) => tc.itemsPath === itemsPath);
+					const columns = tableConfig?.columns ?? [];
+
+					// Map product data to common row fields - always overwrite existing values
 					const rowData: Record<string, InvoiceDataValue> = {};
 
-					// Map product name to description
-					if (!currentRow?.description) {
-						rowData.description = product.name;
+					// Find description column (description, name, itemDescription, etc.)
+					const descriptionCol = columns.find(
+						(col) =>
+							col.binding.toLowerCase().includes("description") ||
+							col.binding.toLowerCase().includes("name") ||
+							col.binding.toLowerCase() === "itemdescription"
+					);
+					if (descriptionCol) {
+						// Prefer product description over name if both exist
+						rowData[descriptionCol.binding] = product.description || product.name;
+						lockedFields.add(descriptionCol.binding);
+					} else {
+						// Fallback to common field names
+						rowData.description = product.description || product.name;
 						lockedFields.add("description");
 					}
 
-					// Map product price to unitPrice or price
-					if (!currentRow?.unitPrice && !currentRow?.price) {
-						rowData.unitPrice = product.price;
-						lockedFields.add("unitPrice");
+					// Find price column (unitPrice, price, amount, unitPriceBGN, etc.)
+					const priceCol = columns.find(
+						(col) =>
+							(col.type === "currency" || col.type === "number") &&
+							(col.binding.toLowerCase().includes("price") ||
+								col.binding.toLowerCase().includes("amount") ||
+								col.binding.toLowerCase() === "price")
+					);
+					if (priceCol && product.price !== undefined) {
+						// Round currency values to 2 decimal places
+						rowData[priceCol.binding] = roundCurrency(product.price);
+						lockedFields.add(priceCol.binding);
+					} else {
+						// Fallback to common field names
+						if (product.price !== undefined) {
+							rowData.unitPrice = product.price;
+							lockedFields.add("unitPrice");
+						}
 					}
 
-					// Map product currency
-					if (!currentRow?.currency) {
+					// Find currency column (only if it's a separate field, not part of price column)
+					const currencyCol = columns.find(
+						(col) =>
+							col.binding.toLowerCase() === "currency" &&
+							col.type === "text"
+					);
+					if (currencyCol && product.currency) {
+						rowData[currencyCol.binding] = product.currency;
+						lockedFields.add(currencyCol.binding);
+					} else if (product.currency) {
+						// Fallback to common field name
 						rowData.currency = product.currency;
 						lockedFields.add("currency");
 					}
 
-					// Map product SKU
-					if (product.sku && !currentRow?.sku) {
+					// Find SKU column (sku, reference, itemNumber, etc.)
+					const skuCol = columns.find(
+						(col) =>
+							col.binding.toLowerCase().includes("sku") ||
+							col.binding.toLowerCase().includes("reference") ||
+							col.binding.toLowerCase() === "itemnumber"
+					);
+					if (skuCol && product.sku) {
+						rowData[skuCol.binding] = product.sku;
+						lockedFields.add(skuCol.binding);
+					} else if (product.sku) {
+						// Fallback to common field name
 						rowData.sku = product.sku;
 						lockedFields.add("sku");
-					}
-
-					// Map product description
-					if (product.description && !currentRow?.description) {
-						rowData.description = product.description;
-						lockedFields.add("description");
 					}
 
 					// Don't set quantity automatically - user should set it manually
@@ -1444,7 +1554,7 @@ export default function CreateInvoicePage() {
 				});
 			}
 		},
-		[selectedTemplate, currentOrganization, formData, products, getValue, evaluateFormulas, updateLinkedCurrencyFields]
+		[selectedTemplate, currentOrganization, formData, products, tableConfigs, evaluateFormulas, updateLinkedCurrencyFields]
 	);
 
 	// Clear product selection for a specific row
