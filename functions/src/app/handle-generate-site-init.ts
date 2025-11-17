@@ -3,12 +3,61 @@ import { getOrganizationRepository } from "../repositories/organization-reposito
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { logger } from "firebase-functions";
 
+interface PageContentEntry {
+  id: string;
+  title: string;
+  summary?: string;
+  link?: string;
+  image?: string;
+}
+
+interface SitePageInitInput {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  context?: string;
+  type?: "standard" | "blog" | "contact";
+  order?: number;
+  contentEntries?: PageContentEntry[];
+}
+
+type NormalizedSitePage = {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  context?: string;
+  type: "standard" | "blog" | "contact";
+  order: number;
+  contentEntries: PageContentEntry[];
+};
+
 interface GenerateSiteInitInput {
   organizationId: string;
   brandName?: string;
   tone?: string;
   context?: string;
   contextImages?: string[];
+  pages?: SitePageInitInput[];
+}
+
+function normalizePagesForInit(
+  pages: SitePageInitInput[] | undefined,
+): NormalizedSitePage[] {
+  if (!pages || pages.length === 0) {
+    return [];
+  }
+  return pages.map((page, index) => ({
+    id: page.id || `page-${index + 1}`,
+    title: page.title?.trim() || `Page ${index + 1}`,
+    slug: page.slug?.trim() || `page-${index + 1}`,
+    description: page.description?.trim() || undefined,
+    context: page.context?.trim() || undefined,
+    type: page.type || "standard",
+    order: page.order ?? index,
+    contentEntries: page.contentEntries || [],
+  }));
 }
 
 /**
@@ -54,6 +103,12 @@ export async function handleGenerateSiteInit(
   if (existingSites.length > 0) {
     // Update existing site
     brandSiteId = existingSites[0].id;
+    const existingPages = (existingSites[0] as any).pages as
+      | SitePageInitInput[]
+      | undefined;
+    const pagesToPersist = normalizePagesForInit(
+      input.pages ?? existingPages ?? [],
+    );
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
@@ -65,6 +120,7 @@ export async function handleGenerateSiteInit(
         error: undefined, // Clear any previous errors
         context: input.context,
         contextImages: input.contextImages || [],
+        pages: pagesToPersist,
       },
     });
   } else {
@@ -79,7 +135,9 @@ export async function handleGenerateSiteInit(
         status: "pending",
         context: input.context,
         contextImages: input.contextImages || [],
+        pages: normalizePagesForInit(input.pages),
         versions: [],
+        conversations: [],
       },
     });
   }

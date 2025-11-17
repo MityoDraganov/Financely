@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getFirestore, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { firebase } from "@/infrastructure/firebase";
 import { useEffect, useState } from "react";
+import { serviceHost } from "@/services";
 
 interface BrandSite {
   id: string;
@@ -20,6 +21,22 @@ interface BrandSite {
     version?: number;
     regenerateSectionType?: "hero" | "about" | "features" | "contact";
   };
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    description?: string;
+    context?: string;
+    type?: "standard" | "blog" | "contact";
+    order?: number;
+    contentEntries?: Array<{
+      id: string;
+      title: string;
+      summary?: string;
+      link?: string;
+      image?: string;
+    }>;
+  }>;
   versions?: Array<{
     version: number;
     html: string;
@@ -33,6 +50,19 @@ interface BrandSite {
     };
     createdAt: string;
     description?: string;
+  }>;
+  conversations?: Array<{
+    id: string;
+    title?: string;
+    messages: Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      attachments?: string[];
+      timestamp: string;
+    }>;
+    createdAt: string;
+    updatedAt: string;
   }>;
 }
 
@@ -193,6 +223,24 @@ export const useBrandSitesByOrganization = (organizationId: string | null | unde
       }
     },
     enabled: !!organizationId,
+  });
+};
+
+/**
+ * Hook to update a brand site
+ */
+export const useUpdateBrandSite = () => {
+  const queryClient = useQueryClient();
+  const databaseService = serviceHost.getDatabaseService();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<BrandSite> }) => {
+      await databaseService.update("brandSites", id, data);
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["brandSite", id] });
+      queryClient.invalidateQueries({ queryKey: ["brandSites"] });
+    },
   });
 };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles, Loader2, Eye, Settings2, Code } from "lucide-react";
+import { Sparkles, Loader2, Eye, Settings2, Code, RefreshCw, AlertCircle } from "lucide-react";
 import { useGenerateWidget } from "@/hooks/service-hooks/use-generate-widget";
 import { useRestoreWidgetVersion } from "@/hooks/service-hooks/use-widget-versioning";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,26 +9,28 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
-import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion, useDeployManualSite } from "@/hooks/service-hooks/use-brand-site";
-import { useBrandSite, useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
+import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion, useDeployManualSite, useUpdateBrandSitePages } from "@/hooks/service-hooks/use-brand-site";
+import { useBrandSite, useBrandSitesByOrganization, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
 import { AIGenerationTab } from "@/components/site-builder/ai-generation-tab";
 import { ManualEditorTab } from "@/components/site-builder/manual-editor-tab";
 import { WidgetEnableToggle } from "@/components/site-builder/widget-enable-toggle";
+import { AddPageDialog } from "@/components/site-builder/add-page-dialog";
+import { AIChatBuilder } from "@/components/site-builder/ai-chat-builder";
 import { ContactFormWidgetConfig } from "@/components/site-builder/contact-form-widget-config";
 import { InvoiceRequestWidgetConfig } from "@/components/site-builder/invoice-request-widget-config";
 import { QuoteRequestWidgetConfig } from "@/components/site-builder/quote-request-widget-config";
 import { WidgetVersionHistory } from "@/components/site-builder/widget-version-history";
 import { EmbedScriptSection } from "@/components/site-builder/embed-script-section";
 import type { WidgetPosition } from "@/components/site-builder/widget-types";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { firebase } from "@/infrastructure/firebase";
 import { WidgetPreview } from "@/components/widget-preview";
 
 // Build default styling from organization branding
@@ -62,7 +65,46 @@ function buildDefaultStylingFromBranding(brandColors?: { primary?: string; secon
   };
 }
 
+type PageType = "standard" | "blog" | "contact";
+
+type PageContentEntry = {
+  id: string;
+  title: string;
+  summary?: string;
+  link?: string;
+  image?: string;
+};
+
+type SitePage = {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  context?: string;
+  type?: PageType;
+  order?: number;
+  contentEntries?: PageContentEntry[];
+};
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const createPageId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `page-${Date.now()}`;
+
+const createContentEntryId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
 export default function SiteBuilderPage() {
+  const queryClient = useQueryClient();
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [customDomainInput, setCustomDomainInput] = useState("");
@@ -79,6 +121,10 @@ export default function SiteBuilderPage() {
   const [contextImages, setContextImages] = useState<string[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [isPageDialogOpen, setIsPageDialogOpen] = useState(false);
+  const [hasUnpublishedPages, setHasUnpublishedPages] = useState(false);
+  const updateBrandSitePages = useUpdateBrandSitePages();
+  const updateBrandSite = useUpdateBrandSite(); // For file updates (not pages)
   const contextFileUpload = useFileUpload();
   const generateSite = useGenerateSite();
   const regenerateSite = useRegenerateSite();
@@ -88,7 +134,14 @@ export default function SiteBuilderPage() {
   const deployManualSite = useDeployManualSite();
   const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(null);
   const brandSite = useBrandSite(currentBrandSiteId);
-  const [activeTab, setActiveTab] = useState<"ai" | "manual">("ai");
+  const [activeTab, setActiveTab] = useState<"ai" | "chat" | "manual">("ai");
+  
+  // Reset unpublished pages flag when site is successfully deployed
+  useEffect(() => {
+    if (brandSite?.data?.status === "success") {
+      setHasUnpublishedPages(false);
+    }
+  }, [brandSite?.data?.status]);
   
   // AI Widget Generation
   const generateWidget = useGenerateWidget();
@@ -281,6 +334,45 @@ export default function SiteBuilderPage() {
   const brandSiteId = brandSite?.data?.id ?? null;
   const brandSiteContext = (brandSite?.data as { context?: string; contextImages?: string[] })?.context;
   const brandSiteContextImages = (brandSite?.data as { context?: string; contextImages?: string[] })?.contextImages;
+  const rawPages =
+    ((brandSite?.data as { pages?: SitePage[] })?.pages as SitePage[] | undefined) ??
+    [];
+  
+  // Ensure all page IDs are unique strings
+  const seenPageIds = new Set<string>();
+  const currentPages: SitePage[] = rawPages
+    .map((page, index) => {
+      let pageId = page.id ? String(page.id) : createPageId();
+      // If ID is already seen, generate a new one
+      if (seenPageIds.has(pageId)) {
+        pageId = createPageId();
+      }
+      seenPageIds.add(pageId);
+      
+      // Ensure all entry IDs are unique strings
+      const seenEntryIds = new Set<string>();
+      const contentEntries = (page.contentEntries || []).map((entry) => {
+        let entryId = entry.id ? String(entry.id) : createContentEntryId();
+        // If ID is already seen, generate a new one
+        if (seenEntryIds.has(entryId)) {
+          entryId = createContentEntryId();
+        }
+        seenEntryIds.add(entryId);
+        
+        return {
+          ...entry,
+          id: entryId,
+        };
+      });
+      
+      return {
+        ...page,
+        id: pageId,
+        order: page.order ?? index,
+        contentEntries,
+      };
+    })
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   
   useEffect(() => {
     if (!brandSiteId) {
@@ -319,6 +411,171 @@ export default function SiteBuilderPage() {
   const handleContextRemove = (index: number) => {
     const newImages = contextImages.filter((_, i) => i !== index);
     setContextImages(newImages);
+  };
+
+  const persistPages = async (nextPages: SitePage[]) => {
+    if (!currentBrandSiteId) {
+      toast.error("Generate a site before managing pages.");
+      return;
+    }
+    const normalized = nextPages.map((page, index) => ({
+      ...page,
+      order: index,
+    }));
+    await updateBrandSitePages.mutateAsync({
+      brandSiteId: currentBrandSiteId,
+      pages: normalized,
+    });
+    setHasUnpublishedPages(true);
+  };
+
+  const handlePublishPages = () => {
+    if (!currentBrandSiteId) return;
+    setHasUnpublishedPages(false);
+    regenerateSite.mutate({
+      brandSiteId: currentBrandSiteId,
+      context: context.trim() || undefined,
+      contextImages: contextImages.length > 0 ? contextImages : undefined,
+    });
+  };
+
+  const handleAddPage = async (pageForm: {
+    title: string;
+    slug: string;
+    description: string;
+    context: string;
+    type: PageType;
+  }) => {
+    if (!pageForm.title.trim()) {
+      toast.error("Page title is required");
+      return;
+    }
+
+    const baseSlugInput = pageForm.slug.trim() || pageForm.title.trim();
+    const isFirstPage = currentPages.length === 0;
+    const normalizedSlug = isFirstPage
+      ? "index"
+      : slugify(baseSlugInput) || `page-${currentPages.length + 1}`;
+
+    const slugExists = currentPages.some((page) => page.slug === normalizedSlug);
+    const slug = slugExists
+      ? `${normalizedSlug}-${Date.now().toString(36)}`
+      : normalizedSlug;
+
+    const newPage: SitePage = {
+      id: createPageId(),
+      title: pageForm.title.trim(),
+      slug,
+      description: pageForm.description.trim() || undefined,
+      context: pageForm.context.trim() || undefined,
+      type: pageForm.type,
+      order: currentPages.length,
+      contentEntries: [],
+    };
+
+    await persistPages([...currentPages, newPage]);
+    setIsPageDialogOpen(false);
+  };
+
+  const handleUpdatePage = async (
+    pageId: string,
+    updates: Partial<SitePage>,
+  ) => {
+    const page = currentPages.find((p) => p.id === pageId);
+    if (!page) return;
+
+    const trimmedUpdates: Partial<SitePage> = { ...updates };
+    if (updates.title !== undefined) {
+      const nextTitle = updates.title.trim();
+      trimmedUpdates.title = nextTitle || page.title;
+    }
+    if (updates.description !== undefined) {
+      trimmedUpdates.description = updates.description.trim() || undefined;
+    }
+    if (updates.context !== undefined) {
+      trimmedUpdates.context = updates.context.trim() || undefined;
+    }
+
+    const nextPages = currentPages.map((p) =>
+      p.id === pageId ? { ...p, ...trimmedUpdates } : p,
+    );
+    await persistPages(nextPages);
+  };
+
+const updatePageEntries = async (
+  pageId: string,
+  updater: (entries: PageContentEntry[]) => PageContentEntry[],
+) => {
+  const page = currentPages.find((p) => p.id === pageId);
+  if (!page) return;
+
+  const nextEntries = updater([... (page.contentEntries || [])]);
+  const nextPages = currentPages.map((p) =>
+    p.id === pageId ? { ...p, contentEntries: nextEntries } : p,
+  );
+  await persistPages(nextPages);
+};
+
+const handleAddContentEntry = async (pageId: string) => {
+  await updatePageEntries(pageId, (entries) => [
+    ...entries,
+    {
+      id: createContentEntryId(),
+      title: "New entry",
+      summary: "",
+    },
+  ]);
+};
+
+const handleUpdateContentEntry = async (
+  pageId: string,
+  entryId: string,
+  updates: Partial<PageContentEntry>,
+) => {
+  await updatePageEntries(pageId, (entries) =>
+    entries.map((entry) => {
+      if (entry.id !== entryId) {
+        return entry;
+      }
+      const nextEntry: PageContentEntry = { ...entry };
+      if (updates.title !== undefined) {
+        nextEntry.title = updates.title.trim() || entry.title;
+      }
+      if (updates.summary !== undefined) {
+        const trimmed = updates.summary.trim();
+        nextEntry.summary = trimmed || undefined;
+      }
+      if (updates.link !== undefined) {
+        const trimmed = updates.link.trim();
+        nextEntry.link = trimmed || undefined;
+      }
+      if (updates.image !== undefined) {
+        const trimmed = updates.image.trim();
+        nextEntry.image = trimmed || undefined;
+      }
+      return nextEntry;
+    }),
+  );
+};
+
+const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
+  await updatePageEntries(pageId, (entries) =>
+    entries.filter((entry) => entry.id !== entryId),
+  );
+};
+
+  const handleDeletePage = async (pageId: string) => {
+    if (currentPages.length <= 1) {
+      toast.error("At least one page is required.");
+      return;
+    }
+    const nextPages = currentPages
+      .filter((page) => page.id !== pageId)
+      .map((page, index) => ({
+        ...page,
+        order: index,
+      }));
+    await persistPages(nextPages);
   };
 
   // Load widget configuration from organization
@@ -640,11 +897,254 @@ export default function SiteBuilderPage() {
       </div>
 
       <div className="max-w-full">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ai" | "manual")} className="space-y-6">
+        <Card>
+          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Page Management</CardTitle>
+              <CardDescription>
+                Add multiple pages and customize their purpose. Regenerate the site to publish changes.
+              </CardDescription>
+            </div>
+            <Button
+              onClick={() => setIsPageDialogOpen(true)}
+              disabled={!currentBrandSiteId || updateBrandSitePages.isPending}
+            >
+              Add Page
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {hasUnpublishedPages && (
+              <Alert variant="default" className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+                <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertTitle className="text-blue-900 dark:text-blue-100">
+                  Pages Updated
+                </AlertTitle>
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  Your page changes have been saved but not yet published. Click "Publish Pages" to regenerate and deploy your site with the new pages.
+                </AlertDescription>
+                <div className="mt-3 col-start-2">
+                  <Button
+                    size="sm"
+                    onClick={handlePublishPages}
+                    disabled={regenerateSite.isPending || !currentBrandSiteId}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {regenerateSite.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Publish Pages
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Alert>
+            )}
+            {currentPages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Only a single landing page will be generated. Add additional pages to enable navigation.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {currentPages.map((page, index) => (
+                  <div key={page.id} className="rounded-lg border p-4 space-y-4">
+                    <div className="flex flex-col gap-4 md:flex-row">
+                      <div className="flex-1 space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          defaultValue={page.title}
+                          disabled={updateBrandSitePages.isPending}
+                          onBlur={(event) => {
+                            const value = event.target.value.trim();
+                            if (value && value !== page.title) {
+                              handleUpdatePage(page.id, { title: value });
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2 md:w-48">
+                        <Label>Slug</Label>
+                        <Input
+                          value={
+                            page.slug === "index" || page.slug === "home"
+                              ? "/"
+                              : `/${page.slug}`
+                          }
+                          disabled
+                        />
+                      </div>
+                      <div className="space-y-2 md:w-48">
+                        <Label>Type</Label>
+                        <Select
+                          defaultValue={page.type || "standard"}
+                          onValueChange={(value) =>
+                            handleUpdatePage(page.id, {
+                              type: value as PageType,
+                            })
+                          }
+                          disabled={updateBrandSitePages.isPending}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="standard">Standard</SelectItem>
+                            <SelectItem value="blog">Blog / Articles</SelectItem>
+                            <SelectItem value="contact">Contact</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description / Purpose</Label>
+                      <Textarea
+                        placeholder="Explain what this page should highlight"
+                        defaultValue={page.description || ""}
+                        disabled={updateBrandSitePages.isPending}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if ((value || undefined) !== page.description) {
+                            handleUpdatePage(page.id, { description: value || undefined });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Additional Context (optional)</Label>
+                      <Textarea
+                        placeholder="Add specific instructions or content for this page"
+                        defaultValue={page.context || ""}
+                        disabled={updateBrandSitePages.isPending}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if ((value || undefined) !== page.context) {
+                            handleUpdatePage(page.id, { context: value || undefined });
+                          }
+                        }}
+                      />
+                    </div>
+                    {page.type === "blog" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Content Entries</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddContentEntry(page.id)}
+                            disabled={updateBrandSitePages.isPending}
+                          >
+                            Add Entry
+                          </Button>
+                        </div>
+                        {page.contentEntries && page.contentEntries.length > 0 ? (
+                          <div className="space-y-3">
+                            {page.contentEntries.map((entry) => (
+                              <div key={entry.id} className="rounded-md border p-3 space-y-3">
+                                <div className="flex flex-col gap-3 md:flex-row">
+                                  <div className="flex-1 space-y-1.5">
+                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                                      Entry Title
+                                    </Label>
+                                    <Input
+                                      defaultValue={entry.title}
+                                      disabled={updateBrandSitePages.isPending}
+                                      onBlur={(event) => {
+                                        const value = event.target.value.trim();
+                                        if (value && value !== entry.title) {
+                                          handleUpdateContentEntry(page.id, entry.id, { title: value });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5 md:w-64">
+                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                                      Link (optional)
+                                    </Label>
+                                    <Input
+                                      placeholder="https://example.com/article"
+                                      defaultValue={entry.link || ""}
+                                      disabled={updateBrandSitePages.isPending}
+                                      onBlur={(event) => {
+                                        const value = event.target.value.trim();
+                                        if (value !== (entry.link || "")) {
+                                          handleUpdateContentEntry(page.id, entry.id, { link: value });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Summary
+                                  </Label>
+                                  <Textarea
+                                    placeholder="Short summary or excerpt"
+                                    defaultValue={entry.summary || ""}
+                                    disabled={updateBrandSitePages.isPending}
+                                    onBlur={(event) => {
+                                      const value = event.target.value.trim();
+                                      if ((value || undefined) !== entry.summary) {
+                                        handleUpdateContentEntry(page.id, entry.id, { summary: value || undefined });
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveContentEntry(page.id, entry.id)}
+                                    disabled={updateBrandSitePages.isPending}
+                                  >
+                                    Remove Entry
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Add articles or case studies to guide the AI when generating this blog page.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>
+                        {index === 0
+                          ? "Primary page (Home)"
+                          : "Displayed in navigation"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeletePage(page.id)}
+                        disabled={currentPages.length <= 1 || updateBrandSitePages.isPending || index === 0}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ai" | "chat" | "manual")} className="space-y-6">
           <TabsList>
             <TabsTrigger value="ai" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               AI Generation
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Chat Builder
             </TabsTrigger>
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <Code className="h-4 w-4" />
@@ -673,6 +1173,7 @@ export default function SiteBuilderPage() {
                     tone: "professional",
                     context: context.trim() || undefined,
                     contextImages: contextImages.length > 0 ? contextImages : undefined,
+                    pages: currentPages,
                   },
                   {
                     onSuccess: (result) => {
@@ -684,6 +1185,7 @@ export default function SiteBuilderPage() {
               onRegenerate={() => {
                 const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
                 if (!brandSiteId) return;
+                setHasUnpublishedPages(false);
                 regenerateSite.mutate({
                   brandSiteId,
                   context: context.trim() || undefined,
@@ -774,6 +1276,29 @@ export default function SiteBuilderPage() {
             />
           </TabsContent>
 
+          <TabsContent value="chat" className="space-y-6">
+            {currentBrandSiteId && organization ? (
+              <AIChatBuilder
+                brandSiteId={currentBrandSiteId}
+                organizationId={organization.id}
+                onSiteUpdated={() => {
+                  // Refresh brand site data
+                  queryClient.invalidateQueries({
+                    queryKey: ["brandSite", currentBrandSiteId],
+                  });
+                }}
+              />
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">
+                    Please generate a site first to use the AI Chat Builder.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
           <TabsContent value="manual" className="space-y-6">
             <ManualEditorTab
               hasSite={brandSites.length > 0}
@@ -802,16 +1327,19 @@ export default function SiteBuilderPage() {
                     organizationId: organization.id,
                     brandName: organization.settings?.branding?.companyName || organization.name,
                     tone: "professional",
+                    pages: currentPages,
                   },
                   {
                     onSuccess: async (result) => {
                       setCurrentBrandSiteId(result.id);
                       // Update with blank HTML and files
-                      const db = getFirestore(firebase.app);
-                      await updateDoc(doc(db, "brandSites", result.id), {
-                        html: blankHtml,
-                        files: {
-                          "index.html": blankHtml,
+                      await updateBrandSite.mutateAsync({
+                        id: result.id,
+                        data: {
+                          html: blankHtml,
+                          files: {
+                            "index.html": blankHtml,
+                          },
                         },
                       });
                       toast.success("Blank site created! Start editing in the file editor.");
@@ -823,10 +1351,12 @@ export default function SiteBuilderPage() {
               isCreating={generateSite.isPending}
               onSaveFiles={async (files) => {
                 if (!currentBrandSiteId) return;
-                const db = getFirestore(firebase.app);
-                await updateDoc(doc(db, "brandSites", currentBrandSiteId), {
-                  files,
-                  html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                await updateBrandSite.mutateAsync({
+                  id: currentBrandSiteId,
+                  data: {
+                    files,
+                    html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                  },
                 });
               }}
               onDeployFiles={async (files) => {
@@ -1299,6 +1829,14 @@ export default function SiteBuilderPage() {
             )}
           </DialogContent>
         </Dialog>
+
+      {/* Page Creation Dialog */}
+      <AddPageDialog
+        open={isPageDialogOpen}
+        onOpenChange={setIsPageDialogOpen}
+        onAdd={handleAddPage}
+        isPending={updateBrandSitePages.isPending}
+      />
       </div>
     );
   }

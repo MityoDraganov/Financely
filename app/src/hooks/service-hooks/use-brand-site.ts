@@ -118,6 +118,33 @@ export const useRegenerateSite = () => {
 };
 
 /**
+ * Hook to update brand site pages
+ */
+export const useUpdateBrandSitePages = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.updateBrandSitePages>[0]) =>
+      functionsService.updateBrandSitePages(payload),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success("Page settings saved");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to update brand site pages:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to save pages: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to add a custom domain to a brand site
  */
 export const useAddCustomDomain = () => {

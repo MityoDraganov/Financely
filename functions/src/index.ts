@@ -59,9 +59,11 @@ export {
 // Brand site functions
 export { generateSite } from "./functions/generate-site";
 export { regenerateSite } from "./functions/regenerate-site";
+export { chatGenerateSite } from "./functions/chat-generate-site";
 export { addCustomDomain } from "./functions/add-custom-domain";
 export { restoreBrandSiteVersion } from "./functions/restore-brand-site-version";
 export { previewBrandSiteVersion } from "./functions/preview-brand-site-version";
+export { updateBrandSitePages } from "./functions/update-brand-site-pages";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
 
 // Widget functions
@@ -83,6 +85,9 @@ export { generateConsentBanner } from "./functions/generate-consent-banner";
 
 // Product functions
 export { createProduct } from "./functions/create-product";
+
+// File upload functions
+export { uploadFile } from "./functions/upload-file";
 
 // Analytics functions
 export { getAnalyticsMetrics } from "./functions/get-analytics-metrics";

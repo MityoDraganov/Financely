@@ -14,6 +14,9 @@ interface GenerateSiteInput {
   organizationId: string;
   brandName?: string;
   tone?: string;
+  context?: string;
+  contextImages?: string[];
+  pages?: SitePageInput[];
 }
 
 interface GenerateSiteConfig {
@@ -24,12 +27,317 @@ interface GenerateSiteConfig {
   firebaseProjectId: string;
 }
 
+interface PageContentEntry {
+  id?: string;
+  title?: string;
+  summary?: string;
+  link?: string;
+  image?: string;
+}
+
+interface SitePageInput {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  context?: string;
+  type?: "standard" | "blog" | "contact";
+  order?: number;
+  contentEntries?: PageContentEntry[];
+}
+
+type NormalizedContentEntry = {
+  id: string;
+  title: string;
+  summary?: string;
+  link?: string;
+  image?: string;
+};
+
+type NormalizedSitePage = {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  context?: string;
+  type: "standard" | "blog" | "contact";
+  order: number;
+  contentEntries: NormalizedContentEntry[];
+};
+
+const DEFAULT_PAGES: NormalizedSitePage[] = [
+  {
+    id: "home",
+    title: "Home",
+    slug: "index",
+    description: "Primary landing page",
+    type: "standard",
+    order: 0,
+    contentEntries: [],
+  },
+  {
+    id: "about",
+    title: "About",
+    slug: "about",
+    description: "Company story and core values",
+    type: "standard",
+    order: 1,
+    contentEntries: [],
+  },
+  {
+    id: "contact",
+    title: "Contact",
+    slug: "contact",
+    description: "Contact details and lead capture",
+    type: "contact",
+    order: 2,
+    contentEntries: [],
+  },
+];
+
+function sanitizeSlug(value?: string): string {
+  if (!value) return "";
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  if (!normalized || normalized === "index" || normalized === "home") {
+    return "index";
+  }
+  return normalized;
+}
+
+function normalizePages(pages?: SitePageInput[]): NormalizedSitePage[] {
+  const source: SitePageInput[] =
+    !pages || pages.length === 0 ? DEFAULT_PAGES : pages;
+  const seenSlugs = new Set<string>();
+
+  const normalized = source
+    .map((page, index) => {
+      let slug = sanitizeSlug(page.slug);
+      if (!slug) {
+        slug = `page-${index + 1}`;
+      }
+      if (index === 0) {
+        slug = "index";
+      }
+      while (seenSlugs.has(slug)) {
+        slug = `${slug}-${index + 1}`;
+      }
+      seenSlugs.add(slug);
+
+      const contentEntries: NormalizedContentEntry[] = (page.contentEntries || []).map(
+        (entry, entryIndex) => ({
+          id: entry.id || `entry-${index}-${entryIndex}-${Date.now()}`,
+          title: entry.title?.trim() || `Entry ${entryIndex + 1}`,
+          summary: entry.summary?.trim() || undefined,
+          link: entry.link?.trim() || undefined,
+          image: entry.image?.trim() || undefined,
+        }),
+      );
+
+      return {
+        id: page.id || `page-${index + 1}`,
+        title: page.title?.trim() || `Page ${index + 1}`,
+        slug,
+        order: page.order ?? index,
+        type: (page.type as "standard" | "blog" | "contact") || "standard",
+        description: page.description?.trim() || undefined,
+        context: page.context?.trim() || undefined,
+        contentEntries,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+
+  return normalized;
+}
+
+const NAVIGATION_STYLES = `
+<style>
+.site-nav-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+.site-nav {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+.nav-brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text, #111827);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nav-link {
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--color-text, #111827);
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+.nav-link:hover {
+  background: var(--color-surface, rgba(0, 0, 0, 0.05));
+  color: var(--color-primary);
+}
+.nav-link.active {
+  background: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+@media (max-width: 768px) {
+  .site-nav {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .nav-links {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .nav-link {
+    width: 100%;
+    padding: 0.75rem 1rem;
+  }
+}
+</style>
+`;
+
+function buildNavigationMarkup(
+  pages: SitePageInput[],
+  currentSlug: string,
+  brandName: string,
+): string {
+  const links = pages
+    .map((page) => {
+      const href =
+        page.slug === "index" || page.slug === "home" ? "/" : `/${page.slug}`;
+      const activeClass =
+        page.slug === currentSlug ? "nav-link active" : "nav-link";
+      return `<a class="${activeClass}" href="${href}">${page.title}</a>`;
+    })
+    .join("");
+
+  return `
+  <div class="site-nav-wrapper">
+    <div class="site-nav">
+      <a href="/" class="nav-brand" aria-label="${brandName} Home">${brandName}</a>
+      <nav class="nav-links" role="navigation" aria-label="Main navigation">
+        ${links}
+      </nav>
+    </div>
+  </div>`;
+}
+
+function injectNavigation(
+  html: string,
+  pages: SitePageInput[],
+  currentSlug: string,
+  brandName: string,
+): string {
+  let output = html;
+  if (output.includes("</head>")) {
+    output = output.replace("</head>", `${NAVIGATION_STYLES}\n</head>`);
+  } else {
+    output = `${NAVIGATION_STYLES}\n${output}`;
+  }
+
+  const navMarkup = buildNavigationMarkup(pages, currentSlug, brandName);
+  const bodyMatch = output.match(/<body[^>]*>/i);
+  if (bodyMatch) {
+    const bodyTag = bodyMatch[0];
+    output = output.replace(bodyTag, `${bodyTag}\n${navMarkup}`);
+  } else {
+    output = `${navMarkup}\n${output}`;
+  }
+
+  return output;
+}
+
+function applyIntegrations(
+  html: string,
+  options: {
+    widgets?: any;
+    organizationId: string;
+    analyticsConfig?: any;
+    brandSiteId?: string;
+    firebaseProjectId?: string;
+    tempSiteId: string;
+    brandName: string;
+  },
+): string {
+  let output = html;
+
+  if (options.widgets?.enabled) {
+    const widgetScript = generateWidgetScript(
+      options.organizationId,
+      options.firebaseProjectId || "",
+    );
+    if (output.includes("</body>")) {
+      output = output.replace("</body>", `${widgetScript}\n</body>`);
+    } else {
+      output += `\n${widgetScript}`;
+    }
+  }
+
+  if (options.analyticsConfig?.enabled) {
+    const analyticsScript = generateAnalyticsScript(
+      options.analyticsConfig,
+      options.organizationId,
+      options.tempSiteId,
+      options.brandName ?? "",
+      options.firebaseProjectId || "",
+    );
+    if (analyticsScript) {
+      if (output.includes("</head>")) {
+        output = output.replace("</head>", `${analyticsScript}\n</head>`);
+      } else if (output.includes("</body>")) {
+        output = output.replace("</body>", `${analyticsScript}\n</body>`);
+      } else {
+        output += `\n${analyticsScript}`;
+      }
+    }
+  }
+
+  return output;
+}
+
 export async function handleGenerateSite(
   input: GenerateSiteInput,
   config: GenerateSiteConfig,
 ): Promise<{ id: string; url: string; status: string }> {
   const startTime = Date.now();
+  const timings: Record<string, number> = {};
+  const markTiming = (label: string, start: number) => {
+    timings[label] = Date.now() - start;
+  };
   let brandSiteId: string | undefined;
+  let generatedHtmlFiles: Record<string, string> = {};
   const errorContext: {
     stage: string;
     errors: Array<{ stage: string; error: string; timestamp: string }>;
@@ -71,8 +379,9 @@ export async function handleGenerateSite(
       });
       throw new Error(error);
   }
+  markTiming("organization_fetch", orgStartTime);
   logger.info("Organization retrieved", {
-    duration: Date.now() - orgStartTime,
+    duration: timings.organization_fetch,
     organizationName: organization.name,
   });
 
@@ -97,11 +406,13 @@ export async function handleGenerateSite(
       organizationId: input.organizationId,
     });
     errorContext.stage = "brand_site_fetch";
+  const siteFetchStart = Date.now();
   const existingSites = await brandSiteRepository.getAll({
     queryConstraints: [
       { field: "organizationId", operator: "==", value: input.organizationId },
     ],
   });
+  markTiming("brand_site_fetch", siteFetchStart);
 
   if (existingSites.length === 0) {
       const error = "Brand site not found. Please initiate generation first.";
@@ -123,6 +434,8 @@ export async function handleGenerateSite(
       brandSiteId,
       currentStatus: brandSite.status,
     });
+
+  const pagesToGenerate = normalizePages((brandSite as any).pages);
 
   // Verify status is pending (should be set by init function)
   if (brandSite.status !== "pending") {
@@ -155,11 +468,12 @@ export async function handleGenerateSite(
       model: "gemini-2.5-flash",
     });
     errorContext.stage = "gemini_init";
-    const geminiStartTime = Date.now();
+    const geminiInitStart = Date.now();
     const geminiService = new GeminiService({
       apiKey: config.geminiApiKey,
       model: "gemini-2.5-flash",
     });
+    markTiming("gemini_init", geminiInitStart);
 
     // Check if this is a section regeneration
     const sectionType = (brandSite.metadata as { regenerateSectionType?: "hero" | "about" | "features" | "contact" })?.regenerateSectionType;
@@ -170,6 +484,7 @@ export async function handleGenerateSite(
       hasExistingHtml: !!brandSite.html,
     });
     errorContext.stage = "gemini_generation";
+    const geminiGenerationStart = Date.now();
     let html: string;
     
     // Fetch analytics config early (will be used for injection and deployment)
@@ -292,8 +607,9 @@ export async function handleGenerateSite(
         }
       }
 
+      markTiming("gemini_generation", geminiGenerationStart);
       logger.info("Section regenerated by Gemini", {
-        duration: Date.now() - geminiStartTime,
+        duration: timings.gemini_generation,
         sectionType,
         htmlLength: html.length,
       });
@@ -354,59 +670,86 @@ export async function handleGenerateSite(
         } : undefined,
       } : undefined;
 
-      html = await geminiService.generateSiteHtml({
-        brandName,
-        colors: brandColors,
-        logoUrl,
-        tone,
+      const generatedPageFiles: Record<string, string> = {};
+      for (const page of pagesToGenerate) {
+        const pageContext = [
+          brandSite.context,
+          page.context,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+        const entriesSummary =
+          page.contentEntries && page.contentEntries.length > 0
+            ? page.contentEntries
+                .map(
+                  (entry, entryIndex) =>
+                    `${entryIndex + 1}. ${entry.title}${
+                      entry.summary ? ` — ${entry.summary}` : ""
+                    }${entry.link ? ` (Link: ${entry.link})` : ""}`,
+                )
+                .join("\n")
+            : undefined;
+
+        const pagePurpose = [page.description, entriesSummary]
+          .filter(Boolean)
+          .join("\n\n");
+
+        let pageHtml = await geminiService.generateSiteHtml({
+          brandName,
+          colors: brandColors,
+          logoUrl,
+          tone,
           description,
           brandImages,
-          context: brandSite.context,
+          context: pageContext || brandSite.context,
           contextImages: brandSite.contextImages || [],
           products: productsForContext,
           widgets: widgetContext,
-      });
+          pageTitle: page.title,
+          pagePurpose: pagePurpose || page.description || description || "",
+          pageSlug: page.slug,
+          pageType: page.type,
+          pageContentEntries: page.contentEntries,
+        });
 
-      // Inject widget script if widgets are enabled
-      if (widgets?.enabled) {
-        const widgetScript = generateWidgetScript(organization.id, config.firebaseProjectId || "");
-        // Inject before closing </body> tag
-        if (html.includes("</body>")) {
-          html = html.replace("</body>", `${widgetScript}\n</body>`);
-        } else {
-          // If no body tag, append to end
-          html += `\n${widgetScript}`;
-        }
-      }
-
-      // Inject analytics script if analytics is enabled
-      // Note: siteId will be set later, use brandSiteId as fallback
-      if (analyticsConfig?.enabled) {
-        const tempSiteId = `brand-${brandSiteId}`;
-        const analyticsScript = generateAnalyticsScript(
-          analyticsConfig,
-          organization.id,
-          tempSiteId,
+        pageHtml = injectNavigation(
+          pageHtml,
+          pagesToGenerate,
+          page.slug,
           brandName,
-          config.firebaseProjectId || "",
         );
-        if (analyticsScript) {
-          // Inject in <head> for analytics (should load early)
-          if (html.includes("</head>")) {
-            html = html.replace("</head>", `${analyticsScript}\n</head>`);
-          } else if (html.includes("</body>")) {
-            // Fallback to body if no head tag
-            html = html.replace("</body>", `${analyticsScript}\n</body>`);
-          } else {
-            html += `\n${analyticsScript}`;
-          }
-        }
+
+        pageHtml = applyIntegrations(pageHtml, {
+          widgets,
+          organizationId: organization.id,
+          analyticsConfig,
+          brandSiteId,
+          firebaseProjectId: config.firebaseProjectId,
+          tempSiteId: `brand-${brandSiteId}`,
+          brandName,
+        });
+
+        const filePath =
+          page.slug === "index" || page.slug === "home"
+            ? "index.html"
+            : `${page.slug}/index.html`;
+        generatedPageFiles[filePath] = pageHtml;
       }
 
+      html =
+        generatedPageFiles["index.html"] ||
+        Object.values(generatedPageFiles)[0] ||
+        "";
+
+      markTiming("gemini_generation", geminiGenerationStart);
       logger.info("HTML generated by Gemini", {
-        duration: Date.now() - geminiStartTime,
+        duration: timings.gemini_generation,
         htmlLength: html.length,
+        pagesGenerated: Object.keys(generatedPageFiles).length,
       });
+
+      generatedHtmlFiles = generatedPageFiles;
       }
     } catch (geminiError) {
       const error = geminiError instanceof Error ? geminiError.message : "Unknown Gemini error";
@@ -556,15 +899,19 @@ export async function handleGenerateSite(
     }
 
     // Save files structure (for manual editing support)
-    const files: Record<string, string> = {
-      "index.html": html,
-    };
+    const files: Record<string, string> =
+      Object.keys(generatedHtmlFiles).length > 0
+        ? generatedHtmlFiles
+        : {
+            "index.html": html,
+          };
 
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
         html,
         files,
+        pages: pagesToGenerate,
       metadata: {
         generatedAt: new Date().toISOString(),
         model: "gemini-2.5-flash",
@@ -575,6 +922,7 @@ export async function handleGenerateSite(
       },
     });
 
+    const deploymentPrepStart = Date.now();
     logger.debug("Step 9: Preparing deployment configuration", {
       brandSiteId,
       brandName,
@@ -601,6 +949,7 @@ export async function handleGenerateSite(
       throw new Error(error);
     }
 
+    markTiming("deployment_prep", deploymentPrepStart);
     logger.info("Initializing Firebase Hosting Service", {
       projectId: config.firebaseProjectId,
     });
@@ -651,8 +1000,9 @@ export async function handleGenerateSite(
     
     // Use the siteId from the response (works for both new and existing sites)
     siteId = createdSite.siteId;
+    markTiming("hosting_site_init", hostingStartTime);
     logger.info("Firebase Hosting site ready", {
-      duration: Date.now() - hostingStartTime,
+      duration: timings.hosting_site_init,
       siteId,
       originalSiteId: `brand-${brandSiteId}`,
       siteName: createdSite.name,
@@ -685,7 +1035,10 @@ export async function handleGenerateSite(
     let deployedUrl: string;
     try {
       // Prepare files for deployment
-      const filesToDeploy = [{ path: "index.html", contents: html }];
+      const filesToDeploy = Object.entries(files).map(([path, contents]) => ({
+        path,
+        contents,
+      }));
       
       // If widgets are enabled, add widget-loader.js to deployment
       const widgets = organization.settings?.widgets;
@@ -779,8 +1132,9 @@ export async function handleGenerateSite(
       filesToDeploy,
       `Deploy ${brandName} site`,
     );
-    logger.info("Site deployed to Firebase Hosting", {
-      duration: Date.now() - deployStartTime,
+      markTiming("hosting_deployment", deployStartTime);
+      logger.info("Site deployed to Firebase Hosting", {
+        duration: timings.hosting_deployment,
       deployedUrl,
       fileCount: filesToDeploy.length,
     });
@@ -857,8 +1211,9 @@ export async function handleGenerateSite(
         subdomain,
         deployedHost,
       );
+      markTiming("cloudflare_subdomain", cloudflareStartTime);
       logger.info("Cloudflare subdomain created", {
-        duration: Date.now() - cloudflareStartTime,
+        duration: timings.cloudflare_subdomain,
         subdomainUrl: finalUrl,
       });
       } catch (cloudflareError) {
@@ -884,6 +1239,7 @@ export async function handleGenerateSite(
           status: "success",
           subdomain,
           deployedUrl: finalUrl,
+        pages: pagesToGenerate,
           metadata: {
             ...(brandSite.metadata || {}),
             version: newVersion,
@@ -895,6 +1251,7 @@ export async function handleGenerateSite(
     }
 
     const totalDuration = Date.now() - startTime;
+    timings.total = totalDuration;
     logger.info("Site generated and deployed successfully", {
       brandSiteId,
       subdomain: isRegeneration ? undefined : subdomain,
@@ -902,15 +1259,7 @@ export async function handleGenerateSite(
       isRegeneration,
       totalDuration,
       totalDurationSeconds: Math.round(totalDuration / 1000),
-      stages: {
-        organization_fetch: "✓",
-        brand_config: "✓",
-        brand_site_fetch: "✓",
-        gemini_generation: "✓",
-        hosting_site_creation: "✓",
-        hosting_deployment: "✓",
-        url_configuration: "✓",
-      },
+      durations: timings,
     });
 
     return {
@@ -920,6 +1269,7 @@ export async function handleGenerateSite(
     };
   } catch (error) {
     const totalDuration = Date.now() - startTime;
+    timings.total = totalDuration;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     
     // Ensure error is recorded in context
@@ -936,6 +1286,7 @@ export async function handleGenerateSite(
       brandSiteId: brandSiteId || "unknown",
       totalDuration,
       totalDurationSeconds: Math.round(totalDuration / 1000),
+      durations: timings,
       failedAtStage: errorContext.stage,
       errorCount: errorContext.errors.length,
       errors: errorContext.errors,

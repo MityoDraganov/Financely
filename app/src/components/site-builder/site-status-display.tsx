@@ -4,6 +4,12 @@ interface BrandSite {
   status?: "pending" | "generating" | "deploying" | "success" | "failed";
   deployedUrl?: string;
   error?: string;
+  html?: string;
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+  }>;
 }
 
 interface SiteStatusDisplayProps {

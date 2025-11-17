@@ -110,6 +110,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async chatGenerateSite(payload) {
+    type ChatGenerateSitePayload = Parameters<
+      FunctionsService["chatGenerateSite"]
+    >[0];
+    const result = await httpsCallable<
+      ChatGenerateSitePayload,
+      { response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string }
+    >(firebase.functions, "chatGenerateSite")(payload);
+    return result.data;
+  },
+
   async updateAnalyticsScript(payload) {
     type UpdateAnalyticsScriptPayload = Parameters<
       FunctionsService["updateAnalyticsScript"]
@@ -152,6 +163,17 @@ export const functionsService: FunctionsService = {
       PreviewVersionPayload,
       { success: boolean; brandSiteId: string; version: number; previewUrl: string }
     >(firebase.functions, "previewBrandSiteVersion")(payload);
+    return result.data;
+  },
+
+  async updateBrandSitePages(payload) {
+    type UpdateBrandSitePagesPayload = Parameters<
+      FunctionsService["updateBrandSitePages"]
+    >[0];
+    const result = await httpsCallable<
+      UpdateBrandSitePagesPayload,
+      { success: boolean; brandSiteId: string }
+    >(firebase.functions, "updateBrandSitePages")(payload);
     return result.data;
   },
 
@@ -380,6 +402,15 @@ export const functionsService: FunctionsService = {
       GenerateConsentBannerPayload,
       Awaited<ReturnType<FunctionsService["generateConsentBanner"]>>
     >(firebase.functions, "generateConsentBanner")(payload);
+    return result.data;
+  },
+
+  async uploadFile(payload) {
+    type UploadFilePayload = Parameters<FunctionsService["uploadFile"]>[0];
+    const result = await httpsCallable<UploadFilePayload, { url: string }>(
+      firebase.functions,
+      "uploadFile",
+    )(payload);
     return result.data;
   },
 };

@@ -43,6 +43,16 @@ interface BrandContext {
       displayMode?: string;
     };
   };
+  pageTitle?: string;
+  pagePurpose?: string;
+  pageSlug?: string;
+  pageType?: string;
+  pageContentEntries?: Array<{
+    title: string;
+    summary?: string;
+    link?: string;
+    image?: string;
+  }>;
 }
 
 interface GeminiResponse {
@@ -256,18 +266,57 @@ export class GeminiService {
   }
 
   private buildPrompt(brandContext: BrandContext): string {
-    const { brandName, colors, logoUrl, tone, description, brandImages, context, contextImages, products, widgets } = brandContext;
+    const {
+      brandName,
+      colors,
+      logoUrl,
+      tone,
+      description,
+      brandImages,
+      context,
+      contextImages,
+      products,
+      widgets,
+      pageTitle,
+      pagePurpose,
+      pageSlug,
+      pageType,
+    } = brandContext;
 
     let prompt = `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
+
+🚨 CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
+- Use ONLY the data provided in this prompt. DO NOT invent, hallucinate, or create fake data.
+- If information is missing (e.g., no address, no phone, no testimonials), use placeholders like "[Address]" or "[Phone]" or simply omit that section.
+- DO NOT create fake testimonials, fake customer names, fake reviews, or fake statistics.
+- DO NOT invent company history, team members, or case studies that weren't provided.
+- If you need additional data that isn't provided, use generic placeholders or omit that content entirely.
+- All content must be based on the provided context, products, and brand information only.
 
 Requirements:
 1. Use inline CSS only (no external stylesheets)
 2. Make it fully responsive (mobile-first design)
-3. Use the following color palette:
-   - Primary: ${colors.primary}
-   - Secondary: ${colors.secondary}
-   - Accent: ${colors.accent}
-4. Brand tone: ${tone}`;
+3. Use the following color palette EXCLUSIVELY for all interactive elements, buttons, links, and accents:
+   - Primary: ${colors.primary} (use for primary buttons, active states, main CTAs)
+   - Secondary: ${colors.secondary} (use for secondary buttons, borders, subtle accents)
+   - Accent: ${colors.accent} (use for highlights, hover states, special elements)
+4. Brand tone: ${tone}
+
+COLOR CONTRAST REQUIREMENTS:
+- Ensure all text has sufficient contrast (WCAG AA minimum: 4.5:1 for normal text, 3:1 for large text)
+- Calculate text color based on background: use dark text (#111827 or darker) on light backgrounds, light text (#ffffff) on dark backgrounds
+- Test contrast ratios: primary color on white, white text on primary color background
+- If brand colors don't meet contrast requirements, adjust text colors accordingly (never change brand colors, only text colors)
+
+BRAND COLOR USAGE (MANDATORY):
+- ALL buttons must use --color-primary or --color-secondary
+- ALL links must use --color-primary for default state, --color-accent for hover
+- ALL active states, selected items, and highlights must use brand colors
+- Navigation active state must use --color-primary
+- CTAs and important actions must use --color-primary
+- Borders and dividers can use --color-secondary
+- Hover effects should use --color-accent
+- DO NOT use generic colors (blue, red, green) - always use the provided brand colors`;
 
     if (description) {
       prompt += `\n5. Brand description: ${description}`;
@@ -281,9 +330,56 @@ Requirements:
       prompt += `\n7. Include these brand images in the gallery section: ${brandImages.join(", ")}`;
     }
 
+    if (pageTitle) {
+      prompt += `\n\nThis HTML is for the "${pageTitle}" page.`;
+    }
+
+    if (pageSlug) {
+      const href = pageSlug === "index" || pageSlug === "home" ? "/" : `/${pageSlug}`;
+      prompt += `\nURL path: ${href}`;
+    }
+
+    if (pagePurpose) {
+      prompt += `\nPurpose: ${pagePurpose}`;
+    }
+
+    if (brandContext.pageContentEntries && brandContext.pageContentEntries.length > 0) {
+      prompt += `\nUse the following entries as real content for this page (do not ignore them):`;
+      brandContext.pageContentEntries.forEach((entry, index) => {
+        prompt += `\n${index + 1}. ${entry.title}${
+          entry.summary ? ` — ${entry.summary}` : ""
+        }${entry.link ? ` (Link: ${entry.link})` : ""}`;
+      });
+      prompt += `\nHighlight these entries as featured stories, case studies, or articles.`;
+    }
+
+    if (pageType === "blog") {
+      prompt += `\nThis is a blog/articles page. Include a featured article section and a list/grid of recent posts with excerpts. Encourage readers to explore stories.`;
+    } else if (pageType === "contact") {
+      prompt += `\nThis is a contact/engagement page. Highlight contact details, office locations, and a compelling call-to-action to reach out.`;
+    }
+
+    prompt += `\nNavigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.`;
+
     prompt += `\n8. Include a hero section with brand name
 9. Include sections: About, Features/Services, Contact
 10. Use modern CSS (flexbox/grid, smooth transitions)
+
+LAYOUT & POSITIONING REQUIREMENTS:
+- Use CSS Grid or Flexbox for all layouts (never use absolute positioning except for overlays/modals)
+- Consistent spacing system: 16px base unit (1rem)
+  * Section padding: 48px-64px (3rem-4rem) vertical, 24px-32px (1.5rem-2rem) horizontal
+  * Element gaps: 16px-24px (1rem-1.5rem) between related elements
+  * Card padding: 24px (1.5rem)
+- Max content width: 1200px, centered with margin: 0 auto
+- Responsive breakpoints:
+  * Mobile: < 768px (single column, full width, reduced padding)
+  * Tablet: 768px - 1024px (2 columns max)
+  * Desktop: > 1024px (full layout)
+- All elements must be properly aligned (use flexbox/grid alignment, not manual positioning)
+- No overlapping elements (ensure proper z-index only for overlays)
+- Consistent vertical rhythm (use consistent line-height: 1.5-1.75)
+
 11. Include proper semantic HTML5
 12. Make it visually appealing with proper spacing, typography, and visual hierarchy
 13. Add subtle animations and hover effects

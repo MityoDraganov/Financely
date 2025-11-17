@@ -41,6 +41,31 @@ export const brandSiteDataSchema = z.object({
   // AI generation context (temporary, not saved to brand)
   context: z.string().optional(),
   contextImages: z.array(z.string().url()).default([]),
+  // Page management
+  pages: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1),
+        slug: z.string().min(1),
+        description: z.string().optional(),
+        context: z.string().optional(),
+        type: z.enum(["standard", "blog", "contact"]).default("standard"),
+        order: z.number().int().default(0),
+        contentEntries: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string().min(1),
+              summary: z.string().optional(),
+              link: z.string().url().optional(),
+              image: z.string().url().optional(),
+            }),
+          )
+          .default([]),
+      }),
+    )
+    .default([]),
   // Version history - stores previous versions of the site
   versions: z.array(
     z.object({
@@ -60,6 +85,26 @@ export const brandSiteDataSchema = z.object({
       description: z.string().optional(),
     })
   ).default([]),
+  // Chat conversations - stores AI chat history
+  conversations: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(), // Auto-generated from first message or user-defined
+        messages: z.array(
+          z.object({
+            id: z.string(),
+            role: z.enum(["user", "assistant"]),
+            content: z.string(),
+            attachments: z.array(z.string().url()).optional(),
+            timestamp: z.string(),
+          })
+        ),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+      })
+    )
+    .default([]),
 });
 
 export type BrandSiteData = z.infer<typeof brandSiteDataSchema>;

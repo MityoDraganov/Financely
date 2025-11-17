@@ -289,7 +289,6 @@ function App() {
 											path="security/audit-log"
 											element={<AuditLogPage />}
 										/>
-										{/* TODO: Add more settings routes */}
 									</Route>
 								</Routes>
 								<Toaster />

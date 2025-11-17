@@ -2,12 +2,23 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { handleGenerateSiteInit } from "../app/handle-generate-site-init";
 import { logger } from "firebase-functions";
 
+interface SitePagePayload {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string;
+  context?: string;
+  type?: "standard" | "blog" | "contact";
+  order?: number;
+}
+
 interface GenerateSitePayload {
   organizationId: string;
   brandName?: string;
   tone?: string;
   context?: string;
   contextImages?: string[];
+  pages?: SitePagePayload[];
 }
 
 /**
@@ -37,7 +48,7 @@ export const generateSite = onCall<GenerateSitePayload>(
   },
   async (request) => {
     try {
-      const { organizationId, brandName, tone, context, contextImages } = request.data;
+      const { organizationId, brandName, tone, context, contextImages, pages } = request.data;
 
       if (!organizationId) {
         throw new HttpsError(
@@ -52,6 +63,7 @@ export const generateSite = onCall<GenerateSitePayload>(
         tone,
         hasContext: !!context,
         contextImageCount: contextImages?.length || 0,
+        pageCount: pages?.length || 0,
       });
 
       // This returns immediately after creating the document
@@ -61,6 +73,7 @@ export const generateSite = onCall<GenerateSitePayload>(
         tone,
         context,
         contextImages,
+        pages,
       });
 
       logger.info("Site generation initiated", {

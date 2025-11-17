@@ -221,6 +221,15 @@ export interface FunctionsService {
     tone?: string;
     context?: string;
     contextImages?: string[];
+    pages?: Array<{
+      id: string;
+      title: string;
+      slug: string;
+      description?: string;
+      context?: string;
+      type?: "standard" | "blog" | "contact";
+      order?: number;
+    }>;
   }): Promise<{ id: string; status: string }>;
 
   regenerateSite(payload: {
@@ -229,6 +238,17 @@ export interface FunctionsService {
     context?: string;
     contextImages?: string[];
   }): Promise<{ success: boolean; brandSiteId: string; status: string }>;
+
+  chatGenerateSite(payload: {
+    brandSiteId: string;
+    message: string;
+    attachments?: string[];
+    conversationHistory?: Array<{
+      role: "user" | "assistant";
+      content: string;
+      attachments?: string[];
+    }>;
+  }): Promise<{ response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string }>;
   updateAnalyticsScript(payload: {
     brandSiteId: string;
   }): Promise<{ success: boolean; brandSiteId: string }>;
@@ -259,6 +279,26 @@ export interface FunctionsService {
     brandSiteId: string;
     version: number;
   }): Promise<{ success: boolean; brandSiteId: string; version: number; previewUrl: string }>;
+
+  updateBrandSitePages(payload: {
+    brandSiteId: string;
+    pages: Array<{
+      id: string;
+      title: string;
+      slug: string;
+      description?: string;
+      context?: string;
+      type?: "standard" | "blog" | "contact";
+      order?: number;
+      contentEntries?: Array<{
+        id: string;
+        title: string;
+        summary?: string;
+        link?: string;
+        image?: string;
+      }>;
+    }>;
+  }): Promise<{ success: boolean; brandSiteId: string }>;
 
   /**
    * Manually deploy custom files to a brand site
@@ -589,4 +629,24 @@ export interface FunctionsService {
       showRejectButton: boolean;
     };
   }>;
+
+  /**
+   * Upload a file to Firebase Storage.
+   * All file uploads (create operations) must go through this backend function.
+   * 
+   * @param payload - The upload payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.fileName - Original file name
+   * @param payload.fileData - Base64 encoded file data
+   * @param payload.contentType - MIME type of the file
+   * @param payload.path - Optional custom storage path
+   * @returns Promise with the public URL of the uploaded file
+   */
+  uploadFile(payload: {
+    organizationId: string;
+    fileName: string;
+    fileData: string; // Base64 encoded
+    contentType: string;
+    path?: string;
+  }): Promise<{ url: string }>;
 }
