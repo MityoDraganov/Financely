@@ -87,6 +87,26 @@ export function AIChatBuilder({
     setHasLoadedConversations(true);
   }, [brandSite?.conversations, brandSiteId, hasLoadedConversations]);
 
+  // Watch for conversation updates from Firestore (when async processing completes)
+  useEffect(() => {
+    if (!currentConversationId || !brandSite?.conversations) return;
+
+    const conversation = brandSite.conversations.find(c => c.id === currentConversationId);
+    if (conversation) {
+      // Update messages if conversation was updated (e.g., AI response added)
+      const conversationMessages = conversation.messages.map(msg => ({
+        ...msg,
+        isTyping: false,
+      }));
+      
+      // Only update if the conversation has more messages than current state
+      // This prevents overwriting local state with stale data
+      if (conversationMessages.length > messages.length) {
+        setMessages(conversationMessages);
+      }
+    }
+  }, [brandSite?.conversations, currentConversationId]);
+
   // Helper function to save conversation to Firestore
   const saveConversation = async (conversationId: string, conversationMessages: ChatMessage[], title?: string) => {
     if (!brandSiteId) return;
@@ -318,40 +338,44 @@ export function AIChatBuilder({
     const messagesWithTyping = [...updatedMessages, typingMessage];
     setMessages(messagesWithTyping);
 
+    // Build conversation history from updatedMessages (includes the new user message)
+    // Filter out typing indicators and map to the format expected by the backend
+    const conversationHistory = updatedMessages
+      .filter((m) => !m.isTyping)
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        attachments: m.attachments,
+      }));
+
     chatGenerateSite.mutate(
       {
         brandSiteId,
         message: userMessage.content,
         attachments: currentAttachments,
-        conversationHistory: messages
-          .filter((m) => !m.isTyping)
-          .map((m) => ({
-            role: m.role,
-            content: m.content,
-            attachments: m.attachments,
-          })),
+        conversationHistory,
+        conversationId,
       },
       {
         onSuccess: async (data) => {
           // Remove typing indicator
           const messagesWithoutTyping = messagesWithTyping.filter((m) => !m.isTyping);
 
-          // Add AI response
-          const aiMessage: ChatMessage = {
+          // Add temporary "processing" message - will be replaced when Firestore updates
+          const processingMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            content: data.response || "I've updated your site. Check the preview!",
+            content: data.response || "Processing your request...",
             timestamp: new Date().toISOString(),
           };
-          const finalMessages = [...messagesWithoutTyping, aiMessage];
-          setMessages(finalMessages);
+          const tempMessages = [...messagesWithoutTyping, processingMessage];
+          setMessages(tempMessages);
 
-          // Save conversation with AI response
-          await saveConversation(conversationId, finalMessages);
+          // Save conversation with processing message
+          await saveConversation(conversationId, tempMessages);
 
-          if (data.updated) {
-            onSiteUpdated?.();
-          }
+          // The actual response will come from Firestore when processing completes
+          // The useBrandSite hook will poll and update automatically
         },
         onError: async (error) => {
           // Remove typing indicator

@@ -12,7 +12,8 @@ export const useChatGenerateSite = () => {
     mutationFn: (payload: Parameters<typeof functionsService.chatGenerateSite>[0]) =>
       functionsService.chatGenerateSite(payload),
     onSuccess: (result, variables) => {
-      // Invalidate brand site queries to refresh
+      // Invalidate brand site queries to refresh immediately
+      // This will fetch the updated HTML that was saved to Firestore
       queryClient.invalidateQueries({
         queryKey: ["brandSite", variables.brandSiteId],
       });
@@ -21,7 +22,9 @@ export const useChatGenerateSite = () => {
       });
 
       if (result.updated) {
-        toast.success("Site updated successfully!");
+        // Note: Deployment happens in background, status will update from "deploying" to "success"
+        // The HTML is already available in Firestore, so preview will update immediately
+        toast.success("Site updated! Deploying to hosting...");
       }
 
       if (result.requiresClarification) {

@@ -1,37 +1,46 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles, Loader2, Eye, Settings2, Code, RefreshCw, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, Eye, RefreshCw, AlertCircle, ChevronRight, ChevronDown, Menu, X, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { useGenerateWidget } from "@/hooks/service-hooks/use-generate-widget";
 import { useRestoreWidgetVersion } from "@/hooks/service-hooks/use-widget-versioning";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useGenerateSite, useRegenerateSite, useAddCustomDomain, useRestoreBrandSiteVersion, usePreviewBrandSiteVersion, useDeployManualSite, useUpdateBrandSitePages } from "@/hooks/service-hooks/use-brand-site";
 import { useBrandSite, useBrandSitesByOrganization, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
 import { projectId } from "@/infrastructure/firebase";
-import { AIGenerationTab } from "@/components/site-builder/ai-generation-tab";
-import { ManualEditorTab } from "@/components/site-builder/manual-editor-tab";
+import { AIChatBuilder } from "@/components/site-builder/ai-chat-builder";
 import { WidgetEnableToggle } from "@/components/site-builder/widget-enable-toggle";
 import { AddPageDialog } from "@/components/site-builder/add-page-dialog";
-import { AIChatBuilder } from "@/components/site-builder/ai-chat-builder";
 import { ContactFormWidgetConfig } from "@/components/site-builder/contact-form-widget-config";
 import { InvoiceRequestWidgetConfig } from "@/components/site-builder/invoice-request-widget-config";
 import { QuoteRequestWidgetConfig } from "@/components/site-builder/quote-request-widget-config";
 import { WidgetVersionHistory } from "@/components/site-builder/widget-version-history";
 import { EmbedScriptSection } from "@/components/site-builder/embed-script-section";
+import { ManualEditorTab } from "@/components/site-builder/manual-editor-tab";
+import { SiteStatusDisplay } from "@/components/site-builder/site-status-display";
+import { SiteVersionHistory } from "@/components/site-builder/site-version-history";
+import { CustomDomainInput } from "@/components/site-builder/custom-domain-input";
 import type { WidgetPosition } from "@/components/site-builder/widget-types";
 import { WidgetPreview } from "@/components/widget-preview";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Build default styling from organization branding
 function buildDefaultStylingFromBranding(brandColors?: { primary?: string; secondary?: string; accent?: string }) {
@@ -117,15 +126,15 @@ export default function SiteBuilderPage() {
     ttl?: number;
   } | undefined>();
   const [domainMessage, setDomainMessage] = useState<string | undefined>();
-  const [context, setContext] = useState("");
-  const [contextImages, setContextImages] = useState<string[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
   const [isPageDialogOpen, setIsPageDialogOpen] = useState(false);
+  const [pageDialogMode, setPageDialogMode] = useState<"create" | "edit">("create");
+  const [pageBeingEdited, setPageBeingEdited] = useState<SitePage | null>(null);
+  const [pagePendingDelete, setPagePendingDelete] = useState<SitePage | null>(null);
   const [hasUnpublishedPages, setHasUnpublishedPages] = useState(false);
   const updateBrandSitePages = useUpdateBrandSitePages();
   const updateBrandSite = useUpdateBrandSite(); // For file updates (not pages)
-  const contextFileUpload = useFileUpload();
   const generateSite = useGenerateSite();
   const regenerateSite = useRegenerateSite();
   const addCustomDomain = useAddCustomDomain();
@@ -134,7 +143,12 @@ export default function SiteBuilderPage() {
   const deployManualSite = useDeployManualSite();
   const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(null);
   const brandSite = useBrandSite(currentBrandSiteId);
-  const [activeTab, setActiveTab] = useState<"ai" | "chat" | "manual">("ai");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    pages: false,
+    widgets: false,
+    advanced: false,
+  });
   
   // Reset unpublished pages flag when site is successfully deployed
   useEffect(() => {
@@ -329,11 +343,6 @@ export default function SiteBuilderPage() {
     }
   }, [brandSites, currentBrandSiteId]);
 
-  // Load context from brand site if it exists
-  const prevBrandSiteIdRef = useRef<string | null>(null);
-  const brandSiteId = brandSite?.data?.id ?? null;
-  const brandSiteContext = (brandSite?.data as { context?: string; contextImages?: string[] })?.context;
-  const brandSiteContextImages = (brandSite?.data as { context?: string; contextImages?: string[] })?.contextImages;
   const rawPages =
     ((brandSite?.data as { pages?: SitePage[] })?.pages as SitePage[] | undefined) ??
     [];
@@ -374,45 +383,6 @@ export default function SiteBuilderPage() {
     })
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   
-  useEffect(() => {
-    if (!brandSiteId) {
-      if (prevBrandSiteIdRef.current !== null) {
-        prevBrandSiteIdRef.current = null;
-        setContext("");
-        setContextImages([]);
-      }
-      return;
-    }
-    
-    // Only update if this is a different brand site
-    if (prevBrandSiteIdRef.current === brandSiteId) {
-      return;
-    }
-    
-    prevBrandSiteIdRef.current = brandSiteId;
-    setContext(brandSiteContext || "");
-    setContextImages(brandSiteContextImages || []);
-  }, [brandSiteId, brandSiteContext, brandSiteContextImages]);
-
-  const handleContextUpload = async (file: File) => {
-    if (!organization) return;
-
-    const path = `organizations/${organization.id}/branding/context-${Date.now()}.${file.name.split('.').pop()}`;
-    const url = await contextFileUpload.uploadFile(file, path);
-
-    if (url) {
-      setContextImages([...contextImages, url]);
-      toast.success("Context image uploaded successfully");
-    } else {
-      toast.error(contextFileUpload.error || "Failed to upload image");
-    }
-  };
-
-  const handleContextRemove = (index: number) => {
-    const newImages = contextImages.filter((_, i) => i !== index);
-    setContextImages(newImages);
-  };
-
   const persistPages = async (nextPages: SitePage[]) => {
     if (!currentBrandSiteId) {
       toast.error("Generate a site before managing pages.");
@@ -434,8 +404,6 @@ export default function SiteBuilderPage() {
     setHasUnpublishedPages(false);
     regenerateSite.mutate({
       brandSiteId: currentBrandSiteId,
-      context: context.trim() || undefined,
-      contextImages: contextImages.length > 0 ? contextImages : undefined,
     });
   };
 
@@ -477,105 +445,109 @@ export default function SiteBuilderPage() {
     setIsPageDialogOpen(false);
   };
 
-  const handleUpdatePage = async (
-    pageId: string,
-    updates: Partial<SitePage>,
-  ) => {
-    const page = currentPages.find((p) => p.id === pageId);
-    if (!page) return;
-
-    const trimmedUpdates: Partial<SitePage> = { ...updates };
-    if (updates.title !== undefined) {
-      const nextTitle = updates.title.trim();
-      trimmedUpdates.title = nextTitle || page.title;
-    }
-    if (updates.description !== undefined) {
-      trimmedUpdates.description = updates.description.trim() || undefined;
-    }
-    if (updates.context !== undefined) {
-      trimmedUpdates.context = updates.context.trim() || undefined;
-    }
-
-    const nextPages = currentPages.map((p) =>
-      p.id === pageId ? { ...p, ...trimmedUpdates } : p,
-    );
-    await persistPages(nextPages);
-  };
-
-const updatePageEntries = async (
-  pageId: string,
-  updater: (entries: PageContentEntry[]) => PageContentEntry[],
-) => {
-  const page = currentPages.find((p) => p.id === pageId);
-  if (!page) return;
-
-  const nextEntries = updater([... (page.contentEntries || [])]);
-  const nextPages = currentPages.map((p) =>
-    p.id === pageId ? { ...p, contentEntries: nextEntries } : p,
-  );
-  await persistPages(nextPages);
-};
-
-const handleAddContentEntry = async (pageId: string) => {
-  await updatePageEntries(pageId, (entries) => [
-    ...entries,
-    {
-      id: createContentEntryId(),
-      title: "New entry",
-      summary: "",
-    },
-  ]);
-};
-
-const handleUpdateContentEntry = async (
-  pageId: string,
-  entryId: string,
-  updates: Partial<PageContentEntry>,
-) => {
-  await updatePageEntries(pageId, (entries) =>
-    entries.map((entry) => {
-      if (entry.id !== entryId) {
-        return entry;
-      }
-      const nextEntry: PageContentEntry = { ...entry };
-      if (updates.title !== undefined) {
-        nextEntry.title = updates.title.trim() || entry.title;
-      }
-      if (updates.summary !== undefined) {
-        const trimmed = updates.summary.trim();
-        nextEntry.summary = trimmed || undefined;
-      }
-      if (updates.link !== undefined) {
-        const trimmed = updates.link.trim();
-        nextEntry.link = trimmed || undefined;
-      }
-      if (updates.image !== undefined) {
-        const trimmed = updates.image.trim();
-        nextEntry.image = trimmed || undefined;
-      }
-      return nextEntry;
-    }),
-  );
-};
-
-const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
-  await updatePageEntries(pageId, (entries) =>
-    entries.filter((entry) => entry.id !== entryId),
-  );
-};
-
-  const handleDeletePage = async (pageId: string) => {
-    if (currentPages.length <= 1) {
-      toast.error("At least one page is required.");
+  const handleUpdatePage = async (pageId: string, pageForm: {
+    title: string;
+    slug: string;
+    description: string;
+    context: string;
+    type: PageType;
+  }) => {
+    if (!pageForm.title.trim()) {
+      toast.error("Page title is required");
       return;
     }
-    const nextPages = currentPages
-      .filter((page) => page.id !== pageId)
-      .map((page, index) => ({
-        ...page,
-        order: index,
-      }));
+
+    const targetPage = currentPages.find((page) => page.id === pageId);
+    if (!targetPage) {
+      toast.error("Page not found");
+      return;
+    }
+
+    const baseSlugInput =
+      pageForm.slug.trim() ||
+      pageForm.title.trim() ||
+      targetPage.slug ||
+      `page-${Date.now().toString(36)}`;
+    const fallbackSlug =
+      (targetPage.order ?? 0) === 0
+        ? "index"
+        : targetPage.slug || `page-${Date.now().toString(36)}`;
+    const normalizedSlug = slugify(baseSlugInput) || fallbackSlug;
+    const slugConflict = currentPages.some(
+      (page) => page.id !== pageId && page.slug === normalizedSlug,
+    );
+    const slug = slugConflict
+      ? `${normalizedSlug}-${Date.now().toString(36).slice(2, 7)}`
+      : normalizedSlug;
+
+    const updatedPages = currentPages.map((page) =>
+      page.id === pageId
+        ? {
+            ...page,
+            title: pageForm.title.trim(),
+            slug,
+            description: pageForm.description.trim() || undefined,
+            context: pageForm.context.trim() || undefined,
+            type: pageForm.type,
+          }
+        : page,
+    );
+
+    await persistPages(updatedPages);
+    setIsPageDialogOpen(false);
+    setPageDialogMode("create");
+    setPageBeingEdited(null);
+  };
+
+  const handleRemovePage = async (pageId: string) => {
+    if (currentPages.length <= 1) {
+      toast.error("Your site needs at least one page.");
+      return;
+    }
+
+    const nextPages = currentPages.filter((page) => page.id !== pageId);
+    if (nextPages.length === currentPages.length) {
+      toast.error("Page not found");
+      return;
+    }
+
     await persistPages(nextPages);
+    setPagePendingDelete(null);
+  };
+
+  const openCreatePageDialog = () => {
+    setPageDialogMode("create");
+    setPageBeingEdited(null);
+    setIsPageDialogOpen(true);
+  };
+
+  const openEditPageDialog = (page: SitePage) => {
+    setPageDialogMode("edit");
+    setPageBeingEdited(page);
+    setIsPageDialogOpen(true);
+  };
+
+  const editingPageFormValues = useMemo(() => {
+    if (pageDialogMode !== "edit" || !pageBeingEdited) {
+      return null;
+    }
+
+    return {
+      title: pageBeingEdited.title,
+      slug: pageBeingEdited.slug,
+      description: pageBeingEdited.description ?? "",
+      context: pageBeingEdited.context ?? "",
+      type: pageBeingEdited.type ?? "standard",
+    };
+  }, [pageDialogMode, pageBeingEdited]);
+
+  const handlePageDialogOpenChange = (open: boolean) => {
+    setIsPageDialogOpen(open);
+    if (open) {
+      return;
+    }
+    setPageDialogMode("create");
+    setPageBeingEdited(null);
   };
 
   // Load widget configuration from organization
@@ -873,6 +845,13 @@ const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
     setTimeout(() => setCopiedScript(false), 2000);
   };
 
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -882,435 +861,334 @@ const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
     );
   }
 
+  const hasSite = brandSites.length > 0 && currentBrandSiteId;
+  const deployedUrl = brandSite?.data?.deployedUrl;
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <div className="flex items-center space-x-3">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">AI Site Builder</h1>
-            <p className="text-muted-foreground">
-              Generate a branded website automatically using AI. Your site will be hosted on a custom subdomain.
-            </p>
+    <div className="flex min-h-[calc(100vh-4rem)] w-full">
+      {/* Main Chat Interface */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">AI Site Builder</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Chat with AI to create and update your website
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {hasSite && deployedUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(deployedUrl, "_blank")}
+                  className="gap-2 whitespace-nowrap min-w-fit"
+                >
+                  <ExternalLink className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">View Site</span>
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden shrink-0"
+              >
+                {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
+        </div>
+
+        {/* Chat Interface */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {hasSite ? (
+            <AIChatBuilder
+              brandSiteId={currentBrandSiteId}
+              organizationId={organization?.id || ""}
+              onSiteUpdated={() => {
+                queryClient.invalidateQueries({
+                  queryKey: ["brandSite", currentBrandSiteId],
+                });
+              }}
+            />
+          ) : (
+            <Card className="h-full flex flex-col">
+              <CardContent className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold">Create Your First Website</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    Start by describing what you want your website to be. The AI will help you create a beautiful, branded site.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    if (!organization?.id) return;
+                    generateSite.mutate(
+                      {
+                        organizationId: organization.id,
+                        brandName: organization.settings?.branding?.companyName || organization.name,
+                        tone: "professional",
+                        pages: currentPages,
+                      },
+                      {
+                        onSuccess: (result) => {
+                          setCurrentBrandSiteId(result.id);
+                          toast.success("Site created! Start chatting to customize it.");
+                        },
+                      }
+                    );
+                  }}
+                  disabled={generateSite.isPending || !organization?.id}
+                  className="gap-2"
+                >
+                  {generateSite.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Create Site
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      <div className="max-w-full">
-        <Card>
-          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Page Management</CardTitle>
-              <CardDescription>
-                Add multiple pages and customize their purpose. Regenerate the site to publish changes.
-              </CardDescription>
-            </div>
+      {/* Sidebar - Advanced Features */}
+      <div
+        className={`${
+          sidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
+        } fixed lg:sticky top-0 right-0 h-full w-full lg:w-96 border-l bg-background z-40 transition-transform duration-300 ease-in-out overflow-y-auto`}
+      >
+        <div className="p-6 space-y-4">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between mb-4 lg:hidden">
+            <h2 className="text-lg font-semibold">Settings & Tools</h2>
             <Button
-              onClick={() => setIsPageDialogOpen(true)}
-              disabled={!currentBrandSiteId || updateBrandSitePages.isPending}
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(false)}
             >
-              Add Page
+              <X className="h-4 w-4" />
             </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {hasUnpublishedPages && (
-              <Alert variant="default" className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-                <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <AlertTitle className="text-blue-900 dark:text-blue-100">
-                  Pages Updated
-                </AlertTitle>
-                <AlertDescription className="text-blue-800 dark:text-blue-200">
-                  Your page changes have been saved but not yet published. Click "Publish Pages" to regenerate and deploy your site with the new pages.
-                </AlertDescription>
-                <div className="mt-3 col-start-2">
-                  <Button
-                    size="sm"
-                    onClick={handlePublishPages}
-                    disabled={regenerateSite.isPending || !currentBrandSiteId}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {regenerateSite.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Publishing...
-                      </>
+          </div>
+
+          {/* Site Status */}
+          {hasSite && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Site Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SiteStatusDisplay
+                  brandSite={brandSite?.data || null}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pages Section */}
+          <Collapsible
+            open={expandedSections.pages}
+            onOpenChange={() => toggleSection("pages")}
+          >
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Pages</CardTitle>
+                    {expandedSections.pages ? (
+                      <ChevronDown className="h-4 w-4" />
                     ) : (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Publish Pages
-                      </>
+                      <ChevronRight className="h-4 w-4" />
                     )}
-                  </Button>
-                </div>
-              </Alert>
-            )}
-            {currentPages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Only a single landing page will be generated. Add additional pages to enable navigation.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {currentPages.map((page, index) => (
-                  <div key={page.id} className="rounded-lg border p-4 space-y-4">
-                    <div className="flex flex-col gap-4 md:flex-row">
-                      <div className="flex-1 space-y-2">
-                        <Label>Title</Label>
-                        <Input
-                          defaultValue={page.title}
-                          disabled={updateBrandSitePages.isPending}
-                          onBlur={(event) => {
-                            const value = event.target.value.trim();
-                            if (value && value !== page.title) {
-                              handleUpdatePage(page.id, { title: value });
-                            }
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2 md:w-48">
-                        <Label>Slug</Label>
-                        <Input
-                          value={
-                            page.slug === "index" || page.slug === "home"
-                              ? "/"
-                              : `/${page.slug}`
-                          }
-                          disabled
-                        />
-                      </div>
-                      <div className="space-y-2 md:w-48">
-                        <Label>Type</Label>
-                        <Select
-                          defaultValue={page.type || "standard"}
-                          onValueChange={(value) =>
-                            handleUpdatePage(page.id, {
-                              type: value as PageType,
-                            })
-                          }
-                          disabled={updateBrandSitePages.isPending}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="standard">Standard</SelectItem>
-                            <SelectItem value="blog">Blog / Articles</SelectItem>
-                            <SelectItem value="contact">Contact</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Description / Purpose</Label>
-                      <Textarea
-                        placeholder="Explain what this page should highlight"
-                        defaultValue={page.description || ""}
-                        disabled={updateBrandSitePages.isPending}
-                        onBlur={(event) => {
-                          const value = event.target.value.trim();
-                          if ((value || undefined) !== page.description) {
-                            handleUpdatePage(page.id, { description: value || undefined });
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Additional Context (optional)</Label>
-                      <Textarea
-                        placeholder="Add specific instructions or content for this page"
-                        defaultValue={page.context || ""}
-                        disabled={updateBrandSitePages.isPending}
-                        onBlur={(event) => {
-                          const value = event.target.value.trim();
-                          if ((value || undefined) !== page.context) {
-                            handleUpdatePage(page.id, { context: value || undefined });
-                          }
-                        }}
-                      />
-                    </div>
-                    {page.type === "blog" && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label>Content Entries</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAddContentEntry(page.id)}
-                            disabled={updateBrandSitePages.isPending}
-                          >
-                            Add Entry
-                          </Button>
-                        </div>
-                        {page.contentEntries && page.contentEntries.length > 0 ? (
-                          <div className="space-y-3">
-                            {page.contentEntries.map((entry) => (
-                              <div key={entry.id} className="rounded-md border p-3 space-y-3">
-                                <div className="flex flex-col gap-3 md:flex-row">
-                                  <div className="flex-1 space-y-1.5">
-                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                      Entry Title
-                                    </Label>
-                                    <Input
-                                      defaultValue={entry.title}
-                                      disabled={updateBrandSitePages.isPending}
-                                      onBlur={(event) => {
-                                        const value = event.target.value.trim();
-                                        if (value && value !== entry.title) {
-                                          handleUpdateContentEntry(page.id, entry.id, { title: value });
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5 md:w-64">
-                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                      Link (optional)
-                                    </Label>
-                                    <Input
-                                      placeholder="https://example.com/article"
-                                      defaultValue={entry.link || ""}
-                                      disabled={updateBrandSitePages.isPending}
-                                      onBlur={(event) => {
-                                        const value = event.target.value.trim();
-                                        if (value !== (entry.link || "")) {
-                                          handleUpdateContentEntry(page.id, entry.id, { link: value });
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                    Summary
-                                  </Label>
-                                  <Textarea
-                                    placeholder="Short summary or excerpt"
-                                    defaultValue={entry.summary || ""}
-                                    disabled={updateBrandSitePages.isPending}
-                                    onBlur={(event) => {
-                                      const value = event.target.value.trim();
-                                      if ((value || undefined) !== entry.summary) {
-                                        handleUpdateContentEntry(page.id, entry.id, { summary: value || undefined });
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                <div className="flex justify-end">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRemoveContentEntry(page.id, entry.id)}
-                                    disabled={updateBrandSitePages.isPending}
-                                  >
-                                    Remove Entry
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Add articles or case studies to guide the AI when generating this blog page.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>
-                        {index === 0
-                          ? "Primary page (Home)"
-                          : "Displayed in navigation"}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeletePage(page.id)}
-                        disabled={currentPages.length <= 1 || updateBrandSitePages.isPending || index === 0}
-                      >
-                        Remove
-                      </Button>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ai" | "chat" | "manual")} className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              AI Generation
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              AI Chat Builder
-            </TabsTrigger>
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <Code className="h-4 w-4" />
-              Manual Editor
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="ai" className="space-y-6">
-            <AIGenerationTab
-              context={context}
-              onContextChange={setContext}
-              contextImages={contextImages}
-              onContextImageUpload={handleContextUpload}
-              onContextImageRemove={handleContextRemove}
-              isUploading={contextFileUpload.isUploading}
-              uploadProgress={contextFileUpload.uploadProgress}
-              uploadError={contextFileUpload.error}
-              brandSites={brandSites}
-              currentBrandSite={brandSite?.data || null}
-              onGenerate={() => {
-                if (!organization?.id) return;
-                generateSite.mutate(
-                  {
-                    organizationId: organization.id,
-                    brandName: organization.settings?.branding?.companyName || organization.name,
-                    tone: "professional",
-                    context: context.trim() || undefined,
-                    contextImages: contextImages.length > 0 ? contextImages : undefined,
-                    pages: currentPages,
-                  },
-                  {
-                    onSuccess: (result) => {
-                      setCurrentBrandSiteId(result.id);
-                    },
-                  }
-                );
-              }}
-              onRegenerate={() => {
-                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                if (!brandSiteId) return;
-                setHasUnpublishedPages(false);
-                regenerateSite.mutate({
-                  brandSiteId,
-                  context: context.trim() || undefined,
-                  contextImages: contextImages.length > 0 ? contextImages : undefined,
-                });
-              }}
-              isGenerating={generateSite.isPending}
-              isRegenerating={regenerateSite.isPending}
-              currentVersion={(brandSite?.data || brandSites[0])?.metadata?.version ?? null}
-              previewingVersion={previewingVersion}
-              onPreviewVersion={async (version: number) => {
-                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                if (!brandSiteId) return;
-                
-                setPreviewingVersion(version);
-                
-                try {
-                  const result = await previewVersion.mutateAsync({
-                    brandSiteId,
-                    version,
-                  });
-                  
-                  const previewUrl = result?.previewUrl;
-                  if (previewUrl) {
-                    const previewWindow = window.open(previewUrl, "_blank");
-                    if (!previewWindow) {
-                      toast.error("Popup blocked. Please allow popups for this site and try again.");
-                    } else {
-                      toast.success("Preview opened in new tab", {
-                        duration: 2000,
-                      });
-                    }
-                  }
-                } catch (error) {
-                  console.error("Failed to create preview:", error);
-                  setPreviewingVersion(null);
-                } finally {
-                  setTimeout(() => {
-                    setPreviewingVersion(null);
-                  }, 500);
-                }
-              }}
-              onRestoreVersion={(version: number) => {
-                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                if (!brandSiteId) return;
-                restoreVersion.mutate({
-                  brandSiteId,
-                  version,
-                });
-              }}
-              isRestoring={restoreVersion.isPending}
-              customDomain={customDomainInput}
-              onCustomDomainChange={setCustomDomainInput}
-              onAddDomain={() => {
-                const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
-                if (!brandSiteId || !customDomainInput) {
-                  toast.error("Please enter a domain");
-                  return;
-                }
-                addCustomDomain.mutate(
-                  {
-                    brandSiteId,
-                    customDomain: customDomainInput,
-                  },
-                  {
-                    onSuccess: (result) => {
-                      setDomainStatus(result.domainStatus);
-                      setDnsConfigured(result.dnsConfigured);
-                      setDnsInstructions(result.dnsInstructions);
-                      setDomainMessage(result.message);
-                    },
-                    onError: () => {
-                      // Reset state on error
-                      setDomainStatus(undefined);
-                      setDnsConfigured(undefined);
-                      setDnsInstructions(undefined);
-                      setDomainMessage(undefined);
-                    },
-                  }
-                );
-              }}
-              isAddingDomain={addCustomDomain.isPending}
-              domainStatus={domainStatus}
-              dnsConfigured={dnsConfigured}
-              dnsInstructions={dnsInstructions}
-              message={domainMessage}
-              generationError={generateSite.error instanceof Error ? generateSite.error : null}
-            />
-          </TabsContent>
-
-          <TabsContent value="chat" className="space-y-6">
-            {currentBrandSiteId && organization ? (
-              <AIChatBuilder
-                brandSiteId={currentBrandSiteId}
-                organizationId={organization.id}
-                onSiteUpdated={() => {
-                  // Refresh brand site data
-                  queryClient.invalidateQueries({
-                    queryKey: ["brandSite", currentBrandSiteId],
-                  });
-                }}
-              />
-            ) : (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <p className="text-muted-foreground">
-                    Please generate a site first to use the AI Chat Builder.
-                  </p>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {hasUnpublishedPages && (
+                    <Alert variant="default" className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                      <AlertCircle className="h-4 w-4 text-blue-600" />
+                      <AlertTitle className="text-sm">Pages Updated</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        Changes saved. Regenerate to publish.
+                      </AlertDescription>
+                      <Button
+                        size="sm"
+                        onClick={handlePublishPages}
+                        disabled={regenerateSite.isPending}
+                        className="mt-2 w-full"
+                      >
+                        {regenerateSite.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            Publishing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-3 w-3" />
+                            Publish Changes
+                          </>
+                        )}
+                      </Button>
+                    </Alert>
+                  )}
+                  <Button
+                    onClick={openCreatePageDialog}
+                    disabled={!currentBrandSiteId || updateBrandSitePages.isPending}
+                    size="sm"
+                    className="w-full"
+                  >
+                    Add Page
+                  </Button>
+                  {currentPages.length > 0 && (
+                    <div className="space-y-2">
+                      {currentPages.map((page) => (
+                        <div
+                          key={page.id}
+                          className="flex items-start justify-between gap-3 rounded border bg-muted/30 p-3"
+                        >
+                          <div>
+                            <div className="font-medium">{page.title}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {page.slug === "index" ? "/" : `/${page.slug}`}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground"
+                              onClick={() => openEditPageDialog(page)}
+                              aria-label={`Edit ${page.title}`}
+                              disabled={updateBrandSitePages.isPending}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => setPagePendingDelete(page)}
+                              aria-label={`Remove ${page.title}`}
+                              disabled={updateBrandSitePages.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
-          <TabsContent value="manual" className="space-y-6">
-            <ManualEditorTab
-              hasSite={brandSites.length > 0}
-              brandSite={brandSite?.data || brandSites[0] || null}
-              organizationId={organization?.id || ""}
-              organizationName={organization?.name || ""}
-              companyName={organization?.settings?.branding?.companyName}
-              projectId={projectId || ""}
-              onCreateBlankSite={async () => {
-                if (!organization?.id) return;
-                // Create a blank site with minimal HTML
-                const blankHtml = `<!DOCTYPE html>
+          {/* Advanced Settings */}
+          {hasSite && (
+            <Collapsible
+              open={expandedSections.advanced}
+              onOpenChange={() => toggleSection("advanced")}
+            >
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Advanced</CardTitle>
+                      {expandedSections.advanced ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    <SiteVersionHistory
+                      brandSite={brandSite?.data || null}
+                      currentVersion={brandSite?.data?.metadata?.version ?? null}
+                      previewingVersion={previewingVersion}
+                      onPreviewVersion={async (version: number) => {
+                        const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                        if (!brandSiteId) return;
+                        setPreviewingVersion(version);
+                        try {
+                          const result = await previewVersion.mutateAsync({
+                            brandSiteId,
+                            version,
+                          });
+                          if (result?.previewUrl) {
+                            window.open(result.previewUrl, "_blank");
+                            toast.success("Preview opened in new tab");
+                          }
+                        } catch (error) {
+                          console.error("Failed to create preview:", error);
+                        } finally {
+                          setTimeout(() => setPreviewingVersion(null), 500);
+                        }
+                      }}
+                      onRestoreVersion={(version: number) => {
+                        const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                        if (!brandSiteId) return;
+                        restoreVersion.mutate({ brandSiteId, version });
+                      }}
+                      isRestoring={restoreVersion.isPending}
+                    />
+                    <CustomDomainInput
+                      customDomain={customDomainInput}
+                      onCustomDomainChange={setCustomDomainInput}
+                      onAddDomain={() => {
+                        const brandSiteId = currentBrandSiteId || brandSites[0]?.id;
+                        if (!brandSiteId || !customDomainInput) {
+                          toast.error("Please enter a domain");
+                          return;
+                        }
+                        addCustomDomain.mutate(
+                          {
+                            brandSiteId,
+                            customDomain: customDomainInput,
+                          },
+                          {
+                            onSuccess: (result) => {
+                              setDomainStatus(result.domainStatus);
+                              setDnsConfigured(result.dnsConfigured);
+                              setDnsInstructions(result.dnsInstructions);
+                              setDomainMessage(result.message);
+                            },
+                          }
+                        );
+                      }}
+                      isAdding={addCustomDomain.isPending}
+                      domainStatus={domainStatus}
+                      dnsConfigured={dnsConfigured}
+                      dnsInstructions={dnsInstructions}
+                      message={domainMessage}
+                    />
+                    <div className="pt-4 border-t">
+                      <ManualEditorTab
+                        hasSite={!!hasSite}
+                        brandSite={brandSite?.data || brandSites[0] || null}
+                        organizationId={organization?.id || ""}
+                        organizationName={organization?.name || ""}
+                        companyName={organization?.settings?.branding?.companyName}
+                        projectId={projectId || ""}
+                        onCreateBlankSite={async () => {
+                          if (!organization?.id) return;
+                          const blankHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1322,189 +1200,206 @@ const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
   <p>Start editing your site files!</p>
 </body>
 </html>`;
-                generateSite.mutate(
-                  {
-                    organizationId: organization.id,
-                    brandName: organization.settings?.branding?.companyName || organization.name,
-                    tone: "professional",
-                    pages: currentPages,
-                  },
-                  {
-                    onSuccess: async (result) => {
-                      setCurrentBrandSiteId(result.id);
-                      // Update with blank HTML and files
-                      await updateBrandSite.mutateAsync({
-                        id: result.id,
-                        data: {
-                          html: blankHtml,
-                          files: {
-                            "index.html": blankHtml,
-                          },
-                        },
-                      });
-                      toast.success("Blank site created! Start editing in the file editor.");
-                      setActiveTab("manual");
-                    },
-                  }
-                );
-              }}
-              isCreating={generateSite.isPending}
-              onSaveFiles={async (files) => {
-                if (!currentBrandSiteId) return;
-                await updateBrandSite.mutateAsync({
-                  id: currentBrandSiteId,
-                  data: {
-                    files,
-                    html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
-                  },
-                });
-              }}
-              onDeployFiles={async (files) => {
-                if (!currentBrandSiteId || !organization?.id) return;
-                await deployManualSite.mutateAsync({
-                  brandSiteId: currentBrandSiteId,
-                  files: Object.entries(files).map(([path, content]) => ({
-                    path,
-                    content,
-                  })),
-                  versionMessage: "Manual deployment from code editor",
-                  includeWidgets: organization.settings?.widgets?.enabled || false,
-                });
-              }}
-              widgetsEnabled={organization?.settings?.widgets?.enabled || false}
-            />
-          </TabsContent>
-        </Tabs>
+                          generateSite.mutate(
+                            {
+                              organizationId: organization.id,
+                              brandName: organization.settings?.branding?.companyName || organization.name,
+                              tone: "professional",
+                              pages: currentPages,
+                            },
+                            {
+                              onSuccess: async (result) => {
+                                setCurrentBrandSiteId(result.id);
+                                await updateBrandSite.mutateAsync({
+                                  id: result.id,
+                                  data: {
+                                    html: blankHtml,
+                                    files: {
+                                      "index.html": blankHtml,
+                                    },
+                                  },
+                                });
+                                toast.success("Blank site created!");
+                              },
+                            }
+                          );
+                        }}
+                        isCreating={generateSite.isPending}
+                        onSaveFiles={async (files) => {
+                          if (!currentBrandSiteId) return;
+                          await updateBrandSite.mutateAsync({
+                            id: currentBrandSiteId,
+                            data: {
+                              files,
+                              html: files["index.html"] || files["/index.html"] || brandSite?.data?.html || "",
+                            },
+                          });
+                        }}
+                        onDeployFiles={async (files) => {
+                          if (!currentBrandSiteId || !organization?.id) return;
+                          await deployManualSite.mutateAsync({
+                            brandSiteId: currentBrandSiteId,
+                            files: Object.entries(files).map(([path, content]) => ({
+                              path,
+                              content,
+                            })),
+                            versionMessage: "Manual deployment from code editor",
+                            includeWidgets: organization.settings?.widgets?.enabled || false,
+                          });
+                        }}
+                        widgetsEnabled={organization?.settings?.widgets?.enabled || false}
+                      />
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          )}
 
-        {/* Integration Widgets */}
-        <Card className="shadow-sm border-gray-200/50">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Settings2 className="h-4 w-4 text-blue-600" />
-              </div>
-              Integration Widgets
-            </CardTitle>
-            <CardDescription className="ml-11">
-              Create embeddable widgets for your website. Copy and paste the script into any website.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <WidgetEnableToggle
-              enabled={widgetsEnabled}
-              onToggle={setWidgetsEnabled}
-            />
-
-            {widgetsEnabled && (
-              <>
-                <ContactFormWidgetConfig
-                  config={contactFormConfig}
-                  onConfigChange={setContactFormConfig}
-                  styling={contactFormStyling}
-                  onStylingChange={setContactFormStyling}
-                  localization={contactFormLocalization}
-                  onLocalizationChange={setContactFormLocalization}
-                  builtInFields={builtInFields}
-                  onBuiltInFieldsChange={setBuiltInFields}
-                  customFields={customFields}
-                  onCustomFieldsChange={setCustomFields}
-                  onAddCustomField={handleAddCustomField}
-                  onRemoveCustomField={handleRemoveCustomField}
-                  onUpdateCustomField={handleUpdateCustomField}
-                  onOpenAiBuilder={() => {
-                    setAiWidgetType("contactForm");
-                    setAiWidgetDialogOpen(true);
-                  }}
-                  organizationId={organization?.id || ""}
-                />
-
-                <InvoiceRequestWidgetConfig
-                  config={invoiceRequestConfig}
-                  onConfigChange={setInvoiceRequestConfig}
-                  styling={invoiceRequestStyling}
-                  onStylingChange={setInvoiceRequestStyling}
-                  localization={invoiceRequestLocalization}
-                  onLocalizationChange={setInvoiceRequestLocalization}
-                  onOpenAiBuilder={() => {
-                    setAiWidgetType("invoiceRequest");
-                    setAiWidgetDialogOpen(true);
-                  }}
-                  organizationId={organization?.id || ""}
-                />
-
-                <QuoteRequestWidgetConfig
-                  config={quoteRequestConfig}
-                  onConfigChange={setQuoteRequestConfig}
-                  styling={quoteRequestStyling}
-                  onStylingChange={setQuoteRequestStyling}
-                  localization={quoteRequestLocalization}
-                  onLocalizationChange={setQuoteRequestLocalization}
-                  onOpenAiBuilder={() => {
-                    setAiWidgetType("quoteRequest");
-                    setAiWidgetDialogOpen(true);
-                  }}
-                  organizationId={organization?.id || ""}
-                />
-
-                {/* Save Button and Version History */}
-                <div className="space-y-3">
-                  <Button
-                    onClick={handleSaveWidgets}
-                    disabled={updateOrganization.isPending}
-                    className="w-full"
-                  >
-                    {updateOrganization.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
+          {/* Widgets Section */}
+          <Collapsible
+            open={expandedSections.widgets}
+            onOpenChange={() => toggleSection("widgets")}
+          >
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Integration Widgets</CardTitle>
+                    {expandedSections.widgets ? (
+                      <ChevronDown className="h-4 w-4" />
                     ) : (
-                      "Save Widget Configuration"
+                      <ChevronRight className="h-4 w-4" />
                     )}
-                  </Button>
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  <WidgetEnableToggle
+                    enabled={widgetsEnabled}
+                    onToggle={setWidgetsEnabled}
+                  />
 
-                  {organization?.settings?.widgets?.versions && organization.settings.widgets.versions.length > 0 && (
-                    <WidgetVersionHistory
-                      versions={organization.settings.widgets.versions.map((v) => ({
-                        version: v.version,
-                        widgetType: v.widgetType,
-                        widgets: v.widgets,
-                        createdAt: v.createdAt,
-                        description: v.description,
-                      }))}
-                      currentVersion={organization.settings.widgets.metadata?.version ?? null}
-                      onPreviewVersion={(version) => {
-                        setPreviewWidgetVersion({
-                          version: version.version,
-                          widgets: version.widgets,
-                        });
-                        setPreviewWidgetDialogOpen(true);
-                      }}
-                      onRestoreVersion={async (version) => {
-                        if (!organization?.id) return;
-                        await restoreWidgetVersion.mutateAsync({
-                          organizationId: organization.id,
-                          version,
-                          widgetType: "all",
-                        });
-                      }}
-                      isRestoring={restoreWidgetVersion.isPending}
-                    />
+                  {widgetsEnabled && (
+                    <>
+                      <ContactFormWidgetConfig
+                        config={contactFormConfig}
+                        onConfigChange={setContactFormConfig}
+                        styling={contactFormStyling}
+                        onStylingChange={setContactFormStyling}
+                        localization={contactFormLocalization}
+                        onLocalizationChange={setContactFormLocalization}
+                        builtInFields={builtInFields}
+                        onBuiltInFieldsChange={setBuiltInFields}
+                        customFields={customFields}
+                        onCustomFieldsChange={setCustomFields}
+                        onAddCustomField={handleAddCustomField}
+                        onRemoveCustomField={handleRemoveCustomField}
+                        onUpdateCustomField={handleUpdateCustomField}
+                        onOpenAiBuilder={() => {
+                          setAiWidgetType("contactForm");
+                          setAiWidgetDialogOpen(true);
+                        }}
+                        organizationId={organization?.id || ""}
+                      />
+
+                      <InvoiceRequestWidgetConfig
+                        config={invoiceRequestConfig}
+                        onConfigChange={setInvoiceRequestConfig}
+                        styling={invoiceRequestStyling}
+                        onStylingChange={setInvoiceRequestStyling}
+                        localization={invoiceRequestLocalization}
+                        onLocalizationChange={setInvoiceRequestLocalization}
+                        onOpenAiBuilder={() => {
+                          setAiWidgetType("invoiceRequest");
+                          setAiWidgetDialogOpen(true);
+                        }}
+                        organizationId={organization?.id || ""}
+                      />
+
+                      <QuoteRequestWidgetConfig
+                        config={quoteRequestConfig}
+                        onConfigChange={setQuoteRequestConfig}
+                        styling={quoteRequestStyling}
+                        onStylingChange={setQuoteRequestStyling}
+                        localization={quoteRequestLocalization}
+                        onLocalizationChange={setQuoteRequestLocalization}
+                        onOpenAiBuilder={() => {
+                          setAiWidgetType("quoteRequest");
+                          setAiWidgetDialogOpen(true);
+                        }}
+                        organizationId={organization?.id || ""}
+                      />
+
+                      <Button
+                        onClick={handleSaveWidgets}
+                        disabled={updateOrganization.isPending}
+                        className="w-full"
+                      >
+                        {updateOrganization.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Widget Configuration"
+                        )}
+                      </Button>
+
+                      {organization?.settings?.widgets?.versions &&
+                        organization.settings.widgets.versions.length > 0 && (
+                          <WidgetVersionHistory
+                            versions={organization.settings.widgets.versions.map((v) => ({
+                              version: v.version,
+                              widgetType: v.widgetType,
+                              widgets: v.widgets,
+                              createdAt: v.createdAt,
+                              description: v.description,
+                            }))}
+                            currentVersion={organization.settings.widgets.metadata?.version ?? null}
+                            onPreviewVersion={(version) => {
+                              setPreviewWidgetVersion({
+                                version: version.version,
+                                widgets: version.widgets,
+                              });
+                              setPreviewWidgetDialogOpen(true);
+                            }}
+                            onRestoreVersion={async (version) => {
+                              if (!organization?.id) return;
+                              await restoreWidgetVersion.mutateAsync({
+                                organizationId: organization.id,
+                                version,
+                                widgetType: "all",
+                              });
+                            }}
+                            isRestoring={restoreWidgetVersion.isPending}
+                          />
+                        )}
+
+                      <EmbedScriptSection
+                        script={getEmbedScript()}
+                        copied={copiedScript}
+                        onCopy={handleCopyScript}
+                      />
+                    </>
                   )}
-                </div>
-
-                {/* Embed Script */}
-                <EmbedScriptSection
-                  script={getEmbedScript()}
-                  copied={copiedScript}
-                  onCopy={handleCopyScript}
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </div>
       </div>
 
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Dialogs */}
       {/* AI Widget Generation Dialog */}
       <Dialog open={aiWidgetDialogOpen} onOpenChange={setAiWidgetDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -1658,186 +1553,225 @@ const handleRemoveContentEntry = async (pageId: string, entryId: string) => {
               )}
             </Button>
           </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        </DialogContent>
+      </Dialog>
 
-        {/* Widget Version Preview Dialog */}
-        <Dialog open={previewWidgetDialogOpen} onOpenChange={setPreviewWidgetDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5 text-blue-500" />
-                Preview Widget Version {previewWidgetVersion?.version}
-              </DialogTitle>
-              <DialogDescription>
-                This is a preview of how the widgets looked in version {previewWidgetVersion?.version}. This preview is read-only.
-              </DialogDescription>
-            </DialogHeader>
-            {previewWidgetVersion && (
-              <div className="space-y-6 py-4">
-                {/* Contact Form Preview */}
-                {Boolean(previewWidgetVersion.widgets.contactForm && typeof previewWidgetVersion.widgets.contactForm === "object") && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Contact Form Widget</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="p-6 border rounded-lg bg-gray-50">
-                        <WidgetPreview
-                          widgetType="contactForm"
-                          config={{
-                            title: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.title as string) || "Contact Us",
-                            description: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.description as string) || undefined,
-                            submitButtonText: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.submitButtonText as string) || "Submit",
-                            successMessage: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.successMessage as string) || "Thank you!",
-                            builtInFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.builtInFields as Record<string, unknown>) || undefined,
-                            customFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.customFields as Array<{
-                              id: string;
-                              name: string;
-                              label: string;
-                              type: "text" | "email" | "tel" | "textarea" | "number" | "select" | "checkbox" | "date";
-                              required: boolean;
-                              placeholder?: string;
-                              options?: string[];
-                              order: number;
-                            }>) || undefined,
-                          }}
-                          styling={((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.styling || {}) as Partial<{
-                            primaryColor: string;
-                            secondaryColor: string;
-                            backgroundColor: string;
-                            textColor: string;
-                            borderColor: string;
-                            errorColor: string;
-                            successColor: string;
-                            fontFamily: string;
-                            fontSize: string;
-                            fontWeight: string;
-                            padding: string;
-                            gap: string;
-                            borderRadius: string;
-                            buttonPadding: string;
-                            buttonBorderRadius: string;
-                            buttonFontWeight: string;
-                            modalBackdropOpacity: string;
-                            modalBorderRadius: string;
-                            modalMaxWidth: string;
-                            shadow: string;
-                          }>}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Invoice Request Preview */}
-                {Boolean(previewWidgetVersion.widgets.invoiceRequest && typeof previewWidgetVersion.widgets.invoiceRequest === "object") && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Invoice Request Widget</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="p-6 border rounded-lg bg-gray-50">
-                        <WidgetPreview
-                          widgetType="invoiceRequest"
-                          config={{
-                            title: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.title as string) || "Request Invoice",
-                            description: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.description as string) || undefined,
-                            submitButtonText: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
-                            successMessage: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
-                          }}
-                          styling={((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.styling || {}) as Partial<{
-                            primaryColor: string;
-                            secondaryColor: string;
-                            backgroundColor: string;
-                            textColor: string;
-                            borderColor: string;
-                            errorColor: string;
-                            successColor: string;
-                            fontFamily: string;
-                            fontSize: string;
-                            fontWeight: string;
-                            padding: string;
-                            gap: string;
-                            borderRadius: string;
-                            buttonPadding: string;
-                            buttonBorderRadius: string;
-                            buttonFontWeight: string;
-                            modalBackdropOpacity: string;
-                            modalBorderRadius: string;
-                            modalMaxWidth: string;
-                            shadow: string;
-                          }>}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Quote Request Preview */}
-                {Boolean(previewWidgetVersion.widgets.quoteRequest && typeof previewWidgetVersion.widgets.quoteRequest === "object") && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Quote Request Widget</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="p-6 border rounded-lg bg-gray-50">
-                        <WidgetPreview
-                          widgetType="quoteRequest"
-                          config={{
-                            title: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.title as string) || "Request Quote",
-                            description: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.description as string) || undefined,
-                            submitButtonText: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
-                            successMessage: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
-                          }}
-                          styling={((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.styling || {}) as Partial<{
-                            primaryColor: string;
-                            secondaryColor: string;
-                            backgroundColor: string;
-                            textColor: string;
-                            borderColor: string;
-                            errorColor: string;
-                            successColor: string;
-                            fontFamily: string;
-                            fontSize: string;
-                            fontWeight: string;
-                            padding: string;
-                            gap: string;
-                            borderRadius: string;
-                            buttonPadding: string;
-                            buttonBorderRadius: string;
-                            buttonFontWeight: string;
-                            modalBackdropOpacity: string;
-                            modalBorderRadius: string;
-                            modalMaxWidth: string;
-                            shadow: string;
-                          }>}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {!previewWidgetVersion.widgets.contactForm &&
-                  !previewWidgetVersion.widgets.invoiceRequest &&
-                  !previewWidgetVersion.widgets.quoteRequest && (
-                    <div className="text-center py-8 text-gray-500">
-                      No widget configuration found in this version.
+      {/* Widget Version Preview Dialog */}
+      <Dialog open={previewWidgetDialogOpen} onOpenChange={setPreviewWidgetDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-blue-500" />
+              Preview Widget Version {previewWidgetVersion?.version}
+            </DialogTitle>
+            <DialogDescription>
+              This is a preview of how the widgets looked in version {previewWidgetVersion?.version}. This preview is read-only.
+            </DialogDescription>
+          </DialogHeader>
+          {previewWidgetVersion && (
+            <div className="space-y-6 py-4">
+              {/* Contact Form Preview */}
+              {Boolean(previewWidgetVersion.widgets.contactForm && typeof previewWidgetVersion.widgets.contactForm === "object") && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Contact Form Widget</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-6 border rounded-lg bg-gray-50">
+                      <WidgetPreview
+                        widgetType="contactForm"
+                        config={{
+                          title: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.title as string) || "Contact Us",
+                          description: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.description as string) || undefined,
+                          submitButtonText: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                          successMessage: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                          builtInFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.builtInFields as Record<string, unknown>) || undefined,
+                          customFields: ((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.customFields as Array<{
+                            id: string;
+                            name: string;
+                            label: string;
+                            type: "text" | "email" | "tel" | "textarea" | "number" | "select" | "checkbox" | "date";
+                            required: boolean;
+                            placeholder?: string;
+                            options?: string[];
+                            order: number;
+                          }>) || undefined,
+                        }}
+                        styling={((previewWidgetVersion.widgets.contactForm as Record<string, unknown>)?.styling || {}) as Partial<{
+                          primaryColor: string;
+                          secondaryColor: string;
+                          backgroundColor: string;
+                          textColor: string;
+                          borderColor: string;
+                          errorColor: string;
+                          successColor: string;
+                          fontFamily: string;
+                          fontSize: string;
+                          fontWeight: string;
+                          padding: string;
+                          gap: string;
+                          borderRadius: string;
+                          buttonPadding: string;
+                          buttonBorderRadius: string;
+                          buttonFontWeight: string;
+                          modalBackdropOpacity: string;
+                          modalBorderRadius: string;
+                          modalMaxWidth: string;
+                          shadow: string;
+                        }>}
+                      />
                     </div>
-                  )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Invoice Request Preview */}
+              {Boolean(previewWidgetVersion.widgets.invoiceRequest && typeof previewWidgetVersion.widgets.invoiceRequest === "object") && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Invoice Request Widget</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-6 border rounded-lg bg-gray-50">
+                      <WidgetPreview
+                        widgetType="invoiceRequest"
+                        config={{
+                          title: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.title as string) || "Request Invoice",
+                          description: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.description as string) || undefined,
+                          submitButtonText: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                          successMessage: ((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                        }}
+                        styling={((previewWidgetVersion.widgets.invoiceRequest as Record<string, unknown>)?.styling || {}) as Partial<{
+                          primaryColor: string;
+                          secondaryColor: string;
+                          backgroundColor: string;
+                          textColor: string;
+                          borderColor: string;
+                          errorColor: string;
+                          successColor: string;
+                          fontFamily: string;
+                          fontSize: string;
+                          fontWeight: string;
+                          padding: string;
+                          gap: string;
+                          borderRadius: string;
+                          buttonPadding: string;
+                          buttonBorderRadius: string;
+                          buttonFontWeight: string;
+                          modalBackdropOpacity: string;
+                          modalBorderRadius: string;
+                          modalMaxWidth: string;
+                          shadow: string;
+                        }>}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Quote Request Preview */}
+              {Boolean(previewWidgetVersion.widgets.quoteRequest && typeof previewWidgetVersion.widgets.quoteRequest === "object") && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Quote Request Widget</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-6 border rounded-lg bg-gray-50">
+                      <WidgetPreview
+                        widgetType="quoteRequest"
+                        config={{
+                          title: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.title as string) || "Request Quote",
+                          description: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.description as string) || undefined,
+                          submitButtonText: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.submitButtonText as string) || "Submit",
+                          successMessage: ((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.successMessage as string) || "Thank you!",
+                        }}
+                        styling={((previewWidgetVersion.widgets.quoteRequest as Record<string, unknown>)?.styling || {}) as Partial<{
+                          primaryColor: string;
+                          secondaryColor: string;
+                          backgroundColor: string;
+                          textColor: string;
+                          borderColor: string;
+                          errorColor: string;
+                          successColor: string;
+                          fontFamily: string;
+                          fontSize: string;
+                          fontWeight: string;
+                          padding: string;
+                          gap: string;
+                          borderRadius: string;
+                          buttonPadding: string;
+                          buttonBorderRadius: string;
+                          buttonFontWeight: string;
+                          modalBackdropOpacity: string;
+                          modalBorderRadius: string;
+                          modalMaxWidth: string;
+                          shadow: string;
+                        }>}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {!previewWidgetVersion.widgets.contactForm &&
+                !previewWidgetVersion.widgets.invoiceRequest &&
+                !previewWidgetVersion.widgets.quoteRequest && (
+                  <div className="text-center py-8 text-gray-500">
+                    No widget configuration found in this version.
+                  </div>
+                )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Page Creation Dialog */}
       <AddPageDialog
         open={isPageDialogOpen}
-        onOpenChange={setIsPageDialogOpen}
-        onAdd={handleAddPage}
+        onOpenChange={handlePageDialogOpenChange}
+        onSubmit={(pageForm) => {
+          if (pageDialogMode === "edit" && pageBeingEdited) {
+            return handleUpdatePage(pageBeingEdited.id, pageForm);
+          }
+          return handleAddPage(pageForm);
+        }}
         isPending={updateBrandSitePages.isPending}
+        initialValues={editingPageFormValues}
+        mode={pageDialogMode}
       />
-      </div>
-    );
-  }
-
+      <AlertDialog
+        open={Boolean(pagePendingDelete)}
+        onOpenChange={(open) => {
+          if (open) {
+            return;
+          }
+          setPagePendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove page?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${pagePendingDelete?.title ?? "This page"}" will be removed from your site navigation.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updateBrandSitePages.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={async () => {
+                if (!pagePendingDelete) {
+                  return;
+                }
+                await handleRemovePage(pagePendingDelete.id);
+              }}
+              disabled={updateBrandSitePages.isPending}
+            >
+              {updateBrandSitePages.isPending ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

@@ -105,6 +105,25 @@ export const brandSiteDataSchema = z.object({
       })
     )
     .default([]),
+  // Chat request - temporary field for async processing
+  chatRequest: z
+    .object({
+      id: z.string(),
+      message: z.string(),
+      attachments: z.array(z.string().url()).optional(),
+      conversationHistory: z.array(
+        z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+          attachments: z.array(z.string().url()).optional(),
+        })
+      ).optional(),
+      conversationId: z.string().nullable().optional(),
+      status: z.enum(["pending", "processing", "completed"]),
+      createdAt: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export type BrandSiteData = z.infer<typeof brandSiteDataSchema>;

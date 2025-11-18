@@ -1,6 +1,7 @@
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { handleGenerateSite } from "../app/handle-generate-site";
+import { handleChatGenerateSite } from "../app/handle-chat-generate-site";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
@@ -103,7 +104,7 @@ export const onBrandSiteCreated = onDocumentCreated(
 );
 
 /**
- * Also handle updates in case status is manually reset to "pending"
+ * Also handle updates in case status is manually reset to "pending" or "generating"
  */
 export const onBrandSiteUpdated = onDocumentUpdated(
   {
@@ -130,6 +131,145 @@ export const onBrandSiteUpdated = onDocumentUpdated(
     const brandSiteId = event.params.brandSiteId;
     const beforeStatus = beforeData.status;
     const afterStatus = afterData.status;
+    const beforeChatRequest = (beforeData as any).chatRequest;
+    const afterChatRequest = (afterData as any).chatRequest;
+
+    // Check if this is a chat request that needs processing
+    // Process if:
+    // 1. chatRequest exists in afterData with status "pending"
+    // 2. Either this is a new chatRequest OR the chatRequest ID changed (new message)
+    const isNewChatRequest = !beforeChatRequest && afterChatRequest;
+    const isDifferentChatRequest = beforeChatRequest && afterChatRequest && 
+      beforeChatRequest.id !== afterChatRequest.id;
+    const hasPendingChatRequest = afterChatRequest && afterChatRequest.status === "pending";
+    
+    if (hasPendingChatRequest && (isNewChatRequest || isDifferentChatRequest)) {
+      logger.info("Processing chat request", {
+        brandSiteId,
+        chatRequestId: afterChatRequest.id,
+        isNewRequest: isNewChatRequest,
+        beforeStatus,
+        afterStatus,
+      });
+
+      try {
+        const result = await handleChatGenerateSite(
+          {
+            brandSiteId,
+            message: afterChatRequest.message,
+            attachments: afterChatRequest.attachments || [],
+            conversationHistory: afterChatRequest.conversationHistory || [],
+            conversationId: afterChatRequest.conversationId || null,
+          },
+          {
+            geminiApiKey: geminiApiKey.value(),
+          },
+        );
+
+        // Update the conversation with the AI response
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+        
+        const brandSite = await brandSiteRepository.get({ id: brandSiteId });
+        if (brandSite) {
+          const conversations = (brandSite.conversations as any[]) || [];
+          const conversationId = afterChatRequest.conversationId;
+          
+          let updatedConversations = conversations;
+          if (conversationId) {
+            // Find and update the conversation
+            const conversationIndex = conversations.findIndex((c) => c.id === conversationId);
+            if (conversationIndex >= 0) {
+              const conversation = conversations[conversationIndex];
+              updatedConversations = [...conversations];
+              updatedConversations[conversationIndex] = {
+                ...conversation,
+                messages: [
+                  ...conversation.messages,
+                  {
+                    id: `assistant-${Date.now()}`,
+                    role: "assistant",
+                    content: result.response,
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+                updatedAt: new Date().toISOString(),
+              };
+            } else {
+              // Create new conversation if not found
+              updatedConversations = [
+                ...conversations,
+                {
+                  id: conversationId,
+                  messages: [
+                    {
+                      id: `user-${Date.now()}`,
+                      role: "user",
+                      content: afterChatRequest.message,
+                      attachments: afterChatRequest.attachments,
+                      timestamp: new Date().toISOString(),
+                    },
+                    {
+                      id: `assistant-${Date.now()}`,
+                      role: "assistant",
+                      content: result.response,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              ];
+            }
+          }
+
+          // Clear the chatRequest and update status
+          await brandSiteRepository.update({
+            id: brandSiteId,
+            data: {
+              chatRequest: null,
+              conversations: updatedConversations,
+              // Status will be updated by handleChatGenerateSite (deploying -> success/failed)
+            } as any, // Type assertion for chatRequest field
+          });
+        }
+
+        logger.info("Chat request processed successfully", {
+          brandSiteId,
+          chatRequestId: afterChatRequest.id,
+          updated: result.updated,
+          requiresClarification: result.requiresClarification,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        logger.error("Failed to process chat request", {
+          brandSiteId,
+          chatRequestId: afterChatRequest.id,
+          error: errorMessage,
+        });
+
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+
+        try {
+          // Clear chatRequest and set status to failed
+          await brandSiteRepository.update({
+            id: brandSiteId,
+            data: {
+              chatRequest: null,
+              status: "failed",
+              error: errorMessage,
+            } as any, // Type assertion for chatRequest field
+          });
+        } catch (updateError) {
+          logger.error("Failed to update brand site with error status", {
+            brandSiteId,
+            updateError: updateError instanceof Error ? updateError.message : "Unknown error",
+          });
+        }
+      }
+      return;
+    }
 
     // Only process if status changed TO "pending" (wasn't pending before)
     if (beforeStatus === "pending" || afterStatus !== "pending") {

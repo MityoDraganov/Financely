@@ -254,7 +254,7 @@ function buildNavigationMarkup(
   </div>`;
 }
 
-function injectNavigation(
+export function injectNavigation(
   html: string,
   pages: SitePageInput[],
   currentSlug: string,
@@ -279,7 +279,7 @@ function injectNavigation(
   return output;
 }
 
-function applyIntegrations(
+export function applyIntegrations(
   html: string,
   options: {
     widgets?: any;

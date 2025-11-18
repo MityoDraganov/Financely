@@ -11,7 +11,7 @@ type PageType = "standard" | "blog" | "contact";
 interface AddPageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd: (page: {
+  onSubmit: (page: {
     title: string;
     slug: string;
     description: string;
@@ -19,54 +19,72 @@ interface AddPageDialogProps {
     type: PageType;
   }) => void;
   isPending?: boolean;
-}
-
-export function AddPageDialog({
-  open,
-  onOpenChange,
-  onAdd,
-  isPending = false,
-}: AddPageDialogProps) {
-  const [form, setForm] = useState<{
+  initialValues?: {
     title: string;
     slug: string;
     description: string;
     context: string;
     type: PageType;
-  }>({
-    title: "",
-    slug: "",
-    description: "",
-    context: "",
-    type: "standard",
-  });
+  } | null;
+  mode?: "create" | "edit";
+}
 
-  // Reset form when dialog closes
+const defaultFormState = {
+  title: "",
+  slug: "",
+  description: "",
+  context: "",
+  type: "standard" as PageType,
+};
+
+export function AddPageDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  isPending = false,
+  initialValues = null,
+  mode = "create",
+}: AddPageDialogProps) {
+  const [form, setForm] = useState(defaultFormState);
+  const isEditMode = mode === "edit";
+  const descriptionText = isEditMode
+    ? "Update the details for this page. Changing the slug will update the page URL."
+    : "Provide a title and optional description. The slug determines the URL (e.g. /about).";
+  const submitLabel = isPending
+    ? isEditMode
+      ? "Saving..."
+      : "Adding..."
+    : isEditMode
+      ? "Save Changes"
+      : "Add Page";
+
   useEffect(() => {
     if (!open) {
-      setForm({
-        title: "",
-        slug: "",
-        description: "",
-        context: "",
-        type: "standard",
-      });
+      setForm(defaultFormState);
+      return;
     }
-  }, [open]);
+
+    if (isEditMode && initialValues) {
+      setForm(initialValues);
+      return;
+    }
+
+    setForm(defaultFormState);
+  }, [open, isEditMode, initialValues]);
 
   const handleSubmit = () => {
-    if (!form.title.trim()) return;
-    onAdd(form);
+    if (!form.title.trim()) {
+      return;
+    }
+    onSubmit(form);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a new page</DialogTitle>
-          <DialogDescription>
-            Provide a title and optional description. The slug determines the URL (e.g. /about).
-          </DialogDescription>
+          <DialogTitle>{isEditMode ? "Edit page" : "Add a new page"}</DialogTitle>
+          <DialogDescription>{descriptionText}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
@@ -158,15 +176,11 @@ export function AddPageDialog({
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!form.title.trim() || isPending}
-          >
-            {isPending ? "Adding..." : "Add Page"}
+          <Button onClick={handleSubmit} disabled={!form.title.trim() || isPending}>
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
