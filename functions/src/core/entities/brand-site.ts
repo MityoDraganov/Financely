@@ -30,6 +30,15 @@ export const brandSiteDataSchema = z.object({
       model: z.string().optional(),
       version: z.number().int().default(1),
       regenerateSectionType: z.enum(["hero", "about", "features", "contact"]).optional(),
+      lastGeneratedPages: z.array(z.object({
+        id: z.string(),
+        slug: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        context: z.string().optional(),
+        type: z.string(),
+        contentEntries: z.array(z.any()).optional(),
+      })).optional(),
     })
     .optional(),
   status: brandSiteStatusSchema.default("pending"),
@@ -60,6 +69,17 @@ export const brandSiteDataSchema = z.object({
               summary: z.string().optional(),
               link: z.string().url().optional(),
               image: z.string().url().optional(),
+              description: z.string().optional(), // Rich text HTML for AI
+              localization: z.object({
+                defaultLanguage: z.literal("en"),
+                languages: z.record(z.string(), z.object({
+                  title: z.string(),
+                  description: z.string(),
+                  summary: z.string().optional(),
+                  image: z.string().url().optional(),
+                  link: z.string().url().optional(),
+                })),
+              }).optional(),
             }),
           )
           .default([]),

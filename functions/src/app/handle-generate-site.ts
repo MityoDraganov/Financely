@@ -33,6 +33,7 @@ interface PageContentEntry {
   summary?: string;
   link?: string;
   image?: string;
+  description?: string;
 }
 
 interface SitePageInput {
@@ -47,6 +48,7 @@ interface SitePageInput {
 }
 
 type NormalizedContentEntry = {
+  description?: string;
   id: string;
   title: string;
   summary?: string;
@@ -134,6 +136,7 @@ function normalizePages(pages?: SitePageInput[]): NormalizedSitePage[] {
           summary: entry.summary?.trim() || undefined,
           link: entry.link?.trim() || undefined,
           image: entry.image?.trim() || undefined,
+          description: entry.description?.trim() || undefined,
         }),
       );
 
@@ -671,7 +674,103 @@ export async function handleGenerateSite(
       } : undefined;
 
       const generatedPageFiles: Record<string, string> = {};
+      const existingFiles = (brandSite.files as Record<string, string>) || {};
+      const existingHtml = brandSite.html || "";
+      
+      // Get pages from the last generation (stored in metadata) to compare against current pages
+      // This allows us to detect which pages have actually changed
+      const lastGeneratedPages = (brandSite.metadata as any)?.lastGeneratedPages || (brandSite.pages as any[]) || [];
+      const lastGeneratedPageMap = new Map(
+        lastGeneratedPages.map((p: any) => [p.slug, p])
+      );
+      
+      // Helper to check if a page needs regeneration
+      const shouldRegeneratePage = (page: any): boolean => {
+        const filePath = page.slug === "index" || page.slug === "home"
+          ? "index.html"
+          : `${page.slug}/index.html`;
+        
+        // If no HTML exists for this page, it needs to be generated
+        const existingPageHtml = page.slug === "index" || page.slug === "home"
+          ? existingHtml
+          : existingFiles[filePath];
+        
+        if (!existingPageHtml || existingPageHtml.trim().length === 0) {
+          return true; // New page, needs generation
+        }
+        
+        // Check if this is a new page (not in last generated pages)
+        const lastGeneratedPage = lastGeneratedPageMap.get(page.slug) as any;
+        if (!lastGeneratedPage) {
+          return true; // New page, needs generation
+        }
+        
+        // Check if page metadata has changed in ways that require regeneration
+        // Compare critical fields that affect page content
+        const hasChanged = 
+          lastGeneratedPage.title !== page.title ||
+          lastGeneratedPage.description !== page.description ||
+          lastGeneratedPage.context !== page.context ||
+          lastGeneratedPage.type !== page.type ||
+          // For blog pages, check if contentEntries changed (e.g., articles added/removed)
+          (page.type === "blog" && JSON.stringify(lastGeneratedPage.contentEntries || []) !== JSON.stringify(page.contentEntries || []));
+        
+        if (hasChanged) {
+          return true; // Page content changed, needs regeneration
+        }
+        
+        // Page is unchanged, preserve existing HTML
+        return false;
+      };
+      
       for (const page of pagesToGenerate) {
+        const filePath = page.slug === "index" || page.slug === "home"
+          ? "index.html"
+          : `${page.slug}/index.html`;
+        
+        // Check if we should regenerate this page or preserve existing HTML
+        if (!shouldRegeneratePage(page)) {
+          // Preserve existing HTML for unchanged pages
+          const existingPageHtml = page.slug === "index" || page.slug === "home"
+            ? existingHtml
+            : existingFiles[filePath];
+          
+          if (existingPageHtml && existingPageHtml.trim().length > 0) {
+            // Update navigation in existing HTML to reflect any page structure changes
+            let preservedHtml = injectNavigation(
+              existingPageHtml,
+              pagesToGenerate,
+              page.slug,
+              brandName,
+            );
+            
+            // Re-apply integrations in case widget/analytics config changed
+            preservedHtml = applyIntegrations(preservedHtml, {
+              widgets,
+              organizationId: organization.id,
+              analyticsConfig,
+              brandSiteId,
+              firebaseProjectId: config.firebaseProjectId,
+              tempSiteId: `brand-${brandSiteId}`,
+              brandName,
+            });
+            
+            generatedPageFiles[filePath] = preservedHtml;
+            logger.info("Preserving existing HTML for unchanged page", {
+              pageSlug: page.slug,
+              pageTitle: page.title,
+            });
+            continue; // Skip regeneration for this page
+          }
+        }
+        
+        // Regenerate this page (new or explicitly changed)
+        logger.info("Regenerating page", {
+          pageSlug: page.slug,
+          pageTitle: page.title,
+          reason: "new or changed",
+        });
+        
         const pageContext = [
           brandSite.context,
           page.context,
@@ -683,12 +782,24 @@ export async function handleGenerateSite(
           page.contentEntries && page.contentEntries.length > 0
             ? page.contentEntries
                 .map(
-                  (entry, entryIndex) =>
-                    `${entryIndex + 1}. ${entry.title}${
-                      entry.summary ? ` — ${entry.summary}` : ""
-                    }${entry.link ? ` (Link: ${entry.link})` : ""}`,
+                  (entry, entryIndex) => {
+                    let entryText = `${entryIndex + 1}. ${entry.title}`;
+                    // Use description (rich HTML) if available, otherwise use summary
+                    if (entry.description) {
+                      entryText += `\n   Description: ${entry.description}`;
+                    } else if (entry.summary) {
+                      entryText += ` — ${entry.summary}`;
+                    }
+                    if (entry.image) {
+                      entryText += `\n   Image: ${entry.image}`;
+                    }
+                    if (entry.link) {
+                      entryText += `\n   Link: ${entry.link}`;
+                    }
+                    return entryText;
+                  }
                 )
-                .join("\n")
+                .join("\n\n")
             : undefined;
 
         const pagePurpose = [page.description, entriesSummary]
@@ -730,10 +841,6 @@ export async function handleGenerateSite(
           brandName,
         });
 
-        const filePath =
-          page.slug === "index" || page.slug === "home"
-            ? "index.html"
-            : `${page.slug}/index.html`;
         generatedPageFiles[filePath] = pageHtml;
       }
 
@@ -916,6 +1023,16 @@ export async function handleGenerateSite(
         generatedAt: new Date().toISOString(),
         model: "gemini-2.5-flash",
           version: newVersion,
+          // Store current pages so we can compare against them in the next generation
+          lastGeneratedPages: pagesToGenerate.map((p: any) => ({
+            id: p.id,
+            slug: p.slug,
+            title: p.title,
+            description: p.description,
+            context: p.context,
+            type: p.type,
+            contentEntries: p.contentEntries || [],
+          })),
       },
         status: "deploying",
         versions: versionsToSave,

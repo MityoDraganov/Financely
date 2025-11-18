@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2, Send, Image as ImageIcon, X, Sparkles, Plus, MessageSquare } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Send, Image as ImageIcon, X, Sparkles, Plus, MessageSquare, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useChatGenerateSite } from "@/hooks/service-hooks/use-chat-generate-site";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
@@ -42,11 +43,26 @@ export function AIChatBuilder({
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState<UploadingImage[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedPageSlug, setSelectedPageSlug] = useState<string>("index"); // "index" = home page, "all" = entire site
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const uploadFile = useUploadFile();
   const chatGenerateSite = useChatGenerateSite();
   const { data: brandSite } = useBrandSite(brandSiteId);
   const updateBrandSite = useUpdateBrandSite();
+
+  // Get pages from brand site
+  const pages = (brandSite?.pages as Array<{ id: string; title: string; slug: string }>) || [];
+  const currentPage = selectedPageSlug === "all" ? null : (pages.find(p => p.slug === selectedPageSlug) || pages[0]);
+  
+  // Update selected page when pages change (e.g., when a new page is added)
+  useEffect(() => {
+    // Only update if current selection is invalid and not "all"
+    if (selectedPageSlug !== "all" && pages.length > 0 && !pages.find(p => p.slug === selectedPageSlug)) {
+      // Current selection is invalid, default to index or first page
+      const indexPage = pages.find(p => p.slug === "index");
+      setSelectedPageSlug(indexPage ? "index" : pages[0].slug);
+    }
+  }, [pages, selectedPageSlug]);
 
   // Load conversations from brandSite (only on initial load or when brandSite changes)
   const [hasLoadedConversations, setHasLoadedConversations] = useState(false);
@@ -355,6 +371,7 @@ export function AIChatBuilder({
         attachments: currentAttachments,
         conversationHistory,
         conversationId,
+        pageSlug: selectedPageSlug === "all" ? undefined : selectedPageSlug, // "all" means undefined (edit entire site)
       },
       {
         onSuccess: async (data) => {
@@ -445,21 +462,49 @@ export function AIChatBuilder({
   return (
     <Card className="flex flex-col h-[600px]">
       <CardHeader className="shrink-0 border-b">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" />
             AI Chat Builder
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNewConversation}
-            className="flex items-center gap-1"
-          >
-            <Plus className="h-4 w-4" />
-            New Chat
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={selectedPageSlug} onValueChange={setSelectedPageSlug}>
+              <SelectTrigger className="w-[200px]">
+                <FileText className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Select page" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <span className="font-medium">🌐 Entire Site</span>
+                </SelectItem>
+                {pages.length > 0 && pages.map((page) => (
+                  <SelectItem key={page.id} value={page.slug}>
+                    {page.title} {page.slug === "index" ? "(Home)" : `(/${page.slug})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewConversation}
+              className="flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              New Chat
+            </Button>
+          </div>
         </div>
+        {selectedPageSlug === "all" ? (
+          <p className="text-xs text-muted-foreground mt-1">
+            Editing: <span className="font-medium">Entire Site</span> (all pages will be updated)
+          </p>
+        ) : currentPage && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Editing: <span className="font-medium">{currentPage.title}</span>
+            {currentPage.slug !== "index" && ` (/${currentPage.slug})`}
+          </p>
+        )}
         {sortedConversations.length > 0 && (
           <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
             {sortedConversations.map((conv) => (

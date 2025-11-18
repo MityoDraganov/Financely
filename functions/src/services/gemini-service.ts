@@ -52,6 +52,7 @@ interface BrandContext {
     summary?: string;
     link?: string;
     image?: string;
+    description?: string;
   }>;
 }
 
@@ -331,7 +332,8 @@ BRAND COLOR USAGE (MANDATORY):
     }
 
     if (pageTitle) {
-      prompt += `\n\nThis HTML is for the "${pageTitle}" page.`;
+      prompt += `\n\n🎯 PAGE-SPECIFIC REQUIREMENTS - THIS IS CRITICAL:
+This HTML is for the "${pageTitle}" page.`;
     }
 
     if (pageSlug) {
@@ -340,30 +342,69 @@ BRAND COLOR USAGE (MANDATORY):
     }
 
     if (pagePurpose) {
-      prompt += `\nPurpose: ${pagePurpose}`;
+      prompt += `\n\n📋 PAGE PURPOSE & UNIQUENESS REQUIREMENTS:
+Purpose: ${pagePurpose}
+
+🚨 CRITICAL: This page MUST be visually and content-wise DISTINCT from other pages on the site:
+- Use a UNIQUE layout structure that differs from the homepage and other pages
+- Create page-specific content that focuses on the "${pageTitle}" topic
+- Use a different hero section style (different background, different text arrangement, different visual elements)
+- Include sections that are RELEVANT to this specific page's purpose, NOT generic sections
+- Make the page title "${pageTitle}" prominent and clearly visible in the hero section
+- Ensure the page has a clear visual identity that makes it obvious this is the "${pageTitle}" page
+- DO NOT repeat the same content structure as other pages - be creative and unique
+- The page should feel like a dedicated destination for "${pageTitle}" content, not a generic template`;
     }
 
     if (brandContext.pageContentEntries && brandContext.pageContentEntries.length > 0) {
-      prompt += `\nUse the following entries as real content for this page (do not ignore them):`;
+      prompt += `\n\n📝 USER-CREATED CONTENT ENTRIES (CRITICAL - USE THESE EXACTLY):
+The following entries are REAL user-created content. You MUST use these entries and ONLY these entries. DO NOT create fake or placeholder content.`;
       brandContext.pageContentEntries.forEach((entry, index) => {
-        prompt += `\n${index + 1}. ${entry.title}${
-          entry.summary ? ` — ${entry.summary}` : ""
-        }${entry.link ? ` (Link: ${entry.link})` : ""}`;
+        prompt += `\n\nEntry ${index + 1}:
+- Title: ${entry.title}
+${entry.description ? `- Description (use this rich HTML content directly): ${entry.description}` : ""}
+${entry.summary ? `- Summary: ${entry.summary}` : ""}
+${entry.image ? `- Featured Image: ${entry.image}` : ""}
+${entry.link ? `- Link: ${entry.link}` : ""}`;
       });
-      prompt += `\nHighlight these entries as featured stories, case studies, or articles.`;
+      prompt += `\n\nIMPORTANT: Display these entries exactly as provided. Use the description HTML directly if provided. Do not modify or create additional fake content.`;
     }
 
     if (pageType === "blog") {
-      prompt += `\nThis is a blog/articles page. Include a featured article section and a list/grid of recent posts with excerpts. Encourage readers to explore stories.`;
+      prompt += `\n\n📰 BLOG PAGE SPECIFIC REQUIREMENTS:
+This is a blog/articles page. 
+- Create a UNIQUE blog-style layout with article cards, featured posts, and category filters
+- Use a blog-appropriate color scheme and typography
+- Make it visually distinct from other pages with a magazine-style or news-style layout
+- DO NOT include generic "About" or "Services" sections - focus on blog content
+- CRITICAL: DO NOT create fake or placeholder blog posts/articles
+- ONLY display the articles provided in pageContentEntries - if no articles are provided, show an empty state or placeholder message
+- If articles are provided, display them with their actual titles, summaries, images, and links
+- The layout should be ready to display real user-created articles, not AI-generated placeholder content`;
     } else if (pageType === "contact") {
-      prompt += `\nThis is a contact/engagement page. Highlight contact details, office locations, and a compelling call-to-action to reach out.`;
+      prompt += `\n\n📞 CONTACT PAGE SPECIFIC REQUIREMENTS:
+This is a contact/engagement page.
+- Create a UNIQUE contact-focused layout with clear contact information
+- Include office locations, phone numbers, email addresses prominently
+- Add a map section if location data is available
+- Use a contact-appropriate layout (maybe split-screen with info on one side, form placeholder on other)
+- Include business hours, social media links, and multiple ways to reach out
+- Make it visually distinct with a clean, approachable design
+- DO NOT include generic "Features" or "Products" sections - focus on contact information`;
+    } else {
+      prompt += `\n\n📄 STANDARD PAGE REQUIREMENTS:
+This is a standard content page.
+- Create content sections that are SPECIFIC to "${pageTitle || 'this page'}"
+- DO NOT use generic "About, Features/Services, Contact" sections unless they're specifically relevant
+- Focus on content that serves the page's unique purpose
+- Use a layout that's appropriate for the page's content type
+- Make it visually distinct from other pages on the site`;
     }
 
-    prompt += `\nNavigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.`;
+    prompt += `\n\nNavigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.`;
 
-    prompt += `\n8. Include a hero section with brand name
-9. Include sections: About, Features/Services, Contact
-10. Use modern CSS (flexbox/grid, smooth transitions)
+    prompt += `\n\n10. Use modern CSS (flexbox/grid, smooth transitions)
+11. Create a prominent hero section that clearly identifies this as the "${pageTitle || 'page'}" page with the page title visible
 
 LAYOUT & POSITIONING REQUIREMENTS:
 - Use CSS Grid or Flexbox for all layouts (never use absolute positioning except for overlays/modals)

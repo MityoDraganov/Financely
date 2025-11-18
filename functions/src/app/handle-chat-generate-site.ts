@@ -19,6 +19,7 @@ interface ChatGenerateSiteInput {
   attachments: string[];
   conversationHistory: ChatMessage[];
   conversationId: string;
+  pageSlug?: string; // Optional: specify which page to edit
 }
 
 interface ChatGenerateSiteConfig {
@@ -194,6 +195,10 @@ async function performIncrementalEdit(
     accent: "#10b981",
   };
 
+  // Extract page title from current HTML if possible
+  const titleMatch = currentHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const pageTitle = titleMatch ? titleMatch[1].trim() : undefined;
+
   const updatedHtml = await geminiService.generateSiteHtml({
     brandName: brandSite.brandName,
     colors: brandColors,
@@ -201,14 +206,15 @@ async function performIncrementalEdit(
     tone: brandSite.tone || "professional",
     description: brandSite.context,
     brandImages: brandSite.contextImages || [],
-    context: `${brandSite.context || ""}\n\nUser wants to: ${message}\n\nPlease update the site accordingly, keeping the overall structure but making the requested changes.`,
+    context: `${context}\n\nCurrent page HTML (for reference - preserve structure and styling):\n${currentHtml.substring(0, 2000)}...\n\nUser wants to: ${message}\n\nPlease update ONLY this page accordingly, keeping the overall structure and styling but making the requested changes. Do NOT regenerate the entire page from scratch - make incremental edits.`,
     contextImages: [],
     products: [],
     widgets: brandSite.widgets,
+    pageTitle,
   });
 
   return {
-    response: "I've updated your site with the requested changes!",
+    response: "I've updated the page with the requested changes!",
     updatedHtml,
   };
 }
@@ -291,7 +297,16 @@ export async function handleChatGenerateSite(
     }
 
     // Determine if this is a full regeneration or incremental edit, and if clarification is needed
-    const currentHtml = brandSite.html || "";
+    // If pageSlug is not provided, user wants to edit entire site
+    const isEditingEntireSite = !input.pageSlug;
+    
+    // Get the HTML for the specific page being edited (or index if editing entire site)
+    const targetPageSlug = input.pageSlug || "index";
+    const existingFiles = (brandSite.files as Record<string, string>) || {};
+    const currentHtml = targetPageSlug === "index" 
+      ? (brandSite.html || "") 
+      : (existingFiles[`${targetPageSlug}/index.html`] || "");
+    
     const editAnalysis = await determineEditType(
       config.geminiApiKey,
       input.message,
@@ -349,7 +364,7 @@ export async function handleChatGenerateSite(
         tone: brandSite.tone || "professional",
         description: brandSite.context,
         brandImages: brandSite.contextImages || [],
-        context: `${brandSite.context || ""}\n\nUser request: ${input.message}`,
+        context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Use a different layout, different hero style, and page-specific content that focuses on "${detectedPageTitle}". Do NOT repeat the same structure as other pages.`,
         contextImages: input.attachments.length > 0 ? input.attachments : brandSite.contextImages || [],
         products: products.map((p) => ({
           name: p.name,
@@ -369,15 +384,95 @@ export async function handleChatGenerateSite(
       response = `I've created a new ${detectedPageType} page called "${detectedPageTitle}"! It will be available at /${finalSlug}.`;
     } else if (editAnalysis.editType === "incremental" && currentHtml) {
       // Incremental edit - only modify requested parts
-      const editResult = await performIncrementalEdit(
-        geminiService,
-        input.message,
-        currentHtml,
-        conversationContext,
-        brandSite,
-      );
-      response = editResult.response;
-      updatedHtml = editResult.updatedHtml;
+      if (isEditingEntireSite) {
+        // Editing entire site - regenerate all pages
+        const pages = (brandSite.pages as any[]) || [];
+        
+        // Regenerate all pages with the requested changes
+        const updatedPages: Array<{ slug: string; html: string }> = [];
+        
+        for (const page of pages) {
+          const existingFiles = (brandSite.files as Record<string, string>) || {};
+          const pageHtml = page.slug === "index" 
+            ? (brandSite.html || "") 
+            : (existingFiles[`${page.slug}/index.html`] || "");
+          
+          if (pageHtml) {
+            const editResult = await performIncrementalEdit(
+              geminiService,
+              input.message,
+              pageHtml,
+              `${conversationContext}\n\nIMPORTANT: You are updating the "${page.slug}" page as part of a site-wide update. Apply the requested changes to this page while maintaining its unique identity and structure.`,
+              brandSite,
+            );
+            updatedPages.push({ slug: page.slug, html: editResult.updatedHtml });
+          }
+        }
+        
+        // Store all updated pages
+        const updatedFiles: Record<string, string> = {};
+        let updatedMainHtml: string | undefined;
+        
+        for (const updatedPage of updatedPages) {
+          if (updatedPage.slug === "index") {
+            updatedMainHtml = updatedPage.html;
+          } else {
+            updatedFiles[`${updatedPage.slug}/index.html`] = updatedPage.html;
+          }
+        }
+        
+        // Update brand site with all pages
+        const updateData: any = {
+          status: "deploying",
+        };
+        
+        if (updatedMainHtml) {
+          updateData.html = updatedMainHtml;
+        }
+        
+        if (Object.keys(updatedFiles).length > 0) {
+          updateData.files = {
+            ...((brandSite.files as Record<string, string>) || {}),
+            ...updatedFiles,
+          };
+        }
+        
+        await brandSiteRepository.update({
+          id: input.brandSiteId,
+          data: updateData,
+        });
+        
+        response = "I've updated all pages across your site with the requested changes!";
+        updatedHtml = updatedMainHtml; // Set for deployment
+      } else {
+        // Editing specific page
+        const targetPageSlug = input.pageSlug || "index";
+        let pageHtmlToEdit = currentHtml;
+        
+        // If editing a specific page (not index), get that page's HTML
+        if (targetPageSlug !== "index") {
+          const existingFiles = (brandSite.files as Record<string, string>) || {};
+          const pageFile = existingFiles[`${targetPageSlug}/index.html`];
+          if (pageFile) {
+            pageHtmlToEdit = pageFile;
+          } else {
+            // Page doesn't exist yet, create it
+            response = `The page "${targetPageSlug}" doesn't exist yet. Would you like me to create it?`;
+            requiresClarification = true;
+            return { response, updated: false, requiresClarification };
+          }
+        }
+        
+        const editResult = await performIncrementalEdit(
+          geminiService,
+          input.message,
+          pageHtmlToEdit,
+          `${conversationContext}\n\nIMPORTANT: You are editing ONLY the "${targetPageSlug}" page. Do NOT modify other pages. Focus your changes on this specific page only.`,
+          brandSite,
+        );
+        response = editResult.response;
+        updatedHtml = editResult.updatedHtml;
+      }
     } else {
       // Full generation or first generation
       const brandColors = brandSite.brandColors || {
@@ -410,7 +505,8 @@ export async function handleChatGenerateSite(
     }
 
     // Update brand site if HTML was generated
-    if (updatedHtml) {
+    // Skip this section if we already updated all pages in the incremental edit section
+    if (updatedHtml && !isEditingEntireSite) {
       const pages = (brandSite.pages as any[]) || [];
       let updatedPages = [...pages];
       let pageHtml = updatedHtml;
@@ -446,8 +542,8 @@ export async function handleChatGenerateSite(
       } else {
         // Regular update - inject navigation if pages exist
         if (pages.length > 0) {
-          // Determine current page slug (default to "index" for main page updates)
-          const currentSlug = "index";
+          // Use the specified page slug or default to "index" for main page updates
+          const currentSlug = input.pageSlug || "index";
           pageHtml = injectNavigation(updatedHtml, pages, currentSlug, brandSite.brandName);
         }
       }
@@ -462,7 +558,7 @@ export async function handleChatGenerateSite(
         brandName: brandSite.brandName,
       });
 
-      // If creating a new page, store it separately; otherwise update main HTML
+      // If creating a new page, store it separately; otherwise update specific page
       if (newPage) {
         // Store the new page HTML in a pages map (we'll need to extend the schema or use files)
         // For now, we'll deploy it and store reference in metadata
@@ -478,17 +574,40 @@ export async function handleChatGenerateSite(
           } as any,
         });
       } else {
-        // Update main HTML
-        await brandSiteRepository.update({
-          id: input.brandSiteId,
-          data: {
-            html: pageHtml,
-            status: "deploying",
-          },
-        });
+        // Update specific page - use pageSlug to determine which page to update
+        const targetPageSlug = input.pageSlug || "index";
+        const existingFiles = (brandSite.files as Record<string, string>) || {};
+        
+        // If it's the index page, update main HTML; otherwise update in files
+        if (targetPageSlug === "index") {
+          await brandSiteRepository.update({
+            id: input.brandSiteId,
+            data: {
+              html: pageHtml,
+              status: "deploying",
+            },
+          });
+        } else {
+          // Update specific page in files
+          await brandSiteRepository.update({
+            id: input.brandSiteId,
+            data: {
+              status: "deploying",
+              files: {
+                ...existingFiles,
+                [`${targetPageSlug}/index.html`]: pageHtml,
+              },
+            } as any,
+          });
+        }
       }
 
-      response += "\n\n✅ Site has been updated! Deploying to hosting...";
+      if (isEditingEntireSite) {
+        response += "\n\n✅ Entire site has been updated! Deploying all pages to hosting...";
+      } else {
+        const pageName = targetPageSlug === "index" ? "Home page" : `"${targetPageSlug}" page`;
+        response += `\n\n✅ ${pageName} has been updated! Deploying to hosting...`;
+      }
 
       // Deploy to Firebase Hosting asynchronously
       const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "";
@@ -514,9 +633,11 @@ export async function handleChatGenerateSite(
             filesToDeploy.push({ path: deployPath, contents: pageHtml });
             
             // Also regenerate and deploy index.html with updated navigation
-            if (brandSite.html) {
+            const existingFiles = (brandSite.files as Record<string, string>) || {};
+            const indexHtml = brandSite.html || existingFiles["index.html"];
+            if (indexHtml) {
               const updatedIndexHtml = injectNavigation(
-                brandSite.html,
+                indexHtml,
                 updatedPages,
                 "index",
                 brandSite.brandName
@@ -539,9 +660,82 @@ export async function handleChatGenerateSite(
                 },
               });
             }
+          } else if (isEditingEntireSite) {
+            // Editing entire site - deploy all pages (use updated files from Firestore)
+            // Re-fetch brand site to get updated HTML/files
+            const updatedBrandSite = await brandSiteRepository.get({ id: input.brandSiteId });
+            if (!updatedBrandSite) {
+              throw new Error("Brand site not found after update");
+            }
+            
+            const updatedFiles = (updatedBrandSite.files as Record<string, string>) || {};
+            const allPages = (updatedBrandSite.pages as any[]) || [];
+            
+            // Deploy index page
+            const indexHtml = updatedBrandSite.html;
+            if (indexHtml) {
+              const indexWithNav = injectNavigation(indexHtml, allPages, "index", updatedBrandSite.brandName);
+              const indexWithIntegrations = applyIntegrations(indexWithNav, {
+                widgets: (updatedBrandSite as any).widgets,
+                organizationId: organization.id,
+                brandSiteId: input.brandSiteId,
+                firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
+                tempSiteId: `brand-${input.brandSiteId}`,
+                brandName: updatedBrandSite.brandName,
+              });
+              filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
+            }
+            
+            // Deploy all other pages
+            for (const page of allPages) {
+              if (page.slug === "index") continue;
+              
+              const pageFile = updatedFiles[`${page.slug}/index.html`];
+              if (pageFile) {
+                const pageWithNav = injectNavigation(pageFile, allPages, page.slug, updatedBrandSite.brandName);
+                const pageWithIntegrations = applyIntegrations(pageWithNav, {
+                  widgets: (updatedBrandSite as any).widgets,
+                  organizationId: organization.id,
+                  brandSiteId: input.brandSiteId,
+                  firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
+                  tempSiteId: `brand-${input.brandSiteId}`,
+                  brandName: updatedBrandSite.brandName,
+                });
+                filesToDeploy.push({ path: `/${page.slug}/index.html`, contents: pageWithIntegrations });
+              }
+            }
           } else {
-            // Regular update - deploy main page
-            filesToDeploy.push({ path: "/index.html", contents: pageHtml });
+            // Regular update - deploy the specific page that was edited
+            const targetPageSlug = input.pageSlug || "index";
+            const deployPath = targetPageSlug === "index" 
+              ? "/index.html" 
+              : `/${targetPageSlug}/index.html`;
+            filesToDeploy.push({ path: deployPath, contents: pageHtml });
+            
+            // Only update navigation on other pages if this is not the index page
+            // This ensures we don't unnecessarily regenerate all pages
+            if (targetPageSlug !== "index" && pages.length > 0) {
+              // Update navigation on index page to reflect any changes
+              const existingFiles = (brandSite.files as Record<string, string>) || {};
+              const indexHtml = brandSite.html || existingFiles["index.html"];
+              if (indexHtml) {
+                const updatedIndexHtml = injectNavigation(
+                  indexHtml,
+                  pages,
+                  "index",
+                  brandSite.brandName,
+                );
+                const indexWithIntegrations = applyIntegrations(updatedIndexHtml, {
+                  widgets: (brandSite as any).widgets,
+                  organizationId: organization.id,
+                  brandSiteId: input.brandSiteId,
+                  firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
+                  tempSiteId: `brand-${input.brandSiteId}`,
+                  brandName: brandSite.brandName,
+                });
+                filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
+              }
+            }
           }
 
           const deployedUrl = await hostingService.deploySite(siteId, filesToDeploy);

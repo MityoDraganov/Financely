@@ -24,7 +24,13 @@ export const useChatGenerateSite = () => {
       if (result.updated) {
         // Note: Deployment happens in background, status will update from "deploying" to "success"
         // The HTML is already available in Firestore, so preview will update immediately
-        toast.success("Site updated! Deploying to hosting...");
+        const pageSlug = (variables as any).pageSlug;
+        if (!pageSlug) {
+          toast.success("Entire site updated! Deploying all pages to hosting...");
+        } else {
+          const pageName = pageSlug === "index" ? "Home page" : `Page "${pageSlug}"`;
+          toast.success(`${pageName} updated! Deploying to hosting...`);
+        }
       }
 
       if (result.requiresClarification) {

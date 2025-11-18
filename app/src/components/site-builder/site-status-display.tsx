@@ -1,4 +1,5 @@
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface BrandSite {
   status?: "pending" | "generating" | "deploying" | "success" | "failed";
@@ -14,9 +15,11 @@ interface BrandSite {
 
 interface SiteStatusDisplayProps {
   brandSite: BrandSite | null;
+  onRetry?: () => void;
+  isRetrying?: boolean;
 }
 
-export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
+export function SiteStatusDisplay({ brandSite, onRetry, isRetrying = false }: SiteStatusDisplayProps) {
   if (!brandSite) return null;
 
   const status = brandSite.status;
@@ -35,7 +38,7 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
 
   return (
     <div className={`p-4 border rounded-lg ${statusColor}`}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex-1">
           {status === "pending" && (
             <>
@@ -96,6 +99,27 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
             </>
           )}
         </div>
+        {status === "failed" && onRetry && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onRetry}
+            disabled={isRetrying}
+            className="shrink-0"
+          >
+            {isRetrying ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1.5" />
+                Retry
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
