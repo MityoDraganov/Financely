@@ -41,12 +41,9 @@ export default function AnalyticsPage() {
     dateRange.start,
     dateRange.end,
   );
-
-  useEffect(() => {
-    if (metricsError) {
-      toast.error("Failed to fetch analytics metrics");
-    }
-  }, [metricsError]);
+  console.log(metricsError);
+  console.log(metrics);
+  console.log(metricsLoading);
 
   const [isSaving, setIsSaving] = useState(false);
   const [localConfig, setLocalConfig] = useState<{
@@ -414,13 +411,29 @@ export default function AnalyticsPage() {
           {/* Metrics Placeholder */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Metrics
-              </CardTitle>
-              <CardDescription>
-                Website performance metrics and insights
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Metrics
+                  </CardTitle>
+                  <CardDescription>
+                    Website performance metrics and insights
+                  </CardDescription>
+                </div>
+                {metrics && metrics.dataSources && metrics.dataSources.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Data from:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {metrics.dataSources.map((source: "firestore" | "ga4" | "plausible" | "umami" | "clarity") => (
+                        <Badge key={source} variant="outline" className="text-xs">
+                          {source === "firestore" ? "Real-time" : source.toUpperCase()}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {metricsLoading ? (

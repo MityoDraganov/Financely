@@ -383,6 +383,7 @@ export const functionsService: FunctionsService = {
           message: string;
           indexUrl?: string;
         };
+        dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
       }
     >(firebase.functions, "getAnalyticsMetrics")(payload);
     // Ensure all required fields are present, provide defaults if missing
@@ -393,6 +394,7 @@ export const functionsService: FunctionsService = {
       browsers: data.browsers || [],
       referrers: data.referrers || [],
       pageViewsOverTime: data.pageViewsOverTime || [],
+      dataSources: data.dataSources || [],
     };
   },
 

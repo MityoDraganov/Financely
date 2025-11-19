@@ -428,6 +428,7 @@ export interface FunctionsService {
       message: string;
       indexUrl?: string;
     };
+    dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
   }>;
 
   /**

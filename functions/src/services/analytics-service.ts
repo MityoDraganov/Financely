@@ -21,6 +21,7 @@ export interface AnalyticsMetrics {
     message: string;
     indexUrl?: string;
   };
+  dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
 }
 
 export interface AnalyticsQueryParams {
@@ -224,6 +225,7 @@ export class AnalyticsService {
               referrers: [],
               pageViewsOverTime: [],
               dateRange: { start: startDate, end: endDate },
+              dataSources: [],
             };
             
             // Attach index error if present
@@ -248,6 +250,7 @@ export class AnalyticsService {
             referrers: [],
             pageViewsOverTime: [],
             dateRange: { start: startDate, end: endDate },
+            dataSources: [],
           };
           
           // Attach index error if present
@@ -435,8 +438,290 @@ export class AnalyticsService {
         orgId,
         siteId,
       });
+      // Return empty metrics instead of null to ensure we always have a result
+      return {
+        pageViews: 0,
+        visitors: 0,
+        bounceRate: 0,
+        avgSessionDuration: 0,
+        topPages: [],
+        trafficSources: [],
+        devices: [],
+        browsers: [],
+        referrers: [],
+        pageViewsOverTime: [],
+        dateRange: { start: startDate, end: endDate },
+        dataSources: [],
+        warning: "Failed to fetch analytics events from Firestore",
+      };
+    }
+  }
+
+  /**
+   * Fetch analytics metrics from Plausible API
+   * Requires Plausible API key and domain
+   */
+  async getPlausibleMetrics(params: {
+    domain: string;
+    apiKey?: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<AnalyticsMetrics | null> {
+    const { domain, apiKey, startDate, endDate } = params;
+
+    if (!domain) {
+      logger.warn("Plausible domain not provided");
       return null;
     }
+
+    try {
+      // Plausible Stats API endpoint
+      // Note: This requires a Plausible API key for self-hosted instances
+      // For cloud.plausible.io, you need to use their API
+      const apiUrl = apiKey
+        ? `https://plausible.io/api/v1/stats/aggregate?site_id=${encodeURIComponent(domain)}&period=custom&date=${startDate},${endDate}`
+        : null;
+
+      if (!apiUrl) {
+        logger.info("Plausible API key not provided - skipping API fetch", { domain });
+        return null;
+      }
+
+      const response = await fetch(apiUrl, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn("Plausible API request failed", {
+          status: response.status,
+          domain,
+        });
+        return null;
+      }
+
+      const data = await response.json();
+
+      // Transform Plausible data to our metrics format
+      return {
+        pageViews: data.results?.pageviews || 0,
+        visitors: data.results?.visitors || 0,
+        bounceRate: data.results?.bounce_rate || 0,
+        avgSessionDuration: data.results?.visit_duration || 0,
+        topPages: [],
+        trafficSources: [],
+        devices: [],
+        browsers: [],
+        referrers: [],
+        pageViewsOverTime: [],
+        dateRange: { start: startDate, end: endDate },
+      };
+    } catch (error) {
+      logger.error("Failed to fetch Plausible metrics", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        domain,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch analytics metrics from Umami API
+   * Requires Umami API endpoint and API key
+   */
+  async getUmamiMetrics(params: {
+    websiteId: string;
+    apiUrl: string;
+    apiKey?: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<AnalyticsMetrics | null> {
+    const { websiteId, apiUrl, apiKey, startDate, endDate } = params;
+
+    if (!websiteId || !apiUrl) {
+      logger.warn("Umami website ID or API URL not provided");
+      return null;
+    }
+
+    try {
+      // Umami API endpoint for metrics
+      const baseUrl = apiUrl.replace(/\/script\.js$/, "").replace(/\/$/, "");
+      const metricsUrl = `${baseUrl}/api/websites/${websiteId}/stats?start_at=${startDate}&end_at=${endDate}`;
+
+      const response = await fetch(metricsUrl, {
+        headers: {
+          ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn("Umami API request failed", {
+          status: response.status,
+          websiteId,
+        });
+        return null;
+      }
+
+      const data = await response.json();
+
+      // Transform Umami data to our metrics format
+      return {
+        pageViews: data.pageviews || 0,
+        visitors: data.visitors || 0,
+        bounceRate: 0, // Umami doesn't provide bounce rate directly
+        avgSessionDuration: 0, // Would need additional API call
+        topPages: data.pages?.map((p: any) => ({ path: p.path || "/", views: p.pageviews || 0 })) || [],
+        trafficSources: data.sources?.map((s: any) => ({ source: s.source || "direct", visitors: s.visitors || 0 })) || [],
+        devices: [],
+        browsers: [],
+        referrers: [],
+        pageViewsOverTime: [],
+        dateRange: { start: startDate, end: endDate },
+      };
+    } catch (error) {
+      logger.error("Failed to fetch Umami metrics", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        websiteId,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Aggregate metrics from multiple sources
+   * Combines data from Firestore and other analytics providers
+   */
+  async aggregateMetrics(
+    sources: Array<{
+      source: "firestore" | "ga4" | "plausible" | "umami" | "clarity";
+      metrics: AnalyticsMetrics | null;
+    }>,
+    startDate: string,
+    endDate: string,
+  ): Promise<AnalyticsMetrics> {
+    const validMetrics = sources.filter((s) => s.metrics !== null).map((s) => s.metrics!);
+
+    if (validMetrics.length === 0) {
+      return {
+        pageViews: 0,
+        visitors: 0,
+        bounceRate: 0,
+        avgSessionDuration: 0,
+        topPages: [],
+        trafficSources: [],
+        devices: [],
+        browsers: [],
+        referrers: [],
+        pageViewsOverTime: [],
+        dateRange: { start: startDate, end: endDate },
+        dataSources: [],
+      };
+    }
+
+    // For aggregation, we'll use the source with the most data
+    // In the future, we could deduplicate and merge intelligently
+    let primaryMetrics = validMetrics[0];
+    let maxPageViews = primaryMetrics.pageViews;
+
+    for (const metrics of validMetrics) {
+      if (metrics.pageViews > maxPageViews) {
+        maxPageViews = metrics.pageViews;
+        primaryMetrics = metrics;
+      }
+    }
+
+    // Merge top pages from all sources (deduplicate by path)
+    const topPagesMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.topPages.forEach((page) => {
+        const current = topPagesMap.get(page.path) || 0;
+        topPagesMap.set(page.path, current + page.views);
+      });
+    });
+
+    // Merge traffic sources
+    const sourcesMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.trafficSources.forEach((source) => {
+        const current = sourcesMap.get(source.source) || 0;
+        sourcesMap.set(source.source, current + source.visitors);
+      });
+    });
+
+    // Merge devices
+    const devicesMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.devices.forEach((device) => {
+        const current = devicesMap.get(device.device) || 0;
+        devicesMap.set(device.device, current + device.visitors);
+      });
+    });
+
+    // Merge browsers
+    const browsersMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.browsers.forEach((browser) => {
+        const current = browsersMap.get(browser.browser) || 0;
+        browsersMap.set(browser.browser, current + browser.visitors);
+      });
+    });
+
+    // Merge referrers
+    const referrersMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.referrers.forEach((referrer) => {
+        const current = referrersMap.get(referrer.referrer) || 0;
+        referrersMap.set(referrer.referrer, current + referrer.visitors);
+      });
+    });
+
+    // Merge page views over time
+    const pageViewsOverTimeMap = new Map<string, number>();
+    validMetrics.forEach((metrics) => {
+      metrics.pageViewsOverTime.forEach((day) => {
+        const current = pageViewsOverTimeMap.get(day.date) || 0;
+        pageViewsOverTimeMap.set(day.date, current + day.views);
+      });
+    });
+
+    // Collect data sources that provided valid metrics
+    const dataSources = sources
+      .filter((s) => s.metrics !== null)
+      .map((s) => s.source) as Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
+
+    return {
+      pageViews: primaryMetrics.pageViews,
+      visitors: primaryMetrics.visitors,
+      bounceRate: primaryMetrics.bounceRate,
+      avgSessionDuration: primaryMetrics.avgSessionDuration,
+      topPages: Array.from(topPagesMap.entries())
+        .map(([path, views]) => ({ path, views }))
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 10),
+      trafficSources: Array.from(sourcesMap.entries())
+        .map(([source, visitors]) => ({ source, visitors }))
+        .sort((a, b) => b.visitors - a.visitors)
+        .slice(0, 10),
+      devices: Array.from(devicesMap.entries())
+        .map(([device, visitors]) => ({ device, visitors }))
+        .sort((a, b) => b.visitors - a.visitors),
+      browsers: Array.from(browsersMap.entries())
+        .map(([browser, visitors]) => ({ browser, visitors }))
+        .sort((a, b) => b.visitors - a.visitors),
+      referrers: Array.from(referrersMap.entries())
+        .map(([referrer, visitors]) => ({ referrer, visitors }))
+        .sort((a, b) => b.visitors - a.visitors)
+        .slice(0, 10),
+      pageViewsOverTime: Array.from(pageViewsOverTimeMap.entries())
+        .map(([date, views]) => ({ date, views }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+      dateRange: { start: startDate, end: endDate },
+      warning: primaryMetrics.warning,
+      indexError: primaryMetrics.indexError,
+      dataSources,
+    };
   }
 }
 

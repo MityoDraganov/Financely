@@ -92,6 +92,9 @@ export { createProduct } from "./functions/create-product";
 // File upload functions
 export { uploadFile } from "./functions/upload-file";
 
+// Storage proxy functions (for CORS)
+export { proxyStorageImage } from "./functions/proxy-storage-image";
+
 // Analytics functions
 export { getAnalyticsMetrics } from "./functions/get-analytics-metrics";
 export { storeAnalyticsEvent } from "./functions/store-analytics-event";

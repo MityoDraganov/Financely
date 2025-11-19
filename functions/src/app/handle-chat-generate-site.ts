@@ -554,6 +554,7 @@ export async function handleChatGenerateSite(
       const pageType = targetPage?.type || "standard";
 
       // Apply integrations (widgets, analytics, blog loader)
+      const customFavicon = organization.settings?.branding?.customFavicon;
       pageHtml = applyIntegrations(pageHtml, {
         widgets: (brandSite as any).widgets,
         organizationId: organization.id,
@@ -563,6 +564,7 @@ export async function handleChatGenerateSite(
         brandName: brandSite.brandName,
         pageType: pageType,
         pageSlug: targetPageSlug,
+        customFavicon,
       });
 
       // If creating a new page, store it separately; otherwise update specific page
@@ -649,6 +651,7 @@ export async function handleChatGenerateSite(
                 "index",
                 brandSite.brandName
               );
+              const customFavicon = organization.settings?.branding?.customFavicon;
               const indexWithIntegrations = applyIntegrations(updatedIndexHtml, {
                 widgets: (brandSite as any).widgets,
                 organizationId: organization.id,
@@ -658,6 +661,7 @@ export async function handleChatGenerateSite(
                 brandName: brandSite.brandName,
                 pageType: "standard", // Index page is typically standard
                 pageSlug: "index",
+                customFavicon,
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               
@@ -683,6 +687,7 @@ export async function handleChatGenerateSite(
             // Deploy index page
             const indexHtml = updatedBrandSite.html;
             if (indexHtml) {
+              const customFavicon = organization.settings?.branding?.customFavicon;
               const indexWithNav = injectNavigation(indexHtml, allPages, "index", updatedBrandSite.brandName);
               const indexWithIntegrations = applyIntegrations(indexWithNav, {
                 widgets: (updatedBrandSite as any).widgets,
@@ -693,6 +698,7 @@ export async function handleChatGenerateSite(
                 brandName: updatedBrandSite.brandName,
                 pageType: "standard", // Index page is typically standard
                 pageSlug: "index",
+                customFavicon,
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
             }
@@ -703,6 +709,7 @@ export async function handleChatGenerateSite(
               
               const pageFile = updatedFiles[`${page.slug}/index.html`];
               if (pageFile) {
+                const customFavicon = organization.settings?.branding?.customFavicon;
                 const pageWithNav = injectNavigation(pageFile, allPages, page.slug, updatedBrandSite.brandName);
                 const pageType = page.type || "standard";
                 const pageWithIntegrations = applyIntegrations(pageWithNav, {
@@ -714,6 +721,7 @@ export async function handleChatGenerateSite(
                   brandName: updatedBrandSite.brandName,
                   pageType: pageType,
                   pageSlug: page.slug,
+                  customFavicon,
                 });
                 filesToDeploy.push({ path: `/${page.slug}/index.html`, contents: pageWithIntegrations });
               }
@@ -739,6 +747,7 @@ export async function handleChatGenerateSite(
                   "index",
                   brandSite.brandName,
                 );
+                const customFavicon = organization.settings?.branding?.customFavicon;
                 const indexWithIntegrations = applyIntegrations(updatedIndexHtml, {
                   widgets: (brandSite as any).widgets,
                   organizationId: organization.id,
@@ -748,6 +757,7 @@ export async function handleChatGenerateSite(
                   brandName: brandSite.brandName,
                   pageType: "standard", // Index page is typically standard
                   pageSlug: "index",
+                  customFavicon,
                 });
                 filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               }

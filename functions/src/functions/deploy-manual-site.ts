@@ -70,25 +70,60 @@ export const deployManualSite = onCall(
       contents: file.content,
     }));
 
-    // If widgets are enabled, inject widget script into HTML files
-    if (includeWidgets && organization.settings?.widgets?.enabled) {
-      const projectId = firebaseProjectId.value();
-      if (projectId) {
-        const widgetScript = generateWidgetScript(organization.id, projectId);
-        
-        for (const file of filesToDeploy) {
-          if (file.path.endsWith(".html") || file.path === "index.html") {
-            // Inject widget script before closing </body> tag
-            if (file.contents.includes("</body>")) {
-              file.contents = file.contents.replace(
-                "</body>",
-                `${widgetScript}\n</body>`
-              );
+    const projectId = firebaseProjectId.value();
+    
+    // Process HTML files: inject widgets, favicon, and rewrite image URLs
+    if (projectId) {
+      const proxyUrl = `https://us-central1-${projectId}.cloudfunctions.net/proxyStorageImage`;
+      
+      for (const file of filesToDeploy) {
+        if (file.path.endsWith(".html") || file.path === "index.html") {
+          let html = file.contents;
+          
+          // Inject widget script if enabled
+          if (includeWidgets && organization.settings?.widgets?.enabled) {
+            const widgetScript = generateWidgetScript(organization.id, projectId);
+            if (html.includes("</body>")) {
+              html = html.replace("</body>", `${widgetScript}\n</body>`);
             } else {
-              // If no body tag, append to end
-              file.contents += `\n${widgetScript}`;
+              html += `\n${widgetScript}`;
             }
           }
+          
+          // Inject favicon link tag (use organization's custom favicon if available)
+          const customFavicon = organization.settings?.branding?.customFavicon;
+          if (customFavicon) {
+            const faviconLink = `<link rel="icon" type="image/x-icon" href="${customFavicon}">`;
+            if (html.includes("</head>")) {
+              html = html.replace("</head>", `${faviconLink}\n</head>`);
+            } else if (html.includes("<head>")) {
+              html = html.replace("<head>", `<head>\n${faviconLink}`);
+            } else if (html.includes("<body")) {
+              html = html.replace("<body", `<head>${faviconLink}</head>\n<body`);
+            }
+          }
+          
+          // Rewrite Firebase Storage image URLs to use proxy (fixes CORS issues)
+          html = html.replace(
+            /https:\/\/storage\.googleapis\.com\/([^"'\s>]+)/g,
+            (match, path) => {
+              const storagePath = path.split('/').slice(1).join('/');
+              return `${proxyUrl}?path=${encodeURIComponent(storagePath)}`;
+            }
+          );
+          html = html.replace(
+            /https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^"'\s>]+)/g,
+            (match, fullPath) => {
+              const pathMatch = fullPath.match(/o\/([^?]+)/);
+              if (pathMatch) {
+                const storagePath = decodeURIComponent(pathMatch[1]);
+                return `${proxyUrl}?path=${encodeURIComponent(storagePath)}`;
+              }
+              return match;
+            }
+          );
+          
+          file.contents = html;
         }
       }
     }
@@ -164,6 +199,9 @@ export const deployManualSite = onCall(
         });
       }
     }
+
+    // Note: Favicon is injected via HTML link tag using organization's custom favicon
+    // No need to deploy a generic favicon file
 
     // Deploy files
     const deployedUrl = await hostingService.deploySite(
