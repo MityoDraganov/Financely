@@ -12,6 +12,17 @@ interface PageContentEntry {
   summary?: string;
   link?: string;
   image?: string;
+  description?: string; // Rich text HTML for AI
+  localization?: {
+    defaultLanguage: "en";
+    languages: Record<string, {
+      title: string;
+      description: string;
+      summary?: string;
+      image?: string;
+      link?: string;
+    }>;
+  };
 }
 
 interface SitePagePayload {
@@ -56,7 +67,18 @@ interface UpdateBrandSitePagesPayload {
  *       title: string,
  *       summary?: string,
  *       link?: string,
- *       image?: string
+ *       image?: string,
+ *       description?: string,
+ *       localization?: {
+ *         defaultLanguage: "en",
+ *         languages: Record<string, {
+ *           title: string,
+ *           description: string,
+ *           summary?: string,
+ *           image?: string,
+ *           link?: string
+ *         }>
+ *       }
  *     }>
  *   }>
  * }
@@ -150,6 +172,8 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
           summary: entry.summary?.trim() || undefined,
           link: entry.link?.trim() || undefined,
           image: entry.image?.trim() || undefined,
+          description: entry.description || undefined, // Rich text HTML - preserve as-is
+          localization: entry.localization || undefined, // Localization data - preserve as-is
         }));
 
         return {

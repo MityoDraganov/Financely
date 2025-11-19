@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Globe, Sparkles, Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
+import { useImproveText } from "@/hooks/service-hooks/use-improve-text";
 import { LanguageSelector } from "./language-selector";
 import { languages, getLanguageByCode } from "@/utils/languages";
 import { toast } from "sonner";
@@ -81,6 +83,7 @@ export function AddArticleDialog({
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [uploadingImages, setUploadingImages] = useState<Record<string, { progress: number; preview: string }>>({});
   const uploadFile = useUploadFile();
+  const improveText = useImproveText();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const isEditMode = mode === "edit";
@@ -104,12 +107,16 @@ export function AddArticleDialog({
     }
 
     if (isEditMode && initialValues) {
+      // Ensure description is properly loaded (can be empty string or undefined)
+      // Use nullish coalescing to preserve empty strings
+      const description = initialValues.description ?? "";
+      
       setForm({
         title: initialValues.title || "",
         summary: initialValues.summary || "",
         link: initialValues.link || "",
         image: initialValues.image || "",
-        description: initialValues.description || "",
+        description: description, // Preserve the actual value (empty string or HTML)
         localization: initialValues.localization || {
           defaultLanguage: "en",
           languages: {},
@@ -324,37 +331,45 @@ export function AddArticleDialog({
       ? form.description
       : form.localization.languages[languageCode]?.description || "";
 
-    if (!currentTitle.trim()) {
-      toast.error("Please enter a title first");
+    // Check if there's enough text to improve (at least 20 characters)
+    const textContent = currentDescription.replace(/<[^>]*>/g, '').trim();
+    if (textContent.length < 20) {
+      toast.error("Please write at least 20 characters of text to improve");
       return;
     }
 
     setIsAIGenerating(true);
     try {
-      // Use chatGenerateSite as a simple way to get AI text generation
-      // In the future, this could be replaced with a dedicated text generation endpoint
-      const prompt = `Write a professional blog article description for the title "${currentTitle}". 
-${currentDescription ? `Current description: ${currentDescription}` : ""}
-Requirements:
-- Write in ${languageCode === "en" ? "English" : getLanguageByCode(languageCode)?.name || "the selected language"}
-- Use rich HTML formatting (bold, italic, colors, lists, etc.)
-- Make it engaging and professional
-- 2-3 paragraphs
-- Include relevant keywords naturally
-- Return ONLY the HTML content, no explanations`;
+      const result = await improveText.mutateAsync({
+        text: currentDescription || textContent,
+        title: currentTitle,
+        language: languageCode,
+      });
 
-      // TODO: Create a dedicated text generation Cloud Function endpoint
-      // For now, use a simple approach - we'll create the endpoint later
-      // This is a placeholder that shows the feature is coming
-      toast.info("AI writing assistance feature coming soon! For now, you can manually format text using HTML tags like <b>bold</b>, <i>italic</i>, and <span style='color: red'>colored text</span>.");
-      setIsAIGenerating(false);
-      return;
+      if (result.improvedText) {
+        // Update the description with improved text
+        if (languageCode === "en") {
+          setForm((prev) => ({ ...prev, description: result.improvedText }));
+        } else {
+          updateLocalization(languageCode, "description", result.improvedText);
+        }
+        toast.success("Text improved successfully!");
+      }
     } catch (error) {
-      toast.error("Failed to generate description with AI");
+      toast.error("Failed to improve text");
       console.error("AI assistance error:", error);
     } finally {
       setIsAIGenerating(false);
     }
+  };
+
+  // Check if there's enough text to show the AI button (50+ characters)
+  const hasEnoughText = (langCode: string): boolean => {
+    const description = langCode === "en"
+      ? form.description
+      : form.localization.languages[langCode]?.description || "";
+    const textContent = description.replace(/<[^>]*>/g, '').trim();
+    return textContent.length >= 50;
   };
 
   const handleSubmit = () => {
@@ -450,31 +465,52 @@ Requirements:
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Description (Rich Text) *</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAIAssistance(langCode)}
-                      disabled={isAIGenerating || !brandSiteId}
-                      className="gap-2"
-                    >
-                      {isAIGenerating ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3 w-3" />
-                          AI Writing Assistance
-                        </>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAIAssistance(langCode)}
+                            disabled={isAIGenerating || !brandSiteId || !hasEnoughText(langCode)}
+                            className={`gap-2 transition-opacity duration-300 ease-in-out ${
+                              hasEnoughText(langCode)
+                                ? 'bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 text-white border-0 shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98] opacity-100'
+                                : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800 opacity-40 cursor-not-allowed'
+                            }`}
+                          >
+                            {isAIGenerating ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Improving...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-3 w-3" />
+                                AI Writing Assistance
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      {!hasEnoughText(langCode) && (
+                        <TooltipContent side="left" className="hidden sm:block">
+                          <p>Write at least 50 characters to enable AI writing assistance</p>
+                        </TooltipContent>
                       )}
-                    </Button>
+                    </Tooltip>
                   </div>
+                  {!hasEnoughText(langCode) && (
+                    <p className="text-xs text-muted-foreground sm:hidden">
+                      Write at least 50 characters to enable AI writing assistance
+                    </p>
+                  )}
                   <RichTextEditor
+                    key={`editor-${langCode}-${open ? 'open' : 'closed'}-${isEditMode ? initialValues?.id : 'new'}`}
                     content={langCode === "en"
-                      ? form.description
-                      : currentLocalization?.description || ""}
+                      ? (form.description || "")
+                      : (currentLocalization?.description || "")}
                     onChange={(html) => {
                       if (langCode === "en") {
                         setForm((prev) => ({ ...prev, description: html }));

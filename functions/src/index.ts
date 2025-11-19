@@ -64,6 +64,9 @@ export { addCustomDomain } from "./functions/add-custom-domain";
 export { restoreBrandSiteVersion } from "./functions/restore-brand-site-version";
 export { previewBrandSiteVersion } from "./functions/preview-brand-site-version";
 export { updateBrandSitePages } from "./functions/update-brand-site-pages";
+export { getBlogArticles } from "./functions/get-blog-articles";
+export { improveText } from "./functions/improve-text";
+export { deleteBrandSite } from "./functions/delete-brand-site";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
 
 // Widget functions

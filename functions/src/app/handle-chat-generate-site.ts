@@ -548,7 +548,12 @@ export async function handleChatGenerateSite(
         }
       }
 
-      // Apply integrations (widgets, analytics)
+      // Determine page type and slug for blog loading
+      const targetPageSlug = input.pageSlug || "index";
+      const targetPage = pages.find((p: any) => p.slug === targetPageSlug);
+      const pageType = targetPage?.type || "standard";
+
+      // Apply integrations (widgets, analytics, blog loader)
       pageHtml = applyIntegrations(pageHtml, {
         widgets: (brandSite as any).widgets,
         organizationId: organization.id,
@@ -556,6 +561,8 @@ export async function handleChatGenerateSite(
         firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
         tempSiteId: `brand-${input.brandSiteId}`,
         brandName: brandSite.brandName,
+        pageType: pageType,
+        pageSlug: targetPageSlug,
       });
 
       // If creating a new page, store it separately; otherwise update specific page
@@ -649,6 +656,8 @@ export async function handleChatGenerateSite(
                 firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
                 tempSiteId: `brand-${input.brandSiteId}`,
                 brandName: brandSite.brandName,
+                pageType: "standard", // Index page is typically standard
+                pageSlug: "index",
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               
@@ -682,6 +691,8 @@ export async function handleChatGenerateSite(
                 firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
                 tempSiteId: `brand-${input.brandSiteId}`,
                 brandName: updatedBrandSite.brandName,
+                pageType: "standard", // Index page is typically standard
+                pageSlug: "index",
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
             }
@@ -693,6 +704,7 @@ export async function handleChatGenerateSite(
               const pageFile = updatedFiles[`${page.slug}/index.html`];
               if (pageFile) {
                 const pageWithNav = injectNavigation(pageFile, allPages, page.slug, updatedBrandSite.brandName);
+                const pageType = page.type || "standard";
                 const pageWithIntegrations = applyIntegrations(pageWithNav, {
                   widgets: (updatedBrandSite as any).widgets,
                   organizationId: organization.id,
@@ -700,6 +712,8 @@ export async function handleChatGenerateSite(
                   firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
                   tempSiteId: `brand-${input.brandSiteId}`,
                   brandName: updatedBrandSite.brandName,
+                  pageType: pageType,
+                  pageSlug: page.slug,
                 });
                 filesToDeploy.push({ path: `/${page.slug}/index.html`, contents: pageWithIntegrations });
               }
@@ -732,6 +746,8 @@ export async function handleChatGenerateSite(
                   firebaseProjectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
                   tempSiteId: `brand-${input.brandSiteId}`,
                   brandName: brandSite.brandName,
+                  pageType: "standard", // Index page is typically standard
+                  pageSlug: "index",
                 });
                 filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               }

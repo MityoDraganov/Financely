@@ -266,6 +266,95 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Generate text using Gemini API (for text improvement, etc.)
+   */
+  async generateText(prompt: string): Promise<string> {
+    const url = `${this.apiBaseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 2048,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as GeminiResponse;
+        logger.error("Gemini API error", {
+          status: response.status,
+          error: errorData.error,
+        });
+        throw new Error(
+          `Gemini API error: ${errorData.error?.message || response.statusText}`,
+        );
+      }
+
+      const data = (await response.json()) as GeminiResponse;
+
+      if (!data.candidates || data.candidates.length === 0) {
+        logger.error("Gemini API returned no candidates", { data });
+        throw new Error("Invalid response from Gemini API: No candidates");
+      }
+
+      const candidate = data.candidates[0];
+      const finishReason = candidate.finishReason;
+
+      const textPart = candidate.content?.parts?.find((part: any) => part.text);
+      if (!textPart || !textPart.text) {
+        logger.error("Gemini API returned no text content", {
+          parts: candidate.content?.parts,
+        });
+        throw new Error("Invalid response from Gemini API: No text content in parts");
+      }
+
+      if (finishReason && finishReason !== "STOP") {
+        if (finishReason === "MAX_TOKENS") {
+          logger.warn("Gemini API response truncated due to token limit", {
+            finishReason,
+            textLength: textPart.text.length,
+          });
+        } else {
+          logger.error("Gemini API content blocked", {
+            finishReason,
+            safetyRatings: (candidate as any).safetyRatings,
+          });
+          throw new Error(`Gemini API content blocked: ${finishReason}`);
+        }
+      }
+
+      logger.info("Text generated successfully", {
+        textLength: textPart.text.length,
+        finishReason: finishReason || "STOP",
+      });
+
+      return textPart.text.trim();
+    } catch (error) {
+      logger.error("Failed to generate text with Gemini", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
   private buildPrompt(brandContext: BrandContext): string {
     const {
       brandName,
@@ -378,9 +467,16 @@ This is a blog/articles page.
 - Make it visually distinct from other pages with a magazine-style or news-style layout
 - DO NOT include generic "About" or "Services" sections - focus on blog content
 - CRITICAL: DO NOT create fake or placeholder blog posts/articles
-- ONLY display the articles provided in pageContentEntries - if no articles are provided, show an empty state or placeholder message
-- If articles are provided, display them with their actual titles, summaries, images, and links
-- The layout should be ready to display real user-created articles, not AI-generated placeholder content`;
+- CRITICAL: Create a static layout structure with a container element for dynamic blog articles
+- The container should have id="blog-articles-container" and be styled appropriately (grid, flex, or card layout)
+- DO NOT hardcode any article content - the articles will be loaded dynamically via JavaScript
+- Include an empty state message in the container like "Loading articles..." or "No articles yet"
+- The layout should be ready to display real user-created articles that will be loaded dynamically
+- Structure the page with:
+  * A hero/header section for the blog page title
+  * A main content area with id="blog-articles-container" for dynamic articles
+  * Article cards will be inserted into this container via JavaScript
+  * Style the container to display articles in a grid or list format`;
     } else if (pageType === "contact") {
       prompt += `\n\n📞 CONTACT PAGE SPECIFIC REQUIREMENTS:
 This is a contact/engagement page.

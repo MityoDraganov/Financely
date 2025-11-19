@@ -54,6 +54,7 @@ import {
 	useDeployManualSite,
 	useUpdateBrandSitePages,
 } from "@/hooks/service-hooks/use-brand-site";
+import { useDeleteBrandSite } from "@/hooks/service-hooks/use-delete-brand-site";
 import {
 	useBrandSite,
 	useBrandSitesByOrganization,
@@ -210,6 +211,7 @@ export default function SiteBuilderPage() {
 	const [articleDialogMode, setArticleDialogMode] = useState<"create" | "edit">("create");
 	const [articleBeingEdited, setArticleBeingEdited] = useState<PageContentEntry | null>(null);
 	const [pageForArticle, setPageForArticle] = useState<SitePage | null>(null);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const updateBrandSitePages = useUpdateBrandSitePages();
 	const updateBrandSite = useUpdateBrandSite(); // For file updates (not pages)
 	const generateSite = useGenerateSite();
@@ -218,6 +220,7 @@ export default function SiteBuilderPage() {
 	const restoreVersion = useRestoreBrandSiteVersion();
 	const previewVersion = usePreviewBrandSiteVersion();
 	const deployManualSite = useDeployManualSite();
+	const deleteBrandSite = useDeleteBrandSite();
 	const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(
 		null
 	);
@@ -696,13 +699,24 @@ export default function SiteBuilderPage() {
 			return;
 		}
 
+		// Helper to check if HTML content is empty (only whitespace/tags)
+		const isHtmlEmpty = (html: string | undefined): boolean => {
+			if (!html || html.trim() === "") return true;
+			// Remove HTML tags and check if remaining text is empty
+			const textContent = html.replace(/<[^>]*>/g, '').trim();
+			return textContent.length === 0;
+		};
+
 		const newArticle: PageContentEntry = {
 			id: createContentEntryId(),
 			title: articleForm.title.trim(),
 			summary: articleForm.summary.trim() || undefined,
 			link: articleForm.link.trim() || undefined,
 			image: articleForm.image.trim() || undefined,
-			description: articleForm.description.trim() || undefined,
+			// Save description as-is if it has content, otherwise undefined
+			description: articleForm.description && !isHtmlEmpty(articleForm.description) 
+				? articleForm.description 
+				: undefined,
 			localization: articleForm.localization,
 		};
 
@@ -752,19 +766,30 @@ export default function SiteBuilderPage() {
 			page.id === pageId
 				? {
 						...page,
-						contentEntries: (page.contentEntries || []).map((article) =>
-							article.id === articleId
+						contentEntries: (page.contentEntries || []).map((article) => {
+							// Helper to check if HTML content is empty (only whitespace/tags)
+							const isHtmlEmpty = (html: string | undefined): boolean => {
+								if (!html || html.trim() === "") return true;
+								// Remove HTML tags and check if remaining text is empty
+								const textContent = html.replace(/<[^>]*>/g, '').trim();
+								return textContent.length === 0;
+							};
+
+							return article.id === articleId
 								? {
 										...article,
 										title: articleForm.title.trim(),
 										summary: articleForm.summary.trim() || undefined,
 										link: articleForm.link.trim() || undefined,
 										image: articleForm.image.trim() || undefined,
-										description: articleForm.description.trim() || undefined,
+										// Save description as-is if it has content, otherwise undefined
+										description: articleForm.description && !isHtmlEmpty(articleForm.description) 
+											? articleForm.description 
+											: undefined,
 										localization: articleForm.localization,
 									}
-								: article
-						),
+								: article;
+						}),
 					}
 				: page
 		);
@@ -2089,6 +2114,31 @@ export default function SiteBuilderPage() {
 							</CollapsibleContent>
 						</Card>
 					</Collapsible>
+
+					{/* Delete Website Card */}
+					{hasSite && (
+						<Card className="border-red-200 dark:border-red-900/30">
+							<CardHeader className="pb-3">
+								<CardTitle className="text-base text-red-600 dark:text-red-500">
+									Danger Zone
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-sm text-muted-foreground mb-4">
+									Permanently delete this website, all pages, blog posts, and deployed content. This action cannot be undone.
+								</p>
+								<Button
+									variant="destructive"
+									size="sm"
+									onClick={() => setShowDeleteDialog(true)}
+									className="w-full"
+								>
+									<Trash2 className="h-4 w-4 mr-2" />
+									Delete Website
+								</Button>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 			</div>
 
@@ -2099,6 +2149,68 @@ export default function SiteBuilderPage() {
 					onClick={() => setSidebarOpen(false)}
 				/>
 			)}
+
+			{/* Delete Website Confirmation Dialog */}
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent className="border-red-200 dark:border-red-900/30">
+					<AlertDialogHeader>
+						<AlertDialogTitle className="text-red-600 dark:text-red-500 flex items-center gap-2">
+							<AlertCircle className="h-5 w-5" />
+							Delete Website
+						</AlertDialogTitle>
+						<AlertDialogDescription className="text-left space-y-2">
+							<p className="font-semibold text-foreground">
+								This action cannot be undone. This will permanently delete:
+							</p>
+							<ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
+								<li>The entire website and all its pages</li>
+								<li>All blog posts and articles</li>
+								<li>All deployed content and files</li>
+								<li>The Firebase Hosting site</li>
+								<li>All version history</li>
+							</ul>
+							<p className="font-semibold text-foreground mt-3">
+								This will NOT affect:
+							</p>
+							<ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
+								<li>Your widget configurations</li>
+								<li>Your organization settings</li>
+							</ul>
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (!currentBrandSiteId) return;
+								deleteBrandSite.mutate(
+									{ brandSiteId: currentBrandSiteId },
+									{
+										onSuccess: () => {
+											setShowDeleteDialog(false);
+											setCurrentBrandSiteId(null);
+										},
+									}
+								);
+							}}
+							disabled={deleteBrandSite.isPending}
+							className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
+						>
+							{deleteBrandSite.isPending ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Deleting...
+								</>
+							) : (
+								<>
+									<Trash2 className="h-4 w-4 mr-2" />
+									Delete Website
+								</>
+							)}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* Dialogs */}
 			{/* AI Widget Generation Dialog */}

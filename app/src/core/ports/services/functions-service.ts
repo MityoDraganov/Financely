@@ -649,4 +649,14 @@ export interface FunctionsService {
     contentType: string;
     path?: string;
   }): Promise<{ url: string }>;
+
+  improveText(payload: {
+    text: string;
+    title?: string;
+    language?: string;
+  }): Promise<{ improvedText: string }>;
+
+  deleteBrandSite(payload: {
+    brandSiteId: string;
+  }): Promise<{ success: boolean; brandSiteId: string }>;
 }

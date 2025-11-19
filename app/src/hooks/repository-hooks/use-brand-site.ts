@@ -35,6 +35,17 @@ interface BrandSite {
       summary?: string;
       link?: string;
       image?: string;
+      description?: string; // Rich text HTML for AI
+      localization?: {
+        defaultLanguage: "en";
+        languages: Record<string, {
+          title: string;
+          description: string;
+          summary?: string;
+          image?: string;
+          link?: string;
+        }>;
+      };
     }>;
   }>;
   versions?: Array<{

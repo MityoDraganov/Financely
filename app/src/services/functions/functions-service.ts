@@ -413,4 +413,22 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async improveText(payload) {
+    type ImproveTextPayload = Parameters<FunctionsService["improveText"]>[0];
+    const result = await httpsCallable<ImproveTextPayload, { improvedText: string }>(
+      firebase.functions,
+      "improveText",
+    )(payload);
+    return result.data;
+  },
+
+  async deleteBrandSite(payload) {
+    type DeleteBrandSitePayload = Parameters<FunctionsService["deleteBrandSite"]>[0];
+    const result = await httpsCallable<DeleteBrandSitePayload, { success: boolean; brandSiteId: string }>(
+      firebase.functions,
+      "deleteBrandSite",
+    )(payload);
+    return result.data;
+  },
 };

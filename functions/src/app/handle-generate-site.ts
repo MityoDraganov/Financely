@@ -264,22 +264,115 @@ export function injectNavigation(
   brandName: string,
 ): string {
   let output = html;
-  if (output.includes("</head>")) {
-    output = output.replace("</head>", `${NAVIGATION_STYLES}\n</head>`);
-  } else {
-    output = `${NAVIGATION_STYLES}\n${output}`;
+  
+  // Remove existing navigation if present (to avoid duplicates)
+  // Remove navigation styles
+  output = output.replace(/<style>[\s\S]*?\.site-nav-wrapper[\s\S]*?<\/style>/gi, '');
+  // Remove navigation markup
+  output = output.replace(/<div class="site-nav-wrapper">[\s\S]*?<\/div>/gi, '');
+  
+  // Inject navigation styles (only once)
+  if (!output.includes('site-nav-wrapper')) {
+    if (output.includes("</head>")) {
+      output = output.replace("</head>", `${NAVIGATION_STYLES}\n</head>`);
+    } else {
+      output = `${NAVIGATION_STYLES}\n${output}`;
+    }
   }
 
+  // Inject navigation markup (only once, right after body tag)
   const navMarkup = buildNavigationMarkup(pages, currentSlug, brandName);
   const bodyMatch = output.match(/<body[^>]*>/i);
   if (bodyMatch) {
     const bodyTag = bodyMatch[0];
-    output = output.replace(bodyTag, `${bodyTag}\n${navMarkup}`);
+    // Check if navigation already exists after body tag
+    const afterBody = output.substring(output.indexOf(bodyTag) + bodyTag.length);
+    if (!afterBody.trim().startsWith(navMarkup.trim())) {
+      output = output.replace(bodyTag, `${bodyTag}\n${navMarkup}`);
+    }
   } else {
-    output = `${navMarkup}\n${output}`;
+    // No body tag, prepend navigation
+    if (!output.includes('site-nav-wrapper')) {
+      output = `${navMarkup}\n${output}`;
+    }
   }
 
   return output;
+}
+
+/**
+ * Generate JavaScript to dynamically load blog articles
+ */
+function generateBlogLoaderScript(
+  brandSiteId: string,
+  pageSlug: string,
+  firebaseProjectId: string,
+): string {
+  const functionUrl = `https://us-central1-${firebaseProjectId}.cloudfunctions.net/getBlogArticles`;
+  
+  return `
+<script>
+(function() {
+  const container = document.getElementById('blog-articles-container');
+  if (!container) {
+    console.warn('Blog articles container not found');
+    return;
+  }
+
+  // Show loading state
+  container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Loading articles...</p>';
+
+  // Fetch articles from Cloud Function
+  fetch('${functionUrl}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      data: {
+        brandSiteId: '${brandSiteId}',
+        pageSlug: '${pageSlug}'
+      }
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to fetch articles');
+    }
+    return response.json();
+  })
+  .then(result => {
+    const articles = result.result?.articles || [];
+    
+    if (articles.length === 0) {
+      container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No articles yet. Check back soon!</p>';
+      return;
+    }
+
+    // Render articles
+    container.innerHTML = articles.map(article => {
+      const image = article.image ? \`<img src="\${article.image}" alt="\${article.title}" style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 1rem;">\` : '';
+      const summary = article.summary ? \`<p style="color: #666; margin: 0.5rem 0;">\${article.summary}</p>\` : '';
+      const description = article.description ? \`<div style="margin-top: 0.5rem; color: #444;">\${article.description}</div>\` : '';
+      const link = article.link ? \`<a href="\${article.link}" style="display: inline-block; margin-top: 1rem; color: #2563eb; text-decoration: none; font-weight: 600;">Read more →</a>\` : '';
+      
+      return \`
+        <article style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'">
+          \${image}
+          <h3 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #111;">\${article.title}</h3>
+          \${summary}
+          \${description}
+          \${link}
+        </article>
+      \`;
+    }).join('');
+  })
+  .catch(error => {
+    console.error('Error loading blog articles:', error);
+    container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #dc2626;">Failed to load articles. Please try again later.</p>';
+  });
+})();
+</script>`;
 }
 
 export function applyIntegrations(
@@ -292,6 +385,8 @@ export function applyIntegrations(
     firebaseProjectId?: string;
     tempSiteId: string;
     brandName: string;
+    pageType?: "standard" | "blog" | "contact";
+    pageSlug?: string;
   },
 ): string {
   let output = html;
@@ -324,6 +419,20 @@ export function applyIntegrations(
       } else {
         output += `\n${analyticsScript}`;
       }
+    }
+  }
+
+  // Inject blog loader script for blog pages
+  if (options.pageType === "blog" && options.brandSiteId && options.pageSlug && options.firebaseProjectId) {
+    const blogLoaderScript = generateBlogLoaderScript(
+      options.brandSiteId,
+      options.pageSlug,
+      options.firebaseProjectId,
+    );
+    if (output.includes("</body>")) {
+      output = output.replace("</body>", `${blogLoaderScript}\n</body>`);
+    } else {
+      output += `\n${blogLoaderScript}`;
     }
   }
 
@@ -711,9 +820,9 @@ export async function handleGenerateSite(
           lastGeneratedPage.title !== page.title ||
           lastGeneratedPage.description !== page.description ||
           lastGeneratedPage.context !== page.context ||
-          lastGeneratedPage.type !== page.type ||
-          // For blog pages, check if contentEntries changed (e.g., articles added/removed)
-          (page.type === "blog" && JSON.stringify(lastGeneratedPage.contentEntries || []) !== JSON.stringify(page.contentEntries || []));
+          lastGeneratedPage.type !== page.type;
+          // Note: For blog pages, contentEntries (articles) are loaded dynamically,
+          // so changes to articles don't require page regeneration
         
         if (hasChanged) {
           return true; // Page content changed, needs regeneration
@@ -839,6 +948,8 @@ export async function handleGenerateSite(
           firebaseProjectId: config.firebaseProjectId,
           tempSiteId: `brand-${brandSiteId}`,
           brandName,
+          pageType: page.type,
+          pageSlug: page.slug,
         });
 
         generatedPageFiles[filePath] = pageHtml;

@@ -1517,4 +1517,62 @@ export class FirebaseHostingService {
 
 		return previewUrl;
 	}
+
+	/**
+	 * Delete a Firebase Hosting site
+	 * @param siteId - The site ID to delete
+	 */
+	async deleteSite(siteId: string): Promise<void> {
+		if (!siteId || typeof siteId !== "string") {
+			throw new Error("Site ID is required and must be a string");
+		}
+
+		const normalizedSiteId = siteId
+			.toLowerCase()
+			.replace(/[^a-z0-9-]/g, "-");
+
+		logger.info("Deleting Firebase Hosting site", {
+			siteId: normalizedSiteId,
+		});
+
+		// Try site-scoped path first (preferred)
+		const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
+		const projectScopedEndpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}`;
+
+		for (const endpoint of [siteScopedEndpoint, projectScopedEndpoint]) {
+			try {
+				await this.makeRequest("DELETE", endpoint);
+				logger.info("Firebase Hosting site deleted successfully", {
+					siteId: normalizedSiteId,
+					endpoint,
+				});
+				return;
+			} catch (error: any) {
+				// If 404, site doesn't exist (which is fine)
+				if (error?.status === 404 || error?.code === 404) {
+					logger.info("Firebase Hosting site does not exist (already deleted)", {
+						siteId: normalizedSiteId,
+						endpoint,
+					});
+					return;
+				}
+
+				// If this is the last endpoint, throw the error
+				if (endpoint === projectScopedEndpoint) {
+					logger.error("Failed to delete Firebase Hosting site", {
+						siteId: normalizedSiteId,
+						endpoint,
+						error: error instanceof Error ? error.message : "Unknown error",
+					});
+					throw error;
+				}
+
+				// Try next endpoint
+				logger.debug("Failed to delete with site-scoped endpoint, trying project-scoped", {
+					siteId: normalizedSiteId,
+					error: error instanceof Error ? error.message : "Unknown error",
+				});
+			}
+		}
+	}
 }

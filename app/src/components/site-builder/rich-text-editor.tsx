@@ -159,7 +159,7 @@ export function RichTextEditor({
         multicolor: true,
       }),
     ],
-    content,
+    content: content || "",
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
@@ -175,10 +175,29 @@ export function RichTextEditor({
     },
   });
 
-  // Update editor content when prop changes
+  // Update editor content when prop changes (critical for loading saved content)
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content, false);
+    if (!editor) return;
+    
+    const currentHtml = editor.getHTML();
+    const newContent = content || "";
+    
+    // Normalize HTML for comparison (remove extra whitespace)
+    const normalizeHtml = (html: string) => {
+      if (!html || html.trim() === "") return "";
+      // Remove extra whitespace between tags but preserve content
+      return html.replace(/>\s+</g, '><').trim();
+    };
+    
+    const normalizedContent = normalizeHtml(newContent);
+    const normalizedCurrent = normalizeHtml(currentHtml);
+    
+    // Only update if content actually changed
+    // This is important when the dialog opens with existing content
+    if (normalizedContent !== normalizedCurrent) {
+      // Use setContent with emitUpdate: false to avoid triggering onChange during load
+      // The false parameter prevents the onUpdate callback from firing
+      editor.commands.setContent(newContent, false);
     }
   }, [content, editor]);
 
