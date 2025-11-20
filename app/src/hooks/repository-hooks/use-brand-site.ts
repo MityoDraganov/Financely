@@ -101,10 +101,24 @@ export const useBrandSite = (brandSiteId: string | null) => {
     },
     enabled: !!brandSiteId,
     refetchInterval: (query) => {
-      // Poll every 2 seconds if status is pending/generating/deploying
+      // Poll more frequently if status is pending/generating/deploying (for streaming updates)
       const data = query.state.data as BrandSite | null;
       if (data?.status === "pending" || data?.status === "generating" || data?.status === "deploying") {
-        return 2000;
+        // Poll even faster if files are being updated (HTML streaming)
+        if (data?.files && Object.keys(data.files).length > 0) {
+          return 300; // Poll every 300ms when HTML is streaming
+        }
+        return 500; // Poll every 500ms for faster streaming updates
+      }
+      // Also poll if there are conversations (to catch streaming message updates)
+      if (data?.conversations && (data.conversations as any[]).length > 0) {
+        // Check if any conversation has a streaming message
+        const hasStreaming = (data.conversations as any[]).some(conv => 
+          conv.messages?.some((m: any) => m.id?.startsWith("assistant-streaming"))
+        );
+        if (hasStreaming) {
+          return 300; // Poll every 300ms when streaming (matches backend update interval)
+        }
       }
       return false; // Stop polling when done
     },

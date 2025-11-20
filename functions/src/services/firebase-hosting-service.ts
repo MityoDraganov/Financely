@@ -85,7 +85,9 @@ export class FirebaseHostingService {
   private async makeRequest<T>(
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,
-		body?: unknown
+		body?: unknown,
+    maxRetries = 3,
+    retryCount = 0,
   ): Promise<T> {
     let token: string;
     try {
@@ -118,6 +120,8 @@ export class FirebaseHostingService {
       endpoint,
       url: url.replace(token, "REDACTED"),
       hasBody: body !== undefined && body !== null,
+      retryCount,
+      maxRetries,
     });
 
     try {
@@ -155,9 +159,10 @@ export class FirebaseHostingService {
       if (!response.ok) {
         const errorText = await response.text();
         let errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText}`;
+        let errorJson: any = null;
         
         try {
-          const errorJson = JSON.parse(errorText);
+          errorJson = JSON.parse(errorText);
           if (errorJson.error?.message) {
             errorMessage = `Firebase Hosting API error: ${errorJson.error.message}`;
           } else if (errorJson.message) {
@@ -170,6 +175,77 @@ export class FirebaseHostingService {
           }
         }
         
+        // Check if this is a retryable error (quota/rate limit)
+        const isQuotaError = 
+          errorMessage.includes("Resource has been exhausted") || 
+          errorMessage.includes("quota") ||
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("rateLimitExceeded") ||
+          (errorJson?.error?.status === "RESOURCE_EXHAUSTED");
+        
+        const isRetryable = 
+          response.status === 429 || // Too Many Requests
+          response.status === 503 || // Service Unavailable
+          response.status === 500 || // Internal Server Error
+          isQuotaError;
+
+        if (isRetryable && retryCount < maxRetries) {
+          // Calculate exponential backoff: 2^retryCount seconds, max 30 seconds
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          
+          logger.warn("Firebase Hosting API quota/rate limit error, retrying", {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorMessage,
+            endpoint,
+            method,
+            retryCount: retryCount + 1,
+            maxRetries,
+            delayMs: delay,
+            isQuotaError,
+          });
+
+          // Wait before retry
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
+          // Retry the request
+          return await this.makeRequest<T>(method, endpoint, body, maxRetries, retryCount + 1);
+        }
+        
+        // Provide user-friendly error message for quota errors
+        if (isQuotaError) {
+          const friendlyMessage = 
+            `Firebase Hosting API quota exceeded. ` +
+            `The service is temporarily unavailable due to high demand. ` +
+            `Please wait 5-10 minutes and try again. ` +
+            `\n\nTo check your quotas:\n` +
+            `1. Google Cloud Console: https://console.cloud.google.com/iam-admin/quotas?project=${this.projectId}\n` +
+            `   - Filter by: firebasehosting.googleapis.com\n` +
+            `   - Check: Sites per project (default: 36), API requests per minute\n` +
+            `2. Firebase Console: https://console.firebase.google.com/project/${this.projectId}/usage\n` +
+            `   - Review Hosting usage section\n` +
+            `\nCommon causes:\n` +
+            `- Too many sites (max 36 per project) - delete unused sites\n` +
+            `- Too many API requests - wait and retry\n` +
+            `- Too many deployments per day - batch operations\n` +
+            `\nSee FIREBASE_HOSTING_QUOTA_GUIDE.md for detailed troubleshooting.`;
+          
+          logger.error("Firebase Hosting API quota error (after retries)", {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorMessage,
+            endpoint,
+            method,
+            url: url.replace(token, "REDACTED"),
+            retryCount,
+            maxRetries,
+            projectId: this.projectId,
+            quotaCheckUrl: `https://console.cloud.google.com/iam-admin/quotas?project=${this.projectId}`,
+          });
+          
+          throw new Error(friendlyMessage);
+        }
+        
         logger.error("Firebase Hosting API error", {
           status: response.status,
           statusText: response.statusText,
@@ -177,6 +253,8 @@ export class FirebaseHostingService {
           endpoint,
           method,
           url: url.replace(token, "REDACTED"),
+          retryCount,
+          isRetryable,
         });
         
         throw new Error(errorMessage);
@@ -194,6 +272,26 @@ export class FirebaseHostingService {
 					  }
 					: { message: "Unknown error" };
 
+      // Check if this is a retryable network error
+      const isNetworkError = error instanceof TypeError && 
+        (error.message.includes("fetch") || error.message.includes("Failed to fetch"));
+      
+      if (isNetworkError && retryCount < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        
+        logger.warn("Firebase Hosting API network error, retrying", {
+          error: errorDetails.message,
+          endpoint,
+          method,
+          retryCount: retryCount + 1,
+          maxRetries,
+          delayMs: delay,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return await this.makeRequest<T>(method, endpoint, body, maxRetries, retryCount + 1);
+      }
+
       logger.error("Firebase Hosting API request failed", {
         ...errorDetails,
         endpoint,
@@ -201,6 +299,7 @@ export class FirebaseHostingService {
         url: url.replace(token, "REDACTED"),
         projectId: this.projectId,
         apiBaseUrl: this.hostingApiBaseUrl,
+        retryCount,
       });
 
       // Provide more helpful error messages for common fetch failures
@@ -225,6 +324,35 @@ export class FirebaseHostingService {
         throw new Error(`Firebase Hosting API error: ${error.message}`);
       }
       
+      throw error;
+    }
+  }
+
+  /**
+   * List all Firebase Hosting sites in the project
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites/list
+   */
+  async listAllSites(): Promise<Array<{ siteId: string; name?: string; defaultUrl?: string }>> {
+    try {
+      const endpoint = `/projects/${this.projectId}/sites`;
+      const response = await this.makeRequest<{
+        sites?: Array<{
+          name: string;
+          siteId?: string;
+          defaultUrl?: string;
+        }>;
+      }>("GET", endpoint);
+
+      return (response.sites || []).map((site) => ({
+        siteId: site.siteId || site.name.split("/").pop() || "",
+        name: site.name,
+        defaultUrl: site.defaultUrl,
+      }));
+    } catch (error) {
+      logger.error("Failed to list Firebase Hosting sites", {
+        projectId: this.projectId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       throw error;
     }
   }

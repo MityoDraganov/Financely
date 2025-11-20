@@ -267,6 +267,225 @@ export class GeminiService {
   }
 
   /**
+   * Stream HTML generation using Gemini API with incremental updates
+   * Updates Firestore progressively as chunks arrive for live preview
+   * Returns the complete HTML when done
+   */
+  async generateSiteHtmlStream(
+    brandContext: BrandContext,
+    onChunk: (chunk: string, accumulated: string) => Promise<void> | void,
+  ): Promise<string> {
+    const prompt = this.buildPrompt(brandContext);
+    return this.streamTextWithConfig(prompt, onChunk, {
+      maxOutputTokens: 65536, // Same as generateSiteHtml for full HTML generation
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95,
+    });
+  }
+
+  /**
+   * Stream text generation with custom configuration
+   * Used for HTML generation which needs higher token limits
+   */
+  async streamTextWithConfig(
+    prompt: string,
+    onChunk: (chunk: string, accumulated: string) => Promise<void> | void,
+    config: {
+      maxOutputTokens?: number;
+      temperature?: number;
+      topK?: number;
+      topP?: number;
+    },
+  ): Promise<string> {
+    const url = `${this.apiBaseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`;
+
+    let fullResponseText = "";
+    let backoffDelay = 1000;
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      attempt++;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: config.temperature ?? 0.7,
+              topK: config.topK ?? 40,
+              topP: config.topP ?? 0.95,
+              maxOutputTokens: config.maxOutputTokens ?? 2048,
+            },
+          }),
+        });
+
+        if (!response.ok || !response.body) {
+          const errorText = await response.text();
+          let errorMessage = `HTTP error! Status: ${response.status}`;
+          try {
+            const errorData = JSON.parse(errorText) as GeminiResponse;
+            if (errorData.error?.message) {
+              errorMessage = `Gemini API error: ${errorData.error.message}`;
+            }
+          } catch {
+            // Use default error message
+          }
+          throw new Error(errorMessage);
+        }
+
+        // Get the stream reader and decoder
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = ""; // Buffer for incomplete JSON objects
+
+        // Process the stream in chunks
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break; // Stream finished successfully
+          }
+
+          // Decode the byte array chunk to a string
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+
+          // Gemini streaming API returns JSON objects separated by newlines
+          // Each line is a complete JSON object (or partial if split across chunks)
+          // We need to extract complete JSON objects from the buffer
+          
+          // Try to extract complete JSON objects
+          let jsonStart = -1;
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+          
+          for (let i = 0; i < buffer.length; i++) {
+            const char = buffer[i];
+            
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === "\\") {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === "{") {
+                if (braceCount === 0) {
+                  jsonStart = i;
+                }
+                braceCount++;
+              } else if (char === "}") {
+                braceCount--;
+                if (braceCount === 0 && jsonStart >= 0) {
+                  // Found a complete JSON object
+                  const jsonString = buffer.substring(jsonStart, i + 1);
+                  
+                  try {
+                    const data = JSON.parse(jsonString) as {
+                      candidates?: Array<{
+                        content?: {
+                          parts?: Array<{ text?: string }>;
+                        };
+                      }>;
+                    };
+
+                    const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (textPart) {
+                      fullResponseText += textPart;
+                      // Update UI immediately with each chunk
+                      await onChunk(textPart, fullResponseText);
+                    }
+                  } catch (parseError) {
+                    logger.debug("Failed to parse JSON object", {
+                      jsonString: jsonString.substring(0, 200),
+                      error: parseError instanceof Error ? parseError.message : "Unknown",
+                    });
+                  }
+                  
+                  // Remove processed JSON from buffer
+                  buffer = buffer.substring(i + 1);
+                  i = -1; // Reset to start of remaining buffer
+                  jsonStart = -1;
+                  braceCount = 0;
+                }
+              }
+            }
+          }
+
+          // Safety measure: clear buffer if it's getting too large
+          if (buffer.length > 50000) {
+            logger.warn("Buffer too large, clearing", { bufferLength: buffer.length });
+            buffer = "";
+          }
+        }
+
+        // Success: Return the full response
+        return fullResponseText;
+      } catch (error) {
+        logger.error(`Streaming attempt ${attempt} failed`, {
+          error: error instanceof Error ? error.message : "Unknown error",
+          model: this.model,
+        });
+
+        if (attempt === maxRetries) {
+          throw new Error(
+            `Failed to stream response after ${maxRetries} attempts: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          );
+        }
+
+        // Exponential backoff
+        const currentDelay = backoffDelay * Math.pow(2, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, currentDelay));
+      }
+    }
+
+    throw new Error("Failed to stream response after multiple retries.");
+  }
+
+  /**
+   * Stream text generation using Gemini API with incremental updates
+   * Calls onChunk callback for each chunk of text as it arrives
+   * Implements proper SSE (Server-Sent Events) parsing for Gemini streaming API
+   */
+  async streamText(
+    prompt: string,
+    onChunk: (chunk: string, accumulated: string) => Promise<void> | void,
+  ): Promise<string> {
+    return this.streamTextWithConfig(prompt, onChunk, {
+      maxOutputTokens: 2048,
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95,
+    });
+  }
+
+  /**
    * Generate text using Gemini API (for text improvement, etc.)
    */
   async generateText(prompt: string): Promise<string> {

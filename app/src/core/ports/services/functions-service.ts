@@ -248,6 +248,8 @@ export interface FunctionsService {
       content: string;
       attachments?: string[];
     }>;
+    conversationId?: string;
+    pageSlug?: string;
   }): Promise<{ response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string }>;
   updateAnalyticsScript(payload: {
     brandSiteId: string;

@@ -100,6 +100,44 @@ export async function handleGenerateSiteInit(
 
   let brandSiteId: string;
 
+  // Create initial conversation if context is provided
+  let initialConversation: {
+    id: string;
+    title: string;
+    messages: Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      timestamp: string;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+  } | null = null;
+  
+  if (input.context && input.context.trim()) {
+    const conversationId = `conv-initial-${Date.now()}`;
+    initialConversation = {
+      id: conversationId,
+      title: "Initial Website Creation",
+      messages: [
+        {
+          id: "welcome",
+          role: "assistant" as const,
+          content: "Hello! I'm your AI site builder. I'll help you create a beautiful, branded website. What would you like your website to be about?",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: `user-initial-${Date.now()}`,
+          role: "user" as const,
+          content: input.context.trim(),
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   if (existingSites.length > 0) {
     // Update existing site
     brandSiteId = existingSites[0].id;
@@ -109,6 +147,11 @@ export async function handleGenerateSiteInit(
     const pagesToPersist = normalizePagesForInit(
       input.pages ?? existingPages ?? [],
     );
+    const existingConversations = (existingSites[0] as any).conversations || [];
+    const updatedConversations = initialConversation 
+      ? [initialConversation, ...existingConversations]
+      : existingConversations;
+    
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
@@ -121,6 +164,7 @@ export async function handleGenerateSiteInit(
         context: input.context,
         contextImages: input.contextImages || [],
         pages: pagesToPersist,
+        conversations: updatedConversations,
       },
     });
   } else {
@@ -137,7 +181,7 @@ export async function handleGenerateSiteInit(
         contextImages: input.contextImages || [],
         pages: normalizePagesForInit(input.pages),
         versions: [],
-        conversations: [],
+        conversations: initialConversation ? [initialConversation] : [],
       },
     });
   }

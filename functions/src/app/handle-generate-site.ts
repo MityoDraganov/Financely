@@ -595,31 +595,25 @@ export async function handleGenerateSite(
 
   const pagesToGenerate = normalizePages((brandSite as any).pages);
 
-  // Verify status is pending (should be set by init function)
-  if (brandSite.status !== "pending") {
-    logger.warn("Brand site status is not pending, updating to pending", {
+  // Verify status is pending or generating (generating means another instance started it)
+  if (brandSite.status !== "pending" && brandSite.status !== "generating") {
+    logger.warn("Brand site status is not pending/generating, updating to generating", {
       brandSiteId,
       currentStatus: brandSite.status,
     });
-      errorContext.stage = "status_update";
-    await brandSiteRepository.update({
-      id: brandSiteId,
-      data: {
-        status: "pending",
-      },
-    });
-  }
-
-    logger.debug("Step 5: Updating status to generating", {
-      brandSiteId,
-    });
-    errorContext.stage = "status_update_to_generating";
+    errorContext.stage = "status_update";
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
         status: "generating",
       },
     });
+  } else if (brandSite.status === "generating") {
+    // Status is already generating - this is fine, continue processing
+    logger.info("Brand site already in generating status, continuing", {
+      brandSiteId,
+    });
+  }
 
     logger.debug("Step 6: Initializing Gemini service", {
       brandSiteId,
@@ -974,7 +968,10 @@ export async function handleGenerateSite(
           .filter(Boolean)
           .join("\n\n");
 
-        let pageHtml = await geminiService.generateSiteHtml({
+        // Use streaming generation for live preview
+        // Update Firestore progressively as HTML chunks arrive
+        let pageHtml = "";
+        const pageContextForPrompt = {
           brandName,
           colors: brandColors,
           logoUrl,
@@ -990,8 +987,91 @@ export async function handleGenerateSite(
           pageSlug: page.slug,
           pageType: page.type,
           pageContentEntries: page.contentEntries,
-        });
+        };
 
+        // Throttle Firestore updates to avoid excessive writes (max 1 update per 500ms)
+        let lastUpdateTime = 0;
+        const UPDATE_INTERVAL = 500; // Update every 500ms
+
+        pageHtml = await geminiService.generateSiteHtmlStream(
+          pageContextForPrompt,
+          async (chunk: string, accumulated: string) => {
+            pageHtml = accumulated; // Update local variable
+            
+            // Throttle Firestore updates
+            const now = Date.now();
+            if (now - lastUpdateTime < UPDATE_INTERVAL && accumulated.length < 10000) {
+              // Skip update if too soon (unless we're near the end or have substantial content)
+              return;
+            }
+            lastUpdateTime = now;
+
+            // Update Firestore with progressive HTML for live preview
+            if (!brandSiteId) {
+              logger.warn("Cannot update Firestore preview: brandSiteId is undefined");
+              return;
+            }
+
+            try {
+              // Store the page HTML in the files map for preview
+              const pageFiles = {
+                ...((brandSite.files as Record<string, string>) || {}),
+                [`${page.slug}/index.html`]: accumulated,
+              };
+
+              await brandSiteRepository.update({
+                id: brandSiteId,
+                data: {
+                  files: pageFiles,
+                  // Keep status as "generating" to indicate preview is updating
+                  status: "generating",
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                } as any,
+              });
+
+              logger.debug("Updated Firestore with HTML chunk", {
+                brandSiteId,
+                pageSlug: page.slug,
+                htmlLength: accumulated.length,
+                chunkLength: chunk.length,
+              });
+            } catch (updateError) {
+              // Don't fail the entire generation if preview update fails
+              logger.warn("Failed to update Firestore preview", {
+                error: updateError instanceof Error ? updateError.message : "Unknown error",
+                brandSiteId,
+                pageSlug: page.slug,
+              });
+            }
+          }
+        );
+
+        // Fallback to non-streaming if streaming fails (for backward compatibility)
+        if (!pageHtml || pageHtml.length === 0) {
+          logger.warn("Streaming returned empty HTML, falling back to non-streaming", {
+            brandSiteId,
+            pageSlug: page.slug,
+          });
+          pageHtml = await geminiService.generateSiteHtml({
+            brandName,
+            colors: brandColors,
+            logoUrl,
+            tone,
+            description,
+            brandImages,
+            context: pageContext || brandSite.context,
+            contextImages: brandSite.contextImages || [],
+            products: productsForContext,
+            widgets: widgetContext,
+            pageTitle: page.title,
+            pagePurpose: pagePurpose || page.description || description || "",
+            pageSlug: page.slug,
+            pageType: page.type,
+            pageContentEntries: page.contentEntries,
+          });
+        }
+
+        // Process the HTML (inject navigation and integrations) after generation
         pageHtml = injectNavigation(
           pageHtml,
           pagesToGenerate,

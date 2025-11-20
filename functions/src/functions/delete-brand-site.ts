@@ -87,74 +87,81 @@ export const deleteBrandSite = onCall<DeleteBrandSitePayload>(
       }
 
       // Delete Cloudflare DNS records if subdomain exists
+      // This MUST succeed - DNS cleanup failure is a hard error that prevents site deletion
+      // We cannot leave orphaned DNS records that will cause "already exists" errors on next create
       if (brandSite.subdomain) {
-        try {
+        const fullSubdomain = `${brandSite.subdomain}.${cloudflareBaseDomain.value()}`;
+        
+        // Log cleanup parameters for debugging
+        loggerService.info("Cloudflare cleanup parameters", {
+          brandSiteId,
+          subdomain: brandSite.subdomain,
+          fullSubdomain,
+          baseDomain: cloudflareBaseDomain.value(),
+          zoneId: cloudflareZoneId.value(),
+        });
+
           const cloudflareService = new CloudflareService({
             apiToken: cloudflareApiToken.value(),
             zoneId: cloudflareZoneId.value(),
             baseDomain: cloudflareBaseDomain.value(),
           });
 
-          const fullSubdomain = `${brandSite.subdomain}.${cloudflareBaseDomain.value()}`;
-          
-          try {
-            // Find DNS records for this subdomain
-            const records = await cloudflareService.listDnsRecords(fullSubdomain, "CNAME");
-            
-            // Also check for A records (in case there are any)
-            const aRecords = await cloudflareService.listDnsRecords(fullSubdomain, "A");
-            const allRecords = [...records, ...aRecords];
+        loggerService.info("Deleting all Cloudflare DNS records for subdomain", {
+                    brandSiteId,
+                    subdomain: fullSubdomain,
+        });
 
-            if (allRecords.length > 0) {
-              // Delete all found records
-              for (const record of allRecords) {
-                try {
-                  await cloudflareService.deleteDnsRecord(record.id);
-                  loggerService.info("Deleted Cloudflare DNS record", {
+        // Use the robust deletion method that handles all record types, retries, and verification
+        // This will throw if records cannot be deleted after all retries
+        // We delete CNAME, A, and AAAA records (all types we might create)
+        await cloudflareService.deleteAllDnsRecords(fullSubdomain, ["CNAME", "A", "AAAA"]);
+
+        // Final verification: check one more time to ensure absolutely nothing remains
+        const allRecords = await cloudflareService.listDnsRecords();
+        const remainingRecords = allRecords.filter(
+          (record) => record.name.toLowerCase() === fullSubdomain.toLowerCase(),
+        );
+
+        if (remainingRecords.length > 0) {
+          // This should not happen if deleteAllDnsRecords worked correctly
+          // But we check anyway to be absolutely sure
+          loggerService.error("CRITICAL: DNS records still exist after deletion", {
                     brandSiteId,
                     subdomain: fullSubdomain,
-                    recordId: record.id,
-                    recordType: record.type,
-                  });
-                } catch (deleteError) {
-                  loggerService.warn("Failed to delete Cloudflare DNS record (continuing)", {
-                    brandSiteId,
-                    subdomain: fullSubdomain,
-                    recordId: record.id,
-                    error: deleteError instanceof Error ? deleteError.message : "Unknown error",
-                  });
+            remainingRecords: remainingRecords.map((r) => ({
+              id: r.id,
+              type: r.type,
+              name: r.name,
+            })),
+          });
+          throw new HttpsError(
+            "internal",
+            `Failed to delete all Cloudflare DNS records. Remaining records: ${remainingRecords.map((r) => `${r.type}:${r.name} (${r.id})`).join(", ")}. Site was not fully deleted. Please try again later or contact support.`,
+          );
                 }
-              }
-            } else {
-              loggerService.info("No Cloudflare DNS records found for subdomain", {
+
+        loggerService.info("Successfully deleted and verified all Cloudflare DNS records", {
                 brandSiteId,
                 subdomain: fullSubdomain,
               });
-            }
-          } catch (cloudflareError) {
-            loggerService.warn("Failed to delete Cloudflare DNS records (continuing)", {
+      } else {
+        // Log warning if subdomain is missing - this could indicate data inconsistency
+        loggerService.warn("Brand site has no subdomain - skipping Cloudflare DNS cleanup", {
               brandSiteId,
+          hasSubdomain: !!brandSite.subdomain,
               subdomain: brandSite.subdomain,
-              error: cloudflareError instanceof Error ? cloudflareError.message : "Unknown error",
-            });
-            // Continue with deletion even if Cloudflare cleanup fails
-          }
-        } catch (cloudflareInitError) {
-          loggerService.warn("Failed to initialize Cloudflare service (continuing)", {
-            brandSiteId,
-            error: cloudflareInitError instanceof Error ? cloudflareInitError.message : "Unknown error",
-          });
-          // Continue with deletion even if Cloudflare initialization fails
-        }
+        });
       }
 
-      // Delete Firebase Hosting site if it exists
+      // Delete Firebase Hosting site and all preview sites
       try {
         const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
         if (projectId) {
           const hostingService = new FirebaseHostingService({ projectId });
           const siteId = `brand-${brandSiteId}`;
           
+          // Delete main site
           try {
             await hostingService.deleteSite(siteId);
             loggerService.info("Deleted Firebase Hosting site", { brandSiteId, siteId });
@@ -167,6 +174,51 @@ export const deleteBrandSite = onCall<DeleteBrandSitePayload>(
                 error: hostingError instanceof Error ? hostingError.message : "Unknown error",
               });
             }
+          }
+
+          // Delete all preview sites for this brand site
+          // Preview sites follow the pattern: brand-{brandSiteId}-preview-{channelId}
+          try {
+            const previewSitePattern = `${siteId}-preview-`;
+            const allSites = await hostingService.listAllSites();
+            const previewSites = allSites.filter((site) =>
+              site.siteId?.startsWith(previewSitePattern)
+            );
+
+            if (previewSites.length > 0) {
+              loggerService.info("Found preview sites to delete", {
+                brandSiteId,
+                count: previewSites.length,
+                previewSiteIds: previewSites.map((s) => s.siteId),
+              });
+
+              for (const previewSite of previewSites) {
+                if (previewSite.siteId) {
+                  try {
+                    await hostingService.deleteSite(previewSite.siteId);
+                    loggerService.info("Deleted preview site", {
+                      brandSiteId,
+                      previewSiteId: previewSite.siteId,
+                    });
+                  } catch (previewError: any) {
+                    // Log but continue deleting other preview sites
+                    if (previewError?.code !== 404 && previewError?.status !== 404) {
+                      loggerService.warn("Failed to delete preview site (continuing)", {
+                        brandSiteId,
+                        previewSiteId: previewSite.siteId,
+                        error: previewError instanceof Error ? previewError.message : "Unknown error",
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          } catch (previewListError) {
+            loggerService.warn("Failed to list preview sites for cleanup (continuing)", {
+              brandSiteId,
+              error: previewListError instanceof Error ? previewListError.message : "Unknown error",
+            });
+            // Continue with deletion even if preview cleanup fails
           }
         }
       } catch (hostingError) {

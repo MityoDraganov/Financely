@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { useChatGenerateSite } from "@/hooks/service-hooks/use-chat-generate-site";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
 import { useBrandSite, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
+import { StreamingText } from "./streaming-text";
+import { ProcessingStepAnimation, type ProcessingStep } from "./processing-step-animation";
 
 interface ChatMessage {
   id: string;
@@ -17,6 +19,7 @@ interface ChatMessage {
   attachments?: string[];
   timestamp: string;
   isTyping?: boolean;
+  processingStep?: ProcessingStep; // For showing animations during processing
 }
 
 interface AIChatBuilderProps {
@@ -35,8 +38,10 @@ interface UploadingImage {
 export function AIChatBuilder({
   brandSiteId,
   organizationId,
-  onSiteUpdated,
 }: AIChatBuilderProps) {
+
+  console.log("🟢 AIChatBuilder props:", { brandSiteId, organizationId });
+
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -48,83 +53,25 @@ export function AIChatBuilder({
   const uploadFile = useUploadFile();
   const chatGenerateSite = useChatGenerateSite();
   const { data: brandSite } = useBrandSite(brandSiteId);
+  
+  // Debug: Log brandSite updates
+  useEffect(() => {
+    if (brandSite) {
+      console.log("📦 brandSite updated:", {
+        id: brandSite.id,
+        status: brandSite.status,
+        hasFiles: !!brandSite.files,
+        filesCount: brandSite.files ? Object.keys(brandSite.files).length : 0,
+        fileKeys: brandSite.files ? Object.keys(brandSite.files) : [],
+        hasConversations: !!brandSite.conversations,
+        conversationsCount: brandSite.conversations?.length || 0,
+      });
+    }
+  }, [brandSite]);
   const updateBrandSite = useUpdateBrandSite();
-
-  // Get pages from brand site
-  const pages = (brandSite?.pages as Array<{ id: string; title: string; slug: string }>) || [];
-  const currentPage = selectedPageSlug === "all" ? null : (pages.find(p => p.slug === selectedPageSlug) || pages[0]);
   
-  // Update selected page when pages change (e.g., when a new page is added)
-  useEffect(() => {
-    // Only update if current selection is invalid and not "all"
-    if (selectedPageSlug !== "all" && pages.length > 0 && !pages.find(p => p.slug === selectedPageSlug)) {
-      // Current selection is invalid, default to index or first page
-      const indexPage = pages.find(p => p.slug === "index");
-      setSelectedPageSlug(indexPage ? "index" : pages[0].slug);
-    }
-  }, [pages, selectedPageSlug]);
-
-  // Load conversations from brandSite (only on initial load or when brandSite changes)
-  const [hasLoadedConversations, setHasLoadedConversations] = useState(false);
-  
-  useEffect(() => {
-    // Only auto-load conversations on initial mount, not when currentConversationId changes
-    if (hasLoadedConversations) return;
-    
-    if (!brandSite?.conversations || brandSite.conversations.length === 0) {
-      // No conversations yet, start fresh
-      setCurrentConversationId(null);
-      setMessages([
-        {
-          id: "welcome",
-          role: "assistant",
-          content: "Hello! I'm your AI site builder. I can help you create or update your website. What would you like to do?\n",
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-      setHasLoadedConversations(true);
-      return;
-    }
-
-    // Load the most recent conversation by default (only on initial load)
-    const sortedConversations = [...brandSite.conversations].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-    const latestConversation = sortedConversations[0];
-    
-    if (latestConversation) {
-      setCurrentConversationId(latestConversation.id);
-      setMessages(latestConversation.messages.map(msg => ({
-        ...msg,
-        isTyping: false, // Remove typing indicators when loading
-      })));
-    }
-    
-    setHasLoadedConversations(true);
-  }, [brandSite?.conversations, brandSiteId, hasLoadedConversations]);
-
-  // Watch for conversation updates from Firestore (when async processing completes)
-  useEffect(() => {
-    if (!currentConversationId || !brandSite?.conversations) return;
-
-    const conversation = brandSite.conversations.find(c => c.id === currentConversationId);
-    if (conversation) {
-      // Update messages if conversation was updated (e.g., AI response added)
-      const conversationMessages = conversation.messages.map(msg => ({
-        ...msg,
-        isTyping: false,
-      }));
-      
-      // Only update if the conversation has more messages than current state
-      // This prevents overwriting local state with stale data
-      if (conversationMessages.length > messages.length) {
-        setMessages(conversationMessages);
-      }
-    }
-  }, [brandSite?.conversations, currentConversationId]);
-
   // Helper function to save conversation to Firestore
-  const saveConversation = async (conversationId: string, conversationMessages: ChatMessage[], title?: string) => {
+  const saveConversation = useMemo(() => async (conversationId: string, conversationMessages: ChatMessage[], title?: string) => {
     if (!brandSiteId) return;
 
     const conversations = brandSite?.conversations || [];
@@ -159,7 +106,377 @@ export function AIChatBuilder({
         conversations: updatedConversations,
       },
     });
-  };
+  }, [brandSiteId, brandSite?.conversations, updateBrandSite]);
+  
+  // Track processing step based on brand site status
+  const getProcessingStep = useMemo(() => (): ProcessingStep | undefined => {
+    if (!brandSite?.status) return undefined;
+    if (brandSite.status === "pending") return "initializing";
+    if (brandSite.status === "generating") return "generating";
+    if (brandSite.status === "deploying") return "deploying";
+    if (brandSite.status === "success") return "complete";
+    return undefined;
+  }, [brandSite?.status]);
+
+  // Get pages from brand site
+  const pages = useMemo(() => {
+    return (brandSite?.pages as Array<{ id: string; title: string; slug: string }>) || [];
+  }, [brandSite?.pages]);
+  const currentPage = selectedPageSlug === "all" ? null : (pages.find(p => p.slug === selectedPageSlug) || pages[0]);
+  
+  // Update selected page when pages change (e.g., when a new page is added)
+  useEffect(() => {
+    // Only update if current selection is invalid and not "all"
+    if (selectedPageSlug !== "all" && pages.length > 0 && !pages.find(p => p.slug === selectedPageSlug)) {
+      // Current selection is invalid, default to index or first page
+      const indexPage = pages.find(p => p.slug === "index");
+      setSelectedPageSlug(indexPage ? "index" : pages[0].slug);
+    }
+  }, [pages, selectedPageSlug]);
+
+  // Load conversations from brandSite (only on initial load or when brandSite changes)
+  const [hasLoadedConversations, setHasLoadedConversations] = useState(false);
+  
+  useEffect(() => {
+    // Only auto-load conversations on initial mount, not when currentConversationId changes
+    if (hasLoadedConversations) return;
+    
+    if (!brandSite?.conversations || brandSite.conversations.length === 0) {
+      // Check if there's a context (initial user description) from site creation
+      const initialContext = (brandSite as { context?: string })?.context;
+      
+      if (initialContext) {
+        // Create initial conversation with AI message first, then user's description
+        const conversationId = `conv-initial-${Date.now()}`;
+        setCurrentConversationId(conversationId);
+        
+        const initialMessages: ChatMessage[] = [
+          {
+            id: "welcome",
+            role: "assistant",
+            content: "Hello! I'm your AI site builder. I'll help you create a beautiful, branded website. What would you like your website to be about?",
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: `user-initial-${Date.now()}`,
+            role: "user",
+            content: initialContext,
+            timestamp: new Date().toISOString(),
+          },
+        ];
+        
+        setMessages(initialMessages);
+        
+        // Save this conversation to Firestore
+        saveConversation(conversationId, initialMessages, "Initial Website Creation").catch((err: unknown) => {
+          console.error("Failed to save initial conversation:", err);
+        });
+      } else {
+        // No context, show welcome message
+        setCurrentConversationId(null);
+        setMessages([
+          {
+            id: "welcome",
+            role: "assistant",
+            content: "Hello! I'm your AI site builder. I can help you create or update your website. What would you like to do?\n",
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
+      
+      setHasLoadedConversations(true);
+      return;
+    }
+
+    // Load the most recent conversation by default (only on initial load)
+    const sortedConversations = [...brandSite.conversations].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    const latestConversation = sortedConversations[0];
+    
+    if (latestConversation) {
+      setCurrentConversationId(latestConversation.id);
+      setMessages(latestConversation.messages.map(msg => ({
+        ...msg,
+        isTyping: false, // Remove typing indicators when loading
+      })));
+    }
+    
+      setHasLoadedConversations(true);
+  }, [brandSite?.conversations, brandSiteId, hasLoadedConversations, brandSite, saveConversation]);
+
+  // Watch for conversation updates from Firestore (when async processing completes or streaming)
+  useEffect(() => {
+    if (!brandSite?.conversations || brandSite.conversations.length === 0) {
+      return;
+    }
+
+    // If currentConversationId is set, use that conversation
+    // Otherwise, check all conversations for streaming messages (in case conversationId hasn't been set yet)
+    let conversation: typeof brandSite.conversations[0] | undefined;
+    
+    if (currentConversationId) {
+      conversation = brandSite.conversations.find(c => c.id === currentConversationId);
+      if (!conversation) {
+        console.log("⚠️ Conversation not found", {
+          currentConversationId,
+          availableIds: brandSite.conversations.map(c => c.id),
+        });
+        return;
+      }
+    } else {
+      // No currentConversationId - check all conversations for streaming messages
+      // This handles the case where streaming starts before currentConversationId is set
+      const conversationsWithStreaming = brandSite.conversations.filter(c => 
+        c.messages?.some((m: { id?: string; role: string }) => m.id?.startsWith("assistant-streaming"))
+      );
+      
+      if (conversationsWithStreaming.length > 0) {
+        // Use the most recently updated conversation with streaming
+        conversation = conversationsWithStreaming.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+        
+        // Set currentConversationId to this conversation
+        if (conversation) {
+          console.log("🔍 Found streaming conversation, setting currentConversationId", {
+            conversationId: conversation.id,
+          });
+          setCurrentConversationId(conversation.id);
+        }
+      } else {
+        // No streaming messages found, nothing to do
+        return;
+      }
+    }
+    
+    if (!conversation) {
+      return;
+    }
+
+    // Update messages if conversation was updated (e.g., AI response added or streamed)
+    const conversationMessages = conversation.messages.map(msg => ({
+      ...msg,
+      isTyping: false,
+    }));
+    
+    console.log("🟢 Conversation messages:", {
+      count: conversationMessages.length,
+      messages: conversationMessages.map(m => ({
+        id: m.id,
+        role: m.role,
+        contentLength: m.content?.length || 0,
+        preview: m.content?.substring(0, 50),
+      })),
+    });
+    
+    // Check if there's a streaming message being updated
+    const streamingMessage = conversationMessages.find(m => m.id?.startsWith("assistant-streaming"));
+    
+    console.log("🟢 Streaming message check:", {
+      found: !!streamingMessage,
+      id: streamingMessage?.id,
+      contentLength: streamingMessage?.content?.length || 0,
+      preview: streamingMessage?.content?.substring(0, 100),
+      role: streamingMessage?.role,
+    });
+    // If we have a streaming message, always update to show latest content
+    if (streamingMessage) {
+      console.log("🟢 Streaming message detected:", {
+        id: streamingMessage.id,
+        contentLength: streamingMessage.content.length,
+        preview: streamingMessage.content.substring(0, 50),
+      });
+      
+      setMessages((prev) => {
+        // Remove any existing typing indicators
+        const withoutTyping = prev.filter(m => !m.isTyping);
+        
+        // Check if streaming message already exists
+        const existingIndex = withoutTyping.findIndex(m => m.id === streamingMessage.id);
+        
+        if (existingIndex >= 0) {
+          // Update existing streaming message
+          const updated = [...withoutTyping];
+          updated[existingIndex] = { ...streamingMessage, isTyping: false };
+          console.log("🔄 Updated streaming message:", updated[existingIndex].content.substring(0, 50));
+          return updated;
+        } else {
+          // Add new streaming message
+          console.log("➕ Added new streaming message");
+          return [...withoutTyping, { ...streamingMessage, isTyping: false }];
+        }
+      });
+      return;
+    }
+    
+    // For non-streaming messages, update if conversation has more messages or content changed
+    setMessages((prev) => {
+      // Remove typing indicators for comparison
+      const prevWithoutTyping = prev.filter(m => !m.isTyping);
+      
+      // If conversation has more messages, update
+      if (conversationMessages.length > prevWithoutTyping.length) {
+        console.log("📨 New messages detected:", conversationMessages.length - prevWithoutTyping.length);
+        return conversationMessages;
+      }
+      
+      // If same length, check for content changes
+      if (conversationMessages.length === prevWithoutTyping.length) {
+        const hasContentChange = conversationMessages.some((msg, idx) => {
+          const localMsg = prevWithoutTyping[idx];
+          return !localMsg || localMsg.content !== msg.content || localMsg.id !== msg.id;
+        });
+        
+        if (hasContentChange) {
+          console.log("🔄 Content changed in messages");
+          return conversationMessages;
+        }
+      }
+      
+      // No changes needed
+      return prev;
+    });
+  }, [brandSite?.conversations, currentConversationId, brandSite]);
+
+  // Watch for HTML streaming updates in files field (for live preview during generation)
+  // This works for initial site generation (no conversation needed)
+  useEffect(() => {
+    // Check if site is generating
+    if (brandSite?.status !== "generating" && brandSite?.status !== "pending") {
+      // Remove HTML streaming message when generation is complete
+      setMessages((prev) => prev.filter(m => !m.id?.startsWith("html-streaming")));
+      return;
+    }
+
+    if (!brandSite?.files || Object.keys(brandSite.files).length === 0) {
+      return;
+    }
+    
+    console.log("🔍 Checking for HTML files in brandSite.files", {
+      filesCount: Object.keys(brandSite.files).length,
+      fileKeys: Object.keys(brandSite.files),
+      status: brandSite.status,
+    });
+
+    // Find HTML files (could be index/index.html, index.html, or other pages)
+    const htmlFiles = Object.entries(brandSite.files).filter(([path]) => 
+      path.endsWith(".html") || path.endsWith("/index.html")
+    );
+    
+    if (htmlFiles.length === 0) {
+      return;
+    }
+
+    // Get the largest HTML file (likely the main page being generated)
+    const [largestPath, largestHtml] = htmlFiles.reduce((max, [path, html]) => 
+      html.length > max[1].length ? [path, html] : max,
+      ["", ""]
+    );
+
+    if (!largestHtml || largestHtml.length < 100) {
+      return; // Wait for substantial content
+    }
+
+    // Calculate approximate progress based on HTML length
+    // Typical HTML is 10-50KB, so we estimate progress
+    const estimatedTotalSize = 30000; // ~30KB average
+    const currentSize = largestHtml.length;
+    const progressPercent = Math.min(100, Math.round((currentSize / estimatedTotalSize) * 100));
+    
+    // Extract page name from path for display
+    const pageName = largestPath.includes("/") 
+      ? largestPath.split("/")[0] 
+      : largestPath.replace(".html", "");
+    
+    console.log("📝 HTML streaming update detected", {
+      path: largestPath,
+      pageName,
+      size: currentSize,
+      progress: progressPercent,
+      status: brandSite.status,
+      preview: largestHtml.substring(0, 100),
+    });
+    
+    setMessages((prev) => {
+      const hasHtmlStreamingMessage = prev.some(m => m.id?.startsWith("html-streaming"));
+      const withoutHtmlStreaming = prev.filter(m => !m.id?.startsWith("html-streaming"));
+      
+      const htmlStreamingMessage: ChatMessage = {
+        id: `html-streaming-${Date.now()}`,
+        role: "assistant",
+        content: `🎨 Generating website HTML...\n\n📄 Page: ${pageName}\n📊 Progress: ~${progressPercent}% (${Math.round(currentSize / 1000)}KB generated)\n\n✨ Your website is being created in real-time!`,
+        timestamp: new Date().toISOString(),
+        isTyping: false,
+      };
+      
+      if (hasHtmlStreamingMessage) {
+        // Update existing HTML streaming message
+        const existingIndex = prev.findIndex(m => m.id?.startsWith("html-streaming"));
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...prev[existingIndex],
+            content: htmlStreamingMessage.content,
+            timestamp: new Date().toISOString(),
+          };
+          console.log("🔄 Updated HTML streaming message", {
+            progress: progressPercent,
+            size: currentSize,
+          });
+          return updated;
+        }
+      }
+      
+      // Add new HTML streaming message
+      console.log("➕ Added new HTML streaming message", {
+        progress: progressPercent,
+        size: currentSize,
+        path: largestPath,
+      });
+      return [...withoutHtmlStreaming, htmlStreamingMessage];
+    });
+  }, [brandSite?.files, brandSite?.status]);
+
+  // Add typing message with animation when site is generating (for initial site creation)
+  useEffect(() => {
+    if (!brandSite?.status || !currentConversationId) return;
+    
+    const currentStep = getProcessingStep();
+    if (!currentStep || currentStep === "complete") {
+      // Remove typing message when complete
+      setMessages((prev) => prev.filter(m => !m.isTyping || m.id?.startsWith("typing-site-gen")));
+      return;
+    }
+
+    // Check if we need to add a typing message for site generation
+    setMessages((prev) => {
+      const hasTypingMessage = prev.some(m => m.isTyping && m.id?.startsWith("typing-site-gen"));
+      const lastMessage = prev[prev.length - 1];
+      const isUserMessage = lastMessage?.role === "user";
+      
+      // If last message is user and site is generating, add typing indicator
+      if (isUserMessage && !hasTypingMessage && (brandSite.status === "pending" || brandSite.status === "generating" || brandSite.status === "deploying")) {
+        const typingMessage: ChatMessage = {
+          id: `typing-site-gen-${Date.now()}`,
+          role: "assistant",
+          content: "Generating site with AI...\n\nThis may take 1-2 minutes",
+          timestamp: new Date().toISOString(),
+          isTyping: true,
+          processingStep: currentStep,
+        };
+        return [...prev, typingMessage];
+      } else if (hasTypingMessage) {
+        // Update existing typing message with current step
+        return prev.map((msg) =>
+          msg.isTyping && msg.id?.startsWith("typing-site-gen")
+            ? { ...msg, processingStep: currentStep }
+            : msg
+        );
+      }
+      return prev;
+    });
+  }, [brandSite?.status, currentConversationId, getProcessingStep, brandSite]);
 
   // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
   useEffect(() => {
@@ -323,6 +640,7 @@ export function AIChatBuilder({
     // Create new conversation if this is the first message
     const conversationId = currentConversationId || `conv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     if (!currentConversationId) {
+      console.log("📝 Setting currentConversationId before sending message", { conversationId });
       setCurrentConversationId(conversationId);
     }
 
@@ -343,13 +661,15 @@ export function AIChatBuilder({
     // Save user message immediately
     await saveConversation(conversationId, updatedMessages);
 
-    // Add typing indicator
+    // Add typing indicator with processing step
+    const currentStep = getProcessingStep();
     const typingMessage: ChatMessage = {
       id: `typing-${Date.now()}`,
       role: "assistant",
       content: "",
       timestamp: new Date().toISOString(),
       isTyping: true,
+      processingStep: currentStep || "analyzing",
     };
     const messagesWithTyping = [...updatedMessages, typingMessage];
     setMessages(messagesWithTyping);
@@ -370,29 +690,21 @@ export function AIChatBuilder({
         message: userMessage.content,
         attachments: currentAttachments,
         conversationHistory,
-        conversationId,
-        pageSlug: selectedPageSlug === "all" ? undefined : selectedPageSlug, // "all" means undefined (edit entire site)
+        ...(conversationId && { conversationId }),
+        ...(selectedPageSlug !== "all" && { pageSlug: selectedPageSlug }),
+      } as {
+        brandSiteId: string;
+        message: string;
+        attachments: string[];
+        conversationHistory: Array<{ role: "user" | "assistant"; content: string; attachments?: string[] }>;
+        conversationId?: string;
+        pageSlug?: string;
       },
       {
-        onSuccess: async (data) => {
-          // Remove typing indicator
-          const messagesWithoutTyping = messagesWithTyping.filter((m) => !m.isTyping);
-
-          // Add temporary "processing" message - will be replaced when Firestore updates
-          const processingMessage: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            content: data.response || "Processing your request...",
-            timestamp: new Date().toISOString(),
-          };
-          const tempMessages = [...messagesWithoutTyping, processingMessage];
-          setMessages(tempMessages);
-
-          // Save conversation with processing message
-          await saveConversation(conversationId, tempMessages);
-
-          // The actual response will come from Firestore when processing completes
-          // The useBrandSite hook will poll and update automatically
+        onSuccess: async () => {
+          // Keep typing indicator visible - it will be replaced when streaming message arrives
+          // The backend will create a streaming message that we'll pick up via polling
+          console.log("✅ Chat request sent, waiting for streaming response...");
         },
         onError: async (error) => {
           // Remove typing indicator
@@ -544,9 +856,19 @@ export function AIChatBuilder({
                 }`}
               >
                 {message.isTyping ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>AI is thinking...</span>
+                  <div className="space-y-4">
+                    {message.processingStep && (
+                      <div className="flex justify-center py-2">
+                        <ProcessingStepAnimation
+                          step={message.processingStep}
+                          size={80}
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>AI is thinking...</span>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -563,7 +885,15 @@ export function AIChatBuilder({
                         ))}
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {message.content ? (
+                      <StreamingText
+                        text={message.content}
+                        speed={1}
+                        interval={50}
+                        shouldStream={message.role === "assistant"} // Only stream assistant messages
+                        className="whitespace-pre-wrap"
+                      />
+                    ) : null}
                   </>
                 )}
               </div>

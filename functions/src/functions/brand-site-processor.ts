@@ -49,6 +49,38 @@ export const onBrandSiteCreated = onDocumentCreated(
       return;
     }
 
+    // Guard against duplicate processing: immediately update status to "generating"
+    // This prevents multiple triggers from processing the same site
+    const databaseService = getDatabaseService();
+    const brandSiteRepository = getBrandSiteRepository(databaseService);
+    
+    try {
+      // Try to atomically update status from "pending" to "generating"
+      // If this fails, another instance is already processing
+      const currentBrandSite = await brandSiteRepository.get({ id: brandSiteId });
+      if (!currentBrandSite || currentBrandSite.status !== "pending") {
+        logger.info("Brand site status changed, another instance is processing", {
+          brandSiteId,
+          currentStatus: currentBrandSite?.status,
+        });
+        return;
+      }
+
+      // Atomically update status to prevent duplicate processing
+      await brandSiteRepository.update({
+        id: brandSiteId,
+        data: {
+          status: "generating",
+        },
+      });
+    } catch (error) {
+      logger.warn("Failed to update status, another instance may be processing", {
+        brandSiteId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return;
+    }
+
     logger.info("Processing brand site generation", {
       brandSiteId,
       organizationId: brandSiteData.organizationId,
@@ -166,7 +198,8 @@ export const onBrandSiteUpdated = onDocumentUpdated(
           },
         );
 
-        // Update the conversation with the AI response
+        // The conversation should already be updated by handleChatGenerateSite via streaming
+        // We just need to clear the chatRequest and ensure the final message is there
         const databaseService = getDatabaseService();
         const brandSiteRepository = getBrandSiteRepository(databaseService);
         
@@ -177,26 +210,54 @@ export const onBrandSiteUpdated = onDocumentUpdated(
           
           let updatedConversations = conversations;
           if (conversationId) {
-            // Find and update the conversation
+            // Find the conversation
             const conversationIndex = conversations.findIndex((c) => c.id === conversationId);
             if (conversationIndex >= 0) {
               const conversation = conversations[conversationIndex];
               updatedConversations = [...conversations];
-              updatedConversations[conversationIndex] = {
-                ...conversation,
-                messages: [
-                  ...conversation.messages,
-                  {
-                    id: `assistant-${Date.now()}`,
-                    role: "assistant",
-                    content: result.response,
-                    timestamp: new Date().toISOString(),
-                  },
-                ],
-                updatedAt: new Date().toISOString(),
-              };
+              
+              // Check if there's already a streaming message that was updated
+              const streamingMessageIndex = conversation.messages.findIndex(
+                (m: any) => m.role === "assistant" && m.id?.startsWith("assistant-streaming")
+              );
+              
+              if (streamingMessageIndex >= 0) {
+                // Update the existing streaming message with final content (rename ID to final)
+                const streamingMessage = conversation.messages[streamingMessageIndex];
+                updatedConversations[conversationIndex] = {
+                  ...conversation,
+                  messages: conversation.messages.map((msg: any, idx: number) => {
+                    if (idx === streamingMessageIndex) {
+                      // Convert streaming message to final message
+                      return {
+                        ...streamingMessage,
+                        id: `assistant-${Date.now()}`,
+                        content: result.response || streamingMessage.content,
+                        timestamp: new Date().toISOString(),
+                      };
+                    }
+                    return msg;
+                  }),
+                  updatedAt: new Date().toISOString(),
+                };
+              } else {
+                // No streaming message found, add final message
+                updatedConversations[conversationIndex] = {
+                  ...conversation,
+                  messages: [
+                    ...conversation.messages,
+                    {
+                      id: `assistant-${Date.now()}`,
+                      role: "assistant",
+                      content: result.response,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                };
+              }
             } else {
-              // Create new conversation if not found
+              // Create new conversation if not found (shouldn't happen, but handle it)
               updatedConversations = [
                 ...conversations,
                 {

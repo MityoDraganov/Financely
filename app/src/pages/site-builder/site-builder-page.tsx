@@ -212,6 +212,8 @@ export default function SiteBuilderPage() {
 	const [articleBeingEdited, setArticleBeingEdited] = useState<PageContentEntry | null>(null);
 	const [pageForArticle, setPageForArticle] = useState<SitePage | null>(null);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [showCreateSiteDialog, setShowCreateSiteDialog] = useState(false);
+	const [siteDescription, setSiteDescription] = useState("");
 	const updateBrandSitePages = useUpdateBrandSitePages();
 	const updateBrandSite = useUpdateBrandSite(); // For file updates (not pages)
 	const generateSite = useGenerateSite();
@@ -1309,47 +1311,13 @@ export default function SiteBuilderPage() {
 								<Button
 									size="lg"
 									onClick={() => {
-										if (!organization?.id) return;
-										generateSite.mutate(
-											{
-												organizationId: organization.id,
-												brandName:
-													organization.settings
-														?.branding
-														?.companyName ||
-													organization.name,
-												tone: "professional",
-												pages: currentPages,
-											},
-											{
-												onSuccess: (result) => {
-													setCurrentBrandSiteId(
-														result.id
-													);
-													toast.success(
-														"Site created! Start chatting to customize it."
-													);
-												},
-											}
-										);
+										setShowCreateSiteDialog(true);
 									}}
-									disabled={
-										generateSite.isPending ||
-										!organization?.id
-									}
+									disabled={!organization?.id}
 									className="gap-2"
 								>
-									{generateSite.isPending ? (
-										<>
-											<Loader2 className="h-4 w-4 animate-spin" />
-											Creating...
-										</>
-									) : (
-										<>
-											<Sparkles className="h-4 w-4" />
-											Create Site
-										</>
-									)}
+									<Sparkles className="h-4 w-4" />
+									Create Site
 								</Button>
 							</CardContent>
 						</Card>
@@ -2913,6 +2881,79 @@ export default function SiteBuilderPage() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			{/* Create Site Dialog */}
+			<Dialog open={showCreateSiteDialog} onOpenChange={setShowCreateSiteDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Create Your Website</DialogTitle>
+						<DialogDescription>
+							Describe what you want your website to be. The AI will help you create a beautiful, branded site.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label htmlFor="site-description">Website Description</Label>
+							<Textarea
+								id="site-description"
+								value={siteDescription}
+								onChange={(e) => setSiteDescription(e.target.value)}
+								placeholder="e.g., I need a website for my consulting business with a home page, about page, services page, and contact form"
+								className="min-h-[100px]"
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => {
+								setShowCreateSiteDialog(false);
+								setSiteDescription("");
+							}}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={() => {
+								if (!organization?.id) return;
+								setShowCreateSiteDialog(false);
+								generateSite.mutate(
+									{
+										organizationId: organization.id,
+										brandName:
+											organization.settings
+												?.branding
+												?.companyName ||
+											organization.name,
+										tone: "professional",
+										pages: currentPages,
+										context: siteDescription.trim() || undefined,
+									},
+									{
+										onSuccess: (result) => {
+											setCurrentBrandSiteId(result.id);
+											setSiteDescription("");
+											toast.success(
+												"Site created! Start chatting to customize it."
+											);
+										},
+									}
+								);
+							}}
+							disabled={generateSite.isPending || !organization?.id}
+						>
+							{generateSite.isPending ? (
+								<>
+									<Loader2 className="h-4 w-4 animate-spin mr-2" />
+									Creating...
+								</>
+							) : (
+								"Create Site"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

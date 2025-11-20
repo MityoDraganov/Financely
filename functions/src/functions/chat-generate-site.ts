@@ -62,6 +62,16 @@ export const chatGenerateSite = onCall<ChatGenerateSitePayload>(
       // Use a special field to indicate a chat request is pending
       const chatRequestId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       
+      // Ensure conversationId is set - create one if not provided
+      const finalConversationId = conversationId || `conv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      
+      logger.info("Storing chat request with conversationId", {
+        brandSiteId,
+        conversationId: finalConversationId,
+        wasProvided: !!conversationId,
+        chatRequestId,
+      });
+      
       await brandSiteRepository.update({
         id: brandSiteId,
         data: {
@@ -71,7 +81,7 @@ export const chatGenerateSite = onCall<ChatGenerateSitePayload>(
             message,
             attachments,
             conversationHistory,
-            conversationId: conversationId || null,
+            conversationId: finalConversationId, // Always set conversationId
             status: "pending",
             createdAt: new Date().toISOString(),
           },

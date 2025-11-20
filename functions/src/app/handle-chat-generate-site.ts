@@ -18,7 +18,7 @@ interface ChatGenerateSiteInput {
   message: string;
   attachments: string[];
   conversationHistory: ChatMessage[];
-  conversationId: string;
+  conversationId: string | null; // Can be null - will be created if needed
   pageSlug?: string; // Optional: specify which page to edit
 }
 
@@ -186,6 +186,7 @@ async function performIncrementalEdit(
   currentHtml: string,
   context: string,
   brandSite: any,
+  onStreamChunk?: (chunk: string, accumulated: string) => Promise<void>,
 ): Promise<{ response: string; updatedHtml: string }> {
   // For now, we'll do a simple approach - full regeneration with context
   // TODO: Implement proper incremental editing with HTML parsing
@@ -262,6 +263,50 @@ export async function handleChatGenerateSite(
       products,
     );
 
+    // Ensure conversationId exists - create one if not provided
+    let conversationId = input.conversationId;
+    if (!conversationId) {
+      conversationId = `conv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      logger.info("Created new conversationId", {
+        brandSiteId: input.brandSiteId,
+        conversationId,
+      });
+      
+      // Create the conversation in Firestore if it doesn't exist
+      const conversations = (brandSite.conversations as any[]) || [];
+      const conversationExists = conversations.some((c: any) => c.id === conversationId);
+      if (!conversationExists) {
+        const newConversation = {
+          id: conversationId,
+          title: input.message.substring(0, 50) || "New Conversation",
+          messages: [
+            ...input.conversationHistory,
+            {
+              id: `user-${Date.now()}`,
+              role: "user" as const,
+              content: input.message,
+              attachments: input.attachments,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        await brandSiteRepository.update({
+          id: input.brandSiteId,
+          data: {
+            conversations: [...conversations, newConversation],
+          } as any,
+        });
+        
+        logger.info("Created new conversation in Firestore", {
+          brandSiteId: input.brandSiteId,
+          conversationId,
+        });
+      }
+    }
+
     // Initialize Gemini
     const geminiService = new GeminiService({
       apiKey: config.geminiApiKey,
@@ -315,14 +360,144 @@ export async function handleChatGenerateSite(
       conversationContext,
     );
 
-    let response: string;
+    let response: string = "";
     let updatedHtml: string | undefined;
     let newPage: { slug: string; title: string; type: "blog" | "contact" | "standard" } | null = null;
     let requiresClarification = false;
+    
+    // Helper to update conversation in Firestore with streaming response
+    // Uses throttling to avoid too many Firestore writes (max 1 update per 300ms)
+    let lastStreamUpdate = 0;
+    const STREAM_UPDATE_INTERVAL = 300; // Update every 300ms
+    
+    const updateConversationWithStream = async (
+      accumulatedText: string,
+      isComplete: boolean = false,
+    ) => {
+      const now = Date.now();
+      
+      // Always update on first chunk (when accumulatedText is first created)
+      // Then throttle subsequent updates unless it's the final update
+      const isFirstChunk = accumulatedText.length > 0 && lastStreamUpdate === 0;
+      
+      if (!isComplete && !isFirstChunk && now - lastStreamUpdate < STREAM_UPDATE_INTERVAL) {
+        return;
+      }
+      
+      lastStreamUpdate = now;
+      
+      try {
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+        const brandSite = await brandSiteRepository.get({ id: input.brandSiteId });
+        if (!brandSite) {
+          logger.warn("Brand site not found for streaming update", { brandSiteId: input.brandSiteId });
+          return;
+        }
+
+        const conversations = (brandSite.conversations as any[]) || [];
+        // Use the conversationId we ensured exists above
+        if (!conversationId) {
+          logger.error("CRITICAL: conversationId is null in updateConversationWithStream", {
+            brandSiteId: input.brandSiteId,
+            inputConversationId: input.conversationId,
+          });
+          return;
+        }
+
+        const conversationIndex = conversations.findIndex((c) => c.id === conversationId);
+        if (conversationIndex < 0) {
+          logger.warn("Conversation not found for streaming update", {
+            conversationId,
+            availableConversationIds: conversations.map((c: any) => c.id),
+            brandSiteId: input.brandSiteId,
+          });
+          return;
+        }
+
+        const conversation = conversations[conversationIndex];
+        const updatedConversations = [...conversations];
+        
+        // Find or create assistant message
+        let assistantMessageIndex = conversation.messages.findIndex(
+          (m: any) => m.role === "assistant" && m.id?.startsWith("assistant-streaming")
+        );
+        
+        if (assistantMessageIndex < 0) {
+          // Create new streaming message
+          assistantMessageIndex = conversation.messages.length;
+          conversation.messages.push({
+            id: `assistant-streaming-${Date.now()}`,
+            role: "assistant" as const,
+            content: accumulatedText,
+            timestamp: new Date().toISOString(),
+          });
+          logger.info("✅ Created streaming message", { 
+            conversationId, 
+            messageId: conversation.messages[assistantMessageIndex].id,
+            contentLength: accumulatedText.length,
+            preview: accumulatedText.substring(0, 100),
+            brandSiteId: input.brandSiteId,
+            totalMessages: conversation.messages.length,
+          });
+        } else {
+          // Update existing streaming message
+          conversation.messages[assistantMessageIndex] = {
+            ...conversation.messages[assistantMessageIndex],
+            content: accumulatedText,
+            timestamp: new Date().toISOString(),
+          };
+          if (isFirstChunk || isComplete || accumulatedText.length % 100 === 0) {
+            logger.info("🔄 Updated streaming message", { 
+              conversationId, 
+              messageId: conversation.messages[assistantMessageIndex].id,
+              contentLength: accumulatedText.length,
+              isComplete,
+              preview: accumulatedText.substring(0, 50)
+            });
+          }
+        }
+
+        updatedConversations[conversationIndex] = {
+          ...conversation,
+          messages: conversation.messages,
+          updatedAt: new Date().toISOString(),
+        };
+
+        await brandSiteRepository.update({
+          id: input.brandSiteId,
+          data: {
+            conversations: updatedConversations,
+          } as any,
+        });
+        
+        logger.debug("✅ Successfully updated Firestore with streaming message", {
+          conversationId,
+          messageId: conversation.messages[assistantMessageIndex].id,
+          contentLength: accumulatedText.length,
+          brandSiteId: input.brandSiteId,
+        });
+      } catch (error) {
+        logger.error("Failed to update conversation with stream", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          brandSiteId: input.brandSiteId,
+          conversationId: input.conversationId,
+        });
+      }
+    };
 
     if (editAnalysis.editType === "clarification" && editAnalysis.clarificationQuestion) {
-      // AI needs clarification - use the dynamically generated question
-      response = editAnalysis.clarificationQuestion;
+      // AI needs clarification - stream the dynamically generated question
+      logger.info("Starting streaming for clarification question", { conversationId: input.conversationId });
+      response = await geminiService.streamText(
+        `You are a helpful AI website builder assistant. The user asked: "${input.message}". You need clarification. Respond with a friendly, concise question asking for the missing information. Be specific about what you need.`,
+        async (chunk, accumulated) => {
+          response = accumulated;
+          await updateConversationWithStream(accumulated, false);
+        }
+      );
+      logger.info("Streaming complete for clarification", { responseLength: response.length });
+      await updateConversationWithStream(response, true);
       requiresClarification = true;
     } else if (isPageCreationRequest && detectedPageType) {
       // Create a new page
@@ -381,7 +556,18 @@ export async function handleChatGenerateSite(
         pageType: detectedPageType,
       });
 
-      response = `I've created a new ${detectedPageType} page called "${detectedPageTitle}"! It will be available at /${finalSlug}.`;
+      // Stream response about page creation
+      logger.info("Starting streaming for page creation response", { conversationId: input.conversationId });
+      const pageCreationPrompt = `You are a helpful AI website builder. You just created a new ${detectedPageType} page called "${detectedPageTitle}" for the user. The page will be available at /${finalSlug}. Write a friendly, concise message (2-3 sentences) telling the user about this. Be enthusiastic but professional.`;
+      response = await geminiService.streamText(
+        pageCreationPrompt,
+        async (chunk, accumulated) => {
+          response = accumulated;
+          await updateConversationWithStream(accumulated, false);
+        }
+      );
+      logger.info("Streaming complete for page creation", { responseLength: response.length });
+      await updateConversationWithStream(response, true);
     } else if (editAnalysis.editType === "incremental" && currentHtml) {
       // Incremental edit - only modify requested parts
       if (isEditingEntireSite) {
@@ -442,7 +628,18 @@ export async function handleChatGenerateSite(
           data: updateData,
         });
         
-        response = "I've updated all pages across your site with the requested changes!";
+        // Stream response about site-wide update
+        logger.info("Starting streaming for site-wide update response", { conversationId: input.conversationId });
+        const siteUpdatePrompt = `You are a helpful AI website builder. You just updated all pages across the user's website with their requested changes: "${input.message}". Write a friendly, concise message (2-3 sentences) confirming this. Mention that all pages are being deployed.`;
+        response = await geminiService.streamText(
+          siteUpdatePrompt,
+          async (chunk, accumulated) => {
+            response = accumulated;
+            await updateConversationWithStream(accumulated, false);
+          }
+        );
+        logger.info("Streaming complete for site-wide update", { responseLength: response.length });
+        await updateConversationWithStream(response, true);
         updatedHtml = updatedMainHtml; // Set for deployment
       } else {
         // Editing specific page
@@ -470,8 +667,20 @@ export async function handleChatGenerateSite(
           `${conversationContext}\n\nIMPORTANT: You are editing ONLY the "${targetPageSlug}" page. Do NOT modify other pages. Focus your changes on this specific page only.`,
           brandSite,
         );
-        response = editResult.response;
         updatedHtml = editResult.updatedHtml;
+        
+        // Stream response about page update
+        logger.info("Starting streaming for page update response", { conversationId: input.conversationId, pageSlug: targetPageSlug });
+        const pageUpdatePrompt = `You are a helpful AI website builder. You just updated the "${targetPageSlug}" page based on the user's request: "${input.message}". Write a friendly, concise message (2-3 sentences) confirming the update. Mention that the page is being deployed.`;
+        response = await geminiService.streamText(
+          pageUpdatePrompt,
+          async (chunk, accumulated) => {
+            response = accumulated;
+            await updateConversationWithStream(accumulated, false);
+          }
+        );
+        logger.info("Streaming complete for page update", { responseLength: response.length });
+        await updateConversationWithStream(response, true);
       }
     } else {
       // Full generation or first generation
@@ -501,7 +710,18 @@ export async function handleChatGenerateSite(
         widgets: (brandSite as any).widgets,
       });
 
-      response = "I've generated your website! Check the preview to see the result.";
+      // Stream response about website generation
+      logger.info("Starting streaming for website generation response", { conversationId: input.conversationId });
+      const generationPrompt = `You are a helpful AI website builder. You just generated a complete website for the user based on their request: "${input.message}". Write a friendly, concise message (2-3 sentences) telling them the website is ready and they can check the preview. Be enthusiastic.`;
+      response = await geminiService.streamText(
+        generationPrompt,
+        async (chunk, accumulated) => {
+          response = accumulated;
+          await updateConversationWithStream(accumulated, false);
+        }
+      );
+      logger.info("Streaming complete for website generation", { responseLength: response.length });
+      await updateConversationWithStream(response, true);
     }
 
     // Update brand site if HTML was generated
