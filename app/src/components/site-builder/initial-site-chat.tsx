@@ -79,7 +79,7 @@ export function InitialSiteChat({
 
             {/* AI response with animation */}
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-lg p-3 bg-muted space-y-4">
+              <div className="w-[80%] max-w-[80%] min-w-[80%] rounded-lg p-3 bg-muted space-y-4">
                 {error ? (
                   <div className="text-destructive">
                     <p className="font-semibold mb-2">Error occurred:</p>

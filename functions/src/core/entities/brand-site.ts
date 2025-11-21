@@ -44,9 +44,14 @@ export const brandSiteDataSchema = z.object({
   status: brandSiteStatusSchema.default("pending"),
   subdomain: z.string().optional(),
   customDomain: z.string().optional(),
+  altDomains: z.array(z.string()).optional(), // Additional domains (e.g., www.example.com)
   deployedUrl: z.string().optional(),
   error: z.string().optional(),
   lastRegeneratedAt: z.string().optional(),
+  // Cloudflare hosting fields
+  currentVersionId: z.string().optional(), // Reference to latest live version in Cloudflare
+  primaryDomain: z.string().optional(), // Primary domain for this brand site (e.g., "acme-finance.com")
+  hostingProvider: z.enum(["firebase", "cloudflare"]).default("firebase"), // Track which hosting provider is used
   // AI generation context (temporary, not saved to brand)
   context: z.string().optional(),
   contextImages: z.array(z.string().url()).default([]),
@@ -90,10 +95,15 @@ export const brandSiteDataSchema = z.object({
   versions: z.array(
     z.object({
       version: z.number().int(),
+      versionId: z.string().optional(), // Cloudflare version ID (e.g., nanoid or timestamp-based)
       html: z.string(),
       files: z.record(z.string(), z.string()).optional(), // Store files for version history
       deployedUrl: z.string().optional(),
       previewUrl: z.string().optional(), // Preview URL for viewing without making live
+      sourceType: z.enum(["ai-builder", "manual", "imported"]).optional(), // How this version was created
+      aiPrompt: z.string().optional(), // AI prompt used to generate (if applicable)
+      notes: z.string().optional(), // User notes about this version
+      layoutConfig: z.unknown().optional(), // Optional layout config used to generate HTML
       metadata: z
         .object({
           generatedAt: z.string().optional(),
@@ -102,6 +112,7 @@ export const brandSiteDataSchema = z.object({
         })
         .optional(),
       createdAt: z.string(),
+      createdByUserId: z.string().optional(), // User who created this version
       description: z.string().optional(),
     })
   ).default([]),
@@ -164,12 +175,16 @@ export type UpdateBrandSiteInput = Partial<
     | "status"
     | "subdomain"
     | "customDomain"
+    | "altDomains"
     | "deployedUrl"
     | "error"
     | "metadata"
     | "lastRegeneratedAt"
     | "context"
     | "contextImages"
+    | "currentVersionId"
+    | "primaryDomain"
+    | "hostingProvider"
   >
 >;
 

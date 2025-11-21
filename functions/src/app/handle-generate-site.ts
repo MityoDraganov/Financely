@@ -5,6 +5,7 @@ import { getProductRepository } from "../repositories/product-repository";
 import { GeminiService } from "../services/gemini-service";
 import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
+import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
 import { logger } from "firebase-functions";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -25,6 +26,10 @@ interface GenerateSiteConfig {
   cloudflareZoneId: string;
   cloudflareBaseDomain: string;
   firebaseProjectId: string;
+  // Cloudflare publisher config (for R2 + KV)
+  cloudflareAccountId: string;
+  cloudflareR2BucketName: string;
+  cloudflareKvNamespaceId: string;
 }
 
 interface PageContentEntry {
@@ -1165,9 +1170,9 @@ export async function handleGenerateSite(
     errorContext.stage = "html_save";
     
     // Save current version to history before updating (if there's existing HTML)
-    const newVersion = (brandSite?.metadata?.version || 0) + 1;
-    const existingVersions = brandSite?.versions || [];
-    const versionsToSave = [...existingVersions];
+    const currentVersionNumber = (brandSite?.metadata?.version || 0) + 1;
+    const existingVersionsForSave = brandSite?.versions || [];
+    const versionsToSave = [...existingVersionsForSave];
     
     // If there's existing HTML, save it as a version before overwriting
     // Also deploy it to a preview channel so users can view it
@@ -1273,7 +1278,7 @@ export async function handleGenerateSite(
       metadata: {
         generatedAt: new Date().toISOString(),
         model: "gemini-2.5-flash",
-          version: newVersion,
+          version: currentVersionNumber,
           // Store current pages so we can compare against them in the next generation
           lastGeneratedPages: pagesToGenerate.map((p: any) => ({
             id: p.id,
@@ -1291,26 +1296,23 @@ export async function handleGenerateSite(
     });
 
     const deploymentPrepStart = Date.now();
-    logger.debug("Step 9: Preparing deployment configuration", {
+    logger.debug("Step 9: Preparing Cloudflare deployment", {
       brandSiteId,
       brandName,
     });
     errorContext.stage = "deployment_prep";
     const subdomain = generateSubdomain(brandName);
-    
-    // brandSiteId is already validated above, safe to use here
-    let siteId = `brand-${brandSiteId}`;
+    const fullSubdomain = `${subdomain}.${config.cloudflareBaseDomain}`;
 
-    const hostingStartTime = Date.now();
-    
-    if (!config.firebaseProjectId || config.firebaseProjectId.trim() === "") {
-      const error = "Firebase Project ID is required for hosting";
+    // Validate Cloudflare publisher config
+    if (!config.cloudflareAccountId || !config.cloudflareR2BucketName || !config.cloudflareKvNamespaceId) {
+      const error = "Cloudflare publisher configuration is required";
       errorContext.errors.push({
         stage: errorContext.stage,
         error,
         timestamp: new Date().toISOString(),
       });
-      logger.error("Firebase Project ID missing", {
+      logger.error("Cloudflare publisher config missing", {
         brandSiteId,
         errorContext,
       });
@@ -1318,316 +1320,375 @@ export async function handleGenerateSite(
     }
 
     markTiming("deployment_prep", deploymentPrepStart);
-    logger.info("Initializing Firebase Hosting Service", {
-      projectId: config.firebaseProjectId,
+    logger.info("Initializing Cloudflare Publisher Service", {
+      accountId: config.cloudflareAccountId,
+      r2Bucket: config.cloudflareR2BucketName,
     });
-    errorContext.stage = "hosting_init";
-    const hostingService = new FirebaseHostingService({
-      projectId: config.firebaseProjectId.trim(),
+    errorContext.stage = "cloudflare_publisher_init";
+    const publisherStartTime = Date.now();
+    
+    const publisherService = new CloudflarePublisherService({
+      accountId: config.cloudflareAccountId,
+      apiToken: config.cloudflareApiToken,
+      r2BucketName: config.cloudflareR2BucketName,
+      kvNamespaceId: config.cloudflareKvNamespaceId,
     });
 
-    logger.debug("Step 10: Creating or getting Firebase Hosting site", {
-      siteId,
+    // Generate versionId
+    const versionId = `v${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    logger.debug("Step 10: Preparing files for Cloudflare R2 upload", {
       brandSiteId,
-    });
-    errorContext.stage = "hosting_site_creation";
-    let createdSite;
-    try {
-      createdSite = await hostingService.createSite(siteId);
-    } catch (siteError) {
-      const error = siteError instanceof Error ? siteError.message : "Unknown site creation error";
-      errorContext.errors.push({
-        stage: errorContext.stage,
-        error,
-        timestamp: new Date().toISOString(),
-      });
-      logger.error("Firebase Hosting site creation failed", {
-        brandSiteId,
-        siteId,
-        error,
-        errorContext,
-      });
-      throw siteError;
-    }
-    
-    // Validate response has siteId
-    if (!createdSite?.siteId) {
-      const error = "Firebase Hosting API returned invalid response: missing siteId";
-      errorContext.errors.push({
-        stage: errorContext.stage,
-        error,
-        timestamp: new Date().toISOString(),
-      });
-      logger.error("Invalid site creation response", {
-        brandSiteId,
-        response: JSON.stringify(createdSite),
-        errorContext,
-      });
-      throw new Error(error);
-    }
-    
-    // Use the siteId from the response (works for both new and existing sites)
-    siteId = createdSite.siteId;
-    markTiming("hosting_site_init", hostingStartTime);
-    logger.info("Firebase Hosting site ready", {
-      duration: timings.hosting_site_init,
-      siteId,
-      originalSiteId: `brand-${brandSiteId}`,
-      siteName: createdSite.name,
-    });
-
-    const deployStartTime = Date.now();
-    
-    // Validate siteId before deployment
-    if (!siteId || typeof siteId !== 'string') {
-      const error = "Invalid site ID: cannot deploy without a valid site ID";
-      errorContext.errors.push({
-        stage: errorContext.stage,
-        error,
-        timestamp: new Date().toISOString(),
-      });
-      logger.error("Invalid site ID for deployment", {
-        brandSiteId,
-        siteId,
-        errorContext,
-      });
-      throw new Error(error);
-    }
-    
-    logger.debug("Step 11: Deploying site to Firebase Hosting", {
-      siteId,
+      versionId,
       htmlLength: html.length,
-      brandSiteId,
+      fileCount: Object.keys(files).length,
     });
-    errorContext.stage = "hosting_deployment";
-    let deployedUrl: string;
-    try {
-      // Prepare files for deployment
-      const filesToDeploy = Object.entries(files).map(([path, contents]) => ({
+    errorContext.stage = "cloudflare_file_prep";
+    const filePrepStart = Date.now();
+
+    // Prepare files for upload to R2
+    const filesToUpload = Object.entries(files).map(([path, contents]) => {
+      // Determine content type
+      let contentType = "text/html; charset=utf-8";
+      if (path.endsWith(".css")) {
+        contentType = "text/css; charset=utf-8";
+      } else if (path.endsWith(".js")) {
+        contentType = "application/javascript; charset=utf-8";
+      } else if (path.endsWith(".png")) {
+        contentType = "image/png";
+      } else if (path.endsWith(".jpg") || path.endsWith(".jpeg")) {
+        contentType = "image/jpeg";
+      } else if (path.endsWith(".svg")) {
+        contentType = "image/svg+xml";
+      } else if (path.endsWith(".webp")) {
+        contentType = "image/webp";
+      }
+
+      return {
         path,
-        contents,
-      }));
-      
-      // If widgets are enabled, add widget-loader.js to deployment
-      const widgets = organization.settings?.widgets;
-      if (widgets?.enabled) {
-        try {
-          // Read widget-loader.js - try multiple paths to support both dev and production
-          let widgetLoaderPath: string | null = null;
-          const possiblePaths = [
-            join(__dirname, "../../public/widget-loader.js"), // Production: functions/lib/app -> functions/public
-            join(__dirname, "../../../app/public/widget-loader.js"), // Dev: functions/lib/app -> app/public
-            join(process.cwd(), "functions/public/widget-loader.js"), // Fallback
-          ];
-          
-          for (const path of possiblePaths) {
-            if (existsSync(path)) {
-              widgetLoaderPath = path;
-              break;
-            }
+        content: contents,
+        contentType,
+      };
+    });
+
+    // Add widget-loader.js if widgets are enabled
+    const widgets = organization.settings?.widgets;
+    if (widgets?.enabled) {
+      try {
+        let widgetLoaderPath: string | null = null;
+        const possiblePaths = [
+          join(__dirname, "../../public/widget-loader.js"),
+          join(__dirname, "../../../app/public/widget-loader.js"),
+          join(process.cwd(), "functions/public/widget-loader.js"),
+        ];
+        
+        for (const path of possiblePaths) {
+          if (existsSync(path)) {
+            widgetLoaderPath = path;
+            break;
           }
-          
-          if (!widgetLoaderPath) {
-            throw new Error("widget-loader.js not found in any expected location");
-          }
-          
+        }
+        
+        if (widgetLoaderPath) {
           try {
             const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
-            filesToDeploy.push({
+            filesToUpload.push({
               path: "widget-loader.js",
-              contents: widgetLoaderContent,
+              content: widgetLoaderContent,
+              contentType: "application/javascript; charset=utf-8",
             });
             logger.info("Added widget-loader.js to deployment", { brandSiteId });
           } catch (readError) {
-            logger.warn("Could not read widget-loader.js, widgets may not work", {
+            logger.warn("Could not read widget-loader.js", {
               error: readError instanceof Error ? readError.message : "Unknown error",
-              path: widgetLoaderPath,
             });
-            // Continue without widget-loader.js - the script tag will still be injected
           }
-        } catch (error) {
-          logger.warn("Failed to add widget-loader.js to deployment", {
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
         }
+      } catch (error) {
+        logger.warn("Failed to add widget-loader.js to deployment", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
+    }
 
-      // If analytics is enabled, add analytics-loader.js to deployment
-      // analyticsConfig was already fetched above
-      if (analyticsConfig?.enabled) {
-        try {
-          // Read analytics-loader.js - try multiple paths to support both dev and production
-          let analyticsLoaderPath: string | null = null;
-          const possibleAnalyticsPaths = [
-            join(__dirname, "../../public/analytics-loader.js"), // Production: functions/lib/app -> functions/public
-            join(__dirname, "../../../app/public/analytics-loader.js"), // Dev: functions/lib/app -> app/public
-            join(process.cwd(), "functions/public/analytics-loader.js"), // Fallback
-          ];
-          
-          for (const path of possibleAnalyticsPaths) {
-            if (existsSync(path)) {
-              analyticsLoaderPath = path;
-              break;
-            }
+    // Add analytics-loader.js if analytics is enabled
+    if (analyticsConfig?.enabled) {
+      try {
+        let analyticsLoaderPath: string | null = null;
+        const possibleAnalyticsPaths = [
+          join(__dirname, "../../public/analytics-loader.js"),
+          join(__dirname, "../../../app/public/analytics-loader.js"),
+          join(process.cwd(), "functions/public/analytics-loader.js"),
+        ];
+        
+        for (const path of possibleAnalyticsPaths) {
+          if (existsSync(path)) {
+            analyticsLoaderPath = path;
+            break;
           }
-          
-          if (!analyticsLoaderPath) {
-            throw new Error("analytics-loader.js not found in any expected location");
-          }
-          
+        }
+        
+        if (analyticsLoaderPath) {
           try {
             const analyticsLoaderContent = readFileSync(analyticsLoaderPath, "utf-8");
-            filesToDeploy.push({
+            filesToUpload.push({
               path: "analytics-loader.js",
-              contents: analyticsLoaderContent,
+              content: analyticsLoaderContent,
+              contentType: "application/javascript; charset=utf-8",
             });
             logger.info("Added analytics-loader.js to deployment", { brandSiteId });
           } catch (readError) {
-            logger.warn("Could not read analytics-loader.js, analytics may not work", {
+            logger.warn("Could not read analytics-loader.js", {
               error: readError instanceof Error ? readError.message : "Unknown error",
-              path: analyticsLoaderPath,
             });
           }
-        } catch (error) {
-          logger.warn("Failed to add analytics-loader.js to deployment", {
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
         }
+      } catch (error) {
+        logger.warn("Failed to add analytics-loader.js to deployment", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
+    }
 
-      // Note: Favicon is injected via HTML link tag using organization's custom favicon
-      // No need to deploy a generic favicon file
-      
-      deployedUrl = await hostingService.deploySite(
-      siteId,
-      filesToDeploy,
-      `Deploy ${brandName} site`,
-    );
-      markTiming("hosting_deployment", deployStartTime);
-      logger.info("Site deployed to Firebase Hosting", {
-        duration: timings.hosting_deployment,
-      deployedUrl,
-      fileCount: filesToDeploy.length,
+    markTiming("cloudflare_file_prep", filePrepStart);
+    logger.info("Files prepared for Cloudflare upload", {
+      duration: timings.cloudflare_file_prep,
+      fileCount: filesToUpload.length,
     });
-    } catch (deployError) {
-      const error = deployError instanceof Error ? deployError.message : "Unknown deployment error";
+
+    // Upload to R2
+    logger.debug("Step 11: Uploading files to Cloudflare R2", {
+      brandSiteId,
+      versionId,
+      fileCount: filesToUpload.length,
+    });
+    errorContext.stage = "cloudflare_r2_upload";
+    const r2UploadStart = Date.now();
+    
+    try {
+      const r2Keys = await publisherService.uploadSiteVersionToR2(
+        brandSiteId,
+        versionId,
+        filesToUpload
+      );
+      markTiming("cloudflare_r2_upload", r2UploadStart);
+      logger.info("Files uploaded to R2", {
+        duration: timings.cloudflare_r2_upload,
+        r2KeyCount: r2Keys.length,
+      });
+    } catch (uploadError) {
+      const error = uploadError instanceof Error ? uploadError.message : "Unknown R2 upload error";
       errorContext.errors.push({
         stage: errorContext.stage,
         error,
         timestamp: new Date().toISOString(),
       });
-      logger.error("Firebase Hosting deployment failed", {
+      logger.error("R2 upload failed", {
         brandSiteId,
-        siteId,
+        versionId,
         error,
         errorContext,
       });
-      throw deployError;
+      throw uploadError;
     }
 
-    // For regeneration, skip Cloudflare subdomain creation (use Firebase Hosting URL directly)
-    // For new sites, create Cloudflare subdomain
-    const isRegeneration = !!sectionType || !!brandSite.html;
-
-    logger.debug("Step 12: Configuring final URL", {
+    // Create Cloudflare subdomain DNS (points to Worker, not Firebase Hosting)
+    logger.debug("Step 12: Creating Cloudflare subdomain DNS", {
+      subdomain,
       brandSiteId,
-      isRegeneration,
-      subdomain: isRegeneration ? undefined : subdomain,
     });
-    errorContext.stage = "url_configuration";
+    errorContext.stage = "cloudflare_dns";
+    const dnsStartTime = Date.now();
+    
+    const cloudflareService = new CloudflareService({
+      apiToken: config.cloudflareApiToken,
+      zoneId: config.cloudflareZoneId,
+      baseDomain: config.cloudflareBaseDomain,
+    });
+
+    // Point subdomain to Worker
+    // Note: For automatic routing, configure a wildcard route in Cloudflare:
+    // Route: *.financely.app/* → financely-sites-worker
+    // This allows all subdomains to route to the Worker automatically
+    // The DNS CNAME below ensures the subdomain exists and is proxied
+    const workerSubdomain = "financely-sites-worker.mityodraganow.workers.dev";
     let finalUrl: string;
-
-    if (isRegeneration) {
-      // Regeneration: use Firebase Hosting URL directly
-      finalUrl = deployedUrl;
-      logger.info("Skipping Cloudflare subdomain for regeneration", {
-        deployedUrl,
-      });
-
-      errorContext.stage = "status_update_success";
-      await brandSiteRepository.update({
-        id: brandSiteId,
-        data: {
-          status: "success",
-          deployedUrl: finalUrl,
-          // Clear the regenerateSectionType from metadata
-          metadata: {
-            ...(brandSite.metadata || {}),
-            version: newVersion,
-            generatedAt: brandSite.metadata?.generatedAt || new Date().toISOString(),
-            model: brandSite.metadata?.model || "gemini-2.5-flash",
-            regenerateSectionType: undefined,
-          },
-        },
-      });
-    } else {
-      // New site: create Cloudflare subdomain
-      logger.debug("Step 13: Creating Cloudflare subdomain", {
-        subdomain,
-        deployedUrl,
-        brandSiteId,
-      });
-      errorContext.stage = "cloudflare_subdomain";
-      const cloudflareStartTime = Date.now();
-      const cloudflareService = new CloudflareService({
-        apiToken: config.cloudflareApiToken,
-        zoneId: config.cloudflareZoneId,
-        baseDomain: config.cloudflareBaseDomain,
-      });
-
-      try {
-      logger.info("Creating Cloudflare subdomain", { subdomain });
-      const deployedHost = new URL(deployedUrl).hostname;
+    
+    try {
+      logger.info("Creating Cloudflare subdomain DNS", { subdomain, target: workerSubdomain });
       finalUrl = await cloudflareService.createSubdomain(
         subdomain,
-        deployedHost,
+        workerSubdomain,
       );
-      markTiming("cloudflare_subdomain", cloudflareStartTime);
-      logger.info("Cloudflare subdomain created", {
-        duration: timings.cloudflare_subdomain,
-        subdomainUrl: finalUrl,
-      });
-      } catch (cloudflareError) {
-        const error = cloudflareError instanceof Error ? cloudflareError.message : "Unknown Cloudflare error";
-        errorContext.errors.push({
-          stage: errorContext.stage,
-          error,
-          timestamp: new Date().toISOString(),
-        });
-        logger.error("Cloudflare subdomain creation failed", {
+      
+      // Verify DNS record was actually created
+      logger.debug("Verifying DNS record was created", { subdomain, fullSubdomain });
+      const allRecords = await cloudflareService.listDnsRecords();
+      const createdRecord = allRecords.find(
+        (record) => record.name.toLowerCase() === fullSubdomain.toLowerCase() && record.type === "CNAME"
+      );
+      
+      if (!createdRecord) {
+        const errorMessage = `DNS record creation reported success but record not found: ${fullSubdomain}. This usually means the Cloudflare API token lacks DNS write permissions (Zone:DNS:Edit). Please check your API token permissions in Cloudflare Dashboard.`;
+        logger.error("DNS verification failed", {
           brandSiteId,
           subdomain,
-          error,
-          errorContext,
+          fullSubdomain,
+          allRecordsCount: allRecords.length,
+          error: errorMessage,
         });
-        throw cloudflareError;
+        // Throw error to make it clear DNS creation failed
+        // User needs to fix API token permissions or create DNS manually
+        throw new Error(errorMessage);
       }
-
-      errorContext.stage = "status_update_success";
-      await brandSiteRepository.update({
-        id: brandSiteId,
-        data: {
-          status: "success",
-          subdomain,
-          deployedUrl: finalUrl,
-        pages: pagesToGenerate,
-          metadata: {
-            ...(brandSite.metadata || {}),
-            version: newVersion,
-            generatedAt: brandSite.metadata?.generatedAt || new Date().toISOString(),
-            model: brandSite.metadata?.model || "gemini-2.5-flash",
-          },
-        },
+      
+      logger.info("DNS record verified", {
+        recordId: createdRecord.id,
+        name: createdRecord.name,
+        content: createdRecord.content,
       });
+      
+      markTiming("cloudflare_dns", dnsStartTime);
+      logger.info("Cloudflare subdomain DNS created and verified", {
+        duration: timings.cloudflare_dns,
+        subdomainUrl: finalUrl,
+        recordId: createdRecord.id,
+      });
+    } catch (dnsError) {
+      const error = dnsError instanceof Error ? dnsError.message : "Unknown DNS error";
+      errorContext.errors.push({
+        stage: errorContext.stage,
+        error,
+        timestamp: new Date().toISOString(),
+      });
+      logger.error("Cloudflare DNS creation failed", {
+        brandSiteId,
+        subdomain,
+        fullSubdomain,
+        error,
+        errorContext,
+      });
+      throw dnsError;
     }
+
+    // Update KV with hostname mapping
+    logger.debug("Step 13: Updating Cloudflare KV mapping", {
+      hostname: fullSubdomain,
+      brandSiteId,
+      versionId,
+    });
+    errorContext.stage = "cloudflare_kv_update";
+    const kvStartTime = Date.now();
+    
+    try {
+      await publisherService.updateSiteHostMapping(
+        fullSubdomain,
+        brandSiteId,
+        versionId
+      );
+      markTiming("cloudflare_kv_update", kvStartTime);
+      logger.info("KV mapping updated", {
+        duration: timings.cloudflare_kv_update,
+        hostname: fullSubdomain,
+      });
+    } catch (kvError) {
+      const error = kvError instanceof Error ? kvError.message : "Unknown KV update error";
+      errorContext.errors.push({
+        stage: errorContext.stage,
+        error,
+        timestamp: new Date().toISOString(),
+      });
+      logger.error("KV update failed", {
+        brandSiteId,
+        hostname: fullSubdomain,
+        error,
+        errorContext,
+      });
+      throw kvError;
+    }
+
+    // Create version document and update BrandSite
+    logger.debug("Step 14: Updating Firestore with version info", {
+      brandSiteId,
+      versionId,
+    });
+    errorContext.stage = "firestore_update";
+    const firestoreStartTime = Date.now();
+
+    const existingVersions = (brandSite.versions || []) as Array<{
+      version: number;
+      html: string;
+      createdAt: string;
+      versionId?: string;
+      files?: Record<string, string>;
+      deployedUrl?: string;
+      previewUrl?: string;
+      sourceType?: "ai-builder" | "manual" | "imported";
+      aiPrompt?: string;
+      notes?: string;
+      layoutConfig?: unknown;
+      metadata?: {
+        generatedAt?: string;
+        model?: string;
+        regenerateSectionType?: "hero" | "about" | "features" | "contact";
+      };
+      createdByUserId?: string;
+      description?: string;
+    }>;
+    const nextVersionNumber =
+      existingVersions.length > 0
+        ? Math.max(...existingVersions.map((v) => v.version)) + 1
+        : 1;
+
+    const newVersion = {
+      version: nextVersionNumber,
+      versionId,
+      html,
+      files: files,
+      sourceType: "ai-builder" as const,
+      metadata: brandSite.metadata || {},
+      createdAt: new Date().toISOString(),
+      description: `AI-generated site version ${nextVersionNumber}`,
+    };
+
+    const updatedVersions = [...existingVersions, newVersion];
+
+    await brandSiteRepository.update({
+      id: brandSiteId,
+      data: {
+        status: "success",
+        subdomain,
+        primaryDomain: fullSubdomain,
+        currentVersionId: versionId,
+        hostingProvider: "cloudflare",
+        deployedUrl: finalUrl,
+        pages: pagesToGenerate,
+        versions: updatedVersions,
+        metadata: {
+          ...(brandSite.metadata || {}),
+          version: nextVersionNumber,
+          generatedAt: brandSite.metadata?.generatedAt || new Date().toISOString(),
+          model: brandSite.metadata?.model || "gemini-2.5-flash",
+          regenerateSectionType: undefined,
+        },
+      },
+    });
+
+    markTiming("firestore_update", firestoreStartTime);
+    markTiming("cloudflare_publisher_init", publisherStartTime);
+    logger.info("Cloudflare deployment completed", {
+      duration: timings.cloudflare_publisher_init,
+      brandSiteId,
+      versionId,
+      deployedUrl: finalUrl,
+    });
 
     const totalDuration = Date.now() - startTime;
     timings.total = totalDuration;
     logger.info("Site generated and deployed successfully", {
       brandSiteId,
-      subdomain: isRegeneration ? undefined : subdomain,
+      subdomain,
       url: finalUrl,
-      isRegeneration,
       totalDuration,
       totalDurationSeconds: Math.round(totalDuration / 1000),
       durations: timings,

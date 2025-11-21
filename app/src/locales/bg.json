@@ -1,0 +1,65 @@
+{
+  "dashboard": {
+    "welcome": "Добре дошли отново, {{name}}",
+    "welcomeFallback": "Добре дошли отново, Потребител",
+    "subtitle": "Ето какво се случва с вашите фактури и шаблони днес.",
+    "quickActions": {
+      "createInvoice": "Създай фактура",
+      "designTemplate": "Дизайн на шаблон",
+      "organizationSettings": "Настройки на организацията"
+    },
+    "metrics": {
+      "totalInvoices": "Общо фактури",
+      "paidUnpaid": "{{paid}} платени, {{unpaid}} неплатени",
+      "paidRevenue": "Платени приходи",
+      "paidInvoice": "{{count}} платена фактура",
+      "paidInvoices": "{{count}} платени фактури",
+      "outstanding": "Неплатени",
+      "unpaidInvoice": "{{count}} неплатена фактура",
+      "unpaidInvoices": "{{count}} неплатени фактури",
+      "draftInvoices": "Чернови фактури",
+      "draftAmount": "${{amount}} в чернови",
+      "noDrafts": "Все още няма чернови",
+      "totalAmount": "Обща сума",
+      "acrossAllInvoices": "От всички фактури",
+      "templates": "Шаблони",
+      "readyToUse": "Готови за използване",
+      "createFirstTemplate": "Създайте първия си шаблон"
+    },
+    "recentInvoices": {
+      "title": "Последни фактури",
+      "description": "Вашата последна активност с фактури",
+      "viewAll": "Виж всички",
+      "invoiceNumber": "Фактура №{{number}}",
+      "unknownClient": "Неизвестен клиент",
+      "recently": "Наскоро",
+      "noInvoices": "Все още няма фактури",
+      "getStarted": "Започнете като създадете първата си фактура."
+    },
+    "templates": {
+      "title": "Шаблони",
+      "description": "Вашите шаблони за фактури",
+      "design": "Дизайн",
+      "noDescription": "Няма описание",
+      "active": "Активен",
+      "noTemplates": "Няма шаблони",
+      "createFirst": "Създайте първия си шаблон"
+    },
+    "invoiceStatus": {
+      "title": "Статус на фактурите",
+      "description": "Разбивка по статус",
+      "paid": "Платена",
+      "sent": "Изпратена",
+      "draft": "Чернова",
+      "cancelled": "Отменена",
+      "noInvoices": "Все още няма фактури"
+    },
+    "status": {
+      "paid": "платена",
+      "sent": "изпратена",
+      "cancelled": "отменена",
+      "draft": "чернова"
+    }
+  }
+}
+

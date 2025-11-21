@@ -6,9 +6,17 @@ import { join } from "path";
 import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
-import { FirebaseHostingService } from "../services/firebase-hosting-service";
+import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
+import { CloudflareService } from "../services/cloudflare-service";
 
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
+// Cloudflare publisher secrets
+const cloudflareAccountId = defineSecret("CLOUDFLARE_ACCOUNT_ID");
+const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
+const cloudflareR2BucketName = defineSecret("CLOUDFLARE_R2_BUCKET_NAME");
+const cloudflareKvNamespaceId = defineSecret("CLOUDFLARE_KV_NAMESPACE_ID");
+const cloudflareZoneId = defineSecret("CLOUDFLARE_ZONE_ID");
+const cloudflareBaseDomain = defineSecret("CLOUDFLARE_BASE_DOMAIN");
 
 interface DeployManualSitePayload {
   brandSiteId: string;
@@ -27,7 +35,15 @@ interface DeployManualSitePayload {
 export const deployManualSite = onCall(
   {
     region: "us-central1",
-    secrets: [firebaseProjectId],
+    secrets: [
+      firebaseProjectId,
+      cloudflareAccountId,
+      cloudflareApiToken,
+      cloudflareR2BucketName,
+      cloudflareKvNamespaceId,
+      cloudflareZoneId,
+      cloudflareBaseDomain,
+    ],
     timeoutSeconds: 300,
     memory: "512MiB",
   },
@@ -145,27 +161,48 @@ export const deployManualSite = onCall(
       },
     });
 
-    // Deploy to Firebase Hosting
-    const projectIdForDeployment = firebaseProjectId.value();
-    if (!projectIdForDeployment) {
-      throw new Error("FIREBASE_PROJECT_ID secret is not set");
-    }
+    // Deploy to Cloudflare (R2 + KV)
+    // Initialize Cloudflare publisher service
+    const publisherService = new CloudflarePublisherService({
+      accountId: cloudflareAccountId.value(),
+      apiToken: cloudflareApiToken.value(),
+      r2BucketName: cloudflareR2BucketName.value(),
+      kvNamespaceId: cloudflareKvNamespaceId.value(),
+    });
 
-    const hostingService = new FirebaseHostingService({ projectId: projectIdForDeployment });
-    const siteId = `brand-${brandSiteId}`;
+    // Generate versionId
+    const versionId = `v${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-    // Ensure site exists
-    await hostingService.createSite(siteId);
+    // Prepare files for R2 upload
+    const filesToUpload = filesToDeploy.map((file) => {
+      let contentType = "text/html; charset=utf-8";
+      if (file.path.endsWith(".css")) {
+        contentType = "text/css; charset=utf-8";
+      } else if (file.path.endsWith(".js")) {
+        contentType = "application/javascript; charset=utf-8";
+      } else if (file.path.endsWith(".png")) {
+        contentType = "image/png";
+      } else if (file.path.endsWith(".jpg") || file.path.endsWith(".jpeg")) {
+        contentType = "image/jpeg";
+      } else if (file.path.endsWith(".svg")) {
+        contentType = "image/svg+xml";
+      }
 
-    // If widgets are enabled, add widget-loader.js to deployment
+      return {
+        path: file.path,
+        content: file.contents,
+        contentType,
+      };
+    });
+
+    // Add widget-loader.js if widgets are enabled
     if (includeWidgets && organization.settings?.widgets?.enabled) {
       try {
-        // Read widget-loader.js - try multiple paths to support both dev and production
         let widgetLoaderPath: string | null = null;
         const possiblePaths = [
-          join(__dirname, "../../public/widget-loader.js"), // Production: functions/lib/functions -> functions/public
-          join(__dirname, "../../../app/public/widget-loader.js"), // Dev: functions/lib/functions -> app/public
-          join(process.cwd(), "functions/public/widget-loader.js"), // Fallback
+          join(__dirname, "../../public/widget-loader.js"),
+          join(__dirname, "../../../app/public/widget-loader.js"),
+          join(process.cwd(), "functions/public/widget-loader.js"),
         ];
         
         for (const path of possiblePaths) {
@@ -175,23 +212,20 @@ export const deployManualSite = onCall(
           }
         }
         
-        if (!widgetLoaderPath) {
-          throw new Error("widget-loader.js not found in any expected location");
-        }
-        
-        try {
-          const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
-          filesToDeploy.push({
-            path: "widget-loader.js",
-            contents: widgetLoaderContent,
-          });
-          logger.info("Added widget-loader.js to deployment", { brandSiteId });
-        } catch (readError) {
-          logger.warn("Could not read widget-loader.js, widgets may not work", {
-            error: readError instanceof Error ? readError.message : "Unknown error",
-            path: widgetLoaderPath,
-          });
-          // Continue without widget-loader.js - the script tag will still be injected
+        if (widgetLoaderPath) {
+          try {
+            const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
+            filesToUpload.push({
+              path: "widget-loader.js",
+              content: widgetLoaderContent,
+              contentType: "application/javascript; charset=utf-8",
+            });
+            logger.info("Added widget-loader.js to deployment", { brandSiteId });
+          } catch (readError) {
+            logger.warn("Could not read widget-loader.js", {
+              error: readError instanceof Error ? readError.message : "Unknown error",
+            });
+          }
         }
       } catch (error) {
         logger.warn("Failed to add widget-loader.js to deployment", {
@@ -200,22 +234,107 @@ export const deployManualSite = onCall(
       }
     }
 
-    // Note: Favicon is injected via HTML link tag using organization's custom favicon
-    // No need to deploy a generic favicon file
-
-    // Deploy files
-    const deployedUrl = await hostingService.deploySite(
-      siteId,
-      filesToDeploy,
-      versionMessage || "Manual deployment",
+    // Upload to R2
+    await publisherService.uploadSiteVersionToR2(
+      brandSiteId,
+      versionId,
+      filesToUpload
     );
 
-    // Update brand site with deployed URL
+    logger.info("Files uploaded to R2", {
+      brandSiteId,
+      versionId,
+      fileCount: filesToUpload.length,
+    });
+
+    // Collect domains for KV mapping
+    const domains: string[] = [];
+    if (brandSite.primaryDomain) {
+      domains.push(brandSite.primaryDomain);
+    }
+    if (brandSite.customDomain) {
+      domains.push(brandSite.customDomain);
+    }
+    if (brandSite.altDomains && brandSite.altDomains.length > 0) {
+      domains.push(...brandSite.altDomains);
+    }
+    if (brandSite.subdomain) {
+      const fullSubdomain = `${brandSite.subdomain}.${cloudflareBaseDomain.value()}`;
+      if (!domains.includes(fullSubdomain)) {
+        domains.push(fullSubdomain);
+      }
+    }
+
+    // If no domains exist, create subdomain from brand name
+    if (domains.length === 0 && brandSite.brandName) {
+      const subdomain = brandSite.brandName
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+      const fullSubdomain = `${subdomain}.${cloudflareBaseDomain.value()}`;
+      domains.push(fullSubdomain);
+
+      // Create DNS record for subdomain
+      const cloudflareService = new CloudflareService({
+        apiToken: cloudflareApiToken.value(),
+        zoneId: cloudflareZoneId.value(),
+        baseDomain: cloudflareBaseDomain.value(),
+      });
+
+      try {
+        const workerSubdomain = "financely-sites-worker.mityodraganow.workers.dev";
+        await cloudflareService.createSubdomain(subdomain, workerSubdomain);
+        logger.info("Created Cloudflare subdomain DNS", { subdomain, fullSubdomain });
+      } catch (dnsError) {
+        logger.warn("Failed to create DNS record (may already exist)", {
+          error: dnsError instanceof Error ? dnsError.message : "Unknown error",
+        });
+      }
+    }
+
+    // Update KV mappings for all domains
+    if (domains.length > 0) {
+      await publisherService.updateSiteHostMappings(
+        domains.map((domain) => ({
+          hostname: domain,
+          brandSiteId,
+          versionId,
+        }))
+      );
+    }
+
+    // Create version document
+    const existingVersions = brandSite.versions || [];
+    const nextVersionNumber =
+      existingVersions.length > 0
+        ? Math.max(...existingVersions.map((v) => v.version)) + 1
+        : 1;
+
+    const newVersion = {
+      version: nextVersionNumber,
+      versionId,
+      html: filesRecord["index.html"] || filesRecord["/index.html"] || brandSite.html || "",
+      files: filesRecord,
+      sourceType: "manual" as const,
+      metadata: brandSite.metadata || {},
+      createdAt: new Date().toISOString(),
+      description: versionMessage || `Manual deployment version ${nextVersionNumber}`,
+    };
+
+    const updatedVersions = [...existingVersions, newVersion];
+    const deployedUrl = domains.length > 0 ? `https://${domains[0]}` : undefined;
+
+    // Update brand site
     await brandSiteRepository.update({
       id: brandSiteId,
       data: {
         status: "success",
+        currentVersionId: versionId,
+        hostingProvider: "cloudflare",
+        primaryDomain: domains[0] || brandSite.primaryDomain,
         deployedUrl,
+        versions: updatedVersions,
       },
     });
 

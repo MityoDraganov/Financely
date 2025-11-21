@@ -15,6 +15,7 @@ import { Brush, FileText, LayoutDashboard, Settings, Zap, Users, Sparkles, Messa
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
+import { LanguageSelector } from "./language-selector";
 import { useOrganizationBranding } from "@/hooks/use-organization-branding";
 import { Button } from "./ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -226,11 +227,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 					<div>
 						<SidebarSeparator />
-						<SidebarGroup className="flex flex-row justify-between items-center">
+						<SidebarGroup className="flex flex-row justify-between items-center gap-2">
 							<SidebarMenuItem>
 								<UserButton showName />
 							</SidebarMenuItem>
-							<ModeToggle />
+							<div className="flex items-center gap-2">
+								<LanguageSelector />
+								<ModeToggle />
+							</div>
 						</SidebarGroup>
 					</div>
 				</SidebarContent>

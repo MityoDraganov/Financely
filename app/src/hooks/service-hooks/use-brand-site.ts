@@ -176,6 +176,35 @@ export const useAddCustomDomain = () => {
 };
 
 /**
+ * Hook to publish a brand site to Cloudflare
+ */
+export const usePublishBrandSite = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.publishBrandSite>[0]) =>
+      functionsService.publishBrandSite(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success(
+        `Site published successfully! ${result.publishedDomains.length > 0 ? `Available at: ${result.publishedDomains[0]}` : ""}`
+      );
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to publish brand site:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to publish site: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to restore a previous version of a brand site
  */
 export const useRestoreBrandSiteVersion = () => {

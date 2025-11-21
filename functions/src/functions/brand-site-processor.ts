@@ -11,6 +11,10 @@ const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
 const cloudflareZoneId = defineSecret("CLOUDFLARE_ZONE_ID");
 const cloudflareBaseDomain = defineSecret("CLOUDFLARE_BASE_DOMAIN");
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
+// Cloudflare publisher secrets (for R2 + KV)
+const cloudflareAccountId = defineSecret("CLOUDFLARE_ACCOUNT_ID");
+const cloudflareR2BucketName = defineSecret("CLOUDFLARE_R2_BUCKET_NAME");
+const cloudflareKvNamespaceId = defineSecret("CLOUDFLARE_KV_NAMESPACE_ID");
 
 /**
  * Firestore trigger that processes brand site generation asynchronously.
@@ -26,6 +30,9 @@ export const onBrandSiteCreated = onDocumentCreated(
       cloudflareZoneId,
       cloudflareBaseDomain,
       firebaseProjectId,
+      cloudflareAccountId,
+      cloudflareR2BucketName,
+      cloudflareKvNamespaceId,
     ],
     timeoutSeconds: 540, // 9 minutes max
     memory: "1GiB",
@@ -100,6 +107,9 @@ export const onBrandSiteCreated = onDocumentCreated(
           cloudflareZoneId: cloudflareZoneId.value(),
           cloudflareBaseDomain: cloudflareBaseDomain.value(),
           firebaseProjectId: firebaseProjectId.value(),
+          cloudflareAccountId: cloudflareAccountId.value(),
+          cloudflareR2BucketName: cloudflareR2BucketName.value(),
+          cloudflareKvNamespaceId: cloudflareKvNamespaceId.value(),
         },
       );
 
@@ -148,6 +158,9 @@ export const onBrandSiteUpdated = onDocumentUpdated(
       cloudflareZoneId,
       cloudflareBaseDomain,
       firebaseProjectId,
+      cloudflareAccountId,
+      cloudflareR2BucketName,
+      cloudflareKvNamespaceId,
     ],
     timeoutSeconds: 540,
     memory: "1GiB",
@@ -356,6 +369,9 @@ export const onBrandSiteUpdated = onDocumentUpdated(
           cloudflareZoneId: cloudflareZoneId.value(),
           cloudflareBaseDomain: cloudflareBaseDomain.value(),
           firebaseProjectId: firebaseProjectId.value(),
+          cloudflareAccountId: cloudflareAccountId.value(),
+          cloudflareR2BucketName: cloudflareR2BucketName.value(),
+          cloudflareKvNamespaceId: cloudflareKvNamespaceId.value(),
         },
       );
 

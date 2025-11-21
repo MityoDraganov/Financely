@@ -177,6 +177,7 @@ export async function handleGenerateSiteInit(
         logoUrl,
         tone,
         status: "pending",
+        hostingProvider: "firebase", // Default to firebase for backward compatibility
         context: input.context,
         contextImages: input.contextImages || [],
         pages: normalizePagesForInit(input.pages),

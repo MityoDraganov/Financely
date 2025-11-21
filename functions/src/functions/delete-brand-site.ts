@@ -165,13 +165,25 @@ export const deleteBrandSite = onCall<DeleteBrandSitePayload>(
           try {
             await hostingService.deleteSite(siteId);
             loggerService.info("Deleted Firebase Hosting site", { brandSiteId, siteId });
-          } catch (hostingError: any) {
-            // Site might not exist, which is fine
-            if (hostingError?.code !== 404 && hostingError?.status !== 404) {
-              loggerService.warn("Failed to delete Firebase Hosting site (continuing)", {
+          } catch (hostingError: unknown) {
+            // Site might not exist (404), which is fine - deleteSite already handles this
+            // But if it's a different error, log it as a warning (non-fatal)
+            const errorMessage = hostingError instanceof Error ? hostingError.message : String(hostingError);
+            const isNotFound = 
+              errorMessage.includes("404") || 
+              errorMessage.toLowerCase().includes("not found") ||
+              errorMessage.toLowerCase().includes("does not exist");
+            
+            if (!isNotFound) {
+              loggerService.warn("Failed to delete Firebase Hosting site (non-404 error, continuing)", {
                 brandSiteId,
                 siteId,
-                error: hostingError instanceof Error ? hostingError.message : "Unknown error",
+                error: errorMessage,
+              });
+            } else {
+              loggerService.info("Firebase Hosting site not found (already deleted or never created)", {
+                brandSiteId,
+                siteId,
               });
             }
           }
@@ -200,13 +212,24 @@ export const deleteBrandSite = onCall<DeleteBrandSitePayload>(
                       brandSiteId,
                       previewSiteId: previewSite.siteId,
                     });
-                  } catch (previewError: any) {
+                  } catch (previewError: unknown) {
                     // Log but continue deleting other preview sites
-                    if (previewError?.code !== 404 && previewError?.status !== 404) {
-                      loggerService.warn("Failed to delete preview site (continuing)", {
+                    const previewErrorMessage = previewError instanceof Error ? previewError.message : String(previewError);
+                    const isPreviewNotFound = 
+                      previewErrorMessage.includes("404") || 
+                      previewErrorMessage.toLowerCase().includes("not found");
+                    
+                    if (!isPreviewNotFound) {
+                      // Only log non-404 errors as warnings
+                      loggerService.warn("Failed to delete preview site (non-404 error, continuing)", {
                         brandSiteId,
                         previewSiteId: previewSite.siteId,
-                        error: previewError instanceof Error ? previewError.message : "Unknown error",
+                        error: previewErrorMessage,
+                      });
+                    } else {
+                      loggerService.info("Preview site not found (already deleted)", {
+                        brandSiteId,
+                        previewSiteId: previewSite.siteId,
                       });
                     }
                   }

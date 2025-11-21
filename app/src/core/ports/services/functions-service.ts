@@ -316,6 +316,23 @@ export interface FunctionsService {
   }): Promise<{ success: boolean; brandSiteId: string; deployedUrl: string; status: string }>;
 
   /**
+   * Publish a brand site version to Cloudflare (R2 + KV)
+   * Replaces the old Firebase Hosting deployment flow
+   */
+  publishBrandSite(payload: {
+    brandSiteId: string;
+    html: string;
+    assets?: Array<{
+      path: string;
+      content: string | Buffer | string; // base64 encoded or plain string
+      contentType: string;
+    }>;
+    aiPrompt?: string;
+    notes?: string;
+    sourceType?: "ai-builder" | "manual" | "imported";
+  }): Promise<{ success: boolean; brandSiteId: string; versionId: string; publishedDomains: string[]; deployedUrl?: string }>;
+
+  /**
    * Generate a proposal suggestion from a lead using AI
    */
   generateProposalSuggestion(payload: {

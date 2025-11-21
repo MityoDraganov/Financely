@@ -592,24 +592,25 @@ export class GeminiService {
       pageType,
     } = brandContext;
 
-    let prompt = `Generate a complete, modern, responsive website HTML page for a brand called "${brandName}". 
+    let prompt = `Generate a complete, modern, responsive multi-page website HTML for a brand called "${brandName}".
 
 🚨 CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
 - Use ONLY the data provided in this prompt. DO NOT invent, hallucinate, or create fake data.
-- If information is missing (e.g., no address, no phone, no testimonials), use placeholders like "[Address]" or "[Phone]" or simply omit that section.
+- If information is missing (e.g., no address, no phone, no testimonials), use placeholders like "[Address]" or "[Phone]" or simply omit that section entirely.
 - DO NOT create fake testimonials, fake customer names, fake reviews, or fake statistics.
-- DO NOT invent company history, team members, or case studies that weren't provided.
-- If you need additional data that isn't provided, use generic placeholders or omit that content entirely.
+- DO NOT invent company history, team members, or case studies that were not provided.
+- If you need additional data that isn't provided, use generic placeholders or leave it out.
 - All content must be based on the provided context, products, and brand information only.
 
 Requirements:
-1. Use inline CSS only (no external stylesheets)
-2. Make it fully responsive (mobile-first design)
+1. Use inline CSS only (no external stylesheets) and ensure that no stray code or visible markup (such as triple back-ticks or code fences) appears on the page.
+2. Build a fully responsive multi-page site with dedicated pages (Home, About, Contact, etc.). Each page must have its own URL path (e.g., "/", "/about", "/contact") and visually distinct layouts with unique hero sections and page-specific content.
 3. Use the following color palette EXCLUSIVELY for all interactive elements, buttons, links, and accents:
-   - Primary: ${colors.primary} (use for primary buttons, active states, main CTAs)
-   - Secondary: ${colors.secondary} (use for secondary buttons, borders, subtle accents)
-   - Accent: ${colors.accent} (use for highlights, hover states, special elements)
-4. Brand tone: ${tone}
+   - Primary: ${colors.primary} (use for primary buttons, calls to action, and active states)
+   - Secondary: ${colors.secondary} (use for secondary buttons, borders, and subtle accents)
+   - Accent: ${colors.accent} (use for highlights, hover states, and special elements)
+   - DO NOT use generic colors (blue, red, green); all interactive elements must follow this palette.
+4. Brand tone: ${tone}. Ensure all text meets WCAG AA contrast ratios by choosing appropriate text colors for light or dark backgrounds.
 
 COLOR CONTRAST REQUIREMENTS:
 - Ensure all text has sufficient contrast (WCAG AA minimum: 4.5:1 for normal text, 3:1 for large text)
@@ -628,15 +629,17 @@ BRAND COLOR USAGE (MANDATORY):
 - DO NOT use generic colors (blue, red, green) - always use the provided brand colors`;
 
     if (description) {
-      prompt += `\n5. Brand description: ${description}`;
+      prompt += `\n\nBrand description: ${description}`;
     }
 
     if (logoUrl) {
-      prompt += `\n6. Include the logo at: ${logoUrl}`;
+      prompt += `\n\nHeader: Include a single brand logo at ${logoUrl} alongside the automatically injected navigation (navigation is injected separately). DO NOT duplicate logos. Make the header sticky on larger screens and collapsible on mobile. Highlight the active page link using the primary color.`;
+    } else {
+      prompt += `\n\nHeader: The navigation will be automatically injected. Make the header sticky on larger screens and collapsible on mobile. Highlight the active page link using the primary color.`;
     }
 
     if (brandImages && brandImages.length > 0) {
-      prompt += `\n7. Include these brand images in the gallery section: ${brandImages.join(", ")}`;
+      prompt += `\n\nInclude these brand images in the gallery/portfolio section: ${brandImages.join(", ")}`;
     }
 
     if (pageTitle) {
@@ -656,7 +659,8 @@ Purpose: ${pagePurpose}
 🚨 CRITICAL: This page MUST be visually and content-wise DISTINCT from other pages on the site:
 - Use a UNIQUE layout structure that differs from the homepage and other pages
 - Create page-specific content that focuses on the "${pageTitle}" topic
-- Use a different hero section style (different background, different text arrangement, different visual elements)
+- Each page needs a unique hero section featuring a relevant background (image or color), a clear page title, a subheadline, and primary/secondary call-to-action buttons
+- Center hero content within a max-width container and avoid placing extra logos inside the hero
 - Include sections that are RELEVANT to this specific page's purpose, NOT generic sections
 - Make the page title "${pageTitle}" prominent and clearly visible in the hero section
 - Ensure the page has a clear visual identity that makes it obvious this is the "${pageTitle}" page
@@ -700,12 +704,14 @@ This is a blog/articles page.
       prompt += `\n\n📞 CONTACT PAGE SPECIFIC REQUIREMENTS:
 This is a contact/engagement page.
 - Create a UNIQUE contact-focused layout with clear contact information
-- Include office locations, phone numbers, email addresses prominently
+- Include office locations, phone numbers, email addresses prominently with appropriate icons
 - Add a map section if location data is available
-- Use a contact-appropriate layout (maybe split-screen with info on one side, form placeholder on other)
 - Include business hours, social media links, and multiple ways to reach out
 - Make it visually distinct with a clean, approachable design
-- DO NOT include generic "Features" or "Products" sections - focus on contact information`;
+- DO NOT create any <form> elements or blank input boxes
+- DO NOT include generic "Features" or "Products" sections - focus on contact information
+- If a contact widget is configured in inline mode, insert the placeholder div (<div data-financely-widget="contactForm"></div>)
+- Offer general call-to-action buttons such as "Learn More" or "Explore Services," NOT buttons like "Contact Us" or "Request a Quote"`;
     } else {
       prompt += `\n\n📄 STANDARD PAGE REQUIREMENTS:
 This is a standard content page.
@@ -716,30 +722,37 @@ This is a standard content page.
 - Make it visually distinct from other pages on the site`;
     }
 
-    prompt += `\n\nNavigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.`;
+    prompt += `\n\nCONTENT SECTIONS GUIDELINES:
+- About/story sections: Use a comfortable max-width (about 800px) and center the text for readability
+- Featured products or services: Present items as responsive cards that include the product image, name, short description, price, and a call-to-action button. Align the images and text within each card and maintain equal padding and spacing. Avoid separating images from their descriptions
+- Portfolio/gallery: Display images in a uniform grid with consistent aspect ratios and margins. Provide a "View Full Gallery" call to action
+- Call-to-action sections: Use a contrasting button color so the CTA stands out from the section background
 
-    prompt += `\n\n10. Use modern CSS (flexbox/grid, smooth transitions)
-11. Create a prominent hero section that clearly identifies this as the "${pageTitle || 'page'}" page with the page title visible
+CONTACT SECTION REQUIREMENTS:
+- Provide contact information (address, phone, email, business hours) with appropriate icons
+- DO NOT create any <form> elements or blank input boxes
+- If a contact widget is configured in inline mode, insert a placeholder div (<div data-financely-widget="contactForm"></div>)
+- Otherwise rely on the floating widget
+- Offer general call-to-action buttons such as "Learn More" or "Explore Services," NOT buttons like "Contact Us" or "Request a Quote"
+
+FOOTER REQUIREMENTS:
+- Include the brand logo, tagline, navigation links, contact details, and social media icons
+- Remove any stray or empty elements (e.g., random white squares) and ensure text is legible against its background
+
+Navigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.
 
 LAYOUT & POSITIONING REQUIREMENTS:
 - Use CSS Grid or Flexbox for all layouts (never use absolute positioning except for overlays/modals)
-- Consistent spacing system: 16px base unit (1rem)
-  * Section padding: 48px-64px (3rem-4rem) vertical, 24px-32px (1.5rem-2rem) horizontal
-  * Element gaps: 16px-24px (1rem-1.5rem) between related elements
-  * Card padding: 24px (1.5rem)
-- Max content width: 1200px, centered with margin: 0 auto
-- Responsive breakpoints:
-  * Mobile: < 768px (single column, full width, reduced padding)
-  * Tablet: 768px - 1024px (2 columns max)
-  * Desktop: > 1024px (full layout)
+- Follow a consistent spacing system (16px base unit) for margins and padding
+- Set a maximum content width (~1200px) and center it within the viewport
+- Implement responsive breakpoints:
+  * Mobile (< 768px): single column, full width, reduced padding
+  * Tablet (768px - 1024px): up to two columns
+  * Desktop (> 1024px): full layout
+- Maintain vertical rhythm with consistent line heights and spacing between sections
+- Use semantic HTML5 throughout and include alt attributes for all images and ARIA labels where needed for accessibility
 - All elements must be properly aligned (use flexbox/grid alignment, not manual positioning)
-- No overlapping elements (ensure proper z-index only for overlays)
-- Consistent vertical rhythm (use consistent line-height: 1.5-1.75)
-
-11. Include proper semantic HTML5
-12. Make it visually appealing with proper spacing, typography, and visual hierarchy
-13. Add subtle animations and hover effects
-14. Ensure accessibility (proper alt tags, ARIA labels where needed)`;
+- No overlapping elements (ensure proper z-index only for overlays)`;
 
     if (context) {
       prompt += `\n\nAdditional Context and Instructions:
@@ -764,7 +777,7 @@ The website should prominently feature these products/services:`;
         ].filter(Boolean).join("\n");
         prompt += `\n${productInfo}`;
       });
-      prompt += `\n\nCreate a products/services section showcasing these items with their descriptions, prices, and images. Make it visually appealing and easy to browse.`;
+      prompt += `\n\nCreate a products/services section showcasing these items as responsive cards with aligned images, descriptions, prices, and call-to-action buttons. Ensure images and text are properly aligned within each card with equal padding and spacing. Make it visually appealing and easy to browse.`;
     }
 
     // Add widget context and instructions
@@ -854,14 +867,19 @@ REMEMBER:
 - Focus on content, not widget functionality`;
     }
 
-    prompt += `\n\nThe HTML should be complete and ready to deploy. Include:
+    prompt += `\n\nMULTI-PAGE REQUIREMENTS:
+- Each page should be created at its correct URL path (e.g., /about, /contact, etc.) and be visually distinct
+- Ensure each page has a unique design, hero section, and content structure
+- Pages must be fully functional and accessible at their respective paths
+
+The HTML should be complete and ready to deploy. Include:
 - <!DOCTYPE html>
 - <html> with lang attribute
 - <head> with meta tags, title, and viewport
 - <body> with all content
 - All CSS inline in <style> tag or style attributes
 
-Output ONLY the HTML code, no markdown, no explanations, just the HTML.`;
+Output ONLY the HTML code, no markdown, no explanations, no code fences, just the HTML.`;
 
     return prompt;
   }

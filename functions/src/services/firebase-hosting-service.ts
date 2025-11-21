@@ -158,20 +158,27 @@ export class FirebaseHostingService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText}`;
+        let errorMessage: string;
         let errorJson: any = null;
         
         try {
           errorJson = JSON.parse(errorText);
+          // Extract the actual error message from API response
           if (errorJson.error?.message) {
-            errorMessage = `Firebase Hosting API error: ${errorJson.error.message}`;
+            errorMessage = errorJson.error.message;
           } else if (errorJson.message) {
-            errorMessage = `Firebase Hosting API error: ${errorJson.message}`;
+            errorMessage = errorJson.message;
+          } else if (errorText) {
+            errorMessage = errorText;
+          } else {
+            errorMessage = `${response.status} ${response.statusText}`;
           }
         } catch {
           // If not JSON, use the text as is
-          if (errorText && errorText.length < 500) {
-            errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText} - ${errorText}`;
+          if (errorText) {
+            errorMessage = errorText;
+          } else {
+            errorMessage = `${response.status} ${response.statusText}`;
           }
         }
         
@@ -193,10 +200,12 @@ export class FirebaseHostingService {
           // Calculate exponential backoff: 2^retryCount seconds, max 30 seconds
           const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
           
-          logger.warn("Firebase Hosting API quota/rate limit error, retrying", {
+          logger.warn("Firebase Hosting API error, retrying", {
             status: response.status,
             statusText: response.statusText,
-            error: errorMessage,
+            errorMessage,
+            errorJson,
+            errorText: errorText.substring(0, 500),
             endpoint,
             method,
             retryCount: retryCount + 1,
@@ -212,51 +221,24 @@ export class FirebaseHostingService {
           return await this.makeRequest<T>(method, endpoint, body, maxRetries, retryCount + 1);
         }
         
-        // Provide user-friendly error message for quota errors
-        if (isQuotaError) {
-          const friendlyMessage = 
-            `Firebase Hosting API quota exceeded. ` +
-            `The service is temporarily unavailable due to high demand. ` +
-            `Please wait 5-10 minutes and try again. ` +
-            `\n\nTo check your quotas:\n` +
-            `1. Google Cloud Console: https://console.cloud.google.com/iam-admin/quotas?project=${this.projectId}\n` +
-            `   - Filter by: firebasehosting.googleapis.com\n` +
-            `   - Check: Sites per project (default: 36), API requests per minute\n` +
-            `2. Firebase Console: https://console.firebase.google.com/project/${this.projectId}/usage\n` +
-            `   - Review Hosting usage section\n` +
-            `\nCommon causes:\n` +
-            `- Too many sites (max 36 per project) - delete unused sites\n` +
-            `- Too many API requests - wait and retry\n` +
-            `- Too many deployments per day - batch operations\n` +
-            `\nSee FIREBASE_HOSTING_QUOTA_GUIDE.md for detailed troubleshooting.`;
-          
-          logger.error("Firebase Hosting API quota error (after retries)", {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorMessage,
-            endpoint,
-            method,
-            url: url.replace(token, "REDACTED"),
-            retryCount,
-            maxRetries,
-            projectId: this.projectId,
-            quotaCheckUrl: `https://console.cloud.google.com/iam-admin/quotas?project=${this.projectId}`,
-          });
-          
-          throw new Error(friendlyMessage);
-        }
-        
-        logger.error("Firebase Hosting API error", {
+        // Log full error details
+        logger.error("Firebase Hosting API error (after retries)", {
           status: response.status,
           statusText: response.statusText,
-          error: errorText.substring(0, 1000), // Truncate long errors
+          errorMessage,
+          errorJson: errorJson ? JSON.stringify(errorJson) : null,
+          errorText: errorText.substring(0, 2000),
           endpoint,
           method,
           url: url.replace(token, "REDACTED"),
           retryCount,
+          maxRetries,
+          projectId: this.projectId,
           isRetryable,
+          isQuotaError,
         });
         
+        // Return the actual API error message
         throw new Error(errorMessage);
       }
 
@@ -1648,6 +1630,7 @@ export class FirebaseHostingService {
 
 	/**
 	 * Delete a Firebase Hosting site
+	 * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites/delete
 	 * @param siteId - The site ID to delete
 	 */
 	async deleteSite(siteId: string): Promise<void> {
@@ -1659,46 +1642,75 @@ export class FirebaseHostingService {
 			.toLowerCase()
 			.replace(/[^a-z0-9-]/g, "-");
 
+		// Check if this is the default site (cannot be deleted)
+		if (normalizedSiteId === this.projectId) {
+			logger.warn("Cannot delete default Firebase Hosting site", {
+				siteId: normalizedSiteId,
+				projectId: this.projectId,
+				note: "Default site (with same ID as project) cannot be deleted via API",
+			});
+			// Don't throw - just log and return (treat as success since we can't delete it anyway)
+			return;
+		}
+
 		logger.info("Deleting Firebase Hosting site", {
 			siteId: normalizedSiteId,
+			projectId: this.projectId,
 		});
 
-		// Try site-scoped path first (preferred)
-		const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
+		// Use project-scoped endpoint (correct format per Firebase Hosting API docs)
+		// DELETE /v1beta1/projects/{project}/sites/{siteId}
 		const projectScopedEndpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}`;
+		
+		// Also try site-scoped as fallback (some operations support both)
+		const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
 
-		for (const endpoint of [siteScopedEndpoint, projectScopedEndpoint]) {
+		// Try project-scoped first (correct format), then site-scoped as fallback
+		for (const endpoint of [projectScopedEndpoint, siteScopedEndpoint]) {
 			try {
 				await this.makeRequest("DELETE", endpoint);
 				logger.info("Firebase Hosting site deleted successfully", {
 					siteId: normalizedSiteId,
 					endpoint,
+					projectId: this.projectId,
 				});
 				return;
-			} catch (error: any) {
-				// If 404, site doesn't exist (which is fine)
-				if (error?.status === 404 || error?.code === 404) {
-					logger.info("Firebase Hosting site does not exist (already deleted)", {
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				
+				// Check if error is 404 (site not found - already deleted or never existed)
+				const isNotFound = 
+					errorMessage.includes("404") || 
+					errorMessage.toLowerCase().includes("not found") ||
+					errorMessage.toLowerCase().includes("does not exist");
+
+				if (isNotFound) {
+					logger.info("Firebase Hosting site does not exist (already deleted or never created)", {
 						siteId: normalizedSiteId,
 						endpoint,
+						projectId: this.projectId,
+						note: "Treating 404 as success - site is already deleted",
 					});
-					return;
+					return; // Treat 404 as success - site is already deleted
 				}
 
 				// If this is the last endpoint, throw the error
-				if (endpoint === projectScopedEndpoint) {
-					logger.error("Failed to delete Firebase Hosting site", {
+				if (endpoint === siteScopedEndpoint) {
+					logger.error("Failed to delete Firebase Hosting site (both endpoints failed)", {
 						siteId: normalizedSiteId,
-						endpoint,
-						error: error instanceof Error ? error.message : "Unknown error",
+						projectId: this.projectId,
+						projectScopedEndpoint,
+						siteScopedEndpoint,
+						error: errorMessage,
 					});
 					throw error;
 				}
 
 				// Try next endpoint
-				logger.debug("Failed to delete with site-scoped endpoint, trying project-scoped", {
+				logger.debug("Failed to delete with project-scoped endpoint, trying site-scoped", {
 					siteId: normalizedSiteId,
-					error: error instanceof Error ? error.message : "Unknown error",
+					projectId: this.projectId,
+					error: errorMessage.substring(0, 200),
 				});
 			}
 		}

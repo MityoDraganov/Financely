@@ -62,9 +62,21 @@ export function StreamingText({
                                   text.startsWith(targetTextRef.current);
       
       if (isIncrementalUpdate) {
-        // Incremental update - don't reset, just update target and continue streaming
-        targetTextRef.current = text;
+        // Incremental update - don't reset, just update target
         // Keep currentIndexRef.current where it is - continue streaming from there
+        // But ensure we don't go backwards
+        const previousLength = targetTextRef.current.length;
+        targetTextRef.current = text;
+        
+        // If we've already displayed more than the previous target, keep our position
+        // Otherwise, continue from where we were
+        if (currentIndexRef.current < previousLength) {
+          // We're still catching up to the previous target, continue from current position
+          // No reset needed
+        } else {
+          // We've caught up, continue streaming the new content
+          // currentIndexRef stays the same, streaming will continue naturally
+        }
       } else {
         // Completely new text - reset
         targetTextRef.current = text;

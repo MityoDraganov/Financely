@@ -69,6 +69,7 @@ export { improveText } from "./functions/improve-text";
 export { deleteBrandSite } from "./functions/delete-brand-site";
 export { cleanupPreviewSites } from "./functions/cleanup-preview-sites";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
+export { publishBrandSite } from "./functions/publish-brand-site";
 
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";

@@ -539,7 +539,7 @@ export async function handleChatGenerateSite(
         tone: brandSite.tone || "professional",
         description: brandSite.context,
         brandImages: brandSite.contextImages || [],
-        context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Use a different layout, different hero style, and page-specific content that focuses on "${detectedPageTitle}". Do NOT repeat the same structure as other pages.`,
+        context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Each page needs a unique hero section featuring a relevant background (image or color), a clear page title, a subheadline, and primary/secondary call-to-action buttons. Center hero content within a max-width container and avoid placing extra logos inside the hero. Use a different layout structure, different hero style, and page-specific content that focuses on "${detectedPageTitle}". DO NOT repeat the same structure as other pages. Ensure the page is accessible at its correct URL path and has a clear visual identity.`,
         contextImages: input.attachments.length > 0 ? input.attachments : brandSite.contextImages || [],
         products: products.map((p) => ({
           name: p.name,

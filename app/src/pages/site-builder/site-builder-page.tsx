@@ -70,7 +70,6 @@ import { InvoiceRequestWidgetConfig } from "@/components/site-builder/invoice-re
 import { QuoteRequestWidgetConfig } from "@/components/site-builder/quote-request-widget-config";
 import { WidgetVersionHistory } from "@/components/site-builder/widget-version-history";
 import { EmbedScriptSection } from "@/components/site-builder/embed-script-section";
-import { ManualEditorTab } from "@/components/site-builder/manual-editor-tab";
 import { SiteStatusDisplay } from "@/components/site-builder/site-status-display";
 import { SiteVersionHistory } from "@/components/site-builder/site-version-history";
 import { CustomDomainInput } from "@/components/site-builder/custom-domain-input";
@@ -86,6 +85,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileEditor } from "@/components/site-builder/file-editor";
+import { MessageSquare, Code } from "lucide-react";
 
 // Build default styling from organization branding
 function buildDefaultStylingFromBranding(brandColors?: {
@@ -235,6 +237,7 @@ export default function SiteBuilderPage() {
 		widgets: false,
 		advanced: false,
 	});
+	const [activeMainTab, setActiveMainTab] = useState<"chat" | "code">("chat");
 
 	// Reset unpublished pages flag when site is successfully deployed
 	useEffect(() => {
@@ -1280,47 +1283,111 @@ export default function SiteBuilderPage() {
 					</div>
 				</div>
 
-				{/* Chat Interface */}
-				<div className="flex-1 p-6 overflow-y-auto">
+				{/* Main Content Area - Chat or Code Editor */}
+				<div className="flex-1 flex flex-col overflow-hidden">
 					{hasSite ? (
-						<AIChatBuilder
-							brandSiteId={currentBrandSiteId}
-							organizationId={organization?.id || ""}
-							onSiteUpdated={() => {
-								queryClient.invalidateQueries({
-									queryKey: ["brandSite", currentBrandSiteId],
-								});
-							}}
-						/>
-					) : (
-						<Card className="h-full flex flex-col">
-							<CardContent className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-6">
-								<div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-									<Sparkles className="h-8 w-8 text-primary" />
-								</div>
-								<div className="space-y-2">
-									<h2 className="text-2xl font-semibold">
-										Create Your First Website
-									</h2>
-									<p className="text-muted-foreground max-w-md">
-										Start by describing what you want your
-										website to be. The AI will help you
-										create a beautiful, branded site.
-									</p>
-								</div>
-								<Button
-									size="lg"
-									onClick={() => {
-										setShowCreateSiteDialog(true);
+						<Tabs
+							value={activeMainTab}
+							onValueChange={(value) =>
+								setActiveMainTab(value as "chat" | "code")
+							}
+							className="flex-1 flex flex-col overflow-hidden"
+						>
+							<div className="px-6 pt-6 pb-0 border-b">
+								<TabsList className="grid w-full max-w-md grid-cols-2">
+									<TabsTrigger value="chat" className="gap-2">
+										<MessageSquare className="h-4 w-4" />
+										Chat Builder
+									</TabsTrigger>
+									<TabsTrigger value="code" className="gap-2">
+										<Code className="h-4 w-4" />
+										Code Editor
+									</TabsTrigger>
+								</TabsList>
+							</div>
+							<TabsContent
+								value="chat"
+								className="flex-1 overflow-y-auto p-6 mt-0"
+							>
+								<AIChatBuilder
+									brandSiteId={currentBrandSiteId}
+									organizationId={organization?.id || ""}
+									onSiteUpdated={() => {
+										queryClient.invalidateQueries({
+											queryKey: ["brandSite", currentBrandSiteId],
+										});
 									}}
-									disabled={!organization?.id}
-									className="gap-2"
-								>
-									<Sparkles className="h-4 w-4" />
-									Create Site
-								</Button>
-							</CardContent>
-						</Card>
+								/>
+							</TabsContent>
+							<TabsContent
+								value="code"
+								className="flex-1 overflow-hidden p-6 mt-0"
+							>
+								<div className="h-full flex flex-col">
+									<FileEditor
+										files={
+											brandSite?.data?.files ||
+											(brandSite?.data?.html
+												? { "index.html": brandSite.data.html }
+												: {})
+										}
+										onSave={async (files) => {
+											if (!currentBrandSiteId) return;
+											await updateBrandSite.mutateAsync({
+												id: currentBrandSiteId,
+												data: { files },
+											});
+											toast.success("Files saved successfully");
+										}}
+										onDeploy={async (files) => {
+											if (!currentBrandSiteId || !organization?.id) return;
+											// Convert Record<string, string> to Array<{ path: string; content: string }>
+											const filesArray = Object.entries(files).map(([path, content]) => ({
+												path,
+												content,
+											}));
+											await deployManualSite.mutateAsync({
+												brandSiteId: currentBrandSiteId,
+												files: filesArray,
+											});
+										}}
+										organizationId={organization?.id || ""}
+										projectId={projectId || ""}
+									/>
+								</div>
+							</TabsContent>
+						</Tabs>
+					) : (
+						<div className="flex-1 p-6 overflow-y-auto">
+							<Card className="h-full flex flex-col">
+								<CardContent className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-6">
+									<div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+										<Sparkles className="h-8 w-8 text-primary" />
+									</div>
+									<div className="space-y-2">
+										<h2 className="text-2xl font-semibold">
+											Create Your First Website
+										</h2>
+										<p className="text-muted-foreground max-w-md">
+											Start by describing what you want your
+											website to be. The AI will help you
+											create a beautiful, branded site.
+										</p>
+									</div>
+									<Button
+										size="lg"
+										onClick={() => {
+											setShowCreateSiteDialog(true);
+										}}
+										disabled={!organization?.id}
+										className="gap-2"
+									>
+										<Sparkles className="h-4 w-4" />
+										Create Site
+									</Button>
+								</CardContent>
+							</Card>
+						</div>
 					)}
 				</div>
 			</div>
@@ -1720,28 +1787,40 @@ export default function SiteBuilderPage() {
 											message={domainMessage}
 										/>
 										<div className="pt-4 border-t">
-											<ManualEditorTab
-												hasSite={!!hasSite}
-												brandSite={
-													brandSite?.data ||
-													brandSites[0] ||
-													null
-												}
-												organizationId={
-													organization?.id || ""
-												}
-												organizationName={
-													organization?.name || ""
-												}
-												companyName={
-													organization?.settings
-														?.branding?.companyName
-												}
-												projectId={projectId || ""}
-												onCreateBlankSite={async () => {
-													if (!organization?.id)
-														return;
-													const blankHtml = `<!DOCTYPE html>
+											<Card>
+												<CardHeader className="pb-3">
+													<CardTitle className="text-base flex items-center gap-2">
+														<Code className="h-4 w-4" />
+														Code Editor
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													<p className="text-sm text-muted-foreground mb-4">
+														Edit your site files directly in the full-size code editor.
+													</p>
+													<Button
+														onClick={() => {
+															setActiveMainTab("code");
+															setSidebarOpen(false);
+														}}
+														className="w-full"
+														variant="outline"
+													>
+														<Code className="h-4 w-4 mr-2" />
+														Open Code Editor
+													</Button>
+												</CardContent>
+											</Card>
+											{!hasSite && (
+												<Card className="mt-4">
+													<CardContent className="pt-6">
+														<p className="text-sm text-muted-foreground mb-4 text-center">
+															Create a site first to use the code editor.
+														</p>
+														<Button
+															onClick={async () => {
+																if (!organization?.id) return;
+																const blankHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1753,112 +1832,50 @@ export default function SiteBuilderPage() {
   <p>Start editing your site files!</p>
 </body>
 </html>`;
-													generateSite.mutate(
-														{
-															organizationId:
-																organization.id,
-															brandName:
-																organization
-																	.settings
-																	?.branding
-																	?.companyName ||
-																organization.name,
-															tone: "professional",
-															pages: currentPages,
-														},
-														{
-															onSuccess: async (
-																result
-															) => {
-																setCurrentBrandSiteId(
-																	result.id
-																);
-																await updateBrandSite.mutateAsync(
+																generateSite.mutate(
 																	{
-																		id: result.id,
-																		data: {
-																			html: blankHtml,
-																			files: {
-																				"index.html":
-																					blankHtml,
-																			},
+																		organizationId: organization.id,
+																		brandName:
+																			organization
+																				.settings
+																				?.branding
+																				?.companyName ||
+																			organization.name,
+																		context: blankHtml,
+																	},
+																	{
+																		onSuccess: (result) => {
+																			setCurrentBrandSiteId(
+																				result.id
+																			);
+																			setActiveMainTab("code");
+																			toast.success(
+																				"Blank site created! Switch to Code Editor tab to start editing."
+																			);
 																		},
 																	}
 																);
-																toast.success(
-																	"Blank site created!"
-																);
-															},
-														}
-													);
-												}}
-												isCreating={
-													generateSite.isPending
-												}
-												onSaveFiles={async (files) => {
-													if (!currentBrandSiteId)
-														return;
-													await updateBrandSite.mutateAsync(
-														{
-															id: currentBrandSiteId,
-															data: {
-																files,
-																html:
-																	files[
-																		"index.html"
-																	] ||
-																	files[
-																		"/index.html"
-																	] ||
-																	brandSite
-																		?.data
-																		?.html ||
-																	"",
-															},
-														}
-													);
-												}}
-												onDeployFiles={async (
-													files
-												) => {
-													if (
-														!currentBrandSiteId ||
-														!organization?.id
-													)
-														return;
-													await deployManualSite.mutateAsync(
-														{
-															brandSiteId:
-																currentBrandSiteId,
-															files: Object.entries(
-																files
-															).map(
-																([
-																	path,
-																	content,
-																]) => ({
-																	path,
-																	content,
-																})
-															),
-															versionMessage:
-																"Manual deployment from code editor",
-															includeWidgets:
-																organization
-																	.settings
-																	?.widgets
-																	?.enabled ||
-																false,
-														}
-													);
-												}}
-												widgetsEnabled={
-													organization?.settings
-														?.widgets?.enabled ||
-													false
-												}
-											/>
+															}}
+															disabled={!organization?.id || generateSite.isPending}
+															className="w-full"
+														>
+															{generateSite.isPending ? (
+																<>
+																	<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+																	Creating...
+																</>
+															) : (
+																<>
+																	<Plus className="h-4 w-4 mr-2" />
+																	Create Blank Site
+																</>
+															)}
+														</Button>
+													</CardContent>
+												</Card>
+											)}
 										</div>
+										{/* Code Editor is now available in the main content area via tabs */}
 									</CardContent>
 								</CollapsibleContent>
 							</Card>

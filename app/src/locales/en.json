@@ -1,0 +1,65 @@
+{
+  "dashboard": {
+    "welcome": "Welcome back, {{name}}",
+    "welcomeFallback": "Welcome back, User",
+    "subtitle": "Here's what's happening with your invoices and templates today.",
+    "quickActions": {
+      "createInvoice": "Create Invoice",
+      "designTemplate": "Design Template",
+      "organizationSettings": "Organization Settings"
+    },
+    "metrics": {
+      "totalInvoices": "Total Invoices",
+      "paidUnpaid": "{{paid}} paid, {{unpaid}} unpaid",
+      "paidRevenue": "Paid Revenue",
+      "paidInvoice": "{{count}} paid invoice",
+      "paidInvoices": "{{count}} paid invoices",
+      "outstanding": "Outstanding",
+      "unpaidInvoice": "{{count}} unpaid invoice",
+      "unpaidInvoices": "{{count}} unpaid invoices",
+      "draftInvoices": "Draft Invoices",
+      "draftAmount": "${{amount}} in drafts",
+      "noDrafts": "No drafts yet",
+      "totalAmount": "Total Amount",
+      "acrossAllInvoices": "Across all invoices",
+      "templates": "Templates",
+      "readyToUse": "Ready to use",
+      "createFirstTemplate": "Create your first template"
+    },
+    "recentInvoices": {
+      "title": "Recent Invoices",
+      "description": "Your latest invoice activity",
+      "viewAll": "View All",
+      "invoiceNumber": "Invoice #{{number}}",
+      "unknownClient": "Unknown Client",
+      "recently": "Recently",
+      "noInvoices": "No invoices yet",
+      "getStarted": "Get started by creating your first invoice."
+    },
+    "templates": {
+      "title": "Templates",
+      "description": "Your invoice templates",
+      "design": "Design",
+      "noDescription": "No description",
+      "active": "Active",
+      "noTemplates": "No templates",
+      "createFirst": "Create your first template"
+    },
+    "invoiceStatus": {
+      "title": "Invoice Status",
+      "description": "Breakdown by status",
+      "paid": "Paid",
+      "sent": "Sent",
+      "draft": "Draft",
+      "cancelled": "Cancelled",
+      "noInvoices": "No invoices yet"
+    },
+    "status": {
+      "paid": "paid",
+      "sent": "sent",
+      "cancelled": "cancelled",
+      "draft": "draft"
+    }
+  }
+}
+

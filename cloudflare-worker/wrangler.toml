@@ -1,0 +1,29 @@
+# Cloudflare Worker configuration for Financely brand sites
+# 
+# To deploy:
+# 1. Install wrangler: npm install -g wrangler
+# 2. Authenticate: wrangler login
+# 3. Create KV namespace: wrangler kv:namespace create "SITE_HOSTS"
+# 4. Create R2 bucket: wrangler r2 bucket create "financely-sites"
+# 5. Update the IDs below with your actual namespace_id and bucket name
+# 6. Deploy: wrangler deploy
+
+name = "financely-sites-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "financely-sites-worker"
+
+# KV namespace for hostname -> brandSiteId:versionId mappings
+[[kv_namespaces]]
+binding = "SITE_HOSTS"
+id = "c989958d896c45fdababde535507edd3"  # Production KV namespace ID
+preview_id = "50c08093bedf425ca772af8e410a503e"  # Preview KV namespace ID
+
+# R2 bucket for static site files
+[[r2_buckets]]
+binding = "SITES_BUCKET"
+bucket_name = "financely-sites"  # Replace with your actual bucket name
+preview_bucket_name = "financely-sites-preview"  # Optional, for preview environments
+

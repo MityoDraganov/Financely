@@ -11,6 +11,7 @@ import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
 import { useBrandSite, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
 import { StreamingText } from "./streaming-text";
 import { ProcessingStepAnimation, type ProcessingStep } from "./processing-step-animation";
+import { HtmlPreviewDrawer } from "./html-preview-drawer";
 
 interface ChatMessage {
   id: string;
@@ -20,6 +21,7 @@ interface ChatMessage {
   timestamp: string;
   isTyping?: boolean;
   processingStep?: ProcessingStep; // For showing animations during processing
+  isHtmlPreview?: boolean; // Mark HTML preview messages for special rendering
 }
 
 interface AIChatBuilderProps {
@@ -343,7 +345,7 @@ export function AIChatBuilder({
     // Check if site is generating
     if (brandSite?.status !== "generating" && brandSite?.status !== "pending" && brandSite?.status !== "deploying") {
       // Remove HTML streaming messages when generation is complete
-      setMessages((prev) => prev.filter(m => !m.id?.startsWith("html-streaming-")));
+      setMessages((prev) => prev.filter(m => m.id !== "html-streaming-preview"));
       return;
     }
 
@@ -398,8 +400,11 @@ export function AIChatBuilder({
     
     setMessages((prev) => {
       // Use a stable ID for HTML streaming messages so they update in place
-      const HTML_STREAMING_MESSAGE_ID = `html-streaming-${largestPath}`;
-      const existingIndex = prev.findIndex(m => m.id === HTML_STREAMING_MESSAGE_ID);
+      // Use a single ID for all HTML streaming to prevent duplicates
+      const HTML_STREAMING_MESSAGE_ID = "html-streaming-preview";
+      
+      // Remove any existing HTML streaming messages first to prevent duplicates
+      const filteredPrev = prev.filter(m => m.id !== HTML_STREAMING_MESSAGE_ID);
       
       // Show the actual HTML content being generated
       // Remove markdown code block markers if present (```html and ```)
@@ -420,17 +425,11 @@ export function AIChatBuilder({
         content: htmlContent,
         timestamp: new Date().toISOString(),
         isTyping: false,
+        isHtmlPreview: true, // Mark as HTML preview for special rendering
       };
       
-      if (existingIndex >= 0) {
-        // Update existing streaming message in place (preserves position and prevents restart)
-        const updated = [...prev];
-        updated[existingIndex] = htmlStreamingMessage;
-        return updated;
-      } else {
-        // Add new HTML streaming message
-        return [...prev, htmlStreamingMessage];
-      }
+      // Always add/update at the end to ensure it's the latest
+      return [...filteredPrev, htmlStreamingMessage];
     });
   }, [brandSite?.files, brandSite?.status]);
 
@@ -882,13 +881,21 @@ export function AIChatBuilder({
                       </div>
                     )}
                     {message.content ? (
-                      <StreamingText
-                        text={message.content}
-                        speed={message.id?.startsWith("html-streaming") ? 5 : 1} // Faster for large HTML blocks
-                        interval={message.id?.startsWith("html-streaming") ? 20 : 50} // Faster interval for HTML
-                        shouldStream={message.role === "assistant"} // Stream all assistant messages including HTML
-                        className="whitespace-pre-wrap"
-                      />
+                      message.isHtmlPreview ? (
+                        <HtmlPreviewDrawer
+                          htmlContent={message.content}
+                          isStreaming={brandSite?.status === "generating" || brandSite?.status === "pending" || brandSite?.status === "deploying"}
+                          processingStep={getProcessingStep() || "generating"}
+                        />
+                      ) : (
+                        <StreamingText
+                          text={message.content}
+                          speed={1}
+                          interval={50}
+                          shouldStream={message.role === "assistant"}
+                          className="whitespace-pre-wrap"
+                        />
+                      )
                     ) : null}
                   </>
                 )}

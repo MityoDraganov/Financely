@@ -188,6 +188,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async publishBrandSite(payload) {
+    type PublishBrandSitePayload = Parameters<
+      FunctionsService["publishBrandSite"]
+    >[0];
+    const result = await httpsCallable<
+      PublishBrandSitePayload,
+      { success: boolean; brandSiteId: string; versionId: string; publishedDomains: string[]; deployedUrl?: string }
+    >(firebase.functions, "publishBrandSite")(payload);
+    return result.data;
+  },
+
   async generateProposalSuggestion(payload: {
     leadId: string;
     organizationId: string;
