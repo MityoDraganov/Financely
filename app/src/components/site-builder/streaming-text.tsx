@@ -53,15 +53,25 @@ export function StreamingText({
       return;
     }
 
-    // Check if text changed to a completely new value
+    // Check if text changed
     const isNewText = targetTextRef.current !== text;
     
     if (isNewText) {
-      // Reset for new text
-      targetTextRef.current = text;
-      currentIndexRef.current = 0;
-      setDisplayedText("");
-      setIsComplete(false);
+      // If new text is longer than current, it's an incremental update - continue from where we left off
+      const isIncrementalUpdate = text.length > targetTextRef.current.length && 
+                                  text.startsWith(targetTextRef.current);
+      
+      if (isIncrementalUpdate) {
+        // Incremental update - don't reset, just update target and continue streaming
+        targetTextRef.current = text;
+        // Keep currentIndexRef.current where it is - continue streaming from there
+      } else {
+        // Completely new text - reset
+        targetTextRef.current = text;
+        currentIndexRef.current = 0;
+        setDisplayedText("");
+        setIsComplete(false);
+      }
     }
 
     // Stream function

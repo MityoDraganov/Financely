@@ -40,8 +40,6 @@ export function AIChatBuilder({
   organizationId,
 }: AIChatBuilderProps) {
 
-  console.log("🟢 AIChatBuilder props:", { brandSiteId, organizationId });
-
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -343,9 +341,9 @@ export function AIChatBuilder({
   // This works for initial site generation (no conversation needed)
   useEffect(() => {
     // Check if site is generating
-    if (brandSite?.status !== "generating" && brandSite?.status !== "pending") {
-      // Remove HTML streaming message when generation is complete
-      setMessages((prev) => prev.filter(m => !m.id?.startsWith("html-streaming")));
+    if (brandSite?.status !== "generating" && brandSite?.status !== "pending" && brandSite?.status !== "deploying") {
+      // Remove HTML streaming messages when generation is complete
+      setMessages((prev) => prev.filter(m => !m.id?.startsWith("html-streaming-")));
       return;
     }
 
@@ -399,42 +397,40 @@ export function AIChatBuilder({
     });
     
     setMessages((prev) => {
-      const hasHtmlStreamingMessage = prev.some(m => m.id?.startsWith("html-streaming"));
-      const withoutHtmlStreaming = prev.filter(m => !m.id?.startsWith("html-streaming"));
+      // Use a stable ID for HTML streaming messages so they update in place
+      const HTML_STREAMING_MESSAGE_ID = `html-streaming-${largestPath}`;
+      const existingIndex = prev.findIndex(m => m.id === HTML_STREAMING_MESSAGE_ID);
+      
+      // Show the actual HTML content being generated
+      // Remove markdown code block markers if present (```html and ```)
+      let displayHtml = largestHtml;
+      if (displayHtml.startsWith("```html")) {
+        displayHtml = displayHtml.replace(/^```html\s*/, "");
+      }
+      if (displayHtml.endsWith("```")) {
+        displayHtml = displayHtml.replace(/\s*```$/, "");
+      }
+      
+      // Show the full HTML content being generated
+      const htmlContent = `\`\`\`html\n${displayHtml}\n\`\`\`\n\n`;
       
       const htmlStreamingMessage: ChatMessage = {
-        id: `html-streaming-${Date.now()}`,
+        id: HTML_STREAMING_MESSAGE_ID,
         role: "assistant",
-        content: `🎨 Generating website HTML...\n\n📄 Page: ${pageName}\n📊 Progress: ~${progressPercent}% (${Math.round(currentSize / 1000)}KB generated)\n\n✨ Your website is being created in real-time!`,
+        content: htmlContent,
         timestamp: new Date().toISOString(),
         isTyping: false,
       };
       
-      if (hasHtmlStreamingMessage) {
-        // Update existing HTML streaming message
-        const existingIndex = prev.findIndex(m => m.id?.startsWith("html-streaming"));
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...prev[existingIndex],
-            content: htmlStreamingMessage.content,
-            timestamp: new Date().toISOString(),
-          };
-          console.log("🔄 Updated HTML streaming message", {
-            progress: progressPercent,
-            size: currentSize,
-          });
-          return updated;
-        }
+      if (existingIndex >= 0) {
+        // Update existing streaming message in place (preserves position and prevents restart)
+        const updated = [...prev];
+        updated[existingIndex] = htmlStreamingMessage;
+        return updated;
+      } else {
+        // Add new HTML streaming message
+        return [...prev, htmlStreamingMessage];
       }
-      
-      // Add new HTML streaming message
-      console.log("➕ Added new HTML streaming message", {
-        progress: progressPercent,
-        size: currentSize,
-        path: largestPath,
-      });
-      return [...withoutHtmlStreaming, htmlStreamingMessage];
     });
   }, [brandSite?.files, brandSite?.status]);
 
@@ -888,9 +884,9 @@ export function AIChatBuilder({
                     {message.content ? (
                       <StreamingText
                         text={message.content}
-                        speed={1}
-                        interval={50}
-                        shouldStream={message.role === "assistant"} // Only stream assistant messages
+                        speed={message.id?.startsWith("html-streaming") ? 5 : 1} // Faster for large HTML blocks
+                        interval={message.id?.startsWith("html-streaming") ? 20 : 50} // Faster interval for HTML
+                        shouldStream={message.role === "assistant"} // Stream all assistant messages including HTML
                         className="whitespace-pre-wrap"
                       />
                     ) : null}
