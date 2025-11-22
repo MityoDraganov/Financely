@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,12 +20,13 @@ type WatermarkConfigProps = {
 };
 
 export function WatermarkConfig({ template, organizationLogo, saveMutation }: WatermarkConfigProps) {
+	const { t } = useTranslation();
 	return (
 		<section className={`${components.section} ${separators.sectionDivider}`}>
-			<h3 className={typography.sectionTitle}>Watermark</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.watermark.title')}</h3>
 			<div className={components.subsection}>
 				<div className={`${components.field} flex items-center justify-between`}>
-					<Label htmlFor="watermark-enabled" className={typography.fieldLabel}>Enable Watermark</Label>
+					<Label htmlFor="watermark-enabled" className={typography.fieldLabel}>{t('designer.watermark.enable')}</Label>
 					<input
 						id="watermark-enabled"
 						type="checkbox"
@@ -56,7 +58,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 				{template.brand.watermark?.enabled && (
 					<div className={`${separators.nestedContent} ${spacing.fieldGroupGap}`}>
 						<div className={components.field}>
-							<Label htmlFor="watermark-type" className={typography.fieldLabel}>Type</Label>
+							<Label htmlFor="watermark-type" className={typography.fieldLabel}>{t('designer.watermark.type')}</Label>
 							<Select
 								value={template.brand.watermark?.imageUrl ? "image" : "text"}
 								onValueChange={(v) => {
@@ -75,7 +77,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											watermark: {
 												...currentWatermark,
 												imageUrl: v === "image" ? (organizationLogo || currentWatermark.imageUrl) : undefined,
-												text: v === "text" ? (currentWatermark.text || "CONFIDENTIAL") : undefined,
+												text: v === "text" ? (currentWatermark.text || t('designer.watermark.textPlaceholder')) : undefined,
 											},
 										},
 									});
@@ -85,14 +87,14 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="image">Image</SelectItem>
-									<SelectItem value="text">Text</SelectItem>
+									<SelectItem value="image">{t('designer.watermark.image')}</SelectItem>
+									<SelectItem value="text">{t('designer.watermark.text')}</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
 						{template.brand.watermark?.imageUrl ? (
 							<div className={components.field}>
-								<Label htmlFor="watermark-image-url" className={typography.fieldLabel}>Image URL</Label>
+								<Label htmlFor="watermark-image-url" className={typography.fieldLabel}>{t('designer.watermark.imageUrl')}</Label>
 								<Input
 									id="watermark-image-url"
 									value={template.brand.watermark.imageUrl || ""}
@@ -122,7 +124,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 							</div>
 						) : (
 							<div className={components.field}>
-								<Label htmlFor="watermark-text" className={typography.fieldLabel}>Text</Label>
+								<Label htmlFor="watermark-text" className={typography.fieldLabel}>{t('designer.watermark.text')}</Label>
 								<Input
 									id="watermark-text"
 									value={template.brand.watermark?.text || ""}
@@ -146,13 +148,13 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											},
 										});
 									}}
-									placeholder="CONFIDENTIAL"
+									placeholder={t('designer.watermark.textPlaceholder')}
 									className={`${components.inputHeight} text-xs`}
 								/>
 							</div>
 						)}
 						<div className={components.field}>
-							<Label htmlFor="watermark-position" className={typography.fieldLabel}>Position</Label>
+							<Label htmlFor="watermark-position" className={typography.fieldLabel}>{t('designer.watermark.position')}</Label>
 							<Select
 								value={template.brand.watermark?.position || "center"}
 								onValueChange={(v) => {
@@ -179,22 +181,22 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								<SelectTrigger className={components.inputHeight}>
 									<SelectValue />
 								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="center">Center</SelectItem>
-									<SelectItem value="top-left">Top Left</SelectItem>
-									<SelectItem value="top-right">Top Right</SelectItem>
-									<SelectItem value="bottom-left">Bottom Left</SelectItem>
-									<SelectItem value="bottom-right">Bottom Right</SelectItem>
-									<SelectItem value="top-center">Top Center</SelectItem>
-									<SelectItem value="bottom-center">Bottom Center</SelectItem>
-									<SelectItem value="left-center">Left Center</SelectItem>
-									<SelectItem value="right-center">Right Center</SelectItem>
-								</SelectContent>
+							<SelectContent>
+								<SelectItem value="center">{t('designer.watermark.positions.center')}</SelectItem>
+								<SelectItem value="top-left">{t('designer.watermark.positions.topLeft')}</SelectItem>
+								<SelectItem value="top-right">{t('designer.watermark.positions.topRight')}</SelectItem>
+								<SelectItem value="bottom-left">{t('designer.watermark.positions.bottomLeft')}</SelectItem>
+								<SelectItem value="bottom-right">{t('designer.watermark.positions.bottomRight')}</SelectItem>
+								<SelectItem value="top-center">{t('designer.watermark.positions.topCenter')}</SelectItem>
+								<SelectItem value="bottom-center">{t('designer.watermark.positions.bottomCenter')}</SelectItem>
+								<SelectItem value="left-center">{t('designer.watermark.positions.leftCenter')}</SelectItem>
+								<SelectItem value="right-center">{t('designer.watermark.positions.rightCenter')}</SelectItem>
+							</SelectContent>
 							</Select>
 						</div>
 						<div className={components.grid}>
 							<div className={components.field}>
-								<Label htmlFor="watermark-width" className={typography.fieldLabel}>Width (px)</Label>
+								<Label htmlFor="watermark-width" className={typography.fieldLabel}>{t('designer.watermark.width')}</Label>
 							<Input
 								id="watermark-width"
 								type="number"
@@ -256,7 +258,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 							/>
 						</div>
 						<div className={components.field}>
-							<Label htmlFor="watermark-height" className={typography.fieldLabel}>Height (px)</Label>
+							<Label htmlFor="watermark-height" className={typography.fieldLabel}>{t('designer.watermark.height')}</Label>
 							<Input
 								id="watermark-height"
 								type="number"
@@ -289,7 +291,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label htmlFor="watermark-rotation" className={typography.fieldLabel}>Rotation</Label>
+						<Label htmlFor="watermark-rotation" className={typography.fieldLabel}>{t('designer.watermark.rotation')}</Label>
 						<div className="flex items-center gap-2">
 							<Input
 								id="watermark-rotation-slider"
@@ -386,7 +388,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label htmlFor="watermark-opacity" className={typography.fieldLabel}>Opacity</Label>
+						<Label htmlFor="watermark-opacity" className={typography.fieldLabel}>{t('designer.watermark.opacity')}</Label>
 						<div className="flex items-center gap-2">
 							<Input
 								id="watermark-opacity-slider"
@@ -487,7 +489,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label htmlFor="watermark-blend-mode" className={typography.fieldLabel}>Blend Mode</Label>
+						<Label htmlFor="watermark-blend-mode" className={typography.fieldLabel}>{t('designer.watermark.blendMode')}</Label>
 						<Select
 							value={template.brand.watermark?.blendMode || "normal"}
 							onValueChange={(v) => {
@@ -515,17 +517,17 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="normal">Normal</SelectItem>
-								<SelectItem value="multiply">Multiply</SelectItem>
-								<SelectItem value="screen">Screen</SelectItem>
-								<SelectItem value="overlay">Overlay</SelectItem>
-								<SelectItem value="soft-light">Soft Light</SelectItem>
-								<SelectItem value="hard-light">Hard Light</SelectItem>
+								<SelectItem value="normal">{t('designer.watermark.blendModes.normal')}</SelectItem>
+								<SelectItem value="multiply">{t('designer.watermark.blendModes.multiply')}</SelectItem>
+								<SelectItem value="screen">{t('designer.watermark.blendModes.screen')}</SelectItem>
+								<SelectItem value="overlay">{t('designer.watermark.blendModes.overlay')}</SelectItem>
+								<SelectItem value="soft-light">{t('designer.watermark.blendModes.softLight')}</SelectItem>
+								<SelectItem value="hard-light">{t('designer.watermark.blendModes.hardLight')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className={components.field}>
-						<Label htmlFor="watermark-repeat" className={typography.fieldLabel}>Repeat</Label>
+						<Label htmlFor="watermark-repeat" className={typography.fieldLabel}>{t('designer.watermark.repeat')}</Label>
 						<Select
 							value={template.brand.watermark?.repeat || "none"}
 							onValueChange={(v) => {
@@ -553,10 +555,10 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="none">None</SelectItem>
-								<SelectItem value="repeat">Repeat</SelectItem>
-								<SelectItem value="repeat-x">Repeat X</SelectItem>
-								<SelectItem value="repeat-y">Repeat Y</SelectItem>
+								<SelectItem value="none">{t('designer.watermark.repeatOptions.none')}</SelectItem>
+								<SelectItem value="repeat">{t('designer.watermark.repeatOptions.repeat')}</SelectItem>
+								<SelectItem value="repeat-x">{t('designer.watermark.repeatOptions.repeatX')}</SelectItem>
+								<SelectItem value="repeat-y">{t('designer.watermark.repeatOptions.repeatY')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>

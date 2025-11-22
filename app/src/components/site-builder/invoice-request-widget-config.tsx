@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Accordion } from "@/components/ui/accordion";
+import { useTranslation } from "react-i18next";
 import { WidgetStylingAccordion } from "./widget-styling-accordion";
 import { WidgetLocalizationAccordion } from "./widget-localization-accordion";
 import type { InvoiceRequestConfig, WidgetStyling, WidgetLocalization, WidgetPosition } from "./widget-types";
@@ -31,6 +32,7 @@ export function InvoiceRequestWidgetConfig({
   onOpenAiBuilder,
   organizationId,
 }: InvoiceRequestWidgetConfigProps) {
+  const { t } = useTranslation();
   const updateConfig = (updates: Partial<InvoiceRequestConfig>) => {
     onConfigChange({ ...config, ...updates });
   };
@@ -40,7 +42,7 @@ export function InvoiceRequestWidgetConfig({
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <Label className="text-base font-semibold">Invoice Request Widget</Label>
+            <Label className="text-base font-semibold">{t('siteBuilder.widgets.config.invoiceRequest.title')}</Label>
             {config.enabled && (
               <Button
                 type="button"
@@ -49,12 +51,12 @@ export function InvoiceRequestWidgetConfig({
                 size="sm"
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-pulse" />
-                AI Builder
+                {t('siteBuilder.widgets.config.invoiceRequest.aiBuilder')}
               </Button>
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Allow customers to request invoices
+            {t('siteBuilder.widgets.config.invoiceRequest.description')}
           </p>
         </div>
         <Switch
@@ -67,14 +69,14 @@ export function InvoiceRequestWidgetConfig({
           {/* Basic Configuration */}
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Title</Label>
+              <Label>{t('siteBuilder.widgets.config.invoiceRequest.fields.title')}</Label>
               <Input
                 value={config.title}
                 onChange={(e) => updateConfig({ title: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Description (Optional)</Label>
+              <Label>{t('siteBuilder.widgets.config.invoiceRequest.fields.description')}</Label>
               <Textarea
                 value={config.description}
                 onChange={(e) => updateConfig({ description: e.target.value })}
@@ -83,14 +85,14 @@ export function InvoiceRequestWidgetConfig({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Button Text</Label>
+                <Label>{t('siteBuilder.widgets.config.invoiceRequest.fields.buttonText')}</Label>
                 <Input
                   value={config.submitButtonText}
                   onChange={(e) => updateConfig({ submitButtonText: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Position</Label>
+                <Label>{t('siteBuilder.widgets.config.invoiceRequest.fields.position')}</Label>
                 <Select
                   value={config.position}
                   onValueChange={(value: WidgetPosition) => updateConfig({ position: value })}
@@ -99,16 +101,16 @@ export function InvoiceRequestWidgetConfig({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                    <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                    <SelectItem value="top-right">Top Right</SelectItem>
-                    <SelectItem value="top-left">Top Left</SelectItem>
+                    <SelectItem value="bottom-right">{t('siteBuilder.widgets.config.invoiceRequest.fields.positionBottomRight')}</SelectItem>
+                    <SelectItem value="bottom-left">{t('siteBuilder.widgets.config.invoiceRequest.fields.positionBottomLeft')}</SelectItem>
+                    <SelectItem value="top-right">{t('siteBuilder.widgets.config.invoiceRequest.fields.positionTopRight')}</SelectItem>
+                    <SelectItem value="top-left">{t('siteBuilder.widgets.config.invoiceRequest.fields.positionTopLeft')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Success Message</Label>
+              <Label>{t('siteBuilder.widgets.config.invoiceRequest.fields.successMessage')}</Label>
               <Input
                 value={config.successMessage}
                 onChange={(e) => updateConfig({ successMessage: e.target.value })}
@@ -133,7 +135,7 @@ export function InvoiceRequestWidgetConfig({
                 successMessage: config.successMessage,
                 organizationId: organizationId,
               }}
-              helpText='Add custom translations for widget text. Use keys like "requestInvoice", "submitButton", etc.'
+              helpText={t('siteBuilder.widgets.config.invoiceRequest.fields.localizationHelp')}
             />
           </Accordion>
         </div>

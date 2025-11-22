@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -52,13 +53,14 @@ interface BoxPropertiesProps {
 }
 
 export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProps) {
+	const { t } = useTranslation();
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
 					<Input
 						type="number"
 						value={element.x}
@@ -67,7 +69,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
 					<Input
 						type="number"
 						value={element.y}
@@ -76,7 +78,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
 					<Input
 						type="number"
 						value={element.width}
@@ -85,7 +87,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
 					<Input
 						type="number"
 						value={element.height}
@@ -99,14 +101,14 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Box</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.box.title')}</h3>
 			
 			{/* Box Styling */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Styling</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.box.styling')}</h4>
 				<div className={components.grid}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Fill</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.fill')}</Label>
 						<div className="flex gap-2">
 							<Input
 								type="color"
@@ -117,7 +119,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 							/>
 							<Input
-								placeholder="#RRGGBB"
+								placeholder={t('designer.elementProperties.box.fillPlaceholder')}
 								value={element.fill}
 								onChange={(e) => {
 									onChange({ ...element, fill: e.target.value });
@@ -127,7 +129,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stroke</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.stroke')}</Label>
 						<div className="flex gap-2">
 							<Input
 								type="color"
@@ -138,7 +140,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 							/>
 							<Input
-								placeholder="#RRGGBB"
+								placeholder={t('designer.elementProperties.box.strokePlaceholder')}
 								value={element.stroke}
 								onChange={(e) => {
 									onChange({ ...element, stroke: e.target.value });
@@ -148,10 +150,10 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stroke Width</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.strokeWidth')}</Label>
 						<Input
 							type="number"
-							placeholder="1"
+							placeholder={t('designer.elementProperties.box.strokeWidthPlaceholder')}
 							value={element.strokeWidth}
 							onChange={(e) => {
 								onChange({ ...element, strokeWidth: Number(e.target.value) });
@@ -160,10 +162,10 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Corner Radius</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.cornerRadius')}</Label>
 						<Input
 							type="number"
-							placeholder="0"
+							placeholder={t('designer.elementProperties.box.cornerRadiusPlaceholder')}
 							value={element.radius}
 							onChange={(e) => {
 								onChange({ ...element, radius: Number(e.target.value) });
@@ -172,7 +174,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Opacity</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.opacity')}</Label>
 						<div className="flex gap-2 items-center">
 							<Input
 								type="range"
@@ -195,7 +197,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 				{/* Gradient Controls */}
 				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className={typography.fieldLabel}>Gradient Fill</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.gradientFill')}</Label>
 						<Switch
 							checked={!!element.fillGradient}
 							onCheckedChange={(checked) => {
@@ -216,7 +218,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					{element.fillGradient && (
 						<div className={spacing.fieldGroupGap}>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Gradient Type</Label>
+								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.gradientType')}</Label>
 								<Select
 									value={element.fillGradient.type}
 									onValueChange={(v) => {
@@ -233,15 +235,15 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="linear">Linear</SelectItem>
-										<SelectItem value="radial">Radial</SelectItem>
+										<SelectItem value="linear">{t('designer.elementProperties.box.gradientTypes.linear')}</SelectItem>
+										<SelectItem value="radial">{t('designer.elementProperties.box.gradientTypes.radial')}</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
 							
 							{element.fillGradient.type === "linear" && (
 								<div className={components.field}>
-									<Label className={typography.fieldLabel}>Angle (degrees)</Label>
+									<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.angle')}</Label>
 									<Input
 										type="number"
 										min="0"
@@ -262,7 +264,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 							)}
 							
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Colors (2-4 colors)</Label>
+								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.colors')}</Label>
 								<div className={spacing.fieldGroupGap}>
 									{element.fillGradient.colors.map((color, idx) => (
 										<div key={idx} className="flex gap-2">
@@ -308,7 +310,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 				{/* Shadow Controls */}
 				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className={typography.fieldLabel}>Shadow</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.shadow')}</Label>
 						<Switch
 							checked={element.shadow?.enabled || false}
 							onCheckedChange={(checked) => {
@@ -331,7 +333,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 					{element.shadow?.enabled && (
 						<div className={components.grid}>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Blur</Label>
+								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.blur')}</Label>
 								<Input
 									type="number"
 									min="0"
@@ -350,7 +352,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								/>
 							</div>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Offset Y</Label>
+								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.offsetY')}</Label>
 								<Input
 									type="number"
 									min="-10"
@@ -369,7 +371,7 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								/>
 							</div>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Shadow Color</Label>
+								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.shadowColor')}</Label>
 								<div className="flex gap-2">
 									<Input
 										type="color"

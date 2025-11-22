@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertCircle, Plus } from "lucide-react";
@@ -21,6 +22,7 @@ export function ComplianceStatus({
 	onAddRequiredElement,
 	determineElementTypeForBinding,
 }: ComplianceStatusProps) {
+	const { t } = useTranslation();
 	if (!complianceStatus || !template) return null;
 
 	return (
@@ -41,21 +43,21 @@ export function ComplianceStatus({
 					{complianceStatus.valid ? (
 						<span className="flex items-center gap-1.5">
 							<span>✅</span>
-							<span>Fully Compliant</span>
+							<span>{t('designer.compliance.fullyCompliant')}</span>
 						</span>
 					) : (
 						<span className="flex items-center gap-1.5">
 							<span>⚠️</span>
-							<span>Missing Required Fields</span>
+							<span>{t('designer.compliance.missingFields')}</span>
 						</span>
 					)}
 				</div>
 				<div className="text-neutral-600 text-xs mb-2">
-					Region: <span className="font-medium">{complianceStatus.region}</span>
+					{t('designer.propertiesPanel.region')}: <span className="font-medium">{complianceStatus.region}</span>
 				</div>
 				{!complianceStatus.valid && complianceStatus.missingBindings.length > 0 && (
 					<div className="mt-2">
-						<div className="text-xs font-medium text-amber-700 mb-1">Missing fields:</div>
+						<div className="text-xs font-medium text-amber-700 mb-1">{t('designer.compliance.missingFieldsList')}</div>
 						<div className="space-y-1.5">
 							{complianceStatus.missingBindings.map((binding) => {
 								const fieldMetadata = getFieldMetadata(complianceStatus.region as "US" | "EU" | "CA" | "AU" | "UK", binding);
@@ -87,7 +89,7 @@ export function ComplianceStatus({
 											}}
 										>
 											<Plus className="h-3.5 w-3.5 mr-1.5" />
-											Add
+											{t('designer.compliance.add')}
 										</Button>
 									</div>
 								);

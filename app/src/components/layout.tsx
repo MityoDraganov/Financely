@@ -227,14 +227,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 					<div>
 						<SidebarSeparator />
-						<SidebarGroup className="flex flex-row justify-between items-center gap-2">
-							<SidebarMenuItem>
-								<UserButton showName />
-							</SidebarMenuItem>
-							<div className="flex items-center gap-2">
+						<SidebarGroup className="flex flex-col justify-between gap-2">
+							<div className="flex items-center justify-between gap-2">
 								<LanguageSelector />
 								<ModeToggle />
 							</div>
+							<SidebarMenuItem>
+								<UserButton showName />
+							</SidebarMenuItem>
 						</SidebarGroup>
 					</div>
 				</SidebarContent>

@@ -1,4 +1,5 @@
 import { Outlet, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Building2,
   Users,
@@ -12,72 +13,72 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const settingsSections = [
-  {
-    title: "Organization",
-    icon: Building2,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    items: [
-      {
-        title: "General",
-        href: "/settings/organization/general",
-        description: "Basic organization information",
-        icon: Globe,
-      },
-      {
-        title: "Branding",
-        href: "/settings/organization/branding",
-        description: "Logo, colors, and customization",
-        icon: Palette,
-      },
-      {
-        title: "AI Settings",
-        href: "/settings/organization/ai",
-        description: "AI features and automation",
-        icon: Settings,
-      },
-    ],
-  },
-  {
-    title: "Users",
-    icon: Users,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-    items: [
-      {
-        title: "All Users",
-        href: "/settings/users",
-        description: "Manage team members",
-        icon: UserCheck,
-      },
-      {
-        title: "Invites",
-        href: "/settings/invites",
-        description: "Manage team invites",
-        icon: UserPlus,
-      },
-    ],
-  },
-  {
-    title: "Security",
-    icon: Shield,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    items: [
-    
-      {
-        title: "Audit Log",
-        href: "/settings/security/audit-log",
-        description: "Activity and security logs",
-        icon: FileText,
-      },
-    ],
-  },
-];
-
 export default function SettingsLayout() {
+  const { t } = useTranslation();
   const location = useLocation();
+
+  const settingsSections = [
+    {
+      title: t('settings.sections.organization'),
+      icon: Building2,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      items: [
+        {
+          title: t('settings.organization.general.title'),
+          href: "/settings/organization/general",
+          description: t('settings.organization.general.description'),
+          icon: Globe,
+        },
+        {
+          title: t('settings.organization.branding.title'),
+          href: "/settings/organization/branding",
+          description: t('settings.organization.branding.description'),
+          icon: Palette,
+        },
+        {
+          title: t('settings.organization.aiSettings.title'),
+          href: "/settings/organization/ai",
+          description: t('settings.organization.aiSettings.description'),
+          icon: Settings,
+        },
+      ],
+    },
+    {
+      title: t('settings.sections.users'),
+      icon: Users,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+      items: [
+        {
+          title: t('settings.users.allUsers.title'),
+          href: "/settings/users",
+          description: t('settings.users.allUsers.description'),
+          icon: UserCheck,
+        },
+        {
+          title: t('settings.users.invites.title'),
+          href: "/settings/invites",
+          description: t('settings.users.invites.description'),
+          icon: UserPlus,
+        },
+      ],
+    },
+    {
+      title: t('settings.sections.security'),
+      icon: Shield,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+      items: [
+        {
+          title: t('settings.security.auditLog.title'),
+          href: "/settings/security/audit-log",
+          description: t('settings.security.auditLog.description'),
+          icon: FileText,
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,8 +86,8 @@ export default function SettingsLayout() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-sm text-muted-foreground">Manage your organization</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
+            <p className="text-sm text-muted-foreground">{t('settings.subtitle')}</p>
           </div>
         </div>
 

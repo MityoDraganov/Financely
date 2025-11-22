@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Edit, FileText, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useDeleteTemplate } from "@/hooks/repository-hooks/use-delete-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { format } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default function TemplatesPage() {
+  const { t } = useTranslation();
+  const { formatDateTable } = useDateFormatting();
   const navigate = useNavigate();
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates, isLoading } = useTemplates(currentOrganization?.id);
@@ -75,14 +78,14 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Templates</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('templates.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your invoice templates
+            {t('templates.subtitle')}
           </p>
         </div>
         <Button onClick={handleCreateNew}>
           <Plus className="h-4 w-4 mr-2" />
-          Create New Template
+          {t('templates.createNew')}
         </Button>
       </div>
 
@@ -91,13 +94,13 @@ export default function TemplatesPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No templates yet</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('templates.empty.title')}</h3>
             <p className="text-muted-foreground mb-6 text-center max-w-md">
-              Create your first invoice template to get started. Templates define the layout and structure of your invoices.
+              {t('templates.empty.description')}
             </p>
             <Button onClick={handleCreateNew}>
               <Plus className="h-4 w-4 mr-2" />
-              Create Your First Template
+              {t('templates.empty.createFirst')}
             </Button>
           </CardContent>
         </Card>
@@ -112,9 +115,9 @@ export default function TemplatesPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg mb-1">{template.name || "Untitled Template"}</CardTitle>
+                    <CardTitle className="text-lg mb-1">{template.name || t('templates.card.untitled')}</CardTitle>
                     <CardDescription className="line-clamp-2">
-                      {template.description || "No description"}
+                      {template.description || t('templates.card.noDescription')}
                     </CardDescription>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -135,7 +138,7 @@ export default function TemplatesPage() {
                       className="h-8 w-8 text-destructive hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDelete({ id: template.id, name: template.name || "Untitled Template" });
+                        handleDelete({ id: template.id, name: template.name || t('templates.card.untitled') });
                       }}
                       disabled={deleteTemplate.isPending}
                     >
@@ -153,7 +156,7 @@ export default function TemplatesPage() {
                   {/* Status Badge */}
                   <div className="flex items-center gap-2">
                     <Badge variant={template.status === "published" ? "default" : "secondary"}>
-                      {template.status || "draft"}
+                      {template.status === "published" ? t('templates.card.published') : t('templates.card.draft')}
                     </Badge>
                     {template.compliance?.region && (
                       <Badge variant="outline">
@@ -168,13 +171,15 @@ export default function TemplatesPage() {
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         <span>
-                          {format(new Date(template.createdAt), "MMM d, yyyy")}
+                          {formatDateTable(template.createdAt)}
                         </span>
                       </div>
                     )}
                     {template.elements && (
                       <span>
-                        {template.elements.length} element{template.elements.length !== 1 ? "s" : ""}
+                        {template.elements.length === 1
+                          ? t('templates.card.elements', { count: template.elements.length })
+                          : t('templates.card.elementsPlural', { count: template.elements.length })}
                       </span>
                     )}
                   </div>
@@ -189,14 +194,14 @@ export default function TemplatesPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogTitle>{t('templates.delete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{templateToDelete?.name}"? This action cannot be undone.
+              {t('templates.delete.description', { name: templateToDelete?.name || '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteTemplate.isPending}>
-              Cancel
+              {t('templates.delete.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
@@ -206,10 +211,10 @@ export default function TemplatesPage() {
               {deleteTemplate.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
+                  {t('templates.delete.deleting')}
                 </>
               ) : (
-                "Delete"
+                t('templates.delete.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

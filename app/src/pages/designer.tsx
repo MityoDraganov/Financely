@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { signInAnonymously } from "@firebase/auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +46,7 @@ import { useTemplateVersions, useSaveTemplateVersion, useRestoreTemplateVersion 
 import { useUser } from "@clerk/clerk-react";
 
 export default function TemplateDesignerPage() {
+	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -231,7 +233,7 @@ export default function TemplateDesignerPage() {
 				columns: [
 					{
 						id: crypto.randomUUID(),
-						header: "Description",
+						header: t('designer.tableColumns.description'),
 						width: 200,
 						align: "left",
 						type: "text",
@@ -241,7 +243,7 @@ export default function TemplateDesignerPage() {
 					},
 					{
 						id: crypto.randomUUID(),
-						header: "Quantity",
+						header: t('designer.tableColumns.quantity'),
 						width: 80,
 						align: "right",
 						type: "number",
@@ -251,7 +253,7 @@ export default function TemplateDesignerPage() {
 					},
 					{
 						id: crypto.randomUUID(),
-						header: "Price",
+						header: t('designer.tableColumns.price'),
 						width: 100,
 						align: "right",
 						type: "number",
@@ -261,7 +263,7 @@ export default function TemplateDesignerPage() {
 					},
 					{
 						id: crypto.randomUUID(),
-						header: "Total",
+						header: t('designer.tableColumns.total'),
 						width: 100,
 						align: "right",
 						type: "number",
@@ -460,7 +462,7 @@ export default function TemplateDesignerPage() {
 							await saveVersion.mutateAsync({
 								templateId,
 								userId: clerkUser.id,
-								description: "Auto-saved version",
+								description: t('designer.defaults.autoSavedVersion'),
 							});
 						} catch (error) {
 							console.error("Failed to auto-create version:", error);
@@ -482,7 +484,7 @@ export default function TemplateDesignerPage() {
 			const region = currentOrg ? invoiceComplianceService.detectRegion(currentOrg) : "US";
 			
 			// Generate unique template name
-			const uniqueName = generateUniqueTemplateName("New Invoice Template", templates);
+			const uniqueName = generateUniqueTemplateName(t('designer.defaults.newTemplateName'), templates);
 			
 			const empty: TemplateData = {
 				orgId: orgId,
@@ -847,7 +849,7 @@ export default function TemplateDesignerPage() {
 						rotation: 0,
 						zIndex: 1,
 						visible: true,
-						text: "Text",
+						text: t('designer.defaults.text'),
 						binding: defaultBinding,
 						padding: 0,
 						opacity: 1,
@@ -896,7 +898,7 @@ export default function TemplateDesignerPage() {
 								columns: [
 									{
 										id: crypto.randomUUID(),
-										header: "Column 1",
+										header: t('designer.tableColumns.column1'),
 										width: 160,
 										align: "left",
 										type: "text",
@@ -905,7 +907,7 @@ export default function TemplateDesignerPage() {
 									},
 									{
 										id: crypto.randomUUID(),
-										header: "Column 2",
+										header: t('designer.tableColumns.column2'),
 										width: 160,
 										align: "left",
 										type: "text",
@@ -1076,7 +1078,7 @@ export default function TemplateDesignerPage() {
 			...s,
 			selectedElementId: duplicated.id,
 		}));
-		toast.success("Element duplicated (binding cleared to prevent duplicates)");
+		toast.success(t('designer.duplicateSuccess'));
 	}
 
 	// Global pointer handlers during drag
@@ -1323,8 +1325,8 @@ export default function TemplateDesignerPage() {
 						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
 						if (!tbl) return;
 						const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-							{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-							{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c1", header: t('designer.tableColumns.column1'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c2", header: t('designer.tableColumns.column2'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 						];
 						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
 						setDraftElements((prev) => {
@@ -1367,7 +1369,7 @@ export default function TemplateDesignerPage() {
 								}}
 							>
 								<Menu className="h-5 w-5" />
-								<span className="text-xs font-medium">Elements</span>
+								<span className="text-xs font-medium">{t('designer.elements')}</span>
 							</Button>
 							<Button
 								variant={mobilePanelOpen && mobilePanelTab === "properties" ? "secondary" : "ghost"}
@@ -1382,7 +1384,7 @@ export default function TemplateDesignerPage() {
 								}}
 							>
 								<Settings className="h-5 w-5" />
-								<span className="text-xs font-medium">Properties</span>
+								<span className="text-xs font-medium">{t('designer.properties')}</span>
 							</Button>
 						</div>
 					</div>
@@ -1400,10 +1402,10 @@ export default function TemplateDesignerPage() {
 								<div className="px-4 pt-2 pb-1 border-b shrink-0">
 									<TabsList className="w-full">
 										<TabsTrigger value="elements" className="flex-1">
-											Elements
+											{t('designer.elements')}
 										</TabsTrigger>
 										<TabsTrigger value="properties" className="flex-1">
-											Properties
+											{t('designer.properties')}
 										</TabsTrigger>
 									</TabsList>
 								</div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,13 +46,14 @@ export function AIBuilderDialog({
 	generateTemplate,
 	onTemplateCreated,
 }: AIBuilderDialogProps) {
+	const { t } = useTranslation();
 	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional">("modern");
 	const [aiIncludeLogo, setAiIncludeLogo] = useState(true);
 	const [aiPrompt, setAiPrompt] = useState("");
 
 	const handleGenerate = async () => {
 		if (!currentOrg) {
-			toast.error("Organization not found");
+			toast.error(t('designer.aiBuilder.orgNotFound'));
 			return;
 		}
 
@@ -67,7 +69,7 @@ export function AIBuilderDialog({
 				},
 			});
 
-			const baseName = generatedTemplate.name || "AI Generated Template";
+			const baseName = generatedTemplate.name || t('designer.defaults.aiGeneratedTemplate');
 			const uniqueName = generateUniqueTemplateName(baseName, templates);
 			const templateWithUniqueName = {
 				...generatedTemplate,
@@ -78,10 +80,10 @@ export function AIBuilderDialog({
 			onTemplateCreated(templateId);
 			onOpenChange(false);
 			setAiPrompt("");
-			toast.success("AI template generated successfully!");
+			toast.success(t('designer.aiBuilder.generateSuccess'));
 		} catch (error) {
 			toast.error(
-				`Failed to generate template: ${error instanceof Error ? error.message : "Unknown error"}`
+				t('designer.aiBuilder.generateFailed', { error: error instanceof Error ? error.message : "Unknown error" })
 			);
 		}
 	};
@@ -97,17 +99,15 @@ export function AIBuilderDialog({
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Sparkles className="h-5 w-5 text-purple-500" />
-						AI Invoice Template Builder
+						{t('designer.aiBuilder.title')}
 					</DialogTitle>
 					<DialogDescription>
-						Generate a beautiful, functional, and fully compliant invoice template
-						using AI. The template will be customized based on your organization's
-						branding and compliance region.
+						{t('designer.aiBuilder.description')}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-4 py-4">
 					<div className="space-y-2">
-						<Label>Style</Label>
+						<Label>{t('designer.aiBuilder.style')}</Label>
 						<Select
 							value={aiStyle}
 							onValueChange={(v) => setAiStyle(v as typeof aiStyle)}
@@ -116,15 +116,15 @@ export function AIBuilderDialog({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="modern">Modern</SelectItem>
-								<SelectItem value="classic">Classic</SelectItem>
-								<SelectItem value="minimal">Minimal</SelectItem>
-								<SelectItem value="professional">Professional</SelectItem>
+								<SelectItem value="modern">{t('designer.aiBuilder.modern')}</SelectItem>
+								<SelectItem value="classic">{t('designer.aiBuilder.classic')}</SelectItem>
+								<SelectItem value="minimal">{t('designer.aiBuilder.minimal')}</SelectItem>
+								<SelectItem value="professional">{t('designer.aiBuilder.professional')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className="flex items-center justify-between">
-						<Label htmlFor="include-logo">Include Logo</Label>
+						<Label htmlFor="include-logo">{t('designer.aiBuilder.includeLogo')}</Label>
 						<input
 							id="include-logo"
 							type="checkbox"
@@ -134,22 +134,22 @@ export function AIBuilderDialog({
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="ai-prompt">Additional Instructions (Optional)</Label>
+						<Label htmlFor="ai-prompt">{t('designer.aiBuilder.additionalInstructions')}</Label>
 						<Textarea
 							id="ai-prompt"
-							placeholder="E.g., 'Use a two-column layout for the header', 'Make the totals section more prominent', 'Add a payment terms section'..."
+							placeholder={t('designer.aiBuilder.instructionsPlaceholder')}
 							value={aiPrompt}
 							onChange={(e) => setAiPrompt(e.target.value)}
 							className="min-h-[80px] resize-none"
 							rows={3}
 						/>
 						<p className="text-xs text-neutral-500">
-							Provide any specific design preferences or requirements for the template.
+							{t('designer.aiBuilder.instructionsHint')}
 						</p>
 					</div>
 					{currentOrg && (
 						<div className="text-xs text-neutral-500">
-							Region: {currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg)}
+							{t('designer.aiBuilder.region', { region: currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg) })}
 						</div>
 					)}
 				</div>
@@ -159,7 +159,7 @@ export function AIBuilderDialog({
 						onClick={() => onOpenChange(false)}
 						disabled={generateTemplate.isPending}
 					>
-						Cancel
+						{t('designer.aiBuilder.cancel')}
 					</Button>
 					<Button
 						onClick={handleGenerate}
@@ -169,12 +169,12 @@ export function AIBuilderDialog({
 						{generateTemplate.isPending ? (
 							<>
 								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-								Generating...
+								{t('designer.aiBuilder.generating')}
 							</>
 						) : (
 							<>
 								<Sparkles className="h-4 w-4 mr-2" />
-								Generate Template
+								{t('designer.aiBuilder.generate')}
 							</>
 						)}
 					</Button>

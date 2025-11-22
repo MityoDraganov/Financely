@@ -14,10 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart3, Settings, ExternalLink, CheckCircle2, XCircle, Monitor, Globe, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { ConsentBannerCustomizer } from "@/components/analytics/consent-banner-customizer";
 import { ConsentBannerStyling, consentBannerStylingSchema } from "@/core/entities/analytics-config";
 
 export default function AnalyticsPage() {
+  const { t } = useTranslation();
+  const { formatDateShort } = useDateFormatting();
   const { data: organization, isLoading: orgLoading } = useCurrentOrganization();
   const { data: analyticsConfig, isLoading: configLoading } = useAnalyticsConfig(organization?.id);
   const { data: brandSites, isLoading: sitesLoading } = useBrandSitesByOrganization(organization?.id);
@@ -202,11 +206,11 @@ export default function AnalyticsPage() {
           brandSiteId: activeSite.id,
         });
       } else {
-        toast.success("Analytics configuration saved");
+        toast.success(t('analytics.toasts.configurationSaved'));
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to save analytics configuration: ${errorMessage}`);
+      toast.error(t('analytics.toasts.saveFailed', { message: errorMessage }));
       console.error("Analytics config save error:", error);
     } finally {
       setIsSaving(false);
@@ -233,16 +237,16 @@ export default function AnalyticsPage() {
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Analytics</h1>
+          <h1 className="text-3xl font-bold">{t('analytics.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Track and analyze your website performance
+            {t('analytics.subtitle')}
           </p>
         </div>
         {activeSite && (
           <Button variant="outline" asChild>
             <a href={activeSite.deployedUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
-              View Site
+              {t('analytics.viewSite')}
             </a>
           </Button>
         )}
@@ -250,23 +254,23 @@ export default function AnalyticsPage() {
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="overview">{t('analytics.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="settings">{t('analytics.tabs.settings')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
           {/* Date Range Selector */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Date Range</CardTitle>
+              <CardTitle className="text-base font-semibold">{t('analytics.dateRange.title')}</CardTitle>
               <CardDescription className="text-sm">
-                Select the time period for analytics data
+                {t('analytics.dateRange.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
                 <div className="flex-1 space-y-2 min-w-0">
-                  <Label htmlFor="startDate" className="text-sm">Start Date</Label>
+                  <Label htmlFor="startDate" className="text-sm">{t('analytics.dateRange.startDate')}</Label>
                   <Input
                     id="startDate"
                     type="date"
@@ -277,7 +281,7 @@ export default function AnalyticsPage() {
                   />
                 </div>
                 <div className="flex-1 space-y-2 min-w-0">
-                  <Label htmlFor="endDate" className="text-sm">End Date</Label>
+                  <Label htmlFor="endDate" className="text-sm">{t('analytics.dateRange.endDate')}</Label>
                   <Input
                     id="endDate"
                     type="date"
@@ -303,7 +307,7 @@ export default function AnalyticsPage() {
                     }}
                     className="h-9"
                   >
-                    7d
+                    {t('analytics.dateRange.days7')}
                   </Button>
                   <Button
                     variant="outline"
@@ -319,7 +323,7 @@ export default function AnalyticsPage() {
                     }}
                     className="h-9"
                   >
-                    30d
+                    {t('analytics.dateRange.days30')}
                   </Button>
                   <Button
                     variant="outline"
@@ -335,7 +339,7 @@ export default function AnalyticsPage() {
                     }}
                     className="h-9"
                   >
-                    90d
+                    {t('analytics.dateRange.days90')}
                   </Button>
                 </div>
               </div>
@@ -345,30 +349,30 @@ export default function AnalyticsPage() {
           {/* Status Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Analytics Status</CardTitle>
+              <CardTitle>{t('analytics.status.title')}</CardTitle>
               <CardDescription>
-                Current analytics configuration and status
+                {t('analytics.status.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">Status:</span>
+                  <span className="font-medium">{t('analytics.status.status')}</span>
                   {isConfigured ? (
                     <Badge variant="default" className="gap-2">
                       <CheckCircle2 className="h-3 w-3" />
-                      Active
+                      {t('analytics.status.active')}
                     </Badge>
                   ) : (
                     <Badge variant="secondary" className="gap-2">
                       <XCircle className="h-3 w-3" />
-                      Not Configured
+                      {t('analytics.status.notConfigured')}
                     </Badge>
                   )}
                 </div>
                 {analyticsConfig && (
                   <div className="text-sm text-muted-foreground">
-                    Active providers:{" "}
+                    {t('analytics.status.activeProviders')}{" "}
                     <span className="font-medium">
                       {[
                         analyticsConfig.enableGA4 && "GA4",
@@ -377,7 +381,7 @@ export default function AnalyticsPage() {
                         analyticsConfig.enableClarity && "Clarity",
                       ]
                         .filter(Boolean)
-                        .join(", ") || "None"}
+                        .join(", ") || t('analytics.status.none')}
                     </span>
                   </div>
                 )}
@@ -386,15 +390,14 @@ export default function AnalyticsPage() {
               {!isConfigured && (
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm">
-                    Analytics is not fully configured. Go to Settings to enable and configure
-                    your analytics provider.
+                    {t('analytics.status.notFullyConfigured')}
                   </p>
                 </div>
               )}
 
               {activeSite && isConfigured && (
                 <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm font-medium mb-2">Tracking Active On:</p>
+                  <p className="text-sm font-medium mb-2">{t('analytics.status.trackingActiveOn')}</p>
                   <a
                     href={activeSite.deployedUrl}
                     target="_blank"
@@ -415,19 +418,19 @@ export default function AnalyticsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    Metrics
+                    {t('analytics.metrics.title')}
                   </CardTitle>
                   <CardDescription>
-                    Website performance metrics and insights
+                    {t('analytics.metrics.description')}
                   </CardDescription>
                 </div>
                 {metrics && metrics.dataSources && metrics.dataSources.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Data from:</span>
+                    <span className="text-xs text-muted-foreground">{t('analytics.metrics.dataFrom')}</span>
                     <div className="flex gap-1 flex-wrap">
                       {metrics.dataSources.map((source: "firestore" | "ga4" | "plausible" | "umami" | "clarity") => (
                         <Badge key={source} variant="outline" className="text-xs">
-                          {source === "firestore" ? "Real-time" : source.toUpperCase()}
+                          {source === "firestore" ? t('analytics.metrics.realTime') : source.toUpperCase()}
                         </Badge>
                       ))}
                     </div>
@@ -450,7 +453,7 @@ export default function AnalyticsPage() {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                            {"warning" in metrics && metrics.warning ? metrics.warning : "Index Warning"}
+                            {"warning" in metrics && metrics.warning ? metrics.warning : t('analytics.metrics.indexWarning')}
                           </p>
                           <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                             {metrics.indexError.message}
@@ -462,7 +465,7 @@ export default function AnalyticsPage() {
                               rel="noopener noreferrer"
                               className="text-sm text-yellow-600 dark:text-yellow-400 hover:underline mt-2 inline-block"
                             >
-                              Create index →
+                              {t('analytics.metrics.createIndex')}
                             </a>
                           )}
                         </div>
@@ -474,41 +477,41 @@ export default function AnalyticsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
                       <div className="text-3xl font-bold mb-1">{metrics.pageViews.toLocaleString()}</div>
-                      <div className="text-sm font-medium text-muted-foreground">Page Views</div>
+                      <div className="text-sm font-medium text-muted-foreground">{t('analytics.metrics.pageViews')}</div>
                       <div className="text-xs text-muted-foreground mt-2">
-                        {new Date(dateRange.start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - {new Date(dateRange.end).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        {formatDateShort(new Date(dateRange.start))} - {formatDateShort(new Date(dateRange.end))}
                       </div>
                     </div>
                     <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
                       <div className="text-3xl font-bold mb-1">{metrics.visitors.toLocaleString()}</div>
-                      <div className="text-sm font-medium text-muted-foreground">Unique Visitors</div>
+                      <div className="text-sm font-medium text-muted-foreground">{t('analytics.metrics.uniqueVisitors')}</div>
                       <div className="text-xs text-muted-foreground mt-2">
-                        Based on client IDs
+                        {t('analytics.metrics.basedOnClientIds')}
                       </div>
                     </div>
                     <div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
                       <div className="text-3xl font-bold mb-1">
                         {metrics.bounceRate > 0 ? `${metrics.bounceRate.toFixed(1)}%` : "—"}
                       </div>
-                      <div className="text-sm font-medium text-muted-foreground">Bounce Rate</div>
+                      <div className="text-sm font-medium text-muted-foreground">{t('analytics.metrics.bounceRate')}</div>
                       <div className="text-xs text-muted-foreground mt-2">
                         {metrics.avgSessionDuration > 0 
-                          ? `Avg session: ${Math.round(metrics.avgSessionDuration)}s`
-                          : "Session data unavailable"}
+                          ? t('analytics.metrics.avgSession', { seconds: Math.round(metrics.avgSessionDuration) })
+                          : t('analytics.metrics.sessionDataUnavailable')}
                       </div>
                     </div>
                   </div>
 
                   {/* Top Pages */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4">Top Pages</h3>
+                    <h3 className="text-lg font-semibold mb-4">{t('analytics.metrics.topPages')}</h3>
                     {metrics.topPages.length > 0 ? (
                       <div className="space-y-2">
                         {metrics.topPages.slice(0, 10).map((page, index) => (
                           <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                             <span className="text-sm font-medium truncate flex-1">{page.path || "/"}</span>
                             <span className="text-sm font-semibold ml-4 text-muted-foreground">
-                              {page.views.toLocaleString()} {page.views === 1 ? "view" : "views"}
+                              {page.views.toLocaleString()} {page.views === 1 ? t('analytics.metrics.view') : t('analytics.metrics.views')}
                             </span>
                           </div>
                         ))}
@@ -516,7 +519,7 @@ export default function AnalyticsPage() {
                     ) : (
                       <div className="p-8 border rounded-lg bg-muted/30 text-center">
                         <p className="text-sm text-muted-foreground">
-                          No page views recorded yet. Pages will appear here once visitors start browsing your site.
+                          {t('analytics.metrics.noPageViews')}
                         </p>
                       </div>
                     )}
@@ -524,14 +527,14 @@ export default function AnalyticsPage() {
 
                   {/* Traffic Sources */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4">Traffic Sources</h3>
+                    <h3 className="text-lg font-semibold mb-4">{t('analytics.metrics.trafficSources')}</h3>
                     {metrics.trafficSources.length > 0 ? (
                       <div className="space-y-2">
                         {metrics.trafficSources.slice(0, 10).map((source, index) => (
                           <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                            <span className="text-sm font-medium">{source.source || "Direct"}</span>
+                            <span className="text-sm font-medium">{source.source || t('analytics.metrics.direct')}</span>
                             <span className="text-sm font-semibold ml-4 text-muted-foreground">
-                              {source.visitors.toLocaleString()} {source.visitors === 1 ? "visitor" : "visitors"}
+                              {source.visitors.toLocaleString()} {source.visitors === 1 ? t('analytics.metrics.visitor') : t('analytics.metrics.visitors')}
                             </span>
                           </div>
                         ))}
@@ -539,7 +542,7 @@ export default function AnalyticsPage() {
                     ) : (
                       <div className="p-8 border rounded-lg bg-muted/30 text-center">
                         <p className="text-sm text-muted-foreground">
-                          No traffic sources recorded yet. Sources will appear here as visitors arrive.
+                          {t('analytics.metrics.noTrafficSources')}
                         </p>
                       </div>
                     )}
@@ -550,7 +553,7 @@ export default function AnalyticsPage() {
                     <div>
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <Monitor className="h-5 w-5" />
-                        Devices
+                        {t('analytics.metrics.devices')}
                       </h3>
                       {"devices" in metrics && metrics.devices && metrics.devices.length > 0 ? (
                         <div className="space-y-2">
@@ -558,14 +561,14 @@ export default function AnalyticsPage() {
                             <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                               <span className="text-sm font-medium">{device.device}</span>
                               <span className="text-sm font-semibold ml-4 text-muted-foreground">
-                                {device.visitors.toLocaleString()} {device.visitors === 1 ? "visitor" : "visitors"}
+                                {device.visitors.toLocaleString()} {device.visitors === 1 ? t('analytics.metrics.visitor') : t('analytics.metrics.visitors')}
                               </span>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="p-6 border rounded-lg bg-muted/30 text-center">
-                          <p className="text-sm text-muted-foreground">No device data available</p>
+                          <p className="text-sm text-muted-foreground">{t('analytics.metrics.noDeviceData')}</p>
                         </div>
                       )}
                     </div>
@@ -573,7 +576,7 @@ export default function AnalyticsPage() {
                     <div>
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <Globe className="h-5 w-5" />
-                        Browsers
+                        {t('analytics.metrics.browsers')}
                       </h3>
                       {"browsers" in metrics && metrics.browsers && metrics.browsers.length > 0 ? (
                         <div className="space-y-2">
@@ -581,14 +584,14 @@ export default function AnalyticsPage() {
                             <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                               <span className="text-sm font-medium">{browser.browser}</span>
                               <span className="text-sm font-semibold ml-4 text-muted-foreground">
-                                {browser.visitors.toLocaleString()} {browser.visitors === 1 ? "visitor" : "visitors"}
+                                {browser.visitors.toLocaleString()} {browser.visitors === 1 ? t('analytics.metrics.visitor') : t('analytics.metrics.visitors')}
                               </span>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="p-6 border rounded-lg bg-muted/30 text-center">
-                          <p className="text-sm text-muted-foreground">No browser data available</p>
+                          <p className="text-sm text-muted-foreground">{t('analytics.metrics.noBrowserData')}</p>
                         </div>
                       )}
                     </div>
@@ -596,14 +599,14 @@ export default function AnalyticsPage() {
 
                   {/* Referrers */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4">Top Referrers</h3>
+                    <h3 className="text-lg font-semibold mb-4">{t('analytics.metrics.topReferrers')}</h3>
                     {"referrers" in metrics && metrics.referrers && metrics.referrers.length > 0 ? (
                       <div className="space-y-2">
                         {metrics.referrers.slice(0, 10).map((referrer: { referrer: string; visitors: number }, index: number) => (
                           <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                             <span className="text-sm font-medium truncate flex-1">{referrer.referrer}</span>
                             <span className="text-sm font-semibold ml-4 text-muted-foreground">
-                              {referrer.visitors.toLocaleString()} {referrer.visitors === 1 ? "visitor" : "visitors"}
+                              {referrer.visitors.toLocaleString()} {referrer.visitors === 1 ? t('analytics.metrics.visitor') : t('analytics.metrics.visitors')}
                             </span>
                           </div>
                         ))}
@@ -611,7 +614,7 @@ export default function AnalyticsPage() {
                     ) : (
                       <div className="p-8 border rounded-lg bg-muted/30 text-center">
                         <p className="text-sm text-muted-foreground">
-                          No referrers recorded yet. Referrers will appear here when visitors arrive from other websites.
+                          {t('analytics.metrics.noReferrers')}
                         </p>
                       </div>
                     )}
@@ -621,7 +624,7 @@ export default function AnalyticsPage() {
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <TrendingUp className="h-5 w-5" />
-                      Page Views Over Time
+                      {t('analytics.metrics.pageViewsOverTime')}
                     </h3>
                     {"pageViewsOverTime" in metrics && metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 0 ? (
                       <div className="p-6 border rounded-lg bg-muted/30">
@@ -633,7 +636,7 @@ export default function AnalyticsPage() {
                               <div
                                 key={index}
                                 className="flex-1 flex flex-col items-center gap-2 group cursor-pointer"
-                                title={`${day.date}: ${day.views} ${day.views === 1 ? "view" : "views"}`}
+                                title={`${day.date}: ${day.views} ${day.views === 1 ? t('analytics.metrics.view') : t('analytics.metrics.views')}`}
                               >
                                 <div
                                   className="w-full bg-primary rounded-t transition-all hover:bg-primary/80 min-h-[4px] shadow-sm"
@@ -641,7 +644,7 @@ export default function AnalyticsPage() {
                                 />
                                 {metrics.pageViewsOverTime.length <= 30 && (
                                   <span className="text-xs text-muted-foreground transform -rotate-45 origin-top-left whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                    {formatDateShort(new Date(day.date))}
                                   </span>
                                 )}
                               </div>
@@ -650,7 +653,7 @@ export default function AnalyticsPage() {
                         </div>
                         {metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 30 && (
                           <p className="text-xs text-muted-foreground text-center">
-                            Showing daily page views (hover bars for details)
+                            {t('analytics.metrics.showingDailyViews')}
                           </p>
                         )}
                       </div>
@@ -658,9 +661,9 @@ export default function AnalyticsPage() {
                       <div className="p-12 border rounded-lg bg-muted/30 text-center">
                         <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                         <p className="text-sm text-muted-foreground">
-                          No page view data available for the selected date range. 
+                          {t('analytics.metrics.noPageViewData')}
                           <br />
-                          Data will appear here once visitors start browsing your site.
+                          {t('analytics.metrics.dataWillAppear')}
                         </p>
                       </div>
                     )}
@@ -670,16 +673,15 @@ export default function AnalyticsPage() {
                   {metrics.pageViews === 0 && metrics.visitors === 0 && (
                     <div className="mt-8 p-8 border-2 border-dashed rounded-lg bg-muted/50 text-center">
                       <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                      <h3 className="text-lg font-semibold mb-2">No Analytics Data Yet</h3>
+                      <h3 className="text-lg font-semibold mb-2">{t('analytics.metrics.noAnalyticsData')}</h3>
                       <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                        Your analytics is configured and ready. Once visitors start browsing your site, 
-                        metrics will appear here automatically.
+                        {t('analytics.metrics.analyticsReady')}
                       </p>
                       {activeSite && (
                         <Button variant="outline" asChild>
                           <a href={activeSite.deployedUrl} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-4 w-4 mr-2" />
-                            Visit Your Site
+                            {t('analytics.metrics.visitYourSite')}
                           </a>
                         </Button>
                       )}
@@ -689,7 +691,7 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">
-                    Unable to load analytics data. Please ensure analytics is properly configured.
+                    {t('analytics.metrics.unableToLoad')}
                   </p>
                 </div>
               )}
@@ -702,19 +704,19 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Analytics Configuration
+                {t('analytics.settings.title')}
               </CardTitle>
               <CardDescription>
-                Configure your analytics provider and tracking settings
+                {t('analytics.settings.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Enable Analytics */}
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="enabled">Enable Analytics</Label>
+                  <Label htmlFor="enabled">{t('analytics.settings.enableAnalytics')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    Enable analytics tracking on your website
+                    {t('analytics.settings.enableAnalyticsDescription')}
                   </p>
                 </div>
                 <Switch
@@ -730,9 +732,9 @@ export default function AnalyticsPage() {
                 <>
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Analytics Providers</h3>
+                      <h3 className="text-lg font-semibold mb-4">{t('analytics.settings.analyticsProviders')}</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Enable one or more analytics providers to track your website. You can use multiple providers simultaneously.
+                        {t('analytics.settings.analyticsProvidersDescription')}
                       </p>
                     </div>
 
@@ -740,9 +742,9 @@ export default function AnalyticsPage() {
                     <div className="p-4 border rounded-lg space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label htmlFor="enableGA4">Google Analytics 4 (gtag.js)</Label>
+                          <Label htmlFor="enableGA4">{t('analytics.settings.ga4.label')}</Label>
                           <p className="text-sm text-muted-foreground">
-                            Direct Google Analytics 4 tracking
+                            {t('analytics.settings.ga4.description')}
                           </p>
                         </div>
                         <Switch
@@ -755,10 +757,10 @@ export default function AnalyticsPage() {
                       </div>
                       {localConfig.enableGA4 && (
                         <div className="space-y-2 pt-2 border-t">
-                          <Label htmlFor="ga4MeasurementId">GA4 Measurement ID</Label>
+                          <Label htmlFor="ga4MeasurementId">{t('analytics.settings.ga4.measurementId')}</Label>
                           <Input
                             id="ga4MeasurementId"
-                            placeholder="G-XXXXXXXXXX"
+                            placeholder={t('analytics.settings.ga4.measurementIdPlaceholder')}
                             value={localConfig.ga4MeasurementId}
                             onChange={(e) =>
                               setLocalConfig({ ...localConfig, ga4MeasurementId: e.target.value })
@@ -772,9 +774,9 @@ export default function AnalyticsPage() {
                     <div className="p-4 border rounded-lg space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label htmlFor="enablePlausible">Plausible Analytics</Label>
+                          <Label htmlFor="enablePlausible">{t('analytics.settings.plausible.label')}</Label>
                           <p className="text-sm text-muted-foreground">
-                            Privacy-friendly, open-source analytics
+                            {t('analytics.settings.plausible.description')}
                           </p>
                         </div>
                         <Switch
@@ -787,10 +789,10 @@ export default function AnalyticsPage() {
                       </div>
                       {localConfig.enablePlausible && (
                         <div className="space-y-2 pt-2 border-t">
-                          <Label htmlFor="plausibleDomain">Plausible Domain</Label>
+                          <Label htmlFor="plausibleDomain">{t('analytics.settings.plausible.domain')}</Label>
                           <Input
                             id="plausibleDomain"
-                            placeholder="yourdomain.com"
+                            placeholder={t('analytics.settings.plausible.domainPlaceholder')}
                             value={localConfig.plausibleDomain}
                             onChange={(e) =>
                               setLocalConfig({ ...localConfig, plausibleDomain: e.target.value })
@@ -804,9 +806,9 @@ export default function AnalyticsPage() {
                     <div className="p-4 border rounded-lg space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label htmlFor="enableUmami">Umami Analytics</Label>
+                          <Label htmlFor="enableUmami">{t('analytics.settings.umami.label')}</Label>
                           <p className="text-sm text-muted-foreground">
-                            Privacy-focused, open-source analytics solution
+                            {t('analytics.settings.umami.description')}
                           </p>
                         </div>
                         <Switch
@@ -820,31 +822,31 @@ export default function AnalyticsPage() {
                       {localConfig.enableUmami && (
                         <div className="space-y-4 pt-2 border-t">
                           <div className="space-y-2">
-                            <Label htmlFor="umamiScriptUrl">Umami Script URL</Label>
+                            <Label htmlFor="umamiScriptUrl">{t('analytics.settings.umami.scriptUrl')}</Label>
                             <Input
                               id="umamiScriptUrl"
-                              placeholder="https://cloud.umami.is/script.js"
+                              placeholder={t('analytics.settings.umami.scriptUrlPlaceholder')}
                               value={localConfig.umamiScriptUrl}
                               onChange={(e) =>
                                 setLocalConfig({ ...localConfig, umamiScriptUrl: e.target.value })
                               }
                             />
                             <p className="text-sm text-muted-foreground">
-                              The URL to your Umami script (e.g., https://cloud.umami.is/script.js)
+                              {t('analytics.settings.umami.scriptUrlDescription')}
                             </p>
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="umamiWebsiteId">Umami Website ID</Label>
+                            <Label htmlFor="umamiWebsiteId">{t('analytics.settings.umami.websiteId')}</Label>
                             <Input
                               id="umamiWebsiteId"
-                              placeholder="e74df8d0-2837-4ec1-bac8-ce82e8a170b2"
+                              placeholder={t('analytics.settings.umami.websiteIdPlaceholder')}
                               value={localConfig.umamiWebsiteId}
                               onChange={(e) =>
                                 setLocalConfig({ ...localConfig, umamiWebsiteId: e.target.value })
                               }
                             />
                             <p className="text-sm text-muted-foreground">
-                              Your Umami website ID from the tracking code
+                              {t('analytics.settings.umami.websiteIdDescription')}
                             </p>
                           </div>
                         </div>
@@ -855,9 +857,9 @@ export default function AnalyticsPage() {
                     <div className="p-4 border rounded-lg space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label htmlFor="enableClarity">Microsoft Clarity</Label>
+                          <Label htmlFor="enableClarity">{t('analytics.settings.clarity.label')}</Label>
                           <p className="text-sm text-muted-foreground">
-                            Session replay, heatmaps, and user behavior insights
+                            {t('analytics.settings.clarity.description')}
                           </p>
                         </div>
                         <Switch
@@ -870,10 +872,10 @@ export default function AnalyticsPage() {
                       </div>
                       {localConfig.enableClarity && (
                         <div className="space-y-2 pt-2 border-t">
-                          <Label htmlFor="clarityProjectId">Clarity Project ID</Label>
+                          <Label htmlFor="clarityProjectId">{t('analytics.settings.clarity.projectId')}</Label>
                           <Input
                             id="clarityProjectId"
-                            placeholder="Clarity Project ID"
+                            placeholder={t('analytics.settings.clarity.projectIdPlaceholder')}
                             value={localConfig.clarityProjectId}
                             onChange={(e) =>
                               setLocalConfig({ ...localConfig, clarityProjectId: e.target.value })
@@ -886,7 +888,7 @@ export default function AnalyticsPage() {
 
                   {/* Consent Settings */}
                   <div className="space-y-2">
-                    <Label htmlFor="consentDefault">Default Consent</Label>
+                    <Label htmlFor="consentDefault">{t('analytics.settings.consent.default')}</Label>
                     <Select
                       value={localConfig.consentDefault}
                       onValueChange={(value: "denied" | "granted") =>
@@ -897,12 +899,12 @@ export default function AnalyticsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="denied">Denied (GDPR Compliant)</SelectItem>
-                        <SelectItem value="granted">Granted</SelectItem>
+                        <SelectItem value="denied">{t('analytics.settings.consent.denied')}</SelectItem>
+                        <SelectItem value="granted">{t('analytics.settings.consent.granted')}</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
-                      Default consent state for analytics tracking
+                      {t('analytics.settings.consent.defaultDescription')}
                     </p>
                   </div>
 
@@ -929,10 +931,10 @@ export default function AnalyticsPage() {
                   {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
+                      {t('analytics.settings.saving')}
                     </>
                   ) : (
-                    "Save Configuration"
+                    t('analytics.settings.saveConfiguration')
                   )}
                 </Button>
               </div>

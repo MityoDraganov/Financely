@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import MonacoEditor from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 
@@ -26,6 +27,7 @@ interface FileEditorProps {
 }
 
 export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorProps) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<Record<string, string>>(initialFiles);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
@@ -134,9 +136,9 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       };
       setFiles(updatedFiles);
       await onSave(updatedFiles);
-      toast.success("File saved successfully");
+      toast.success(t("siteBuilder.fileEditor.toasts.fileSaved"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save file");
+      toast.error(error instanceof Error ? error.message : t("siteBuilder.fileEditor.toasts.fileSaveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -156,9 +158,9 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       } else {
         await onDeploy(files);
       }
-      toast.success("Site deployed successfully");
+      toast.success(t("siteBuilder.fileEditor.toasts.siteDeployed"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to deploy site");
+      toast.error(error instanceof Error ? error.message : t("siteBuilder.fileEditor.toasts.siteDeployFailed"));
     } finally {
       setIsDeploying(false);
     }
@@ -177,11 +179,11 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
     setEditorContent("");
     setIsNewFileDialogOpen(false);
     setNewFileName("");
-    toast.success("New file created");
+    toast.success(t("siteBuilder.fileEditor.toasts.fileCreated"));
   };
 
   const handleDeleteFile = (path: string) => {
-    if (!confirm(`Are you sure you want to delete ${path}?`)) return;
+    if (!confirm(t("siteBuilder.fileEditor.deleteConfirm", { path }))) return;
 
     const updatedFiles = { ...files };
     delete updatedFiles[path];
@@ -192,7 +194,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       setEditorContent("");
     }
     
-    toast.success("File deleted");
+    toast.success(t("siteBuilder.fileEditor.toasts.fileDeleted"));
   };
 
   const toggleFolder = (path: string) => {
@@ -285,7 +287,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       {/* File Tree Sidebar */}
       <div className="w-64 border-r bg-gray-50 dark:bg-gray-900 flex flex-col">
         <div className="p-2 border-b flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Files</h3>
+          <h3 className="font-semibold text-sm">{t("siteBuilder.fileEditor.files")}</h3>
           <Button
             variant="ghost"
             size="icon"
@@ -300,7 +302,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
             renderFileTree(fileTree)
           ) : (
             <div className="p-4 text-sm text-gray-500 text-center">
-              No files yet. Create a new file to get started.
+              {t("siteBuilder.fileEditor.emptyState.noFiles")}
             </div>
           )}
         </div>
@@ -320,7 +322,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
                   disabled={isSaving || editorContent === files[selectedFile]}
                 >
                   <Save className="h-4 w-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? t("siteBuilder.fileEditor.saving") : t("siteBuilder.fileEditor.save")}
                 </Button>
                 <Button
                   size="sm"
@@ -328,7 +330,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
                   disabled={isDeploying}
                 >
                   <Play className="h-4 w-4 mr-2" />
-                  {isDeploying ? "Deploying..." : "Deploy"}
+                  {isDeploying ? t("siteBuilder.fileEditor.deploying") : t("siteBuilder.fileEditor.deploy")}
                 </Button>
               </div>
             </div>
@@ -352,7 +354,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Select a file from the sidebar to start editing</p>
+              <p>{t("siteBuilder.fileEditor.emptyState.selectFile")}</p>
             </div>
           </div>
         )}
@@ -362,15 +364,15 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New File</DialogTitle>
+            <DialogTitle>{t("siteBuilder.fileEditor.newFileDialog.title")}</DialogTitle>
             <DialogDescription>
-              Enter the file path (e.g., index.html, styles.css, script.js)
+              {t("siteBuilder.fileEditor.newFileDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <Input
             value={newFileName}
             onChange={(e) => setNewFileName(e.target.value)}
-            placeholder="index.html"
+            placeholder={t("siteBuilder.fileEditor.newFileDialog.placeholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 handleNewFile();
@@ -379,10 +381,10 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsNewFileDialogOpen(false)}>
-              Cancel
+              {t("siteBuilder.fileEditor.newFileDialog.cancel")}
             </Button>
             <Button onClick={handleNewFile} disabled={!newFileName.trim()}>
-              Create
+              {t("siteBuilder.fileEditor.newFileDialog.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

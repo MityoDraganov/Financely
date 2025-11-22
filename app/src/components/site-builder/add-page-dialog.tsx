@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -45,18 +46,19 @@ export function AddPageDialog({
   initialValues = null,
   mode = "create",
 }: AddPageDialogProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState(defaultFormState);
   const isEditMode = mode === "edit";
   const descriptionText = isEditMode
-    ? "Update the details for this page. Changing the slug will update the page URL."
-    : "Provide a title and optional description. The slug determines the URL (e.g. /about).";
+    ? t('siteBuilder.addPageDialog.editDescription')
+    : t('siteBuilder.addPageDialog.createDescription');
   const submitLabel = isPending
     ? isEditMode
-      ? "Saving..."
-      : "Adding..."
+      ? t('siteBuilder.addPageDialog.saving')
+      : t('siteBuilder.addPageDialog.adding')
     : isEditMode
-      ? "Save Changes"
-      : "Add Page";
+      ? t('siteBuilder.addPageDialog.saveChanges')
+      : t('siteBuilder.addPageDialog.addPage');
 
   useEffect(() => {
     if (!open) {
@@ -83,12 +85,12 @@ export function AddPageDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditMode ? "Edit page" : "Add a new page"}</DialogTitle>
+          <DialogTitle>{isEditMode ? t('siteBuilder.addPageDialog.editTitle') : t('siteBuilder.addPageDialog.createTitle')}</DialogTitle>
           <DialogDescription>{descriptionText}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Title</Label>
+            <Label>{t('siteBuilder.addPageDialog.title')}</Label>
             <Input
               value={form.title}
               onChange={(event) =>
@@ -97,12 +99,12 @@ export function AddPageDialog({
                   title: event.target.value,
                 }))
               }
-              placeholder="About"
+              placeholder={t('siteBuilder.addPageDialog.titlePlaceholder')}
               disabled={isPending}
             />
           </div>
           <div className="space-y-2">
-            <Label>Slug</Label>
+            <Label>{t('siteBuilder.addPageDialog.slug')}</Label>
             <Input
               value={form.slug}
               onChange={(event) =>
@@ -111,12 +113,12 @@ export function AddPageDialog({
                   slug: event.target.value,
                 }))
               }
-              placeholder="about"
+              placeholder={t('siteBuilder.addPageDialog.slugPlaceholder')}
               disabled={isPending}
             />
           </div>
           <div className="space-y-2">
-            <Label>Type</Label>
+            <Label>{t('siteBuilder.addPageDialog.type')}</Label>
             <Select
               value={form.type}
               onValueChange={(value: PageType) =>
@@ -131,14 +133,14 @@ export function AddPageDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="blog">Blog / Articles</SelectItem>
-                <SelectItem value="contact">Contact</SelectItem>
+                <SelectItem value="standard">{t('siteBuilder.addPageDialog.types.standard')}</SelectItem>
+                <SelectItem value="blog">{t('siteBuilder.addPageDialog.types.blog')}</SelectItem>
+                <SelectItem value="contact">{t('siteBuilder.addPageDialog.types.contact')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Description (optional)</Label>
+            <Label>{t('siteBuilder.addPageDialog.description')}</Label>
             <Textarea
               value={form.description}
               onChange={(event) =>
@@ -147,13 +149,13 @@ export function AddPageDialog({
                   description: event.target.value,
                 }))
               }
-              placeholder="Brief description of this page's purpose..."
+              placeholder={t('siteBuilder.addPageDialog.descriptionPlaceholder')}
               rows={3}
               disabled={isPending}
             />
           </div>
           <div className="space-y-2">
-            <Label>Context (optional)</Label>
+            <Label>{t('siteBuilder.addPageDialog.context')}</Label>
             <Textarea
               value={form.context}
               onChange={(event) =>
@@ -162,7 +164,7 @@ export function AddPageDialog({
                   context: event.target.value,
                 }))
               }
-              placeholder="Additional context for AI generation..."
+              placeholder={t('siteBuilder.addPageDialog.contextPlaceholder')}
               rows={3}
               disabled={isPending}
             />
@@ -174,7 +176,7 @@ export function AddPageDialog({
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
-            Cancel
+            {t('siteBuilder.addPageDialog.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={!form.title.trim() || isPending}>
             {submitLabel}

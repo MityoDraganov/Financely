@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesReposity(databaseService);
 
 export default function InvoiceDetailPage() {
+    const { t } = useTranslation();
     const { id = "" } = useParams();
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [email, setEmail] = useState<string>("");
@@ -40,13 +42,13 @@ export default function InvoiceDetailPage() {
                     setPreviewUrl(result.url);
                 },
                 onError: (error) => {
-                    toast.error(`Failed to generate preview: ${error.message}`);
+                    toast.error(t('invoiceDetail.messages.previewFailed', { error: error.message }));
                 },
             }
         );
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [invoice?.id]);
+    }, [invoice?.id, t]);
 
     const handleSendEmail = () => {
         if (!invoice || !email) return;
@@ -55,11 +57,11 @@ export default function InvoiceDetailPage() {
             { invoiceId: invoice.id, toEmail: email },
             {
                 onSuccess: () => {
-                    toast.success(`Invoice sent to ${email}`);
+                    toast.success(t('invoiceDetail.email.sent', { email }));
                     setEmail("");
                 },
                 onError: (error) => {
-                    toast.error(`Failed to send email: ${error.message}`);
+                    toast.error(t('invoiceDetail.email.sendFailed', { error: error.message }));
                 },
             }
         );
@@ -75,7 +77,7 @@ export default function InvoiceDetailPage() {
                     setShareLink(result.url);
                 },
                 onError: (error) => {
-                    toast.error(`Failed to generate link: ${error.message}`);
+                    toast.error(t('invoiceDetail.share.generateFailed', { error: error.message }));
                 },
             }
         );
@@ -87,10 +89,10 @@ export default function InvoiceDetailPage() {
         try {
             await navigator.clipboard.writeText(shareLink);
             setCopied(true);
-            toast.success("Link copied to clipboard!");
+            toast.success(t('invoiceDetail.share.linkCopied'));
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            toast.error("Failed to copy link");
+            toast.error(t('invoiceDetail.share.copyFailed'));
         }
     };
 
@@ -98,8 +100,8 @@ export default function InvoiceDetailPage() {
     return (
         <div className="container mx-auto py-8">
             <div className="mb-6">
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Invoice {id}</h1>
-                <p className="text-muted-foreground">View, download, email, or share this invoice.</p>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">{t('invoiceDetail.title', { id })}</h1>
+                <p className="text-muted-foreground">{t('invoiceDetail.subtitle')}</p>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -107,7 +109,7 @@ export default function InvoiceDetailPage() {
                     <Card className="card-large">
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle>Invoice Preview</CardTitle>
+                                <CardTitle>{t('invoiceDetail.preview.title')}</CardTitle>
                                 <div className="flex items-center gap-2">
                                 <Button 
                                     variant="outline" 
@@ -116,7 +118,7 @@ export default function InvoiceDetailPage() {
                                         size="sm"
                                 >
                                     <LinkIcon className="mr-2 h-4 w-4" /> 
-                                        {generateShareLink.isPending ? "Generating..." : "Share"}
+                                        {generateShareLink.isPending ? t('invoiceDetail.share.generating') : t('invoiceDetail.share.button')}
                                 </Button>
                                 </div>
                             </div>
@@ -136,12 +138,12 @@ export default function InvoiceDetailPage() {
                                         {copied ? (
                                             <>
                                                 <Check className="mr-2 h-4 w-4" />
-                                                Copied
+                                                {t('invoiceDetail.share.copied')}
                                             </>
                                         ) : (
                                             <>
                                                 <Copy className="mr-2 h-4 w-4" />
-                                                Copy
+                                                {t('invoiceDetail.share.copy')}
                                             </>
                                         )}
                                     </Button>
@@ -152,7 +154,7 @@ export default function InvoiceDetailPage() {
                             {renderPdf.isPending ? (
                                 <div className="flex flex-col items-center justify-center py-12">
                                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
-                                    <p className="text-muted-foreground">Generating invoice preview...</p>
+                                    <p className="text-muted-foreground">{t('invoiceDetail.preview.generating')}</p>
                                 </div>
                             ) : previewUrl ? (
                                 <div className="aspect-[1/1.414] w-full overflow-hidden rounded border bg-muted">
@@ -164,7 +166,7 @@ export default function InvoiceDetailPage() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <p className="text-muted-foreground">Failed to load invoice preview</p>
+                                    <p className="text-muted-foreground">{t('invoiceDetail.preview.loadFailed')}</p>
                                     <Button 
                                         className="btn-primary mt-4" 
                                         onClick={() => {
@@ -176,14 +178,14 @@ export default function InvoiceDetailPage() {
                                                             setPreviewUrl(result.url);
                                                         },
                                                         onError: (error) => {
-                                                            toast.error(`Failed to generate preview: ${error.message}`);
+                                                            toast.error(t('invoiceDetail.messages.previewFailed', { error: error.message }));
                                                         },
                                                     }
                                                 );
                                             }
                                         }}
                                     >
-                                        Retry
+                                        {t('invoiceDetail.preview.retry')}
                                     </Button>
                                 </div>
                             )}
@@ -194,11 +196,11 @@ export default function InvoiceDetailPage() {
                 <div className="lg:col-span-1">
                     <Card className="card-large">
                         <CardHeader>
-                            <CardTitle>Send via email</CardTitle>
+                            <CardTitle>{t('invoiceDetail.email.title')}</CardTitle>
                         </CardHeader>
                         <CardContent className="flex items-center gap-2">
                             <Input
-                                placeholder="recipient@example.com"
+                                placeholder={t('invoiceDetail.email.placeholder')}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
@@ -208,7 +210,7 @@ export default function InvoiceDetailPage() {
                                 disabled={!email || sendEmail.isPending}
                             >
                                 <Send className="mr-2 h-4 w-4" /> 
-                                {sendEmail.isPending ? "Sending..." : "Send"}
+                                {sendEmail.isPending ? t('invoiceDetail.email.sending') : t('invoiceDetail.email.send')}
                             </Button>
                         </CardContent>
                     </Card>

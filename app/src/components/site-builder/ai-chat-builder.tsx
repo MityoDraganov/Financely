@@ -6,6 +6,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Send, Image as ImageIcon, X, Sparkles, Plus, MessageSquare, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useChatGenerateSite } from "@/hooks/service-hooks/use-chat-generate-site";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
 import { useBrandSite, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
@@ -41,7 +42,7 @@ export function AIChatBuilder({
   brandSiteId,
   organizationId,
 }: AIChatBuilderProps) {
-
+  const { t } = useTranslation();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -154,7 +155,7 @@ export function AIChatBuilder({
           {
             id: "welcome",
             role: "assistant",
-            content: "Hello! I'm your AI site builder. I'll help you create a beautiful, branded website. What would you like your website to be about?",
+            content: t("siteBuilder.aiChatBuilder.welcomeWithContext"),
             timestamp: new Date().toISOString(),
           },
           {
@@ -168,7 +169,7 @@ export function AIChatBuilder({
         setMessages(initialMessages);
         
         // Save this conversation to Firestore
-        saveConversation(conversationId, initialMessages, "Initial Website Creation").catch((err: unknown) => {
+        saveConversation(conversationId, initialMessages, t("siteBuilder.aiChatBuilder.initialWebsiteCreation")).catch((err: unknown) => {
           console.error("Failed to save initial conversation:", err);
         });
       } else {
@@ -178,7 +179,7 @@ export function AIChatBuilder({
           {
             id: "welcome",
             role: "assistant",
-            content: "Hello! I'm your AI site builder. I can help you create or update your website. What would you like to do?\n",
+            content: t("siteBuilder.aiChatBuilder.welcomeWithoutContext"),
             timestamp: new Date().toISOString(),
           },
         ]);
@@ -203,7 +204,7 @@ export function AIChatBuilder({
     }
     
       setHasLoadedConversations(true);
-  }, [brandSite?.conversations, brandSiteId, hasLoadedConversations, brandSite, saveConversation]);
+  }, [brandSite?.conversations, brandSiteId, hasLoadedConversations, brandSite, saveConversation, t]);
 
   // Watch for conversation updates from Firestore (when async processing completes or streaming)
   useEffect(() => {
@@ -455,7 +456,7 @@ export function AIChatBuilder({
         const typingMessage: ChatMessage = {
           id: `typing-site-gen-${Date.now()}`,
           role: "assistant",
-          content: "Generating site with AI...\n\nThis may take 1-2 minutes",
+          content: t("siteBuilder.aiChatBuilder.generatingSite"),
           timestamp: new Date().toISOString(),
           isTyping: true,
           processingStep: currentStep,
@@ -471,7 +472,7 @@ export function AIChatBuilder({
       }
       return prev;
     });
-  }, [brandSite?.status, currentConversationId, getProcessingStep, brandSite]);
+  }, [brandSite?.status, currentConversationId, getProcessingStep, brandSite, t]);
 
   // Auto-scroll to bottom when new messages arrive (only if user is near bottom)
   useEffect(() => {
@@ -492,12 +493,12 @@ export function AIChatBuilder({
 
   const handleFileUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+      toast.error(t("siteBuilder.aiChatBuilder.toasts.pleaseUploadImage"));
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image must be smaller than 10MB");
+      toast.error(t("siteBuilder.aiChatBuilder.toasts.imageTooLarge"));
       return;
     }
 
@@ -581,7 +582,7 @@ export function AIChatBuilder({
             URL.revokeObjectURL(preview);
             return updated;
           });
-          toast.success("Image uploaded");
+          toast.success(t("siteBuilder.aiChatBuilder.toasts.imageUploaded"));
         }
       }, 300);
     } catch (error) {
@@ -628,7 +629,7 @@ export function AIChatBuilder({
   const handleSend = async () => {
     if (!input.trim() && attachments.length === 0) return;
     if (!brandSiteId) {
-      toast.error("Please generate a site first");
+      toast.error(t("siteBuilder.aiChatBuilder.toasts.generateSiteFirst"));
       return;
     }
 
@@ -709,7 +710,9 @@ export function AIChatBuilder({
           const errorMessage: ChatMessage = {
             id: `error-${Date.now()}`,
             role: "assistant",
-            content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            content: t("siteBuilder.aiChatBuilder.toasts.error", {
+              message: error instanceof Error ? error.message : t("siteBuilder.aiChatBuilder.toasts.unknownError"),
+            }),
             timestamp: new Date().toISOString(),
           };
           const finalMessages = [...messagesWithoutTyping, errorMessage];
@@ -728,7 +731,7 @@ export function AIChatBuilder({
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I'm your AI site builder. I can help you create or update your website. What would you like to do?\n",
+        content: t("siteBuilder.aiChatBuilder.welcomeWithoutContext"),
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -772,21 +775,21 @@ export function AIChatBuilder({
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" />
-            AI Chat Builder
+            {t("siteBuilder.aiChatBuilder.title")}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Select value={selectedPageSlug} onValueChange={setSelectedPageSlug}>
               <SelectTrigger className="w-[200px]">
                 <FileText className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Select page" />
+                <SelectValue placeholder={t("siteBuilder.aiChatBuilder.selectPage")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  <span className="font-medium">🌐 Entire Site</span>
+                  <span className="font-medium">{t("siteBuilder.aiChatBuilder.entireSite")}</span>
                 </SelectItem>
                 {pages.length > 0 && pages.map((page) => (
                   <SelectItem key={page.id} value={page.slug}>
-                    {page.title} {page.slug === "index" ? "(Home)" : `(/${page.slug})`}
+                    {page.title} {page.slug === "index" ? t("siteBuilder.aiChatBuilder.home") : `(/${page.slug})`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -798,19 +801,25 @@ export function AIChatBuilder({
               className="flex items-center gap-1"
             >
               <Plus className="h-4 w-4" />
-              New Chat
+              {t("siteBuilder.aiChatBuilder.newChat")}
             </Button>
           </div>
         </div>
         {selectedPageSlug === "all" ? (
-          <p className="text-xs text-muted-foreground mt-1">
-            Editing: <span className="font-medium">Entire Site</span> (all pages will be updated)
-          </p>
+          <p 
+            className="text-xs text-muted-foreground mt-1"
+            dangerouslySetInnerHTML={{ __html: t("siteBuilder.aiChatBuilder.editingEntireSite") }}
+          />
         ) : currentPage && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Editing: <span className="font-medium">{currentPage.title}</span>
-            {currentPage.slug !== "index" && ` (/${currentPage.slug})`}
-          </p>
+          <p 
+            className="text-xs text-muted-foreground mt-1"
+            dangerouslySetInnerHTML={{ 
+              __html: t("siteBuilder.aiChatBuilder.editingPage", {
+                title: currentPage.title,
+                slug: currentPage.slug !== "index" ? ` (/${currentPage.slug})` : "",
+              })
+            }}
+          />
         )}
         {sortedConversations.length > 0 && (
           <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
@@ -827,7 +836,7 @@ export function AIChatBuilder({
                 className="flex items-center gap-1 whitespace-nowrap"
               >
                 <MessageSquare className="h-3 w-3" />
-                {conv.title || "Untitled"}
+                {conv.title || t("siteBuilder.aiChatBuilder.untitled")}
               </Button>
             ))}
           </div>
@@ -862,7 +871,7 @@ export function AIChatBuilder({
                     )}
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>AI is thinking...</span>
+                      <span>{t("siteBuilder.aiChatBuilder.aiThinking")}</span>
                     </div>
                   </div>
                 ) : (
@@ -873,7 +882,7 @@ export function AIChatBuilder({
                           <img
                             key={idx}
                             src={url}
-                            alt={`Attachment ${idx + 1}`}
+                            alt={t("siteBuilder.aiChatBuilder.attachment", { index: idx + 1 })}
                             className="max-w-full h-auto rounded border"
                             style={{ maxHeight: "200px" }}
                           />
@@ -982,7 +991,7 @@ export function AIChatBuilder({
                   handleSend();
                 }
               }}
-              placeholder="Type your message or request..."
+              placeholder={t("siteBuilder.aiChatBuilder.inputPlaceholder")}
               disabled={chatGenerateSite.isPending || !brandSiteId}
               className="flex-1"
             />
@@ -1018,9 +1027,6 @@ export function AIChatBuilder({
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Press Enter to send, Shift+Enter for new line
-          </p>
         </div>
       </CardContent>
 
@@ -1030,7 +1036,7 @@ export function AIChatBuilder({
           {previewImage && (
             <img
               src={previewImage}
-              alt="Preview"
+              alt={t("siteBuilder.aiChatBuilder.preview")}
               className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
             />
           )}

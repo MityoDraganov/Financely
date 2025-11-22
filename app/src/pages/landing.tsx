@@ -1,6 +1,6 @@
 'use client'
 
-import { Hero, HowItWorks, Features, Metrics, Pricing, FAQ, CTA, Footer, Navbar } from "@/components/landing";
+import { Hero, HowItWorks, Features, Metrics, FAQ, CTA, Footer, Navbar } from "@/components/landing";
 
 export default function LandingPage() {
   return (
@@ -10,7 +10,6 @@ export default function LandingPage() {
       <HowItWorks />
       <Features />
       <Metrics />
-      <Pricing />
       <FAQ />
       <CTA />
       <Footer />

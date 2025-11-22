@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,8 @@ export function WorkflowStepComponent({
   onUpdateStep, 
   onDeleteStep 
 }: WorkflowStepProps) {
+  const { t } = useTranslation();
+  
   const handleUpdateName = (name: string) => {
     onUpdateStep(step.id, { name });
   };
@@ -54,15 +57,23 @@ export function WorkflowStepComponent({
     onUpdateStep(step.id, { actions: updatedActions });
   };
 
+  const getActionTypeLabel = (value: string) => {
+    const actionMap: Record<string, string> = {
+      "http_request": t('workflows.builder.actionTypes.httpRequest'),
+      "send_email": t('workflows.builder.actionTypes.sendEmail'),
+    };
+    return actionMap[value] || value;
+  };
+
   return (
     <Card className="border-l-4 border-l-blue-500">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-3">
-              <Badge variant="outline" className="text-xs">Step {stepIndex + 1}</Badge>
+              <Badge variant="outline" className="text-xs">{t('workflows.builder.steps.step', { number: stepIndex + 1 })}</Badge>
               <Input
-                placeholder={`Step ${stepIndex + 1} name`}
+                placeholder={t('workflows.builder.steps.stepNamePlaceholder', { number: stepIndex + 1 })}
                 value={step.name}
                 onChange={(e) => handleUpdateName(e.target.value)}
                 className="font-semibold border-none shadow-none p-0 h-auto"
@@ -90,12 +101,12 @@ export function WorkflowStepComponent({
           <div className="flex gap-2">
             <Select onValueChange={(value) => handleAddAction(value as WorkflowActionType)}>
               <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Select action type" />
+                <SelectValue placeholder={t('workflows.builder.action.selectType')} />
               </SelectTrigger>
               <SelectContent>
                 {ACTION_TYPES.map((actionType) => (
                   <SelectItem key={actionType.value} value={actionType.value}>
-                    {actionType.label}
+                    {getActionTypeLabel(actionType.value)}
                   </SelectItem>
                 ))}
               </SelectContent>

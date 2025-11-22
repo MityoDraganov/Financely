@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { CreditCard, Calendar, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 
 export default function OrganizationBillingPage() {
+  const { t } = useTranslation();
+  const { formatDateShort } = useDateFormatting();
   const { data: organization, isLoading } = useCurrentOrganization();
   const [isUpgrading, setIsUpgrading] = useState(false);
 
@@ -22,8 +26,8 @@ export default function OrganizationBillingPage() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No organization found</h3>
-        <p className="text-gray-600">Please contact support if this issue persists.</p>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">{t('settings.organization.billing.noOrganization.title')}</h3>
+        <p className="text-gray-600">{t('settings.organization.billing.noOrganization.description')}</p>
       </div>
     );
   }
@@ -34,48 +38,11 @@ export default function OrganizationBillingPage() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return formatDateShort(new Date(dateString));
   };
 
   const getPlanFeatures = (plan: string) => {
-    const features = {
-      free: [
-        "Up to 5 invoices per month",
-        "Basic templates",
-        "Email support",
-        "Standard branding",
-      ],
-      starter: [
-        "Up to 50 invoices per month",
-        "All templates",
-        "Priority support",
-        "Custom branding",
-        "Team collaboration (up to 3 users)",
-      ],
-      professional: [
-        "Unlimited invoices",
-        "All templates + custom templates",
-        "Priority support",
-        "Full white-label branding",
-        "Team collaboration (up to 10 users)",
-        "Advanced analytics",
-        "API access",
-      ],
-      enterprise: [
-        "Everything in Professional",
-        "Unlimited team members",
-        "Dedicated support",
-        "Custom domain",
-        "SSO/SAML integration",
-        "Advanced security features",
-        "Custom integrations",
-      ],
-    };
-    return features[plan as keyof typeof features] || features.free;
+    return t(`settings.organization.billing.planFeatures.${plan}`, { returnObjects: true }) as string[] || [];
   };
 
   const getPlanPrice = (plan: string) => {
@@ -95,9 +62,9 @@ export default function OrganizationBillingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Billing & Subscription</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('settings.organization.billing.title')}</h1>
         <p className="text-gray-600 mt-1">
-          Manage your subscription, billing information, and usage.
+          {t('settings.organization.billing.description')}
         </p>
       </div>
 
@@ -110,10 +77,10 @@ export default function OrganizationBillingPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <CreditCard className="h-5 w-5" />
-                    Current Plan
+                    {t('settings.organization.billing.currentPlan.title')}
                   </CardTitle>
                   <CardDescription>
-                    Your current subscription details
+                    {t('settings.organization.billing.currentPlan.description')}
                   </CardDescription>
                 </div>
                 <Badge 
@@ -130,16 +97,16 @@ export default function OrganizationBillingPage() {
                   <h3 className="text-xl font-semibold capitalize">{subscription.plan} Plan</h3>
                   <p className="text-gray-600">
                     {currentPlanPrice.monthly === 0 
-                      ? "Free forever" 
-                      : `$${currentPlanPrice.monthly}/month`
+                      ? t('settings.organization.billing.currentPlan.freeForever')
+                      : t('settings.organization.billing.currentPlan.perMonth', { price: currentPlanPrice.monthly })
                     }
                   </p>
                 </div>
                 {isTrialing && (
                   <div className="text-right">
-                    <p className="text-sm text-orange-600 font-medium">Trial Period</p>
+                    <p className="text-sm text-orange-600 font-medium">{t('settings.organization.billing.currentPlan.trialPeriod')}</p>
                     <p className="text-sm text-gray-600">
-                      Ends {formatDate(subscription.trialEnd)}
+                      {t('settings.organization.billing.currentPlan.trialEnds', { date: formatDate(subscription.trialEnd) })}
                     </p>
                   </div>
                 )}
@@ -149,13 +116,13 @@ export default function OrganizationBillingPage() {
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    {isTrialing ? "Trial ends" : "Next billing date"}: {formatDate(subscription.currentPeriodEnd)}
+                    {isTrialing ? t('settings.organization.billing.currentPlan.trialEnds', { date: formatDate(subscription.currentPeriodEnd) }) : t('settings.organization.billing.currentPlan.nextBillingDate')}: {formatDate(subscription.currentPeriodEnd)}
                   </span>
                 </div>
               )}
 
               <div className="space-y-2">
-                <h4 className="font-medium">Plan Features:</h4>
+                <h4 className="font-medium">{t('settings.organization.billing.currentPlan.planFeatures')}</h4>
                 <ul className="space-y-1">
                   {features.map((feature, index) => (
                     <li key={index} className="flex items-center gap-2 text-sm">
@@ -172,11 +139,11 @@ export default function OrganizationBillingPage() {
                     onClick={() => setIsUpgrading(true)}
                     disabled={isUpgrading}
                   >
-                    {isUpgrading ? "Processing..." : "Upgrade Plan"}
+                    {isUpgrading ? t('settings.organization.billing.processing') : t('settings.organization.billing.upgradePlan')}
                   </Button>
                 )}
                 <Button variant="outline">
-                  Manage Billing
+                  {t('settings.organization.billing.manageBilling')}
                 </Button>
               </div>
             </CardContent>
@@ -185,9 +152,9 @@ export default function OrganizationBillingPage() {
           {/* Usage Statistics */}
           <Card>
             <CardHeader>
-              <CardTitle>Usage This Month</CardTitle>
+              <CardTitle>{t('settings.organization.billing.usage.title')}</CardTitle>
               <CardDescription>
-                Track your current usage against plan limits
+                {t('settings.organization.billing.usage.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -196,9 +163,9 @@ export default function OrganizationBillingPage() {
                   <div className="text-2xl font-bold text-gray-900">
                     {organization.usage.invoiceCount}
                   </div>
-                  <div className="text-sm text-gray-600">Invoices Created</div>
+                  <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.invoicesCreated')}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {subscription.plan === "free" ? "5" : "Unlimited"} limit
+                    {subscription.plan === "free" ? t('settings.organization.billing.usage.limit', { limit: "5" }) : t('settings.organization.billing.usage.unlimited')}
                   </div>
                 </div>
                 
@@ -206,9 +173,9 @@ export default function OrganizationBillingPage() {
                   <div className="text-2xl font-bold text-gray-900">
                     {organization.usage.templateCount}
                   </div>
-                  <div className="text-sm text-gray-600">Templates</div>
+                  <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.templates')}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {subscription.plan === "free" ? "3" : "Unlimited"} limit
+                    {subscription.plan === "free" ? t('settings.organization.billing.usage.limit', { limit: "3" }) : t('settings.organization.billing.usage.unlimited')}
                   </div>
                 </div>
                 
@@ -216,11 +183,11 @@ export default function OrganizationBillingPage() {
                   <div className="text-2xl font-bold text-gray-900">
                     {organization.memberIds.length}
                   </div>
-                  <div className="text-sm text-gray-600">Team Members</div>
+                  <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.teamMembers')}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {subscription.plan === "free" ? "1" : 
-                     subscription.plan === "starter" ? "3" :
-                     subscription.plan === "professional" ? "10" : "Unlimited"} limit
+                    {subscription.plan === "free" ? t('settings.organization.billing.usage.limit', { limit: "1" }) : 
+                     subscription.plan === "starter" ? t('settings.organization.billing.usage.limit', { limit: "3" }) :
+                     subscription.plan === "professional" ? t('settings.organization.billing.usage.limit', { limit: "10" }) : t('settings.organization.billing.usage.unlimited')}
                   </div>
                 </div>
               </div>
@@ -232,9 +199,9 @@ export default function OrganizationBillingPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Available Plans</CardTitle>
+              <CardTitle>{t('settings.organization.billing.availablePlans.title')}</CardTitle>
               <CardDescription>
-                Choose the plan that fits your needs
+                {t('settings.organization.billing.availablePlans.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -254,12 +221,12 @@ export default function OrganizationBillingPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold capitalize">{plan}</h4>
                       {isCurrentPlan && (
-                        <Badge variant="default">Current</Badge>
+                        <Badge variant="default">{t('settings.organization.billing.availablePlans.current')}</Badge>
                       )}
                     </div>
                     <div className="text-2xl font-bold mb-2">
                       ${planPrice.monthly}
-                      <span className="text-sm font-normal text-gray-600">/month</span>
+                      <span className="text-sm font-normal text-gray-600">{t('settings.organization.billing.availablePlans.perMonthLabel')}</span>
                     </div>
                     <Button 
                       size="sm" 
@@ -267,7 +234,7 @@ export default function OrganizationBillingPage() {
                       variant={isCurrentPlan ? "outline" : "default"}
                       disabled={isCurrentPlan}
                     >
-                      {isCurrentPlan ? "Current Plan" : "Upgrade"}
+                      {isCurrentPlan ? t('settings.organization.billing.availablePlans.currentPlan') : t('settings.organization.billing.availablePlans.upgrade')}
                     </Button>
                   </div>
                 );
@@ -278,25 +245,25 @@ export default function OrganizationBillingPage() {
           {/* Billing Information */}
           <Card>
             <CardHeader>
-              <CardTitle>Billing Information</CardTitle>
+              <CardTitle>{t('settings.organization.billing.billingInformation.title')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Payment Method</span>
+                <span className="text-gray-600">{t('settings.organization.billing.billingInformation.paymentMethod')}</span>
                 <span className="font-medium">•••• •••• •••• 4242</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Billing Email</span>
+                <span className="text-gray-600">{t('settings.organization.billing.billingInformation.billingEmail')}</span>
                 <span className="font-medium">billing@example.com</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Next Invoice</span>
+                <span className="text-gray-600">{t('settings.organization.billing.billingInformation.nextInvoice')}</span>
                 <span className="font-medium">
                   {formatDate(subscription.currentPeriodEnd)}
                 </span>
               </div>
               <Button variant="outline" size="sm" className="w-full mt-4">
-                Update Payment Method
+                {t('settings.organization.billing.billingInformation.updatePaymentMethod')}
               </Button>
             </CardContent>
           </Card>

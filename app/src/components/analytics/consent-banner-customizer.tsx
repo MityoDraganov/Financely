@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Palette, Sparkles, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export function ConsentBannerCustomizer({
   styling,
   onStylingChange,
 }: ConsentBannerCustomizerProps) {
+  const { t } = useTranslation();
   const { data: organization } = useCurrentOrganization();
   const generateConsentBanner = useGenerateConsentBanner();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -40,10 +42,10 @@ export function ConsentBannerCustomizer({
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Palette className="h-5 w-5" />
-            Consent Banner Styling
+            {t('analytics.consentBanner.title')}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Customize the appearance of your GDPR consent banner
+            {t('analytics.consentBanner.description')}
           </p>
         </div>
         <Button
@@ -52,7 +54,7 @@ export function ConsentBannerCustomizer({
           onClick={() => setAiDialogOpen(true)}
         >
           <Sparkles className="h-4 w-4 mr-2" />
-          Generate with AI
+          {t('analytics.consentBanner.generateWithAI')}
         </Button>
       </div>
 
@@ -61,36 +63,36 @@ export function ConsentBannerCustomizer({
           {/* Colors Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Colors</Label>
+              <Label className="text-base font-semibold">{t('analytics.consentBanner.colors')}</Label>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <ColorPicker
-                label="Background Color"
+                label={t('analytics.consentBanner.backgroundColor')}
                 value={styling.backgroundColor}
                 onChange={(color) => updateStyling({ backgroundColor: color })}
               />
               <ColorPicker
-                label="Text Color"
+                label={t('analytics.consentBanner.textColor')}
                 value={styling.textColor}
                 onChange={(color) => updateStyling({ textColor: color })}
               />
               <ColorPicker
-                label="Button Background"
+                label={t('analytics.consentBanner.buttonBackground')}
                 value={styling.buttonBackgroundColor}
                 onChange={(color) => updateStyling({ buttonBackgroundColor: color })}
               />
               <ColorPicker
-                label="Button Text Color"
+                label={t('analytics.consentBanner.buttonTextColor')}
                 value={styling.buttonTextColor}
                 onChange={(color) => updateStyling({ buttonTextColor: color })}
               />
               <ColorPicker
-                label="Link Color"
+                label={t('analytics.consentBanner.linkColor')}
                 value={styling.linkColor}
                 onChange={(color) => updateStyling({ linkColor: color })}
               />
               <ColorPicker
-                label="Border Color"
+                label={t('analytics.consentBanner.borderColor')}
                 value={styling.borderColor}
                 onChange={(color) => updateStyling({ borderColor: color })}
               />
@@ -101,26 +103,26 @@ export function ConsentBannerCustomizer({
 
           {/* Typography Section */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold">Typography</Label>
+            <Label className="text-base font-semibold">{t('analytics.consentBanner.typography')}</Label>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Font Family</Label>
+                <Label>{t('analytics.consentBanner.fontFamily')}</Label>
                 <Input
                   value={styling.fontFamily}
                   onChange={(e) => updateStyling({ fontFamily: e.target.value })}
-                  placeholder="system-ui, -apple-system, sans-serif"
+                  placeholder={t('analytics.consentBanner.fontFamilyPlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Font Size</Label>
+                <Label>{t('analytics.consentBanner.fontSize')}</Label>
                 <Input
                   value={styling.fontSize}
                   onChange={(e) => updateStyling({ fontSize: e.target.value })}
-                  placeholder="14px"
+                  placeholder={t('analytics.consentBanner.fontSizePlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Font Weight</Label>
+                <Label>{t('analytics.consentBanner.fontWeight')}</Label>
                 <Select
                   value={styling.fontWeight}
                   onValueChange={(value) => updateStyling({ fontWeight: value })}
@@ -129,11 +131,11 @@ export function ConsentBannerCustomizer({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="300">Light (300)</SelectItem>
-                    <SelectItem value="400">Normal (400)</SelectItem>
-                    <SelectItem value="500">Medium (500)</SelectItem>
-                    <SelectItem value="600">Semi-bold (600)</SelectItem>
-                    <SelectItem value="700">Bold (700)</SelectItem>
+                    <SelectItem value="300">{t('analytics.consentBanner.fontWeightLight')}</SelectItem>
+                    <SelectItem value="400">{t('analytics.consentBanner.fontWeightNormal')}</SelectItem>
+                    <SelectItem value="500">{t('analytics.consentBanner.fontWeightMedium')}</SelectItem>
+                    <SelectItem value="600">{t('analytics.consentBanner.fontWeightSemiBold')}</SelectItem>
+                    <SelectItem value="700">{t('analytics.consentBanner.fontWeightBold')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -144,10 +146,10 @@ export function ConsentBannerCustomizer({
 
           {/* Layout Section */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold">Layout & Spacing</Label>
+            <Label className="text-base font-semibold">{t('analytics.consentBanner.layout')}</Label>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Position</Label>
+                <Label>{t('analytics.consentBanner.position')}</Label>
                 <Select
                   value={styling.position}
                   onValueChange={(value: "bottom" | "top" | "center") =>
@@ -158,42 +160,42 @@ export function ConsentBannerCustomizer({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bottom">Bottom</SelectItem>
-                    <SelectItem value="top">Top</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
+                    <SelectItem value="bottom">{t('analytics.consentBanner.positionBottom')}</SelectItem>
+                    <SelectItem value="top">{t('analytics.consentBanner.positionTop')}</SelectItem>
+                    <SelectItem value="center">{t('analytics.consentBanner.positionCenter')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Max Width</Label>
+                <Label>{t('analytics.consentBanner.maxWidth')}</Label>
                 <Input
                   value={styling.maxWidth}
                   onChange={(e) => updateStyling({ maxWidth: e.target.value })}
-                  placeholder="600px"
+                  placeholder={t('analytics.consentBanner.maxWidthPlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Padding</Label>
+                <Label>{t('analytics.consentBanner.padding')}</Label>
                 <Input
                   value={styling.padding}
                   onChange={(e) => updateStyling({ padding: e.target.value })}
-                  placeholder="16px"
+                  placeholder={t('analytics.consentBanner.paddingPlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Border Radius</Label>
+                <Label>{t('analytics.consentBanner.borderRadius')}</Label>
                 <Input
                   value={styling.borderRadius}
                   onChange={(e) => updateStyling({ borderRadius: e.target.value })}
-                  placeholder="8px"
+                  placeholder={t('analytics.consentBanner.borderRadiusPlaceholder')}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Shadow</Label>
+                <Label>{t('analytics.consentBanner.shadow')}</Label>
                 <Input
                   value={styling.shadow}
                   onChange={(e) => updateStyling({ shadow: e.target.value })}
-                  placeholder="0 4px 12px rgba(0, 0, 0, 0.15)"
+                  placeholder={t('analytics.consentBanner.shadowPlaceholder')}
                 />
               </div>
             </div>
@@ -203,40 +205,40 @@ export function ConsentBannerCustomizer({
 
           {/* Content Section */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold">Content</Label>
+            <Label className="text-base font-semibold">{t('analytics.consentBanner.content')}</Label>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Message</Label>
+                <Label>{t('analytics.consentBanner.message')}</Label>
                 <Textarea
                   value={styling.message}
                   onChange={(e) => updateStyling({ message: e.target.value })}
-                  placeholder="We use cookies to enhance your browsing experience and analyze site traffic."
+                  placeholder={t('analytics.consentBanner.messagePlaceholder')}
                   rows={3}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Accept Button Text</Label>
+                  <Label>{t('analytics.consentBanner.acceptButtonText')}</Label>
                   <Input
                     value={styling.acceptButtonText}
                     onChange={(e) => updateStyling({ acceptButtonText: e.target.value })}
-                    placeholder="Accept"
+                    placeholder={t('analytics.consentBanner.acceptButtonTextPlaceholder')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Reject Button Text</Label>
+                  <Label>{t('analytics.consentBanner.rejectButtonText')}</Label>
                   <Input
                     value={styling.rejectButtonText}
                     onChange={(e) => updateStyling({ rejectButtonText: e.target.value })}
-                    placeholder="Reject"
+                    placeholder={t('analytics.consentBanner.rejectButtonTextPlaceholder')}
                   />
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Show Reject Button</Label>
+                  <Label>{t('analytics.consentBanner.showRejectButton')}</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow users to explicitly reject analytics tracking
+                    {t('analytics.consentBanner.showRejectButtonDescription')}
                   </p>
                 </div>
                 <Switch
@@ -253,34 +255,34 @@ export function ConsentBannerCustomizer({
       <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generate Consent Banner with AI</DialogTitle>
+            <DialogTitle>{t('analytics.consentBanner.aiDialog.title')}</DialogTitle>
             <DialogDescription>
-              Generate a beautiful, GDPR-compliant consent banner that matches your organization's branding.
+              {t('analytics.consentBanner.aiDialog.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Style</Label>
+              <Label>{t('analytics.consentBanner.aiDialog.style')}</Label>
               <Select value={aiStyle} onValueChange={(value: typeof aiStyle) => setAiStyle(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="modern">Modern</SelectItem>
-                  <SelectItem value="classic">Classic</SelectItem>
-                  <SelectItem value="minimal">Minimal</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
-                  <SelectItem value="elegant">Elegant</SelectItem>
+                  <SelectItem value="modern">{t('analytics.consentBanner.aiDialog.styleModern')}</SelectItem>
+                  <SelectItem value="classic">{t('analytics.consentBanner.aiDialog.styleClassic')}</SelectItem>
+                  <SelectItem value="minimal">{t('analytics.consentBanner.aiDialog.styleMinimal')}</SelectItem>
+                  <SelectItem value="professional">{t('analytics.consentBanner.aiDialog.styleProfessional')}</SelectItem>
+                  <SelectItem value="bold">{t('analytics.consentBanner.aiDialog.styleBold')}</SelectItem>
+                  <SelectItem value="elegant">{t('analytics.consentBanner.aiDialog.styleElegant')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Additional Context (Optional)</Label>
+              <Label>{t('analytics.consentBanner.aiDialog.additionalContext')}</Label>
               <Textarea
                 value={aiContext}
                 onChange={(e) => setAiContext(e.target.value)}
-                placeholder="E.g., 'Use a dark theme' or 'Match our brand colors'"
+                placeholder={t('analytics.consentBanner.aiDialog.additionalContextPlaceholder')}
                 rows={3}
               />
             </div>
@@ -290,12 +292,12 @@ export function ConsentBannerCustomizer({
               variant="outline"
               onClick={() => setAiDialogOpen(false)}
             >
-              Cancel
+              {t('analytics.consentBanner.aiDialog.cancel')}
             </Button>
             <Button
               onClick={async () => {
                 if (!organization?.id) {
-                  toast.error("Organization not found");
+                  toast.error(t('analytics.consentBanner.toasts.organizationNotFound'));
                   return;
                 }
 
@@ -310,12 +312,12 @@ export function ConsentBannerCustomizer({
                   });
 
                   onStylingChange(result.styling);
-                  toast.success("Consent banner generated successfully!");
+                  toast.success(t('analytics.consentBanner.toasts.generatedSuccessfully'));
                   setAiDialogOpen(false);
                   setAiContext("");
                 } catch (error) {
                   const message = error instanceof Error ? error.message : "Unknown error";
-                  toast.error(`Failed to generate consent banner: ${message}`);
+                  toast.error(t('analytics.consentBanner.toasts.generationFailed', { message }));
                 }
               }}
               disabled={generateConsentBanner.isPending || !organization?.id}
@@ -323,12 +325,12 @@ export function ConsentBannerCustomizer({
               {generateConsentBanner.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
+                  {t('analytics.consentBanner.aiDialog.generating')}
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Banner
+                  {t('analytics.consentBanner.aiDialog.generateBanner')}
                 </>
               )}
             </Button>

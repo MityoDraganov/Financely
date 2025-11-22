@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ interface ImageElementProps {
 }
 
 export default function ImageElement({ element }: ImageElementProps) {
+	const { t } = useTranslation();
 	const img = element;
 	
 	return img.src ? (
@@ -28,7 +30,7 @@ export default function ImageElement({ element }: ImageElementProps) {
 		/>
 	) : (
 		<div className="w-full h-full bg-neutral-100 grid place-items-center text-neutral-400">
-			Image
+			{t('designer.elementProperties.image.title')}
 		</div>
 	);
 }
@@ -41,6 +43,7 @@ interface ImagePropertiesProps {
 }
 
 export function ImageProperties({ element, onChange, isNarrow, allElements = [] }: ImagePropertiesProps) {
+	const { t } = useTranslation();
 	const [bindingInput, setBindingInput] = useState(element.binding ?? "");
 	
 	// Check for duplicate bindings
@@ -80,10 +83,10 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
 					<Input
 						type="number"
 						value={element.x}
@@ -92,7 +95,7 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
 					<Input
 						type="number"
 						value={element.y}
@@ -101,7 +104,7 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
 					<Input
 						type="number"
 						value={element.width}
@@ -110,7 +113,7 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
 					<Input
 						type="number"
 						value={element.height}
@@ -124,16 +127,16 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Image</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.image.title')}</h3>
 			
 			{/* Image Settings */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.image.settings')}</h4>
 				<div className={components.grid}>
 					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>Image URL (Default)</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.imageUrl')}</Label>
 						<Input
-							placeholder="https://..."
+							placeholder={t('designer.elementProperties.image.imageUrlPlaceholder')}
 							value={element.src}
 							onChange={(e) => {
 								const img = element as Extract<TemplateElement, { type: "image" }>;
@@ -143,10 +146,10 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 						/>
 					</div>
 					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>Data Binding (Optional)</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.dataBinding')}</Label>
 						<div className={spacing.fieldGroupGap}>
 							<Input
-								placeholder="e.g., company.logoUrl"
+								placeholder={t('designer.elementProperties.image.bindingPlaceholder')}
 								value={bindingInput}
 								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
 								onChange={(e) => {
@@ -161,11 +164,11 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
 									<div className="flex-1 min-w-0">
 										<p className={`${typography.errorText} mb-1.5`}>
-											This binding is already used by another element
+											{t('designer.elementProperties.binding.duplicateError')}
 										</p>
 										<div className="flex items-center gap-2">
 											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+												{t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
 											</p>
 											<Button
 												type="button"
@@ -179,19 +182,19 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 												}}
 											>
 												<Check className="h-3 w-3 mr-1" />
-												Use
+												{t('designer.elementProperties.binding.use')}
 											</Button>
 										</div>
 									</div>
 								</div>
 							)}
 							<p className={typography.helperText}>
-								Leave empty to use default URL. Set a binding to override with data from invoice.
+								{t('designer.elementProperties.image.bindingHint')}
 							</p>
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Object Fit</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.objectFit')}</Label>
 						<Select
 							value={element.objectFit}
 							onValueChange={(v) => {
@@ -203,9 +206,9 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="contain">Contain</SelectItem>
-								<SelectItem value="cover">Cover</SelectItem>
-								<SelectItem value="fill">Fill</SelectItem>
+								<SelectItem value="contain">{t('designer.elementProperties.image.objectFitOptions.contain')}</SelectItem>
+								<SelectItem value="cover">{t('designer.elementProperties.image.objectFitOptions.cover')}</SelectItem>
+								<SelectItem value="fill">{t('designer.elementProperties.image.objectFitOptions.fill')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>

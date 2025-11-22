@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -176,6 +177,7 @@ const createContentEntryId = () =>
 		: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export default function SiteBuilderPage() {
+	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 	const { data: organization, isLoading } = useCurrentOrganization();
 	const updateOrganization = useUpdateOrganization();
@@ -381,11 +383,11 @@ export default function SiteBuilderPage() {
 
 	// Built-in fields state
 	const [builtInFields, setBuiltInFields] = useState({
-		name: { enabled: true, required: true, label: "Name" },
-		email: { enabled: true, required: true, label: "Email" },
-		phone: { enabled: false, required: false, label: "Phone" },
-		company: { enabled: false, required: false, label: "Company" },
-		message: { enabled: true, required: false, label: "Message" },
+		name: { enabled: true, required: true, label: t('siteBuilder.widgets.defaultLabels.name') },
+		email: { enabled: true, required: true, label: t('siteBuilder.widgets.defaultLabels.email') },
+		phone: { enabled: false, required: false, label: t('siteBuilder.widgets.defaultLabels.phone') },
+		company: { enabled: false, required: false, label: t('siteBuilder.widgets.defaultLabels.company') },
+		message: { enabled: true, required: false, label: t('siteBuilder.widgets.defaultLabels.message') },
 	});
 
 	// Custom fields state
@@ -421,10 +423,10 @@ export default function SiteBuilderPage() {
 		displayMode: "floating" | "inline";
 	}>({
 		enabled: false,
-		title: "Contact Us",
+		title: t('siteBuilder.widgets.defaultConfig.contactForm.title'),
 		description: "",
-		submitButtonText: "Send Message",
-		successMessage: "Thank you! We'll get back to you soon.",
+		submitButtonText: t('siteBuilder.widgets.defaultConfig.contactForm.submitButtonText'),
+		successMessage: t('siteBuilder.widgets.defaultConfig.contactForm.successMessage'),
 		position: "bottom-right",
 		displayMode: "floating",
 	});
@@ -437,10 +439,10 @@ export default function SiteBuilderPage() {
 		position: WidgetPosition;
 	}>({
 		enabled: false,
-		title: "Request Invoice",
+		title: t('siteBuilder.widgets.defaultConfig.invoiceRequest.title'),
 		description: "",
-		submitButtonText: "Request Invoice",
-		successMessage: "Invoice request submitted successfully!",
+		submitButtonText: t('siteBuilder.widgets.defaultConfig.invoiceRequest.submitButtonText'),
+		successMessage: t('siteBuilder.widgets.defaultConfig.invoiceRequest.successMessage'),
 		position: "bottom-right",
 	});
 	const [quoteRequestConfig, setQuoteRequestConfig] = useState<{
@@ -452,10 +454,10 @@ export default function SiteBuilderPage() {
 		position: WidgetPosition;
 	}>({
 		enabled: false,
-		title: "Request Quote",
+		title: t('siteBuilder.widgets.defaultConfig.quoteRequest.title'),
 		description: "",
-		submitButtonText: "Request Quote",
-		successMessage: "Quote request submitted successfully!",
+		submitButtonText: t('siteBuilder.widgets.defaultConfig.quoteRequest.submitButtonText'),
+		successMessage: t('siteBuilder.widgets.defaultConfig.quoteRequest.successMessage'),
 		position: "bottom-right",
 	});
 
@@ -516,7 +518,7 @@ export default function SiteBuilderPage() {
 
 	const persistPages = async (nextPages: SitePage[]) => {
 		if (!currentBrandSiteId) {
-			toast.error("Generate a site before managing pages.");
+			toast.error(t('siteBuilder.toasts.errors.generateSiteFirst'));
 			return;
 		}
 		const normalized = nextPages.map((page, index) => ({
@@ -546,7 +548,7 @@ export default function SiteBuilderPage() {
 		type: PageType;
 	}) => {
 		if (!pageForm.title.trim()) {
-			toast.error("Page title is required");
+			toast.error(t('siteBuilder.toasts.errors.pageTitleRequired'));
 			return;
 		}
 
@@ -589,13 +591,13 @@ export default function SiteBuilderPage() {
 		}
 	) => {
 		if (!pageForm.title.trim()) {
-			toast.error("Page title is required");
+			toast.error(t('siteBuilder.toasts.errors.pageTitleRequired'));
 			return;
 		}
 
 		const targetPage = currentPages.find((page) => page.id === pageId);
 		if (!targetPage) {
-			toast.error("Page not found");
+			toast.error(t('siteBuilder.toasts.errors.pageNotFound'));
 			return;
 		}
 
@@ -637,13 +639,13 @@ export default function SiteBuilderPage() {
 
 	const handleRemovePage = async (pageId: string) => {
 		if (currentPages.length <= 1) {
-			toast.error("Your site needs at least one page.");
+			toast.error(t('siteBuilder.toasts.errors.siteNeedsOnePage'));
 			return;
 		}
 
 		const nextPages = currentPages.filter((page) => page.id !== pageId);
 		if (nextPages.length === currentPages.length) {
-			toast.error("Page not found");
+			toast.error(t('siteBuilder.toasts.errors.pageNotFound'));
 			return;
 		}
 
@@ -695,12 +697,12 @@ export default function SiteBuilderPage() {
 		};
 	}) => {
 		if (!pageForArticle) {
-			toast.error("Page not found");
+			toast.error(t('siteBuilder.toasts.errors.pageNotFound'));
 			return;
 		}
 
 		if (!articleForm.title.trim()) {
-			toast.error("Article title is required");
+			toast.error(t('siteBuilder.toasts.errors.articleTitleRequired'));
 			return;
 		}
 
@@ -763,7 +765,7 @@ export default function SiteBuilderPage() {
 		}
 	) => {
 		if (!articleForm.title.trim()) {
-			toast.error("Article title is required");
+			toast.error(t('siteBuilder.toasts.errors.articleTitleRequired'));
 			return;
 		}
 
@@ -869,17 +871,17 @@ export default function SiteBuilderPage() {
 		const brandingDefaults = buildDefaultStylingFromBranding(brandColors);
 		setWidgetsEnabled(widgets.enabled || false);
 
-		// Load contact form widget configuration
+			// Load contact form widget configuration
 		if (widgets.contactForm) {
 			setContactFormConfig({
 				enabled: widgets.contactForm.enabled || false,
-				title: widgets.contactForm.title || "Contact Us",
+				title: widgets.contactForm.title || t('siteBuilder.widgets.defaultConfig.contactForm.title'),
 				description: widgets.contactForm.description || "",
 				submitButtonText:
-					widgets.contactForm.submitButtonText || "Send Message",
+					widgets.contactForm.submitButtonText || t('siteBuilder.widgets.defaultConfig.contactForm.submitButtonText'),
 				successMessage:
 					widgets.contactForm.successMessage ||
-					"Thank you! We'll get back to you soon.",
+					t('siteBuilder.widgets.defaultConfig.contactForm.successMessage'),
 				position: widgets.contactForm.position || "bottom-right",
 				displayMode: widgets.contactForm.displayMode || "floating",
 			});
@@ -907,27 +909,27 @@ export default function SiteBuilderPage() {
 					name: widgets.contactForm.builtInFields.name || {
 						enabled: true,
 						required: true,
-						label: "Name",
+						label: t('siteBuilder.widgets.defaultLabels.name'),
 					},
 					email: widgets.contactForm.builtInFields.email || {
 						enabled: true,
 						required: true,
-						label: "Email",
+						label: t('siteBuilder.widgets.defaultLabels.email'),
 					},
 					phone: widgets.contactForm.builtInFields.phone || {
 						enabled: false,
 						required: false,
-						label: "Phone",
+						label: t('siteBuilder.widgets.defaultLabels.phone'),
 					},
 					company: widgets.contactForm.builtInFields.company || {
 						enabled: false,
 						required: false,
-						label: "Company",
+						label: t('siteBuilder.widgets.defaultLabels.company'),
 					},
 					message: widgets.contactForm.builtInFields.message || {
 						enabled: true,
 						required: false,
-						label: "Message",
+						label: t('siteBuilder.widgets.defaultLabels.message'),
 					},
 				});
 			}
@@ -942,14 +944,14 @@ export default function SiteBuilderPage() {
 		if (widgets.invoiceRequest) {
 			setInvoiceRequestConfig({
 				enabled: widgets.invoiceRequest.enabled || false,
-				title: widgets.invoiceRequest.title || "Request Invoice",
+				title: widgets.invoiceRequest.title || t('siteBuilder.widgets.defaultConfig.invoiceRequest.title'),
 				description: widgets.invoiceRequest.description || "",
 				submitButtonText:
 					widgets.invoiceRequest.submitButtonText ||
-					"Request Invoice",
+					t('siteBuilder.widgets.defaultConfig.invoiceRequest.submitButtonText'),
 				successMessage:
 					widgets.invoiceRequest.successMessage ||
-					"Invoice request submitted successfully!",
+					t('siteBuilder.widgets.defaultConfig.invoiceRequest.successMessage'),
 				position: widgets.invoiceRequest.position || "bottom-right",
 			});
 
@@ -975,13 +977,13 @@ export default function SiteBuilderPage() {
 		if (widgets.quoteRequest) {
 			setQuoteRequestConfig({
 				enabled: widgets.quoteRequest.enabled || false,
-				title: widgets.quoteRequest.title || "Request Quote",
+				title: widgets.quoteRequest.title || t('siteBuilder.widgets.defaultConfig.quoteRequest.title'),
 				description: widgets.quoteRequest.description || "",
 				submitButtonText:
-					widgets.quoteRequest.submitButtonText || "Request Quote",
+					widgets.quoteRequest.submitButtonText || t('siteBuilder.widgets.defaultConfig.quoteRequest.submitButtonText'),
 				successMessage:
 					widgets.quoteRequest.successMessage ||
-					"Quote request submitted successfully!",
+					t('siteBuilder.widgets.defaultConfig.quoteRequest.successMessage'),
 				position: widgets.quoteRequest.position || "bottom-right",
 			});
 
@@ -1002,7 +1004,7 @@ export default function SiteBuilderPage() {
 				);
 			}
 		}
-	}, [organization?.settings?.widgets, organization?.settings?.brandColors]);
+	}, [organization?.settings?.widgets, organization?.settings?.brandColors, t]);
 
 	// Save widget configuration
 	const handleSaveWidgets = async () => {
@@ -1163,12 +1165,12 @@ export default function SiteBuilderPage() {
 				},
 			});
 
-			toast.success("Widget configuration saved successfully");
+			toast.success(t('siteBuilder.toasts.widgetSaved'));
 		} catch (error) {
 			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to save widget configuration"
+					: t('siteBuilder.toasts.errors.saveWidgetFailed')
 			);
 		}
 	};
@@ -1213,7 +1215,7 @@ export default function SiteBuilderPage() {
 		const script = getEmbedScript();
 		navigator.clipboard.writeText(script);
 		setCopiedScript(true);
-		toast.success("Embed script copied to clipboard");
+		toast.success(t('siteBuilder.toasts.embedScriptCopied'));
 		setTimeout(() => setCopiedScript(false), 2000);
 	};
 
@@ -1245,10 +1247,10 @@ export default function SiteBuilderPage() {
 					<div className="flex items-center justify-between">
 						<div>
 							<h1 className="text-2xl font-bold tracking-tight">
-								AI Site Builder
+								{t('siteBuilder.title')}
 							</h1>
 							<p className="text-sm text-muted-foreground mt-1">
-								Chat with AI to create and update your website
+								{t('siteBuilder.subtitle')}
 							</p>
 						</div>
 						<div className="flex items-center gap-3 shrink-0">
@@ -1263,7 +1265,7 @@ export default function SiteBuilderPage() {
 								>
 									<ExternalLink className="h-4 w-4 shrink-0" />
 									<span className="hidden sm:inline">
-										View Site
+										{t('siteBuilder.viewSite')}
 									</span>
 								</Button>
 							)}
@@ -1293,15 +1295,15 @@ export default function SiteBuilderPage() {
 							}
 							className="flex-1 flex flex-col overflow-hidden"
 						>
-							<div className="px-6 pt-6 pb-0 border-b">
+							<div className="px-6 pt-3">
 								<TabsList className="grid w-full max-w-md grid-cols-2">
 									<TabsTrigger value="chat" className="gap-2">
 										<MessageSquare className="h-4 w-4" />
-										Chat Builder
+										{t('siteBuilder.tabs.chatBuilder')}
 									</TabsTrigger>
 									<TabsTrigger value="code" className="gap-2">
 										<Code className="h-4 w-4" />
-										Code Editor
+										{t('siteBuilder.tabs.codeEditor')}
 									</TabsTrigger>
 								</TabsList>
 							</div>
@@ -1333,11 +1335,11 @@ export default function SiteBuilderPage() {
 										}
 										onSave={async (files) => {
 											if (!currentBrandSiteId) return;
-											await updateBrandSite.mutateAsync({
-												id: currentBrandSiteId,
-												data: { files },
-											});
-											toast.success("Files saved successfully");
+										await updateBrandSite.mutateAsync({
+											id: currentBrandSiteId,
+											data: { files },
+										});
+										toast.success(t('siteBuilder.toasts.filesSaved'));
 										}}
 										onDeploy={async (files) => {
 											if (!currentBrandSiteId || !organization?.id) return;
@@ -1366,12 +1368,10 @@ export default function SiteBuilderPage() {
 									</div>
 									<div className="space-y-2">
 										<h2 className="text-2xl font-semibold">
-											Create Your First Website
+											{t('siteBuilder.emptyState.title')}
 										</h2>
 										<p className="text-muted-foreground max-w-md">
-											Start by describing what you want your
-											website to be. The AI will help you
-											create a beautiful, branded site.
+											{t('siteBuilder.emptyState.description')}
 										</p>
 									</div>
 									<Button
@@ -1383,7 +1383,7 @@ export default function SiteBuilderPage() {
 										className="gap-2"
 									>
 										<Sparkles className="h-4 w-4" />
-										Create Site
+										{t('siteBuilder.emptyState.createSite')}
 									</Button>
 								</CardContent>
 							</Card>
@@ -1404,7 +1404,7 @@ export default function SiteBuilderPage() {
 					{/* Sidebar Header */}
 					<div className="flex items-center justify-between mb-4 lg:hidden">
 						<h2 className="text-lg font-semibold">
-							Settings & Tools
+							{t('siteBuilder.sidebar.title')}
 						</h2>
 						<Button
 							variant="ghost"
@@ -1420,7 +1420,7 @@ export default function SiteBuilderPage() {
 						<Card>
 							<CardHeader className="pb-3">
 								<CardTitle className="text-base">
-									Site Status
+									{t('siteBuilder.sidebar.siteStatus')}
 								</CardTitle>
 							</CardHeader>
 							<CardContent>
@@ -1448,7 +1448,7 @@ export default function SiteBuilderPage() {
 								<CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
 									<div className="flex items-center justify-between">
 										<CardTitle className="text-base">
-											Pages
+											{t('siteBuilder.pages.title')}
 										</CardTitle>
 										{expandedSections.pages ? (
 											<ChevronDown className="h-4 w-4" />
@@ -1467,11 +1467,10 @@ export default function SiteBuilderPage() {
 										>
 											<AlertCircle className="h-4 w-4 text-blue-600" />
 											<AlertTitle className="text-sm">
-												Pages Updated
+												{t('siteBuilder.pages.updated')}
 											</AlertTitle>
 											<AlertDescription className="text-xs">
-												Changes saved. Regenerate to
-												publish.
+												{t('siteBuilder.pages.updatedDescription')}
 												<Button
 													onClick={handlePublishPages}
 													disabled={
@@ -1482,12 +1481,12 @@ export default function SiteBuilderPage() {
 													{regenerateSite.isPending ? (
 														<div className="flex flex-row w-full items-center gap-2">
 															<Loader2 className="h-3 w-3 animate-spin" />
-															Publishing...
+															{t('siteBuilder.pages.publishing')}
 														</div>
 													) : (
 														<div className="flex flex-row w-full items-center gap-2">
 															<RefreshCw />
-															Publish Changes
+															{t('siteBuilder.pages.publishChanges')}
 														</div>
 													)}
 												</Button>
@@ -1504,7 +1503,7 @@ export default function SiteBuilderPage() {
 										size="sm"
 										className="w-full"
 									>
-										Add Page
+										{t('siteBuilder.pages.addPage')}
 									</Button>
 									{currentPages.length > 0 && (
 										<div className="space-y-2">
@@ -1525,7 +1524,7 @@ export default function SiteBuilderPage() {
 																	: `/${page.slug}`}
 																{page.type === "blog" && (
 																	<span className="ml-2 text-xs">
-																		• Blog
+																		• {t('siteBuilder.pages.blog')}
 																	</span>
 																)}
 															</div>
@@ -1541,11 +1540,11 @@ export default function SiteBuilderPage() {
 																			page
 																		)
 																	}
-																	aria-label={`Add article to ${page.title}`}
+																	aria-label={t('siteBuilder.pages.addArticle') + ' ' + page.title}
 																	disabled={
 																		updateBrandSitePages.isPending
 																	}
-																	title="Add Article"
+																	title={t('siteBuilder.pages.addArticle')}
 																>
 																	<Plus className="h-3.5 w-3.5" />
 																</Button>
@@ -1661,7 +1660,7 @@ export default function SiteBuilderPage() {
 									<CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
 										<div className="flex items-center justify-between">
 											<CardTitle className="text-base">
-												Advanced
+												{t('siteBuilder.advanced.title')}
 											</CardTitle>
 											{expandedSections.advanced ? (
 												<ChevronDown className="h-4 w-4" />
@@ -1704,7 +1703,7 @@ export default function SiteBuilderPage() {
 															"_blank"
 														);
 														toast.success(
-															"Preview opened in new tab"
+															t('siteBuilder.toasts.previewOpened')
 														);
 													}
 												} catch (error) {
@@ -1752,7 +1751,7 @@ export default function SiteBuilderPage() {
 													!customDomainInput
 												) {
 													toast.error(
-														"Please enter a domain"
+														t('siteBuilder.toasts.errors.enterDomain')
 													);
 													return;
 												}
@@ -1791,12 +1790,12 @@ export default function SiteBuilderPage() {
 												<CardHeader className="pb-3">
 													<CardTitle className="text-base flex items-center gap-2">
 														<Code className="h-4 w-4" />
-														Code Editor
+														{t('siteBuilder.advanced.codeEditor')}
 													</CardTitle>
 												</CardHeader>
 												<CardContent>
 													<p className="text-sm text-muted-foreground mb-4">
-														Edit your site files directly in the full-size code editor.
+														{t('siteBuilder.advanced.codeEditorDescription')}
 													</p>
 													<Button
 														onClick={() => {
@@ -1807,7 +1806,7 @@ export default function SiteBuilderPage() {
 														variant="outline"
 													>
 														<Code className="h-4 w-4 mr-2" />
-														Open Code Editor
+														{t('siteBuilder.advanced.openCodeEditor')}
 													</Button>
 												</CardContent>
 											</Card>
@@ -1815,7 +1814,7 @@ export default function SiteBuilderPage() {
 												<Card className="mt-4">
 													<CardContent className="pt-6">
 														<p className="text-sm text-muted-foreground mb-4 text-center">
-															Create a site first to use the code editor.
+															{t('siteBuilder.advanced.createBlankSiteDescription')}
 														</p>
 														<Button
 															onClick={async () => {
@@ -1850,7 +1849,7 @@ export default function SiteBuilderPage() {
 																			);
 																			setActiveMainTab("code");
 																			toast.success(
-																				"Blank site created! Switch to Code Editor tab to start editing."
+																				t('siteBuilder.toasts.blankSiteCreated')
 																			);
 																		},
 																	}
@@ -1862,12 +1861,12 @@ export default function SiteBuilderPage() {
 															{generateSite.isPending ? (
 																<>
 																	<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-																	Creating...
+																	{t('siteBuilder.createSiteDialog.creating')}
 																</>
 															) : (
 																<>
 																	<Plus className="h-4 w-4 mr-2" />
-																	Create Blank Site
+																	{t('siteBuilder.advanced.createBlankSite')}
 																</>
 															)}
 														</Button>
@@ -1892,7 +1891,7 @@ export default function SiteBuilderPage() {
 								<CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
 									<div className="flex items-center justify-between">
 										<CardTitle className="text-base">
-											Integration Widgets
+											{t('siteBuilder.sidebar.integrationWidgets')}
 										</CardTitle>
 										{expandedSections.widgets ? (
 											<ChevronDown className="h-4 w-4" />
@@ -2016,10 +2015,10 @@ export default function SiteBuilderPage() {
 												{updateOrganization.isPending ? (
 													<>
 														<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-														Saving...
+														{t('siteBuilder.createSiteDialog.creating')}
 													</>
 												) : (
-													"Save Widget Configuration"
+													t('siteBuilder.widgets.saveConfiguration')
 												)}
 											</Button>
 
@@ -2105,12 +2104,12 @@ export default function SiteBuilderPage() {
 						<Card className="border-red-200 dark:border-red-900/30">
 							<CardHeader className="pb-3">
 								<CardTitle className="text-base text-red-600 dark:text-red-500">
-									Danger Zone
+									{t('siteBuilder.dangerZone.title')}
 								</CardTitle>
 							</CardHeader>
 							<CardContent>
 								<p className="text-sm text-muted-foreground mb-4">
-									Permanently delete this website, all pages, blog posts, and deployed content. This action cannot be undone.
+									{t('siteBuilder.dangerZone.description')}
 								</p>
 								<Button
 									variant="destructive"
@@ -2119,7 +2118,7 @@ export default function SiteBuilderPage() {
 									className="w-full"
 								>
 									<Trash2 className="h-4 w-4 mr-2" />
-									Delete Website
+									{t('siteBuilder.dangerZone.deleteWebsite')}
 								</Button>
 							</CardContent>
 						</Card>
@@ -2141,30 +2140,30 @@ export default function SiteBuilderPage() {
 					<AlertDialogHeader>
 						<AlertDialogTitle className="text-red-600 dark:text-red-500 flex items-center gap-2">
 							<AlertCircle className="h-5 w-5" />
-							Delete Website
+							{t('siteBuilder.deleteDialog.title')}
 						</AlertDialogTitle>
 						<AlertDialogDescription className="text-left space-y-2">
 							<p className="font-semibold text-foreground">
-								This action cannot be undone. This will permanently delete:
+								{t('siteBuilder.deleteDialog.cannotUndo')}
 							</p>
 							<ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
-								<li>The entire website and all its pages</li>
-								<li>All blog posts and articles</li>
-								<li>All deployed content and files</li>
-								<li>The Firebase Hosting site</li>
-								<li>All version history</li>
+								<li>{t('siteBuilder.deleteDialog.willDelete.website')}</li>
+								<li>{t('siteBuilder.deleteDialog.willDelete.blogPosts')}</li>
+								<li>{t('siteBuilder.deleteDialog.willDelete.deployedContent')}</li>
+								<li>{t('siteBuilder.deleteDialog.willDelete.firebaseHosting')}</li>
+								<li>{t('siteBuilder.deleteDialog.willDelete.versionHistory')}</li>
 							</ul>
 							<p className="font-semibold text-foreground mt-3">
-								This will NOT affect:
+								{t('siteBuilder.deleteDialog.willNotAffect')}
 							</p>
 							<ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
-								<li>Your widget configurations</li>
-								<li>Your organization settings</li>
+								<li>{t('siteBuilder.deleteDialog.willNotAffectList.widgets')}</li>
+								<li>{t('siteBuilder.deleteDialog.willNotAffectList.organization')}</li>
 							</ul>
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogCancel>{t('siteBuilder.deleteDialog.cancel')}</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() => {
 								if (!currentBrandSiteId) return;
@@ -2184,12 +2183,12 @@ export default function SiteBuilderPage() {
 							{deleteBrandSite.isPending ? (
 								<>
 									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-									Deleting...
+									{t('siteBuilder.deleteDialog.deleting')}
 								</>
 							) : (
 								<>
 									<Trash2 className="h-4 w-4 mr-2" />
-									Delete Website
+									{t('siteBuilder.deleteDialog.confirm')}
 								</>
 							)}
 						</AlertDialogAction>
@@ -2207,17 +2206,15 @@ export default function SiteBuilderPage() {
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Sparkles className="h-5 w-5 text-purple-500" />
-							Generate Widget with AI
+							{t('siteBuilder.aiWidgetDialog.title')}
 						</DialogTitle>
 						<DialogDescription>
-							Let AI create a beautiful, conversion-optimized
-							widget design based on your organization's branding
-							and preferences.
+							{t('siteBuilder.aiWidgetDialog.description')}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4 py-4">
 						<div className="space-y-2">
-							<Label>Widget Type</Label>
+							<Label>{t('siteBuilder.aiWidgetDialog.widgetType')}</Label>
 							<Select
 								value={aiWidgetType}
 								onValueChange={(value) =>
@@ -2231,20 +2228,20 @@ export default function SiteBuilderPage() {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="contactForm">
-										Contact Form
+										{t('siteBuilder.aiWidgetDialog.widgetTypes.contactForm')}
 									</SelectItem>
 									<SelectItem value="invoiceRequest">
-										Invoice Request
+										{t('siteBuilder.aiWidgetDialog.widgetTypes.invoiceRequest')}
 									</SelectItem>
 									<SelectItem value="quoteRequest">
-										Quote Request
+										{t('siteBuilder.aiWidgetDialog.widgetTypes.quoteRequest')}
 									</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
 
 						<div className="space-y-2">
-							<Label>Design Style</Label>
+							<Label>{t('siteBuilder.aiWidgetDialog.designStyle')}</Label>
 							<Select
 								value={aiWidgetStyle}
 								onValueChange={(value) =>
@@ -2258,42 +2255,39 @@ export default function SiteBuilderPage() {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="modern">
-										Modern - Clean lines, contemporary
-										colors
+										{t('siteBuilder.aiWidgetDialog.styles.modern')}
 									</SelectItem>
 									<SelectItem value="classic">
-										Classic - Traditional, conservative
+										{t('siteBuilder.aiWidgetDialog.styles.classic')}
 									</SelectItem>
 									<SelectItem value="minimal">
-										Minimal - Lots of white space, simple
+										{t('siteBuilder.aiWidgetDialog.styles.minimal')}
 									</SelectItem>
 									<SelectItem value="professional">
-										Professional - Business-focused,
-										trustworthy
+										{t('siteBuilder.aiWidgetDialog.styles.professional')}
 									</SelectItem>
 									<SelectItem value="bold">
-										Bold - Vibrant colors, eye-catching
+										{t('siteBuilder.aiWidgetDialog.styles.bold')}
 									</SelectItem>
 									<SelectItem value="elegant">
-										Elegant - Sophisticated, refined
+										{t('siteBuilder.aiWidgetDialog.styles.elegant')}
 									</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
 
 						<div className="space-y-2">
-							<Label>Additional Context (Optional)</Label>
+							<Label>{t('siteBuilder.aiWidgetDialog.additionalContext')}</Label>
 							<Textarea
 								value={aiWidgetContext}
 								onChange={(e) =>
 									setAiWidgetContext(e.target.value)
 								}
-								placeholder="E.g., 'Make it friendly and approachable', 'Use a dark theme', 'Focus on mobile users'..."
+								placeholder={t('siteBuilder.aiWidgetDialog.additionalContextPlaceholder')}
 								className="min-h-[80px]"
 							/>
 							<p className="text-xs text-muted-foreground">
-								Provide any specific design preferences or
-								requirements for the widget.
+								{t('siteBuilder.aiWidgetDialog.additionalContextHint')}
 							</p>
 						</div>
 					</div>
@@ -2303,12 +2297,12 @@ export default function SiteBuilderPage() {
 							onClick={() => setAiWidgetDialogOpen(false)}
 							disabled={generateWidget.isPending}
 						>
-							Cancel
+							{t('siteBuilder.aiWidgetDialog.cancel')}
 						</Button>
 						<Button
 							onClick={async () => {
 								if (!organization?.id) {
-									toast.error("Organization not found");
+									toast.error(t('siteBuilder.toasts.errors.organizationNotFound'));
 									return;
 								}
 
@@ -2426,7 +2420,7 @@ export default function SiteBuilderPage() {
 									}
 
 									toast.success(
-										"Widget design generated successfully!"
+										t('siteBuilder.toasts.widgetGenerated')
 									);
 									setAiWidgetDialogOpen(false);
 									setAiWidgetContext("");
@@ -2436,7 +2430,7 @@ export default function SiteBuilderPage() {
 											? error.message
 											: "Unknown error";
 									toast.error(
-										`Failed to generate widget: ${message}`
+										t('siteBuilder.toasts.errors.widgetGenerationFailed', { message })
 									);
 								}
 							}}
@@ -2447,12 +2441,12 @@ export default function SiteBuilderPage() {
 							{generateWidget.isPending ? (
 								<>
 									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-									Generating...
+									{t('siteBuilder.aiWidgetDialog.generating')}
 								</>
 							) : (
 								<>
 									<Sparkles className="h-4 w-4 mr-2" />
-									Generate Widget
+									{t('siteBuilder.aiWidgetDialog.generateWidget')}
 								</>
 							)}
 						</Button>
@@ -2469,13 +2463,10 @@ export default function SiteBuilderPage() {
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Eye className="h-5 w-5 text-blue-500" />
-							Preview Widget Version{" "}
-							{previewWidgetVersion?.version}
+							{t('siteBuilder.widgets.previewDialog.title', { version: previewWidgetVersion?.version || '' })}
 						</DialogTitle>
 						<DialogDescription>
-							This is a preview of how the widgets looked in
-							version {previewWidgetVersion?.version}. This
-							preview is read-only.
+							{t('siteBuilder.widgets.previewDialog.description', { version: previewWidgetVersion?.version || '' })}
 						</DialogDescription>
 					</DialogHeader>
 					{previewWidgetVersion && (
@@ -2489,7 +2480,7 @@ export default function SiteBuilderPage() {
 								<Card>
 									<CardHeader>
 										<CardTitle className="text-lg">
-											Contact Form Widget
+											{t('siteBuilder.widgets.previewDialog.contactFormTitle')}
 										</CardTitle>
 									</CardHeader>
 									<CardContent>
@@ -2506,7 +2497,7 @@ export default function SiteBuilderPage() {
 																unknown
 															>
 														)?.title as string) ||
-														"Contact Us",
+														t('siteBuilder.widgets.previewDialog.fallbacks.contactUs'),
 													description:
 														((
 															previewWidgetVersion
@@ -2528,7 +2519,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.submitButtonText as string) ||
-														"Submit",
+														t('siteBuilder.widgets.previewDialog.fallbacks.submit'),
 													successMessage:
 														((
 															previewWidgetVersion
@@ -2539,7 +2530,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.successMessage as string) ||
-														"Thank you!",
+														t('siteBuilder.widgets.previewDialog.fallbacks.thankYou'),
 													builtInFields:
 														((
 															previewWidgetVersion
@@ -2628,7 +2619,7 @@ export default function SiteBuilderPage() {
 								<Card>
 									<CardHeader>
 										<CardTitle className="text-lg">
-											Invoice Request Widget
+											{t('siteBuilder.widgets.previewDialog.invoiceRequestTitle')}
 										</CardTitle>
 									</CardHeader>
 									<CardContent>
@@ -2645,7 +2636,7 @@ export default function SiteBuilderPage() {
 																unknown
 															>
 														)?.title as string) ||
-														"Request Invoice",
+														t('siteBuilder.widgets.previewDialog.fallbacks.requestInvoice'),
 													description:
 														((
 															previewWidgetVersion
@@ -2667,7 +2658,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.submitButtonText as string) ||
-														"Submit",
+														t('siteBuilder.widgets.previewDialog.fallbacks.submit'),
 													successMessage:
 														((
 															previewWidgetVersion
@@ -2678,7 +2669,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.successMessage as string) ||
-														"Thank you!",
+														t('siteBuilder.widgets.previewDialog.fallbacks.thankYou'),
 												}}
 												styling={
 													((
@@ -2727,7 +2718,7 @@ export default function SiteBuilderPage() {
 								<Card>
 									<CardHeader>
 										<CardTitle className="text-lg">
-											Quote Request Widget
+											{t('siteBuilder.widgets.previewDialog.quoteRequestTitle')}
 										</CardTitle>
 									</CardHeader>
 									<CardContent>
@@ -2744,7 +2735,7 @@ export default function SiteBuilderPage() {
 																unknown
 															>
 														)?.title as string) ||
-														"Request Quote",
+														t('siteBuilder.widgets.previewDialog.fallbacks.requestQuote'),
 													description:
 														((
 															previewWidgetVersion
@@ -2766,7 +2757,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.submitButtonText as string) ||
-														"Submit",
+														t('siteBuilder.widgets.previewDialog.fallbacks.submit'),
 													successMessage:
 														((
 															previewWidgetVersion
@@ -2777,7 +2768,7 @@ export default function SiteBuilderPage() {
 															>
 														)
 															?.successMessage as string) ||
-														"Thank you!",
+														t('siteBuilder.widgets.previewDialog.fallbacks.thankYou'),
 												}}
 												styling={
 													((
@@ -2821,8 +2812,7 @@ export default function SiteBuilderPage() {
 								!previewWidgetVersion.widgets.invoiceRequest &&
 								!previewWidgetVersion.widgets.quoteRequest && (
 									<div className="text-center py-8 text-gray-500">
-										No widget configuration found in this
-										version.
+										{t('siteBuilder.widgets.previewDialog.noConfiguration')}
 									</div>
 								)}
 						</div>
@@ -2870,16 +2860,16 @@ export default function SiteBuilderPage() {
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Remove page?</AlertDialogTitle>
+						<AlertDialogTitle>{t('siteBuilder.pageDialog.removeTitle')}</AlertDialogTitle>
 						<AlertDialogDescription>
-							{`"${pagePendingDelete?.title ?? "This page"}" will be removed from your site navigation.`}
+							{t('siteBuilder.pageDialog.removeDescription', { title: pagePendingDelete?.title ?? t('siteBuilder.pageDialog.removeTitle') })}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel
 							disabled={updateBrandSitePages.isPending}
 						>
-							Cancel
+							{t('siteBuilder.pageDialog.cancel')}
 						</AlertDialogCancel>
 						<AlertDialogAction
 							className="bg-destructive text-white hover:bg-destructive/90"
@@ -2892,8 +2882,8 @@ export default function SiteBuilderPage() {
 							disabled={updateBrandSitePages.isPending}
 						>
 							{updateBrandSitePages.isPending
-								? "Removing..."
-								: "Remove"}
+								? t('siteBuilder.pageDialog.removing')
+								: t('siteBuilder.pageDialog.remove')}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -2903,19 +2893,19 @@ export default function SiteBuilderPage() {
 			<Dialog open={showCreateSiteDialog} onOpenChange={setShowCreateSiteDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Create Your Website</DialogTitle>
+						<DialogTitle>{t('siteBuilder.createSiteDialog.title')}</DialogTitle>
 						<DialogDescription>
-							Describe what you want your website to be. The AI will help you create a beautiful, branded site.
+							{t('siteBuilder.createSiteDialog.description')}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4 py-4">
 						<div className="space-y-2">
-							<Label htmlFor="site-description">Website Description</Label>
+							<Label htmlFor="site-description">{t('siteBuilder.createSiteDialog.websiteDescription')}</Label>
 							<Textarea
 								id="site-description"
 								value={siteDescription}
 								onChange={(e) => setSiteDescription(e.target.value)}
-								placeholder="e.g., I need a website for my consulting business with a home page, about page, services page, and contact form"
+								placeholder={t('siteBuilder.createSiteDialog.websiteDescriptionPlaceholder')}
 								className="min-h-[100px]"
 							/>
 						</div>
@@ -2928,7 +2918,7 @@ export default function SiteBuilderPage() {
 								setSiteDescription("");
 							}}
 						>
-							Cancel
+							{t('siteBuilder.createSiteDialog.cancel')}
 						</Button>
 						<Button
 							onClick={() => {
@@ -2951,7 +2941,7 @@ export default function SiteBuilderPage() {
 											setCurrentBrandSiteId(result.id);
 											setSiteDescription("");
 											toast.success(
-												"Site created! Start chatting to customize it."
+												t('siteBuilder.toasts.siteCreated')
 											);
 										},
 									}
@@ -2962,10 +2952,10 @@ export default function SiteBuilderPage() {
 							{generateSite.isPending ? (
 								<>
 									<Loader2 className="h-4 w-4 animate-spin mr-2" />
-									Creating...
+									{t('siteBuilder.createSiteDialog.creating')}
 								</>
 							) : (
-								"Create Site"
+								t('siteBuilder.createSiteDialog.createSite')
 							)}
 						</Button>
 					</DialogFooter>

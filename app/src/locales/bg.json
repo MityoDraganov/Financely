@@ -1,65 +1,2482 @@
 {
-  "dashboard": {
-    "welcome": "Добре дошли отново, {{name}}",
-    "welcomeFallback": "Добре дошли отново, Потребител",
-    "subtitle": "Ето какво се случва с вашите фактури и шаблони днес.",
-    "quickActions": {
-      "createInvoice": "Създай фактура",
-      "designTemplate": "Дизайн на шаблон",
-      "organizationSettings": "Настройки на организацията"
-    },
-    "metrics": {
-      "totalInvoices": "Общо фактури",
-      "paidUnpaid": "{{paid}} платени, {{unpaid}} неплатени",
-      "paidRevenue": "Платени приходи",
-      "paidInvoice": "{{count}} платена фактура",
-      "paidInvoices": "{{count}} платени фактури",
-      "outstanding": "Неплатени",
-      "unpaidInvoice": "{{count}} неплатена фактура",
-      "unpaidInvoices": "{{count}} неплатени фактури",
-      "draftInvoices": "Чернови фактури",
-      "draftAmount": "${{amount}} в чернови",
-      "noDrafts": "Все още няма чернови",
-      "totalAmount": "Обща сума",
-      "acrossAllInvoices": "От всички фактури",
-      "templates": "Шаблони",
-      "readyToUse": "Готови за използване",
-      "createFirstTemplate": "Създайте първия си шаблон"
-    },
-    "recentInvoices": {
-      "title": "Последни фактури",
-      "description": "Вашата последна активност с фактури",
-      "viewAll": "Виж всички",
-      "invoiceNumber": "Фактура №{{number}}",
-      "unknownClient": "Неизвестен клиент",
-      "recently": "Наскоро",
-      "noInvoices": "Все още няма фактури",
-      "getStarted": "Започнете като създадете първата си фактура."
-    },
-    "templates": {
-      "title": "Шаблони",
-      "description": "Вашите шаблони за фактури",
-      "design": "Дизайн",
-      "noDescription": "Няма описание",
-      "active": "Активен",
-      "noTemplates": "Няма шаблони",
-      "createFirst": "Създайте първия си шаблон"
-    },
-    "invoiceStatus": {
-      "title": "Статус на фактурите",
-      "description": "Разбивка по статус",
-      "paid": "Платена",
-      "sent": "Изпратена",
-      "draft": "Чернова",
-      "cancelled": "Отменена",
-      "noInvoices": "Все още няма фактури"
-    },
-    "status": {
-      "paid": "платена",
-      "sent": "изпратена",
-      "cancelled": "отменена",
-      "draft": "чернова"
-    }
-  }
+	"dashboard": {
+		"welcome": "Добре дошли отново, {{name}}",
+		"welcomeFallback": "Добре дошли отново, Потребител",
+		"subtitle": "Ето какво се случва с вашите фактури и шаблони днес.",
+		"quickActions": {
+			"createInvoice": "Създай фактура",
+			"designTemplate": "Дизайн на шаблон",
+			"organizationSettings": "Настройки на организацията"
+		},
+		"metrics": {
+			"totalInvoices": "Общо фактури",
+			"paidUnpaid": "{{paid}} платени, {{unpaid}} неплатени",
+			"paidRevenue": "Платени приходи",
+			"paidInvoice": "{{count}} платена фактура",
+			"paidInvoices": "{{count}} платени фактури",
+			"outstanding": "Неплатени",
+			"unpaidInvoice": "{{count}} неплатена фактура",
+			"unpaidInvoices": "{{count}} неплатени фактури",
+			"draftInvoices": "Чернови фактури",
+			"draftAmount": "${{amount}} в чернови",
+			"noDrafts": "Все още няма чернови",
+			"totalAmount": "Обща сума",
+			"acrossAllInvoices": "От всички фактури",
+			"templates": "Шаблони",
+			"readyToUse": "Готови за използване",
+			"createFirstTemplate": "Създайте първия си шаблон"
+		},
+		"recentInvoices": {
+			"title": "Последни фактури",
+			"description": "Вашата последна активност с фактури",
+			"viewAll": "Виж всички",
+			"invoiceNumber": "Фактура №{{number}}",
+			"unknownClient": "Неизвестен клиент",
+			"recently": "Наскоро",
+			"noInvoices": "Все още няма фактури",
+			"getStarted": "Започнете като създадете първата си фактура."
+		},
+		"templates": {
+			"title": "Шаблони",
+			"description": "Вашите шаблони за фактури",
+			"design": "Дизайн",
+			"noDescription": "Няма описание",
+			"active": "Активен",
+			"noTemplates": "Няма шаблони",
+			"createFirst": "Създайте първия си шаблон"
+		},
+		"invoiceStatus": {
+			"title": "Статус на фактурите",
+			"description": "Разбивка по статус",
+			"paid": "Платена",
+			"sent": "Изпратена",
+			"draft": "Чернова",
+			"cancelled": "Отменена",
+			"noInvoices": "Все още няма фактури"
+		},
+		"status": {
+			"paid": "платена",
+			"sent": "изпратена",
+			"cancelled": "отменена",
+			"draft": "чернова"
+		}
+	},
+	"products": {
+		"title": "Продукти",
+		"subtitle": "Създавайте и управлявайте вашия продуктов каталог",
+		"manageProducts": "Управлявайте вашите продукти",
+		"loading": "Зареждане на продукти...",
+		"newProduct": "Нов продукт",
+		"createTitle": "Създай нов продукт",
+		"createDescription": "Добавете нов продукт към вашия каталог",
+		"editTitle": "Редактирай продукт",
+		"editDescription": "Актуализирайте информацията за продукта",
+		"form": {
+			"productName": "Име на продукт *",
+			"productNamePlaceholder": "Въведете име на продукт",
+			"sku": "SKU",
+			"skuPlaceholder": "SKU на продукт",
+			"description": "Описание",
+			"descriptionPlaceholder": "Описание на продукт",
+			"price": "Цена *",
+			"pricePlaceholder": "0.00",
+			"currency": "Валута",
+			"currencyPlaceholder": "Изберете валута",
+			"category": "Категория",
+			"categoryPlaceholder": "Категория на продукт",
+			"status": "Статус",
+			"statusPlaceholder": "Изберете статус",
+			"stockQuantity": "Количество на склад",
+			"stockQuantityPlaceholder": "0",
+			"trackInventory": "Проследяване на наличност"
+		},
+		"status": {
+			"active": "Активен",
+			"inactive": "Неактивен",
+			"archived": "Архивиран",
+			"all": "Всички статуси"
+		},
+		"images": {
+			"title": "Изображения на продукт",
+			"featured": "Препоръчан",
+			"setAsFeatured": "Направи препоръчан",
+			"removeImage": "Премахни изображение",
+			"uploading": "Качване...",
+			"addImages": "Добави изображения",
+			"featuredHint": "Първото изображение ще се използва като препоръчано. Можете да пренаредите, като зададете друго изображение като препоръчано.",
+			"imageAlt": "Изображение на продукт {{index}}"
+		},
+		"actions": {
+			"cancel": "Отказ",
+			"create": "Създай продукт",
+			"creating": "Създаване...",
+			"update": "Актуализирай продукт",
+			"updating": "Актуализиране...",
+			"delete": "Изтрий",
+			"edit": "Редактирай",
+			"view": "Преглед",
+			"viewDetails": "Виж детайли за продукта",
+			"editProduct": "Редактирай продукт",
+			"deleteProduct": "Изтрий продукт"
+		},
+		"filters": {
+			"searchPlaceholder": "Търсене на продукти...",
+			"statusFilter": "Филтриране по статус",
+			"productsCount": "{{count}} продукта",
+			"product": "продукти"
+		},
+		"table": {
+			"product": "Продукт",
+			"sku": "SKU",
+			"price": "Цена",
+			"stock": "Склад",
+			"category": "Категория",
+			"status": "Статус",
+			"created": "Създаден",
+			"actions": "Действия"
+		},
+		"empty": {
+			"title": "Няма продукти",
+			"noMatch": "Няма продукти, които отговарят на вашите филтри.",
+			"getStarted": "Започнете като създадете нов продукт."
+		},
+		"mobile": {
+			"allProducts": "Всички продукти",
+			"showing": "Показване на {{count}} от {{total}} продукта",
+			"showingAll": "Показване на всички {{count}} продукта",
+			"price": "Цена:",
+			"status": "Статус:",
+			"sku": "SKU:",
+			"category": "Категория:",
+			"stock": "Склад:"
+		},
+		"details": {
+			"title": "Детайли за продукт",
+			"description": "Вижте подробна информация за този продукт",
+			"loading": "Зареждане на данни за продукт...",
+			"productName": "Име на продукт",
+			"sku": "SKU",
+			"descriptionLabel": "Описание",
+			"price": "Цена",
+			"currency": "Валута",
+			"stockQuantity": "Количество на склад",
+			"lowStockThreshold": "Праг за ниско количество",
+			"lowStock": "Ниско количество",
+			"category": "Категория",
+			"status": "Статус",
+			"productImages": "Изображения на продукт",
+			"cost": "Себестойност",
+			"taxRate": "Данъчна ставка",
+			"tags": "Етикети",
+			"created": "Създаден",
+			"lastUpdated": "Последна актуализация",
+			"close": "Затвори",
+			"na": "Н/Д"
+		},
+		"messages": {
+			"orgIdRequired": "Изисква се ID на организацията",
+			"namePriceRequired": "Името и цената са задължителни",
+			"imageUploaded": "Изображението е качено успешно",
+			"imageUploadFailed": "Неуспешно качване на изображение",
+			"productCreated": "Продуктът е създаден успешно",
+			"productUpdated": "Продуктът е актуализиран успешно",
+			"productDeleted": "Продуктът е изтрит успешно",
+			"createFailed": "Неуспешно създаване на продукт: {{error}}",
+			"updateFailed": "Неуспешна актуализация на продукт: {{error}}",
+			"deleteFailed": "Неуспешно изтриване на продукт: {{error}}",
+			"deleteConfirm": "Сигурни ли сте, че искате да изтриете този продукт?"
+		},
+		"labels": {
+			"low": "Ниско"
+		}
+	},
+	"invoices": {
+		"title": "Фактури",
+		"subtitle": "Управлявайте и проследявайте вашите фактури",
+		"createInvoice": "Създай фактура",
+		"stats": {
+			"totalInvoices": "Общо фактури",
+			"totalRevenue": "Общ приход",
+			"thisMonth": "Този месец"
+		},
+		"filters": {
+			"searchPlaceholder": "Търсене на фактури по номер или клиент...",
+			"statusFilter": "Филтриране по статус",
+			"allStatus": "Всички статуси",
+			"draft": "Чернова",
+			"sent": "Изпратена",
+			"paid": "Платена",
+			"cancelled": "Отменена"
+		},
+		"empty": {
+			"noInvoicesFound": "Няма намерени фактури",
+			"noInvoicesYet": "Все още няма фактури",
+			"adjustFilters": "Опитайте да коригирате критериите за търсене или филтриране.",
+			"getStarted": "Започнете като създадете първата си фактура."
+		},
+		"error": {
+			"loadFailed": "Неуспешно зареждане на фактури",
+			"tryAgain": "Моля, опитайте отново по-късно."
+		},
+		"actions": {
+			"pdf": "PDF",
+			"viewDetails": "Виж детайли",
+			"downloadPdf": "Изтегли PDF"
+		},
+		"preview": {
+			"title": "Преглед на фактура"
+		},
+		"messages": {
+			"pdfGenerated": "PDF е генериран успешно!",
+			"pdfFailed": "Неуспешно генериране на PDF: {{error}}"
+		},
+		"labels": {
+			"unknown": "Неизвестен"
+		}
+	},
+	"invoiceDetail": {
+		"title": "Фактура {{id}}",
+		"subtitle": "Прегледайте, изтеглете, изпратете по имейл или споделете тази фактура.",
+		"preview": {
+			"title": "Преглед на фактура",
+			"generating": "Генериране на преглед на фактура...",
+			"loadFailed": "Неуспешно зареждане на преглед на фактура",
+			"retry": "Опитай отново"
+		},
+		"share": {
+			"button": "Сподели",
+			"generating": "Генериране...",
+			"copied": "Копирано",
+			"copy": "Копирай",
+			"linkCopied": "Връзката е копирана в клипборда!",
+			"copyFailed": "Неуспешно копиране на връзка",
+			"generateFailed": "Неуспешно генериране на връзка: {{error}}"
+		},
+		"email": {
+			"title": "Изпрати по имейл",
+			"placeholder": "получател@example.com",
+			"send": "Изпрати",
+			"sending": "Изпращане...",
+			"sent": "Фактурата е изпратена до {{email}}",
+			"sendFailed": "Неуспешно изпращане на имейл: {{error}}"
+		},
+		"messages": {
+			"previewFailed": "Неуспешно генериране на преглед: {{error}}"
+		}
+	},
+	"contacts": {
+		"title": "Контакти",
+		"subtitle": "Управлявайте вашите клиентски контакти",
+		"loading": "Зареждане на контакти...",
+		"addContact": "Добави контакт",
+		"createTitle": "Създай нов контакт",
+		"createDescription": "Добавете нов клиентски контакт към вашата организация.",
+		"editTitle": "Редактирай контакт",
+		"editDescription": "Актуализирайте информацията за контакта.",
+		"form": {
+			"firstName": "Име *",
+			"lastName": "Фамилия *",
+			"email": "Имейл *",
+			"phone": "Телефон",
+			"company": "Компания",
+			"jobTitle": "Длъжност",
+			"status": "Статус",
+			"statusPlaceholder": "Изберете статус",
+			"notes": "Бележки",
+			"firstNameRequired": "Името е задължително",
+			"lastNameRequired": "Фамилията е задължителна",
+			"emailRequired": "Имейлът е задължителен"
+		},
+		"status": {
+			"lead": "Потенциален клиент",
+			"prospect": "Перспектива",
+			"customer": "Клиент",
+			"active": "Активен",
+			"inactive": "Неактивен"
+		},
+		"actions": {
+			"cancel": "Отказ",
+			"create": "Създай контакт",
+			"creating": "Създаване...",
+			"update": "Актуализирай контакт",
+			"updating": "Актуализиране...",
+			"edit": "Редактирай",
+			"delete": "Изтрий"
+		},
+		"filters": {
+			"searchPlaceholder": "Търсене на контакти...",
+			"contactsCount": "{{count}} контакта",
+			"contact": "контакти"
+		},
+		"table": {
+			"name": "Име",
+			"email": "Имейл",
+			"company": "Компания",
+			"status": "Статус",
+			"phone": "Телефон"
+		},
+		"empty": {
+			"title": "Няма контакти",
+			"noMatch": "Няма контакти, които отговарят на вашите критерии за търсене.",
+			"getStarted": "Започнете като създадете първия си контакт."
+		},
+		"mobile": {
+			"morePhones": "+{{count}} още"
+		},
+		"delete": {
+			"title": "Сигурни ли сте?",
+			"description": "Това действие не може да бъде отменено. Това ще изтрие контакта завинаги.",
+			"cancel": "Отказ",
+			"confirm": "Изтрий"
+		},
+		"messages": {
+			"contactCreated": "Контактът е създаден успешно",
+			"contactUpdated": "Контактът е актуализиран.",
+			"contactUpdatedWithPhone": "Контактът е актуализиран. Добавен е нов телефонен номер.",
+			"createFailed": "Неуспешно създаване на контакт",
+			"updateFailed": "Неуспешна актуализация на контакт"
+		}
+	},
+	"leads": {
+		"title": "Потенциални клиенти",
+		"subtitle": "Прегледайте всички изпратени формуляри и съобщения",
+		"loading": "Зареждане на потенциални клиенти...",
+		"filters": {
+			"searchPlaceholder": "Търсене на потенциални клиенти...",
+			"statusFilter": "Филтриране по статус",
+			"typeFilter": "Филтриране по тип",
+			"allStatuses": "Всички статуси",
+			"allTypes": "Всички типове",
+			"leadsCount": "{{count}} потенциални клиенти",
+			"lead": "потенциални клиенти"
+		},
+		"status": {
+			"new": "Нов",
+			"viewed": "Прегледан",
+			"contacted": "Свързан",
+			"converted": "Конвертиран",
+			"archived": "Архивиран"
+		},
+		"widgetType": {
+			"contactForm": "Формуляр за контакт",
+			"invoiceRequest": "Заявка за фактура",
+			"quoteRequest": "Заявка за оферта"
+		},
+		"table": {
+			"title": "Всички потенциални клиенти",
+			"date": "Дата",
+			"name": "Име",
+			"email": "Имейл",
+			"type": "Тип",
+			"message": "Съобщение",
+			"status": "Статус",
+			"actions": "Действия",
+			"showing": "Показване на {{count}} от {{total}} потенциални клиенти",
+			"showingAll": "Показване на всички {{count}} потенциални клиенти"
+		},
+		"empty": {
+			"title": "Няма потенциални клиенти",
+			"noMatch": "Няма потенциални клиенти, които отговарят на вашите филтри.",
+			"noSubmissions": "Изпратените формуляри ще се появят тук."
+		},
+		"actions": {
+			"viewDetails": "Виж детайли",
+			"generateProposal": "Генерирай оферта с AI",
+			"createProposal": "Създай оферта ръчно",
+			"close": "Затвори"
+		},
+		"detail": {
+			"title": "Детайли за потенциален клиент",
+			"description": "Вижте пълна информация за тази заявка от потенциален клиент",
+			"dateSubmitted": "Дата на изпращане",
+			"lastUpdated": "Последна актуализация",
+			"status": "Статус",
+			"leadId": "ID на потенциален клиент",
+			"widgetType": "Тип на виджет",
+			"source": "Източник",
+			"name": "Име",
+			"email": "Имейл",
+			"phone": "Телефон",
+			"company": "Компания",
+			"jobTitle": "Длъжност",
+			"linkedContact": "Свързан контакт",
+			"contactId": "ID на контакт: {{id}}",
+			"message": "Съобщение",
+			"formData": "Данни от формуляр",
+			"internalNotes": "Вътрешни бележки",
+			"tags": "Етикети",
+			"noMessage": "Няма предоставено съобщение",
+			"na": "Н/Д"
+		},
+		"proposal": {
+			"title": "Създай оферта ръчно",
+			"description": "Създайте нова оферта за този потенциален клиент. Информацията за потенциалния клиент ще бъде предварително попълнена.",
+			"proposalTitle": "Заглавие на оферта *",
+			"proposalTitlePlaceholder": "Въведете заглавие на оферта",
+			"descriptionLabel": "Описание",
+			"descriptionPlaceholder": "Въведете описание на оферта",
+			"items": "Артикули *",
+			"addItem": "Добави артикул",
+			"itemDescription": "Описание",
+			"itemDescriptionPlaceholder": "Описание на артикул",
+			"qty": "Количество",
+			"unitPrice": "Единична цена",
+			"taxPct": "Данък %",
+			"currency": "Валута",
+			"paymentTerms": "Условия за плащане",
+			"paymentTermsPlaceholder": "напр. Net 30",
+			"subtotal": "Междинна сума",
+			"taxTotal": "Общ данък",
+			"total": "Общо",
+			"notes": "Бележки",
+			"notesPlaceholder": "Допълнителни бележки",
+			"removeItem": "Премахни артикул",
+			"cancel": "Отказ",
+			"create": "Създай оферта",
+			"creating": "Създаване..."
+		},
+		"messages": {
+			"titleRequired": "Заглавието на офертата е задължително",
+			"itemsRequired": "Моля, добавете поне един артикул с описание",
+			"orgNotFound": "Организацията не е намерена",
+			"proposalCreated": "Офертата е създадена успешно",
+			"proposalFailed": "Неуспешно създаване на оферта: {{error}}"
+		}
+	},
+	"proposals": {
+		"title": "Оферти",
+		"subtitle": "Създавайте и управлявайте оферти за вашите потенциални клиенти",
+		"subtitleLoading": "Управлявайте вашите оферти",
+		"loading": "Зареждане на оферти...",
+		"newProposal": "Нова оферта",
+		"filters": {
+			"searchPlaceholder": "Търсене на оферти...",
+			"statusFilter": "Филтриране по статус",
+			"allStatuses": "Всички статуси",
+			"proposalsCount": "{{count}} оферти",
+			"proposal": "оферти"
+		},
+		"status": {
+			"DRAFT": "Чернова",
+			"SENT": "Изпратена",
+			"ACCEPTED": "Приета",
+			"REJECTED": "Отхвърлена",
+			"EXPIRED": "Изтекла"
+		},
+		"table": {
+			"title": "Всички оферти",
+			"titleHeader": "Заглавие",
+			"date": "Дата",
+			"status": "Статус",
+			"total": "Общо",
+			"items": "Артикули",
+			"actions": "Действия",
+			"showing": "Показване на {{count}} от {{total}} оферти",
+			"showingAll": "Показване на всички {{count}} оферти",
+			"aiGenerated": "Генерирана с AI",
+			"itemsCount": "{{count}} артикул",
+			"itemsCountPlural": "{{count}} артикула"
+		},
+		"empty": {
+			"title": "Няма оферти",
+			"noMatch": "Няма оферти, които отговарят на вашите филтри.",
+			"getStarted": "Започнете като създадете нова оферта от потенциален клиент."
+		},
+		"actions": {
+			"view": "Виж"
+		},
+		"labels": {
+			"na": "Н/Д"
+		}
+	},
+	"proposalDetail": {
+		"notFound": {
+			"title": "Офертата не е намерена",
+			"description": "Офертата, която търсите, не съществува или е изтрита.",
+			"backButton": "Назад към офертите"
+		},
+		"back": "Назад",
+		"created": "Създадена {{date}}",
+		"incomplete": {
+			"title": "Офертата е непълна",
+			"description": "Тази оферта е генерирана с AI, но някои артикули не можаха да бъдат свързани с съществуващи продукти в вашия каталог.",
+			"missingProducts": "Липсващи продукти:",
+			"reviewItems": "Моля, прегледайте артикулите по-долу и или създайте липсващите продукти, или актуализирайте артикулите в офертата, за да използват съществуващи продукти."
+		},
+		"sections": {
+			"description": "Описание",
+			"items": "Артикули",
+			"itemsCount": "{{count}} артикул",
+			"itemsCountPlural": "{{count}} артикула",
+			"additionalInfo": "Допълнителна информация",
+			"paymentTerms": "Условия за плащане",
+			"notes": "Бележки",
+			"summary": "Резюме",
+			"subtotal": "Междинна сума",
+			"tax": "Данък",
+			"total": "Общо",
+			"clientInfo": "Информация за клиента",
+			"linkedToLead": "Свързана с потенциален клиент",
+			"leadNotFound": "Потенциален клиент не е намерен",
+			"loading": "Зареждане...",
+			"leadInfoNotAvailable": "Информацията за потенциалния клиент не е налична",
+			"leadStatus": "Статус на потенциален клиент",
+			"source": "Източник",
+			"details": "Детайли",
+			"currency": "Валута",
+			"leadId": "ID на потенциален клиент",
+			"invoiceId": "ID на фактура",
+			"actions": "Действия",
+			"convertToInvoice": "Конвертирай във фактура (AI)",
+			"message": "Съобщение:"
+		},
+		"convert": {
+			"title": "Конвертирай оферта във фактура",
+			"description": "Използвайте AI, за да конвертирате автоматично тази оферта в съответстваща фактура. Изберете шаблон за фактура.",
+			"templateLabel": "Шаблон за фактура",
+			"templatePlaceholder": "Изберете шаблон",
+			"noTemplates": "Няма налични шаблони. Моля, създайте първо шаблон за фактура.",
+			"cancel": "Отказ",
+			"generate": "Генерирай фактура",
+			"generating": "Генериране...",
+			"selectTemplate": "Моля, изберете шаблон",
+			"proposalNotFound": "Офертата не е намерена",
+			"orgNotFound": "Организацията не е намерена",
+			"generateFailed": "Неуспешно генериране на фактура: {{error}}"
+		},
+		"review": {
+			"title": "Преглед и редактиране на фактура",
+			"description": "Прегледайте и редактирайте данните за фактурата, генерирани с AI, преди да създадете фактурата.",
+			"invoiceNumber": "Номер на фактура",
+			"sellerInfo": "Информация за продавача",
+			"customerInfo": "Информация за клиента",
+			"invoiceDetails": "Детайли на фактура",
+			"items": "Артикули",
+			"itemsEditable": "Артикулите могат да бъдат редактирани след създаването на фактурата.",
+			"totals": "Общо",
+			"cancel": "Отказ",
+			"create": "Създай фактура",
+			"creating": "Създаване...",
+			"missingData": "Липсват задължителни данни",
+			"createSuccess": "Фактурата е създадена успешно!",
+			"createFailed": "Неуспешно създаване на фактура: {{error}}"
+		},
+		"labels": {
+			"unknown": "Неизвестен",
+			"tax": "+ {{tax}}% данък"
+		}
+	},
+	"templates": {
+		"title": "Шаблони",
+		"subtitle": "Управлявайте вашите шаблони за фактури",
+		"createNew": "Създай нов шаблон",
+		"empty": {
+			"title": "Все още няма шаблони",
+			"description": "Създайте първия си шаблон за фактура, за да започнете. Шаблоните определят оформлението и структурата на вашите фактури.",
+			"createFirst": "Създай първия си шаблон"
+		},
+		"card": {
+			"untitled": "Неозаглавен шаблон",
+			"noDescription": "Няма описание",
+			"draft": "чернова",
+			"published": "публикуван",
+			"elements": "{{count}} елемент",
+			"elementsPlural": "{{count}} елемента"
+		},
+		"delete": {
+			"title": "Изтрий шаблон",
+			"description": "Сигурни ли сте, че искате да изтриете \"{{name}}\"? Това действие не може да бъде отменено.",
+			"cancel": "Отказ",
+			"delete": "Изтрий",
+			"deleting": "Изтриване..."
+		}
+	},
+	"designer": {
+		"elements": "Елементи",
+		"properties": "Свойства",
+		"duplicateSuccess": "Елементът е дублиран (връзката е изчистена, за да се предотвратят дубликати)",
+		"tableColumns": {
+			"description": "Описание",
+			"quantity": "Количество",
+			"price": "Цена",
+			"total": "Общо",
+			"column1": "Колона 1",
+			"column2": "Колона 2"
+		},
+		"defaults": {
+			"text": "Текст",
+			"newTemplateName": "Нов шаблон за фактура",
+			"autoSavedVersion": "Автоматично запазена версия",
+			"aiGeneratedTemplate": "Шаблон, генериран с AI"
+		},
+		"sidebar": {
+			"templates": "Шаблони",
+			"aiBuilder": "AI Конструктор",
+			"newTemplate": "Нов шаблон",
+			"noTemplates": "Все още няма шаблони. Кликнете \"Нов\", за да създадете първия си шаблон.",
+			"requiredFields": "Задължителни полета",
+			"addedField": "Добавено {{label}}",
+			"palette": "Палитра",
+			"text": "Текст",
+			"image": "Изображение",
+			"table": "Таблица",
+			"input": "Поле за въвеждане",
+			"box": "Кутия",
+			"line": "Линия",
+			"currency": "Валута",
+			"textAdded": "Добавен е текстов елемент",
+			"imageAdded": "Добавен е елемент за изображение",
+			"tableAdded": "Добавена е таблица",
+			"inputAdded": "Добавено е поле за въвеждане",
+			"boxAdded": "Добавена е кутия",
+			"lineAdded": "Добавена е линия",
+			"currencyAdded": "Добавено е поле за валута",
+			"itemsTable": "Таблица с артикули",
+			"inputField": "Поле за въвеждане",
+			"currencyField": "Поле за валута",
+			"element": "Елемент {{id}}",
+			"select": "Избери",
+			"duplicate": "Дублирай",
+			"delete": "Изтрий"
+		},
+		"canvasHeader": {
+			"selectTemplate": "Изберете шаблон",
+			"newTemplate": "Нов шаблон",
+			"live": "На живо",
+			"zoom": "Увеличение"
+		},
+		"propertiesPanel": {
+			"title": "Свойства",
+			"createTemplate": "Създайте шаблон, за да започнете.",
+			"template": "Шаблон",
+			"name": "Име",
+			"pageSize": "Размер на страницата",
+			"compliance": "Съответствие",
+			"region": "Регион",
+			"regionDescription": "Определя кои изисквания за съответствие се прилагат"
+		},
+		"aiBuilder": {
+			"title": "AI Конструктор на шаблони за фактури",
+			"description": "Генерирайте красив, функционален и напълно съответстващ шаблон за фактура с помощта на AI. Шаблонът ще бъде персонализиран въз основа на брандинга и региона за съответствие на вашата организация.",
+			"style": "Стил",
+			"modern": "Модерен",
+			"classic": "Класически",
+			"minimal": "Минималистичен",
+			"professional": "Професионален",
+			"includeLogo": "Включи лого",
+			"additionalInstructions": "Допълнителни инструкции (По избор)",
+			"instructionsPlaceholder": "Напр., 'Използвайте двуколонно оформление за заглавката', 'Направете секцията с общо по-изразена', 'Добавете секция с условия за плащане'...",
+			"instructionsHint": "Предоставете конкретни предпочитания за дизайн или изисквания за шаблона.",
+			"region": "Регион: {{region}}",
+			"cancel": "Отказ",
+			"generate": "Генерирай шаблон",
+			"generating": "Генериране...",
+			"orgNotFound": "Организацията не е намерена",
+			"generateSuccess": "Шаблонът е генериран успешно с AI!",
+			"generateFailed": "Неуспешно генериране на шаблон: {{error}}"
+		},
+		"versionHistory": {
+			"title": "История на версиите",
+			"you": "Вие",
+			"unknownUser": "Неизвестен потребител",
+			"noVersions": "Няма налична история на версиите. Версиите се създават автоматично, когато правите промени.",
+			"version": "Версия {{number}}",
+			"current": "Текуща",
+			"unknownDate": "Неизвестна дата",
+			"templatePreview": "Преглед",
+			"previewTitle": "Преглед на версия {{number}}",
+			"created": "Създадено: {{date}}",
+			"restoreWarning": "Това ще замени текущия ви шаблон с версия {{version}}. Текущите ви промени ще бъдат автоматично запазени като нова версия преди възстановяване, за да можете винаги да се върнете назад, ако е необходимо.",
+			"restore": "Възстанови",
+			"restoreVersion": "Възстанови версия",
+			"restoreTitle": "Възстанови версия {{number}}?",
+			"restoring": "Възстановяване...",
+			"previewButton": "Преглед на тази версия"
+		},
+		"compliance": {
+			"fullyCompliant": "Напълно съответстващ",
+			"missingFields": "Липсват задължителни полета",
+			"missingFieldsList": "Липсващи полета:",
+			"add": "Добави"
+		},
+		"watermark": {
+			"title": "Воден знак",
+			"enable": "Активирай воден знак",
+			"type": "Тип",
+			"image": "Изображение",
+			"text": "Текст",
+			"imageUrl": "URL на изображение",
+			"textPlaceholder": "КОНФИДЕНЦИАЛНО",
+			"position": "Позиция",
+			"width": "Ширина (px)",
+			"height": "Височина (px)",
+			"rotation": "Завъртане",
+			"opacity": "Непрозрачност",
+			"blendMode": "Режим на смесване",
+			"repeat": "Повторение",
+			"positions": {
+				"center": "Център",
+				"topLeft": "Горе вляво",
+				"topRight": "Горе вдясно",
+				"bottomLeft": "Долу вляво",
+				"bottomRight": "Долу вдясно",
+				"topCenter": "Горе в центъра",
+				"bottomCenter": "Долу в центъра",
+				"leftCenter": "Вляво в центъра",
+				"rightCenter": "Вдясно в центъра"
+			},
+			"blendModes": {
+				"normal": "Нормален",
+				"multiply": "Умножение",
+				"screen": "Екран",
+				"overlay": "Наложение",
+				"softLight": "Мека светлина",
+				"hardLight": "Твърда светлина"
+			},
+			"repeatOptions": {
+				"none": "Без",
+				"repeat": "Повторение",
+				"repeatX": "Повторение X",
+				"repeatY": "Повторение Y"
+			}
+		},
+		"elementProperties": {
+			"common": {
+				"positionAndSize": "Позиция и размер",
+				"x": "X",
+				"y": "Y",
+				"width": "Ширина",
+				"height": "Височина"
+			},
+			"binding": {
+				"dataBinding": "Връзка с данни",
+				"bindingPlaceholder": "напр., invoice.customerName",
+				"duplicateError": "Тази връзка вече се използва от друг елемент",
+				"suggested": "Предложено:",
+				"use": "Използвай"
+			},
+			"text": {
+				"title": "Текст",
+				"content": "Съдържание",
+				"text": "Текст",
+				"typography": "Типография",
+				"fontSize": "Размер на шрифта",
+				"weight": "Тегло",
+				"color": "Цвят",
+				"alignment": "Подравняване",
+				"uppercase": "Главни букви",
+				"styling": "Стилизиране",
+				"backgroundColor": "Цвят на фона",
+				"backgroundColorPlaceholder": "#ffffff или прозрачно",
+				"padding": "Отстояние (px)",
+				"opacity": "Непрозрачност",
+				"shadow": "Сянка",
+				"blur": "Размазване",
+				"offsetY": "Отместване Y",
+				"shadowColor": "Цвят на сянката",
+				"fontWeights": {
+					"normal": "Нормално",
+					"medium": "Средно",
+					"semibold": "Полуудебелено",
+					"bold": "Удебелено"
+				},
+				"alignments": {
+					"left": "Ляво",
+					"center": "Център",
+					"right": "Дясно"
+				}
+			},
+			"image": {
+				"title": "Изображение",
+				"settings": "Настройки",
+				"imageUrl": "URL на изображение (По подразбиране)",
+				"imageUrlPlaceholder": "https://...",
+				"dataBinding": "Връзка с данни (По избор)",
+				"bindingPlaceholder": "напр., company.logoUrl",
+				"bindingHint": "Оставете празно, за да използвате URL по подразбиране. Задайте връзка, за да замените с данни от фактурата.",
+				"objectFit": "Попълване на обекта",
+				"objectFitOptions": {
+					"contain": "Съдържа",
+					"cover": "Покрива",
+					"fill": "Запълва"
+				}
+			},
+			"input": {
+				"title": "Поле за въвеждане",
+				"settings": "Настройки",
+				"placeholder": "Заместител",
+				"variant": "Вариант",
+				"align": "Подравняване",
+				"variants": {
+					"text": "Текст",
+					"number": "Число",
+					"date": "Дата"
+				},
+				"alignments": {
+					"left": "Ляво",
+					"center": "Център",
+					"right": "Дясно"
+				}
+			},
+			"table": {
+				"title": "Таблица",
+				"settings": "Настройки",
+				"rowHeight": "Височина на ред",
+				"headerHeight": "Височина на заглавка",
+				"stripeRows": "Ивици на редове",
+				"itemsBinding": "Връзка с артикули",
+				"itemsBindingPlaceholder": "напр., items",
+				"columns": "Колони",
+				"column": {
+					"header": "Заглавка",
+					"headerPlaceholder": "Заглавка на колона",
+					"width": "Ширина",
+					"widthPlaceholder": "120",
+					"align": "Подравняване",
+					"type": "Тип",
+					"remove": "Премахни",
+					"types": {
+						"text": "Текст",
+						"number": "Число",
+						"date": "Дата",
+						"currency": "Валута"
+					},
+					"currency": {
+						"title": "Валута",
+						"currency": "Валута",
+						"selectCurrency": "Изберете валута...",
+						"searchCurrency": "Търсене на валута...",
+						"noCurrencyFound": "Не е намерена валута.",
+						"mode": "Режим",
+						"modes": {
+							"independent": "Независим",
+							"linked": "Свързан",
+							"formula": "Формула"
+						}
+					},
+					"total": {
+						"showTotal": "Покажи общо",
+						"totalStyling": "Стилизиране на общо",
+						"backgroundColor": "Цвят на фона",
+						"textColor": "Цвят на текста",
+						"fontWeight": "Тегло на шрифта",
+						"fontSize": "Размер на шрифта",
+						"fontSizePlaceholder": "Автоматично",
+						"topBorder": "Горна граница",
+						"topBorderPlaceholder": "напр., 2px solid #111827",
+						"fontWeights": {
+							"normal": "Нормално",
+							"semiBold": "Полуудебелено",
+							"bold": "Удебелено",
+							"extraBold": "Много удебелено"
+						}
+					}
+				},
+				"addColumn": "Добави колона",
+				"editHeadersHint": "Редактирайте заглавките по-горе или използвайте Свойства, за да конфигурирате колони и редове."
+			},
+			"box": {
+				"title": "Кутия",
+				"styling": "Стилизиране",
+				"fill": "Запълване",
+				"fillPlaceholder": "#RRGGBB",
+				"stroke": "Контур",
+				"strokePlaceholder": "#RRGGBB",
+				"strokeWidth": "Ширина на контура",
+				"strokeWidthPlaceholder": "1",
+				"cornerRadius": "Радиус на ъгъла",
+				"cornerRadiusPlaceholder": "0",
+				"opacity": "Непрозрачност",
+				"gradientFill": "Градиентно запълване",
+				"gradientType": "Тип на градиента",
+				"angle": "Ъгъл (градуси)",
+				"colors": "Цветове (2-4 цвята)",
+				"gradientTypes": {
+					"linear": "Линеен",
+					"radial": "Радиален"
+				},
+				"shadow": "Сянка",
+				"blur": "Размазване",
+				"offsetY": "Отместване Y",
+				"shadowColor": "Цвят на сянката"
+			},
+			"line": {
+				"title": "Линия",
+				"styling": "Стилизиране",
+				"stroke": "Контур",
+				"strokePlaceholder": "#RRGGBB",
+				"strokeWidth": "Ширина на контура",
+				"strokeWidthPlaceholder": "1"
+			},
+			"currency": {
+				"title": "Валута",
+				"settings": "Настройки",
+				"placeholder": "Заместител",
+				"currency": "Валута",
+				"selectCurrency": "Изберете валута...",
+				"searchCurrency": "Търсене на валута...",
+				"noCurrencyFound": "Не е намерена валута.",
+				"align": "Подравняване",
+				"mode": "Режим",
+				"dataBinding": "Връзка с данни",
+				"bindingPlaceholder": "напр., invoice.total",
+				"modes": {
+					"independent": "Независим",
+					"linked": "Свързан",
+					"formula": "Формула"
+				},
+				"alignments": {
+					"left": "Ляво",
+					"center": "Център",
+					"right": "Дясно"
+				}
+			}
+		}
+	},
+	"workflows": {
+		"title": "Работни потоци",
+		"subtitle": "Автоматизирайте бизнес процесите си с персонализирани работни потоци",
+		"create": "Създай работен поток",
+		"creating": "Създаване...",
+		"loading": "Зареждане на работни потоци...",
+		"noWorkflows": {
+			"title": "Все още няма работни потоци",
+			"description": "Създайте първия си работен поток, за да автоматизирате бизнес процесите си",
+			"createFirst": "Създайте първия си работен поток"
+		},
+		"tabs": {
+			"workflows": "Работни потоци",
+			"builder": "Конструктор",
+			"preview": "Преглед",
+			"templates": "Шаблони",
+			"history": "История"
+		},
+		"status": {
+			"active": "Активен",
+			"paused": "Паузиран",
+			"draft": "Чернова",
+			"archived": "Архивиран",
+			"editing": "Редактиране"
+		},
+		"actions": {
+			"preview": "Преглед",
+			"edit": "Редактирай",
+			"pause": "Пауза",
+			"activate": "Активирай",
+			"archive": "Архивирай",
+			"delete": "Изтрий завинаги"
+		},
+		"details": {
+			"trigger": "Тригер:",
+			"steps": "Стъпки:",
+			"version": "в{{version}}",
+			"created": "Създадено {{time}}",
+			"updated": "Обновено {{time}}",
+			"moreTags": "+{{count}} още",
+			"noDescription": "Няма описание"
+		},
+		"delete": {
+			"title": "Изтрий работен поток",
+			"description": "Сигурни ли сте, че искате да изтриете \"{{name}}\"? Това действие не може да бъде отменено.",
+			"willRemove": "Това ще премахне завинаги:",
+			"willRemoveList": {
+				"workflow": "Работния поток и всички негови стъпки",
+				"history": "Цялата история на изпълнения",
+				"data": "Всички свързани данни"
+			},
+			"considerArchive": "Помислете за архивиране вместо това, ако искате да запазите данните за историческа справка.",
+			"cancel": "Отказ",
+			"confirm": "Изтрий завинаги",
+			"deleting": "Изтриване..."
+		},
+		"history": {
+			"selectWorkflow": "Изберете работен поток, за да видите историята на изпълнения",
+			"noWorkflows": {
+				"title": "Няма работни потоци за преглед на история",
+				"description": "Първо създайте работен поток, за да видите неговата история на изпълнения"
+			}
+		},
+		"triggers": {
+			"invoiceCreated": "Фактура създадена",
+			"invoiceSent": "Фактура изпратена",
+			"invoicePaid": "Фактура платена",
+			"invoiceOverdue": "Фактура просрочена",
+			"proposalCreated": "Оферта създадена",
+			"proposalApproved": "Оферта одобрена",
+			"contractExpiring": "Договор изтича",
+			"contractExpired": "Договор изтекъл",
+			"userJoined": "Потребител се присъедини",
+			"scheduled": "Насрочен",
+			"webhook": "Уебхук",
+			"manual": "Ръчно задействане"
+		},
+		"execution": {
+			"title": "Изпълнение на работен поток",
+			"notFound": {
+				"title": "Работен поток не е намерен",
+				"description": "Работният поток, който търсите, не съществува или е изтрит.",
+				"back": "Назад към работни потоци"
+			},
+			"loading": "Зареждане на работен поток...",
+			"back": "Назад към работни потоци",
+			"edit": {
+				"title": "Редактирай работен поток",
+				"description": "Модифицирайте конфигурацията на работния поток",
+				"back": "Назад към работен поток"
+			},
+			"actions": {
+				"pause": "Пауза",
+				"activate": "Активирай",
+				"edit": "Редактирай",
+				"testRun": "Тестово изпълнение"
+			},
+			"stats": {
+				"steps": "Стъпки",
+				"version": "Версия",
+				"trigger": "Тригер",
+				"executions": "Изпълнения"
+			},
+			"tabs": {
+				"overview": "Преглед",
+				"execution": "История на изпълнения",
+				"settings": "Настройки"
+			},
+			"overview": {
+				"details": {
+					"title": "Детайли на работен поток",
+					"status": "Статус:",
+					"trigger": "Тригер:",
+					"steps": "Стъпки:",
+					"created": "Създадено:",
+					"tags": "Етикети:"
+				},
+				"steps": {
+					"title": "Стъпки на работен поток",
+					"description": "Последователността от действия в този работен поток",
+					"actions": "{{count}} действие",
+					"actionsPlural": "{{count}} действия"
+				}
+			},
+			"settings": {
+				"title": "Настройки на работен поток",
+				"description": "Конфигурирайте настройки за изпълнение и известия",
+				"maxRetries": "Макс. повторни опити",
+				"timeout": "Време за изчакване (секунди)",
+				"maxConcurrent": "Макс. едновременни",
+				"notifyOnFailure": "Известие при неуспех",
+				"yes": "Да",
+				"no": "Не",
+				"dangerZone": {
+					"title": "Зона на опасност",
+					"description": "Необратими действия за този работен поток",
+					"archive": "Архивирай работен поток"
+				}
+			}
+		},
+		"templates": {
+			"title": "Шаблони за работни потоци",
+			"subtitle": "Изберете от предварително изградени шаблони или създайте персонализиран работен поток",
+			"createCustom": "Създай персонализиран работен поток",
+			"back": "Назад към работни потоци",
+			"stats": {
+				"availableTemplates": "Налични шаблони",
+				"categories": "Категории",
+				"customWorkflows": "Персонализирани работни потоци"
+			},
+			"comingSoon": "Шаблони за работни потоци скоро...",
+			"builder": {
+				"fromTemplate": "Създай от шаблон",
+				"custom": "Създай персонализиран работен поток",
+				"customizeTemplate": "Персонализирайте шаблона \"{{name}}\"",
+				"buildFromScratch": "Изградете работен поток от нулата",
+				"back": "Назад към шаблони"
+			}
+		},
+		"builder": {
+			"create": "Създай нов работен поток",
+			"edit": "Редактирай работен поток: {{name}}",
+			"editing": "Редактиране",
+			"description": {
+				"edit": "Модифицирайте съществуващата си автоматизация на работен поток. Промените ще бъдат запазени, когато кликнете Запази.",
+				"create": "Изградете автоматизирани работни потоци, за да рационализирате бизнес процесите си"
+			},
+			"cancelEdit": "Отказ на редактиране",
+			"fields": {
+				"name": "Име на работен поток *",
+				"namePlaceholder": "Въведете име на работен поток",
+				"category": "Категория",
+				"description": "Описание",
+				"descriptionPlaceholder": "Опишете какво прави този работен поток",
+				"trigger": "Тригер *"
+			},
+			"categories": {
+				"general": "Общ",
+				"finance": "Финанси",
+				"onboarding": "Включване",
+				"approval": "Одобрение",
+				"contracts": "Договори"
+			},
+			"triggerGroups": {
+				"invoice": "Фактура",
+				"manual": "Ръчно"
+			},
+			"triggerLabels": {
+				"created": "Създадена",
+				"paid": "Платена",
+				"manualTrigger": "Ръчно задействане"
+			},
+			"steps": {
+				"title": "Стъпки на работен поток",
+				"description": "Дефинирайте действията и условията за вашия работен поток",
+				"addStep": "Добави стъпка",
+				"noSteps": "Все още няма добавени стъпки. Кликнете \"Добави стъпка\", за да започнете.",
+				"step": "Стъпка {{number}}",
+				"stepNamePlaceholder": "Име на стъпка {{number}}"
+			},
+			"actions": {
+				"test": "Тест на работен поток",
+				"preview": "Преглед",
+				"save": "Запази работен поток",
+				"saving": "Запазване..."
+			},
+			"action": {
+				"action": "Действие {{number}}",
+				"name": "Име на действие",
+				"namePlaceholder": "Изпрати известие в Slack",
+				"selectType": "Изберете тип действие"
+			},
+			"actionTypes": {
+				"httpRequest": "HTTP заявка",
+				"sendEmail": "Изпрати имейл"
+			},
+			"toast": {
+				"noOrg": "Няма избрана организация",
+				"requiredFields": "Моля, попълнете всички задължителни полета",
+				"validationFailed": "Валидацията неуспешна: {{errors}}",
+				"updateSuccess": "Работният поток е обновен успешно!",
+				"createSuccess": "Работният поток е създаден успешно!"
+			}
+		},
+		"executionHistory": {
+			"title": "История на изпълнения",
+			"count": "{{filtered}} от {{total}} изпълнения",
+			"refresh": "Обнови",
+			"searchPlaceholder": "Търсене по ID или тригер...",
+			"loading": "Зареждане на история на изпълнения...",
+			"error": "Грешка при зареждане на историята на изпълнения: {{message}}",
+			"titles": {
+				"running": "Изпълнява се сега",
+				"failed": "Неуспешно изпълнение",
+				"completed": "Завършено успешно",
+				"pending": "В очакване на старт",
+				"execution": "Изпълнение"
+			},
+			"triggerTypes": {
+				"invoiceCreated": "Фактура създадена",
+				"invoicePaid": "Фактура платена",
+				"userRegistered": "Потребител регистриран",
+				"webhook": "Webhook",
+				"scheduled": "Планирано",
+				"manual": "Ръчно"
+			},
+			"triggeredBy": "Задействано от {{trigger}}",
+			"statusFilters": {
+				"all": "Всички статуси",
+				"pending": "В очакване",
+				"running": "Изпълнява се",
+				"completed": "Завършено",
+				"failed": "Неуспешно",
+				"cancelled": "Отменено"
+			},
+			"sort": {
+				"newest": "Най-нови",
+				"oldest": "Най-стари"
+			},
+			"retry": "Повтори",
+			"errorDetails": "Детайли за грешка:",
+			"progress": "Напредък",
+			"progressSteps": "{{completed}} от {{total}} стъпки",
+			"recentActivity": "Последна активност",
+			"moreLogs": "... и още {{count}} логове",
+			"viewDetails": "Виж детайли",
+			"retryExecution": "Повтори изпълнение",
+			"time": {
+				"justNow": "Току-що",
+				"minutesAgo": "преди {{minutes}}м",
+				"hoursAgo": "преди {{hours}}ч",
+				"daysAgo": "преди {{days}}д"
+			},
+			"duration": {
+				"running": "Изпълнява се...",
+				"lessThanSecond": "< 1с",
+				"seconds": "{{seconds}}с",
+				"minutes": "{{minutes}}м",
+				"hours": "{{hours}}ч"
+			},
+			"emptyState": {
+				"title": "Няма намерени изпълнения",
+				"noExecutions": "Този работен поток все още не е изпълняван.",
+				"noResults": "Опитайте да коригирате критериите за търсене или филтър."
+			}
+		},
+		"preview": {
+			"title": "Преглед на работен поток",
+			"description": "Преглед как \"{{name}}\" ще се изпълни",
+			"subtitle": "Преглед как \"{{name}}\" ще се изпълни",
+			"noSelection": {
+				"title": "Няма избран работен поток за преглед",
+				"description": "Изберете работен поток от списъка, за да прегледате неговата структура и поток на изпълнение"
+			},
+			"simulateExecution": "Симулирай изпълнение",
+			"simulate": "Симулирай изпълнение",
+			"simulating": "Симулиране...",
+			"stop": "Спри",
+			"reset": "Нулирай",
+			"closePreview": "Затвори преглед",
+			"close": "Затвори преглед",
+			"overview": {
+				"trigger": "Тригер",
+				"steps": "{{count}} стъпка",
+				"stepsPlural": "{{count}} стъпки",
+				"stepsCount": "{{count}} стъпка",
+				"stepsCount_plural": "{{count}} стъпки",
+				"version": "Версия",
+				"tags": "Етикети"
+			},
+			"executionFlow": {
+				"title": "Поток на изпълнение",
+				"description": "Визуално представяне как ще се изпълни този работен поток",
+				"trigger": "Тригер",
+				"actionsCount": "{{count}} действие",
+				"actionsCount_plural": "{{count}} действия",
+				"configured": "Конфигурирано",
+				"completed": "Работен поток завършен",
+				"completedDescription": "Всички стъпки са изпълнени успешно",
+				"error": "Грешка при симулация"
+			},
+			"configDetails": {
+				"title": "Детайли на конфигурация",
+				"description": "Детайлен преглед на настройките и параметрите на работния поток",
+				"settings": "Настройки",
+				"notifications": "Известия",
+				"maxRetries": "Макс. повторни опити:",
+				"timeout": "Време за изчакване:",
+				"maxConcurrent": "Макс. едновременни:",
+				"notifyOnFailure": "Известие при неуспех:",
+				"notifyOnSuccess": "Известие при успех:",
+				"yes": "Да",
+				"no": "Не",
+				"n8nEnabled": "Интеграция с n8n активирана",
+				"n8nDescription": "Този работен поток е интегриран с n8n за разширени възможности за автоматизация."
+			},
+			"configuration": {
+				"title": "Детайли на конфигурация",
+				"description": "Детайлен преглед на настройките и параметрите на работния поток",
+				"settings": "Настройки",
+				"notifications": "Известия",
+				"maxRetries": "Макс. повторни опити:",
+				"timeout": "Време за изчакване:",
+				"maxConcurrent": "Макс. едновременни:",
+				"notifyOnFailure": "Известие при неуспех:",
+				"notifyOnSuccess": "Известие при успех:",
+				"n8nEnabled": "Интеграция с n8n активирана",
+				"n8nDescription": "Този работен поток е интегриран с n8n за разширени възможности за автоматизация."
+			},
+			"completed": {
+				"title": "Работен поток завършен",
+				"description": "Всички стъпки са изпълнени успешно"
+			},
+			"errors": {
+				"noSteps": "Работният поток няма стъпки за симулация",
+				"simulationFailed": "Симулацията неуспешна"
+			},
+			"error": {
+				"title": "Грешка при симулация",
+				"noSteps": "Работният поток няма стъпки за симулация"
+			},
+			"triggerLabels": {
+				"invoiceCreated": "Фактура създадена",
+				"invoiceSent": "Фактура изпратена",
+				"invoicePaid": "Фактура платена",
+				"invoiceOverdue": "Фактура просрочена",
+				"proposalCreated": "Оферта създадена",
+				"proposalApproved": "Оферта одобрена",
+				"contractExpiring": "Договор изтичащ",
+				"scheduled": "Планирано",
+				"manualTrigger": "Ръчно задействане"
+			},
+			"actionLabels": {
+				"sendEmail": "Изпрати имейл",
+				"sendSlack": "Изпрати съобщение в Slack",
+				"createInvoice": "Създай фактура",
+				"updateInvoiceStatus": "Обнови статус на фактура",
+				"createTask": "Създай задача",
+				"httpRequest": "HTTP заявка",
+				"notifyUser": "Уведоми потребител",
+				"waitDelay": "Изчакване/Забавяне"
+			},
+			"configured": "Конфигурирано"
+		},
+		"httpAction": {
+			"url": "URL *",
+			"urlPlaceholder": "https://api.stripe.com/v1/customers/{customerId}",
+			"method": "Метод",
+			"headers": "Заглавки (JSON)",
+			"headersPlaceholder": "{\"Content-Type\": \"application/json\", \"Authorization\": \"Bearer {token}\"}",
+			"body": "Тяло (JSON)",
+			"bodyPlaceholder": "{\"name\": \"John Doe\", \"email\": \"john@example.com\"}",
+			"authentication": "Удостоверяване",
+			"authTypes": {
+				"none": "Без",
+				"bearer": "Bearer токен",
+				"basic": "Основно удостоверяване"
+			},
+			"token": "Bearer токен",
+			"tokenPlaceholder": "{secret.bearer_token}",
+			"username": "Потребителско име",
+			"usernamePlaceholder": "{secret.username}",
+			"password": "Парола",
+			"passwordPlaceholder": "{secret.password}",
+			"timeout": "Време за изчакване (милисекунди)",
+			"timeoutPlaceholder": "30000"
+		},
+		"emailAction": {
+			"recipients": "Получатели *",
+			"recipientPlaceholder": "recipient@example.com",
+			"addRecipient": "Добави получател",
+			"subject": "Тема *",
+			"subjectPlaceholder": "Напомняне за плащане на фактура",
+			"body": "Тяло на имейл *",
+			"bodyPlaceholder": "Уважаеми {customer.name}, вашата фактура {invoice.number} е дължима...",
+			"htmlEmail": "HTML имейл",
+			"cc": "CC (По избор)",
+			"ccPlaceholder": "cc@example.com",
+			"addCc": "Добави CC",
+			"replyTo": "Отговор до (По избор)",
+			"replyToPlaceholder": "noreply@yourcompany.com"
+		}
+	},
+	"siteBuilder": {
+		"title": "AI Конструктор на сайтове",
+		"subtitle": "Чатвайте с AI, за да създадете и актуализирате вашия уебсайт",
+		"viewSite": "Виж сайта",
+		"tabs": {
+			"chatBuilder": "Чат конструктор",
+			"codeEditor": "Редактор на код"
+		},
+		"emptyState": {
+			"title": "Създайте първия си уебсайт",
+			"description": "Започнете, като опишете какъв искате да бъде вашият уебсайт. AI ще ви помогне да създадете красив, брандиран сайт.",
+			"createSite": "Създай сайт"
+		},
+		"sidebar": {
+			"title": "Настройки и инструменти",
+			"siteStatus": "Статус на сайта",
+			"pages": "Страници",
+			"advanced": "Разширени",
+			"integrationWidgets": "Интеграционни джаджи"
+		},
+		"pages": {
+			"title": "Страници",
+			"addPage": "Добави страница",
+			"blog": "Блог",
+			"addArticle": "Добави статия",
+			"updated": "Страниците са актуализирани",
+			"updatedDescription": "Промените са запазени. Регенерирайте, за да публикувате.",
+			"publishing": "Публикуване...",
+			"publishChanges": "Публикувай промени"
+		},
+		"advanced": {
+			"title": "Разширени",
+			"codeEditor": "Редактор на код",
+			"codeEditorDescription": "Редактирайте файловете на вашия сайт директно в редактора",
+			"openCodeEditor": "Отвори редактор на код",
+			"createBlankSite": "Създай празен сайт",
+			"createBlankSiteDescription": "Първо създайте сайт, за да използвате редактора на код."
+		},
+		"dangerZone": {
+			"title": "Зона на опасност",
+			"description": "Изтрийте за постоянно този уебсайт, всички страници, блог публикации и разгърнато съдържание. Това действие не може да бъде отменено.",
+			"deleteWebsite": "Изтрий уебсайт"
+		},
+		"deleteDialog": {
+			"title": "Изтрий уебсайт",
+			"cannotUndo": "Това действие не може да бъде отменено. Това ще изтрие за постоянно:",
+			"willDelete": {
+				"website": "Целият уебсайт и всички негови страници",
+				"blogPosts": "Всички блог публикации и статии",
+				"deployedContent": "Всичко разгърнато съдържание и файлове",
+				"firebaseHosting": "Сайтът в Firebase Hosting",
+				"versionHistory": "Цялата история на версиите"
+			},
+			"willNotAffect": "Това НЯМА да засегне:",
+			"willNotAffectList": {
+				"widgets": "Вашите конфигурации на джаджи",
+				"organization": "Вашите настройки на организацията"
+			},
+			"cancel": "Отказ",
+			"deleting": "Изтриване...",
+			"confirm": "Изтрий уебсайт"
+		},
+		"aiWidgetDialog": {
+			"title": "Генерирай джаджа с AI",
+			"description": "Нека AI създаде красив, оптимизиран за конверсия дизайн на джаджа въз основа на брандинга и предпочитанията на вашата организация.",
+			"widgetType": "Тип джаджа",
+			"designStyle": "Стил на дизайна",
+			"additionalContext": "Допълнителен контекст (По избор)",
+			"additionalContextPlaceholder": "Напр., 'Направете го приятелски и достъпен', 'Използвайте тъмна тема', 'Фокусирайте се върху мобилни потребители'...",
+			"additionalContextHint": "Предоставете всякакви специфични предпочитания за дизайн или изисквания за джаджа.",
+			"cancel": "Отказ",
+			"generating": "Генериране...",
+			"generateWidget": "Генерирай джаджа",
+			"widgetTypes": {
+				"contactForm": "Форма за контакт",
+				"invoiceRequest": "Заявка за фактура",
+				"quoteRequest": "Заявка за оферта"
+			},
+			"styles": {
+				"modern": "Модерен - Чисти линии, съвременни цветове",
+				"classic": "Класически - Традиционен, консервативен",
+				"minimal": "Минималистичен - Много бяло пространство, прост",
+				"professional": "Професионален - Фокусиран върху бизнеса, надежден",
+				"bold": "Смел - Ярки цветове, привличащ вниманието",
+				"elegant": "Елегантен - Софистициран, рафиниран"
+			}
+		},
+		"createSiteDialog": {
+			"title": "Създайте вашия уебсайт",
+			"description": "Опишете какъв искате да бъде вашият уебсайт. AI ще ви помогне да създадете красив, брандиран сайт.",
+			"websiteDescription": "Описание на уебсайта",
+			"websiteDescriptionPlaceholder": "напр., Имам нужда от уебсайт за консултантския ми бизнес с начална страница, страница за нас, страница за услуги и форма за контакт",
+			"cancel": "Отказ",
+			"creating": "Създаване...",
+			"createSite": "Създай сайт"
+		},
+		"pageDialog": {
+			"removeTitle": "Премахване на страница?",
+			"removeDescription": "\"{{title}}\" ще бъде премахната от навигацията на вашия сайт.",
+			"cancel": "Отказ",
+			"removing": "Премахване...",
+			"remove": "Премахни"
+		},
+		"toasts": {
+			"filesSaved": "Файловете са запазени успешно",
+			"siteCreated": "Сайтът е създаден! Започнете да чатите, за да го персонализирате.",
+			"blankSiteCreated": "Празен сайт е създаден! Превключете към раздела Редактор на код, за да започнете редактиране.",
+			"widgetSaved": "Конфигурацията на джаджа е запазена успешно",
+			"widgetGenerated": "Дизайнът на джаджа е генериран успешно!",
+			"previewOpened": "Прегледът е отворен в нов раздел",
+			"embedScriptCopied": "Скриптът за вграждане е копиран в клипборда",
+			"errors": {
+				"generateSiteFirst": "Първо генерирайте сайт, преди да управлявате страници.",
+				"pageTitleRequired": "Заглавието на страницата е задължително",
+				"pageNotFound": "Страницата не е намерена",
+				"siteNeedsOnePage": "Вашият сайт се нуждае от поне една страница.",
+				"articleTitleRequired": "Заглавието на статията е задължително",
+				"enterDomain": "Моля, въведете домейн",
+				"organizationNotFound": "Организацията не е намерена",
+				"widgetGenerationFailed": "Неуспешно генериране на джаджа: {{message}}",
+				"saveWidgetFailed": "Неуспешно запазване на конфигурацията на джаджа"
+			}
+		},
+		"widgets": {
+			"saveConfiguration": "Запази конфигурация на джаджа",
+			"defaultLabels": {
+				"name": "Име",
+				"email": "Имейл",
+				"phone": "Телефон",
+				"company": "Компания",
+				"message": "Съобщение"
+			},
+			"defaultConfig": {
+				"contactForm": {
+					"title": "Свържете се с нас",
+					"submitButtonText": "Изпрати съобщение",
+					"successMessage": "Благодарим! Ще се свържем с вас скоро."
+				},
+				"invoiceRequest": {
+					"title": "Заявка за фактура",
+					"submitButtonText": "Заяви фактура",
+					"successMessage": "Заявката за фактура е изпратена успешно!"
+				},
+				"quoteRequest": {
+					"title": "Заявка за оферта",
+					"submitButtonText": "Заяви оферта",
+					"successMessage": "Заявката за оферта е изпратена успешно!"
+				}
+			},
+			"addPageDialog": {
+				"createTitle": "Добави нова страница",
+				"editTitle": "Редактирай страница",
+				"createDescription": "Предоставете заглавие и по избор описание. Слъгът определя URL адреса (напр. /за-нас).",
+				"editDescription": "Актуализирайте детайлите за тази страница. Промяната на слъга ще актуализира URL адреса на страницата.",
+				"title": "Заглавие",
+				"titlePlaceholder": "За нас",
+				"slug": "Слъг",
+				"slugPlaceholder": "за-нас",
+				"type": "Тип",
+				"types": {
+					"standard": "Стандартна",
+					"blog": "Блог / Статии",
+					"contact": "Контакт"
+				},
+				"description": "Описание (По избор)",
+				"descriptionPlaceholder": "Кратко описание на целта на тази страница...",
+				"context": "Контекст (По избор)",
+				"contextPlaceholder": "Допълнителен контекст за AI генериране...",
+				"cancel": "Отказ",
+				"addPage": "Добави страница",
+				"saveChanges": "Запази промени",
+				"adding": "Добавяне...",
+				"saving": "Запазване..."
+			},
+			"siteStatus": {
+				"pending": {
+					"title": "Генериране на сайт в опашка...",
+					"description": "Изчакване за стартиране на генериране"
+				},
+				"generating": {
+					"title": "Генериране на сайт с AI...",
+					"description": "Това може да отнеме 1-2 минути"
+				},
+				"deploying": {
+					"title": "Разгръщане на сайт...",
+					"description": "Настройване на хостинг и DNS"
+				},
+				"success": {
+					"title": "Сайтът е генериран успешно!"
+				},
+				"failed": {
+					"title": "Генерирането на сайт неуспешно",
+					"unknownError": "Възникна неизвестна грешка"
+				},
+				"retry": "Повтори",
+				"retrying": "Повтаряне..."
+			},
+			"embedScript": {
+				"title": "Скрипт за вграждане",
+				"copyScript": "Копирай скрипт",
+				"copied": "Копирано!",
+				"description": "Копирайте този скрипт и го поставете в HTML на вашия уебсайт, за да вградите джаджите.",
+				"hint": "Скриптът автоматично ще зареди вашата конфигурация на джаджи. Няма нужда да го актуализирате, когато правите промени."
+			},
+			"widgetEnableToggle": {
+				"title": "Активирай джаджи",
+				"description": "Позволи джаджите да бъдат вградени в външни уебсайтове"
+			},
+			"widgetVersionHistory": {
+				"title": "История на версиите",
+				"current": "Текуща: v{{version}}",
+				"version": "Версия {{number}}",
+				"currentBadge": "Текуща",
+				"unknownDate": "Неизвестна дата",
+				"preview": "Преглед",
+				"restore": "Възстанови"
+			},
+			"previewDialog": {
+				"title": "Преглед на версия на джаджа {{version}}",
+				"description": "Това е преглед на това как изглеждаха джаджите във версия {{version}}. Този преглед е само за четене.",
+				"contactFormTitle": "Джаджа за форма за контакт",
+				"invoiceRequestTitle": "Джаджа за заявка за фактура",
+				"quoteRequestTitle": "Джаджа за заявка за оферта",
+				"noConfiguration": "Няма намерена конфигурация на джаджи в тази версия.",
+				"fallbacks": {
+					"contactUs": "Свържете се с нас",
+					"requestInvoice": "Заявка за фактура",
+					"requestQuote": "Заявка за оферта",
+					"submit": "Изпрати",
+					"thankYou": "Благодарим!"
+				}
+			},
+			"config": {
+				"contactForm": {
+					"title": "Джаджа за форма за контакт",
+					"description": "Позволи на посетителите да изпращат информация за контакт",
+					"aiBuilder": "AI Конструктор",
+					"fields": {
+						"title": "Заглавие",
+						"description": "Описание (По избор)",
+						"displayMode": "Режим на показване",
+						"displayModeFloating": "Плаващ бутон",
+						"displayModeInline": "Вградена форма",
+						"displayModeFloatingHint": "Показва плаващ бутон, който отваря модална форма",
+						"displayModeInlineHint": "Рендира формата директно в страницата, където съществува елемент-заместител",
+						"buttonText": "Текст на бутона",
+						"position": "Позиция",
+						"positionBottomRight": "Долу вдясно",
+						"positionBottomLeft": "Долу вляво",
+						"positionTopRight": "Горе вдясно",
+						"positionTopLeft": "Горе вляво",
+						"successMessage": "Съобщение за успех",
+						"inlineFormUsage": "Използване на вградена форма:",
+						"inlineFormUsageDescription": "Добавете елемент-заместител в HTML на вашата страница, където искате формата да се появи:",
+						"fieldConfiguration": "Конфигурация на полета",
+						"builtInFields": "Вградени полета",
+						"fieldLabel": "Етикет",
+						"required": "Задължително",
+						"customFields": "Персонализирани полета",
+						"addCustomField": "Добави персонализирано поле",
+						"fieldName": "Име на поле (ID)",
+						"fieldNamePlaceholder": "име_на_поле",
+						"fieldLabelPlaceholder": "Етикет на поле",
+						"fieldType": "Тип на поле",
+						"fieldTypeText": "Текст",
+						"fieldTypeEmail": "Имейл",
+						"fieldTypePhone": "Телефон",
+						"fieldTypeTextarea": "Текстова област",
+						"fieldTypeNumber": "Число",
+						"fieldTypeSelect": "Избор",
+						"fieldTypeCheckbox": "Квадратче за отметка",
+						"fieldTypeDate": "Дата",
+						"options": "Опции (по една на ред)",
+						"optionsPlaceholder": "Опция 1\nОпция 2\nОпция 3",
+						"placeholder": "Заместител (По избор)",
+						"placeholderPlaceholder": "Въведете текст за заместител",
+						"removeField": "Премахни поле",
+						"noCustomFields": "Няма добавени персонализирани полета. Кликнете \"Добави персонализирано поле\", за да създадете такова.",
+						"localizationHelp": "Добавете персонализирани преводи за текст на джаджа. Използвайте ключове като \"contactUs\", \"sendMessage\" и т.н."
+					}
+				},
+				"invoiceRequest": {
+					"title": "Джаджа за заявка за фактура",
+					"description": "Позволи на клиентите да заявяват фактури",
+					"aiBuilder": "AI Конструктор",
+					"fields": {
+						"title": "Заглавие",
+						"description": "Описание (По избор)",
+						"buttonText": "Текст на бутона",
+						"position": "Позиция",
+						"positionBottomRight": "Долу вдясно",
+						"positionBottomLeft": "Долу вляво",
+						"positionTopRight": "Горе вдясно",
+						"positionTopLeft": "Горе вляво",
+						"successMessage": "Съобщение за успех",
+						"localizationHelp": "Добавете персонализирани преводи за текст на джаджа. Използвайте ключове като \"requestInvoice\", \"submitButton\" и т.н."
+					}
+				},
+				"quoteRequest": {
+					"title": "Джаджа за заявка за оферта",
+					"description": "Позволи на клиентите да заявяват оферти",
+					"aiBuilder": "AI Конструктор",
+					"fields": {
+						"title": "Заглавие",
+						"description": "Описание (По избор)",
+						"buttonText": "Текст на бутона",
+						"position": "Позиция",
+						"positionBottomRight": "Долу вдясно",
+						"positionBottomLeft": "Долу вляво",
+						"positionTopRight": "Горе вдясно",
+						"positionTopLeft": "Горе вляво",
+						"successMessage": "Съобщение за успех",
+						"localizationHelp": "Добавете персонализирани преводи за текст на джаджа. Използвайте ключове като \"requestQuote\", \"submitButton\" и т.н."
+					}
+				}
+			},
+			"localization": {
+				"title": "Локализация и преводи",
+				"defaultLanguage": "Основен език",
+				"english": "Английски (en)",
+				"readOnly": "Само за четене",
+				"empty": "(празно)",
+				"additionalLanguages": "Допълнителни езици",
+				"addLanguage": "Добави език...",
+				"noLanguages": "Все още няма добавени допълнителни езици.",
+				"autoTranslate": "Автоматичен превод",
+				"translationKeys": "Ключове за превод (само за четене)",
+				"translations": "Преводи",
+				"translationPlaceholder": "Превод за \"{{value}}\"",
+				"autoTranslateDialog": {
+					"title": "Автоматичен превод с AI",
+					"description": "Това ще преведе автоматично празните полета с помощта на AI. Преводите може да не винаги са точни.",
+					"important": "Важно:",
+					"warning1": "AI преводите може да не винаги са правилни",
+					"warning2": "Само празните полета за превод ще бъдат попълнени",
+					"warning3": "Съществуващите преводи няма да бъдат презаписани",
+					"warning4": "Моля, прегледайте всички преводи след автоматичния превод",
+					"targetLanguage": "Целеви език",
+					"cancel": "Отказ",
+					"translating": "Превеждане...",
+					"translate": "Автоматичен превод"
+				},
+				"toasts": {
+					"languageAlreadyAdded": "Този език вече е добавен",
+					"allTranslationsFilled": "Всички преводи вече са попълнени",
+					"organizationIdRequired": "Изисква се ID на организацията за превод",
+					"translated": "Преведени {{count}} пол{{plural}} на {{language}}",
+					"translationFailed": "Неуспешен превод. Моля, опитайте отново."
+				}
+			},
+			"styling": {
+				"title": "Стилизиране и външен вид",
+				"primaryColor": "Основен цвят",
+				"secondaryColor": "Вторичен цвят",
+				"backgroundColor": "Цвят на фона",
+				"textColor": "Цвят на текста",
+				"borderColor": "Цвят на границата",
+				"errorColor": "Цвят за грешка",
+				"successColor": "Цвят за успех",
+				"fontFamily": "Семейство шрифтове",
+				"fontFamilyPlaceholder": "Arial, sans-serif",
+				"fontSize": "Размер на шрифта",
+				"fontSizePlaceholder": "14px",
+				"fontWeight": "Дебелина на шрифта",
+				"fontWeightLight": "Лек (300)",
+				"fontWeightNormal": "Нормален (400)",
+				"fontWeightMedium": "Среден (500)",
+				"fontWeightSemiBold": "Полудебел (600)",
+				"fontWeightBold": "Дебел (700)",
+				"padding": "Отстояние",
+				"paddingPlaceholder": "12px",
+				"gap": "Разстояние",
+				"gapPlaceholder": "16px",
+				"borderRadius": "Закръгляне на границите",
+				"borderRadiusPlaceholder": "8px",
+				"buttonPadding": "Отстояние на бутона",
+				"buttonPaddingPlaceholder": "12px 24px",
+				"buttonBorderRadius": "Закръгляне на бутона",
+				"buttonBorderRadiusPlaceholder": "8px",
+				"modalMaxWidth": "Максимална ширина на модал",
+				"modalMaxWidthPlaceholder": "500px",
+				"shadow": "Сянка",
+				"shadowPlaceholder": "0 4px 12px rgba(0, 0, 0, 0.15)"
+			}
+		},
+		"aiChatBuilder": {
+			"title": "AI Чат конструктор",
+			"selectPage": "Избери страница",
+			"entireSite": "🌐 Целият сайт",
+			"home": "(Начало)",
+			"newChat": "Нов чат",
+			"editingEntireSite": "Редактиране: <span class=\"font-medium\">Целият сайт</span> (всички страници ще бъдат актуализирани)",
+			"editingPage": "Редактиране: <span class=\"font-medium\">{{title}}</span>{{slug}}",
+			"untitled": "Без заглавие",
+			"welcomeWithContext": "Здравейте! Аз съм вашият AI конструктор на сайтове. Ще ви помогна да създадете красив, брандиран уебсайт. За какво искате да бъде вашият уебсайт?",
+			"welcomeWithoutContext": "Здравейте! Аз съм вашият AI конструктор на сайтове. Мога да ви помогна да създадете или актуализирате вашия уебсайт. Какво бихте искали да направите?",
+			"initialWebsiteCreation": "Първоначално създаване на уебсайт",
+			"generatingSite": "Генериране на сайт с AI...\n\nТова може да отнеме 1-2 минути",
+			"aiThinking": "AI мисли...",
+			"attachment": "Прикачен файл {{index}}",
+			"inputPlaceholder": "Напишете вашето съобщение или заявка...",
+			"inputHint": "Натиснете Enter, за да изпратите, Shift+Enter за нов ред",
+			"preview": "Преглед",
+			"toasts": {
+				"pleaseUploadImage": "Моля, качете файл с изображение",
+				"imageTooLarge": "Изображението трябва да е по-малко от 10MB",
+				"imageUploaded": "Изображението е качено",
+				"generateSiteFirst": "Моля, първо генерирайте сайт",
+				"error": "Съжалявам, възникна грешка: {{message}}",
+				"unknownError": "Неизвестна грешка"
+			}
+		},
+		"fileEditor": {
+			"files": "Файлове",
+			"emptyState": {
+				"noFiles": "Все още няма файлове. Създайте нов файл, за да започнете.",
+				"selectFile": "Изберете файл от страничната лента, за да започнете редактиране"
+			},
+			"save": "Запази",
+			"saving": "Запазване...",
+			"deploy": "Разгърни",
+			"deploying": "Разгръщане...",
+			"newFileDialog": {
+				"title": "Създай нов файл",
+				"description": "Въведете пътя на файла (напр., index.html, styles.css, script.js)",
+				"placeholder": "index.html",
+				"cancel": "Отказ",
+				"create": "Създай"
+			},
+			"deleteConfirm": "Сигурни ли сте, че искате да изтриете {{path}}?",
+			"toasts": {
+				"fileSaved": "Файлът е запазен успешно",
+				"fileSaveFailed": "Неуспешно запазване на файл",
+				"siteDeployed": "Сайтът е разгърнат успешно",
+				"siteDeployFailed": "Неуспешно разгръщане на сайт",
+				"fileCreated": "Нов файл е създаден",
+				"fileDeleted": "Файлът е изтрит"
+			}
+		},
+		"siteVersionHistory": {
+			"title": "История на версиите",
+			"current": "Текуща: v{{version}}",
+			"noVersions": "Няма налични предишни версии",
+			"version": "Версия {{number}}",
+			"currentBadge": "Текуща",
+			"unknownDate": "Неизвестна дата",
+			"preview": "Преглед",
+			"previewTitle": "Преглед на тази версия",
+			"creatingPreview": "Създаване...",
+			"creatingPreviewTitle": "Създаване на преглед...",
+			"createPreviewTitle": "Създай преглед за тази версия",
+			"live": "На живо",
+			"liveTitle": "Виж сайта на живо",
+			"restore": "Възстанови",
+			"restoreConfirm": "Сигурни ли сте, че искате да възстановите тази версия? Това ще замени текущия ви жив сайт.",
+			"popupBlocked": "Изскачащ прозорец е блокиран. Моля, разрешете изскачащи прозорци за този сайт и опитайте отново."
+		}
+	},
+	"analytics": {
+		"title": "Аналитика",
+		"subtitle": "Проследявайте и анализирайте производителността на вашия уебсайт",
+		"viewSite": "Виж сайта",
+		"tabs": {
+			"overview": "Преглед",
+			"settings": "Настройки"
+		},
+		"dateRange": {
+			"title": "Период",
+			"description": "Изберете времевия период за аналитичните данни",
+			"startDate": "Начална дата",
+			"endDate": "Крайна дата",
+			"days7": "7д",
+			"days30": "30д",
+			"days90": "90д"
+		},
+		"status": {
+			"title": "Статус на аналитиката",
+			"description": "Текуща конфигурация и статус на аналитиката",
+			"status": "Статус:",
+			"active": "Активна",
+			"notConfigured": "Не е конфигурирана",
+			"activeProviders": "Активни доставчици:",
+			"none": "Няма",
+			"notFullyConfigured": "Аналитиката не е напълно конфигурирана. Отидете в Настройки, за да активирате и конфигурирате вашия доставчик на аналитика.",
+			"trackingActiveOn": "Проследяването е активно на:"
+		},
+		"metrics": {
+			"title": "Метрики",
+			"description": "Метрики и прозрения за производителността на уебсайта",
+			"dataFrom": "Данни от:",
+			"realTime": "В реално време",
+			"pageViews": "Прегледи на страници",
+			"uniqueVisitors": "Уникални посетители",
+			"basedOnClientIds": "Въз основа на клиентски ID",
+			"bounceRate": "Процент на откази",
+			"avgSession": "Средна сесия: {{seconds}}с",
+			"sessionDataUnavailable": "Данни за сесията не са налични",
+			"topPages": "Топ страници",
+			"view": "преглед",
+			"views": "прегледа",
+			"noPageViews": "Все още няма записани прегледи на страници. Страниците ще се появят тук, след като посетителите започнат да разглеждат вашия сайт.",
+			"trafficSources": "Източници на трафик",
+			"visitor": "посетител",
+			"visitors": "посетители",
+			"direct": "Директно",
+			"noTrafficSources": "Все още няма записани източници на трафик. Източниците ще се появят тук, когато пристигнат посетители.",
+			"devices": "Устройства",
+			"noDeviceData": "Няма данни за устройства",
+			"browsers": "Браузъри",
+			"noBrowserData": "Няма данни за браузъри",
+			"topReferrers": "Топ препращащи",
+			"noReferrers": "Все още няма записани препращащи. Препращащите ще се появят тук, когато посетителите пристигнат от други уебсайтове.",
+			"pageViewsOverTime": "Прегледи на страници във времето",
+			"showingDailyViews": "Показване на дневни прегледи на страници (преместете мишката върху лентите за детайли)",
+			"noPageViewData": "Няма данни за прегледи на страници за избрания период.",
+			"dataWillAppear": "Данните ще се появят тук, след като посетителите започнат да разглеждат вашия сайт.",
+			"noAnalyticsData": "Все още няма аналитични данни",
+			"analyticsReady": "Вашата аналитика е конфигурирана и готова. След като посетителите започнат да разглеждат вашия сайт, метриките ще се появят тук автоматично.",
+			"visitYourSite": "Посетете вашия сайт",
+			"unableToLoad": "Не може да се заредят аналитичните данни. Моля, уверете се, че аналитиката е правилно конфигурирана.",
+			"indexWarning": "Предупреждение за индекс",
+			"createIndex": "Създай индекс →"
+		},
+		"settings": {
+			"title": "Конфигурация на аналитиката",
+			"description": "Конфигурирайте вашия доставчик на аналитика и настройките за проследяване",
+			"enableAnalytics": "Активирай аналитика",
+			"enableAnalyticsDescription": "Активирайте проследяване на аналитика на вашия уебсайт",
+			"analyticsProviders": "Доставчици на аналитика",
+			"analyticsProvidersDescription": "Активирайте един или повече доставчици на аналитика, за да проследявате вашия уебсайт. Можете да използвате няколко доставчика едновременно.",
+			"ga4": {
+				"label": "Google Analytics 4 (gtag.js)",
+				"description": "Директно проследяване на Google Analytics 4",
+				"measurementId": "ID за измерване на GA4",
+				"measurementIdPlaceholder": "G-XXXXXXXXXX"
+			},
+			"plausible": {
+				"label": "Plausible Analytics",
+				"description": "Аналитика, приятелска към поверителността, с отворен код",
+				"domain": "Домейн на Plausible",
+				"domainPlaceholder": "yourdomain.com"
+			},
+			"umami": {
+				"label": "Umami Analytics",
+				"description": "Аналитично решение, фокусирано върху поверителността, с отворен код",
+				"scriptUrl": "URL на скрипта на Umami",
+				"scriptUrlPlaceholder": "https://cloud.umami.is/script.js",
+				"scriptUrlDescription": "URL адресът към вашия скрипт на Umami (напр., https://cloud.umami.is/script.js)",
+				"websiteId": "ID на уебсайта на Umami",
+				"websiteIdPlaceholder": "e74df8d0-2837-4ec1-bac8-ce82e8a170b2",
+				"websiteIdDescription": "Вашето ID на уебсайта на Umami от кода за проследяване"
+			},
+			"clarity": {
+				"label": "Microsoft Clarity",
+				"description": "Възпроизвеждане на сесии, топлинни карти и прозрения за поведението на потребителите",
+				"projectId": "ID на проект на Clarity",
+				"projectIdPlaceholder": "ID на проект на Clarity"
+			},
+			"consent": {
+				"default": "Съгласие по подразбиране",
+				"defaultDescription": "Състояние на съгласие по подразбиране за проследяване на аналитика",
+				"denied": "Отказано (Съвместимо с GDPR)",
+				"granted": "Одобрено"
+			},
+			"saveConfiguration": "Запази конфигурацията",
+			"saving": "Запазване..."
+		},
+		"consentBanner": {
+			"title": "Стилизиране на банер за съгласие",
+			"description": "Персонализирайте външния вид на вашия банер за съгласие с GDPR",
+			"generateWithAI": "Генерирай с AI",
+			"colors": "Цветове",
+			"backgroundColor": "Цвят на фона",
+			"textColor": "Цвят на текста",
+			"buttonBackground": "Фон на бутона",
+			"buttonTextColor": "Цвят на текста на бутона",
+			"linkColor": "Цвят на връзката",
+			"borderColor": "Цвят на границата",
+			"typography": "Типография",
+			"fontFamily": "Семейство шрифтове",
+			"fontFamilyPlaceholder": "system-ui, -apple-system, sans-serif",
+			"fontSize": "Размер на шрифта",
+			"fontSizePlaceholder": "14px",
+			"fontWeight": "Дебелина на шрифта",
+			"fontWeightLight": "Лек (300)",
+			"fontWeightNormal": "Нормален (400)",
+			"fontWeightMedium": "Среден (500)",
+			"fontWeightSemiBold": "Полудебел (600)",
+			"fontWeightBold": "Дебел (700)",
+			"layout": "Оформление и разстояния",
+			"position": "Позиция",
+			"positionBottom": "Долу",
+			"positionTop": "Горе",
+			"positionCenter": "Център",
+			"maxWidth": "Максимална ширина",
+			"maxWidthPlaceholder": "600px",
+			"padding": "Отстояние",
+			"paddingPlaceholder": "16px",
+			"borderRadius": "Закръгляне на границите",
+			"borderRadiusPlaceholder": "8px",
+			"shadow": "Сянка",
+			"shadowPlaceholder": "0 4px 12px rgba(0, 0, 0, 0.15)",
+			"content": "Съдържание",
+			"message": "Съобщение",
+			"messagePlaceholder": "Използваме бисквитки, за да подобрим вашето изживяване при разглеждане и да анализираме трафика на сайта.",
+			"acceptButtonText": "Текст на бутон за приемане",
+			"acceptButtonTextPlaceholder": "Приемам",
+			"rejectButtonText": "Текст на бутон за отказ",
+			"rejectButtonTextPlaceholder": "Отказвам",
+			"showRejectButton": "Покажи бутон за отказ",
+			"showRejectButtonDescription": "Позволи на потребителите изрично да откажат проследяването на аналитика",
+			"aiDialog": {
+				"title": "Генерирай банер за съгласие с AI",
+				"description": "Генерирайте красив, съвместим с GDPR банер за съгласие, който съответства на брандинга на вашата организация.",
+				"style": "Стил",
+				"styleModern": "Модерен",
+				"styleClassic": "Класически",
+				"styleMinimal": "Минималистичен",
+				"styleProfessional": "Професионален",
+				"styleBold": "Смел",
+				"styleElegant": "Елегантен",
+				"additionalContext": "Допълнителен контекст (По избор)",
+				"additionalContextPlaceholder": "Напр., 'Използвай тъмна тема' или 'Съответствай на цветовете на нашия бранд'",
+				"cancel": "Отказ",
+				"generating": "Генериране...",
+				"generateBanner": "Генерирай банер"
+			},
+			"toasts": {
+				"organizationNotFound": "Организацията не е намерена",
+				"generatedSuccessfully": "Банерът за съгласие е генериран успешно!",
+				"generationFailed": "Неуспешно генериране на банер за съгласие: {{message}}"
+			}
+		},
+		"toasts": {
+			"configurationSaved": "Конфигурацията на аналитиката е запазена",
+			"saveFailed": "Неуспешно запазване на конфигурацията на аналитиката: {{message}}"
+		}
+	},
+	"settings": {
+		"title": "Настройки",
+		"subtitle": "Управлявайте вашата организация",
+		"sections": {
+			"organization": "Организация",
+			"users": "Потребители",
+			"security": "Сигурност"
+		},
+		"organization": {
+			"general": {
+				"title": "Общи",
+				"description": "Основна информация за организацията",
+				"pageTitle": "Настройки на организацията",
+				"pageDescription": "Управлявайте основната информация и контактните данни на вашата организация.",
+				"basicInformation": {
+					"title": "Основна информация",
+					"description": "Основните детайли и описание на вашата организация.",
+					"name": "Име на организацията *",
+					"namePlaceholder": "Въведете име на организацията",
+					"website": "Уебсайт",
+					"websitePlaceholder": "https://example.com",
+					"description": "Описание",
+					"descriptionPlaceholder": "Кратко описание на вашата организация"
+				},
+				"contactInformation": {
+					"title": "Контактна информация",
+					"description": "Контактни данни за вашата организация.",
+					"email": "Имейл",
+					"emailPlaceholder": "contact@example.com",
+					"phone": "Телефон",
+					"phonePlaceholder": "+1 (555) 123-4567"
+				},
+				"address": {
+					"title": "Адрес",
+					"description": "Физически адрес на вашата организация.",
+					"streetAddress": "Адрес на улицата",
+					"streetAddressPlaceholder": "123 Main Street",
+					"city": "Град",
+					"cityPlaceholder": "New York",
+					"state": "Област/Провинция",
+					"statePlaceholder": "NY",
+					"zipCode": "Пощенски код",
+					"zipCodePlaceholder": "10001",
+					"country": "Държава",
+					"countryPlaceholder": "United States"
+				},
+				"unsavedChanges": "Имате незаписани промени",
+				"cancel": "Отказ",
+				"saving": "Запазване...",
+				"saveChanges": "Запази промените",
+				"toasts": {
+					"updated": "Настройките на организацията са актуализирани успешно",
+					"updateFailed": "Неуспешно актуализиране на настройките на организацията"
+				}
+			},
+			"branding": {
+				"title": "Брандинг",
+				"description": "Лого, цветове и персонализация",
+				"pageTitle": "Брандинг и персонализация",
+				"pageDescription": "Персонализирайте външния вид и брандинга на вашата организация.",
+				"showPreview": "Покажи преглед",
+				"hidePreview": "Скрий преглед",
+				"logoVisualIdentity": {
+					"title": "Лого и визуална идентичност",
+					"description": "Качете лого и фавикон на вашата организация.",
+					"logo": "Лого",
+					"clickToUpload": "Кликнете, за да качите лого",
+					"uploadHint": "PNG, JPG, GIF до 5MB",
+					"orEnterUrl": "Или въведете URL на лого",
+					"uploading": "Качване... {{progress}}%",
+					"favicon": "Фавикон",
+					"clickToUploadFavicon": "Кликнете, за да качите фавикон",
+					"uploadHintFavicon": "PNG, ICO до 5MB",
+					"orEnterFaviconUrl": "Или въведете URL на фавикон",
+					"companyName": "Презаписване на име на компанията",
+					"companyNamePlaceholder": "Име на вашата компания",
+					"companyNameHint": "Презапишете брандинга по подразбиране \"Financely\" с името на вашата компания."
+				},
+				"gallery": {
+					"title": "Галерия",
+					"description": "Качете брандови изображения за вашата организация.",
+					"addImage": "Добави изображение"
+				},
+				"brandDescription": {
+					"title": "Описание на бранда",
+					"description": "Опишете вашия бранд и организация.",
+					"placeholder": "Въведете описание на вашия бранд..."
+				},
+				"brandColors": {
+					"title": "Цветове на бранда",
+					"description": "Персонализирайте цветовата схема на вашата организация.",
+					"primaryColor": "Основен цвят",
+					"secondaryColor": "Вторичен цвят",
+					"accentColor": "Акцентен цвят"
+				},
+				"emailCommunication": {
+					"title": "Имейл и комуникация",
+					"description": "Персонализирайте информацията за изпращач на имейли.",
+					"emailFromName": "Име на изпращач",
+					"emailFromNamePlaceholder": "Вашата компания",
+					"emailFromAddress": "Адрес на изпращач",
+					"emailFromAddressPlaceholder": "noreply@yourcompany.com",
+					"footerText": "Текст в долния колонтитул",
+					"footerTextPlaceholder": "© 2024 Вашата компания. Всички права запазени."
+				},
+				"preview": {
+					"title": "Преглед на живо",
+					"description": "Вижте как вашият брандинг ще се появи пред потребителите.",
+					"buttonStyles": "Стилове на бутони",
+					"primaryButton": "Основен бутон",
+					"accentButton": "Акцентен бутон",
+					"colorPalette": "Цветова палитра",
+					"primary": "Основен",
+					"secondary": "Вторичен",
+					"accent": "Акцент"
+				},
+				"allChangesSaved": "Всички промени вече са запазени",
+				"toasts": {
+					"logoUploaded": "Логото е качено успешно",
+					"logoUploadFailed": "Неуспешно качване на лого",
+					"faviconUploaded": "Фавиконът е качен успешно",
+					"faviconUploadFailed": "Неуспешно качване на фавикон",
+					"imageUploaded": "Изображението е качено успешно",
+					"imageUploadFailed": "Неуспешно качване на изображение",
+					"updated": "Настройките за брандинг са актуализирани успешно",
+					"updateFailed": "Неуспешно актуализиране на настройките за брандинг"
+				}
+			},
+			"aiSettings": {
+				"title": "AI Настройки",
+				"description": "AI функции и автоматизация",
+				"pageTitle": "AI Настройки",
+				"pageDescription": "Конфигурирайте функции, задвижвани от AI, и автоматизация за вашата организация.",
+				"proposalSuggestions": {
+					"title": "Предложения за оферти",
+					"description": "Автоматично генерирайте предложения за оферти, когато се създават нови потенциални клиенти.",
+					"autoSuggestions": "Автоматични предложения за оферти",
+					"autoSuggestionsDescription": "Когато е активирано, AI ще генерира автоматично предложения за оферти за нови потенциални клиенти. Можете също ръчно да заявявате предложения от страницата с потенциални клиенти."
+				},
+				"toasts": {
+					"updated": "AI настройките са актуализирани успешно",
+					"updateFailed": "Неуспешно актуализиране на AI настройките"
+				}
+			},
+			"billing": {
+				"title": "Таксуване и абонамент",
+				"description": "Управлявайте вашия абонамент, информация за таксуване и използване.",
+				"currentPlan": {
+					"title": "Текущ план",
+					"description": "Детайлите на вашия текущ абонамент",
+					"freeForever": "Безплатно завинаги",
+					"perMonth": "${{price}}/месец",
+					"trialPeriod": "Пробен период",
+					"trialEnds": "Приключва {{date}}",
+					"nextBillingDate": "Следваща дата за таксуване",
+					"planFeatures": "Функции на плана:"
+				},
+				"usage": {
+					"title": "Използване този месец",
+					"description": "Проследявайте текущото си използване спрямо лимитите на плана",
+					"invoicesCreated": "Създадени фактури",
+					"limit": "лимит {{limit}}",
+					"unlimited": "Неограничено",
+					"templates": "Шаблони",
+					"teamMembers": "Членове на екипа"
+				},
+				"availablePlans": {
+					"title": "Налични планове",
+					"description": "Изберете плана, който отговаря на вашите нужди",
+					"current": "Текущ",
+					"currentPlan": "Текущ план",
+					"upgrade": "Надграждане",
+					"perMonthLabel": "/месец"
+				},
+				"billingInformation": {
+					"title": "Информация за таксуване",
+					"paymentMethod": "Метод на плащане",
+					"billingEmail": "Имейл за таксуване",
+					"nextInvoice": "Следваща фактура",
+					"updatePaymentMethod": "Актуализирай метод на плащане"
+				},
+				"upgradePlan": "Надгради план",
+				"processing": "Обработване...",
+				"manageBilling": "Управлявай таксуване",
+				"noOrganization": {
+					"title": "Организацията не е намерена",
+					"description": "Моля, свържете се с поддръжката, ако този проблем продължава."
+				},
+				"planFeatures": {
+					"free": [
+						"До 5 фактури на месец",
+						"Основни шаблони",
+						"Имейл поддръжка",
+						"Стандартен брандинг"
+					],
+					"starter": [
+						"До 50 фактури на месец",
+						"Всички шаблони",
+						"Приоритетна поддръжка",
+						"Персонализиран брандинг",
+						"Сътрудничество в екип (до 3 потребителя)"
+					],
+					"professional": [
+						"Неограничени фактури",
+						"Всички шаблони + персонализирани шаблони",
+						"Приоритетна поддръжка",
+						"Пълен брандинг с бял етикет",
+						"Сътрудничество в екип (до 10 потребителя)",
+						"Разширена аналитика",
+						"API достъп"
+					],
+					"enterprise": [
+						"Всичко от Professional",
+						"Неограничени членове на екипа",
+						"Посветена поддръжка",
+						"Персонализиран домейн",
+						"SSO/SAML интеграция",
+						"Разширени функции за сигурност",
+						"Персонализирани интеграции"
+					]
+				}
+			}
+		},
+		"users": {
+			"allUsers": {
+				"title": "Всички потребители",
+				"description": "Управлявайте членовете на екипа",
+				"pageTitle": "Членове на екипа",
+				"pageDescription": "Управлявайте членовете на екипа на вашата организация и техните разрешения.",
+				"inviteMember": "Покани член",
+				"searchPlaceholder": "Търсене на членове...",
+				"allMembers": "Всички членове ({{count}})",
+				"allMembersDescription": "Управлявайте ролите и разрешенията на членовете на екипа",
+				"active": "Активен",
+				"joined": "Присъединил се {{date}}",
+				"removeMember": "Премахни член",
+				"noMembersFound": "Няма намерени членове",
+				"noTeamMembers": "Все още няма членове на екипа",
+				"tryAdjustingSearch": "Опитайте да коригирате условията за търсене",
+				"inviteFirstMember": "Поканете първия член на екипа, за да започнете",
+				"stats": {
+					"active": "Активни",
+					"admins": "Администратори",
+					"pending": "В очакване",
+					"suspended": "Спряни"
+				}
+			},
+			"invites": {
+				"title": "Покани",
+				"description": "Управлявайте поканите на екипа",
+				"pageTitle": "Покани на екипа",
+				"pageDescription": "Създавайте и управлявайте кодове за покана за членовете на вашия екип",
+				"refresh": "Обнови",
+				"createNewInvite": {
+					"title": "Създай нова покана",
+					"description": "Генерирайте уникален код за покана, който може да се използва веднъж, за да се присъедини към вашата организация",
+					"expiration": "Изтичане (дни)",
+					"expirationPlaceholder": "7",
+					"creating": "Създаване...",
+					"createInvite": "Създай покана"
+				},
+				"activeInvites": {
+					"title": "Активни покани",
+					"description": "Управлявайте кодовете за покана на вашата организация"
+				},
+				"loading": "Зареждане на покани...",
+				"noInvites": {
+					"title": "Все още няма покани",
+					"description": "Създайте първата си покана, за да започнете"
+				},
+				"expires": "Изтича: {{date}}",
+				"used": "Използвано: {{date}}",
+				"copy": "Копирай",
+				"revoking": "Отменяне...",
+				"revoke": "Отмени",
+				"status": {
+					"active": "Активна",
+					"sent": "Изпратена",
+					"used": "Използвана",
+					"expired": "Изтекла",
+					"revoked": "Отменена",
+					"unknown": "Неизвестна"
+				}
+			}
+		},
+		"security": {
+			"auditLog": {
+				"title": "Одит дневник",
+				"description": "Дневници за дейности и сигурност",
+				"pageTitle": "Одит дневник",
+				"pageDescription": "Проследявайте и наблюдавайте всички дейности и промени във вашата организация",
+				"activityLog": {
+					"title": "Дневник на дейностите",
+					"description": "Намерени общо {{total}} записа"
+				},
+				"refresh": "Обнови",
+				"export": "Експортирай",
+				"loading": "Зареждане...",
+				"error": "Неуспешно зареждане на одит дневниците. Моля, опитайте отново.",
+				"noLogs": {
+					"title": "Няма намерени одит дневници",
+					"adjustFilters": "Опитайте да коригирате филтрите си, за да видите повече резултати.",
+					"createContent": "Създайте продукт или фактура, за да генерирате одит дневници."
+				},
+				"table": {
+					"timestamp": "Времеви маркер",
+					"user": "Потребител",
+					"action": "Действие",
+					"resource": "Ресурс",
+					"severity": "Сериозност",
+					"status": "Статус",
+					"actions": "Действия"
+				},
+				"detailDialog": {
+					"title": "Детайли на одит дневника",
+					"description": "Пълна информация за този запис в одит дневника",
+					"basicInformation": {
+						"title": "Основна информация",
+						"action": "Действие",
+						"timestamp": "Времеви маркер",
+						"severity": "Сериозност",
+						"status": "Статус"
+					},
+					"userInformation": {
+						"title": "Информация за потребителя",
+						"name": "Име",
+						"email": "Имейл",
+						"role": "Роля",
+						"ipAddress": "IP адрес"
+					},
+					"resourceInformation": {
+						"title": "Информация за ресурса",
+						"type": "Тип",
+						"id": "ID",
+						"name": "Име"
+					},
+					"changes": {
+						"title": "Промени",
+						"oldValue": "Стара стойност",
+						"newValue": "Нова стойност"
+					},
+					"outcome": {
+						"title": "Резултат",
+						"message": "Съобщение",
+						"error": "Грешка",
+						"duration": "Продължителност"
+					},
+					"metadata": {
+						"title": "Метаданни"
+					}
+				},
+				"severity": {
+					"critical": "критично",
+					"error": "грешка",
+					"warning": "предупреждение",
+					"info": "информация"
+				},
+				"status": {
+					"success": "успех",
+					"failure": "неуспех"
+				}
+			}
+		}
+	},
+	"landing": {
+		"navbar": {
+			"features": "Функции",
+			"howItWorks": "Как работи",
+			"pricing": "Ценообразуване",
+			"faq": "ЧЗВ",
+			"signIn": "Вход",
+			"getStarted": "Започнете",
+			"dashboard": "Табло"
+		},
+		"hero": {
+			"badge": "Ново · Одобрения → Фактура с едно кликване",
+			"title": "Автоматизирайте фактури, одобрения и подновявания",
+			"description": "Financely е център за финансови операции: създавайте законно съвместими фактури, насочвайте предложения за одобрение и никога не пропускайте подновяване на договор.",
+			"startFreeTrial": "Започнете безплатен пробен период",
+			"bookDemo": "Резервирайте демо",
+			"noCreditCard": "Без кредитна карта · Отменете по всяко време"
+		},
+		"howItWorks": {
+			"title": "Как работи Financely",
+			"steps": {
+				"create": {
+					"title": "Създаване",
+					"copy": "Генерирайте фактури с автоматично номериране, данъчни правила и профила на вашата организация за секунди."
+				},
+				"approve": {
+					"title": "Одобряване",
+					"copy": "Изпращайте предложения до правилните одобрители и проследявайте решения за съответствие."
+				},
+				"renew": {
+					"title": "Подновяване",
+					"copy": "Бъдете напред с подновяванията на договорите с напомняния и подновявания с едно кликване."
+				}
+			}
+		},
+		"features": {
+			"title": "Изградено за скорост, точност и съответствие",
+			"description": "Мнения по подразбиране за финансовите екипи, с гъвкавостта, от която се нуждаят самостоятелните основатели. Безпроблемна интеграция с Firebase + Stripe.",
+			"smartInvoiceEditor": "Умен редактор на фактури – данъците, валутата и общите суми се изчисляват в реално време.",
+			"approvalTrails": "Пътеки за одобрение – решения с времеви маркери за записи, готови за одит.",
+			"renewalRadar": "Радар за подновяване – напомняния, за да никога не пропуснете дата на договор.",
+			"dataSecure": "Защита на данните – изградено върху Google Cloud/Firebase с достъп на базата на роли.",
+			"fastByDefault": "Бързо по подразбиране – лек потребителски интерфейс, клавишни комбинации, автоматично запазване.",
+			"tryItNow": "Опитайте го сега",
+			"seeSampleInvoice": "Вижте примерна фактура",
+			"livePreview": "[Преглед на живо / макет на табло]"
+		},
+		"metrics": {
+			"invoicesCreated": "Създадени фактури",
+			"teamsOnboarded": "Включени екипи",
+			"fasterApprovals": "По-бързи одобрения"
+		},
+		"pricing": {
+			"title": "Ценообразуване за всеки етап",
+			"starter": {
+				"title": "Стартер",
+				"price": "$19",
+				"perMonth": "/мес",
+				"invoicesPerMonth": "5 фактури / месец",
+				"basicSupport": "Основна поддръжка",
+				"chooseStarter": "Изберете Стартер"
+			},
+			"pro": {
+				"title": "Професионален",
+				"mostPopular": "Най-популярен",
+				"price": "$49",
+				"perMonth": "/мес",
+				"unlimitedInvoices": "Неограничени фактури",
+				"approvalWorkflows": "Работни процеси за одобрение",
+				"prioritySupport": "Приоритетна поддръжка",
+				"choosePro": "Изберете Професионален"
+			},
+			"enterprise": {
+				"title": "Корпоративен",
+				"price": "Персонализирано",
+				"advancedIntegrations": "Разширени интеграции",
+				"dedicatedManager": "Посветен мениджър",
+				"talkToSales": "Свържете се с продажбите"
+			}
+		},
+		"faq": {
+			"title": "Често задавани въпроси",
+			"questions": {
+				"legallyCompliant": {
+					"question": "Фактурите ли са законно съвместими?",
+					"answer": "Да. Financely улавя правните основни елементи (информация за продавач и купувач, данъчни/ДДС идентификатори, детайлизация, общи суми, дати на издаване и падеж, номер на фактура, валута, условия). Можете да експортирате/споделяте PDF файлове, които отговарят на общите изисквания на ЕС/САЩ."
+				},
+				"invoiceNumbers": {
+					"question": "Номерата на фактурите трябва ли да бъдат издадени от правителството?",
+					"answer": "Не. Номерата трябва да бъдат уникални, последователни във вашата система и проследими. Financely ги генерира автоматично с префикси на организация и поддържа ръчни замени с валидация."
+				},
+				"payments": {
+					"question": "Какви плащания поддържате?",
+					"answer": "Връзки на Stripe извън кутията. Можете също да прикачите банкови детайли и да маркирате фактури като платени, когато привеждате офлайн плащания."
+				},
+				"dataSecurity": {
+					"question": "Как се защитават моите данни?",
+					"answer": "Изграждаме върху Google Cloud/Firebase с достъп на базата на роли, одит дневници и изолация на ниво организация. Само оторизирани потребители могат да преглеждат или редактират фактури и одобрения."
+				}
+			}
+		},
+		"cta": {
+			"title": "Готови ли сте да оптимизирате финансовите операции?",
+			"description": "Създайте първата си фактура за по-малко от 2 минути.",
+			"startFree": "Започнете безплатно",
+			"bookDemo": "Резервирайте демо"
+		},
+		"footer": {
+			"description": "Умно фактуриране и автоматизация на договори за съвременни бизнеси.",
+			"product": "Продукт",
+			"features": "Функции",
+			"pricing": "Ценообразуване",
+			"company": "Компания",
+			"about": "За нас",
+			"careers": "Кариери",
+			"legal": "Правно",
+			"privacy": "Поверителност",
+			"terms": "Условия",
+			"copyright": "© {{year}} Financely. Всички права запазени."
+		}
+	}
 }
-

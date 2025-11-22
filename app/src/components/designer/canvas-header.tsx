@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
 	Select,
@@ -33,6 +34,7 @@ export function CanvasHeader({
 	onZoomChange,
 	isMobile = false,
 }: CanvasHeaderProps) {
+	const { t } = useTranslation();
 	return (
 		<div className="px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
 			{/* Template selector - hidden on mobile (shown in layout header) */}
@@ -42,7 +44,7 @@ export function CanvasHeader({
 					onValueChange={onTemplateChange}
 				>
 					<SelectTrigger className="w-60">
-						<SelectValue placeholder="Select a template" />
+						<SelectValue placeholder={t('designer.canvasHeader.selectTemplate')} />
 					</SelectTrigger>
 					<SelectContent>
 						{templates.map((t: Template) => (
@@ -51,7 +53,7 @@ export function CanvasHeader({
 							</SelectItem>
 						))}
 						<SelectItem value="new">
-							<Plus className="h-4 w-4 mr-1" /> New template
+							<Plus className="h-4 w-4 mr-1" /> {t('designer.canvasHeader.newTemplate')}
 						</SelectItem>
 					</SelectContent>
 				</Select>
@@ -59,7 +61,7 @@ export function CanvasHeader({
 			{!isMobile && isSubscribed && (
 				<div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-2 py-1 rounded shrink-0">
 					<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-					<span>Live</span>
+					<span>{t('designer.canvasHeader.live')}</span>
 				</div>
 			)}
 			{!isMobile && <EnhancedPresenceIndicator users={activeUsers} />}
@@ -70,7 +72,7 @@ export function CanvasHeader({
 						onValueChange={(v: string) => onZoomChange(Number(v))}
 					>
 						<SelectTrigger className="w-24">
-							<SelectValue placeholder="Zoom" />
+							<SelectValue placeholder={t('designer.canvasHeader.zoom')} />
 						</SelectTrigger>
 						<SelectContent>
 							{[0.75, 1, 1.25, 1.5, 2].map((z) => (

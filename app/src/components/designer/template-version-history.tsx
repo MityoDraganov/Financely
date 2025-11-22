@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { History, Eye, RotateCcw, Loader2, User } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,8 @@ export function TemplateVersionHistory({
   isRestoring,
   currentUserId,
 }: TemplateVersionHistoryProps) {
+  const { t } = useTranslation();
+  const { formatDateTime } = useDateFormatting();
   const { user: clerkUser } = useUser();
   const [previewingVersion, setPreviewingVersion] = useState<TemplateVersion | null>(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
@@ -41,7 +45,7 @@ export function TemplateVersionHistory({
     if (!userId) return undefined;
     // If it's the current user, use Clerk info
     if (clerkUser && userId === clerkUser.id) {
-      return clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress?.split("@")[0] || "You";
+      return clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress?.split("@")[0] || t('designer.versionHistory.you');
     }
     // For other users, we'd need to fetch from Firestore
     // For now, return undefined to show just the user icon
@@ -77,11 +81,11 @@ export function TemplateVersionHistory({
         <div className="flex items-center justify-between">
           <Label className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Version History
+            {t('designer.versionHistory.title')}
           </Label>
         </div>
         <p className="text-sm text-gray-500 text-center py-4">
-          No versions saved yet. Versions are automatically created when you make changes.
+          {t('designer.versionHistory.noVersions')}
         </p>
       </div>
     );
@@ -93,16 +97,16 @@ export function TemplateVersionHistory({
         <div className="flex items-center justify-between">
           <Label className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Version History
+            {t('designer.versionHistory.title')}
           </Label>
           {currentVersion && (
             <span className="text-xs text-gray-500">
-              Current: v{currentVersion}
+              {t('designer.versionHistory.current')}: v{currentVersion}
             </span>
           )}
         </div>
         <p className="text-xs text-gray-500">
-          Versions are automatically created when you make changes.
+          {t('designer.versionHistory.noVersions')}
         </p>
         <div className="space-y-2">
           {sortedVersions.map((version) => {
@@ -116,10 +120,10 @@ export function TemplateVersionHistory({
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Version {version.version}</span>
+                    <span className="text-sm font-medium">{t('designer.versionHistory.version', { number: version.version })}</span>
                     {isCurrent && (
                       <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded shrink-0">
-                        Current
+                        {t('designer.versionHistory.current')}
                       </span>
                     )}
                   </div>
@@ -129,14 +133,8 @@ export function TemplateVersionHistory({
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <p className="text-xs text-gray-400">
                       {version.createdAt
-                        ? new Date(version.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Unknown date"}
+                        ? formatDateTime(version.createdAt)
+                        : t('designer.versionHistory.unknownDate')}
                     </p>
                     {version.createdBy && (
                       <>
@@ -144,7 +142,7 @@ export function TemplateVersionHistory({
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3 text-gray-400" />
                           <span className="text-xs text-gray-400">
-                            {isCreatedByCurrentUser ? "You" : (getUserName(version.createdBy) || "Unknown user")}
+                            {isCreatedByCurrentUser ? t('designer.versionHistory.you') : (getUserName(version.createdBy) || t('designer.versionHistory.unknownUser'))}
                           </span>
                         </div>
                       </>
@@ -158,10 +156,10 @@ export function TemplateVersionHistory({
                     size="sm"
                     onClick={() => setPreviewingVersion(version)}
                     className="h-8"
-                    title="Preview this version"
+                    title={t('designer.versionHistory.previewButton')}
                   >
                     <Eye className="h-3 w-3 mr-1" />
-                    Preview
+                    {t('designer.versionHistory.templatePreview')}
                   </Button>
                   {!isCurrent && (
                     <Button
@@ -177,7 +175,7 @@ export function TemplateVersionHistory({
                       ) : (
                         <>
                           <RotateCcw className="h-3 w-3 mr-1" />
-                          Restore
+                          {t('designer.versionHistory.restore')}
                         </>
                       )}
                     </Button>
@@ -194,12 +192,12 @@ export function TemplateVersionHistory({
         <Dialog open={!!previewingVersion} onOpenChange={() => setPreviewingVersion(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Preview Version {previewingVersion.version}</DialogTitle>
+              <DialogTitle>{t('designer.versionHistory.previewTitle', { number: previewingVersion.version })}</DialogTitle>
               <DialogDescription>
-                {previewingVersion.description || "Template preview"}
+                {previewingVersion.description || t('designer.versionHistory.templatePreview')}
                 {previewingVersion.createdAt && (
                   <span className="block mt-1 text-xs text-muted-foreground">
-                    Created: {new Date(previewingVersion.createdAt).toLocaleString()}
+                    {t('designer.versionHistory.created', { date: formatDateTime(previewingVersion.createdAt) })}
                   </span>
                 )}
               </DialogDescription>
@@ -222,11 +220,9 @@ export function TemplateVersionHistory({
       <Dialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Restore Version {versionToRestore}?</DialogTitle>
+            <DialogTitle>{t('designer.versionHistory.restoreTitle', { number: versionToRestore || 0 })}</DialogTitle>
             <DialogDescription>
-              This will replace your current template with version {versionToRestore}. Your current
-              changes will be automatically saved as a new version before restoring, so you can
-              always revert back if needed.
+              {t('designer.versionHistory.restoreWarning', { version: versionToRestore || 0 })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -238,7 +234,7 @@ export function TemplateVersionHistory({
                 setVersionToRestore(null);
               }}
             >
-              Cancel
+              {t('designer.aiBuilder.cancel')}
             </Button>
             <Button
               type="button"
@@ -249,10 +245,10 @@ export function TemplateVersionHistory({
               {isRestoring ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Restoring...
+                  {t('designer.versionHistory.restoring')}
                 </>
               ) : (
-                "Restore Version"
+                t('designer.versionHistory.restoreVersion')
               )}
             </Button>
           </DialogFooter>

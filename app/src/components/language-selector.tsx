@@ -25,13 +25,13 @@ export function LanguageSelector() {
 
   return (
     <Select value={i18n.language} onValueChange={handleLanguageChange}>
-      <SelectTrigger className="w-[140px] h-9">
+      <SelectTrigger className="w-fit h-9">
         <div className="flex items-center gap-2">
           <Languages className="h-4 w-4" />
           <SelectValue>
             <span className="flex items-center gap-1.5">
               <span>{currentLanguage.flag}</span>
-              <span className="hidden sm:inline">{currentLanguage.name}</span>
+              <span className="inline">{currentLanguage.name}</span>
             </span>
           </SelectValue>
         </div>

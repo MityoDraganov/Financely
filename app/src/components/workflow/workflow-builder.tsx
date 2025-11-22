@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { CreateWorkflowInput, WorkflowActionType } from "@/core";
 import { useCreateWorkflow } from "@/hooks/repository-hooks/use-workflows";
 import { useOrganizationContext } from "@/contexts/organization-context";
@@ -9,6 +10,7 @@ import { WorkflowSteps } from "./components/workflow-steps";
 import { WorkflowActions } from "./components/workflow-actions";
 
 export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
+  const { t } = useTranslation();
   const { editingWorkflow, onCancelEdit, onPreview } = props;
   const { currentOrganization } = useOrganizationContext();
   const createWorkflow = useCreateWorkflow();
@@ -81,12 +83,12 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 
   const handleSaveWorkflow = async () => {
     if (!currentOrganization?.id) {
-      toast.error("No organization selected");
+      toast.error(t('workflows.builder.toast.noOrg'));
       return;
     }
 
     if (!workflow.name || !workflow.trigger || workflow.steps?.length === 0) {
-      toast.error("Please fill in all required fields");
+      toast.error(t('workflows.builder.toast.requiredFields'));
       return;
     }
 
@@ -117,13 +119,13 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
         const validationErrors = validateWorkflowData(workflowData);
         if (validationErrors.length > 0) {
           console.error("Validation errors:", validationErrors);
-          toast.error(`Validation failed: ${validationErrors.join(", ")}`);
+          toast.error(t('workflows.builder.toast.validationFailed', { errors: validationErrors.join(", ") }));
           return;
         }
 
         // TODO: Implement update workflow - for now, create a new one
         await createWorkflow.mutateAsync(workflowData);
-        toast.success("Workflow updated successfully!");
+        toast.success(t('workflows.builder.toast.updateSuccess'));
         
         // Reset form and exit edit mode
         setWorkflow({
@@ -164,7 +166,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 
         console.log("Sending workflow data:", JSON.stringify(workflowData, null, 2));
         await createWorkflow.mutateAsync(workflowData);
-        toast.success("Workflow created successfully!");
+        toast.success(t('workflows.builder.toast.createSuccess'));
         
         // Reset form
         setWorkflow({
@@ -180,7 +182,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error(`Failed to ${editingWorkflow ? 'update' : 'create'} workflow: ${errorMessage}`);
+      toast.error(`${editingWorkflow ? t('workflows.builder.toast.updateSuccess') : t('workflows.builder.toast.createSuccess')}: ${errorMessage}`);
     }
   };
 

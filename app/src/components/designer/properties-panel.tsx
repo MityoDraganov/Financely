@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -70,6 +71,7 @@ export function PropertiesPanel({
 	isRestoringVersion,
 	currentUserId,
 }: PropertiesPanelProps) {
+	const { t } = useTranslation();
 	const propertiesRef = useRef<HTMLDivElement>(null);
 	const elementPropertiesRef = useRef<HTMLDivElement>(null);
 
@@ -118,9 +120,9 @@ export function PropertiesPanel({
 				ref={propertiesRef}
 				className={`h-full ${spacing.panelPadding} border-l ${colors.bgDefault} overflow-auto min-w-0`}
 			>
-				<h2 className={typography.sectionTitle}>Properties</h2>
+				<h2 className={typography.sectionTitle}>{t('designer.propertiesPanel.title')}</h2>
 				<p className={`${typography.helperText} mt-2`}>
-					Create a template to begin.
+					{t('designer.propertiesPanel.createTemplate')}
 				</p>
 			</div>
 		);
@@ -136,7 +138,7 @@ export function PropertiesPanel({
 			ref={propertiesRef}
 			className={`h-full ${spacing.panelPadding} border-l ${colors.bgDefault} ${spacing.sectionGap} overflow-auto min-w-0`}
 		>
-			<h2 className={typography.sectionTitle}>Properties</h2>
+			<h2 className={typography.sectionTitle}>{t('designer.propertiesPanel.title')}</h2>
 			
 			<div className={spacing.sectionGap}>
 				{/* Compliance Status Indicator */}
@@ -151,10 +153,10 @@ export function PropertiesPanel({
 				
 				{/* Template Properties */}
 				<section className={components.section}>
-					<h3 className={typography.sectionTitle}>Template</h3>
+					<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.template')}</h3>
 					<div className={components.subsection}>
 						<div className={components.field}>
-							<Label className={typography.fieldLabel}>Name</Label>
+							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.name')}</Label>
 							<Input
 								value={template.name}
 								onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -166,7 +168,7 @@ export function PropertiesPanel({
 							/>
 						</div>
 						<div className={components.field}>
-							<Label className={typography.fieldLabel}>Page Size</Label>
+							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageSize')}</Label>
 							<Select
 								value={template.pageSize}
 								onValueChange={(v: string) =>
@@ -189,10 +191,10 @@ export function PropertiesPanel({
 				
 				{/* Compliance Region */}
 				<section className={`${components.section} ${separators.sectionDivider}`}>
-					<h3 className={typography.sectionTitle}>Compliance</h3>
+					<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.compliance')}</h3>
 					<div className={components.subsection}>
 						<div className={components.field}>
-							<Label className={typography.fieldLabel}>Region</Label>
+							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.region')}</Label>
 							<Select
 								value={template.compliance?.region || (organization ? invoiceComplianceService.detectRegion(organization) : "US")}
 								onValueChange={(v: string) => {
@@ -223,7 +225,7 @@ export function PropertiesPanel({
 								</SelectContent>
 							</Select>
 							<p className={typography.helperText}>
-								Determines which compliance requirements apply
+								{t('designer.propertiesPanel.regionDescription')}
 							</p>
 						</div>
 					</div>

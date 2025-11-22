@@ -1,65 +1,2482 @@
 {
-  "dashboard": {
-    "welcome": "Welcome back, {{name}}",
-    "welcomeFallback": "Welcome back, User",
-    "subtitle": "Here's what's happening with your invoices and templates today.",
-    "quickActions": {
-      "createInvoice": "Create Invoice",
-      "designTemplate": "Design Template",
-      "organizationSettings": "Organization Settings"
-    },
-    "metrics": {
-      "totalInvoices": "Total Invoices",
-      "paidUnpaid": "{{paid}} paid, {{unpaid}} unpaid",
-      "paidRevenue": "Paid Revenue",
-      "paidInvoice": "{{count}} paid invoice",
-      "paidInvoices": "{{count}} paid invoices",
-      "outstanding": "Outstanding",
-      "unpaidInvoice": "{{count}} unpaid invoice",
-      "unpaidInvoices": "{{count}} unpaid invoices",
-      "draftInvoices": "Draft Invoices",
-      "draftAmount": "${{amount}} in drafts",
-      "noDrafts": "No drafts yet",
-      "totalAmount": "Total Amount",
-      "acrossAllInvoices": "Across all invoices",
-      "templates": "Templates",
-      "readyToUse": "Ready to use",
-      "createFirstTemplate": "Create your first template"
-    },
-    "recentInvoices": {
-      "title": "Recent Invoices",
-      "description": "Your latest invoice activity",
-      "viewAll": "View All",
-      "invoiceNumber": "Invoice #{{number}}",
-      "unknownClient": "Unknown Client",
-      "recently": "Recently",
-      "noInvoices": "No invoices yet",
-      "getStarted": "Get started by creating your first invoice."
-    },
-    "templates": {
-      "title": "Templates",
-      "description": "Your invoice templates",
-      "design": "Design",
-      "noDescription": "No description",
-      "active": "Active",
-      "noTemplates": "No templates",
-      "createFirst": "Create your first template"
-    },
-    "invoiceStatus": {
-      "title": "Invoice Status",
-      "description": "Breakdown by status",
-      "paid": "Paid",
-      "sent": "Sent",
-      "draft": "Draft",
-      "cancelled": "Cancelled",
-      "noInvoices": "No invoices yet"
-    },
-    "status": {
-      "paid": "paid",
-      "sent": "sent",
-      "cancelled": "cancelled",
-      "draft": "draft"
-    }
-  }
+	"dashboard": {
+		"welcome": "Welcome back, {{name}}",
+		"welcomeFallback": "Welcome back, User",
+		"subtitle": "Here's what's happening with your invoices and templates today.",
+		"quickActions": {
+			"createInvoice": "Create Invoice",
+			"designTemplate": "Design Template",
+			"organizationSettings": "Organization Settings"
+		},
+		"metrics": {
+			"totalInvoices": "Total Invoices",
+			"paidUnpaid": "{{paid}} paid, {{unpaid}} unpaid",
+			"paidRevenue": "Paid Revenue",
+			"paidInvoice": "{{count}} paid invoice",
+			"paidInvoices": "{{count}} paid invoices",
+			"outstanding": "Outstanding",
+			"unpaidInvoice": "{{count}} unpaid invoice",
+			"unpaidInvoices": "{{count}} unpaid invoices",
+			"draftInvoices": "Draft Invoices",
+			"draftAmount": "${{amount}} in drafts",
+			"noDrafts": "No drafts yet",
+			"totalAmount": "Total Amount",
+			"acrossAllInvoices": "Across all invoices",
+			"templates": "Templates",
+			"readyToUse": "Ready to use",
+			"createFirstTemplate": "Create your first template"
+		},
+		"recentInvoices": {
+			"title": "Recent Invoices",
+			"description": "Your latest invoice activity",
+			"viewAll": "View All",
+			"invoiceNumber": "Invoice #{{number}}",
+			"unknownClient": "Unknown Client",
+			"recently": "Recently",
+			"noInvoices": "No invoices yet",
+			"getStarted": "Get started by creating your first invoice."
+		},
+		"templates": {
+			"title": "Templates",
+			"description": "Your invoice templates",
+			"design": "Design",
+			"noDescription": "No description",
+			"active": "Active",
+			"noTemplates": "No templates",
+			"createFirst": "Create your first template"
+		},
+		"invoiceStatus": {
+			"title": "Invoice Status",
+			"description": "Breakdown by status",
+			"paid": "Paid",
+			"sent": "Sent",
+			"draft": "Draft",
+			"cancelled": "Cancelled",
+			"noInvoices": "No invoices yet"
+		},
+		"status": {
+			"paid": "paid",
+			"sent": "sent",
+			"cancelled": "cancelled",
+			"draft": "draft"
+		}
+	},
+	"products": {
+		"title": "Products",
+		"subtitle": "Create and manage your product catalog",
+		"manageProducts": "Manage your products",
+		"loading": "Loading products...",
+		"newProduct": "New Product",
+		"createTitle": "Create New Product",
+		"createDescription": "Add a new product to your catalog",
+		"editTitle": "Edit Product",
+		"editDescription": "Update product information",
+		"form": {
+			"productName": "Product Name *",
+			"productNamePlaceholder": "Enter product name",
+			"sku": "SKU",
+			"skuPlaceholder": "Product SKU",
+			"description": "Description",
+			"descriptionPlaceholder": "Product description",
+			"price": "Price *",
+			"pricePlaceholder": "0.00",
+			"currency": "Currency",
+			"currencyPlaceholder": "Select currency",
+			"category": "Category",
+			"categoryPlaceholder": "Product category",
+			"status": "Status",
+			"statusPlaceholder": "Select status",
+			"stockQuantity": "Stock Quantity",
+			"stockQuantityPlaceholder": "0",
+			"trackInventory": "Track Inventory"
+		},
+		"status": {
+			"active": "Active",
+			"inactive": "Inactive",
+			"archived": "Archived",
+			"all": "All Statuses"
+		},
+		"images": {
+			"title": "Product Images",
+			"featured": "Featured",
+			"setAsFeatured": "Set as featured",
+			"removeImage": "Remove image",
+			"uploading": "Uploading...",
+			"addImages": "Add Images",
+			"featuredHint": "First image will be used as featured image. You can reorder by setting a different image as featured.",
+			"imageAlt": "Product image {{index}}"
+		},
+		"actions": {
+			"cancel": "Cancel",
+			"create": "Create Product",
+			"creating": "Creating...",
+			"update": "Update Product",
+			"updating": "Updating...",
+			"delete": "Delete",
+			"edit": "Edit",
+			"view": "View",
+			"viewDetails": "View product details",
+			"editProduct": "Edit product",
+			"deleteProduct": "Delete product"
+		},
+		"filters": {
+			"searchPlaceholder": "Search products...",
+			"statusFilter": "Filter by status",
+			"productsCount": "{{count}} products",
+			"product": "products"
+		},
+		"table": {
+			"product": "Product",
+			"sku": "SKU",
+			"price": "Price",
+			"stock": "Stock",
+			"category": "Category",
+			"status": "Status",
+			"created": "Created",
+			"actions": "Actions"
+		},
+		"empty": {
+			"title": "No products",
+			"noMatch": "No products match your filters.",
+			"getStarted": "Get started by creating a new product."
+		},
+		"mobile": {
+			"allProducts": "All Products",
+			"showing": "Showing {{count}} of {{total}} products",
+			"showingAll": "Showing all {{count}} products",
+			"price": "Price:",
+			"status": "Status:",
+			"sku": "SKU:",
+			"category": "Category:",
+			"stock": "Stock:"
+		},
+		"details": {
+			"title": "Product Details",
+			"description": "View detailed information about this product",
+			"loading": "Loading product data...",
+			"productName": "Product Name",
+			"sku": "SKU",
+			"descriptionLabel": "Description",
+			"price": "Price",
+			"currency": "Currency",
+			"stockQuantity": "Stock Quantity",
+			"lowStockThreshold": "Low Stock Threshold",
+			"lowStock": "Low Stock",
+			"category": "Category",
+			"status": "Status",
+			"productImages": "Product Images",
+			"cost": "Cost",
+			"taxRate": "Tax Rate",
+			"tags": "Tags",
+			"created": "Created",
+			"lastUpdated": "Last Updated",
+			"close": "Close",
+			"na": "N/A"
+		},
+		"messages": {
+			"orgIdRequired": "Organization ID is required",
+			"namePriceRequired": "Name and price are required",
+			"imageUploaded": "Image uploaded successfully",
+			"imageUploadFailed": "Failed to upload image",
+			"productCreated": "Product created successfully",
+			"productUpdated": "Product updated successfully",
+			"productDeleted": "Product deleted successfully",
+			"createFailed": "Failed to create product: {{error}}",
+			"updateFailed": "Failed to update product: {{error}}",
+			"deleteFailed": "Failed to delete product: {{error}}",
+			"deleteConfirm": "Are you sure you want to delete this product?"
+		},
+		"labels": {
+			"low": "Low"
+		}
+	},
+	"invoices": {
+		"title": "Invoices",
+		"subtitle": "Manage and track your invoices",
+		"createInvoice": "Create Invoice",
+		"stats": {
+			"totalInvoices": "Total Invoices",
+			"totalRevenue": "Total Revenue",
+			"thisMonth": "This Month"
+		},
+		"filters": {
+			"searchPlaceholder": "Search invoices by number or customer...",
+			"statusFilter": "Filter by status",
+			"allStatus": "All Status",
+			"draft": "Draft",
+			"sent": "Sent",
+			"paid": "Paid",
+			"cancelled": "Cancelled"
+		},
+		"empty": {
+			"noInvoicesFound": "No invoices found",
+			"noInvoicesYet": "No invoices yet",
+			"adjustFilters": "Try adjusting your search or filter criteria.",
+			"getStarted": "Get started by creating your first invoice."
+		},
+		"error": {
+			"loadFailed": "Failed to load invoices",
+			"tryAgain": "Please try again later."
+		},
+		"actions": {
+			"pdf": "PDF",
+			"viewDetails": "View Details",
+			"downloadPdf": "Download PDF"
+		},
+		"preview": {
+			"title": "Invoice Preview"
+		},
+		"messages": {
+			"pdfGenerated": "PDF generated successfully!",
+			"pdfFailed": "Failed to generate PDF: {{error}}"
+		},
+		"labels": {
+			"unknown": "Unknown"
+		}
+	},
+	"invoiceDetail": {
+		"title": "Invoice {{id}}",
+		"subtitle": "View, download, email, or share this invoice.",
+		"preview": {
+			"title": "Invoice Preview",
+			"generating": "Generating invoice preview...",
+			"loadFailed": "Failed to load invoice preview",
+			"retry": "Retry"
+		},
+		"share": {
+			"button": "Share",
+			"generating": "Generating...",
+			"copied": "Copied",
+			"copy": "Copy",
+			"linkCopied": "Link copied to clipboard!",
+			"copyFailed": "Failed to copy link",
+			"generateFailed": "Failed to generate link: {{error}}"
+		},
+		"email": {
+			"title": "Send via email",
+			"placeholder": "recipient@example.com",
+			"send": "Send",
+			"sending": "Sending...",
+			"sent": "Invoice sent to {{email}}",
+			"sendFailed": "Failed to send email: {{error}}"
+		},
+		"messages": {
+			"previewFailed": "Failed to generate preview: {{error}}"
+		}
+	},
+	"contacts": {
+		"title": "Contacts",
+		"subtitle": "Manage your customer contacts",
+		"loading": "Loading contacts...",
+		"addContact": "Add Contact",
+		"createTitle": "Create New Contact",
+		"createDescription": "Add a new customer contact to your organization.",
+		"editTitle": "Edit Contact",
+		"editDescription": "Update the contact information.",
+		"form": {
+			"firstName": "First Name *",
+			"lastName": "Last Name *",
+			"email": "Email *",
+			"phone": "Phone",
+			"company": "Company",
+			"jobTitle": "Job Title",
+			"status": "Status",
+			"statusPlaceholder": "Select status",
+			"notes": "Notes",
+			"firstNameRequired": "First name is required",
+			"lastNameRequired": "Last name is required",
+			"emailRequired": "Email is required"
+		},
+		"status": {
+			"lead": "Lead",
+			"prospect": "Prospect",
+			"customer": "Customer",
+			"active": "Active",
+			"inactive": "Inactive"
+		},
+		"actions": {
+			"cancel": "Cancel",
+			"create": "Create Contact",
+			"creating": "Creating...",
+			"update": "Update Contact",
+			"updating": "Updating...",
+			"edit": "Edit",
+			"delete": "Delete"
+		},
+		"filters": {
+			"searchPlaceholder": "Search contacts...",
+			"contactsCount": "{{count}} contacts",
+			"contact": "contacts"
+		},
+		"table": {
+			"name": "Name",
+			"email": "Email",
+			"company": "Company",
+			"status": "Status",
+			"phone": "Phone"
+		},
+		"empty": {
+			"title": "No contacts",
+			"noMatch": "No contacts match your search criteria.",
+			"getStarted": "Get started by creating your first contact."
+		},
+		"mobile": {
+			"morePhones": "+{{count}} more"
+		},
+		"delete": {
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete the contact.",
+			"cancel": "Cancel",
+			"confirm": "Delete"
+		},
+		"messages": {
+			"contactCreated": "Contact created successfully",
+			"contactUpdated": "Contact updated.",
+			"contactUpdatedWithPhone": "Contact updated. New phone number added.",
+			"createFailed": "Failed to create contact",
+			"updateFailed": "Failed to update contact"
+		}
+	},
+	"leads": {
+		"title": "Leads",
+		"subtitle": "View all form submissions and messages",
+		"loading": "Loading leads...",
+		"filters": {
+			"searchPlaceholder": "Search leads...",
+			"statusFilter": "Filter by status",
+			"typeFilter": "Filter by type",
+			"allStatuses": "All Statuses",
+			"allTypes": "All Types",
+			"leadsCount": "{{count}} leads",
+			"lead": "leads"
+		},
+		"status": {
+			"new": "New",
+			"viewed": "Viewed",
+			"contacted": "Contacted",
+			"converted": "Converted",
+			"archived": "Archived"
+		},
+		"widgetType": {
+			"contactForm": "Contact Form",
+			"invoiceRequest": "Invoice Request",
+			"quoteRequest": "Quote Request"
+		},
+		"table": {
+			"title": "All Leads",
+			"date": "Date",
+			"name": "Name",
+			"email": "Email",
+			"type": "Type",
+			"message": "Message",
+			"status": "Status",
+			"actions": "Actions",
+			"showing": "Showing {{count}} of {{total}} leads",
+			"showingAll": "Showing all {{count}} leads"
+		},
+		"empty": {
+			"title": "No leads",
+			"noMatch": "No leads match your filters.",
+			"noSubmissions": "Form submissions will appear here."
+		},
+		"actions": {
+			"viewDetails": "View details",
+			"generateProposal": "Generate proposal with AI",
+			"createProposal": "Create proposal manually",
+			"close": "Close"
+		},
+		"detail": {
+			"title": "Lead Details",
+			"description": "View complete information about this lead submission",
+			"dateSubmitted": "Date Submitted",
+			"lastUpdated": "Last Updated",
+			"status": "Status",
+			"leadId": "Lead ID",
+			"widgetType": "Widget Type",
+			"source": "Source",
+			"name": "Name",
+			"email": "Email",
+			"phone": "Phone",
+			"company": "Company",
+			"jobTitle": "Job Title",
+			"linkedContact": "Linked Contact",
+			"contactId": "Contact ID: {{id}}",
+			"message": "Message",
+			"formData": "Form Data",
+			"internalNotes": "Internal Notes",
+			"tags": "Tags",
+			"noMessage": "No message provided",
+			"na": "N/A"
+		},
+		"proposal": {
+			"title": "Create Proposal Manually",
+			"description": "Create a new proposal for this lead. The lead information will be pre-filled.",
+			"proposalTitle": "Proposal Title *",
+			"proposalTitlePlaceholder": "Enter proposal title",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Enter proposal description",
+			"items": "Items *",
+			"addItem": "Add Item",
+			"itemDescription": "Description",
+			"itemDescriptionPlaceholder": "Item description",
+			"qty": "Qty",
+			"unitPrice": "Unit Price",
+			"taxPct": "Tax %",
+			"currency": "Currency",
+			"paymentTerms": "Payment Terms",
+			"paymentTermsPlaceholder": "e.g., Net 30",
+			"subtotal": "Subtotal",
+			"taxTotal": "Tax Total",
+			"total": "Total",
+			"notes": "Notes",
+			"notesPlaceholder": "Additional notes",
+			"removeItem": "Remove item",
+			"cancel": "Cancel",
+			"create": "Create Proposal",
+			"creating": "Creating..."
+		},
+		"messages": {
+			"titleRequired": "Proposal title is required",
+			"itemsRequired": "Please add at least one item with a description",
+			"orgNotFound": "Organization not found",
+			"proposalCreated": "Proposal created successfully",
+			"proposalFailed": "Failed to create proposal: {{error}}"
+		}
+	},
+	"proposals": {
+		"title": "Proposals",
+		"subtitle": "Create and manage proposals for your leads",
+		"subtitleLoading": "Manage your proposals",
+		"loading": "Loading proposals...",
+		"newProposal": "New Proposal",
+		"filters": {
+			"searchPlaceholder": "Search proposals...",
+			"statusFilter": "Filter by status",
+			"allStatuses": "All Statuses",
+			"proposalsCount": "{{count}} proposals",
+			"proposal": "proposals"
+		},
+		"status": {
+			"DRAFT": "Draft",
+			"SENT": "Sent",
+			"ACCEPTED": "Accepted",
+			"REJECTED": "Rejected",
+			"EXPIRED": "Expired"
+		},
+		"table": {
+			"title": "All Proposals",
+			"titleHeader": "Title",
+			"date": "Date",
+			"status": "Status",
+			"total": "Total",
+			"items": "Items",
+			"actions": "Actions",
+			"showing": "Showing {{count}} of {{total}} proposals",
+			"showingAll": "Showing all {{count}} proposals",
+			"aiGenerated": "AI Generated",
+			"itemsCount": "{{count}} item",
+			"itemsCountPlural": "{{count}} items"
+		},
+		"empty": {
+			"title": "No proposals",
+			"noMatch": "No proposals match your filters.",
+			"getStarted": "Get started by creating a new proposal from a lead."
+		},
+		"actions": {
+			"view": "View"
+		},
+		"labels": {
+			"na": "N/A"
+		}
+	},
+	"proposalDetail": {
+		"notFound": {
+			"title": "Proposal not found",
+			"description": "The proposal you're looking for doesn't exist or has been deleted.",
+			"backButton": "Back to Proposals"
+		},
+		"back": "Back",
+		"created": "Created {{date}}",
+		"incomplete": {
+			"title": "Proposal Incomplete",
+			"description": "This proposal was generated by AI but some items could not be matched to existing products in your catalog.",
+			"missingProducts": "Missing products:",
+			"reviewItems": "Please review the items below and either create the missing products or update the proposal items to use existing products."
+		},
+		"sections": {
+			"description": "Description",
+			"items": "Items",
+			"itemsCount": "{{count}} item",
+			"itemsCountPlural": "{{count}} items",
+			"additionalInfo": "Additional Information",
+			"paymentTerms": "Payment Terms",
+			"notes": "Notes",
+			"summary": "Summary",
+			"subtotal": "Subtotal",
+			"tax": "Tax",
+			"total": "Total",
+			"clientInfo": "Client Information",
+			"linkedToLead": "Linked to lead",
+			"leadNotFound": "Lead not found",
+			"loading": "Loading...",
+			"leadInfoNotAvailable": "Lead information not available",
+			"leadStatus": "Lead Status",
+			"source": "Source",
+			"details": "Details",
+			"currency": "Currency",
+			"leadId": "Lead ID",
+			"invoiceId": "Invoice ID",
+			"actions": "Actions",
+			"convertToInvoice": "Convert to Invoice (AI)",
+			"message": "Message:"
+		},
+		"convert": {
+			"title": "Convert Proposal to Invoice",
+			"description": "Use AI to automatically convert this proposal into a compliant invoice. Select an invoice template to use.",
+			"templateLabel": "Invoice Template",
+			"templatePlaceholder": "Select a template",
+			"noTemplates": "No templates available. Please create an invoice template first.",
+			"cancel": "Cancel",
+			"generate": "Generate Invoice",
+			"generating": "Generating...",
+			"selectTemplate": "Please select a template",
+			"proposalNotFound": "Proposal not found",
+			"orgNotFound": "Organization not found",
+			"generateFailed": "Failed to generate invoice: {{error}}"
+		},
+		"review": {
+			"title": "Review & Edit Invoice",
+			"description": "Review and edit the AI-generated invoice data before creating the invoice.",
+			"invoiceNumber": "Invoice Number",
+			"sellerInfo": "Seller Information",
+			"customerInfo": "Customer Information",
+			"invoiceDetails": "Invoice Details",
+			"items": "Items",
+			"itemsEditable": "Items can be edited after creating the invoice.",
+			"totals": "Totals",
+			"cancel": "Cancel",
+			"create": "Create Invoice",
+			"creating": "Creating...",
+			"missingData": "Missing required data",
+			"createSuccess": "Invoice created successfully!",
+			"createFailed": "Failed to create invoice: {{error}}"
+		},
+		"labels": {
+			"unknown": "Unknown",
+			"tax": "+ {{tax}}% tax"
+		}
+	},
+	"templates": {
+		"title": "Templates",
+		"subtitle": "Manage your invoice templates",
+		"createNew": "Create New Template",
+		"empty": {
+			"title": "No templates yet",
+			"description": "Create your first invoice template to get started. Templates define the layout and structure of your invoices.",
+			"createFirst": "Create Your First Template"
+		},
+		"card": {
+			"untitled": "Untitled Template",
+			"noDescription": "No description",
+			"draft": "draft",
+			"published": "published",
+			"elements": "{{count}} element",
+			"elementsPlural": "{{count}} elements"
+		},
+		"delete": {
+			"title": "Delete Template",
+			"description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+			"cancel": "Cancel",
+			"delete": "Delete",
+			"deleting": "Deleting..."
+		}
+	},
+	"designer": {
+		"elements": "Elements",
+		"properties": "Properties",
+		"duplicateSuccess": "Element duplicated (binding cleared to prevent duplicates)",
+		"tableColumns": {
+			"description": "Description",
+			"quantity": "Quantity",
+			"price": "Price",
+			"total": "Total",
+			"column1": "Column 1",
+			"column2": "Column 2"
+		},
+		"defaults": {
+			"text": "Text",
+			"newTemplateName": "New Invoice Template",
+			"autoSavedVersion": "Auto-saved version",
+			"aiGeneratedTemplate": "AI Generated Template"
+		},
+		"sidebar": {
+			"templates": "Templates",
+			"aiBuilder": "AI Builder",
+			"newTemplate": "New Template",
+			"noTemplates": "No templates yet. Click \"New\" to create your first template.",
+			"requiredFields": "Required Fields",
+			"addedField": "Added {{label}}",
+			"palette": "Palette",
+			"text": "Text",
+			"image": "Image",
+			"table": "Table",
+			"input": "Input",
+			"box": "Box",
+			"line": "Line",
+			"currency": "Currency",
+			"textAdded": "Text element added",
+			"imageAdded": "Image element added",
+			"tableAdded": "Table element added",
+			"inputAdded": "Input element added",
+			"boxAdded": "Box element added",
+			"lineAdded": "Line element added",
+			"currencyAdded": "Currency element added",
+			"itemsTable": "Items Table",
+			"inputField": "Input Field",
+			"currencyField": "Currency Field",
+			"element": "Element {{id}}",
+			"select": "Select",
+			"duplicate": "Duplicate",
+			"delete": "Delete"
+		},
+		"canvasHeader": {
+			"selectTemplate": "Select a template",
+			"newTemplate": "New template",
+			"live": "Live",
+			"zoom": "Zoom"
+		},
+		"propertiesPanel": {
+			"title": "Properties",
+			"createTemplate": "Create a template to begin.",
+			"template": "Template",
+			"name": "Name",
+			"pageSize": "Page Size",
+			"compliance": "Compliance",
+			"region": "Region",
+			"regionDescription": "Determines which compliance requirements apply"
+		},
+		"aiBuilder": {
+			"title": "AI Invoice Template Builder",
+			"description": "Generate a beautiful, functional, and fully compliant invoice template using AI. The template will be customized based on your organization's branding and compliance region.",
+			"style": "Style",
+			"modern": "Modern",
+			"classic": "Classic",
+			"minimal": "Minimal",
+			"professional": "Professional",
+			"includeLogo": "Include Logo",
+			"additionalInstructions": "Additional Instructions (Optional)",
+			"instructionsPlaceholder": "E.g., 'Use a two-column layout for the header', 'Make the totals section more prominent', 'Add a payment terms section'...",
+			"instructionsHint": "Provide any specific design preferences or requirements for the template.",
+			"region": "Region: {{region}}",
+			"cancel": "Cancel",
+			"generate": "Generate Template",
+			"generating": "Generating...",
+			"orgNotFound": "Organization not found",
+			"generateSuccess": "AI template generated successfully!",
+			"generateFailed": "Failed to generate template: {{error}}"
+		},
+		"versionHistory": {
+			"title": "Version History",
+			"you": "You",
+			"unknownUser": "Unknown user",
+			"noVersions": "No version history available. Versions are automatically created when you make changes.",
+			"version": "Version {{number}}",
+			"current": "Current",
+			"unknownDate": "Unknown date",
+			"templatePreview": "Preview",
+			"previewTitle": "Preview Version {{number}}",
+			"created": "Created: {{date}}",
+			"restoreWarning": "This will replace your current template with version {{version}}. Your current changes will be automatically saved as a new version before restoring, so you can always revert back if needed.",
+			"restore": "Restore",
+			"restoreVersion": "Restore Version",
+			"restoreTitle": "Restore Version {{number}}?",
+			"restoring": "Restoring...",
+			"previewButton": "Preview this version"
+		},
+		"compliance": {
+			"fullyCompliant": "Fully Compliant",
+			"missingFields": "Missing Required Fields",
+			"missingFieldsList": "Missing fields:",
+			"add": "Add"
+		},
+		"watermark": {
+			"title": "Watermark",
+			"enable": "Enable Watermark",
+			"type": "Type",
+			"image": "Image",
+			"text": "Text",
+			"imageUrl": "Image URL",
+			"textPlaceholder": "CONFIDENTIAL",
+			"position": "Position",
+			"width": "Width (px)",
+			"height": "Height (px)",
+			"rotation": "Rotation",
+			"opacity": "Opacity",
+			"blendMode": "Blend Mode",
+			"repeat": "Repeat",
+			"positions": {
+				"center": "Center",
+				"topLeft": "Top Left",
+				"topRight": "Top Right",
+				"bottomLeft": "Bottom Left",
+				"bottomRight": "Bottom Right",
+				"topCenter": "Top Center",
+				"bottomCenter": "Bottom Center",
+				"leftCenter": "Left Center",
+				"rightCenter": "Right Center"
+			},
+			"blendModes": {
+				"normal": "Normal",
+				"multiply": "Multiply",
+				"screen": "Screen",
+				"overlay": "Overlay",
+				"softLight": "Soft Light",
+				"hardLight": "Hard Light"
+			},
+			"repeatOptions": {
+				"none": "None",
+				"repeat": "Repeat",
+				"repeatX": "Repeat X",
+				"repeatY": "Repeat Y"
+			}
+		},
+		"elementProperties": {
+			"common": {
+				"positionAndSize": "Position & Size",
+				"x": "X",
+				"y": "Y",
+				"width": "Width",
+				"height": "Height"
+			},
+			"binding": {
+				"dataBinding": "Data Binding",
+				"bindingPlaceholder": "e.g., invoice.customerName",
+				"duplicateError": "This binding is already used by another element",
+				"suggested": "Suggested:",
+				"use": "Use"
+			},
+			"text": {
+				"title": "Text",
+				"content": "Content",
+				"text": "Text",
+				"typography": "Typography",
+				"fontSize": "Font Size",
+				"weight": "Weight",
+				"color": "Color",
+				"alignment": "Alignment",
+				"uppercase": "Uppercase",
+				"styling": "Styling",
+				"backgroundColor": "Background Color",
+				"backgroundColorPlaceholder": "#ffffff or transparent",
+				"padding": "Padding (px)",
+				"opacity": "Opacity",
+				"shadow": "Shadow",
+				"blur": "Blur",
+				"offsetY": "Offset Y",
+				"shadowColor": "Shadow Color",
+				"fontWeights": {
+					"normal": "Normal",
+					"medium": "Medium",
+					"semibold": "Semibold",
+					"bold": "Bold"
+				},
+				"alignments": {
+					"left": "Left",
+					"center": "Center",
+					"right": "Right"
+				}
+			},
+			"image": {
+				"title": "Image",
+				"settings": "Settings",
+				"imageUrl": "Image URL (Default)",
+				"imageUrlPlaceholder": "https://...",
+				"dataBinding": "Data Binding (Optional)",
+				"bindingPlaceholder": "e.g., company.logoUrl",
+				"bindingHint": "Leave empty to use default URL. Set a binding to override with data from invoice.",
+				"objectFit": "Object Fit",
+				"objectFitOptions": {
+					"contain": "Contain",
+					"cover": "Cover",
+					"fill": "Fill"
+				}
+			},
+			"input": {
+				"title": "Input",
+				"settings": "Settings",
+				"placeholder": "Placeholder",
+				"variant": "Variant",
+				"align": "Align",
+				"variants": {
+					"text": "Text",
+					"number": "Number",
+					"date": "Date"
+				},
+				"alignments": {
+					"left": "Left",
+					"center": "Center",
+					"right": "Right"
+				}
+			},
+			"table": {
+				"title": "Table",
+				"settings": "Settings",
+				"rowHeight": "Row Height",
+				"headerHeight": "Header Height",
+				"stripeRows": "Stripe Rows",
+				"itemsBinding": "Items Binding",
+				"itemsBindingPlaceholder": "e.g., items",
+				"columns": "Columns",
+				"column": {
+					"header": "Header",
+					"headerPlaceholder": "Column header",
+					"width": "Width",
+					"widthPlaceholder": "120",
+					"align": "Align",
+					"type": "Type",
+					"remove": "Remove",
+					"types": {
+						"text": "Text",
+						"number": "Number",
+						"date": "Date",
+						"currency": "Currency"
+					},
+					"currency": {
+						"title": "Currency",
+						"currency": "Currency",
+						"selectCurrency": "Select currency...",
+						"searchCurrency": "Search currency...",
+						"noCurrencyFound": "No currency found.",
+						"mode": "Mode",
+						"modes": {
+							"independent": "Independent",
+							"linked": "Linked",
+							"formula": "Formula"
+						}
+					},
+					"total": {
+						"showTotal": "Show Total",
+						"totalStyling": "Total Styling",
+						"backgroundColor": "Background Color",
+						"textColor": "Text Color",
+						"fontWeight": "Font Weight",
+						"fontSize": "Font Size",
+						"fontSizePlaceholder": "Auto",
+						"topBorder": "Top Border",
+						"topBorderPlaceholder": "e.g., 2px solid #111827",
+						"fontWeights": {
+							"normal": "Normal",
+							"semiBold": "Semi-bold",
+							"bold": "Bold",
+							"extraBold": "Extra Bold"
+						}
+					}
+				},
+				"addColumn": "Add Column",
+				"editHeadersHint": "Edit headers above or use Properties to configure columns and rows."
+			},
+			"box": {
+				"title": "Box",
+				"styling": "Styling",
+				"fill": "Fill",
+				"fillPlaceholder": "#RRGGBB",
+				"stroke": "Stroke",
+				"strokePlaceholder": "#RRGGBB",
+				"strokeWidth": "Stroke Width",
+				"strokeWidthPlaceholder": "1",
+				"cornerRadius": "Corner Radius",
+				"cornerRadiusPlaceholder": "0",
+				"opacity": "Opacity",
+				"gradientFill": "Gradient Fill",
+				"gradientType": "Gradient Type",
+				"angle": "Angle (degrees)",
+				"colors": "Colors (2-4 colors)",
+				"gradientTypes": {
+					"linear": "Linear",
+					"radial": "Radial"
+				},
+				"shadow": "Shadow",
+				"blur": "Blur",
+				"offsetY": "Offset Y",
+				"shadowColor": "Shadow Color"
+			},
+			"line": {
+				"title": "Line",
+				"styling": "Styling",
+				"stroke": "Stroke",
+				"strokePlaceholder": "#RRGGBB",
+				"strokeWidth": "Stroke Width",
+				"strokeWidthPlaceholder": "1"
+			},
+			"currency": {
+				"title": "Currency",
+				"settings": "Settings",
+				"placeholder": "Placeholder",
+				"currency": "Currency",
+				"selectCurrency": "Select currency...",
+				"searchCurrency": "Search currency...",
+				"noCurrencyFound": "No currency found.",
+				"align": "Align",
+				"mode": "Mode",
+				"dataBinding": "Data Binding",
+				"bindingPlaceholder": "e.g., invoice.total",
+				"modes": {
+					"independent": "Independent",
+					"linked": "Linked",
+					"formula": "Formula"
+				},
+				"alignments": {
+					"left": "Left",
+					"center": "Center",
+					"right": "Right"
+				}
+			}
+		}
+	},
+	"workflows": {
+		"title": "Workflows",
+		"subtitle": "Automate your business processes with custom workflows",
+		"create": "Create Workflow",
+		"creating": "Creating...",
+		"loading": "Loading workflows...",
+		"noWorkflows": {
+			"title": "No workflows yet",
+			"description": "Create your first workflow to automate your business processes",
+			"createFirst": "Create Your First Workflow"
+		},
+		"tabs": {
+			"workflows": "Workflows",
+			"builder": "Builder",
+			"preview": "Preview",
+			"templates": "Templates",
+			"history": "History"
+		},
+		"status": {
+			"active": "Active",
+			"paused": "Paused",
+			"draft": "Draft",
+			"archived": "Archived",
+			"editing": "Editing"
+		},
+		"actions": {
+			"preview": "Preview",
+			"edit": "Edit",
+			"pause": "Pause",
+			"activate": "Activate",
+			"archive": "Archive",
+			"delete": "Delete Permanently"
+		},
+		"details": {
+			"trigger": "Trigger:",
+			"steps": "Steps:",
+			"version": "v{{version}}",
+			"created": "Created {{time}}",
+			"updated": "Updated {{time}}",
+			"moreTags": "+{{count}} more",
+			"noDescription": "No description"
+		},
+		"delete": {
+			"title": "Delete Workflow",
+			"description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+			"willRemove": "This will permanently remove:",
+			"willRemoveList": {
+				"workflow": "The workflow and all its steps",
+				"history": "All execution history",
+				"data": "All associated data"
+			},
+			"considerArchive": "Consider archiving instead if you want to keep the data for historical reference.",
+			"cancel": "Cancel",
+			"confirm": "Delete Permanently",
+			"deleting": "Deleting..."
+		},
+		"history": {
+			"selectWorkflow": "Select a workflow to view execution history",
+			"noWorkflows": {
+				"title": "No workflows to view history",
+				"description": "Create a workflow first to see its execution history"
+			}
+		},
+		"triggers": {
+			"invoiceCreated": "Invoice Created",
+			"invoiceSent": "Invoice Sent",
+			"invoicePaid": "Invoice Paid",
+			"invoiceOverdue": "Invoice Overdue",
+			"proposalCreated": "Proposal Created",
+			"proposalApproved": "Proposal Approved",
+			"contractExpiring": "Contract Expiring",
+			"contractExpired": "Contract Expired",
+			"userJoined": "User Joined",
+			"scheduled": "Scheduled",
+			"webhook": "Webhook",
+			"manual": "Manual Trigger"
+		},
+		"execution": {
+			"title": "Workflow Execution",
+			"notFound": {
+				"title": "Workflow not found",
+				"description": "The workflow you're looking for doesn't exist or has been deleted.",
+				"back": "Back to Workflows"
+			},
+			"loading": "Loading workflow...",
+			"back": "Back to Workflows",
+			"edit": {
+				"title": "Edit Workflow",
+				"description": "Modify your workflow configuration",
+				"back": "Back to Workflow"
+			},
+			"actions": {
+				"pause": "Pause",
+				"activate": "Activate",
+				"edit": "Edit",
+				"testRun": "Test Run"
+			},
+			"stats": {
+				"steps": "Steps",
+				"version": "Version",
+				"trigger": "Trigger",
+				"executions": "Executions"
+			},
+			"tabs": {
+				"overview": "Overview",
+				"execution": "Execution History",
+				"settings": "Settings"
+			},
+			"overview": {
+				"details": {
+					"title": "Workflow Details",
+					"status": "Status:",
+					"trigger": "Trigger:",
+					"steps": "Steps:",
+					"created": "Created:",
+					"tags": "Tags:"
+				},
+				"steps": {
+					"title": "Workflow Steps",
+					"description": "The sequence of actions in this workflow",
+					"actions": "{{count}} action",
+					"actionsPlural": "{{count}} actions"
+				}
+			},
+			"settings": {
+				"title": "Workflow Settings",
+				"description": "Configure execution settings and notifications",
+				"maxRetries": "Max Retries",
+				"timeout": "Timeout (seconds)",
+				"maxConcurrent": "Max Concurrent",
+				"notifyOnFailure": "Notify on Failure",
+				"yes": "Yes",
+				"no": "No",
+				"dangerZone": {
+					"title": "Danger Zone",
+					"description": "Irreversible actions for this workflow",
+					"archive": "Archive Workflow"
+				}
+			}
+		},
+		"templates": {
+			"title": "Workflow Templates",
+			"subtitle": "Choose from pre-built templates or create a custom workflow",
+			"createCustom": "Create Custom Workflow",
+			"back": "Back to Workflows",
+			"stats": {
+				"availableTemplates": "Available Templates",
+				"categories": "Categories",
+				"customWorkflows": "Custom Workflows"
+			},
+			"comingSoon": "Workflow templates coming soon...",
+			"builder": {
+				"fromTemplate": "Create from Template",
+				"custom": "Create Custom Workflow",
+				"customizeTemplate": "Customize the \"{{name}}\" template",
+				"buildFromScratch": "Build your workflow from scratch",
+				"back": "Back to Templates"
+			}
+		},
+		"builder": {
+			"create": "Create New Workflow",
+			"edit": "Edit Workflow: {{name}}",
+			"editing": "Editing",
+			"description": {
+				"edit": "Modify your existing workflow automation. Changes will be saved when you click Save.",
+				"create": "Build automated workflows to streamline your business processes"
+			},
+			"cancelEdit": "Cancel Edit",
+			"fields": {
+				"name": "Workflow Name *",
+				"namePlaceholder": "Enter workflow name",
+				"category": "Category",
+				"description": "Description",
+				"descriptionPlaceholder": "Describe what this workflow does",
+				"trigger": "Trigger *"
+			},
+			"categories": {
+				"general": "General",
+				"finance": "Finance",
+				"onboarding": "Onboarding",
+				"approval": "Approval",
+				"contracts": "Contracts"
+			},
+			"triggerGroups": {
+				"invoice": "Invoice",
+				"manual": "Manual"
+			},
+			"triggerLabels": {
+				"created": "Created",
+				"paid": "Paid",
+				"manualTrigger": "Manual Trigger"
+			},
+			"steps": {
+				"title": "Workflow Steps",
+				"description": "Define the actions and conditions for your workflow",
+				"addStep": "Add Step",
+				"noSteps": "No steps added yet. Click \"Add Step\" to get started.",
+				"step": "Step {{number}}",
+				"stepNamePlaceholder": "Step {{number}} name"
+			},
+			"actions": {
+				"test": "Test Workflow",
+				"preview": "Preview",
+				"save": "Save Workflow",
+				"saving": "Saving..."
+			},
+			"action": {
+				"action": "Action {{number}}",
+				"name": "Action Name",
+				"namePlaceholder": "Send notification to Slack",
+				"selectType": "Select action type"
+			},
+			"actionTypes": {
+				"httpRequest": "HTTP Request",
+				"sendEmail": "Send Email"
+			},
+			"toast": {
+				"noOrg": "No organization selected",
+				"requiredFields": "Please fill in all required fields",
+				"validationFailed": "Validation failed: {{errors}}",
+				"updateSuccess": "Workflow updated successfully!",
+				"createSuccess": "Workflow created successfully!"
+			}
+		},
+		"executionHistory": {
+			"title": "Execution History",
+			"count": "{{filtered}} of {{total}} executions",
+			"refresh": "Refresh",
+			"searchPlaceholder": "Search by ID or trigger...",
+			"loading": "Loading execution history...",
+			"error": "Error loading execution history: {{message}}",
+			"titles": {
+				"running": "Running now",
+				"failed": "Failed execution",
+				"completed": "Completed successfully",
+				"pending": "Waiting to start",
+				"execution": "Execution"
+			},
+			"triggerTypes": {
+				"invoiceCreated": "Invoice Created",
+				"invoicePaid": "Invoice Paid",
+				"userRegistered": "User Registered",
+				"webhook": "Webhook",
+				"scheduled": "Scheduled",
+				"manual": "Manual"
+			},
+			"triggeredBy": "Triggered by {{trigger}}",
+			"statusFilters": {
+				"all": "All Status",
+				"pending": "Pending",
+				"running": "Running",
+				"completed": "Completed",
+				"failed": "Failed",
+				"cancelled": "Cancelled"
+			},
+			"sort": {
+				"newest": "Newest",
+				"oldest": "Oldest"
+			},
+			"retry": "Retry",
+			"errorDetails": "Error Details:",
+			"progress": "Progress",
+			"progressSteps": "{{completed}} of {{total}} steps",
+			"recentActivity": "Recent Activity",
+			"moreLogs": "... and {{count}} more logs",
+			"viewDetails": "View Details",
+			"retryExecution": "Retry Execution",
+			"time": {
+				"justNow": "Just now",
+				"minutesAgo": "{{minutes}}m ago",
+				"hoursAgo": "{{hours}}h ago",
+				"daysAgo": "{{days}}d ago"
+			},
+			"duration": {
+				"running": "Running...",
+				"lessThanSecond": "< 1s",
+				"seconds": "{{seconds}}s",
+				"minutes": "{{minutes}}m",
+				"hours": "{{hours}}h"
+			},
+			"emptyState": {
+				"title": "No executions found",
+				"noExecutions": "This workflow hasn't been executed yet.",
+				"noResults": "Try adjusting your search or filter criteria."
+			}
+		},
+		"preview": {
+			"title": "Workflow Preview",
+			"description": "Preview how \"{{name}}\" will execute",
+			"subtitle": "Preview how \"{{name}}\" will execute",
+			"noSelection": {
+				"title": "No workflow selected for preview",
+				"description": "Select a workflow from the list to preview its structure and execution flow"
+			},
+			"simulateExecution": "Simulate Execution",
+			"simulate": "Simulate Execution",
+			"simulating": "Simulating...",
+			"stop": "Stop",
+			"reset": "Reset",
+			"closePreview": "Close Preview",
+			"close": "Close Preview",
+			"overview": {
+				"trigger": "Trigger",
+				"steps": "{{count}} step",
+				"stepsPlural": "{{count}} steps",
+				"stepsCount": "{{count}} step",
+				"stepsCount_plural": "{{count}} steps",
+				"version": "Version",
+				"tags": "Tags"
+			},
+			"executionFlow": {
+				"title": "Execution Flow",
+				"description": "Visual representation of how this workflow will execute",
+				"trigger": "Trigger",
+				"actionsCount": "{{count}} action",
+				"actionsCount_plural": "{{count}} actions",
+				"configured": "Configured",
+				"completed": "Workflow Completed",
+				"completedDescription": "All steps executed successfully",
+				"error": "Simulation Error"
+			},
+			"configDetails": {
+				"title": "Configuration Details",
+				"description": "Detailed view of workflow settings and parameters",
+				"settings": "Settings",
+				"notifications": "Notifications",
+				"maxRetries": "Max Retries:",
+				"timeout": "Timeout:",
+				"maxConcurrent": "Max Concurrent:",
+				"notifyOnFailure": "Notify on Failure:",
+				"notifyOnSuccess": "Notify on Success:",
+				"yes": "Yes",
+				"no": "No",
+				"n8nEnabled": "n8n Integration Enabled",
+				"n8nDescription": "This workflow is integrated with n8n for advanced automation capabilities."
+			},
+			"configuration": {
+				"title": "Configuration Details",
+				"description": "Detailed view of workflow settings and parameters",
+				"settings": "Settings",
+				"notifications": "Notifications",
+				"maxRetries": "Max Retries:",
+				"timeout": "Timeout:",
+				"maxConcurrent": "Max Concurrent:",
+				"notifyOnFailure": "Notify on Failure:",
+				"notifyOnSuccess": "Notify on Success:",
+				"n8nEnabled": "n8n Integration Enabled",
+				"n8nDescription": "This workflow is integrated with n8n for advanced automation capabilities."
+			},
+			"completed": {
+				"title": "Workflow Completed",
+				"description": "All steps executed successfully"
+			},
+			"errors": {
+				"noSteps": "Workflow has no steps to simulate",
+				"simulationFailed": "Simulation failed"
+			},
+			"error": {
+				"title": "Simulation Error",
+				"noSteps": "Workflow has no steps to simulate"
+			},
+			"triggerLabels": {
+				"invoiceCreated": "Invoice Created",
+				"invoiceSent": "Invoice Sent",
+				"invoicePaid": "Invoice Paid",
+				"invoiceOverdue": "Invoice Overdue",
+				"proposalCreated": "Proposal Created",
+				"proposalApproved": "Proposal Approved",
+				"contractExpiring": "Contract Expiring",
+				"scheduled": "Scheduled",
+				"manualTrigger": "Manual Trigger"
+			},
+			"actionLabels": {
+				"sendEmail": "Send Email",
+				"sendSlack": "Send Slack Message",
+				"createInvoice": "Create Invoice",
+				"updateInvoiceStatus": "Update Invoice Status",
+				"createTask": "Create Task",
+				"httpRequest": "HTTP Request",
+				"notifyUser": "Notify User",
+				"waitDelay": "Wait/Delay"
+			},
+			"configured": "Configured"
+		},
+		"httpAction": {
+			"url": "URL *",
+			"urlPlaceholder": "https://api.stripe.com/v1/customers/{customerId}",
+			"method": "Method",
+			"headers": "Headers (JSON)",
+			"headersPlaceholder": "{\"Content-Type\": \"application/json\", \"Authorization\": \"Bearer {token}\"}",
+			"body": "Body (JSON)",
+			"bodyPlaceholder": "{\"name\": \"John Doe\", \"email\": \"john@example.com\"}",
+			"authentication": "Authentication",
+			"authTypes": {
+				"none": "None",
+				"bearer": "Bearer Token",
+				"basic": "Basic Auth"
+			},
+			"token": "Bearer Token",
+			"tokenPlaceholder": "{secret.bearer_token}",
+			"username": "Username",
+			"usernamePlaceholder": "{secret.username}",
+			"password": "Password",
+			"passwordPlaceholder": "{secret.password}",
+			"timeout": "Timeout (milliseconds)",
+			"timeoutPlaceholder": "30000"
+		},
+		"emailAction": {
+			"recipients": "Recipients *",
+			"recipientPlaceholder": "recipient@example.com",
+			"addRecipient": "Add Recipient",
+			"subject": "Subject *",
+			"subjectPlaceholder": "Invoice Payment Reminder",
+			"body": "Email Body *",
+			"bodyPlaceholder": "Dear {customer.name}, your invoice {invoice.number} is due...",
+			"htmlEmail": "HTML Email",
+			"cc": "CC (Optional)",
+			"ccPlaceholder": "cc@example.com",
+			"addCc": "Add CC",
+			"replyTo": "Reply-To (Optional)",
+			"replyToPlaceholder": "noreply@yourcompany.com"
+		}
+	},
+	"siteBuilder": {
+		"title": "AI Site Builder",
+		"subtitle": "Chat with AI to create and update your website",
+		"viewSite": "View Site",
+		"tabs": {
+			"chatBuilder": "Chat Builder",
+			"codeEditor": "Code Editor"
+		},
+		"emptyState": {
+			"title": "Create Your First Website",
+			"description": "Start by describing what you want your website to be. The AI will help you create a beautiful, branded site.",
+			"createSite": "Create Site"
+		},
+		"sidebar": {
+			"title": "Settings & Tools",
+			"siteStatus": "Site Status",
+			"pages": "Pages",
+			"advanced": "Advanced",
+			"integrationWidgets": "Integration Widgets"
+		},
+		"pages": {
+			"title": "Pages",
+			"addPage": "Add Page",
+			"blog": "Blog",
+			"addArticle": "Add Article",
+			"updated": "Pages Updated",
+			"updatedDescription": "Changes saved. Regenerate to publish.",
+			"publishing": "Publishing...",
+			"publishChanges": "Publish Changes"
+		},
+		"advanced": {
+			"title": "Advanced",
+			"codeEditor": "Code Editor",
+			"codeEditorDescription": "Edit your site files directly in the code editor.",
+			"openCodeEditor": "Open Code Editor",
+			"createBlankSite": "Create Blank Site",
+			"createBlankSiteDescription": "Create a site first to use the code editor."
+		},
+		"dangerZone": {
+			"title": "Danger Zone",
+			"description": "Permanently delete this website, all pages, blog posts, and deployed content. This action cannot be undone.",
+			"deleteWebsite": "Delete Website"
+		},
+		"deleteDialog": {
+			"title": "Delete Website",
+			"cannotUndo": "This action cannot be undone. This will permanently delete:",
+			"willDelete": {
+				"website": "The entire website and all its pages",
+				"blogPosts": "All blog posts and articles",
+				"deployedContent": "All deployed content and files",
+				"firebaseHosting": "The Firebase Hosting site",
+				"versionHistory": "All version history"
+			},
+			"willNotAffect": "This will NOT affect:",
+			"willNotAffectList": {
+				"widgets": "Your widget configurations",
+				"organization": "Your organization settings"
+			},
+			"cancel": "Cancel",
+			"deleting": "Deleting...",
+			"confirm": "Delete Website"
+		},
+		"aiWidgetDialog": {
+			"title": "Generate Widget with AI",
+			"description": "Let AI create a beautiful, conversion-optimized widget design based on your organization's branding and preferences.",
+			"widgetType": "Widget Type",
+			"designStyle": "Design Style",
+			"additionalContext": "Additional Context (Optional)",
+			"additionalContextPlaceholder": "E.g., 'Make it friendly and approachable', 'Use a dark theme', 'Focus on mobile users'...",
+			"additionalContextHint": "Provide any specific design preferences or requirements for the widget.",
+			"cancel": "Cancel",
+			"generating": "Generating...",
+			"generateWidget": "Generate Widget",
+			"widgetTypes": {
+				"contactForm": "Contact Form",
+				"invoiceRequest": "Invoice Request",
+				"quoteRequest": "Quote Request"
+			},
+			"styles": {
+				"modern": "Modern - Clean lines, contemporary colors",
+				"classic": "Classic - Traditional, conservative",
+				"minimal": "Minimal - Lots of white space, simple",
+				"professional": "Professional - Business-focused, trustworthy",
+				"bold": "Bold - Vibrant colors, eye-catching",
+				"elegant": "Elegant - Sophisticated, refined"
+			}
+		},
+		"createSiteDialog": {
+			"title": "Create Your Website",
+			"description": "Describe what you want your website to be. The AI will help you create a beautiful, branded site.",
+			"websiteDescription": "Website Description",
+			"websiteDescriptionPlaceholder": "e.g., I need a website for my consulting business with a home page, about page, services page, and contact form",
+			"cancel": "Cancel",
+			"creating": "Creating...",
+			"createSite": "Create Site"
+		},
+		"pageDialog": {
+			"removeTitle": "Remove page?",
+			"removeDescription": "\"{{title}}\" will be removed from your site navigation.",
+			"cancel": "Cancel",
+			"removing": "Removing...",
+			"remove": "Remove"
+		},
+		"toasts": {
+			"filesSaved": "Files saved successfully",
+			"siteCreated": "Site created! Start chatting to customize it.",
+			"blankSiteCreated": "Blank site created! Switch to Code Editor tab to start editing.",
+			"widgetSaved": "Widget configuration saved successfully",
+			"widgetGenerated": "Widget design generated successfully!",
+			"previewOpened": "Preview opened in new tab",
+			"embedScriptCopied": "Embed script copied to clipboard",
+			"errors": {
+				"generateSiteFirst": "Generate a site before managing pages.",
+				"pageTitleRequired": "Page title is required",
+				"pageNotFound": "Page not found",
+				"siteNeedsOnePage": "Your site needs at least one page.",
+				"articleTitleRequired": "Article title is required",
+				"enterDomain": "Please enter a domain",
+				"organizationNotFound": "Organization not found",
+				"widgetGenerationFailed": "Failed to generate widget: {{message}}",
+				"saveWidgetFailed": "Failed to save widget configuration"
+			}
+		},
+		"widgets": {
+			"saveConfiguration": "Save Widget Configuration",
+			"defaultLabels": {
+				"name": "Name",
+				"email": "Email",
+				"phone": "Phone",
+				"company": "Company",
+				"message": "Message"
+			},
+			"defaultConfig": {
+				"contactForm": {
+					"title": "Contact Us",
+					"submitButtonText": "Send Message",
+					"successMessage": "Thank you! We'll get back to you soon."
+				},
+				"invoiceRequest": {
+					"title": "Request Invoice",
+					"submitButtonText": "Request Invoice",
+					"successMessage": "Invoice request submitted successfully!"
+				},
+				"quoteRequest": {
+					"title": "Request Quote",
+					"submitButtonText": "Request Quote",
+					"successMessage": "Quote request submitted successfully!"
+				}
+			},
+			"addPageDialog": {
+				"createTitle": "Add a new page",
+				"editTitle": "Edit page",
+				"createDescription": "Provide a title and optional description. The slug determines the URL (e.g. /about).",
+				"editDescription": "Update the details for this page. Changing the slug will update the page URL.",
+				"title": "Title",
+				"titlePlaceholder": "About",
+				"slug": "Slug",
+				"slugPlaceholder": "about",
+				"type": "Type",
+				"types": {
+					"standard": "Standard",
+					"blog": "Blog / Articles",
+					"contact": "Contact"
+				},
+				"description": "Description (optional)",
+				"descriptionPlaceholder": "Brief description of this page's purpose...",
+				"context": "Context (optional)",
+				"contextPlaceholder": "Additional context for AI generation...",
+				"cancel": "Cancel",
+				"addPage": "Add Page",
+				"saveChanges": "Save Changes",
+				"adding": "Adding...",
+				"saving": "Saving..."
+			},
+			"siteStatus": {
+				"pending": {
+					"title": "Site generation queued...",
+					"description": "Waiting to start generation"
+				},
+				"generating": {
+					"title": "Generating site with AI...",
+					"description": "This may take 1-2 minutes"
+				},
+				"deploying": {
+					"title": "Deploying site...",
+					"description": "Setting up hosting and DNS"
+				},
+				"success": {
+					"title": "Site Generated Successfully!"
+				},
+				"failed": {
+					"title": "Site Generation Failed",
+					"unknownError": "Unknown error occurred"
+				},
+				"retry": "Retry",
+				"retrying": "Retrying..."
+			},
+			"embedScript": {
+				"title": "Embed Script",
+				"copyScript": "Copy Script",
+				"copied": "Copied!",
+				"description": "Copy this script and paste it into your website's HTML to embed the widgets.",
+				"hint": "The script will automatically load your widget configuration. No need to update it when you make changes."
+			},
+			"widgetEnableToggle": {
+				"title": "Enable Widgets",
+				"description": "Allow widgets to be embedded on external websites"
+			},
+			"widgetVersionHistory": {
+				"title": "Version History",
+				"current": "Current: v{{version}}",
+				"version": "Version {{number}}",
+				"currentBadge": "Current",
+				"unknownDate": "Unknown date",
+				"preview": "Preview",
+				"restore": "Restore"
+			},
+			"previewDialog": {
+				"title": "Preview Widget Version {{version}}",
+				"description": "This is a preview of how the widgets looked in version {{version}}. This preview is read-only.",
+				"contactFormTitle": "Contact Form Widget",
+				"invoiceRequestTitle": "Invoice Request Widget",
+				"quoteRequestTitle": "Quote Request Widget",
+				"noConfiguration": "No widget configuration found in this version.",
+				"fallbacks": {
+					"contactUs": "Contact Us",
+					"requestInvoice": "Request Invoice",
+					"requestQuote": "Request Quote",
+					"submit": "Submit",
+					"thankYou": "Thank you!"
+				}
+			},
+			"config": {
+				"contactForm": {
+					"title": "Contact Form Widget",
+					"description": "Allow visitors to submit contact information",
+					"aiBuilder": "AI Builder",
+					"fields": {
+						"title": "Title",
+						"description": "Description (Optional)",
+						"displayMode": "Display Mode",
+						"displayModeFloating": "Floating Button",
+						"displayModeInline": "Inline Form",
+						"displayModeFloatingHint": "Shows a floating button that opens a modal form",
+						"displayModeInlineHint": "Renders the form directly in the page where a placeholder element exists",
+						"buttonText": "Button Text",
+						"position": "Position",
+						"positionBottomRight": "Bottom Right",
+						"positionBottomLeft": "Bottom Left",
+						"positionTopRight": "Top Right",
+						"positionTopLeft": "Top Left",
+						"successMessage": "Success Message",
+						"inlineFormUsage": "Inline Form Usage:",
+						"inlineFormUsageDescription": "Add a placeholder element in your HTML where you want the form to appear:",
+						"fieldConfiguration": "Field Configuration",
+						"builtInFields": "Built-in Fields",
+						"fieldLabel": "Label",
+						"required": "Required",
+						"customFields": "Custom Fields",
+						"addCustomField": "Add Custom Field",
+						"fieldName": "Field Name (ID)",
+						"fieldNamePlaceholder": "field_name",
+						"fieldLabelPlaceholder": "Field Label",
+						"fieldType": "Field Type",
+						"fieldTypeText": "Text",
+						"fieldTypeEmail": "Email",
+						"fieldTypePhone": "Phone",
+						"fieldTypeTextarea": "Textarea",
+						"fieldTypeNumber": "Number",
+						"fieldTypeSelect": "Select",
+						"fieldTypeCheckbox": "Checkbox",
+						"fieldTypeDate": "Date",
+						"options": "Options (one per line)",
+						"optionsPlaceholder": "Option 1\nOption 2\nOption 3",
+						"placeholder": "Placeholder (Optional)",
+						"placeholderPlaceholder": "Enter placeholder text",
+						"removeField": "Remove Field",
+						"noCustomFields": "No custom fields added. Click \"Add Custom Field\" to create one.",
+						"localizationHelp": "Add custom translations for widget text. Use keys like \"contactUs\", \"sendMessage\", etc."
+					}
+				},
+				"invoiceRequest": {
+					"title": "Invoice Request Widget",
+					"description": "Allow customers to request invoices",
+					"aiBuilder": "AI Builder",
+					"fields": {
+						"title": "Title",
+						"description": "Description (Optional)",
+						"buttonText": "Button Text",
+						"position": "Position",
+						"positionBottomRight": "Bottom Right",
+						"positionBottomLeft": "Bottom Left",
+						"positionTopRight": "Top Right",
+						"positionTopLeft": "Top Left",
+						"successMessage": "Success Message",
+						"localizationHelp": "Add custom translations for widget text. Use keys like \"requestInvoice\", \"submitButton\", etc."
+					}
+				},
+				"quoteRequest": {
+					"title": "Quote Request Widget",
+					"description": "Allow customers to request quotes",
+					"aiBuilder": "AI Builder",
+					"fields": {
+						"title": "Title",
+						"description": "Description (Optional)",
+						"buttonText": "Button Text",
+						"position": "Position",
+						"positionBottomRight": "Bottom Right",
+						"positionBottomLeft": "Bottom Left",
+						"positionTopRight": "Top Right",
+						"positionTopLeft": "Top Left",
+						"successMessage": "Success Message",
+						"localizationHelp": "Add custom translations for widget text. Use keys like \"requestQuote\", \"submitButton\", etc."
+					}
+				}
+			},
+			"localization": {
+				"title": "Localization & Translations",
+				"defaultLanguage": "Default Language",
+				"english": "English (en)",
+				"readOnly": "Read-only",
+				"empty": "(empty)",
+				"additionalLanguages": "Additional Languages",
+				"addLanguage": "Add language...",
+				"noLanguages": "No additional languages added yet.",
+				"autoTranslate": "Auto Translate",
+				"translationKeys": "Translation Keys (Read-only)",
+				"translations": "Translations",
+				"translationPlaceholder": "Translation for \"{{value}}\"",
+				"autoTranslateDialog": {
+					"title": "Auto Translate with AI",
+					"description": "This will automatically translate empty fields using AI. Translations may not always be accurate.",
+					"important": "Important:",
+					"warning1": "AI translations may not always be correct",
+					"warning2": "Only empty translation fields will be filled",
+					"warning3": "Existing translations will not be overwritten",
+					"warning4": "Please review all translations after auto-translation",
+					"targetLanguage": "Target Language",
+					"cancel": "Cancel",
+					"translating": "Translating...",
+					"translate": "Auto Translate"
+				},
+				"toasts": {
+					"languageAlreadyAdded": "This language is already added",
+					"allTranslationsFilled": "All translations are already filled",
+					"organizationIdRequired": "Organization ID is required for translation",
+					"translated": "Translated {{count}} field{{plural}} to {{language}}",
+					"translationFailed": "Failed to translate. Please try again."
+				}
+			},
+			"styling": {
+				"title": "Styling & Appearance",
+				"primaryColor": "Primary Color",
+				"secondaryColor": "Secondary Color",
+				"backgroundColor": "Background Color",
+				"textColor": "Text Color",
+				"borderColor": "Border Color",
+				"errorColor": "Error Color",
+				"successColor": "Success Color",
+				"fontFamily": "Font Family",
+				"fontFamilyPlaceholder": "Arial, sans-serif",
+				"fontSize": "Font Size",
+				"fontSizePlaceholder": "14px",
+				"fontWeight": "Font Weight",
+				"fontWeightLight": "Light (300)",
+				"fontWeightNormal": "Normal (400)",
+				"fontWeightMedium": "Medium (500)",
+				"fontWeightSemiBold": "Semi-bold (600)",
+				"fontWeightBold": "Bold (700)",
+				"padding": "Padding",
+				"paddingPlaceholder": "12px",
+				"gap": "Gap",
+				"gapPlaceholder": "16px",
+				"borderRadius": "Border Radius",
+				"borderRadiusPlaceholder": "8px",
+				"buttonPadding": "Button Padding",
+				"buttonPaddingPlaceholder": "12px 24px",
+				"buttonBorderRadius": "Button Border Radius",
+				"buttonBorderRadiusPlaceholder": "8px",
+				"modalMaxWidth": "Modal Max Width",
+				"modalMaxWidthPlaceholder": "500px",
+				"shadow": "Shadow",
+				"shadowPlaceholder": "0 4px 12px rgba(0, 0, 0, 0.15)"
+			}
+		},
+		"aiChatBuilder": {
+			"title": "AI Chat Builder",
+			"selectPage": "Select page",
+			"entireSite": "🌐 Entire Site",
+			"home": "(Home)",
+			"newChat": "New Chat",
+			"editingEntireSite": "Editing: <span class=\"font-medium\">Entire Site</span> (all pages will be updated)",
+			"editingPage": "Editing: <span class=\"font-medium\">{{title}}</span>{{slug}}",
+			"untitled": "Untitled",
+			"welcomeWithContext": "Hello! I'm your AI site builder. I'll help you create a beautiful, branded website. What would you like your website to be about?",
+			"welcomeWithoutContext": "Hello! I'm your AI site builder. I can help you create or update your website. What would you like to do?",
+			"initialWebsiteCreation": "Initial Website Creation",
+			"generatingSite": "Generating site with AI...\n\nThis may take 1-2 minutes",
+			"aiThinking": "AI is thinking...",
+			"attachment": "Attachment {{index}}",
+			"inputPlaceholder": "Type your message or request...",
+			"inputHint": "Press Enter to send, Shift+Enter for new line",
+			"preview": "Preview",
+			"toasts": {
+				"pleaseUploadImage": "Please upload an image file",
+				"imageTooLarge": "Image must be smaller than 10MB",
+				"imageUploaded": "Image uploaded",
+				"generateSiteFirst": "Please generate a site first",
+				"error": "Sorry, I encountered an error: {{message}}",
+				"unknownError": "Unknown error"
+			}
+		},
+		"fileEditor": {
+			"files": "Files",
+			"emptyState": {
+				"noFiles": "No files yet. Create a new file to get started.",
+				"selectFile": "Select a file from the sidebar to start editing"
+			},
+			"save": "Save",
+			"saving": "Saving...",
+			"deploy": "Deploy",
+			"deploying": "Deploying...",
+			"newFileDialog": {
+				"title": "Create New File",
+				"description": "Enter the file path (e.g., index.html, styles.css, script.js)",
+				"placeholder": "index.html",
+				"cancel": "Cancel",
+				"create": "Create"
+			},
+			"deleteConfirm": "Are you sure you want to delete {{path}}?",
+			"toasts": {
+				"fileSaved": "File saved successfully",
+				"fileSaveFailed": "Failed to save file",
+				"siteDeployed": "Site deployed successfully",
+				"siteDeployFailed": "Failed to deploy site",
+				"fileCreated": "New file created",
+				"fileDeleted": "File deleted"
+			}
+		},
+		"siteVersionHistory": {
+			"title": "Version History",
+			"current": "Current: v{{version}}",
+			"noVersions": "No previous versions available",
+			"version": "Version {{number}}",
+			"currentBadge": "Current",
+			"unknownDate": "Unknown date",
+			"preview": "Preview",
+			"previewTitle": "Preview this version",
+			"creatingPreview": "Creating...",
+			"creatingPreviewTitle": "Creating preview...",
+			"createPreviewTitle": "Create preview for this version",
+			"live": "Live",
+			"liveTitle": "View live site",
+			"restore": "Restore",
+			"restoreConfirm": "Are you sure you want to restore this version? This will replace your current live site.",
+			"popupBlocked": "Popup blocked. Please allow popups for this site and try again."
+		}
+	},
+	"analytics": {
+		"title": "Analytics",
+		"subtitle": "Track and analyze your website performance",
+		"viewSite": "View Site",
+		"tabs": {
+			"overview": "Overview",
+			"settings": "Settings"
+		},
+		"dateRange": {
+			"title": "Date Range",
+			"description": "Select the time period for analytics data",
+			"startDate": "Start Date",
+			"endDate": "End Date",
+			"days7": "7d",
+			"days30": "30d",
+			"days90": "90d"
+		},
+		"status": {
+			"title": "Analytics Status",
+			"description": "Current analytics configuration and status",
+			"status": "Status:",
+			"active": "Active",
+			"notConfigured": "Not Configured",
+			"activeProviders": "Active providers:",
+			"none": "None",
+			"notFullyConfigured": "Analytics is not fully configured. Go to Settings to enable and configure your analytics provider.",
+			"trackingActiveOn": "Tracking Active On:"
+		},
+		"metrics": {
+			"title": "Metrics",
+			"description": "Website performance metrics and insights",
+			"dataFrom": "Data from:",
+			"realTime": "Real-time",
+			"pageViews": "Page Views",
+			"uniqueVisitors": "Unique Visitors",
+			"basedOnClientIds": "Based on client IDs",
+			"bounceRate": "Bounce Rate",
+			"avgSession": "Avg session: {{seconds}}s",
+			"sessionDataUnavailable": "Session data unavailable",
+			"topPages": "Top Pages",
+			"view": "view",
+			"views": "views",
+			"noPageViews": "No page views recorded yet. Pages will appear here once visitors start browsing your site.",
+			"trafficSources": "Traffic Sources",
+			"visitor": "visitor",
+			"visitors": "visitors",
+			"direct": "Direct",
+			"noTrafficSources": "No traffic sources recorded yet. Sources will appear here as visitors arrive.",
+			"devices": "Devices",
+			"noDeviceData": "No device data available",
+			"browsers": "Browsers",
+			"noBrowserData": "No browser data available",
+			"topReferrers": "Top Referrers",
+			"noReferrers": "No referrers recorded yet. Referrers will appear here when visitors arrive from other websites.",
+			"pageViewsOverTime": "Page Views Over Time",
+			"showingDailyViews": "Showing daily page views (hover bars for details)",
+			"noPageViewData": "No page view data available for the selected date range.",
+			"dataWillAppear": "Data will appear here once visitors start browsing your site.",
+			"noAnalyticsData": "No Analytics Data Yet",
+			"analyticsReady": "Your analytics is configured and ready. Once visitors start browsing your site, metrics will appear here automatically.",
+			"visitYourSite": "Visit Your Site",
+			"unableToLoad": "Unable to load analytics data. Please ensure analytics is properly configured.",
+			"indexWarning": "Index Warning",
+			"createIndex": "Create index →"
+		},
+		"settings": {
+			"title": "Analytics Configuration",
+			"description": "Configure your analytics provider and tracking settings",
+			"enableAnalytics": "Enable Analytics",
+			"enableAnalyticsDescription": "Enable analytics tracking on your website",
+			"analyticsProviders": "Analytics Providers",
+			"analyticsProvidersDescription": "Enable one or more analytics providers to track your website. You can use multiple providers simultaneously.",
+			"ga4": {
+				"label": "Google Analytics 4 (gtag.js)",
+				"description": "Direct Google Analytics 4 tracking",
+				"measurementId": "GA4 Measurement ID",
+				"measurementIdPlaceholder": "G-XXXXXXXXXX"
+			},
+			"plausible": {
+				"label": "Plausible Analytics",
+				"description": "Privacy-friendly, open-source analytics",
+				"domain": "Plausible Domain",
+				"domainPlaceholder": "yourdomain.com"
+			},
+			"umami": {
+				"label": "Umami Analytics",
+				"description": "Privacy-focused, open-source analytics solution",
+				"scriptUrl": "Umami Script URL",
+				"scriptUrlPlaceholder": "https://cloud.umami.is/script.js",
+				"scriptUrlDescription": "The URL to your Umami script (e.g., https://cloud.umami.is/script.js)",
+				"websiteId": "Umami Website ID",
+				"websiteIdPlaceholder": "e74df8d0-2837-4ec1-bac8-ce82e8a170b2",
+				"websiteIdDescription": "Your Umami website ID from the tracking code"
+			},
+			"clarity": {
+				"label": "Microsoft Clarity",
+				"description": "Session replay, heatmaps, and user behavior insights",
+				"projectId": "Clarity Project ID",
+				"projectIdPlaceholder": "Clarity Project ID"
+			},
+			"consent": {
+				"default": "Default Consent",
+				"defaultDescription": "Default consent state for analytics tracking",
+				"denied": "Denied (GDPR Compliant)",
+				"granted": "Granted"
+			},
+			"saveConfiguration": "Save Configuration",
+			"saving": "Saving..."
+		},
+		"consentBanner": {
+			"title": "Consent Banner Styling",
+			"description": "Customize the appearance of your GDPR consent banner",
+			"generateWithAI": "Generate with AI",
+			"colors": "Colors",
+			"backgroundColor": "Background Color",
+			"textColor": "Text Color",
+			"buttonBackground": "Button Background",
+			"buttonTextColor": "Button Text Color",
+			"linkColor": "Link Color",
+			"borderColor": "Border Color",
+			"typography": "Typography",
+			"fontFamily": "Font Family",
+			"fontFamilyPlaceholder": "system-ui, -apple-system, sans-serif",
+			"fontSize": "Font Size",
+			"fontSizePlaceholder": "14px",
+			"fontWeight": "Font Weight",
+			"fontWeightLight": "Light (300)",
+			"fontWeightNormal": "Normal (400)",
+			"fontWeightMedium": "Medium (500)",
+			"fontWeightSemiBold": "Semi-bold (600)",
+			"fontWeightBold": "Bold (700)",
+			"layout": "Layout & Spacing",
+			"position": "Position",
+			"positionBottom": "Bottom",
+			"positionTop": "Top",
+			"positionCenter": "Center",
+			"maxWidth": "Max Width",
+			"maxWidthPlaceholder": "600px",
+			"padding": "Padding",
+			"paddingPlaceholder": "16px",
+			"borderRadius": "Border Radius",
+			"borderRadiusPlaceholder": "8px",
+			"shadow": "Shadow",
+			"shadowPlaceholder": "0 4px 12px rgba(0, 0, 0, 0.15)",
+			"content": "Content",
+			"message": "Message",
+			"messagePlaceholder": "We use cookies to enhance your browsing experience and analyze site traffic.",
+			"acceptButtonText": "Accept Button Text",
+			"acceptButtonTextPlaceholder": "Accept",
+			"rejectButtonText": "Reject Button Text",
+			"rejectButtonTextPlaceholder": "Reject",
+			"showRejectButton": "Show Reject Button",
+			"showRejectButtonDescription": "Allow users to explicitly reject analytics tracking",
+			"aiDialog": {
+				"title": "Generate Consent Banner with AI",
+				"description": "Generate a beautiful, GDPR-compliant consent banner that matches your organization's branding.",
+				"style": "Style",
+				"styleModern": "Modern",
+				"styleClassic": "Classic",
+				"styleMinimal": "Minimal",
+				"styleProfessional": "Professional",
+				"styleBold": "Bold",
+				"styleElegant": "Elegant",
+				"additionalContext": "Additional Context (Optional)",
+				"additionalContextPlaceholder": "E.g., 'Use a dark theme' or 'Match our brand colors'",
+				"cancel": "Cancel",
+				"generating": "Generating...",
+				"generateBanner": "Generate Banner"
+			},
+			"toasts": {
+				"organizationNotFound": "Organization not found",
+				"generatedSuccessfully": "Consent banner generated successfully!",
+				"generationFailed": "Failed to generate consent banner: {{message}}"
+			}
+		},
+		"toasts": {
+			"configurationSaved": "Analytics configuration saved",
+			"saveFailed": "Failed to save analytics configuration: {{message}}"
+		}
+	},
+	"settings": {
+		"title": "Settings",
+		"subtitle": "Manage your organization",
+		"sections": {
+			"organization": "Organization",
+			"users": "Users",
+			"security": "Security"
+		},
+		"organization": {
+			"general": {
+				"title": "General",
+				"description": "Basic organization information",
+				"pageTitle": "Organization Settings",
+				"pageDescription": "Manage your organization's basic information and contact details.",
+				"basicInformation": {
+					"title": "Basic Information",
+					"description": "Your organization's primary details and description.",
+					"name": "Organization Name *",
+					"namePlaceholder": "Enter organization name",
+					"website": "Website",
+					"websitePlaceholder": "https://example.com",
+					"description": "Description",
+					"descriptionPlaceholder": "Brief description of your organization"
+				},
+				"contactInformation": {
+					"title": "Contact Information",
+					"description": "Contact details for your organization.",
+					"email": "Email",
+					"emailPlaceholder": "contact@example.com",
+					"phone": "Phone",
+					"phonePlaceholder": "+1 (555) 123-4567"
+				},
+				"address": {
+					"title": "Address",
+					"description": "Physical address for your organization.",
+					"streetAddress": "Street Address",
+					"streetAddressPlaceholder": "123 Main Street",
+					"city": "City",
+					"cityPlaceholder": "New York",
+					"state": "State/Province",
+					"statePlaceholder": "NY",
+					"zipCode": "ZIP/Postal Code",
+					"zipCodePlaceholder": "10001",
+					"country": "Country",
+					"countryPlaceholder": "United States"
+				},
+				"unsavedChanges": "You have unsaved changes",
+				"cancel": "Cancel",
+				"saving": "Saving...",
+				"saveChanges": "Save Changes",
+				"toasts": {
+					"updated": "Organization settings updated successfully",
+					"updateFailed": "Failed to update organization settings"
+				}
+			},
+			"branding": {
+				"title": "Branding",
+				"description": "Logo, colors, and customization",
+				"pageTitle": "Branding & Customization",
+				"pageDescription": "Customize your organization's appearance and branding.",
+				"showPreview": "Show Preview",
+				"hidePreview": "Hide Preview",
+				"logoVisualIdentity": {
+					"title": "Logo & Visual Identity",
+					"description": "Upload your organization's logo and favicon.",
+					"logo": "Logo",
+					"clickToUpload": "Click to upload logo",
+					"uploadHint": "PNG, JPG, GIF up to 5MB",
+					"orEnterUrl": "Or enter logo URL",
+					"uploading": "Uploading... {{progress}}%",
+					"favicon": "Favicon",
+					"clickToUploadFavicon": "Click to upload favicon",
+					"uploadHintFavicon": "PNG, ICO up to 5MB",
+					"orEnterFaviconUrl": "Or enter favicon URL",
+					"companyName": "Company Name Override",
+					"companyNamePlaceholder": "Your Company Name",
+					"companyNameHint": "Override the default \"Financely\" branding with your company name."
+				},
+				"gallery": {
+					"title": "Gallery",
+					"description": "Upload brand images for your organization.",
+					"addImage": "Add Image"
+				},
+				"brandDescription": {
+					"title": "Brand Description",
+					"description": "Describe your brand and organization.",
+					"placeholder": "Enter a description of your brand..."
+				},
+				"brandColors": {
+					"title": "Brand Colors",
+					"description": "Customize your organization's color scheme.",
+					"primaryColor": "Primary Color",
+					"secondaryColor": "Secondary Color",
+					"accentColor": "Accent Color"
+				},
+				"emailCommunication": {
+					"title": "Email & Communication",
+					"description": "Customize email sender information.",
+					"emailFromName": "Email From Name",
+					"emailFromNamePlaceholder": "Your Company",
+					"emailFromAddress": "Email From Address",
+					"emailFromAddressPlaceholder": "noreply@yourcompany.com",
+					"footerText": "Footer Text",
+					"footerTextPlaceholder": "© 2024 Your Company. All rights reserved."
+				},
+				"preview": {
+					"title": "Live Preview",
+					"description": "See how your branding will appear to users.",
+					"buttonStyles": "Button Styles",
+					"primaryButton": "Primary Button",
+					"accentButton": "Accent Button",
+					"colorPalette": "Color Palette",
+					"primary": "Primary",
+					"secondary": "Secondary",
+					"accent": "Accent"
+				},
+				"allChangesSaved": "All changes are already saved",
+				"toasts": {
+					"logoUploaded": "Logo uploaded successfully",
+					"logoUploadFailed": "Failed to upload logo",
+					"faviconUploaded": "Favicon uploaded successfully",
+					"faviconUploadFailed": "Failed to upload favicon",
+					"imageUploaded": "Image uploaded successfully",
+					"imageUploadFailed": "Failed to upload image",
+					"updated": "Branding settings updated successfully",
+					"updateFailed": "Failed to update branding settings"
+				}
+			},
+			"aiSettings": {
+				"title": "AI Settings",
+				"description": "AI features and automation",
+				"pageTitle": "AI Settings",
+				"pageDescription": "Configure AI-powered features and automation for your organization.",
+				"proposalSuggestions": {
+					"title": "Proposal Suggestions",
+					"description": "Automatically generate proposal suggestions when new leads are created.",
+					"autoSuggestions": "Automatic Proposal Suggestions",
+					"autoSuggestionsDescription": "When enabled, AI will automatically generate proposal suggestions for new leads. You can also manually request suggestions from the leads page."
+				},
+				"toasts": {
+					"updated": "AI settings updated successfully",
+					"updateFailed": "Failed to update AI settings"
+				}
+			},
+			"billing": {
+				"title": "Billing & Subscription",
+				"description": "Manage your subscription, billing information, and usage.",
+				"currentPlan": {
+					"title": "Current Plan",
+					"description": "Your current subscription details",
+					"freeForever": "Free forever",
+					"perMonth": "${{price}}/month",
+					"trialPeriod": "Trial Period",
+					"trialEnds": "Ends {{date}}",
+					"nextBillingDate": "Next billing date",
+					"planFeatures": "Plan Features:"
+				},
+				"usage": {
+					"title": "Usage This Month",
+					"description": "Track your current usage against plan limits",
+					"invoicesCreated": "Invoices Created",
+					"limit": "{{limit}} limit",
+					"unlimited": "Unlimited",
+					"templates": "Templates",
+					"teamMembers": "Team Members"
+				},
+				"availablePlans": {
+					"title": "Available Plans",
+					"description": "Choose the plan that fits your needs",
+					"current": "Current",
+					"currentPlan": "Current Plan",
+					"upgrade": "Upgrade",
+					"perMonthLabel": "/month"
+				},
+				"billingInformation": {
+					"title": "Billing Information",
+					"paymentMethod": "Payment Method",
+					"billingEmail": "Billing Email",
+					"nextInvoice": "Next Invoice",
+					"updatePaymentMethod": "Update Payment Method"
+				},
+				"upgradePlan": "Upgrade Plan",
+				"processing": "Processing...",
+				"manageBilling": "Manage Billing",
+				"noOrganization": {
+					"title": "No organization found",
+					"description": "Please contact support if this issue persists."
+				},
+				"planFeatures": {
+					"free": [
+						"Up to 5 invoices per month",
+						"Basic templates",
+						"Email support",
+						"Standard branding"
+					],
+					"starter": [
+						"Up to 50 invoices per month",
+						"All templates",
+						"Priority support",
+						"Custom branding",
+						"Team collaboration (up to 3 users)"
+					],
+					"professional": [
+						"Unlimited invoices",
+						"All templates + custom templates",
+						"Priority support",
+						"Full white-label branding",
+						"Team collaboration (up to 10 users)",
+						"Advanced analytics",
+						"API access"
+					],
+					"enterprise": [
+						"Everything in Professional",
+						"Unlimited team members",
+						"Dedicated support",
+						"Custom domain",
+						"SSO/SAML integration",
+						"Advanced security features",
+						"Custom integrations"
+					]
+				}
+			}
+		},
+		"users": {
+			"allUsers": {
+				"title": "All Users",
+				"description": "Manage team members",
+				"pageTitle": "Team Members",
+				"pageDescription": "Manage your organization's team members and their permissions.",
+				"inviteMember": "Invite Member",
+				"searchPlaceholder": "Search members...",
+				"allMembers": "All Members ({{count}})",
+				"allMembersDescription": "Manage team member roles and permissions",
+				"active": "Active",
+				"joined": "Joined {{date}}",
+				"removeMember": "Remove Member",
+				"noMembersFound": "No members found",
+				"noTeamMembers": "No team members yet",
+				"tryAdjustingSearch": "Try adjusting your search terms",
+				"inviteFirstMember": "Invite your first team member to get started",
+				"stats": {
+					"active": "Active",
+					"admins": "Admins",
+					"pending": "Pending",
+					"suspended": "Suspended"
+				}
+			},
+			"invites": {
+				"title": "Invites",
+				"description": "Manage team invites",
+				"pageTitle": "Team Invites",
+				"pageDescription": "Create and manage invite codes for your team members",
+				"refresh": "Refresh",
+				"createNewInvite": {
+					"title": "Create New Invite",
+					"description": "Generate a unique invite code that can be used once to join your organization",
+					"expiration": "Expiration (days)",
+					"expirationPlaceholder": "7",
+					"creating": "Creating...",
+					"createInvite": "Create Invite"
+				},
+				"activeInvites": {
+					"title": "Active Invites",
+					"description": "Manage your organization's invite codes"
+				},
+				"loading": "Loading invites...",
+				"noInvites": {
+					"title": "No invites yet",
+					"description": "Create your first invite to get started"
+				},
+				"expires": "Expires: {{date}}",
+				"used": "Used: {{date}}",
+				"copy": "Copy",
+				"revoking": "Revoking...",
+				"revoke": "Revoke",
+				"status": {
+					"active": "Active",
+					"sent": "Sent",
+					"used": "Used",
+					"expired": "Expired",
+					"revoked": "Revoked",
+					"unknown": "Unknown"
+				}
+			}
+		},
+		"security": {
+			"auditLog": {
+				"title": "Audit Log",
+				"description": "Activity and security logs",
+				"pageTitle": "Audit Log",
+				"pageDescription": "Track and monitor all activities and changes in your organization",
+				"activityLog": {
+					"title": "Activity Log",
+					"description": "{{total}} total entries found"
+				},
+				"refresh": "Refresh",
+				"export": "Export",
+				"loading": "Loading...",
+				"error": "Failed to load audit logs. Please try again.",
+				"noLogs": {
+					"title": "No audit logs found",
+					"adjustFilters": "Try adjusting your filters to see more results.",
+					"createContent": "Create a product or invoice to generate audit logs."
+				},
+				"table": {
+					"timestamp": "Timestamp",
+					"user": "User",
+					"action": "Action",
+					"resource": "Resource",
+					"severity": "Severity",
+					"status": "Status",
+					"actions": "Actions"
+				},
+				"detailDialog": {
+					"title": "Audit Log Details",
+					"description": "Complete information about this audit log entry",
+					"basicInformation": {
+						"title": "Basic Information",
+						"action": "Action",
+						"timestamp": "Timestamp",
+						"severity": "Severity",
+						"status": "Status"
+					},
+					"userInformation": {
+						"title": "User Information",
+						"name": "Name",
+						"email": "Email",
+						"role": "Role",
+						"ipAddress": "IP Address"
+					},
+					"resourceInformation": {
+						"title": "Resource Information",
+						"type": "Type",
+						"id": "ID",
+						"name": "Name"
+					},
+					"changes": {
+						"title": "Changes",
+						"oldValue": "Old Value",
+						"newValue": "New Value"
+					},
+					"outcome": {
+						"title": "Outcome",
+						"message": "Message",
+						"error": "Error",
+						"duration": "Duration"
+					},
+					"metadata": {
+						"title": "Metadata"
+					}
+				},
+				"severity": {
+					"critical": "critical",
+					"error": "error",
+					"warning": "warning",
+					"info": "info"
+				},
+				"status": {
+					"success": "success",
+					"failure": "failure"
+				}
+			}
+		}
+	},
+	"landing": {
+		"navbar": {
+			"features": "Features",
+			"howItWorks": "How It Works",
+			"pricing": "Pricing",
+			"faq": "FAQ",
+			"signIn": "Sign In",
+			"getStarted": "Get Started",
+			"dashboard": "Dashboard"
+		},
+		"hero": {
+			"badge": "New · Approvals → Invoice in one click",
+			"title": "Automate Invoices, Approvals & Renewals",
+			"description": "Financely is a finance ops hub: create legally compliant invoices, route proposals for approval, and never miss a contract renewal.",
+			"startFreeTrial": "Start Free Trial",
+			"bookDemo": "Book a Demo",
+			"noCreditCard": "No credit card · Cancel anytime"
+		},
+		"howItWorks": {
+			"title": "How Financely Works",
+			"steps": {
+				"create": {
+					"title": "Create",
+					"copy": "Generate invoices with auto-numbering, tax rules, and your org profile in seconds."
+				},
+				"approve": {
+					"title": "Approve",
+					"copy": "Send proposals to the right approvers and track decisions for compliance."
+				},
+				"renew": {
+					"title": "Renew",
+					"copy": "Stay ahead of contract renewals with reminders and one-click renewals."
+				}
+			}
+		},
+		"features": {
+			"title": "Built for speed, accuracy & compliance",
+			"description": "Opinionated defaults for finance teams, with the flexibility solo founders need. Seamless with Firebase + Stripe.",
+			"smartInvoiceEditor": "Smart invoice editor – taxes, currency, and totals calculate live.",
+			"approvalTrails": "Approval trails – timestamped decisions for audit-ready records.",
+			"renewalRadar": "Renewal radar – reminders so you never miss a contract date.",
+			"dataSecure": "Data secure – built on Google Cloud/Firebase with role-based access.",
+			"fastByDefault": "Fast by default – lightweight UI, keyboard shortcuts, autosave.",
+			"tryItNow": "Try it now",
+			"seeSampleInvoice": "See a sample invoice",
+			"livePreview": "[Live preview / dashboard mock]"
+		},
+		"metrics": {
+			"invoicesCreated": "Invoices created",
+			"teamsOnboarded": "Teams onboarded",
+			"fasterApprovals": "Faster approvals"
+		},
+		"pricing": {
+			"title": "Pricing for every stage",
+			"starter": {
+				"title": "Starter",
+				"price": "$19",
+				"perMonth": "/mo",
+				"invoicesPerMonth": "5 invoices / month",
+				"basicSupport": "Basic support",
+				"chooseStarter": "Choose Starter"
+			},
+			"pro": {
+				"title": "Pro",
+				"mostPopular": "Most popular",
+				"price": "$49",
+				"perMonth": "/mo",
+				"unlimitedInvoices": "Unlimited invoices",
+				"approvalWorkflows": "Approval workflows",
+				"prioritySupport": "Priority support",
+				"choosePro": "Choose Pro"
+			},
+			"enterprise": {
+				"title": "Enterprise",
+				"price": "Custom",
+				"advancedIntegrations": "Advanced integrations",
+				"dedicatedManager": "Dedicated manager",
+				"talkToSales": "Talk to sales"
+			}
+		},
+		"faq": {
+			"title": "Frequently asked questions",
+			"questions": {
+				"legallyCompliant": {
+					"question": "Are invoices legally compliant?",
+					"answer": "Yes. Financely captures the legal essentials (seller & buyer info, tax/VAT IDs, itemization, totals, issue & due dates, invoice number, currency, terms). You can export/share PDFs that meet common EU/US requirements."
+				},
+				"invoiceNumbers": {
+					"question": "Do invoice numbers need to be government-issued?",
+					"answer": "No. Numbers must be unique, sequential in your system, and traceable. Financely auto-generates them with prefixes per organization and supports manual overrides with validation."
+				},
+				"payments": {
+					"question": "What payments do you support?",
+					"answer": "Stripe links out of the box. You can also attach bank details and mark invoices as paid when you reconcile offline payments."
+				},
+				"dataSecurity": {
+					"question": "How is my data secured?",
+					"answer": "We build on Google Cloud/Firebase with role-based access, audit logs, and org-level isolation. Only authorized users can view or edit invoices and approvals."
+				}
+			}
+		},
+		"cta": {
+			"title": "Ready to streamline finance ops?",
+			"description": "Create your first invoice in under 2 minutes.",
+			"startFree": "Start Free",
+			"bookDemo": "Book a Demo"
+		},
+		"footer": {
+			"description": "Smart invoicing & contract automation for modern businesses.",
+			"product": "Product",
+			"features": "Features",
+			"pricing": "Pricing",
+			"company": "Company",
+			"about": "About",
+			"careers": "Careers",
+			"legal": "Legal",
+			"privacy": "Privacy",
+			"terms": "Terms",
+			"copyright": "© {{year}} Financely. All rights reserved."
+		}
+	}
 }
-

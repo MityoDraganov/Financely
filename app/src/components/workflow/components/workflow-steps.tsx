@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -13,19 +14,20 @@ export function WorkflowSteps({
   onUpdateAction: _onUpdateAction, 
   onDeleteAction: _onDeleteAction 
 }: WorkflowStepsProps) {
+  const { t } = useTranslation();
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Workflow Steps</CardTitle>
+            <CardTitle>{t('workflows.builder.steps.title')}</CardTitle>
             <CardDescription>
-              Define the actions and conditions for your workflow
+              {t('workflows.builder.steps.description')}
             </CardDescription>
           </div>
           <Button onClick={onAddStep}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Step
+            {t('workflows.builder.steps.addStep')}
           </Button>
         </div>
       </CardHeader>
@@ -42,7 +44,7 @@ export function WorkflowSteps({
 
         {steps.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            <p>No steps added yet. Click "Add Step" to get started.</p>
+            <p>{t('workflows.builder.steps.noSteps')}</p>
           </div>
         )}
       </CardContent>

@@ -1,34 +1,37 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Player } from "@lottiefiles/react-lottie-player";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOTTIE } from "./constants";
 
 export function HowItWorks(): React.ReactElement {
+  const { t } = useTranslation();
+  
   const steps = React.useMemo(
     () => [
       {
-        title: "Create",
-        copy: "Generate invoices with auto-numbering, tax rules, and your org profile in seconds.",
+        title: t('landing.howItWorks.steps.create.title'),
+        copy: t('landing.howItWorks.steps.create.copy'),
         src: LOTTIE.create,
       },
       {
-        title: "Approve",
-        copy: "Send proposals to the right approvers and track decisions for compliance.",
+        title: t('landing.howItWorks.steps.approve.title'),
+        copy: t('landing.howItWorks.steps.approve.copy'),
         src: LOTTIE.approve,
       },
       {
-        title: "Renew",
-        copy: "Stay ahead of contract renewals with reminders and one-click renewals.",
+        title: t('landing.howItWorks.steps.renew.title'),
+        copy: t('landing.howItWorks.steps.renew.copy'),
         src: LOTTIE.renew,
       },
     ],
-    [],
+    [t],
   );
 
   return (
     <section id="how-it-works" className="mx-auto max-w-7xl px-6 py-24">
-      <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="mb-14 text-center text-4xl font-bold text-gray-900 dark:text-gray-100">How Financely Works</motion.h2>
+      <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="mb-14 text-center text-4xl font-bold text-gray-900 dark:text-gray-100">{t('landing.howItWorks.title')}</motion.h2>
       <div className="grid gap-8 md:grid-cols-3">
         {steps.map((s, i) => (
           <motion.div key={s.title} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.12 }}>

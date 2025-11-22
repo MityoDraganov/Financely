@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ interface InputPropertiesProps {
 }
 
 export function InputProperties({ element, onChange, isNarrow, allElements = [] }: InputPropertiesProps) {
+	const { t } = useTranslation();
 	const inp = element;
 	const [bindingInput, setBindingInput] = useState(inp.binding ?? "");
 	
@@ -82,10 +84,10 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
 					<Input
 						type="number"
 						value={element.x}
@@ -94,7 +96,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
 					<Input
 						type="number"
 						value={element.y}
@@ -103,7 +105,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
 					<Input
 						type="number"
 						value={element.width}
@@ -112,7 +114,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
 					<Input
 						type="number"
 						value={element.height}
@@ -126,16 +128,16 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Input</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.input.title')}</h3>
 			
 			{/* Input Settings */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.input.settings')}</h4>
 				<div className={components.grid}>
 					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>Placeholder</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.input.placeholder')}</Label>
 						<Input
-							placeholder="Placeholder"
+							placeholder={t('designer.elementProperties.input.placeholder')}
 							value={inp.placeholder}
 							onChange={(e) =>
 								onChange({
@@ -158,7 +160,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Variant</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.input.variant')}</Label>
 						<Select
 							value={inp.variant}
 							onValueChange={(v) =>
@@ -183,14 +185,14 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="text">Text</SelectItem>
-								<SelectItem value="number">Number</SelectItem>
-								<SelectItem value="date">Date</SelectItem>
+								<SelectItem value="text">{t('designer.elementProperties.input.variants.text')}</SelectItem>
+								<SelectItem value="number">{t('designer.elementProperties.input.variants.number')}</SelectItem>
+								<SelectItem value="date">{t('designer.elementProperties.input.variants.date')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Align</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.input.align')}</Label>
 						<Select
 							value={inp.align}
 							onValueChange={(v) =>
@@ -215,17 +217,17 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="left">Left</SelectItem>
-								<SelectItem value="center">Center</SelectItem>
-								<SelectItem value="right">Right</SelectItem>
+								<SelectItem value="left">{t('designer.elementProperties.input.alignments.left')}</SelectItem>
+								<SelectItem value="center">{t('designer.elementProperties.input.alignments.center')}</SelectItem>
+								<SelectItem value="right">{t('designer.elementProperties.input.alignments.right')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>Data Binding</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.binding.dataBinding')}</Label>
 						<div className={spacing.fieldGroupGap}>
 							<Input
-								placeholder="e.g., invoice.customerName"
+								placeholder={t('designer.elementProperties.binding.bindingPlaceholder')}
 								value={bindingInput}
 								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
 								onChange={(e) => {
@@ -253,11 +255,11 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
 									<div className="flex-1 min-w-0">
 										<p className={`${typography.errorText} mb-1.5`}>
-											This binding is already used by another element
+											{t('designer.elementProperties.binding.duplicateError')}
 										</p>
 										<div className="flex items-center gap-2">
 											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+												{t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
 											</p>
 											<Button
 												type="button"
@@ -284,7 +286,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 												}}
 											>
 												<Check className="h-3 w-3 mr-1" />
-												Use
+												{t('designer.elementProperties.binding.use')}
 											</Button>
 										</div>
 									</div>

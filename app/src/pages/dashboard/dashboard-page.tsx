@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,6 @@ import {
   ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
 import type { Invoice } from "@/core/entities/invoice";
 
 // Helper to safely get a value from dynamic invoice data
@@ -54,6 +54,7 @@ function getInvoiceAmount(invoice: Invoice): number {
 
 export default function DashboardPage() {
   const { t } = useTranslation();
+  const { formatDateTable } = useDateFormatting();
   const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
   const { data: invoices, isLoading: isInvoicesLoading } = useInvoices(currentOrganization?.id);
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
@@ -319,7 +320,7 @@ export default function DashboardPage() {
                         ${getInvoiceAmount(invoice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {invoice.updatedAt ? format(new Date(invoice.updatedAt), 'MMM dd, yyyy') : t('dashboard.recentInvoices.recently')}
+                        {invoice.updatedAt ? formatDateTable(invoice.updatedAt) : t('dashboard.recentInvoices.recently')}
                       </p>
                     </div>
                   </div>

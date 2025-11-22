@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemplateElement } from "@/core";
@@ -28,13 +29,14 @@ interface LinePropertiesProps {
 }
 
 export function LineProperties({ element, onChange, isNarrow }: LinePropertiesProps) {
+	const { t } = useTranslation();
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
 					<Input
 						type="number"
 						value={element.x}
@@ -43,7 +45,7 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
 					<Input
 						type="number"
 						value={element.y}
@@ -52,7 +54,7 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
 					<Input
 						type="number"
 						value={element.width}
@@ -61,7 +63,7 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
 					<Input
 						type="number"
 						value={element.height}
@@ -75,16 +77,16 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Line</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.line.title')}</h3>
 			
 			{/* Line Styling */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Styling</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.line.styling')}</h4>
 				<div className={components.grid}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stroke</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.line.stroke')}</Label>
 						<Input
-							placeholder="#RRGGBB"
+							placeholder={t('designer.elementProperties.line.strokePlaceholder')}
 							value={element.stroke}
 							onChange={(e) => {
 								const ln = element as Extract<TemplateElement, { type: "line" }>;
@@ -94,10 +96,10 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stroke Width</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.line.strokeWidth')}</Label>
 						<Input
 							type="number"
-							placeholder="1"
+							placeholder={t('designer.elementProperties.line.strokeWidthPlaceholder')}
 							value={element.strokeWidth}
 							onChange={(e) => {
 								const ln = element as Extract<TemplateElement, { type: "line" }>;

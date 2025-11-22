@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Globe, Mail, Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,26 +13,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 
-const organizationGeneralSchema = z.object({
-  name: z.string().min(1, "Organization name is required"),
-  description: z.string().optional(),
-  website: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
-});
+type OrganizationGeneralForm = z.infer<ReturnType<typeof getOrganizationGeneralSchema>>;
 
-type OrganizationGeneralForm = z.infer<typeof organizationGeneralSchema>;
+function getOrganizationGeneralSchema(t: (key: string) => string) {
+  return z.object({
+    name: z.string().min(1, "Organization name is required"),
+    description: z.string().optional(),
+    website: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+    email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zipCode: z.string().optional(),
+    country: z.string().optional(),
+  });
+}
 
 export default function OrganizationGeneralPage() {
+  const { t } = useTranslation();
+  const { formatDateTable } = useDateFormatting();
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  const organizationGeneralSchema = getOrganizationGeneralSchema(t);
 
   const {
     register,
@@ -114,11 +122,11 @@ export default function OrganizationGeneralPage() {
         },
       });
 
-      toast.success("Organization settings updated successfully");
+      toast.success(t('settings.organization.general.toasts.updated'));
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Failed to update organization:", error);
-      toast.error("Failed to update organization settings");
+      toast.error(t('settings.organization.general.toasts.updateFailed'));
     }
   };
 
@@ -135,9 +143,9 @@ export default function OrganizationGeneralPage() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="space-y-0.5 pb-3 border-b">
-        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Organization Settings</h2>
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('settings.organization.general.pageTitle')}</h2>
         <p className="text-sm text-muted-foreground">
-          Manage your organization's basic information and contact details.
+          {t('settings.organization.general.pageDescription')}
         </p>
       </div>
 
@@ -145,19 +153,19 @@ export default function OrganizationGeneralPage() {
         {/* Basic Information */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Basic Information</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('settings.organization.general.basicInformation.title')}</CardTitle>
             <CardDescription className="text-sm">
-              Your organization's primary details and description.
+              {t('settings.organization.general.basicInformation.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Organization Name *</Label>
+                <Label htmlFor="name">{t('settings.organization.general.basicInformation.name')}</Label>
                 <Input
                   id="name"
                   {...register("name")}
-                  placeholder="Enter organization name"
+                  placeholder={t('settings.organization.general.basicInformation.namePlaceholder')}
                   className={errors.name ? "border-red-500" : ""}
                 />
                 {errors.name && (
@@ -166,13 +174,13 @@ export default function OrganizationGeneralPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="website">Website</Label>
+                <Label htmlFor="website">{t('settings.organization.general.basicInformation.website')}</Label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id="website"
                     {...register("website")}
-                    placeholder="https://example.com"
+                    placeholder={t('settings.organization.general.basicInformation.websitePlaceholder')}
                     className={`pl-10 ${errors.website ? "border-red-500" : ""}`}
                   />
                 </div>
@@ -183,11 +191,11 @@ export default function OrganizationGeneralPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('settings.organization.general.basicInformation.description')}</Label>
               <Textarea
                 id="description"
                 {...register("description")}
-                placeholder="Brief description of your organization"
+                placeholder={t('settings.organization.general.basicInformation.descriptionPlaceholder')}
                 rows={3}
                 className="resize-none"
               />
@@ -198,21 +206,21 @@ export default function OrganizationGeneralPage() {
         {/* Contact Information */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Contact Information</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('settings.organization.general.contactInformation.title')}</CardTitle>
             <CardDescription className="text-sm">
-              Contact details for your organization.
+              {t('settings.organization.general.contactInformation.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t('settings.organization.general.contactInformation.email')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id="email"
                     {...register("email")}
-                    placeholder="contact@example.com"
+                    placeholder={t('settings.organization.general.contactInformation.emailPlaceholder')}
                     className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
                   />
                 </div>
@@ -222,13 +230,13 @@ export default function OrganizationGeneralPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">{t('settings.organization.general.contactInformation.phone')}</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id="phone"
                     {...register("phone")}
-                    placeholder="+1 (555) 123-4567"
+                    placeholder={t('settings.organization.general.contactInformation.phonePlaceholder')}
                     className="pl-10"
                   />
                 </div>
@@ -240,56 +248,56 @@ export default function OrganizationGeneralPage() {
         {/* Address Information */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Address</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('settings.organization.general.address.title')}</CardTitle>
             <CardDescription className="text-sm">
-              Physical address for your organization.
+              {t('settings.organization.general.address.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="address">Street Address</Label>
+              <Label htmlFor="address">{t('settings.organization.general.address.streetAddress')}</Label>
               <Input
                 id="address"
                 {...register("address")}
-                placeholder="123 Main Street"
+                placeholder={t('settings.organization.general.address.streetAddressPlaceholder')}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
+                <Label htmlFor="city">{t('settings.organization.general.address.city')}</Label>
                 <Input
                   id="city"
                   {...register("city")}
-                  placeholder="New York"
+                  placeholder={t('settings.organization.general.address.cityPlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="state">State/Province</Label>
+                <Label htmlFor="state">{t('settings.organization.general.address.state')}</Label>
                 <Input
                   id="state"
                   {...register("state")}
-                  placeholder="NY"
+                  placeholder={t('settings.organization.general.address.statePlaceholder')}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="zipCode">ZIP/Postal Code</Label>
+                <Label htmlFor="zipCode">{t('settings.organization.general.address.zipCode')}</Label>
                 <Input
                   id="zipCode"
                   {...register("zipCode")}
-                  placeholder="10001"
+                  placeholder={t('settings.organization.general.address.zipCodePlaceholder')}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="country">Country</Label>
+              <Label htmlFor="country">{t('settings.organization.general.address.country')}</Label>
               <Input
                 id="country"
                 {...register("country")}
-                placeholder="United States"
+                placeholder={t('settings.organization.general.address.countryPlaceholder')}
               />
             </div>
           </CardContent>
@@ -302,7 +310,7 @@ export default function OrganizationGeneralPage() {
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                 <p className="text-sm font-medium">
-                  You have unsaved changes
+                  {t('settings.organization.general.unsavedChanges')}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -315,14 +323,14 @@ export default function OrganizationGeneralPage() {
                   }}
                   className="flex-1 sm:flex-none"
                 >
-                  Cancel
+                  {t('settings.organization.general.cancel')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateOrganization.isPending}
                   className="flex-1 sm:flex-none"
                 >
-                  {updateOrganization.isPending ? "Saving..." : "Save Changes"}
+                  {updateOrganization.isPending ? t('settings.organization.general.saving') : t('settings.organization.general.saveChanges')}
                 </Button>
               </div>
             </div>

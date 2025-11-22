@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Copy, Check } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,26 +11,27 @@ interface EmbedScriptSectionProps {
 }
 
 export function EmbedScriptSection({ script, copied, onCopy }: EmbedScriptSectionProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
       <div className="flex items-center justify-between">
-        <Label className="text-base font-semibold">Embed Script</Label>
+        <Label className="text-base font-semibold">{t('siteBuilder.widgets.embedScript.title')}</Label>
         <Button variant="outline" size="sm" onClick={onCopy}>
           {copied ? (
             <>
               <Check className="h-4 w-4 mr-2" />
-              Copied!
+              {t('siteBuilder.widgets.embedScript.copied')}
             </>
           ) : (
             <>
               <Copy className="h-4 w-4 mr-2" />
-              Copy Script
+              {t('siteBuilder.widgets.embedScript.copyScript')}
             </>
           )}
         </Button>
       </div>
       <p className="text-sm text-gray-600">
-        Copy this script and paste it into your website's HTML to embed the widgets.
+        {t('siteBuilder.widgets.embedScript.description')}
       </p>
       <div className="relative">
         <Textarea
@@ -40,7 +42,7 @@ export function EmbedScriptSection({ script, copied, onCopy }: EmbedScriptSectio
         />
       </div>
       <p className="text-xs text-gray-500">
-        The script will automatically load your widget configuration. No need to update it when you make changes.
+        {t('siteBuilder.widgets.embedScript.hint')}
       </p>
     </div>
   );

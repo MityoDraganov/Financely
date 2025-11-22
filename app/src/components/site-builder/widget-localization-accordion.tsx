@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useTranslateWidgetText } from "@/hooks/service-hooks/use-translate-widget-text";
 import { LanguageSelector } from "./language-selector";
 import { getLanguageByCode } from "@/utils/languages";
@@ -98,6 +99,7 @@ export function WidgetLocalizationAccordion({
   customFields,
   helpText,
 }: WidgetLocalizationAccordionProps) {
+  const { t } = useTranslation();
   const [autoTranslateDialogOpen, setAutoTranslateDialogOpen] = useState(false);
   const [autoTranslateLanguage, setAutoTranslateLanguage] = useState<string>("");
   const translateWidgetText = useTranslateWidgetText();
@@ -113,7 +115,7 @@ export function WidgetLocalizationAccordion({
 
   const addLanguage = (languageCode: string) => {
     if (normalizedLocalization.languages[languageCode]) {
-      toast.error("This language is already added");
+      toast.error(t('siteBuilder.widgets.localization.toasts.languageAlreadyAdded'));
       return;
     }
 
@@ -159,7 +161,7 @@ export function WidgetLocalizationAccordion({
     const emptyKeys = allKeys.filter(({ key }) => !currentTranslations[key] || currentTranslations[key].trim() === "");
 
     if (emptyKeys.length === 0) {
-      toast.info("All translations are already filled");
+      toast.info(t('siteBuilder.widgets.localization.toasts.allTranslationsFilled'));
       setAutoTranslateDialogOpen(false);
       return;
     }
@@ -174,7 +176,7 @@ export function WidgetLocalizationAccordion({
     // For now, we'll need to get it from the parent component
     // This is a limitation - we need organizationId
     if (!config.organizationId) {
-      toast.error("Organization ID is required for translation");
+      toast.error(t('siteBuilder.widgets.localization.toasts.organizationIdRequired'));
       return;
     }
 
@@ -200,12 +202,16 @@ export function WidgetLocalizationAccordion({
         },
       });
 
-      toast.success(`Translated ${result.translatedCount} field${result.translatedCount !== 1 ? "s" : ""} to ${languageName}`);
+      toast.success(t('siteBuilder.widgets.localization.toasts.translated', {
+        count: result.translatedCount,
+        plural: result.translatedCount !== 1 ? 'а' : '',
+        language: languageName
+      }));
       setAutoTranslateDialogOpen(false);
       setAutoTranslateLanguage("");
     } catch (error) {
       console.error("Translation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to translate. Please try again.");
+      toast.error(error instanceof Error ? error.message : t('siteBuilder.widgets.localization.toasts.translationFailed'));
     }
   };
 
@@ -219,21 +225,21 @@ export function WidgetLocalizationAccordion({
       <AccordionItem value="localization">
         <AccordionTrigger className="flex items-center gap-2">
           <Globe className="h-4 w-4" />
-          <span>Localization & Translations</span>
+          <span>{t('siteBuilder.widgets.localization.title')}</span>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Default Language</Label>
+            <Label>{t('siteBuilder.widgets.localization.defaultLanguage')}</Label>
             <div className="p-3 bg-gray-50 border rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">English (en)</span>
-                <span className="text-xs text-gray-500">Read-only</span>
+                <span className="text-sm font-medium">{t('siteBuilder.widgets.localization.english')}</span>
+                <span className="text-xs text-gray-500">{t('siteBuilder.widgets.localization.readOnly')}</span>
               </div>
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                 {allKeys.map(({ key, defaultValue }) => (
                   <div key={key} className="flex gap-2 text-sm">
                     <div className="flex-1 font-mono text-xs text-gray-600">{key}</div>
-                    <div className="flex-1 text-gray-800">{defaultValue || "(empty)"}</div>
+                    <div className="flex-1 text-gray-800">{defaultValue || t('siteBuilder.widgets.localization.empty')}</div>
                   </div>
                 ))}
               </div>
@@ -242,7 +248,7 @@ export function WidgetLocalizationAccordion({
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-4">
-              <Label>Additional Languages</Label>
+              <Label>{t('siteBuilder.widgets.localization.additionalLanguages')}</Label>
               <div className="flex-1 max-w-xs">
                 <LanguageSelector
                   value=""
@@ -252,13 +258,13 @@ export function WidgetLocalizationAccordion({
                     }
                   }}
                   excludedLanguages={["en", ...availableLanguages]}
-                  placeholder="Add language..."
+                  placeholder={t('siteBuilder.widgets.localization.addLanguage')}
                 />
               </div>
             </div>
 
             {availableLanguages.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-4">No additional languages added yet.</p>
+              <p className="text-sm text-gray-500 text-center py-4">{t('siteBuilder.widgets.localization.noLanguages')}</p>
             )}
 
             {availableLanguages.map((languageCode) => {
@@ -287,7 +293,7 @@ export function WidgetLocalizationAccordion({
                         disabled={translateWidgetText.isPending}
                       >
                         <Sparkles className="h-3 w-3 mr-1" />
-                        Auto Translate
+                        {t('siteBuilder.widgets.localization.autoTranslate')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -302,12 +308,12 @@ export function WidgetLocalizationAccordion({
                   <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                     {/* Left column: Keys (readonly) */}
                     <div className="space-y-2">
-                      <Label className="text-xs text-gray-500">Translation Keys (Read-only)</Label>
+                      <Label className="text-xs text-gray-500">{t('siteBuilder.widgets.localization.translationKeys')}</Label>
                       <div className="space-y-2">
                         {allKeys.map(({ key, defaultValue }) => (
                           <div key={key} className="p-2 bg-gray-50 rounded border min-h-[60px] flex flex-col justify-center">
                             <div className="text-xs font-mono text-gray-600 mb-1">{key}</div>
-                            <div className="text-sm text-gray-800">{defaultValue || "(empty)"}</div>
+                            <div className="text-sm text-gray-800">{defaultValue || t('siteBuilder.widgets.localization.empty')}</div>
                           </div>
                         ))}
                       </div>
@@ -315,14 +321,14 @@ export function WidgetLocalizationAccordion({
 
                     {/* Right column: Translations (editable) */}
                     <div className="space-y-2">
-                      <Label className="text-xs text-gray-500">Translations</Label>
+                      <Label className="text-xs text-gray-500">{t('siteBuilder.widgets.localization.translations')}</Label>
                       <div className="space-y-2">
                         {allKeys.map(({ key, defaultValue }) => (
                           <div key={key} className="min-h-[60px] flex items-center">
                             <Input
                               value={translations[key] || ""}
                               onChange={(e) => updateTranslation(languageCode, key, e.target.value)}
-                              placeholder={`Translation for "${defaultValue}"`}
+                              placeholder={t('siteBuilder.widgets.localization.translationPlaceholder', { value: defaultValue })}
                               className="text-sm w-full"
                             />
                           </div>
@@ -343,25 +349,25 @@ export function WidgetLocalizationAccordion({
       <Dialog open={autoTranslateDialogOpen} onOpenChange={setAutoTranslateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Auto Translate with AI</DialogTitle>
+            <DialogTitle>{t('siteBuilder.widgets.localization.autoTranslateDialog.title')}</DialogTitle>
             <DialogDescription>
-              This will automatically translate empty fields using AI. Translations may not always be accurate.
+              {t('siteBuilder.widgets.localization.autoTranslateDialog.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Important:</strong>
+                <strong>{t('siteBuilder.widgets.localization.autoTranslateDialog.important')}</strong>
               </p>
               <ul className="text-sm text-yellow-700 mt-2 space-y-1 list-disc list-inside">
-                <li>AI translations may not always be correct</li>
-                <li>Only empty translation fields will be filled</li>
-                <li>Existing translations will not be overwritten</li>
-                <li>Please review all translations after auto-translation</li>
+                <li>{t('siteBuilder.widgets.localization.autoTranslateDialog.warning1')}</li>
+                <li>{t('siteBuilder.widgets.localization.autoTranslateDialog.warning2')}</li>
+                <li>{t('siteBuilder.widgets.localization.autoTranslateDialog.warning3')}</li>
+                <li>{t('siteBuilder.widgets.localization.autoTranslateDialog.warning4')}</li>
               </ul>
             </div>
             <div className="space-y-2">
-              <Label>Target Language</Label>
+              <Label>{t('siteBuilder.widgets.localization.autoTranslateDialog.targetLanguage')}</Label>
               <div className="p-2 bg-gray-50 rounded border flex items-center gap-2">
                 {(() => {
                   const lang = getLanguageByCode(autoTranslateLanguage);
@@ -387,18 +393,18 @@ export function WidgetLocalizationAccordion({
               }}
               disabled={translateWidgetText.isPending}
             >
-              Cancel
+              {t('siteBuilder.widgets.localization.autoTranslateDialog.cancel')}
             </Button>
             <Button onClick={handleAutoTranslate} disabled={translateWidgetText.isPending}>
               {translateWidgetText.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Translating...
+                  {t('siteBuilder.widgets.localization.autoTranslateDialog.translating')}
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Auto Translate
+                  {t('siteBuilder.widgets.localization.autoTranslateDialog.translate')}
                 </>
               )}
             </Button>

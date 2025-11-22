@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ export default function TableElement({
 	zoom, 
 	onHeaderChange 
 }: TableElementProps) {
+	const { t } = useTranslation();
 	const tbl = element;
 	
 	return (
@@ -72,7 +74,7 @@ export default function TableElement({
 					/>
 				))}
 			</div>
-			<div className="text-[10px] text-neutral-500 p-2">Edit headers above or use Properties to configure columns and rows.</div>
+			<div className="text-[10px] text-neutral-500 p-2">{t('designer.elementProperties.table.editHeadersHint')}</div>
 		</div>
 	);
 }
@@ -90,13 +92,14 @@ export function TableProperties({
 	isNarrow,
 	allElements = []
 }: TablePropertiesProps) {
+	const { t } = useTranslation();
 	const tbl = element;
 	const [bindingInput, setBindingInput] = useState(tbl.itemsBinding ?? "");
 	
 	// Default columns for fallback
 	const defaultTwo = [
-		{ id: "c1", header: "Column 1", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
-		{ id: "c2", header: "Column 2", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c1", header: t('designer.tableColumns.column1'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c2", header: t('designer.tableColumns.column2'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 	];
 	
 	// Check for duplicate bindings
@@ -137,10 +140,10 @@ export function TableProperties({
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
 				<Input
 					type="number"
 					value={element.x}
@@ -149,7 +152,7 @@ export function TableProperties({
 				/>
 			</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
 				<Input
 					type="number"
 					value={element.y}
@@ -158,7 +161,7 @@ export function TableProperties({
 				/>
 			</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
 				<Input
 					type="number"
 					value={element.width}
@@ -167,7 +170,7 @@ export function TableProperties({
 				/>
 			</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
 				<Input
 					type="number"
 					value={element.height}
@@ -181,14 +184,14 @@ export function TableProperties({
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Table</h3>
+			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.table.title')}</h3>
 			
 			{/* Table Settings */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Settings</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.table.settings')}</h4>
 				<div className={components.grid}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Row Height</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.rowHeight')}</Label>
 					<Input
 						type="number"
 						placeholder="28"
@@ -198,7 +201,7 @@ export function TableProperties({
 					/>
 				</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Header Height</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.headerHeight')}</Label>
 					<Input
 						type="number"
 						placeholder="28"
@@ -208,7 +211,7 @@ export function TableProperties({
 					/>
 				</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stripe Rows</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.stripeRows')}</Label>
 						<div className="flex items-center h-9">
 					<Switch
 						checked={tbl.stripe}
@@ -217,10 +220,10 @@ export function TableProperties({
 				</div>
 					</div>
 					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>Items Binding</Label>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.itemsBinding')}</Label>
 						<div className={spacing.fieldGroupGap}>
 					<Input
-								placeholder="e.g., items"
+								placeholder={t('designer.elementProperties.table.itemsBindingPlaceholder')}
 							value={bindingInput}
 								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
 							onChange={(e) => {
@@ -234,11 +237,11 @@ export function TableProperties({
 									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
 								<div className="flex-1 min-w-0">
 										<p className={`${typography.errorText} mb-1.5`}>
-										This binding is already used by another element
+										{t('designer.elementProperties.binding.duplicateError')}
 									</p>
 									<div className="flex items-center gap-2">
 											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-											Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+											{t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
 										</p>
 										<Button
 											type="button"
@@ -251,7 +254,7 @@ export function TableProperties({
 											}}
 										>
 											<Check className="h-3 w-3 mr-1" />
-											Use
+											{t('designer.elementProperties.binding.use')}
 										</Button>
 									</div>
 								</div>
@@ -264,7 +267,7 @@ export function TableProperties({
 
 			{/* Columns Configuration */}
 			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
-				<h4 className={typography.subsectionTitle}>Columns</h4>
+				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.table.columns')}</h4>
 				<div className={spacing.fieldGroupGap}>
 					{(() => {
 						const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
@@ -273,9 +276,9 @@ export function TableProperties({
 								{/* Column Basic Settings */}
 								<div className={components.grid}>
 									<div className={components.field}>
-										<Label className={typography.fieldLabel}>Header</Label>
+										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.header')}</Label>
 									<Input
-											placeholder="Column header"
+											placeholder={t('designer.elementProperties.table.column.headerPlaceholder')}
 										value={c.header}
 										onChange={(e) => {
 											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
@@ -286,10 +289,10 @@ export function TableProperties({
 									/>
 									</div>
 									<div className={components.field}>
-										<Label className={typography.fieldLabel}>Width</Label>
+										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.width')}</Label>
 									<Input
 										type="number"
-											placeholder="120"
+											placeholder={t('designer.elementProperties.table.column.widthPlaceholder')}
 										value={c.width}
 										onChange={(e) => {
 											const w = Math.max(20, Number(e.target.value));
@@ -301,7 +304,7 @@ export function TableProperties({
 									/>
 									</div>
 									<div className={components.field}>
-										<Label className={typography.fieldLabel}>Align</Label>
+										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.align')}</Label>
 									<Select
 										value={c.align}
 										onValueChange={(v) => {
@@ -314,14 +317,14 @@ export function TableProperties({
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="left">Left</SelectItem>
-											<SelectItem value="center">Center</SelectItem>
-											<SelectItem value="right">Right</SelectItem>
+											<SelectItem value="left">{t('designer.elementProperties.text.alignments.left')}</SelectItem>
+											<SelectItem value="center">{t('designer.elementProperties.text.alignments.center')}</SelectItem>
+											<SelectItem value="right">{t('designer.elementProperties.text.alignments.right')}</SelectItem>
 										</SelectContent>
 									</Select>
 									</div>
 									<div className={components.field}>
-										<Label className={typography.fieldLabel}>Type</Label>
+										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.type')}</Label>
 									<Select
 										value={c.type ?? "text"}
 										onValueChange={(v) => {
@@ -350,10 +353,10 @@ export function TableProperties({
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="text">Text</SelectItem>
-											<SelectItem value="number">Number</SelectItem>
-											<SelectItem value="date">Date</SelectItem>
-												<SelectItem value="currency">Currency</SelectItem>
+											<SelectItem value="text">{t('designer.elementProperties.table.column.types.text')}</SelectItem>
+											<SelectItem value="number">{t('designer.elementProperties.table.column.types.number')}</SelectItem>
+											<SelectItem value="date">{t('designer.elementProperties.table.column.types.date')}</SelectItem>
+												<SelectItem value="currency">{t('designer.elementProperties.table.column.types.currency')}</SelectItem>
 										</SelectContent>
 									</Select>
 									</div>
@@ -368,7 +371,7 @@ export function TableProperties({
 											onChange({ ...tbl, columns: next });
 										}}
 									>
-										Remove
+										{t('designer.elementProperties.table.column.remove')}
 									</Button>
 								</div>
 								</div>
@@ -376,10 +379,10 @@ export function TableProperties({
 								{/* Currency-specific configuration */}
 								{c.type === "currency" && (
 									<div className={`${separators.nestedContent} ${colors.bgAccent} rounded-md p-3 ${spacing.fieldGroupGap}`}>
-										<h5 className={`${typography.subsectionTitle} text-blue-700`}>Currency</h5>
+										<h5 className={`${typography.subsectionTitle} text-blue-700`}>{t('designer.elementProperties.table.column.currency.title')}</h5>
 										<div className={components.grid}>
 											<div className={`${components.field} col-span-full`}>
-												<Label className={typography.fieldLabel}>Currency</Label>
+												<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.currency.currency')}</Label>
 												<Popover>
 													<PopoverTrigger asChild>
 														<Button
@@ -394,15 +397,15 @@ export function TableProperties({
 																			? `${curr.code} - ${curr.name}${curr.symbol ? ` (${curr.symbol})` : ""}`
 																			: c.currency;
 																	})()
-																: "Select currency..."}
+																: t('designer.elementProperties.table.column.currency.selectCurrency')}
 															<ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
 														</Button>
 													</PopoverTrigger>
 													<PopoverContent className="w-[300px] p-0" align="start">
 														<Command>
-															<CommandInput placeholder="Search currency..." />
+															<CommandInput placeholder={t('designer.elementProperties.table.column.currency.searchCurrency')} />
 															<CommandList>
-																<CommandEmpty>No currency found.</CommandEmpty>
+																<CommandEmpty>{t('designer.elementProperties.table.column.currency.noCurrencyFound')}</CommandEmpty>
 																<CommandGroup>
 																	{CURRENCIES.map((curr) => (
 																		<CommandItem
@@ -446,7 +449,7 @@ export function TableProperties({
 											</div>
 											
 											<div className="space-y-1">
-												<Label className="text-xs">Mode</Label>
+												<Label className="text-xs">{t('designer.elementProperties.table.column.currency.mode')}</Label>
 												<Select
 													value={c.mode || "independent"}
 													onValueChange={(v) => {
@@ -463,9 +466,9 @@ export function TableProperties({
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>
-														<SelectItem value="independent">Independent</SelectItem>
-														<SelectItem value="linked">Linked</SelectItem>
-														<SelectItem value="formula">Formula</SelectItem>
+														<SelectItem value="independent">{t('designer.elementProperties.table.column.currency.modes.independent')}</SelectItem>
+														<SelectItem value="linked">{t('designer.elementProperties.table.column.currency.modes.linked')}</SelectItem>
+														<SelectItem value="formula">{t('designer.elementProperties.table.column.currency.modes.formula')}</SelectItem>
 													</SelectContent>
 												</Select>
 											</div>
@@ -625,7 +628,7 @@ export function TableProperties({
 								{(c.type === "number" || c.type === "currency") && (
 									<div className={`${separators.subsectionDivider} pt-3 ${spacing.fieldGroupGap}`}>
 										<div className="flex items-center justify-between">
-											<Label className={typography.fieldLabel}>Show Total</Label>
+											<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.showTotal')}</Label>
 											<Switch
 												checked={c.showTotal || false}
 												onCheckedChange={(checked) => {
@@ -650,10 +653,10 @@ export function TableProperties({
 										
 										{c.showTotal && (
 											<div className={`${separators.nestedContent} ${colors.bgSuccess} rounded-md p-3 ${spacing.fieldGroupGap}`}>
-												<h5 className={`${typography.subsectionTitle} text-green-700`}>Total Styling</h5>
+												<h5 className={`${typography.subsectionTitle} text-green-700`}>{t('designer.elementProperties.table.column.total.totalStyling')}</h5>
 												<div className={components.grid}>
 													<div className={components.field}>
-														<Label className={typography.fieldLabel}>Background Color</Label>
+														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.backgroundColor')}</Label>
 														<Input
 															type="color"
 															value={("totalStyle" in c && c.totalStyle?.backgroundColor) || "#f9fafb"}
@@ -677,7 +680,7 @@ export function TableProperties({
 														/>
 													</div>
 													<div className={components.field}>
-														<Label className={typography.fieldLabel}>Text Color</Label>
+														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.textColor')}</Label>
 														<Input
 															type="color"
 															value={("totalStyle" in c && c.totalStyle?.color) || "#111827"}
@@ -701,7 +704,7 @@ export function TableProperties({
 														/>
 													</div>
 													<div className={components.field}>
-														<Label className={typography.fieldLabel}>Font Weight</Label>
+														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.fontWeight')}</Label>
 														<Select
 															value={("totalStyle" in c && c.totalStyle?.fontWeight) || "bold"}
 															onValueChange={(v) => {
@@ -724,18 +727,18 @@ export function TableProperties({
 																<SelectValue />
 															</SelectTrigger>
 															<SelectContent>
-																<SelectItem value="normal">Normal</SelectItem>
-																<SelectItem value="600">Semi-bold</SelectItem>
-																<SelectItem value="bold">Bold</SelectItem>
-																<SelectItem value="700">Extra Bold</SelectItem>
+																<SelectItem value="normal">{t('designer.elementProperties.table.column.total.fontWeights.normal')}</SelectItem>
+																<SelectItem value="600">{t('designer.elementProperties.table.column.total.fontWeights.semiBold')}</SelectItem>
+																<SelectItem value="bold">{t('designer.elementProperties.table.column.total.fontWeights.bold')}</SelectItem>
+																<SelectItem value="700">{t('designer.elementProperties.table.column.total.fontWeights.extraBold')}</SelectItem>
 															</SelectContent>
 														</Select>
 													</div>
 													<div className={components.field}>
-														<Label className={typography.fieldLabel}>Font Size</Label>
+														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.fontSize')}</Label>
 														<Input
 															type="number"
-															placeholder="Auto"
+															placeholder={t('designer.elementProperties.table.column.total.fontSizePlaceholder')}
 															value={("totalStyle" in c && c.totalStyle?.fontSize) || ""}
 															onChange={(e) => {
 																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
@@ -757,9 +760,9 @@ export function TableProperties({
 														/>
 													</div>
 													<div className={`${components.field} col-span-full`}>
-														<Label className={typography.fieldLabel}>Top Border</Label>
+														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.topBorder')}</Label>
 														<Input
-															placeholder="e.g., 2px solid #111827"
+															placeholder={t('designer.elementProperties.table.column.total.topBorderPlaceholder')}
 															value={("totalStyle" in c && c.totalStyle?.borderTop) || "2px solid #111827"}
 															onChange={(e) => {
 																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
@@ -793,14 +796,16 @@ export function TableProperties({
 						size="sm"
 						className={`${components.inputHeight} text-xs`}
 						onClick={() => {
+							const columnNum = tbl.columns.length + 1;
+							const header = columnNum === 1 ? t('designer.tableColumns.column1') : columnNum === 2 ? t('designer.tableColumns.column2') : `${t('designer.elementProperties.table.columns')} ${columnNum}`;
 							const next = [
 								...tbl.columns,
-								{ id: crypto.randomUUID(), header: `Column ${tbl.columns.length + 1}`, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+								{ id: crypto.randomUUID(), header, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 							];
 							onChange({ ...tbl, columns: next });
 						}}
 					>
-						Add Column
+						{t('designer.elementProperties.table.addColumn')}
 					</Button>
 				</div>
 			</section>

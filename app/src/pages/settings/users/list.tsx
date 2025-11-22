@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,8 @@ import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
 import { PendingInvites } from "@/components/invite/pending-invites";
 
 export default function UsersListPage() {
+  const { t } = useTranslation();
+  const { formatDateTable } = useDateFormatting();
   const { data: organization } = useCurrentOrganization();
   const { data: members = [], isLoading } = useOrganizationMembers(organization?.id);
   const { data: invites = [] } = useInvites(organization?.id);
@@ -67,9 +71,9 @@ export default function UsersListPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b">
         <div className="space-y-0.5">
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Team Members</h2>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('settings.users.allUsers.pageTitle')}</h2>
           <p className="text-sm text-muted-foreground">
-            Manage your organization's team members and their permissions.
+            {t('settings.users.allUsers.pageDescription')}
           </p>
         </div>
         <Button 
@@ -77,7 +81,7 @@ export default function UsersListPage() {
           className="w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Invite Member
+          {t('settings.users.allUsers.inviteMember')}
         </Button>
       </div>
 
@@ -87,7 +91,7 @@ export default function UsersListPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search members..."
+              placeholder={t('settings.users.allUsers.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9"
@@ -99,9 +103,9 @@ export default function UsersListPage() {
       {/* Members List */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">All Members ({filteredMembers.length})</CardTitle>
+          <CardTitle className="text-base font-semibold">{t('settings.users.allUsers.allMembers', { count: filteredMembers.length })}</CardTitle>
           <CardDescription className="text-sm">
-            Manage team member roles and permissions
+            {t('settings.users.allUsers.allMembersDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -125,7 +129,7 @@ export default function UsersListPage() {
                       </div>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">{member.email}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Joined {new Date(member.createdAt).toLocaleDateString()}
+                        {t('settings.users.allUsers.joined', { date: formatDateTable(new Date(member.createdAt)) })}
                       </p>
                     </div>
                   </div>
@@ -133,7 +137,7 @@ export default function UsersListPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950 rounded-md">
                       <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      <span className="text-xs font-medium text-green-700 dark:text-green-400">Active</span>
+                      <span className="text-xs font-medium text-green-700 dark:text-green-400">{t('settings.users.allUsers.active')}</span>
                     </div>
                     
                     <DropdownMenu>
@@ -145,7 +149,7 @@ export default function UsersListPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem className="text-red-600">
                           <UserX className="h-4 w-4 mr-2" />
-                          Remove Member
+                          {t('settings.users.allUsers.removeMember')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -159,18 +163,18 @@ export default function UsersListPage() {
             <div className="text-center py-8">
               <UserCheck className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
               <h3 className="text-sm font-semibold mb-1.5">
-                {searchTerm ? "No members found" : "No team members yet"}
+                {searchTerm ? t('settings.users.allUsers.noMembersFound') : t('settings.users.allUsers.noTeamMembers')}
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {searchTerm 
-                  ? "Try adjusting your search terms"
-                  : "Invite your first team member to get started"
+                  ? t('settings.users.allUsers.tryAdjustingSearch')
+                  : t('settings.users.allUsers.inviteFirstMember')
                 }
               </p>
               {!searchTerm && (
                 <Button onClick={() => setInviteDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Invite Member
+                  {t('settings.users.allUsers.inviteMember')}
                 </Button>
               )}
             </div>
@@ -186,7 +190,7 @@ export default function UsersListPage() {
               <UserCheck className="h-4 w-4 text-green-600 shrink-0" />
               <div className="min-w-0">
                 <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "active").length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">Active</p>
+                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.active')}</p>
               </div>
             </div>
           </CardContent>
@@ -198,7 +202,7 @@ export default function UsersListPage() {
               <Shield className="h-4 w-4 text-blue-600 shrink-0" />
               <div className="min-w-0">
                 <p className="text-base font-bold leading-tight">{members.filter(m => m.role === "admin" || m.role === "owner").length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">Admins</p>
+                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.admins')}</p>
               </div>
             </div>
           </CardContent>
@@ -210,7 +214,7 @@ export default function UsersListPage() {
               <Mail className="h-4 w-4 text-orange-600 shrink-0" />
               <div className="min-w-0">
                 <p className="text-base font-bold leading-tight">{invites.length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">Pending</p>
+                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.pending')}</p>
               </div>
             </div>
           </CardContent>
@@ -222,7 +226,7 @@ export default function UsersListPage() {
               <UserX className="h-4 w-4 text-red-600 shrink-0" />
               <div className="min-w-0">
                 <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "suspended").length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">Suspended</p>
+                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.suspended')}</p>
               </div>
             </div>
           </CardContent>

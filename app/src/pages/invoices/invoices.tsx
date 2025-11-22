@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { useRenderInvoicePdf } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -51,28 +53,24 @@ function getInvoiceNumber(invoice: Invoice): string {
   );
 }
 
-// Helper to format date
-function formatDate(dateStr: string): string {
+// Helper to get invoice date
+function getInvoiceDate(invoice: Invoice, formatDateShort: (date: Date | string | number) => string): string {
+  const issueDate = getInvoiceValue(invoice, "issueDate") || getInvoiceValue(invoice, "date");
+  if (!issueDate) return "";
   try {
-    return new Date(dateStr).toLocaleDateString();
+    return formatDateShort(new Date(issueDate));
   } catch {
-    return dateStr;
+    return issueDate;
   }
 }
 
-// Helper to get invoice date
-function getInvoiceDate(invoice: Invoice): string {
-  const issueDate = getInvoiceValue(invoice, "issueDate") || getInvoiceValue(invoice, "date");
-  return issueDate ? formatDate(issueDate) : "";
-}
-
 // Helper to get buyer/customer name
-function getBuyerName(invoice: Invoice): string {
+function getBuyerName(invoice: Invoice, unknownLabel: string): string {
   return (
     getInvoiceValue(invoice, "buyer.name") ||
     getInvoiceValue(invoice, "customer.name") ||
     getInvoiceValue(invoice, "client.name") ||
-    "Unknown"
+    unknownLabel
   );
 }
 
@@ -106,6 +104,8 @@ function getStatusColor(status: string): "default" | "secondary" | "destructive"
 }
 
 export default function InvoicesPage() {
+  const { t } = useTranslation();
+  const { formatDateShort } = useDateFormatting();
   const navigate = useNavigate();
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: invoices, isLoading, isError, error } = useInvoices(currentOrganization?.id);
@@ -124,11 +124,11 @@ export default function InvoicesPage() {
       { invoiceId },
       {
         onSuccess: (result) => {
-          toast.success("PDF generated successfully!");
+          toast.success(t('invoices.messages.pdfGenerated'));
           window.open(result.url, "_blank");
         },
         onError: (error) => {
-          toast.error(`Failed to generate PDF: ${error.message}`);
+          toast.error(t('invoices.messages.pdfFailed', { error: error.message }));
         },
       }
     );
@@ -138,7 +138,7 @@ export default function InvoicesPage() {
   const filteredInvoices = (invoices ?? []).filter((invoice) => {
     const matchesSearch = 
       getInvoiceNumber(invoice).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getBuyerName(invoice).toLowerCase().includes(searchTerm.toLowerCase());
+      getBuyerName(invoice, t('invoices.labels.unknown')).toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
     
@@ -160,14 +160,14 @@ export default function InvoicesPage() {
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="space-y-0.5">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Invoices</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('invoices.title')}</h1>
               <p className="text-sm text-muted-foreground">
-                Manage and track your invoices
+                {t('invoices.subtitle')}
               </p>
             </div>
             <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Create Invoice
+              {t('invoices.createInvoice')}
             </Button>
           </div>
 
@@ -181,7 +181,7 @@ export default function InvoicesPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-base font-bold leading-tight">{totalInvoices}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">Total Invoices</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{t('invoices.stats.totalInvoices')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -195,7 +195,7 @@ export default function InvoicesPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-base font-bold leading-tight">${totalRevenue.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">Total Revenue</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{t('invoices.stats.totalRevenue')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
                         return diffDays <= 30;
                       }).length || 0}
                     </p>
-                    <p className="text-xs text-muted-foreground leading-tight">This Month</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{t('invoices.stats.thisMonth')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -229,7 +229,7 @@ export default function InvoicesPage() {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search invoices by number or customer..."
+                placeholder={t('invoices.filters.searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9"
@@ -238,14 +238,14 @@ export default function InvoicesPage() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[160px] h-9">
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder={t('invoices.filters.statusFilter')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="all">{t('invoices.filters.allStatus')}</SelectItem>
+                <SelectItem value="draft">{t('invoices.filters.draft')}</SelectItem>
+                <SelectItem value="sent">{t('invoices.filters.sent')}</SelectItem>
+                <SelectItem value="paid">{t('invoices.filters.paid')}</SelectItem>
+                <SelectItem value="cancelled">{t('invoices.filters.cancelled')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -276,8 +276,8 @@ export default function InvoicesPage() {
             <CardContent className="p-6 text-center">
               <div className="text-destructive">
                 <FileText className="mx-auto h-10 w-10 mb-3" />
-                <h3 className="text-base font-semibold mb-1.5">Failed to load invoices</h3>
-                <p className="text-sm text-muted-foreground">Please try again later.</p>
+                <h3 className="text-base font-semibold mb-1.5">{t('invoices.error.loadFailed')}</h3>
+                <p className="text-sm text-muted-foreground">{t('invoices.error.tryAgain')}</p>
               </div>
             </CardContent>
           </Card>
@@ -290,17 +290,17 @@ export default function InvoicesPage() {
                 <CardContent className="p-6 text-center">
                   <FileText className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
                   <h3 className="text-base font-semibold mb-1.5">
-                    {searchTerm || statusFilter !== "all" ? "No invoices found" : "No invoices yet"}
+                    {searchTerm || statusFilter !== "all" ? t('invoices.empty.noInvoicesFound') : t('invoices.empty.noInvoicesYet')}
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
                     {searchTerm || statusFilter !== "all" 
-                      ? "Try adjusting your search or filter criteria."
-                      : "Get started by creating your first invoice."
+                      ? t('invoices.empty.adjustFilters')
+                      : t('invoices.empty.getStarted')
                     }
                   </p>
                   <Button onClick={handleCreate} className="w-full sm:w-auto">
                     <Plus className="mr-2 h-4 w-4" />
-                    Create Invoice
+                    {t('invoices.createInvoice')}
                   </Button>
                 </CardContent>
               </Card>
@@ -308,8 +308,8 @@ export default function InvoicesPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                 {filteredInvoices.map((invoice) => {
                   const invoiceNumber = getInvoiceNumber(invoice);
-                  const invoiceDate = getInvoiceDate(invoice);
-                  const buyerName = getBuyerName(invoice);
+                  const invoiceDate = getInvoiceDate(invoice, formatDateShort);
+                  const buyerName = getBuyerName(invoice, t('invoices.labels.unknown'));
                   const totalAmount = getTotalAmount(invoice);
 
                   return (
@@ -328,7 +328,7 @@ export default function InvoicesPage() {
                                   {invoiceNumber}
                                 </h3>
                                 <Badge variant={getStatusColor(invoice.status)} className="shrink-0 w-fit text-xs">
-                                  {invoice.status}
+                                  {t(`dashboard.status.${invoice.status}`) || invoice.status}
                                 </Badge>
                               </div>
                               
@@ -367,7 +367,7 @@ export default function InvoicesPage() {
                                 className="hidden sm:flex text-xs h-8"
                               >
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
-                                PDF
+                                {t('invoices.actions.pdf')}
                               </Button>
                               
                               <DropdownMenu>
@@ -384,11 +384,11 @@ export default function InvoicesPage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => navigate(`/invoices/${invoice.id}`)}>
                                     <Eye className="mr-2 h-4 w-4" />
-                                    View Details
+                                    {t('invoices.actions.viewDetails')}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => handleGeneratePdf(invoice.id, e)}>
                                     <Download className="mr-2 h-4 w-4" />
-                                    Download PDF
+                                    {t('invoices.actions.downloadPdf')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -408,7 +408,7 @@ export default function InvoicesPage() {
       <Dialog open={!!previewUrl} onOpenChange={(open) => !open && setPreviewUrl(null)}>
         <DialogContent className="max-w-4xl w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle className="text-lg">Invoice Preview</DialogTitle>
+            <DialogTitle className="text-lg">{t('invoices.preview.title')}</DialogTitle>
           </DialogHeader>
           <div className="aspect-[1/1.414] w-full overflow-hidden rounded-md border bg-muted">
             {previewUrl ? (

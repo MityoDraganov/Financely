@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import WorkflowBuilder from "@/components/workflow/workflow-builder";
 import { WorkflowTemplate } from "@/core";
 
 export default function WorkflowTemplatesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [showBuilder, setShowBuilder] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
@@ -22,16 +24,16 @@ export default function WorkflowTemplatesPage() {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => setShowBuilder(false)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Templates
+            {t('workflows.templates.builder.back')}
           </Button>
           <div>
             <h1 className="text-2xl font-bold">
-              {selectedTemplate ? "Create from Template" : "Create Custom Workflow"}
+              {selectedTemplate ? t('workflows.templates.builder.fromTemplate') : t('workflows.templates.builder.custom')}
             </h1>
             <p className="text-muted-foreground">
               {selectedTemplate 
-                ? `Customize the "${selectedTemplate.name}" template`
-                : "Build your workflow from scratch"
+                ? t('workflows.templates.builder.customizeTemplate', { name: selectedTemplate.name })
+                : t('workflows.templates.builder.buildFromScratch')
               }
             </p>
           </div>
@@ -72,18 +74,18 @@ export default function WorkflowTemplatesPage() {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => navigate("/workflows")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Workflows
+            {t('workflows.templates.back')}
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Workflow Templates</h1>
+            <h1 className="text-3xl font-bold">{t('workflows.templates.title')}</h1>
             <p className="text-muted-foreground">
-              Choose from pre-built templates or create a custom workflow
+              {t('workflows.templates.subtitle')}
             </p>
           </div>
         </div>
         <Button onClick={handleCreateCustom}>
           <Plus className="w-4 h-4 mr-2" />
-          Create Custom Workflow
+          {t('workflows.templates.createCustom')}
         </Button>
       </div>
 
@@ -97,7 +99,7 @@ export default function WorkflowTemplatesPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold">12</div>
-                <div className="text-sm text-muted-foreground">Available Templates</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.templates.stats.availableTemplates')}</div>
               </div>
             </div>
           </CardContent>
@@ -111,7 +113,7 @@ export default function WorkflowTemplatesPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold">4</div>
-                <div className="text-sm text-muted-foreground">Categories</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.templates.stats.categories')}</div>
               </div>
             </div>
           </CardContent>
@@ -125,7 +127,7 @@ export default function WorkflowTemplatesPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold">∞</div>
-                <div className="text-sm text-muted-foreground">Custom Workflows</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.templates.stats.customWorkflows')}</div>
               </div>
             </div>
           </CardContent>
@@ -135,7 +137,7 @@ export default function WorkflowTemplatesPage() {
       {/* Templates */}
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">Workflow templates coming soon...</p>
+          <p className="text-muted-foreground">{t('workflows.templates.comingSoon')}</p>
         </CardContent>
       </Card>
     </div>
