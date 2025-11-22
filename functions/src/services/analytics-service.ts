@@ -1,5 +1,6 @@
 import { logger } from "firebase-functions";
 import type { QuerySnapshot, DocumentData } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 
 export interface AnalyticsMetrics {
   pageViews: number;
@@ -11,7 +12,7 @@ export interface AnalyticsMetrics {
   devices: Array<{ device: string; visitors: number }>;
   browsers: Array<{ browser: string; visitors: number }>;
   referrers: Array<{ referrer: string; visitors: number }>;
-  pageViewsOverTime: Array<{ date: string; views: number }>;
+  pageViewsOverTime: Array<{ date: string; views: number; desktop: number; mobile: number; tablet: number }>;
   dateRange: {
     start: string;
     end: string;
@@ -386,29 +387,95 @@ export class AnalyticsService {
         .slice(0, 10);
 
       // Group page views by date
-      const pageViewsByDate: Record<string, number> = {};
+      const pageViewsByDateAndDevice: Record<string, { desktop: number; mobile: number; tablet: number }> = {};
       pageViewEvents.forEach((event: Record<string, unknown>) => {
         const timestamp = event.timestamp;
-        if (timestamp && typeof timestamp === "object" && "toDate" in timestamp) {
-          const date = (timestamp as { toDate: () => Date }).toDate();
-          const dateStr = date.toISOString().split("T")[0];
-          pageViewsByDate[dateStr] = (pageViewsByDate[dateStr] || 0) + 1;
+        const userAgent = (event.user_agent as string) || "";
+        
+        // Detect device type
+        let device: "desktop" | "mobile" | "tablet" = "desktop";
+        if (userAgent.includes("Mobile") || userAgent.includes("Android") || userAgent.includes("iPhone")) {
+          device = "mobile";
+        } else if (userAgent.includes("Tablet") || userAgent.includes("iPad")) {
+          device = "tablet";
+        }
+        
+        let date: Date | null = null;
+        
+        // Handle Firestore Timestamp object
+        if (timestamp instanceof Timestamp) {
+          // Direct Firestore Timestamp instance
+          date = timestamp.toDate();
+        } else if (timestamp && typeof timestamp === "object") {
+          // Check if it's a Firestore Timestamp (has toDate method)
+          if ("toDate" in timestamp && typeof (timestamp as { toDate: () => Date }).toDate === "function") {
+            date = (timestamp as { toDate: () => Date }).toDate();
+          } else if ("toMillis" in timestamp && typeof (timestamp as { toMillis: () => number }).toMillis === "function") {
+            // Firestore Timestamp with toMillis method
+            const millis = (timestamp as { toMillis: () => number }).toMillis();
+            date = new Date(millis);
+          } else if ("_seconds" in timestamp || "seconds" in timestamp) {
+            // Firestore Timestamp with seconds property (serialized format)
+            const seconds = (timestamp as { _seconds?: number; seconds?: number })._seconds || 
+                           (timestamp as { _seconds?: number; seconds?: number }).seconds || 0;
+            const nanoseconds = (timestamp as { _nanoseconds?: number; nanoseconds?: number })._nanoseconds || 
+                               (timestamp as { _nanoseconds?: number; nanoseconds?: number }).nanoseconds || 0;
+            date = new Date(seconds * 1000 + nanoseconds / 1000000);
+          }
         } else if (timestamp && typeof timestamp === "string") {
-          const dateStr = new Date(timestamp).toISOString().split("T")[0];
-          pageViewsByDate[dateStr] = (pageViewsByDate[dateStr] || 0) + 1;
+          // String timestamp
+          date = new Date(timestamp);
+        } else if (timestamp && typeof timestamp === "number") {
+          // Unix timestamp (milliseconds or seconds)
+          date = new Date(timestamp > 1e10 ? timestamp : timestamp * 1000);
+        }
+        
+        if (date && !isNaN(date.getTime())) {
+          const dateStr = date.toISOString().split("T")[0];
+          if (!pageViewsByDateAndDevice[dateStr]) {
+            pageViewsByDateAndDevice[dateStr] = { desktop: 0, mobile: 0, tablet: 0 };
+          }
+          pageViewsByDateAndDevice[dateStr][device]++;
+        } else {
+          logger.warn("Invalid or missing timestamp in analytics event", {
+            orgId,
+            siteId: siteId || "all",
+            eventType: event.event,
+            timestampType: typeof timestamp,
+            hasTimestamp: !!timestamp,
+          });
         }
       });
+      
+      logger.info("Page views grouped by date and device", {
+        orgId,
+        siteId: siteId || "all",
+        datesWithViews: Object.keys(pageViewsByDateAndDevice).length,
+        totalPageViews: Object.values(pageViewsByDateAndDevice).reduce(
+          (sum, counts) => sum + counts.desktop + counts.mobile + counts.tablet,
+          0
+        ),
+      });
 
-      // Fill in missing dates in range
-      const pageViewsOverTime: Array<{ date: string; views: number }> = [];
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split("T")[0];
+      // Fill in missing dates in range (using UTC to avoid timezone issues)
+      const pageViewsOverTime: Array<{ date: string; views: number; desktop: number; mobile: number; tablet: number }> = [];
+      const start = new Date(startDate + "T00:00:00.000Z");
+      const end = new Date(endDate + "T23:59:59.999Z");
+      
+      // Iterate through each day in the range
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        const dateStr = currentDate.toISOString().split("T")[0];
+        const dayData = pageViewsByDateAndDevice[dateStr] || { desktop: 0, mobile: 0, tablet: 0 };
         pageViewsOverTime.push({
           date: dateStr,
-          views: pageViewsByDate[dateStr] || 0,
+          views: dayData.desktop + dayData.mobile + dayData.tablet,
+          desktop: dayData.desktop,
+          mobile: dayData.mobile,
+          tablet: dayData.tablet,
         });
+        // Move to next day
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
       }
 
       const result: AnalyticsMetrics = {
@@ -423,6 +490,7 @@ export class AnalyticsService {
         referrers,
         pageViewsOverTime,
         dateRange: { start: startDate, end: endDate },
+        dataSources: ["firestore"], // Always include firestore as data source when we have data
       };
       
       // Attach index error if present
@@ -678,11 +746,16 @@ export class AnalyticsService {
     });
 
     // Merge page views over time
-    const pageViewsOverTimeMap = new Map<string, number>();
+    const pageViewsOverTimeMap = new Map<string, { views: number; desktop: number; mobile: number; tablet: number }>();
     validMetrics.forEach((metrics) => {
       metrics.pageViewsOverTime.forEach((day) => {
-        const current = pageViewsOverTimeMap.get(day.date) || 0;
-        pageViewsOverTimeMap.set(day.date, current + day.views);
+        const current = pageViewsOverTimeMap.get(day.date) || { views: 0, desktop: 0, mobile: 0, tablet: 0 };
+        pageViewsOverTimeMap.set(day.date, {
+          views: current.views + day.views,
+          desktop: current.desktop + (day.desktop || 0),
+          mobile: current.mobile + (day.mobile || 0),
+          tablet: current.tablet + (day.tablet || 0),
+        });
       });
     });
 
@@ -715,7 +788,7 @@ export class AnalyticsService {
         .sort((a, b) => b.visitors - a.visitors)
         .slice(0, 10),
       pageViewsOverTime: Array.from(pageViewsOverTimeMap.entries())
-        .map(([date, views]) => ({ date, views }))
+        .map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date)),
       dateRange: { start: startDate, end: endDate },
       warning: primaryMetrics.warning,

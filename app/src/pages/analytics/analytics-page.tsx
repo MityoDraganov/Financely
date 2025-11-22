@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Loader2, BarChart3, Settings, ExternalLink, CheckCircle2, XCircle, Monitor, Globe, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -18,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { ConsentBannerCustomizer } from "@/components/analytics/consent-banner-customizer";
 import { ConsentBannerStyling, consentBannerStylingSchema } from "@/core/entities/analytics-config";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 export default function AnalyticsPage() {
   const { t } = useTranslation();
@@ -39,15 +41,14 @@ export default function AnalyticsPage() {
     };
   });
 
-  // Fetch real analytics metrics
-  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useAnalyticsMetrics(
+  const { data: metrics, isLoading: metricsLoading } = useAnalyticsMetrics(
     organization?.id,
     dateRange.start,
     dateRange.end,
   );
-  console.log(metricsError);
-  console.log(metrics);
-  console.log(metricsLoading);
+
+  console.log("Analytics metrics", metrics);
+
 
   const [isSaving, setIsSaving] = useState(false);
   const [localConfig, setLocalConfig] = useState<{
@@ -167,7 +168,8 @@ export default function AnalyticsPage() {
         bannerProvider: "custom", // Always use custom banner provider
         enableBigQueryServerLogs: localConfig.enableBigQueryServerLogs,
         orgId: organization.id,
-        siteId: brandSites?.[0]?.id || undefined,
+        // Use prefixed format to match what's used in analytics script generation
+        siteId: brandSites?.[0]?.id ? `brand-${brandSites[0].id}` : undefined,
         brandName: organization.settings?.branding?.companyName || organization.name || undefined,
       };
 
@@ -205,6 +207,7 @@ export default function AnalyticsPage() {
         updateAnalyticsScript.mutate({
           brandSiteId: activeSite.id,
         });
+        toast.success(t('analytics.toasts.configurationSaved'));
       } else {
         toast.success(t('analytics.toasts.configurationSaved'));
       }
@@ -622,41 +625,211 @@ export default function AnalyticsPage() {
 
                   {/* Page Views Over Time */}
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      {t('analytics.metrics.pageViewsOverTime')}
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        {t('analytics.metrics.pageViewsOverTime')}
+                      </h3>
+                      {metrics && "pageViewsOverTime" in metrics && metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 0 && (() => {
+                        const totalViews = metrics.pageViewsOverTime.reduce((sum: number, d: { date: string; views: number }) => sum + d.views, 0);
+                        const avgViews = (totalViews / metrics.pageViewsOverTime.length).toFixed(1);
+                        const maxViews = Math.max(...metrics.pageViewsOverTime.map((d: { date: string; views: number }) => d.views), 0);
+                        return (
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span className="hidden sm:inline">Avg: <span className="font-semibold text-foreground">{avgViews}</span></span>
+                            <span>Peak: <span className="font-semibold text-foreground">{maxViews}</span></span>
+                          </div>
+                        );
+                      })()}
+                    </div>
                     {"pageViewsOverTime" in metrics && metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 0 ? (
-                      <div className="p-6 border rounded-lg bg-muted/30">
-                        <div className="flex items-end gap-1 h-64 mb-4">
-                          {metrics.pageViewsOverTime.map((day: { date: string; views: number }, index: number) => {
-                            const maxViews = Math.max(...metrics.pageViewsOverTime.map((d: { date: string; views: number }) => d.views), 1);
-                            const height = (day.views / maxViews) * 100;
+                      <Card>
+                        <CardContent className="p-6">
+                          {(() => {
+                            // Prepare chart data
+                            const chartData = metrics.pageViewsOverTime.map((day: { date: string; views: number; desktop?: number; mobile?: number; tablet?: number }) => {
+                              const date = new Date(day.date);
+                              const isToday = day.date === new Date().toISOString().split("T")[0];
+                              
+                              // Format date label based on range length
+                              let dateLabel: string;
+                              if (metrics.pageViewsOverTime.length <= 7) {
+                                dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                              } else if (metrics.pageViewsOverTime.length <= 14) {
+                                dateLabel = date.getDate().toString();
+                              } else {
+                                dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
+                              }
+                              
+                              const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+                              const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+                              const dayNumber = date.getDate();
+                              const year = date.getFullYear();
+                              
+                              return {
+                                date: day.date,
+                                views: day.views,
+                                desktop: day.desktop || 0,
+                                mobile: day.mobile || 0,
+                                tablet: day.tablet || 0,
+                                label: dateLabel,
+                                fullDate: formatDateShort(date),
+                                isToday,
+                                dayOfWeek,
+                                monthName,
+                                dayNumber,
+                                year,
+                                fullDateString: `${dayOfWeek}, ${monthName} ${dayNumber}, ${year}`,
+                              };
+                            });
+                            
+                            const maxViews = Math.max(...chartData.map(d => d.views), 1);
+                            
+                            // Smart scaling: Use "nice" numbers for better UX with small data
+                            // This ensures bars are more visible even with small numbers
+                            const getNiceMax = (max: number): number => {
+                              if (max <= 0) return 5;
+                              if (max <= 2) return 2;
+                              if (max <= 5) return 5;
+                              if (max <= 10) return 10;
+                              if (max <= 20) return 20;
+                              if (max <= 50) return Math.ceil(max / 10) * 10;
+                              if (max <= 100) return Math.ceil(max / 20) * 20;
+                              if (max <= 500) return Math.ceil(max / 50) * 50;
+                              if (max <= 1000) return Math.ceil(max / 100) * 100;
+                              return Math.ceil(max / 200) * 200;
+                            };
+                            
+                            const niceMax = getNiceMax(maxViews);
+                            
+                            // Chart configuration
+                            const chartConfig = {
+                              desktop: {
+                                label: "Desktop",
+                                color: "hsl(var(--primary))",
+                              },
+                              mobile: {
+                                label: "Mobile",
+                                color: "hsl(var(--primary))",
+                              },
+                            };
+                            
                             return (
-                              <div
-                                key={index}
-                                className="flex-1 flex flex-col items-center gap-2 group cursor-pointer"
-                                title={`${day.date}: ${day.views} ${day.views === 1 ? t('analytics.metrics.view') : t('analytics.metrics.views')}`}
-                              >
-                                <div
-                                  className="w-full bg-primary rounded-t transition-all hover:bg-primary/80 min-h-[4px] shadow-sm"
-                                  style={{ height: `${Math.max(height, 4)}%` }}
-                                />
-                                {metrics.pageViewsOverTime.length <= 30 && (
-                                  <span className="text-xs text-muted-foreground transform -rotate-45 origin-top-left whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {formatDateShort(new Date(day.date))}
-                                  </span>
-                                )}
-                              </div>
+                              <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                                  <AreaChart
+                                    data={chartData}
+                                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                                  >
+                                    <defs>
+                                      <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
+                                        <stop
+                                          offset="5%"
+                                          stopColor="hsl(var(--primary))"
+                                          stopOpacity={0.8}
+                                        />
+                                        <stop
+                                          offset="95%"
+                                          stopColor="hsl(var(--primary))"
+                                          stopOpacity={0.1}
+                                        />
+                                      </linearGradient>
+                                      <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
+                                        <stop
+                                          offset="5%"
+                                          stopColor="hsl(var(--primary))"
+                                          stopOpacity={0.5}
+                                        />
+                                        <stop
+                                          offset="95%"
+                                          stopColor="hsl(var(--primary))"
+                                          stopOpacity={0.05}
+                                        />
+                                      </linearGradient>
+                                    </defs>
+                                    <CartesianGrid vertical={false} />
+                                  <XAxis
+                                    dataKey="date"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickMargin={8}
+                                    minTickGap={32}
+                                    className="text-xs text-muted-foreground"
+                                    interval={Math.max(0, Math.floor(chartData.length / 10))}
+                                    tickFormatter={(value) => {
+                                      const date = new Date(value);
+                                      if (chartData.length <= 7) {
+                                        return date.toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                        });
+                                      } else if (chartData.length <= 14) {
+                                        return date.getDate().toString();
+                                      } else {
+                                        return `${date.getMonth() + 1}/${date.getDate()}`;
+                                      }
+                                    }}
+                                  />
+                                    <YAxis
+                                      tickLine={false}
+                                      axisLine={false}
+                                      tickMargin={8}
+                                      domain={[0, niceMax]}
+                                      allowDataOverflow={false}
+                                      tickCount={6}
+                                      className="text-xs text-muted-foreground"
+                                      tickFormatter={(value) => value.toString()}
+                                    />
+                                    <ChartTooltip
+                                      cursor={false}
+                                      content={
+                                        <ChartTooltipContent
+                                          labelFormatter={(value) => {
+                                            const date = new Date(value);
+                                            const dataPoint = chartData.find(d => d.date === value);
+                                            const formattedDate = date.toLocaleDateString("en-US", {
+                                              month: "short",
+                                              day: "numeric",
+                                            });
+                                            
+                                            if (dataPoint?.isToday) {
+                                              return (
+                                                <div className="space-y-1">
+                                                  <p className="font-semibold">{formattedDate}</p>
+                                                  <p className="text-xs text-primary font-medium">Today</p>
+                                                </div>
+                                              );
+                                            }
+                                            
+                                            return formattedDate;
+                                          }}
+                                          indicator="dot"
+                                        />
+                                      }
+                                    />
+                                    <Area
+                                      dataKey="mobile"
+                                      type="monotone"
+                                      fill="url(#fillMobile)"
+                                      stroke="hsl(var(--primary))"
+                                      strokeOpacity={0.6}
+                                      stackId="a"
+                                      isAnimationActive={false}
+                                    />
+                                    <Area
+                                      dataKey="desktop"
+                                      type="monotone"
+                                      fill="url(#fillDesktop)"
+                                      stroke="hsl(var(--primary))"
+                                      stackId="a"
+                                      isAnimationActive={false}
+                                    />
+                                    <ChartLegend content={<ChartLegendContent />} />
+                                  </AreaChart>
+                              </ChartContainer>
                             );
-                          })}
-                        </div>
-                        {metrics.pageViewsOverTime && metrics.pageViewsOverTime.length > 30 && (
-                          <p className="text-xs text-muted-foreground text-center">
-                            {t('analytics.metrics.showingDailyViews')}
-                          </p>
-                        )}
-                      </div>
+                          })()}
+                        </CardContent>
+                      </Card>
                     ) : (
                       <div className="p-12 border rounded-lg bg-muted/30 text-center">
                         <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />

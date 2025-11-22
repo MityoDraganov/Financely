@@ -441,6 +441,8 @@
           statusText: response.statusText,
           url: url,
           event: eventName,
+          orgId: config.orgId,
+          siteId: config.siteId,
         });
       } else {
         // Success - log in verbose mode only (use debug level)
