@@ -32,8 +32,6 @@ const getActionIcon = (actionType: string) => {
       return <Mail className="w-4 h-4" />;
     case "send.slack":
       return <MessageSquare className="w-4 h-4" />;
-    case "create.invoice":
-      return <FileText className="w-4 h-4" />;
     case "update.invoice.status":
       return <Settings className="w-4 h-4" />;
     case "create.task":
@@ -57,8 +55,6 @@ const getActionLabel = (actionType: string, t: any) => {
       return t('workflows.preview.actionLabels.sendEmail');
     case "send.slack":
       return t('workflows.preview.actionLabels.sendSlack');
-    case "create.invoice":
-      return t('workflows.preview.actionLabels.createInvoice');
     case "update.invoice.status":
       return t('workflows.preview.actionLabels.updateInvoiceStatus');
     case "create.task":

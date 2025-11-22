@@ -15,10 +15,20 @@ const resendFromName = defineSecret("RESEND_FROM_NAME");
 // Initialize executors lazily (at runtime, not at module load time)
 import { HttpRequestExecutor } from "../executors/http-request-executor";
 import { EmailExecutor } from "../executors/email-executor";
+import { InvoiceExecutor } from "../executors/invoice-executor";
+import { ProposalExecutor } from "../executors/proposal-executor";
+import { LeadExecutor } from "../executors/lead-executor";
+import { ContactExecutor } from "../executors/contact-executor";
+import { SystemExecutor } from "../executors/system-executor";
+import { SlackExecutor } from "../executors/slack-executor";
+import { PdfExecutor } from "../executors/pdf-executor";
+import { ProductExecutor } from "../executors/product-executor";
+import { StripeExecutor } from "../executors/stripe-executor";
 
 function getExecutionEngine(): WorkflowExecutionEngine {
   const executionEngine = new WorkflowExecutionEngine();
   
+  // HTTP and Email executors
   const httpExecutor = new HttpRequestExecutor();
   const emailExecutor = new EmailExecutor({
     resendApiKey: resendApiKey.value(),
@@ -26,8 +36,41 @@ function getExecutionEngine(): WorkflowExecutionEngine {
     resendFromName: resendFromName.value(),
   });
 
+  // Business logic executors
+  const invoiceExecutor = new InvoiceExecutor();
+  const proposalExecutor = new ProposalExecutor({
+    resendApiKey: resendApiKey.value(),
+    resendFromEmail: resendFromEmail.value(),
+    resendFromName: resendFromName.value(),
+  });
+  const leadExecutor = new LeadExecutor();
+  const contactExecutor = new ContactExecutor();
+  const systemExecutor = new SystemExecutor();
+  const slackExecutor = new SlackExecutor();
+  const pdfExecutor = new PdfExecutor();
+  const productExecutor = new ProductExecutor();
+  const stripeExecutor = new StripeExecutor();
+
+  // Register all executors
   executionEngine.registerExecutor("http_request", httpExecutor);
-  executionEngine.registerExecutor("send_email", emailExecutor);
+  executionEngine.registerExecutor("call.webhook", httpExecutor);
+  executionEngine.registerExecutor("send.email", emailExecutor);
+  executionEngine.registerExecutor("send.slack", slackExecutor);
+  executionEngine.registerExecutor("update.invoice.status", invoiceExecutor);
+  executionEngine.registerExecutor("generate.pdf", pdfExecutor);
+  executionEngine.registerExecutor("create.proposal", proposalExecutor);
+  executionEngine.registerExecutor("send.proposal", proposalExecutor);
+  executionEngine.registerExecutor("convert.proposal_to_invoice", proposalExecutor);
+  executionEngine.registerExecutor("create.lead", leadExecutor);
+  executionEngine.registerExecutor("update.lead.status", leadExecutor);
+  executionEngine.registerExecutor("convert.lead_to_contact", leadExecutor);
+  executionEngine.registerExecutor("create.contact", contactExecutor);
+  executionEngine.registerExecutor("update.contact", contactExecutor);
+  executionEngine.registerExecutor("add.product_to_proposal", productExecutor);
+  executionEngine.registerExecutor("create.stripe.invoice", stripeExecutor);
+  executionEngine.registerExecutor("wait.delay", systemExecutor);
+  executionEngine.registerExecutor("archive.record", systemExecutor);
+  executionEngine.registerExecutor("update.field", systemExecutor);
   
   return executionEngine;
 }

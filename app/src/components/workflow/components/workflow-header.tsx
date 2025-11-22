@@ -23,12 +23,18 @@ export function WorkflowHeader({
   };
   
   const getTriggerLabel = (triggerValue: string) => {
-    const triggerMap: Record<string, string> = {
-      "invoice.created": t('workflows.builder.triggerLabels.created'),
-      "invoice.paid": t('workflows.builder.triggerLabels.paid'),
-      "manual.trigger": t('workflows.builder.triggerLabels.manualTrigger'),
-    };
-    return triggerMap[triggerValue] || triggerValue;
+    // Try translation first, fallback to formatted label
+    const translationKey = `workflows.triggers.${triggerValue.replace(/\./g, '')}`;
+    const translated = t(translationKey);
+    if (translated !== translationKey) {
+      return translated;
+    }
+    
+    // Fallback: format the trigger value nicely
+    return triggerValue
+      .split('.')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
   
   return (

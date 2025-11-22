@@ -5,16 +5,33 @@ import { baseEntitySchema } from "./base";
  * Workflow trigger types that can initiate a workflow execution
  */
 export const workflowTriggerTypeSchema = z.enum([
+  // Invoice triggers
   "invoice.created",
   "invoice.sent", 
   "invoice.paid",
   "invoice.overdue",
+  // Proposal triggers
   "proposal.created",
   "proposal.approved",
   "proposal.rejected",
+  "proposal.sent",
+  "proposal.converted_to_invoice",
+  // Contract triggers
   "contract.expiring",
   "contract.expired",
+  // Lead triggers
+  "lead.created",
+  "lead.converted",
+  "lead.qualified",
+  // Contact triggers
+  "contact.created",
+  "contact.updated",
+  // Product triggers
+  "product.created",
+  "product.low_stock",
+  // User triggers
   "user.joined",
+  // System triggers
   "schedule.cron",
   "webhook.external",
   "manual.trigger"
@@ -26,8 +43,33 @@ export type WorkflowTriggerType = z.infer<typeof workflowTriggerTypeSchema>;
  * Workflow action types that can be executed as part of a workflow
  */
 export const workflowActionTypeSchema = z.enum([
-  "http_request",
-  "send_email"
+  // Communication actions
+  "send.email",
+  "send.slack",
+  // Invoice actions
+  "update.invoice.status",
+  "generate.pdf",
+  // Proposal actions
+  "create.proposal",
+  "send.proposal",
+  "convert.proposal_to_invoice",
+  // Lead actions
+  "create.lead",
+  "update.lead.status",
+  "convert.lead_to_contact",
+  // Contact actions
+  "create.contact",
+  "update.contact",
+  // Product actions
+  "add.product_to_proposal",
+  // Integration actions
+  "call.webhook",
+  "http_request", // Keep for backward compatibility
+  "create.stripe.invoice",
+  // System actions
+  "wait.delay",
+  "archive.record",
+  "update.field"
 ]);
 
 export type WorkflowActionType = z.infer<typeof workflowActionTypeSchema>;
@@ -96,7 +138,7 @@ export const workflowActionSchema = z.object({
   type: workflowActionTypeSchema,
   name: z.string(),
   config: z.union([
-    // HTTP Request configuration
+    // HTTP Request configuration (for call.webhook, http_request)
     z.object({
       method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
       url: z.string(),
@@ -110,7 +152,7 @@ export const workflowActionSchema = z.object({
       }).optional(),
       timeoutMs: z.number().int().min(0).optional(),
     }),
-    // Email configuration
+    // Email configuration (for send.email)
     z.object({
       recipients: z.array(z.string().email()),
       subject: z.string(),
@@ -124,7 +166,101 @@ export const workflowActionSchema = z.object({
         content: z.string(), // Base64 encoded content
         contentType: z.string(),
       })).optional(),
-    })
+    }),
+    // Slack configuration (for send.slack)
+    z.object({
+      channel: z.string(),
+      message: z.string(),
+      webhookUrl: z.string().url().optional(),
+    }),
+    // Update invoice status configuration (for update.invoice.status)
+    z.object({
+      invoiceId: z.string(),
+      status: z.enum(["draft", "sent", "paid", "cancelled"]),
+    }),
+    // Create proposal configuration (for create.proposal)
+    z.object({
+      clientId: z.string(),
+      items: z.array(z.object({
+        description: z.string(),
+        quantity: z.number().min(0),
+        price: z.number().min(0),
+      })),
+      validUntil: z.string().optional(),
+    }),
+    // Send proposal configuration (for send.proposal)
+    z.object({
+      proposalId: z.string(),
+      recipientEmail: z.string().email(),
+      subject: z.string().optional(),
+      message: z.string().optional(),
+    }),
+    // Convert proposal to invoice configuration (for convert.proposal_to_invoice)
+    z.object({
+      proposalId: z.string(),
+    }),
+    // Create lead configuration (for create.lead)
+    z.object({
+      name: z.string(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+      source: z.string().optional(),
+      status: z.enum(["new", "viewed", "contacted", "converted", "archived"]).optional(),
+    }),
+    // Update lead status configuration (for update.lead.status)
+    z.object({
+      leadId: z.string(),
+      status: z.enum(["new", "viewed", "contacted", "converted", "archived"]),
+    }),
+    // Convert lead to contact configuration (for convert.lead_to_contact)
+    z.object({
+      leadId: z.string(),
+    }),
+    // Create contact configuration (for create.contact)
+    z.object({
+      name: z.string(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+      company: z.string().optional(),
+    }),
+    // Update contact configuration (for update.contact)
+    z.object({
+      contactId: z.string(),
+      updates: z.record(z.string(), z.any()),
+    }),
+    // Add product to proposal configuration (for add.product_to_proposal)
+    z.object({
+      proposalId: z.string(),
+      productId: z.string(),
+      quantity: z.number().min(0).optional(),
+    }),
+    // Generate PDF configuration (for generate.pdf)
+    z.object({
+      documentId: z.string(),
+      documentType: z.enum(["invoice", "proposal", "contract"]),
+      templateId: z.string().optional(),
+    }),
+    // Create Stripe invoice configuration (for create.stripe.invoice)
+    z.object({
+      invoiceId: z.string(),
+      customerId: z.string(),
+    }),
+    // Wait delay configuration (for wait.delay)
+    z.object({
+      delaySeconds: z.number().int().min(0),
+    }),
+    // Archive record configuration (for archive.record)
+    z.object({
+      recordId: z.string(),
+      recordType: z.enum(["invoice", "proposal", "lead", "contact", "task"]),
+    }),
+    // Update field configuration (for update.field)
+    z.object({
+      recordId: z.string(),
+      recordType: z.enum(["invoice", "proposal", "lead", "contact", "task"]),
+      field: z.string(),
+      value: z.union([z.string(), z.number(), z.boolean()]),
+    }),
   ]),
 });
 
@@ -143,6 +279,9 @@ export const workflowStepSchema = z.object({
   parallelSteps: z.array(z.string()).optional(), // References to other step IDs
   // For delay steps
   delaySeconds: z.number().int().min(0).optional(),
+  // For conditional steps - nested steps for each branch
+  trueBranchSteps: z.array(z.lazy(() => workflowStepSchema)).optional(),
+  falseBranchSteps: z.array(z.lazy(() => workflowStepSchema)).optional(),
   // Step execution order
   order: z.number().int().min(0),
 });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Play, Pause, Archive, MoreHorizontal, Settings, Workflow, History, Trash2, Eye } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,7 @@ import { Workflow as WorkflowType, CreateWorkflowInput } from "@/core";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 
 export default function WorkflowsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { formatDateTable, formatDateTime } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowType | null>(null);
@@ -55,7 +56,7 @@ export default function WorkflowsPage() {
           type: "action" as const,
           actions: [
             {
-              type: "send_email" as const,
+              type: "send.email" as const,
               id: "action1",
               name: "",
               config: {
@@ -184,8 +185,8 @@ export default function WorkflowsPage() {
   };
 
   const formatTimestamp = (timestamp: string | undefined) => {
-    if (!timestamp) return t('workflows.details.created', { time: '' });
-    return formatDateTable(timestamp, i18n.language);
+    if (!timestamp) return '';
+    return formatDateTable(timestamp);
   };
 
   if (isLoading) {
@@ -252,9 +253,13 @@ export default function WorkflowsPage() {
                   {workflows.map((workflow) => (
                     <Card 
                       key={workflow.id} 
-                      className={`hover:shadow-md transition-shadow ${
-                        editingWorkflow?.id === workflow.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                      }`}
+                      className={cn(
+                        "hover:shadow-lg transition-all duration-200 border-2",
+                        "hover:border-primary/50",
+                        editingWorkflow?.id === workflow.id 
+                          ? 'ring-2 ring-primary shadow-lg bg-primary/5 border-primary' 
+                          : 'border-border'
+                      )}
                     >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
@@ -328,7 +333,7 @@ export default function WorkflowsPage() {
                           )}
                         </div>
                           <div className="text-sm text-muted-foreground">
-                            {t('workflows.details.version', { version: workflow.version })}
+                            v{workflow.version}
                           </div>
                         </div>
                     
@@ -369,7 +374,7 @@ export default function WorkflowsPage() {
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{workflow.createdAt ? formatDateTime(workflow.createdAt, i18n.language) : t('workflows.details.created', { time: '' })}</p>
+                              <p>{workflow.createdAt ? formatDateTime(workflow.createdAt) : ''}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -386,11 +391,11 @@ export default function WorkflowsPage() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="text-xs text-muted-foreground cursor-help">
-                                {t('workflows.details.updated', { time: formatTimestamp(workflow.updatedAt) })}
+                                {t('workflows.details.updated', { time: formatTimestamp(workflow.updatedAt) || '' })}
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{formatDateTime(workflow.updatedAt, i18n.language)}</p>
+                              <p>{formatDateTime(workflow.updatedAt)}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>

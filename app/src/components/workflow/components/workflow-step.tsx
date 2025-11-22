@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2 } from "lucide-react";
-import { WorkflowActionType } from "@/core";
+import { WorkflowActionType, WorkflowAction } from "@/core";
 import { WorkflowStepProps, ACTION_TYPES } from "../types";
 import { WorkflowActionComponent } from "./workflow-action";
 
@@ -21,7 +21,7 @@ export function WorkflowStepComponent({
     onUpdateStep(step.id, { name });
   };
 
-  const handleUpdateAction = (actionIndex: number, updates: any) => {
+  const handleUpdateAction = (actionIndex: number, updates: Partial<WorkflowAction>) => {
     const updatedActions = [...step.actions];
     updatedActions[actionIndex] = { ...updatedActions[actionIndex], ...updates };
     onUpdateStep(step.id, { actions: updatedActions });
@@ -33,15 +33,22 @@ export function WorkflowStepComponent({
   };
 
   const handleAddAction = (actionType: WorkflowActionType) => {
-    const newAction = actionType === "http_request" ? {
+    // Create action based on type
+    let newAction: WorkflowAction;
+
+    // Set default config based on action type
+    if (actionType === "http_request" || actionType === "call.webhook") {
+      newAction = {
       id: `action_${Date.now()}`,
-      type: actionType,
+        type: actionType === "http_request" ? "call.webhook" : actionType,
       name: "",
       config: {
         method: "POST" as const,
         url: "",
       },
-    } : {
+      };
+    } else if (actionType === "send.email") {
+      newAction = {
       id: `action_${Date.now()}`,
       type: actionType,
       name: "",
@@ -52,17 +59,37 @@ export function WorkflowStepComponent({
         isHtml: false,
       },
     };
+    } else {
+      // For actions that don't match the union type, use HTTP config as a fallback
+      // The actual config will be handled by the action editor
+      newAction = {
+        id: `action_${Date.now()}`,
+        type: actionType,
+        name: "",
+        config: {
+          method: "POST" as const,
+          url: "",
+        },
+      } as WorkflowAction;
+    }
     
     const updatedActions = [...step.actions, newAction];
     onUpdateStep(step.id, { actions: updatedActions });
   };
 
   const getActionTypeLabel = (value: string) => {
-    const actionMap: Record<string, string> = {
-      "http_request": t('workflows.builder.actionTypes.httpRequest'),
-      "send_email": t('workflows.builder.actionTypes.sendEmail'),
-    };
-    return actionMap[value] || value;
+    // Try translation first
+    const translationKey = `workflows.actions.${value.replace(/\./g, '')}`;
+    const translated = t(translationKey);
+    if (translated !== translationKey) {
+      return translated;
+    }
+    
+    // Fallback: format the action value nicely
+    return value
+      .split('.')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   return (

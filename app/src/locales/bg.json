@@ -997,18 +997,28 @@
 			}
 		},
 		"triggers": {
-			"invoiceCreated": "Фактура създадена",
-			"invoiceSent": "Фактура изпратена",
-			"invoicePaid": "Фактура платена",
-			"invoiceOverdue": "Фактура просрочена",
-			"proposalCreated": "Оферта създадена",
-			"proposalApproved": "Оферта одобрена",
-			"contractExpiring": "Договор изтича",
-			"contractExpired": "Договор изтекъл",
-			"userJoined": "Потребител се присъедини",
-			"scheduled": "Насрочен",
-			"webhook": "Уебхук",
-			"manual": "Ръчно задействане"
+			"invoicecreated": "Фактура създадена",
+			"invoicesent": "Фактура изпратена",
+			"invoicepaid": "Фактура платена",
+			"invoiceoverdue": "Фактура просрочена",
+			"proposalcreated": "Оферта създадена",
+			"proposalsent": "Оферта изпратена",
+			"proposalapproved": "Оферта одобрена",
+			"proposalrejected": "Оферта отхвърлена",
+			"proposalconvertedtoinvoice": "Оферта конвертирана във фактура",
+			"contractexpiring": "Договор изтича",
+			"contractexpired": "Договор изтекъл",
+			"leadcreated": "Потенциален клиент създаден",
+			"leadconverted": "Потенциален клиент конвертиран",
+			"leadqualified": "Потенциален клиент квалифициран",
+			"contactcreated": "Контакт създаден",
+			"contactupdated": "Контакт обновен",
+			"productcreated": "Продукт създаден",
+			"productlowstock": "Продукт с ниско наличност",
+			"userjoined": "Потребител се присъедини",
+			"schedulecron": "Насрочен (Cron)",
+			"webhookexternal": "Уебхук",
+			"manualtrigger": "Ръчно задействане"
 		},
 		"execution": {
 			"title": "Изпълнение на работен поток",
@@ -1118,11 +1128,32 @@
 			},
 			"triggerGroups": {
 				"invoice": "Фактура",
+				"proposal": "Оферта",
+				"lead": "Потенциален клиент",
+				"contact": "Контакт",
+				"product": "Продукт",
+				"contract": "Договор",
+				"user": "Потребител",
+				"system": "Система",
 				"manual": "Ръчно"
 			},
 			"triggerLabels": {
 				"created": "Създадена",
+				"sent": "Изпратена",
 				"paid": "Платена",
+				"overdue": "Просрочена",
+				"approved": "Одобрена",
+				"rejected": "Отхвърлена",
+				"convertedToInvoice": "Конвертирана във фактура",
+				"converted": "Конвертирана",
+				"qualified": "Квалифицирана",
+				"updated": "Обновена",
+				"lowStock": "Ниско наличност",
+				"expiring": "Изтича",
+				"expired": "Изтекла",
+				"joined": "Присъединил се",
+				"scheduled": "Насрочено",
+				"webhook": "Уебхук",
 				"manualTrigger": "Ръчно задействане"
 			},
 			"steps": {
@@ -1131,7 +1162,12 @@
 				"addStep": "Добави стъпка",
 				"noSteps": "Все още няма добавени стъпки. Кликнете \"Добави стъпка\", за да започнете.",
 				"step": "Стъпка {{number}}",
-				"stepNamePlaceholder": "Име на стъпка {{number}}"
+				"stepNamePlaceholder": "Име на стъпка {{number}}",
+				"unnamedStep": "Неименувана стъпка {{number}}",
+				"visualView": "Визуален изглед",
+				"listView": "Списък",
+				"noActions": "Няма действия",
+				"addFirstStep": "Добавете първата стъпка"
 			},
 			"actions": {
 				"test": "Тест на работен поток",
@@ -1155,6 +1191,84 @@
 				"validationFailed": "Валидацията неуспешна: {{errors}}",
 				"updateSuccess": "Работният поток е обновен успешно!",
 				"createSuccess": "Работният поток е създаден успешно!"
+			},
+			"stepEditor": {
+				"title": "Редактирай стъпка",
+				"description": "Конфигурирайте свойствата, действията и условията на стъпката",
+				"stepName": "Име на стъпка *",
+				"stepNamePlaceholder": "Въведете име на стъпка",
+				"stepType": "Тип стъпка",
+				"stepTypes": {
+					"action": "Действие",
+					"condition": "Условие",
+					"delay": "Закъснение",
+					"parallel": "Паралелно"
+				},
+				"delay": {
+					"label": "Закъснение (секунди)",
+					"placeholder": "0"
+				},
+				"actions": {
+					"label": "Действия",
+					"addAction": "Добави действие",
+					"addActionPlaceholder": "Добави действие",
+					"noActions": "Все още няма добавени действия",
+					"noActionsDescription": "Използвайте падащото меню по-горе, за да добавите действие",
+					"actionNumber": "Действие {{number}}",
+					"actionTypes": {
+						"sendEmail": "Изпрати имейл",
+						"createInvoice": "Създай фактура",
+						"callWebhook": "Извикай уебхук",
+						"notifyUser": "Уведоми потребител",
+						"createTask": "Създай задача",
+						"waitDelay": "Изчакване/Закъснение"
+					},
+					"email": {
+						"recipients": "Получатели",
+						"recipientsPlaceholder": "email1@example.com, email2@example.com",
+						"subject": "Тема на имейл",
+						"subjectPlaceholder": "Тема на имейл",
+						"body": "Съдържание на имейл",
+						"bodyPlaceholder": "Съдържание на имейл",
+						"isHtml": "HTML формат"
+					},
+					"webhook": {
+						"url": "URL на уебхук",
+						"urlPlaceholder": "https://api.example.com/webhook",
+						"method": "HTTP метод"
+					},
+					"notify": {
+						"userId": "ID на потребител",
+						"userIdPlaceholder": "ID на потребител",
+						"message": "Съобщение",
+						"messagePlaceholder": "Съобщение за уведомяване",
+						"type": "Тип уведомление"
+					},
+					"invoice": {
+						"clientId": "ID на клиент",
+						"clientIdPlaceholder": "ID на клиент",
+						"amount": "Сума",
+						"amountPlaceholder": "0.00",
+						"currency": "Валута",
+						"fromProposalId": "От оферта ID",
+						"fromProposalIdPlaceholder": "Опционално - ID на оферта"
+					},
+					"task": {
+						"title": "Заглавие",
+						"titlePlaceholder": "Заглавие на задачата",
+						"description": "Описание",
+						"descriptionPlaceholder": "Описание на задачата",
+						"assigneeId": "ID на изпълнител",
+						"assigneeIdPlaceholder": "ID на потребител, който ще изпълни задачата",
+						"priority": "Приоритет"
+					},
+					"delay": {
+						"label": "Закъснение (секунди)",
+						"placeholder": "Закъснение в секунди"
+					}
+				},
+				"cancel": "Отказ",
+				"save": "Запази промените"
 			}
 		},
 		"executionHistory": {
@@ -1295,25 +1409,61 @@
 				"noSteps": "Работният поток няма стъпки за симулация"
 			},
 			"triggerLabels": {
-				"invoiceCreated": "Фактура създадена",
-				"invoiceSent": "Фактура изпратена",
-				"invoicePaid": "Фактура платена",
-				"invoiceOverdue": "Фактура просрочена",
-				"proposalCreated": "Оферта създадена",
-				"proposalApproved": "Оферта одобрена",
-				"contractExpiring": "Договор изтичащ",
-				"scheduled": "Планирано",
-				"manualTrigger": "Ръчно задействане"
+				"invoicecreated": "Фактура създадена",
+				"invoicesent": "Фактура изпратена",
+				"invoicepaid": "Фактура платена",
+				"invoiceoverdue": "Фактура просрочена",
+				"proposalcreated": "Оферта създадена",
+				"proposalsent": "Оферта изпратена",
+				"proposalapproved": "Оферта одобрена",
+				"proposalrejected": "Оферта отхвърлена",
+				"proposalconvertedtoinvoice": "Оферта конвертирана във фактура",
+				"contractexpiring": "Договор изтичащ",
+				"contractexpired": "Договор изтекъл",
+				"leadcreated": "Потенциален клиент създаден",
+				"leadconverted": "Потенциален клиент конвертиран",
+				"leadqualified": "Потенциален клиент квалифициран",
+				"contactcreated": "Контакт създаден",
+				"contactupdated": "Контакт обновен",
+				"productcreated": "Продукт създаден",
+				"productlowstock": "Продукт с ниско наличност",
+				"userjoined": "Потребител се присъедини",
+				"schedulecron": "Насрочено (Cron)",
+				"webhookexternal": "Уебхук",
+				"manualtrigger": "Ръчно задействане"
 			},
 			"actionLabels": {
 				"sendEmail": "Изпрати имейл",
+				"sendemail": "Изпрати имейл",
 				"sendSlack": "Изпрати съобщение в Slack",
+				"sendslack": "Изпрати съобщение в Slack",
 				"createInvoice": "Създай фактура",
+				"createinvoice": "Създай фактура",
 				"updateInvoiceStatus": "Обнови статус на фактура",
+				"updateinvoicestatus": "Обнови статус на фактура",
+				"generatepdf": "Генерирай PDF",
+				"createproposal": "Създай оферта",
+				"sendproposal": "Изпрати оферта",
+				"convertproposaltoinvoice": "Конвертирай оферта във фактура",
+				"createlead": "Създай потенциален клиент",
+				"updateleadstatus": "Обнови статус на потенциален клиент",
+				"convertleadtocontact": "Конвертирай потенциален клиент в контакт",
+				"createcontact": "Създай контакт",
+				"updatecontact": "Обнови контакт",
+				"addproducttoproposal": "Добави продукт към оферта",
 				"createTask": "Създай задача",
+				"createtask": "Създай задача",
+				"assigntask": "Назначи задача",
 				"httpRequest": "HTTP заявка",
+				"httprequest": "HTTP заявка",
+				"callwebhook": "Извикай уебхук",
+				"createstripeinvoice": "Създай Stripe фактура",
 				"notifyUser": "Уведоми потребител",
-				"waitDelay": "Изчакване/Забавяне"
+				"notifyuser": "Уведоми потребител",
+				"waitDelay": "Изчакване/Забавяне",
+				"waitdelay": "Изчакване/Забавяне",
+				"archiverecord": "Архивирай запис",
+				"updatefield": "Обнови поле"
 			},
 			"configured": "Конфигурирано"
 		},
@@ -2010,7 +2160,7 @@
 				"pageDescription": "Управлявайте основната информация и контактните данни на вашата организация.",
 				"basicInformation": {
 					"title": "Основна информация",
-					"description": "Основните детайли и описание на вашата организация.",
+					"subtitle": "Основните детайли и описание на вашата организация.",
 					"name": "Име на организацията *",
 					"namePlaceholder": "Въведете име на организацията",
 					"website": "Уебсайт",
