@@ -6,6 +6,7 @@ import * as RechartsPrimitive from "recharts"
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const THEMES = { light: "", dark: ".dark" } as const
 
 export type ChartConfig = {
@@ -52,8 +53,8 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex h-[350px] w-full flex-col gap-2 rounded-lg border p-4 text-sm",
-          className
+          "flex w-full flex-col gap-1 rounded-lg border p-2 text-sm",
+          className || "h-[350px]"
         )}
         {...props}
       >
@@ -68,6 +69,15 @@ ChartContainer.displayName = "Chart"
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+type TooltipPayload = {
+  name?: string
+  value?: number | string
+  dataKey?: string
+  color?: string
+  payload?: Record<string, unknown>
+  fill?: string
+}
+
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
@@ -77,6 +87,8 @@ const ChartTooltipContent = React.forwardRef<
       indicator?: "line" | "dot" | "dashed"
       nameKey?: string
       labelKey?: string
+      payload?: TooltipPayload[]
+      label?: string | number
     }
 >(
   (
@@ -145,16 +157,16 @@ const ChartTooltipContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-2 text-xs shadow-md",
+          "grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-2 text-xs shadow-md",
           className
         )}
       >
         {!nestLabel ? tooltipLabel : null}
         <div className="grid gap-1.5">
-          {payload.map((item, index) => {
+          {payload.map((item: TooltipPayload, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = config[key as keyof typeof config]
-            const indicatorColor = color || item.payload.fill || item.color
+            const indicatorColor = color || item.payload?.fill || item.color
 
             return (
               <div
@@ -165,7 +177,7 @@ const ChartTooltipContent = React.forwardRef<
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
+                  formatter(item.value, item.name, item, index, payload)
                 ) : (
                   <>
                     {itemConfig?.icon ? (
@@ -224,11 +236,17 @@ ChartTooltipContent.displayName = "ChartTooltipContent"
 
 const ChartLegend = RechartsPrimitive.Legend
 
+type LegendPayload = {
+  value?: string
+  dataKey?: string
+  color?: string
+}
+
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> &
     Pick<RechartsPrimitive.LegendProps, "verticalAlign"> & {
-      payload?: RechartsPrimitive.LegendProps["payload"] | undefined
+      payload?: LegendPayload[] | undefined
       hideIcon?: boolean
       nameKey?: string
     }
@@ -252,7 +270,7 @@ const ChartLegendContent = React.forwardRef<
           className
         )}
       >
-        {payload.map((item) => {
+        {payload.map((item: LegendPayload) => {
           const key = `${nameKey || item.dataKey || "value"}`
           const itemConfig = config[key as keyof typeof config]
 
