@@ -7,9 +7,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Languages } from 'lucide-react';
+import { useSidebar } from '@/components/ui/sidebar';
 
 export function LanguageSelector() {
   const { i18n } = useTranslation();
+  const { state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
 
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
@@ -25,16 +28,20 @@ export function LanguageSelector() {
 
   return (
     <Select value={i18n.language} onValueChange={handleLanguageChange}>
-      <SelectTrigger className="w-fit h-9">
-        <div className="flex items-center gap-2">
-          <Languages className="h-4 w-4" />
-          <SelectValue>
-            <span className="flex items-center gap-1.5">
-              <span>{currentLanguage.flag}</span>
-              <span className="inline">{currentLanguage.name}</span>
-            </span>
-          </SelectValue>
-        </div>
+      <SelectTrigger className={`h-9 ${isCollapsed ? 'w-9 px-0 justify-center [&>svg]:hidden' : 'w-fit'} rounded-sm`}>
+        {isCollapsed ? (
+          <span className="text-lg leading-none flex items-center justify-center">{currentLanguage.flag}</span>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Languages className="h-4 w-4 shrink-0" />
+            <SelectValue>
+              <span className="flex items-center gap-1.5">
+                <span>{currentLanguage.flag}</span>
+                <span className="inline">{currentLanguage.name}</span>
+              </span>
+            </SelectValue>
+          </div>
+        )}
       </SelectTrigger>
       <SelectContent>
         {languages.map((lang) => (

@@ -2478,5 +2478,29 @@
 			"terms": "Условия",
 			"copyright": "© {{year}} Financely. Всички права запазени."
 		}
+	},
+	"layout": {
+		"navigation": {
+			"dashboard": "Табло",
+			"products": "Продукти",
+			"invoices": "Фактури",
+			"contacts": "Контакти",
+			"leads": "Потенциални клиенти",
+			"proposals": "Оферти",
+			"templates": "Шаблони",
+			"workflows": "Автоматизации",
+			"siteBuilder": "Конструктор на сайтове",
+			"analytics": "Аналитика",
+			"settings": "Настройки"
+		},
+		"organization": "Организация",
+		"mobile": {
+			"toggleMenu": "Превключване на менюто"
+		},
+		"templateSelector": {
+			"placeholder": "Изберете шаблон",
+			"newTemplate": "Нов шаблон"
+		},
+		"preview": "Преглед"
 	}
 }

@@ -2478,5 +2478,29 @@
 			"terms": "Terms",
 			"copyright": "© {{year}} Financely. All rights reserved."
 		}
+	},
+	"layout": {
+		"navigation": {
+			"dashboard": "Dashboard",
+			"products": "Products",
+			"invoices": "Invoices",
+			"contacts": "Contacts",
+			"leads": "Leads",
+			"proposals": "Proposals",
+			"templates": "Templates",
+			"workflows": "Workflows",
+			"siteBuilder": "Site Builder",
+			"analytics": "Analytics",
+			"settings": "Settings"
+		},
+		"organization": "Organization",
+		"mobile": {
+			"toggleMenu": "Toggle Menu"
+		},
+		"templateSelector": {
+			"placeholder": "Select template",
+			"newTemplate": "New template"
+		},
+		"preview": "Preview"
 	}
 }
