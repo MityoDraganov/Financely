@@ -176,6 +176,32 @@ export const useAddCustomDomain = () => {
 };
 
 /**
+ * Hook to remove a custom domain from a brand site
+ */
+export const useRemoveCustomDomain = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      brandSiteId: string;
+      customDomain: string;
+    }) => functionsService.removeCustomDomain(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites", variables.brandSiteId],
+      });
+      toast.success(result.message || "Custom domain removed successfully");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to remove custom domain:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to remove custom domain: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to publish a brand site to Cloudflare
  */
 export const usePublishBrandSite = () => {

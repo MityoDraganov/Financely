@@ -50,6 +50,7 @@ import {
 	useGenerateSite,
 	useRegenerateSite,
 	useAddCustomDomain,
+	useRemoveCustomDomain,
 	useRestoreBrandSiteVersion,
 	usePreviewBrandSiteVersion,
 	useDeployManualSite,
@@ -223,6 +224,7 @@ export default function SiteBuilderPage() {
 	const generateSite = useGenerateSite();
 	const regenerateSite = useRegenerateSite();
 	const addCustomDomain = useAddCustomDomain();
+	const removeCustomDomain = useRemoveCustomDomain();
 	const restoreVersion = useRestoreBrandSiteVersion();
 	const previewVersion = usePreviewBrandSiteVersion();
 	const deployManualSite = useDeployManualSite();
@@ -1739,9 +1741,7 @@ export default function SiteBuilderPage() {
 										/>
 										<CustomDomainInput
 											customDomain={customDomainInput}
-											onCustomDomainChange={
-												setCustomDomainInput
-											}
+											onCustomDomainChange={setCustomDomainInput}
 											onAddDomain={() => {
 												const brandSiteId =
 													currentBrandSiteId ||
@@ -1775,11 +1775,42 @@ export default function SiteBuilderPage() {
 															setDomainMessage(
 																result.message
 															);
+															// Don't update customDomainInput - let user type freely
+														},
+													}
+												);
+											}}
+											onRemoveDomain={() => {
+												const brandSiteId =
+													currentBrandSiteId ||
+													brandSites[0]?.id;
+												const domainToRemove =
+													brandSite?.data?.customDomain ||
+													customDomainInput;
+												if (
+													!brandSiteId ||
+													!domainToRemove
+												) {
+													return;
+												}
+												removeCustomDomain.mutate(
+													{
+														brandSiteId,
+														customDomain: domainToRemove,
+													},
+													{
+														onSuccess: () => {
+															setDomainStatus(undefined);
+															setDnsConfigured(false);
+															setDnsInstructions(undefined);
+															setDomainMessage(undefined);
+															setCustomDomainInput("");
 														},
 													}
 												);
 											}}
 											isAdding={addCustomDomain.isPending}
+											isRemoving={removeCustomDomain.isPending}
 											domainStatus={domainStatus}
 											dnsConfigured={dnsConfigured}
 											dnsInstructions={dnsInstructions}

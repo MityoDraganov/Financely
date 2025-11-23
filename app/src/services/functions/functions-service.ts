@@ -155,6 +155,18 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async removeCustomDomain(payload) {
+    type RemoveCustomDomainPayload = Parameters<
+      FunctionsService["removeCustomDomain"]
+    >[0];
+    type RemoveCustomDomainResponse = Awaited<ReturnType<FunctionsService["removeCustomDomain"]>>;
+    const result = await httpsCallable<
+      RemoveCustomDomainPayload,
+      RemoveCustomDomainResponse
+    >(firebase.functions, "removeCustomDomain")(payload);
+    return result.data;
+  },
+
   async restoreBrandSiteVersion(payload) {
     type RestoreVersionPayload = Parameters<
       FunctionsService["restoreBrandSiteVersion"]

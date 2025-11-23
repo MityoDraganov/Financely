@@ -1533,6 +1533,35 @@ export class FirebaseHostingService {
   }
 
   /**
+   * Delete a custom domain from Firebase Hosting
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/delete
+   */
+  async deleteCustomDomain(siteId: string, domain: string): Promise<void> {
+    const normalizedSiteId = siteId
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
+    
+    // Format: DELETE /v1beta1/projects/{project}/sites/{site}/customDomains/{domain}
+    const endpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}/customDomains/${encodeURIComponent(domain)}`;
+    
+    try {
+      await this.makeRequest("DELETE", endpoint);
+      logger.info("Custom domain deleted from Firebase Hosting", {
+        siteId: normalizedSiteId,
+        domain,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Failed to delete custom domain from Firebase Hosting", {
+        siteId: normalizedSiteId,
+        domain,
+        error: errorMessage,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * List all domains for a site
    * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/list
    */

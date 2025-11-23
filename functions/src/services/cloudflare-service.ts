@@ -4,6 +4,7 @@ interface CloudflareConfig {
   apiToken: string;
   zoneId: string;
   baseDomain: string;
+  accountId?: string; // Optional: needed for Workers routes
 }
 
 interface DnsRecord {
@@ -24,12 +25,14 @@ export class CloudflareService {
   private readonly apiToken: string;
   private readonly zoneId: string;
   private readonly baseDomain: string;
+  private readonly accountId?: string;
   private readonly apiBaseUrl = "https://api.cloudflare.com/client/v4";
 
   constructor(config: CloudflareConfig) {
     this.apiToken = config.apiToken;
     this.zoneId = config.zoneId;
     this.baseDomain = config.baseDomain;
+    this.accountId = config.accountId;
   }
 
   private async makeRequest<T>(
@@ -499,6 +502,230 @@ export class CloudflareService {
     });
 
     return `https://${name}`;
+  }
+
+  /**
+   * Create or update a Cloudflare Workers route for a custom domain
+   * Reference: https://developers.cloudflare.com/api/operations/worker-routes-create-route
+   */
+  async createWorkerRoute(
+    pattern: string, // e.g., "bloomora.serveirc.com/*"
+    script: string, // e.g., "financely-sites-worker"
+  ): Promise<void> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for creating Worker routes");
+    }
+
+    // First, check if route already exists
+    const existingRoutes = await this.listWorkerRoutes();
+    const existingRoute = existingRoutes.find(
+      (route) => route.pattern === pattern && route.script === script,
+    );
+
+    if (existingRoute) {
+      logger.info("Worker route already exists", {
+        pattern,
+        script,
+        routeId: existingRoute.id,
+      });
+      return;
+    }
+
+    // Create new route
+    const endpoint = `/accounts/${this.accountId}/workers/routes`;
+    const body = {
+      pattern,
+      script,
+    };
+
+    try {
+      const response = await this.makeRequest<{ id: string }>("POST", endpoint, body);
+      logger.info("Worker route created successfully", {
+        pattern,
+        script,
+        routeId: response.result.id,
+      });
+    } catch (error) {
+      logger.error("Failed to create Worker route", {
+        pattern,
+        script,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List all Worker routes for the account
+   */
+  private async listWorkerRoutes(): Promise<Array<{ id: string; pattern: string; script: string }>> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for listing Worker routes");
+    }
+
+    const endpoint = `/accounts/${this.accountId}/workers/routes`;
+    try {
+      const response = await this.makeRequest<Array<{ id: string; pattern: string; script: string }>>(
+        "GET",
+        endpoint,
+      );
+      return response.result || [];
+    } catch (error) {
+      logger.error("Failed to list Worker routes", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a Worker route
+   */
+  async deleteWorkerRoute(pattern: string): Promise<void> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for deleting Worker routes");
+    }
+
+    const routes = await this.listWorkerRoutes();
+    const route = routes.find((r) => r.pattern === pattern);
+
+    if (!route) {
+      logger.info("Worker route not found, nothing to delete", { pattern });
+      return;
+    }
+
+    const endpoint = `/accounts/${this.accountId}/workers/routes/${route.id}`;
+    try {
+      await this.makeRequest("DELETE", endpoint);
+      logger.info("Worker route deleted successfully", {
+        pattern,
+        routeId: route.id,
+      });
+    } catch (error) {
+      logger.error("Failed to delete Worker route", {
+        pattern,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Add a custom hostname for Workers (required for SSL on external domains)
+   * Reference: https://developers.cloudflare.com/api/operations/workers-custom-domains-create-custom-hostname
+   */
+  async addCustomHostname(
+    hostname: string, // e.g., "bloomora.serveirc.com"
+    workerName: string, // e.g., "financely-sites-worker"
+  ): Promise<void> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for adding custom hostnames");
+    }
+
+    // Check if custom hostname already exists
+    const existingHostnames = await this.listCustomHostnames(workerName);
+    const existing = existingHostnames.find((h) => h.hostname === hostname);
+
+    if (existing) {
+      logger.info("Custom hostname already exists", {
+        hostname,
+        hostnameId: existing.id,
+        status: existing.status,
+      });
+      return;
+    }
+
+    // Add custom hostname
+    // Note: For Workers, custom domains are added at the account level, not service level
+    // The endpoint format may vary - trying the account-level endpoint first
+    const endpoint = `/accounts/${this.accountId}/workers/custom-domains`;
+    const body = {
+      hostname,
+      service: workerName,
+    };
+
+    try {
+      const response = await this.makeRequest<{ id: string; hostname: string; status: string }>(
+        "POST",
+        endpoint,
+        body,
+      );
+      logger.info("Custom hostname added successfully", {
+        hostname,
+        hostnameId: response.result.id,
+        status: response.result.status,
+      });
+    } catch (error) {
+      logger.error("Failed to add custom hostname", {
+        hostname,
+        workerName,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List custom hostnames for a Worker
+   */
+  private async listCustomHostnames(workerName: string): Promise<Array<{ id: string; hostname: string; status: string }>> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for listing custom hostnames");
+    }
+
+    // List all custom hostnames at account level, then filter by service
+    const endpoint = `/accounts/${this.accountId}/workers/custom-domains`;
+    try {
+      const response = await this.makeRequest<Array<{ id: string; hostname: string; status: string; service?: string }>>(
+        "GET",
+        endpoint,
+      );
+      // Filter by service if provided, otherwise return all
+      const allHostnames = response.result || [];
+      return allHostnames.filter((h) => !workerName || h.service === workerName).map((h) => ({
+        id: h.id,
+        hostname: h.hostname,
+        status: h.status,
+      }));
+    } catch (error) {
+      logger.error("Failed to list custom hostnames", {
+        workerName,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a custom hostname
+   */
+  async deleteCustomHostname(hostname: string, workerName: string): Promise<void> {
+    if (!this.accountId) {
+      throw new Error("Account ID is required for deleting custom hostnames");
+    }
+
+    const hostnames = await this.listCustomHostnames(workerName);
+    const hostnameRecord = hostnames.find((h) => h.hostname === hostname);
+
+    if (!hostnameRecord) {
+      logger.info("Custom hostname not found, nothing to delete", { hostname });
+      return;
+    }
+
+    const endpoint = `/accounts/${this.accountId}/workers/custom-domains/${hostnameRecord.id}`;
+    try {
+      await this.makeRequest("DELETE", endpoint);
+      logger.info("Custom hostname deleted successfully", {
+        hostname,
+        hostnameId: hostnameRecord.id,
+      });
+    } catch (error) {
+      logger.error("Failed to delete custom hostname", {
+        hostname,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      throw error;
+    }
   }
 }
 

@@ -4,11 +4,15 @@ import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
+import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
 import { logger } from "firebase-functions";
 
 const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
 const cloudflareZoneId = defineSecret("CLOUDFLARE_ZONE_ID");
 const cloudflareBaseDomain = defineSecret("CLOUDFLARE_BASE_DOMAIN");
+const cloudflareAccountId = defineSecret("CLOUDFLARE_ACCOUNT_ID");
+const cloudflareR2BucketName = defineSecret("CLOUDFLARE_R2_BUCKET_NAME");
+const cloudflareKvNamespaceId = defineSecret("CLOUDFLARE_KV_NAMESPACE_ID");
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
 
 interface AddCustomDomainPayload {
@@ -68,6 +72,9 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
       cloudflareApiToken,
       cloudflareZoneId,
       cloudflareBaseDomain,
+      cloudflareAccountId,
+      cloudflareR2BucketName,
+      cloudflareKvNamespaceId,
       firebaseProjectId,
     ],
   },
@@ -111,29 +118,137 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
         );
       }
 
-      const hostingService = new FirebaseHostingService({
-        projectId: firebaseProjectId.value(),
-      });
-
+      const hostingProvider = brandSite.hostingProvider || "firebase";
       const siteId = `brand-${brandSiteId}`;
-      const targetHost = new URL(brandSite.deployedUrl).hostname;
       const isApex = isApexDomain(cleanDomain);
+      
+      // Determine DNS target based on hosting provider
+      let dnsTarget: string;
+      if (hostingProvider === "cloudflare") {
+        // For Cloudflare, point to the worker
+        dnsTarget = "financely-sites-worker.mityodraganow.workers.dev";
+      } else {
+        // For Firebase Hosting, point to the Firebase Hosting site
+        dnsTarget = new URL(brandSite.deployedUrl).hostname;
+      }
 
-      // Try to add domain to Firebase Hosting first
-      let domainStatus: { domain: string; status: string };
-      try {
-        domainStatus = await hostingService.addCustomDomain(siteId, cleanDomain);
-      } catch (hostingError) {
-        const errorMessage = hostingError instanceof Error ? hostingError.message : "Unknown error";
-        logger.error("Failed to add domain to Firebase Hosting", {
-          brandSiteId,
-          domain: cleanDomain,
-          error: errorMessage,
+      let domainStatus: { domain: string; status: string } = { domain: cleanDomain, status: "PENDING" };
+      
+      // Handle domain addition based on hosting provider
+      if (hostingProvider === "cloudflare") {
+        // For Cloudflare hosting, update KV mappings instead of Firebase Hosting
+        if (!brandSite.currentVersionId) {
+          logger.warn("Site does not have currentVersionId, cannot add custom domain to Cloudflare", {
+            brandSiteId,
+            domain: cleanDomain,
+          });
+          throw new HttpsError(
+            "failed-precondition",
+            "Site must be published before adding custom domain. Please publish your site first.",
+          );
+        }
+
+        const publisherService = new CloudflarePublisherService({
+          accountId: cloudflareAccountId.value(),
+          apiToken: cloudflareApiToken.value(),
+          r2BucketName: cloudflareR2BucketName.value(),
+          kvNamespaceId: cloudflareKvNamespaceId.value(),
         });
-        throw new HttpsError(
-          "internal",
-          `Failed to add domain to Firebase Hosting: ${errorMessage}`,
-        );
+
+        // Update KV mapping for the custom domain
+        try {
+          await publisherService.updateSiteHostMapping(
+            cleanDomain,
+            brandSiteId,
+            brandSite.currentVersionId,
+          );
+
+          logger.info("Custom domain added to Cloudflare KV mapping", {
+            brandSiteId,
+            domain: cleanDomain,
+            versionId: brandSite.currentVersionId,
+          });
+        } catch (kvError) {
+          logger.error("Failed to update KV mapping for custom domain", {
+            brandSiteId,
+            domain: cleanDomain,
+            versionId: brandSite.currentVersionId,
+            error: kvError instanceof Error ? kvError.message : "Unknown error",
+          });
+          throw new HttpsError(
+            "internal",
+            `Failed to update Cloudflare KV mapping: ${kvError instanceof Error ? kvError.message : "Unknown error"}`,
+          );
+        }
+
+        // Automatically configure Cloudflare Workers route and custom hostname (for SSL)
+        const cloudflareService = new CloudflareService({
+          apiToken: cloudflareApiToken.value(),
+          zoneId: cloudflareZoneId.value(),
+          baseDomain: cloudflareBaseDomain.value(),
+          accountId: cloudflareAccountId.value(),
+        });
+
+        const workerScript = "financely-sites-worker";
+
+        // Add custom hostname first (required for SSL certificate provisioning)
+        // This is critical for SSL - without it, external domains won't get SSL certificates
+        try {
+          await cloudflareService.addCustomHostname(cleanDomain, workerScript);
+          logger.info("Cloudflare custom hostname added for SSL certificate provisioning", {
+            domain: cleanDomain,
+            worker: workerScript,
+            note: "SSL certificate provisioning can take 24-48 hours",
+          });
+        } catch (hostnameError) {
+          const errorMessage = hostnameError instanceof Error ? hostnameError.message : "Unknown error";
+          logger.error("Failed to add Cloudflare custom hostname - SSL certificate will not be provisioned", {
+            domain: cleanDomain,
+            worker: workerScript,
+            error: errorMessage,
+            impact: "Domain will work but SSL certificate will not be automatically provisioned",
+          });
+          // Don't throw - allow domain to be added, but log the critical issue
+          // User will need to manually add custom hostname in Cloudflare dashboard
+        }
+
+        // Create Worker route
+        try {
+          const routePattern = `${cleanDomain}/*`;
+          await cloudflareService.createWorkerRoute(routePattern, workerScript);
+          logger.info("Cloudflare Workers route created automatically", {
+            domain: cleanDomain,
+            pattern: routePattern,
+            script: workerScript,
+          });
+        } catch (routeError) {
+          logger.error("Failed to create Cloudflare Workers route", {
+            domain: cleanDomain,
+            error: routeError instanceof Error ? routeError.message : "Unknown error",
+          });
+          // Don't throw - route creation failure shouldn't block domain addition
+          // User can manually configure it if needed
+        }
+      } else {
+        // For Firebase Hosting, add domain to Firebase Hosting
+        const hostingService = new FirebaseHostingService({
+          projectId: firebaseProjectId.value(),
+        });
+
+        try {
+          domainStatus = await hostingService.addCustomDomain(siteId, cleanDomain);
+        } catch (hostingError) {
+          const errorMessage = hostingError instanceof Error ? hostingError.message : "Unknown error";
+          logger.error("Failed to add domain to Firebase Hosting", {
+            brandSiteId,
+            domain: cleanDomain,
+            error: errorMessage,
+          });
+          throw new HttpsError(
+            "internal",
+            `Failed to add domain to Firebase Hosting: ${errorMessage}`,
+          );
+        }
       }
 
       // Try to automatically configure DNS if domain is in Cloudflare
@@ -149,15 +264,17 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
         apiToken: cloudflareApiToken.value(),
         zoneId: cloudflareZoneId.value(),
         baseDomain: cloudflareBaseDomain.value(),
+        accountId: cloudflareAccountId.value(),
       });
 
       try {
         // Try to create DNS record in Cloudflare
         // This will only work if the domain is managed by the same Cloudflare account
-        await cloudflareService.createCustomDomainRecord(cleanDomain, targetHost);
+        await cloudflareService.createCustomDomainRecord(cleanDomain, dnsTarget);
         dnsConfigured = true;
         logger.info("DNS record created automatically in Cloudflare", {
           domain: cleanDomain,
+          target: dnsTarget,
         });
       } catch (cloudflareError) {
         // Domain is not in Cloudflare or DNS creation failed
@@ -167,34 +284,53 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
           error: cloudflareError instanceof Error ? cloudflareError.message : "Unknown error",
         });
 
-        // Generate DNS instructions
-        // For Firebase Hosting:
-        // - Subdomains: Use CNAME pointing to Firebase Hosting site URL
-        // - Apex domains: Firebase Hosting recommends using CNAME flattening (ALIAS/ANAME records)
-        //   or A records. However, Firebase Hosting doesn't provide static IPs.
-        //   The recommended approach is to use the Firebase Hosting site URL with CNAME flattening
-        //   if the DNS provider supports it, otherwise use A records with Firebase's IPs.
-        //   For simplicity, we'll provide CNAME instructions and note about apex domain limitations.
-        if (isApex) {
-          // Apex domain: Firebase Hosting doesn't provide static IPs
-          // Most DNS providers support CNAME flattening (ALIAS/ANAME) for apex domains
-          // If not supported, user needs to check Firebase Hosting console for specific IPs
-          // For now, provide CNAME with note about apex domain requirements
-          dnsInstructions = {
-            type: "CNAME",
-            name: "@",
-            value: targetHost, // Firebase Hosting site hostname
-            ttl: 3600,
-          };
-          // Note: Some DNS providers may require ALIAS/ANAME instead of CNAME for apex domains
+        // Generate DNS instructions based on hosting provider
+        if (hostingProvider === "cloudflare") {
+          // For Cloudflare hosting, point to the worker
+          if (isApex) {
+            dnsInstructions = {
+              type: "CNAME",
+              name: "@",
+              value: dnsTarget, // Cloudflare worker
+              ttl: 3600,
+            };
+          } else {
+            dnsInstructions = {
+              type: "CNAME",
+              name: cleanDomain.split(".")[0], // e.g., "bloomora" from "bloomora.serveirc.com"
+              value: dnsTarget, // Cloudflare worker
+              ttl: 3600,
+            };
+          }
         } else {
-          // Subdomain: Use CNAME
-          dnsInstructions = {
-            type: "CNAME",
-            name: cleanDomain.split(".")[0], // e.g., "www" from "www.example.com"
-            value: targetHost, // Firebase Hosting site hostname
-            ttl: 3600,
-          };
+          // For Firebase Hosting:
+          // - Subdomains: Use CNAME pointing to Firebase Hosting site URL
+          // - Apex domains: Firebase Hosting recommends using CNAME flattening (ALIAS/ANAME records)
+          //   or A records. However, Firebase Hosting doesn't provide static IPs.
+          //   The recommended approach is to use the Firebase Hosting site URL with CNAME flattening
+          //   if the DNS provider supports it, otherwise use A records with Firebase's IPs.
+          //   For simplicity, we'll provide CNAME instructions and note about apex domain limitations.
+          if (isApex) {
+            // Apex domain: Firebase Hosting doesn't provide static IPs
+            // Most DNS providers support CNAME flattening (ALIAS/ANAME) for apex domains
+            // If not supported, user needs to check Firebase Hosting console for specific IPs
+            // For now, provide CNAME with note about apex domain requirements
+            dnsInstructions = {
+              type: "CNAME",
+              name: "@",
+              value: dnsTarget, // Firebase Hosting site hostname
+              ttl: 3600,
+            };
+            // Note: Some DNS providers may require ALIAS/ANAME instead of CNAME for apex domains
+          } else {
+            // Subdomain: Use CNAME
+            dnsInstructions = {
+              type: "CNAME",
+              name: cleanDomain.split(".")[0], // e.g., "www" from "www.example.com"
+              value: dnsTarget, // Firebase Hosting site hostname
+              ttl: 3600,
+            };
+          }
         }
       }
 
@@ -213,6 +349,32 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
         domainStatus: domainStatus.status,
       });
 
+      // For Cloudflare hosting with custom domains, always provide DNS instructions
+      // because even if Cloudflare DNS is configured, the user may need to configure
+      // DNS in their external provider, and they definitely need to configure Workers route
+      const shouldShowInstructions = hostingProvider === "cloudflare" 
+        ? true // Always show for Cloudflare (need Workers route + possibly external DNS)
+        : !dnsConfigured; // For Firebase, only show if DNS wasn't configured
+
+      // If we don't have instructions but should show them, generate them
+      if (shouldShowInstructions && !dnsInstructions && hostingProvider === "cloudflare") {
+        if (isApex) {
+          dnsInstructions = {
+            type: "CNAME",
+            name: "@",
+            value: dnsTarget,
+            ttl: 3600,
+          };
+        } else {
+          dnsInstructions = {
+            type: "CNAME",
+            name: cleanDomain.split(".")[0],
+            value: dnsTarget,
+            ttl: 3600,
+          };
+        }
+      }
+
       return {
         success: true,
         customDomain: cleanDomain,
@@ -224,9 +386,11 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
           value: dnsInstructions.value,
           ttl: dnsInstructions.ttl,
         } : undefined,
-        message: dnsConfigured
+        message: dnsConfigured && hostingProvider !== "cloudflare"
           ? "Domain added successfully. DNS configured automatically."
-          : "Domain added to Firebase Hosting. Please configure DNS records as shown below.",
+          : hostingProvider === "cloudflare"
+            ? "Domain added to Cloudflare. Cloudflare Workers route configured automatically. Please configure DNS in your DNS provider as shown below."
+            : "Domain added to Firebase Hosting. Please configure DNS records as shown below.",
       };
     } catch (error) {
       logger.error("Error adding custom domain", {
