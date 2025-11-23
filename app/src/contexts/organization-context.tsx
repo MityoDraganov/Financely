@@ -48,6 +48,7 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   });
 
   // Update current organization based on stored ID or first available
+  // Also handle revoked access by removing revoked organizations
   useEffect(() => {
     if (organizations.length === 0) {
       setCurrentOrgId(null);
@@ -57,10 +58,49 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       return;
     }
 
-    // If we have a stored ID and it exists in organizations, use it
+    // If we have a stored ID, check if it still exists in organizations
     if (currentOrgId) {
       const org = organizations.find(o => o.id === currentOrgId);
       if (org) {
+        // Also verify user is still a member (check memberIds and organizationRoles)
+        const isMember = org.memberIds?.includes(dbUser?.id || "") ?? false;
+        const hasRole = dbUser?.organizationRoles?.[currentOrgId] !== undefined;
+        
+        // If user is not a member and has no role, they've been revoked
+        if (!isMember && !hasRole && dbUser) {
+          // Remove from localStorage and switch to another org
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
+          }
+          const otherOrg = organizations.find(o => o.id !== currentOrgId);
+          if (otherOrg) {
+            setCurrentOrgId(otherOrg.id);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(CURRENT_ORG_STORAGE_KEY, otherOrg.id);
+            }
+          } else {
+            setCurrentOrgId(null);
+          }
+          return;
+        }
+        
+        // Organization exists and user is still a member
+        return;
+      } else {
+        // Stored org ID doesn't exist in organizations list - user was revoked
+        // Switch to first available org or clear
+        const firstOrg = organizations[0];
+        if (firstOrg) {
+          setCurrentOrgId(firstOrg.id);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(CURRENT_ORG_STORAGE_KEY, firstOrg.id);
+          }
+        } else {
+          setCurrentOrgId(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
+          }
+        }
         return;
       }
     }
@@ -73,7 +113,7 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
         localStorage.setItem(CURRENT_ORG_STORAGE_KEY, firstOrg.id);
       }
     }
-  }, [organizations, currentOrgId]);
+  }, [organizations, currentOrgId, dbUser]);
 
   const currentOrganization = currentOrgId 
     ? organizations.find(o => o.id === currentOrgId) || organizations[0] || null

@@ -40,6 +40,7 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
+import { RevokedAccessAlert } from "./components/revoked-access-alert";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ function App() {
 						<OrganizationProvider>
 							<BrandingProvider>
 							<Router>
+								<RevokedAccessAlert />
 								<Routes>
 									<Route path="/" element={<LandingPage />} />
 									<Route

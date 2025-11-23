@@ -11,7 +11,7 @@ export interface InviteService {
   getInvites: (organizationId: string) => Promise<Invite[]>;
   getInviteByToken: (token: string) => Promise<Invite | null>;
   getInviteByCode: (code: string) => Promise<Invite | null>;
-  acceptInvite: (code: string, user: AuthUser) => Promise<void>; // user param kept for interface compatibility but not used (Cloud Function gets user from auth)
+  acceptInvite: (code: string, user: AuthUser) => Promise<{ success: boolean; organizationId: string; message: string }>; // user param kept for interface compatibility but not used (Cloud Function gets user from auth)
   revokeInvite: (inviteId: string) => Promise<Invite>;
   resendInvite: (inviteId: string) => Promise<Invite>;
   getOrganizationName: (organizationId: string) => Promise<string>;
@@ -92,7 +92,7 @@ export const inviteService: InviteService = {
     // Call the Cloud Function to accept the invite
     // This ensures server-side validation, transaction safety, and prevents race conditions
     // The user is authenticated via Firebase Auth in the Cloud Function, so user param is kept for interface compatibility but not used
-    await functionsService.acceptInvite({ code });
+    return await functionsService.acceptInvite({ code });
   },
 
   async revokeInvite(inviteId: string): Promise<Invite> {

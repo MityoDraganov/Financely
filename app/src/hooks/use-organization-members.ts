@@ -55,5 +55,8 @@ export function useOrganizationMembers(organizationId?: string) {
       return members;
     },
     enabled: !!organizationId && !!allUsers && !!organization,
+    // Refetch when users or organization data changes
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 }

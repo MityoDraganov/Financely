@@ -2254,7 +2254,16 @@
 					"admins": "Admins",
 					"pending": "Pending",
 					"suspended": "Suspended"
-				}
+				},
+				"memberRevokedSuccess": "Member access revoked successfully",
+				"onlyOwnerCanRevoke": "Only organization owners can revoke members",
+				"revokeMemberError": "Failed to revoke member access",
+				"cannotRevokeOwner": "Cannot revoke another owner",
+				"confirmRevokeTitle": "Revoke Member Access",
+				"confirmRevokeDescription": "Are you sure you want to revoke {{name}}'s access to this organization? This action cannot be undone.",
+				"revokeAccess": "Revoke Access",
+				"accessRevoked": "Access Revoked",
+				"accessRevokedDescription": "Your access to this organization has been revoked. You will be redirected to another organization or the onboarding page."
 			},
 			"invites": {
 				"title": "Invites",
@@ -2605,5 +2614,10 @@
 			"newTemplate": "New template"
 		},
 		"preview": "Preview"
+	},
+	"common": {
+		"cancel": "Cancel",
+		"understand": "I Understand",
+		"processing": "Processing..."
 	}
 }

@@ -53,13 +53,25 @@ export function useAcceptInvite() {
       // Cloud Function gets user from Firebase Auth, so we don't need to pass it
       return inviteService.acceptInvite(code, authUser);
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       toast.success("Successfully joined the organization!");
       // Invalidate all organization-related queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["organization-members"] });
       queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
       queryClient.invalidateQueries({ queryKey: ["current-organization"] });
+      queryClient.invalidateQueries({ queryKey: ["invites"] });
+      // Force refetch to update the UI immediately
+      queryClient.refetchQueries({ queryKey: ["users"] });
+      queryClient.refetchQueries({ queryKey: ["organizations"] });
+      // If we have the organization ID from the response, refetch its members
+      if (response?.organizationId) {
+        queryClient.refetchQueries({ queryKey: ["organization-members", response.organizationId] });
+      } else {
+        queryClient.refetchQueries({ queryKey: ["organization-members"] });
+      }
+      queryClient.refetchQueries({ queryKey: ["user-organizations"] });
     },
     onError: (error) => {
       toast.error(`Failed to accept invite: ${error.message}`);

@@ -59,12 +59,19 @@ export default function UsersListPage() {
     mutationFn: async ({ organizationId, memberId }: { organizationId: string; memberId: string }) => {
       return await functionsService.revokeMember({ organizationId, memberId });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(t('settings.users.allUsers.memberRevokedSuccess', { defaultValue: "Member access revoked successfully" }));
-      // Invalidate queries to refresh the members list
-      queryClient.invalidateQueries({ queryKey: ["organization-members", organization?.id] });
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      // Invalidate all related queries - use exact match for users query
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
+      // Force refetch to update the UI immediately
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["users"] }),
+        queryClient.refetchQueries({ queryKey: ["organizations"] }),
+        queryClient.refetchQueries({ queryKey: ["organization-members", organization?.id] }),
+      ]);
       setRevokeDialogOpen(false);
       setMemberToRevoke(null);
     },
