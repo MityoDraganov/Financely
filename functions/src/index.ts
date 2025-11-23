@@ -20,11 +20,26 @@ export { createWorkflow } from "./functions/create-workflow";
 // Workflow execution functions
 export { 
   onInvoiceCreated, 
-  onInvoicePaid, 
+  onInvoicePaid,
+  onInvoiceSent,
+  onLeadConverted,
+  onLeadQualified,
+  onContactCreated,
+  onContactUpdated,
+  onProposalCreated,
+  onProposalStatusChanged,
+  onProductCreated,
+  onProductLowStock,
+  checkCronWorkflows,
+  checkOverdueInvoices,
+  checkContractExpiry,
   triggerWorkflow, 
   executeStep, 
   webhookHandler 
 } from "./functions/workflow-triggers";
+
+// Note: onLeadCreated (lead.created trigger) is exported from ./functions/on-lead-created
+// Note: onClerkWebhookEvent (user.joined trigger) is exported from ./functions/clerk/on-clerk-event-webhook
 
 export { 
   createWorkflow as createWorkflowV2, 
@@ -38,6 +53,7 @@ export {
 export { createInvite } from "./functions/create-invite";
 export { acceptInvite } from "./functions/accept-invite";
 export { revokeInvite } from "./functions/revoke-invite";
+export { revokeMember } from "./functions/revoke-member";
 
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";
@@ -59,10 +75,18 @@ export {
 // Brand site functions
 export { generateSite } from "./functions/generate-site";
 export { regenerateSite } from "./functions/regenerate-site";
+export { chatGenerateSite } from "./functions/chat-generate-site";
 export { addCustomDomain } from "./functions/add-custom-domain";
+export { removeCustomDomain } from "./functions/remove-custom-domain";
 export { restoreBrandSiteVersion } from "./functions/restore-brand-site-version";
 export { previewBrandSiteVersion } from "./functions/preview-brand-site-version";
+export { updateBrandSitePages } from "./functions/update-brand-site-pages";
+export { getBlogArticles } from "./functions/get-blog-articles";
+export { improveText } from "./functions/improve-text";
+export { deleteBrandSite } from "./functions/delete-brand-site";
+export { cleanupPreviewSites } from "./functions/cleanup-preview-sites";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
+export { publishBrandSite } from "./functions/publish-brand-site";
 
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";
@@ -71,6 +95,9 @@ export { deployManualSite } from "./functions/deploy-manual-site";
 export { restoreWidgetVersion } from "./functions/restore-widget-version";
 export { saveWidgetVersion } from "./functions/save-widget-version";
 export { translateWidgetText } from "./functions/translate-widget-text";
+
+// Analytics functions
+export { getAnalyticsConfig } from "./functions/get-analytics-config";
 
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";
@@ -83,6 +110,12 @@ export { generateConsentBanner } from "./functions/generate-consent-banner";
 
 // Product functions
 export { createProduct } from "./functions/create-product";
+
+// File upload functions
+export { uploadFile } from "./functions/upload-file";
+
+// Storage proxy functions (for CORS)
+export { proxyStorageImage } from "./functions/proxy-storage-image";
 
 // Analytics functions
 export { getAnalyticsMetrics } from "./functions/get-analytics-metrics";

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, Pause, Archive, Settings, History, Zap } from "lucide-react";
@@ -9,8 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { workflowService } from "@/services/workflow/workflow-service";
 import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
 import WorkflowBuilder from "@/components/workflow/workflow-builder";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 
 export default function WorkflowExecutionPage() {
+  const { t } = useTranslation();
+  const { formatDateTable } = useDateFormatting();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -60,47 +64,40 @@ export default function WorkflowExecutionPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800">{t('workflows.status.active')}</Badge>;
       case "paused":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Paused</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{t('workflows.status.paused')}</Badge>;
       case "draft":
-        return <Badge variant="outline" className="bg-gray-100 text-gray-800">Draft</Badge>;
+        return <Badge variant="outline" className="bg-gray-100 text-gray-800">{t('workflows.status.draft')}</Badge>;
       case "archived":
-        return <Badge variant="destructive" className="bg-red-100 text-red-800">Archived</Badge>;
+        return <Badge variant="destructive" className="bg-red-100 text-red-800">{t('workflows.status.archived')}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const getTriggerTypeLabel = (triggerType: string) => {
-    switch (triggerType) {
-      case "invoice.created":
-        return "Invoice Created";
-      case "invoice.sent":
-        return "Invoice Sent";
-      case "invoice.paid":
-        return "Invoice Paid";
-      case "invoice.overdue":
-        return "Invoice Overdue";
-      case "proposal.created":
-        return "Proposal Created";
-      case "proposal.approved":
-        return "Proposal Approved";
-      case "contract.expiring":
-        return "Contract Expiring";
-      case "schedule.cron":
-        return "Scheduled";
-      case "manual.trigger":
-        return "Manual Trigger";
-      default:
-        return triggerType;
-    }
+    const triggerMap: Record<string, string> = {
+      "invoice.created": t('workflows.triggers.invoiceCreated'),
+      "invoice.sent": t('workflows.triggers.invoiceSent'),
+      "invoice.paid": t('workflows.triggers.invoicePaid'),
+      "invoice.overdue": t('workflows.triggers.invoiceOverdue'),
+      "proposal.created": t('workflows.triggers.proposalCreated'),
+      "proposal.approved": t('workflows.triggers.proposalApproved'),
+      "contract.expiring": t('workflows.triggers.contractExpiring'),
+      "contract.expired": t('workflows.triggers.contractExpired'),
+      "user.joined": t('workflows.triggers.userJoined'),
+      "schedule.cron": t('workflows.triggers.scheduled'),
+      "webhook.external": t('workflows.triggers.webhook'),
+      "manual.trigger": t('workflows.triggers.manual'),
+    };
+    return triggerMap[triggerType] || triggerType;
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading workflow...</div>
+        <div className="text-muted-foreground">{t('workflows.execution.loading')}</div>
       </div>
     );
   }
@@ -109,14 +106,14 @@ export default function WorkflowExecutionPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 space-y-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold">Workflow not found</h2>
+          <h2 className="text-2xl font-bold">{t('workflows.execution.notFound.title')}</h2>
           <p className="text-muted-foreground">
-            The workflow you're looking for doesn't exist or has been deleted.
+            {t('workflows.execution.notFound.description')}
           </p>
         </div>
         <Button onClick={() => navigate("/workflows")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Workflows
+          {t('workflows.execution.notFound.back')}
         </Button>
       </div>
     );
@@ -128,12 +125,12 @@ export default function WorkflowExecutionPage() {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => setShowBuilder(false)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Workflow
+            {t('workflows.execution.edit.back')}
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Edit Workflow</h1>
+            <h1 className="text-2xl font-bold">{t('workflows.execution.edit.title')}</h1>
             <p className="text-muted-foreground">
-              Modify your workflow configuration
+              {t('workflows.execution.edit.description')}
             </p>
           </div>
         </div>
@@ -153,12 +150,12 @@ export default function WorkflowExecutionPage() {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => navigate("/workflows")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Workflows
+            {t('workflows.execution.back')}
           </Button>
           <div>
             <h1 className="text-3xl font-bold">{workflow.name}</h1>
             <p className="text-muted-foreground">
-              {workflow.description || "No description"}
+              {workflow.description || t('workflows.details.noDescription')}
             </p>
           </div>
         </div>
@@ -170,7 +167,7 @@ export default function WorkflowExecutionPage() {
               disabled={pauseWorkflow.isPending}
             >
               <Pause className="w-4 h-4 mr-2" />
-              Pause
+              {t('workflows.execution.actions.pause')}
             </Button>
           ) : (
             <Button
@@ -178,7 +175,7 @@ export default function WorkflowExecutionPage() {
               disabled={activateWorkflow.isPending}
             >
               <Play className="w-4 h-4 mr-2" />
-              Activate
+              {t('workflows.execution.actions.activate')}
             </Button>
           )}
           <Button
@@ -186,7 +183,7 @@ export default function WorkflowExecutionPage() {
             onClick={() => setShowBuilder(true)}
           >
             <Settings className="w-4 h-4 mr-2" />
-            Edit
+            {t('workflows.execution.actions.edit')}
           </Button>
           <Button
             variant="outline"
@@ -194,7 +191,7 @@ export default function WorkflowExecutionPage() {
             disabled={executeWorkflow.isPending}
           >
             <Zap className="w-4 h-4 mr-2" />
-            Test Run
+            {t('workflows.execution.actions.testRun')}
           </Button>
         </div>
       </div>
@@ -209,7 +206,7 @@ export default function WorkflowExecutionPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold">{workflow.steps.length}</div>
-                <div className="text-sm text-muted-foreground">Steps</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.execution.stats.steps')}</div>
               </div>
             </div>
           </CardContent>
@@ -222,8 +219,8 @@ export default function WorkflowExecutionPage() {
                 <Play className="w-6 h-6 text-green-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">v{workflow.version}</div>
-                <div className="text-sm text-muted-foreground">Version</div>
+                <div className="text-2xl font-bold">{t('workflows.details.version', { version: workflow.version })}</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.execution.stats.version')}</div>
               </div>
             </div>
           </CardContent>
@@ -239,7 +236,7 @@ export default function WorkflowExecutionPage() {
                 <div className="text-2xl font-bold">
                   {getTriggerTypeLabel(workflow.trigger.type)}
                 </div>
-                <div className="text-sm text-muted-foreground">Trigger</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.execution.stats.trigger')}</div>
               </div>
             </div>
           </CardContent>
@@ -253,7 +250,7 @@ export default function WorkflowExecutionPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold">0</div>
-                <div className="text-sm text-muted-foreground">Executions</div>
+                <div className="text-sm text-muted-foreground">{t('workflows.execution.stats.executions')}</div>
               </div>
             </div>
           </CardContent>
@@ -263,9 +260,9 @@ export default function WorkflowExecutionPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="execution">Execution History</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="overview">{t('workflows.execution.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="execution">{t('workflows.execution.tabs.execution')}</TabsTrigger>
+          <TabsTrigger value="settings">{t('workflows.execution.tabs.settings')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -273,32 +270,32 @@ export default function WorkflowExecutionPage() {
             {/* Workflow Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Workflow Details</CardTitle>
+                <CardTitle>{t('workflows.execution.overview.details.title')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Status:</span>
+                  <span className="text-muted-foreground">{t('workflows.execution.overview.details.status')}</span>
                   {getStatusBadge(workflow.status)}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Trigger:</span>
+                  <span className="text-muted-foreground">{t('workflows.execution.overview.details.trigger')}</span>
                   <span className="font-medium">
                     {getTriggerTypeLabel(workflow.trigger.type)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Steps:</span>
+                  <span className="text-muted-foreground">{t('workflows.execution.overview.details.steps')}</span>
                   <span className="font-medium">{workflow.steps.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Created:</span>
+                  <span className="text-muted-foreground">{t('workflows.execution.overview.details.created')}</span>
                   <span className="font-medium">
-                    {workflow.createdAt ? new Date(workflow.createdAt).toLocaleDateString() : 'N/A'}
+                    {workflow.createdAt ? formatDateTable(workflow.createdAt) : 'N/A'}
                   </span>
                 </div>
                 {workflow.tags.length > 0 && (
                   <div>
-                    <span className="text-muted-foreground">Tags:</span>
+                    <span className="text-muted-foreground">{t('workflows.execution.overview.details.tags')}</span>
                     <div className="flex items-center gap-1 flex-wrap mt-2">
                       {workflow.tags.map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">
@@ -314,9 +311,9 @@ export default function WorkflowExecutionPage() {
             {/* Workflow Steps */}
             <Card>
               <CardHeader>
-                <CardTitle>Workflow Steps</CardTitle>
+                <CardTitle>{t('workflows.execution.overview.steps.title')}</CardTitle>
                 <CardDescription>
-                  The sequence of actions in this workflow
+                  {t('workflows.execution.overview.steps.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -329,7 +326,10 @@ export default function WorkflowExecutionPage() {
                       <div className="flex-1">
                         <div className="font-medium">{step.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          {step.actions.length} action{step.actions.length !== 1 ? 's' : ''}
+                          {step.actions.length === 1 
+                            ? t('workflows.execution.overview.steps.actions', { count: step.actions.length })
+                            : t('workflows.execution.overview.steps.actionsPlural', { count: step.actions.length })
+                          }
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs">
@@ -350,35 +350,35 @@ export default function WorkflowExecutionPage() {
         <TabsContent value="settings" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Workflow Settings</CardTitle>
+              <CardTitle>{t('workflows.execution.settings.title')}</CardTitle>
               <CardDescription>
-                Configure execution settings and notifications
+                {t('workflows.execution.settings.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Max Retries</label>
+                  <label className="text-sm font-medium">{t('workflows.execution.settings.maxRetries')}</label>
                   <div className="text-sm text-muted-foreground">
                     {workflow.settings.maxRetries}
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Timeout (seconds)</label>
+                  <label className="text-sm font-medium">{t('workflows.execution.settings.timeout')}</label>
                   <div className="text-sm text-muted-foreground">
                     {workflow.settings.timeoutSeconds}
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Max Concurrent</label>
+                  <label className="text-sm font-medium">{t('workflows.execution.settings.maxConcurrent')}</label>
                   <div className="text-sm text-muted-foreground">
                     {workflow.settings.maxConcurrentExecutions}
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Notify on Failure</label>
+                  <label className="text-sm font-medium">{t('workflows.execution.settings.notifyOnFailure')}</label>
                   <div className="text-sm text-muted-foreground">
-                    {workflow.settings.notifyOnFailure ? "Yes" : "No"}
+                    {workflow.settings.notifyOnFailure ? t('workflows.execution.settings.yes') : t('workflows.execution.settings.no')}
                   </div>
                 </div>
               </div>
@@ -387,9 +387,9 @@ export default function WorkflowExecutionPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Danger Zone</CardTitle>
+              <CardTitle>{t('workflows.execution.settings.dangerZone.title')}</CardTitle>
               <CardDescription>
-                Irreversible actions for this workflow
+                {t('workflows.execution.settings.dangerZone.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -399,7 +399,7 @@ export default function WorkflowExecutionPage() {
                 disabled={archiveWorkflow.isPending}
               >
                 <Archive className="w-4 h-4 mr-2" />
-                Archive Workflow
+                {t('workflows.execution.settings.dangerZone.archive')}
               </Button>
             </CardContent>
           </Card>

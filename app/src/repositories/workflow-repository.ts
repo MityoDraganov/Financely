@@ -103,7 +103,7 @@ export function getWorkflowRepository(
 
       const logEntry = {
         ...log,
-        actionType: log.actionType as "http_request" | "send_email",
+        actionType: log.actionType as "http_request" | "send.email",
         timestamp: new Date().toISOString(),
       };
 

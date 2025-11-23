@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Palette, Upload, Eye, Globe, Mail, X, Image as ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ const defaultColors = {
 };
 
 export default function OrganizationBrandingPage() {
+  const { t } = useTranslation();
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -128,9 +130,9 @@ export default function OrganizationBrandingPage() {
 
     if (url) {
       setValue("customLogo", url, { shouldDirty: true });
-      toast.success("Logo uploaded successfully");
+      toast.success(t('settings.organization.branding.toasts.logoUploaded'));
     } else {
-      toast.error(logoFileUpload.error || "Failed to upload logo");
+      toast.error(logoFileUpload.error || t('settings.organization.branding.toasts.logoUploadFailed'));
     }
   };
 
@@ -142,9 +144,9 @@ export default function OrganizationBrandingPage() {
 
     if (url) {
       setValue("customFavicon", url, { shouldDirty: true });
-      toast.success("Favicon uploaded successfully");
+      toast.success(t('settings.organization.branding.toasts.faviconUploaded'));
     } else {
-      toast.error(faviconFileUpload.error || "Failed to upload favicon");
+      toast.error(faviconFileUpload.error || t('settings.organization.branding.toasts.faviconUploadFailed'));
     }
   };
 
@@ -165,9 +167,9 @@ export default function OrganizationBrandingPage() {
     if (url) {
       setBrandImages([...brandImages, url]);
       setHasUnsavedChanges(true);
-      toast.success("Image uploaded successfully");
+      toast.success(t('settings.organization.branding.toasts.imageUploaded'));
     } else {
-      toast.error(galleryFileUpload.error || "Failed to upload image");
+      toast.error(galleryFileUpload.error || t('settings.organization.branding.toasts.imageUploadFailed'));
     }
   };
 
@@ -318,10 +320,10 @@ export default function OrganizationBrandingPage() {
         },
       });
 
-      toast.success("Branding settings updated successfully");
+      toast.success(t('settings.organization.branding.toasts.updated'));
       setHasUnsavedChanges(false);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to update branding settings";
+      const errorMessage = error instanceof Error ? error.message : t('settings.organization.branding.toasts.updateFailed');
       toast.error(errorMessage);
     }
   };
@@ -331,8 +333,8 @@ export default function OrganizationBrandingPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
@@ -340,16 +342,16 @@ export default function OrganizationBrandingPage() {
   return (
     <div className="space-y-8 pb-24">
       {/* Header with proper typography hierarchy */}
-      <div className="border-b border-gray-200 pb-6">
+      <div className="border-b border-border pb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-50 rounded-lg">
               <Palette className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Branding & Customization</h1>
-              <p className="text-gray-600 mt-1">
-                Customize your organization's appearance and branding.
+              <h1 className="text-2xl font-bold text-foreground">{t('settings.organization.branding.pageTitle')}</h1>
+              <p className="text-muted-foreground mt-1">
+                {t('settings.organization.branding.pageDescription')}
               </p>
             </div>
           </div>
@@ -359,7 +361,7 @@ export default function OrganizationBrandingPage() {
             className="flex items-center gap-2 shadow-sm"
           >
             <Eye className="h-4 w-4" />
-            {previewMode ? "Hide Preview" : "Show Preview"}
+            {previewMode ? t('settings.organization.branding.hidePreview') : t('settings.organization.branding.showPreview')}
           </Button>
         </div>
       </div>
@@ -369,21 +371,21 @@ export default function OrganizationBrandingPage() {
           {/* Left Column - Settings */}
           <div className="space-y-8">
             {/* Logo & Visual Identity */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-lg">
                   <div className="p-2 bg-blue-50 rounded-lg">
                     <Upload className="h-4 w-4 text-blue-600" />
                   </div>
-                  Logo & Visual Identity
+                  {t('settings.organization.branding.logoVisualIdentity.title')}
                 </CardTitle>
                 <CardDescription className="ml-11">
-                  Upload your organization's logo and favicon.
+                  {t('settings.organization.branding.logoVisualIdentity.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="customLogo">Logo</Label>
+                  <Label htmlFor="customLogo">{t('settings.organization.branding.logoVisualIdentity.logo')}</Label>
                   <div className="space-y-2">
                     <input
                       ref={logoUploadRef}
@@ -402,13 +404,13 @@ export default function OrganizationBrandingPage() {
                         <img
                           src={watch("customLogo")}
                           alt="Logo preview"
-                          className="h-20 w-auto rounded border border-gray-200 object-contain"
+                          className="h-20 w-auto rounded border border-border object-contain"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-muted"
                           onClick={handleLogoRemove}
                         >
                           <X className="h-3 w-3" />
@@ -417,15 +419,15 @@ export default function OrganizationBrandingPage() {
                     ) : (
                       <div
                         onClick={() => logoUploadRef.current?.click()}
-                        className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-gray-400 transition-colors"
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:border-primary/50 transition-colors"
                       >
                         <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload logo</p>
-                        <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 5MB</p>
+                        <p className="text-sm text-gray-600">{t('settings.organization.branding.logoVisualIdentity.clickToUpload')}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('settings.organization.branding.logoVisualIdentity.uploadHint')}</p>
                       </div>
                     )}
                     {logoFileUpload.isUploading && (
-                      <p className="text-sm text-gray-500">Uploading... {logoFileUpload.uploadProgress}%</p>
+                      <p className="text-sm text-gray-500">{t('settings.organization.branding.logoVisualIdentity.uploading', { progress: logoFileUpload.uploadProgress })}</p>
                     )}
                     {logoFileUpload.error && (
                       <p className="text-sm text-red-600">{logoFileUpload.error}</p>
@@ -434,7 +436,7 @@ export default function OrganizationBrandingPage() {
                       <Input
                         id="customLogo"
                         {...register("customLogo")}
-                        placeholder="Or enter logo URL"
+                        placeholder={t('settings.organization.branding.logoVisualIdentity.orEnterUrl')}
                         className={errors.customLogo ? "border-red-500" : ""}
                       />
                       {errors.customLogo && (
@@ -445,7 +447,7 @@ export default function OrganizationBrandingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customFavicon">Favicon</Label>
+                  <Label htmlFor="customFavicon">{t('settings.organization.branding.logoVisualIdentity.favicon')}</Label>
                   <div className="space-y-2">
                     <input
                       ref={faviconUploadRef}
@@ -464,13 +466,13 @@ export default function OrganizationBrandingPage() {
                         <img
                           src={watch("customFavicon")}
                           alt="Favicon preview"
-                          className="h-12 w-12 rounded border border-gray-200 object-contain"
+                          className="h-12 w-12 rounded border border-border object-contain"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-muted"
                           onClick={handleFaviconRemove}
                         >
                           <X className="h-3 w-3" />
@@ -482,12 +484,12 @@ export default function OrganizationBrandingPage() {
                         className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-gray-400 transition-colors"
                       >
                         <ImageIcon className="h-6 w-6 text-gray-400 mb-2" />
-                        <p className="text-xs text-gray-600">Click to upload favicon</p>
-                        <p className="text-xs text-gray-500 mt-1">PNG, ICO up to 5MB</p>
+                        <p className="text-xs text-gray-600">{t('settings.organization.branding.logoVisualIdentity.clickToUploadFavicon')}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('settings.organization.branding.logoVisualIdentity.uploadHintFavicon')}</p>
                       </div>
                     )}
                     {faviconFileUpload.isUploading && (
-                      <p className="text-sm text-gray-500">Uploading... {faviconFileUpload.uploadProgress}%</p>
+                      <p className="text-sm text-gray-500">{t('settings.organization.branding.logoVisualIdentity.uploading', { progress: faviconFileUpload.uploadProgress })}</p>
                     )}
                     {faviconFileUpload.error && (
                       <p className="text-sm text-red-600">{faviconFileUpload.error}</p>
@@ -496,7 +498,7 @@ export default function OrganizationBrandingPage() {
                       <Input
                         id="customFavicon"
                         {...register("customFavicon")}
-                        placeholder="Or enter favicon URL"
+                        placeholder={t('settings.organization.branding.logoVisualIdentity.orEnterFaviconUrl')}
                         className={errors.customFavicon ? "border-red-500" : ""}
                       />
                       {errors.customFavicon && (
@@ -507,21 +509,21 @@ export default function OrganizationBrandingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name Override</Label>
+                  <Label htmlFor="companyName">{t('settings.organization.branding.logoVisualIdentity.companyName')}</Label>
                   <Input
                     id="companyName"
                     {...register("companyName")}
-                    placeholder="Your Company Name"
+                    placeholder={t('settings.organization.branding.logoVisualIdentity.companyNamePlaceholder')}
                   />
                   <p className="text-xs text-gray-500">
-                    Override the default "Financely" branding with your company name.
+                    {t('settings.organization.branding.logoVisualIdentity.companyNameHint')}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Gallery Section */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -529,9 +531,9 @@ export default function OrganizationBrandingPage() {
                       <ImageIcon className="h-4 w-4 text-green-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">Gallery</CardTitle>
+                      <CardTitle className="text-lg">{t('settings.organization.branding.gallery.title')}</CardTitle>
                       <CardDescription className="ml-0">
-                        Upload brand images for your organization.
+                        {t('settings.organization.branding.gallery.description')}
                       </CardDescription>
                     </div>
                   </div>
@@ -543,7 +545,7 @@ export default function OrganizationBrandingPage() {
                     disabled={galleryFileUpload.isUploading}
                   >
                     <Upload className="h-4 w-4 mr-2" />
-                    Add Image
+                    {t('settings.organization.branding.gallery.addImage')}
                   </Button>
                 </div>
               </CardHeader>
@@ -566,13 +568,13 @@ export default function OrganizationBrandingPage() {
                       <img
                         src={url}
                         alt={`Gallery ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        className="w-full h-32 object-cover rounded-lg border border-border"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-destructive/10 dark:hover:bg-destructive/20 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => handleGalleryRemove(index)}
                       >
                         <X className="h-3 w-3 text-red-600" />
@@ -582,15 +584,15 @@ export default function OrganizationBrandingPage() {
                   {/* Plus placeholder - always last */}
                   <div
                     onClick={() => galleryUploadRef.current?.click()}
-                    className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-32 cursor-pointer hover:border-gray-400 transition-colors bg-gray-50"
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg h-32 cursor-pointer hover:border-primary/50 transition-colors bg-muted/50"
                   >
                     <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
-                    <p className="text-xs text-gray-600">Add Image</p>
+                    <p className="text-xs text-gray-600">{t('settings.organization.branding.gallery.addImage')}</p>
                   </div>
                 </div>
                 {galleryFileUpload.isUploading && (
                   <p className="text-sm text-gray-500 mt-2">
-                    Uploading... {galleryFileUpload.uploadProgress}%
+                    {t('settings.organization.branding.logoVisualIdentity.uploading', { progress: galleryFileUpload.uploadProgress })}
                   </p>
                 )}
                 {galleryFileUpload.error && (
@@ -600,16 +602,16 @@ export default function OrganizationBrandingPage() {
             </Card>
 
             {/* Brand Description */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-lg">
                   <div className="p-2 bg-blue-50 rounded-lg">
                     <Globe className="h-4 w-4 text-blue-600" />
                   </div>
-                  Brand Description
+                  {t('settings.organization.branding.brandDescription.title')}
                 </CardTitle>
                 <CardDescription className="ml-11">
-                  Describe your brand and organization.
+                  {t('settings.organization.branding.brandDescription.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -619,7 +621,7 @@ export default function OrganizationBrandingPage() {
                     setDescription(e.target.value);
                     setHasUnsavedChanges(true);
                   }}
-                  placeholder="Enter a description of your brand..."
+                  placeholder={t('settings.organization.branding.brandDescription.placeholder')}
                   className="min-h-[100px]"
                 />
               </CardContent>
@@ -630,17 +632,17 @@ export default function OrganizationBrandingPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Palette className="h-5 w-5" />
-                  Brand Colors
+                  {t('settings.organization.branding.brandColors.title')}
                 </CardTitle>
                 <CardDescription>
-                  Customize your organization's color scheme.
+                  {t('settings.organization.branding.brandColors.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-1">
                     <ColorPicker
-                      label="Primary Color"
+                      label={t('settings.organization.branding.brandColors.primaryColor')}
                       value={watchedColors[0] || defaultColors.primaryColor}
                       onChange={(color) => {
                         setValue("primaryColor", color, { shouldDirty: true });
@@ -653,7 +655,7 @@ export default function OrganizationBrandingPage() {
 
                   <div className="space-y-1">
                     <ColorPicker
-                      label="Secondary Color"
+                      label={t('settings.organization.branding.brandColors.secondaryColor')}
                       value={watchedColors[1] || defaultColors.secondaryColor}
                       onChange={(color) => {
                         setValue("secondaryColor", color, { shouldDirty: true });
@@ -666,7 +668,7 @@ export default function OrganizationBrandingPage() {
 
                   <div className="space-y-1">
                     <ColorPicker
-                      label="Accent Color"
+                      label={t('settings.organization.branding.brandColors.accentColor')}
                       value={watchedColors[2] || defaultColors.accentColor}
                       onChange={(color) => {
                         setValue("accentColor", color, { shouldDirty: true });
@@ -685,28 +687,28 @@ export default function OrganizationBrandingPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Mail className="h-5 w-5" />
-                  Email & Communication
+                  {t('settings.organization.branding.emailCommunication.title')}
                 </CardTitle>
                 <CardDescription>
-                  Customize email sender information.
+                  {t('settings.organization.branding.emailCommunication.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="emailFromName">Email From Name</Label>
+                  <Label htmlFor="emailFromName">{t('settings.organization.branding.emailCommunication.emailFromName')}</Label>
                   <Input
                     id="emailFromName"
                     {...register("emailFromName")}
-                    placeholder="Your Company"
+                    placeholder={t('settings.organization.branding.emailCommunication.emailFromNamePlaceholder')}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="emailFromAddress">Email From Address</Label>
+                  <Label htmlFor="emailFromAddress">{t('settings.organization.branding.emailCommunication.emailFromAddress')}</Label>
                   <Input
                     id="emailFromAddress"
                     {...register("emailFromAddress")}
-                    placeholder="noreply@yourcompany.com"
+                    placeholder={t('settings.organization.branding.emailCommunication.emailFromAddressPlaceholder')}
                     className={errors.emailFromAddress ? "border-red-500" : ""}
                   />
                   {errors.emailFromAddress && (
@@ -715,11 +717,11 @@ export default function OrganizationBrandingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="footerText">Footer Text</Label>
+                  <Label htmlFor="footerText">{t('settings.organization.branding.emailCommunication.footerText')}</Label>
                   <Input
                     id="footerText"
                     {...register("footerText")}
-                    placeholder="© 2024 Your Company. All rights reserved."
+                    placeholder={t('settings.organization.branding.emailCommunication.footerTextPlaceholder')}
                   />
                 </div>
               </CardContent>
@@ -732,9 +734,9 @@ export default function OrganizationBrandingPage() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Live Preview</CardTitle>
+                  <CardTitle>{t('settings.organization.branding.preview.title')}</CardTitle>
                   <CardDescription>
-                    See how your branding will appear to users.
+                    {t('settings.organization.branding.preview.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -767,47 +769,47 @@ export default function OrganizationBrandingPage() {
 
                     {/* Button Preview */}
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Button Styles</p>
+                      <p className="text-sm font-medium">{t('settings.organization.branding.preview.buttonStyles')}</p>
                       <div className="flex gap-2">
                         <button 
                           className="px-4 py-2 rounded text-white text-sm font-medium"
                           style={{ backgroundColor: watchedColors[0] || defaultColors.primaryColor }}
                         >
-                          Primary Button
+                          {t('settings.organization.branding.preview.primaryButton')}
                         </button>
                         <button 
                           className="px-4 py-2 rounded text-white text-sm font-medium"
                           style={{ backgroundColor: watchedColors[2] || defaultColors.accentColor }}
                         >
-                          Accent Button
+                          {t('settings.organization.branding.preview.accentButton')}
                         </button>
                       </div>
                     </div>
 
                     {/* Color Palette Preview */}
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Color Palette</p>
+                      <p className="text-sm font-medium">{t('settings.organization.branding.preview.colorPalette')}</p>
                       <div className="flex gap-2">
                         <div className="text-center">
                           <div 
                             className="w-12 h-12 rounded border"
                             style={{ backgroundColor: watchedColors[0] || defaultColors.primaryColor }}
                           />
-                          <p className="text-xs mt-1">Primary</p>
+                          <p className="text-xs mt-1">{t('settings.organization.branding.preview.primary')}</p>
                         </div>
                         <div className="text-center">
                           <div 
                             className="w-12 h-12 rounded border"
                             style={{ backgroundColor: watchedColors[1] || defaultColors.secondaryColor }}
                           />
-                          <p className="text-xs mt-1">Secondary</p>
+                          <p className="text-xs mt-1">{t('settings.organization.branding.preview.secondary')}</p>
                         </div>
                         <div className="text-center">
                           <div 
                             className="w-12 h-12 rounded border"
                             style={{ backgroundColor: watchedColors[2] || defaultColors.accentColor }}
                           />
-                          <p className="text-xs mt-1">Accent</p>
+                          <p className="text-xs mt-1">{t('settings.organization.branding.preview.accent')}</p>
                         </div>
                       </div>
                     </div>
@@ -819,7 +821,7 @@ export default function OrganizationBrandingPage() {
         </div>
 
         {/* Save Button Footer - Always visible, sticky at bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 shadow-lg z-50">
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-end">
               <div className="flex gap-2">
@@ -833,13 +835,13 @@ export default function OrganizationBrandingPage() {
                     setHasUnsavedChanges(false);
                   }}
                 >
-                  Cancel
+                  {t('settings.organization.general.cancel')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateOrganization.isPending}
                 >
-                  {updateOrganization.isPending ? "Saving..." : "Save Changes"}
+                  {updateOrganization.isPending ? t('settings.organization.general.saving') : t('settings.organization.general.saveChanges')}
                   </Button>
                 </>
               ) : (
@@ -852,12 +854,12 @@ export default function OrganizationBrandingPage() {
                           variant="outline"
                           disabled
                         >
-                          Cancel
+                          {t('settings.organization.general.cancel')}
                 </Button>
               </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      All changes are already saved
+                      {t('settings.organization.branding.allChangesSaved')}
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
@@ -867,12 +869,12 @@ export default function OrganizationBrandingPage() {
                           type="submit"
                           disabled
                         >
-                          Save Changes
+                          {t('settings.organization.general.saveChanges')}
                         </Button>
             </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      All changes are already saved
+                      {t('settings.organization.branding.allChangesSaved')}
                     </TooltipContent>
                   </Tooltip>
                 </>

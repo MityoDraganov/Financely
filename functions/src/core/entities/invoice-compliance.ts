@@ -124,10 +124,7 @@ export const invoiceSchemaEU = z.object({
     vatId: z.string().min(1, "Supplier VAT ID is required for EU invoices"),
   }),
   customer: customerEntitySchema,
-  items: z.array(invoiceItemSchema.extend({
-    vatRate: z.number().min(0).max(100), // VAT rate required per item in EU
-    vatAmount: z.number().min(0), // VAT amount required per item
-  })).min(1, "At least one item is required"),
+  items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   
   // Financial totals (all required)
   netAmount: z.number().min(0, "Net amount is required"),
@@ -507,7 +504,7 @@ export const COMPLIANCE_SCHEMAS: Record<InvoiceRegion, ComplianceSchemaDefinitio
         binding: "items",
         label: "Invoice Items",
         required: true,
-        region: ["AU"],
+        region: ["CA"],
         format: "array",
       },
       {

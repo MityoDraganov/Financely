@@ -35,10 +35,12 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     backgroundImage: brand.backgroundImage,
   };
 
-  // Page dimensions
+  // Page dimensions in pixels (at 96 DPI to match designer)
+  // A4: 210mm x 297mm = 794px x 1123px at 96 DPI
+  // Letter: 8.5in x 11in = 816px x 1056px at 96 DPI
   const pageSizes = {
-    A4: { width: 794, height: 1123 },
-    Letter: { width: 816, height: 1056 },
+    A4: { width: 794, height: 1123, widthMm: 210, heightMm: 297 },
+    Letter: { width: 816, height: 1056, widthMm: 216, heightMm: 279 },
   };
   const size = pageSizes[pageSize] || pageSizes.A4;
 
@@ -342,7 +344,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";
 
           return `
-            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify};">
+            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify}; word-break: break-word; overflow-wrap: break-word; min-height: 20px;">
               ${text}
             </div>
           `;
@@ -355,7 +357,8 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             display: grid;
             grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
             border-bottom: ${borderStyle};
-            height: ${el.rowHeight}px;
+            min-height: ${el.rowHeight}px;
+            padding: 4px 0;
           ">
             ${cellsHTML}
           </div>
@@ -459,9 +462,16 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }
 
+      // Calculate actual table height based on content (no scrolling for PDF/print)
+      const headerHeight = el.headerHeight || 28;
+      const rowHeight = el.rowHeight || 28;
+      const actualContentHeight = items.length * rowHeight;
+      const totalsHeight = totalsHTML ? rowHeight : 0;
+      const totalTableHeight = headerHeight + actualContentHeight + totalsHeight;
+      
       return `
-        <div style="${commonStyle}">
-          <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: hidden;">
+        <div style="${commonStyle}; height: ${totalTableHeight}px;">
+          <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: visible;">
             <div style="
               display: grid;
               grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
@@ -470,7 +480,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             ">
               ${columnsHTML}
             </div>
-            <div style="height: calc(100% - ${el.headerHeight}px); overflow: hidden;">
+            <div style="overflow: visible;">
               ${rowsHTML}
               ${totalsHTML}
             </div>
@@ -515,7 +525,6 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     const width = watermark.width || 200;
     const height = watermark.height ? `${watermark.height}px` : "auto";
     const opacity = watermark.opacity ?? 0.1;
-    const blendMode = watermark.blendMode || "normal";
     const repeat = watermark.repeat || "none";
 
     if (watermarkImageUrl) {
@@ -528,7 +537,6 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             width: ${width}px;
             height: ${height};
             opacity: ${opacity};
-            mix-blend-mode: ${blendMode};
             pointer-events: none;
             z-index: 1000;
           ">
@@ -551,7 +559,6 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             background-repeat: ${repeat};
             background-size: ${backgroundSize};
             opacity: ${opacity};
-            mix-blend-mode: ${blendMode};
             pointer-events: none;
             z-index: 1000;
             transform: rotate(${watermark.rotation}deg);
@@ -567,7 +574,6 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             ${positionStyle}
             width: ${width}px;
             opacity: ${opacity};
-            mix-blend-mode: ${blendMode};
             pointer-events: none;
             z-index: 1000;
             font-size: ${Math.max(24, width / 10)}px;
@@ -585,7 +591,6 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             ${positionStyle}
             width: ${width}px;
             opacity: ${opacity};
-            mix-blend-mode: ${blendMode};
             pointer-events: none;
             z-index: 1000;
             font-size: ${Math.max(24, width / 10)}px;
@@ -607,8 +612,14 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         <meta charset="UTF-8">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { margin: 0; padding: 0; }
-          @page { margin: 0; size: ${size.width}px ${size.height}px; }
+          html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: ${size.width}px;
+            height: ${size.height}px;
+            overflow: hidden;
+          }
+          @page { margin: 0; size: ${size.widthMm}mm ${size.heightMm}mm; }
         </style>
       </head>
       <body>
@@ -693,15 +704,44 @@ export async function handleRenderInvoicePdf(
       headless: true,
     });
 
+    // Use exact pixel dimensions to match designer (96 DPI)
+    // Page dimensions in pixels (at 96 DPI to match designer)
+    const pageSizes = {
+      A4: { width: 794, height: 1123 },
+      Letter: { width: 816, height: 1056 },
+    };
+    const pdfSize = pageSizes[template.pageSize] || pageSizes.A4;
+    
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const page = await browser.newPage();
+    
+    // Set viewport to match page size exactly (1:1 pixel mapping)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await page.setViewport({
+      width: pdfSize.width,
+      height: pdfSize.height,
+      deviceScaleFactor: 1,
+    });
+    
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await page.setContent(html, { waitUntil: "networkidle0" });
-
+    
+    // Convert pixels to inches for Puppeteer (1 inch = 96 pixels)
+    const widthInches = pdfSize.width / 96;
+    const heightInches = pdfSize.height / 96;
+    
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     pdfBuffer = await page.pdf({
-      format: template.pageSize === "Letter" ? "letter" : "a4",
+      width: `${widthInches}in`,
+      height: `${heightInches}in`,
       printBackground: true,
+      margin: {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
+      preferCSSPageSize: false, // Use explicit width/height instead of @page CSS
     }) as Buffer;
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access

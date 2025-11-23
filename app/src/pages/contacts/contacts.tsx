@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Search, Edit, Trash2, Mail, Phone, Building, MoreHorizontal, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +49,7 @@ interface ContactFormData {
 }
 
 export default function ContactsPage() {
+  const { t } = useTranslation();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -157,12 +159,12 @@ export default function ContactsPage() {
         form.reset();
         toast.success(
           newPhone && !existingPhones.includes(newPhone)
-            ? "Contact updated. New phone number added."
-            : "Contact updated."
+            ? t('contacts.messages.contactUpdatedWithPhone')
+            : t('contacts.messages.contactUpdated')
         );
       } catch (error) {
         console.error("Failed to update contact:", error);
-        toast.error("Failed to update contact");
+        toast.error(t('contacts.messages.updateFailed'));
       }
       return;
     }
@@ -178,10 +180,10 @@ export default function ContactsPage() {
       await createContactMutation.mutateAsync(contactData);
       setIsCreateDialogOpen(false);
       form.reset();
-      toast.success("Contact created successfully");
+      toast.success(t('contacts.messages.contactCreated'));
     } catch (error) {
       console.error("Failed to create contact:", error);
-      toast.error("Failed to create contact");
+      toast.error(t('contacts.messages.createFailed'));
     }
   };
 
@@ -225,10 +227,10 @@ export default function ContactsPage() {
       setIsEditDialogOpen(false);
       setEditingContact(null);
       form.reset();
-      toast.success("Contact updated successfully");
+      toast.success(t('contacts.messages.contactUpdated'));
     } catch (error) {
       console.error("Failed to update contact:", error);
-      toast.error("Failed to update contact");
+      toast.error(t('contacts.messages.updateFailed'));
     }
   };
 
@@ -298,12 +300,12 @@ export default function ContactsPage() {
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Contacts</h1>
-            <p className="text-sm text-muted-foreground">Manage your customer contacts</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
+            <p className="text-sm text-muted-foreground">{t('contacts.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading contacts...</div>
+          <div className="text-muted-foreground">{t('contacts.loading')}</div>
         </div>
       </div>
     );
@@ -314,52 +316,52 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground">Manage your customer contacts</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
+          <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Add Contact
+              {t('contacts.addContact')}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Contact</DialogTitle>
+              <DialogTitle>{t('contacts.createTitle')}</DialogTitle>
               <DialogDescription>
-                Add a new customer contact to your organization.
+                {t('contacts.createDescription')}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(handleCreateContact)} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name *</Label>
+                  <Label htmlFor="firstName">{t('contacts.form.firstName')}</Label>
                   <Input
                     id="firstName"
-                    {...form.register("firstName", { required: "First name is required" })}
+                    {...form.register("firstName", { required: t('contacts.form.firstNameRequired') })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Label htmlFor="lastName">{t('contacts.form.lastName')}</Label>
                   <Input
                     id="lastName"
-                    {...form.register("lastName", { required: "Last name is required" })}
+                    {...form.register("lastName", { required: t('contacts.form.lastNameRequired') })}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email">{t('contacts.form.email')}</Label>
                   <Input
                     id="email"
                     type="email"
-                    {...form.register("email", { required: "Email is required" })}
+                    {...form.register("email", { required: t('contacts.form.emailRequired') })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">{t('contacts.form.phone')}</Label>
                   <Input
                     id="phone"
                     {...form.register("phone")}
@@ -369,14 +371,14 @@ export default function ContactsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
+                  <Label htmlFor="company">{t('contacts.form.company')}</Label>
                   <Input
                     id="company"
                     {...form.register("company")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="jobTitle">Job Title</Label>
+                  <Label htmlFor="jobTitle">{t('contacts.form.jobTitle')}</Label>
                   <Input
                     id="jobTitle"
                     {...form.register("jobTitle")}
@@ -385,26 +387,26 @@ export default function ContactsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">{t('contacts.form.status')}</Label>
                 <Select
                   value={form.watch("status")}
                   onValueChange={(value) => form.setValue("status", value as ContactFormData["status"])}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t('contacts.form.statusPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lead">Lead</SelectItem>
-                    <SelectItem value="prospect">Prospect</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="lead">{t('contacts.status.lead')}</SelectItem>
+                    <SelectItem value="prospect">{t('contacts.status.prospect')}</SelectItem>
+                    <SelectItem value="customer">{t('contacts.status.customer')}</SelectItem>
+                    <SelectItem value="active">{t('contacts.status.active')}</SelectItem>
+                    <SelectItem value="inactive">{t('contacts.status.inactive')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="notes">{t('contacts.form.notes')}</Label>
                 <Textarea
                   id="notes"
                   rows={3}
@@ -414,10 +416,10 @@ export default function ContactsPage() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
+                  {t('contacts.actions.cancel')}
                 </Button>
                 <Button type="submit" disabled={createContactMutation.isPending}>
-                  {createContactMutation.isPending ? "Creating..." : "Create Contact"}
+                  {createContactMutation.isPending ? t('contacts.actions.creating') : t('contacts.actions.create')}
                 </Button>
               </DialogFooter>
             </form>
@@ -430,7 +432,7 @@ export default function ContactsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Search contacts..."
+            placeholder={t('contacts.filters.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9"
@@ -440,7 +442,7 @@ export default function ContactsPage() {
           <div className="flex items-center space-x-2">
             <Users className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">{displayedContacts.length}</span>
-            <span className="text-sm text-muted-foreground hidden sm:inline">contacts</span>
+            <span className="text-sm text-muted-foreground hidden sm:inline">{t('contacts.filters.contact')}</span>
           </div>
         </Card>
       </div>
@@ -450,11 +452,11 @@ export default function ContactsPage() {
         <Card>
           <CardContent className="text-center py-8">
             <User className="mx-auto h-10 w-10 text-muted-foreground" />
-            <h3 className="mt-2 text-sm font-semibold">No contacts</h3>
+            <h3 className="mt-2 text-sm font-semibold text-foreground">{t('contacts.empty.title')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {searchTerm.trim() 
-                ? "No contacts match your search criteria."
-                : "Get started by creating your first contact."
+                ? t('contacts.empty.noMatch')
+                : t('contacts.empty.getStarted')
               }
             </p>
           </CardContent>
@@ -468,11 +470,11 @@ export default function ContactsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Phone</TableHead>
+                      <TableHead>{t('contacts.table.name')}</TableHead>
+                      <TableHead>{t('contacts.table.email')}</TableHead>
+                      <TableHead>{t('contacts.table.company')}</TableHead>
+                      <TableHead>{t('contacts.table.status')}</TableHead>
+                      <TableHead>{t('contacts.table.phone')}</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -505,7 +507,7 @@ export default function ContactsPage() {
                           </TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(contactData.status || 'lead')}>
-                              {contactData.status || 'lead'}
+                              {t(`contacts.status.${contactData.status || 'lead'}`)}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -537,7 +539,7 @@ export default function ContactsPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => openEditDialog(contact)}>
                                   <Edit className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t('contacts.actions.edit')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
@@ -545,7 +547,7 @@ export default function ContactsPage() {
                                   className="text-red-600"
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                  {t('contacts.actions.delete')}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -597,7 +599,7 @@ export default function ContactsPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEditDialog(contact)}>
                             <Edit className="mr-2 h-4 w-4" />
-                            Edit
+                            {t('contacts.actions.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
@@ -605,7 +607,7 @@ export default function ContactsPage() {
                             className="text-red-600"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                            {t('contacts.actions.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -623,7 +625,7 @@ export default function ContactsPage() {
                           <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span>{phones[0]}</span>
                           {phones.length > 1 && (
-                            <span className="text-muted-foreground">+{phones.length - 1} more</span>
+                            <span className="text-muted-foreground">{t('contacts.mobile.morePhones', { count: phones.length - 1 })}</span>
                           )}
                         </div>
                       )}
@@ -631,7 +633,7 @@ export default function ContactsPage() {
 
                     <div className="flex items-center justify-between pt-2 border-t">
                       <Badge className={getStatusColor(contactData.status || 'lead')} variant="outline">
-                        {contactData.status || 'lead'}
+                        {t(`contacts.status.${contactData.status || 'lead'}`)}
                       </Badge>
                       <Button
                         variant="ghost"
@@ -640,7 +642,7 @@ export default function ContactsPage() {
                         className="h-7 text-xs"
                       >
                         <Edit className="h-3.5 w-3.5 mr-1.5" />
-                        Edit
+                        {t('contacts.actions.edit')}
                       </Button>
                     </div>
                   </div>
@@ -655,40 +657,40 @@ export default function ContactsPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
+            <DialogTitle>{t('contacts.editTitle')}</DialogTitle>
             <DialogDescription>
-              Update the contact information.
+              {t('contacts.editDescription')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(handleUpdateContact)} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-firstName">First Name *</Label>
+                <Label htmlFor="edit-firstName">{t('contacts.form.firstName')}</Label>
                 <Input
                   id="edit-firstName"
-                  {...form.register("firstName", { required: "First name is required" })}
+                  {...form.register("firstName", { required: t('contacts.form.firstNameRequired') })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-lastName">Last Name *</Label>
+                <Label htmlFor="edit-lastName">{t('contacts.form.lastName')}</Label>
                 <Input
                   id="edit-lastName"
-                  {...form.register("lastName", { required: "Last name is required" })}
+                  {...form.register("lastName", { required: t('contacts.form.lastNameRequired') })}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-email">Email *</Label>
+                <Label htmlFor="edit-email">{t('contacts.form.email')}</Label>
                 <Input
                   id="edit-email"
                   type="email"
-                  {...form.register("email", { required: "Email is required" })}
+                  {...form.register("email", { required: t('contacts.form.emailRequired') })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-phone">Phone</Label>
+                <Label htmlFor="edit-phone">{t('contacts.form.phone')}</Label>
                 <Input
                   id="edit-phone"
                   {...form.register("phone")}
@@ -698,14 +700,14 @@ export default function ContactsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-company">Company</Label>
+                <Label htmlFor="edit-company">{t('contacts.form.company')}</Label>
                 <Input
                   id="edit-company"
                   {...form.register("company")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-jobTitle">Job Title</Label>
+                <Label htmlFor="edit-jobTitle">{t('contacts.form.jobTitle')}</Label>
                 <Input
                   id="edit-jobTitle"
                   {...form.register("jobTitle")}
@@ -714,26 +716,26 @@ export default function ContactsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
+              <Label htmlFor="edit-status">{t('contacts.form.status')}</Label>
               <Select
                 value={form.watch("status")}
                 onValueChange={(value) => form.setValue("status", value as ContactFormData["status"])}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('contacts.form.statusPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lead">Lead</SelectItem>
-                  <SelectItem value="prospect">Prospect</SelectItem>
-                  <SelectItem value="customer">Customer</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="lead">{t('contacts.status.lead')}</SelectItem>
+                  <SelectItem value="prospect">{t('contacts.status.prospect')}</SelectItem>
+                  <SelectItem value="customer">{t('contacts.status.customer')}</SelectItem>
+                  <SelectItem value="active">{t('contacts.status.active')}</SelectItem>
+                  <SelectItem value="inactive">{t('contacts.status.inactive')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-notes">Notes</Label>
+              <Label htmlFor="edit-notes">{t('contacts.form.notes')}</Label>
               <Textarea
                 id="edit-notes"
                 rows={3}
@@ -743,10 +745,10 @@ export default function ContactsPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
+                {t('contacts.actions.cancel')}
               </Button>
               <Button type="submit" disabled={updateContactMutation.isPending}>
-                {updateContactMutation.isPending ? "Updating..." : "Update Contact"}
+                {updateContactMutation.isPending ? t('contacts.actions.updating') : t('contacts.actions.update')}
               </Button>
             </DialogFooter>
           </form>
@@ -757,18 +759,18 @@ export default function ContactsPage() {
       <AlertDialog open={!!deleteContactId} onOpenChange={() => setDeleteContactId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('contacts.delete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the contact.
+              {t('contacts.delete.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('contacts.delete.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteContact}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('contacts.delete.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

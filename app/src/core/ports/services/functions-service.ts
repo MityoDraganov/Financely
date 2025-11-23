@@ -110,6 +110,11 @@ export interface FunctionsService {
     code: string;
   }): Promise<{ success: boolean; organizationId: string; message: string }>;
 
+  revokeMember(payload: {
+    organizationId: string;
+    memberId: string;
+  }): Promise<{ success: boolean; message: string }>;
+
   /**
    * Create a workflow with the specified configuration.
    * 
@@ -221,6 +226,15 @@ export interface FunctionsService {
     tone?: string;
     context?: string;
     contextImages?: string[];
+    pages?: Array<{
+      id: string;
+      title: string;
+      slug: string;
+      description?: string;
+      context?: string;
+      type?: "standard" | "blog" | "contact";
+      order?: number;
+    }>;
   }): Promise<{ id: string; status: string }>;
 
   regenerateSite(payload: {
@@ -229,6 +243,19 @@ export interface FunctionsService {
     context?: string;
     contextImages?: string[];
   }): Promise<{ success: boolean; brandSiteId: string; status: string }>;
+
+  chatGenerateSite(payload: {
+    brandSiteId: string;
+    message: string;
+    attachments?: string[];
+    conversationHistory?: Array<{
+      role: "user" | "assistant";
+      content: string;
+      attachments?: string[];
+    }>;
+    conversationId?: string;
+    pageSlug?: string;
+  }): Promise<{ response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string; chatRequestId?: string }>;
   updateAnalyticsScript(payload: {
     brandSiteId: string;
   }): Promise<{ success: boolean; brandSiteId: string }>;
@@ -260,6 +287,26 @@ export interface FunctionsService {
     version: number;
   }): Promise<{ success: boolean; brandSiteId: string; version: number; previewUrl: string }>;
 
+  updateBrandSitePages(payload: {
+    brandSiteId: string;
+    pages: Array<{
+      id: string;
+      title: string;
+      slug: string;
+      description?: string;
+      context?: string;
+      type?: "standard" | "blog" | "contact";
+      order?: number;
+      contentEntries?: Array<{
+        id: string;
+        title: string;
+        summary?: string;
+        link?: string;
+        image?: string;
+      }>;
+    }>;
+  }): Promise<{ success: boolean; brandSiteId: string }>;
+
   /**
    * Manually deploy custom files to a brand site
    */
@@ -272,6 +319,23 @@ export interface FunctionsService {
     versionMessage?: string;
     includeWidgets?: boolean;
   }): Promise<{ success: boolean; brandSiteId: string; deployedUrl: string; status: string }>;
+
+  /**
+   * Publish a brand site version to Cloudflare (R2 + KV)
+   * Replaces the old Firebase Hosting deployment flow
+   */
+  publishBrandSite(payload: {
+    brandSiteId: string;
+    html: string;
+    assets?: Array<{
+      path: string;
+      content: string | Buffer | string; // base64 encoded or plain string
+      contentType: string;
+    }>;
+    aiPrompt?: string;
+    notes?: string;
+    sourceType?: "ai-builder" | "manual" | "imported";
+  }): Promise<{ success: boolean; brandSiteId: string; versionId: string; publishedDomains: string[]; deployedUrl?: string }>;
 
   /**
    * Generate a proposal suggestion from a lead using AI
@@ -388,6 +452,7 @@ export interface FunctionsService {
       message: string;
       indexUrl?: string;
     };
+    dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
   }>;
 
   /**
@@ -589,4 +654,34 @@ export interface FunctionsService {
       showRejectButton: boolean;
     };
   }>;
+
+  /**
+   * Upload a file to Firebase Storage.
+   * All file uploads (create operations) must go through this backend function.
+   * 
+   * @param payload - The upload payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.fileName - Original file name
+   * @param payload.fileData - Base64 encoded file data
+   * @param payload.contentType - MIME type of the file
+   * @param payload.path - Optional custom storage path
+   * @returns Promise with the public URL of the uploaded file
+   */
+  uploadFile(payload: {
+    organizationId: string;
+    fileName: string;
+    fileData: string; // Base64 encoded
+    contentType: string;
+    path?: string;
+  }): Promise<{ url: string }>;
+
+  improveText(payload: {
+    text: string;
+    title?: string;
+    language?: string;
+  }): Promise<{ improvedText: string }>;
+
+  deleteBrandSite(payload: {
+    brandSiteId: string;
+  }): Promise<{ success: boolean; brandSiteId: string }>;
 }

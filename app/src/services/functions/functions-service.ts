@@ -81,6 +81,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async revokeMember(payload: { organizationId: string; memberId: string }): Promise<{ success: boolean; message: string }> {
+    const result = await httpsCallable<
+      { organizationId: string; memberId: string },
+      { success: boolean; message: string }
+    >(
+      firebase.functions,
+      "revokeMember",
+    )(payload);
+    return result.data;
+  },
+
   async createWorkflow(payload) {
     type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
     const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(
@@ -110,6 +121,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async chatGenerateSite(payload) {
+    type ChatGenerateSitePayload = Parameters<
+      FunctionsService["chatGenerateSite"]
+    >[0];
+    const result = await httpsCallable<
+      ChatGenerateSitePayload,
+      { response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string; chatRequestId?: string }
+    >(firebase.functions, "chatGenerateSite")(payload);
+    return result.data;
+  },
+
   async updateAnalyticsScript(payload) {
     type UpdateAnalyticsScriptPayload = Parameters<
       FunctionsService["updateAnalyticsScript"]
@@ -130,6 +152,18 @@ export const functionsService: FunctionsService = {
       AddCustomDomainPayload,
       AddCustomDomainResponse
     >(firebase.functions, "addCustomDomain")(payload);
+    return result.data;
+  },
+
+  async removeCustomDomain(payload) {
+    type RemoveCustomDomainPayload = Parameters<
+      FunctionsService["removeCustomDomain"]
+    >[0];
+    type RemoveCustomDomainResponse = Awaited<ReturnType<FunctionsService["removeCustomDomain"]>>;
+    const result = await httpsCallable<
+      RemoveCustomDomainPayload,
+      RemoveCustomDomainResponse
+    >(firebase.functions, "removeCustomDomain")(payload);
     return result.data;
   },
 
@@ -155,6 +189,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async updateBrandSitePages(payload) {
+    type UpdateBrandSitePagesPayload = Parameters<
+      FunctionsService["updateBrandSitePages"]
+    >[0];
+    const result = await httpsCallable<
+      UpdateBrandSitePagesPayload,
+      { success: boolean; brandSiteId: string }
+    >(firebase.functions, "updateBrandSitePages")(payload);
+    return result.data;
+  },
+
   async deployManualSite(payload) {
     type DeployManualSitePayload = Parameters<
       FunctionsService["deployManualSite"]
@@ -163,6 +208,17 @@ export const functionsService: FunctionsService = {
       DeployManualSitePayload,
       { success: boolean; brandSiteId: string; deployedUrl: string; status: string }
     >(firebase.functions, "deployManualSite")(payload);
+    return result.data;
+  },
+
+  async publishBrandSite(payload) {
+    type PublishBrandSitePayload = Parameters<
+      FunctionsService["publishBrandSite"]
+    >[0];
+    const result = await httpsCallable<
+      PublishBrandSitePayload,
+      { success: boolean; brandSiteId: string; versionId: string; publishedDomains: string[]; deployedUrl?: string }
+    >(firebase.functions, "publishBrandSite")(payload);
     return result.data;
   },
 
@@ -361,6 +417,7 @@ export const functionsService: FunctionsService = {
           message: string;
           indexUrl?: string;
         };
+        dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
       }
     >(firebase.functions, "getAnalyticsMetrics")(payload);
     // Ensure all required fields are present, provide defaults if missing
@@ -371,6 +428,7 @@ export const functionsService: FunctionsService = {
       browsers: data.browsers || [],
       referrers: data.referrers || [],
       pageViewsOverTime: data.pageViewsOverTime || [],
+      dataSources: data.dataSources || [],
     };
   },
 
@@ -380,6 +438,33 @@ export const functionsService: FunctionsService = {
       GenerateConsentBannerPayload,
       Awaited<ReturnType<FunctionsService["generateConsentBanner"]>>
     >(firebase.functions, "generateConsentBanner")(payload);
+    return result.data;
+  },
+
+  async uploadFile(payload) {
+    type UploadFilePayload = Parameters<FunctionsService["uploadFile"]>[0];
+    const result = await httpsCallable<UploadFilePayload, { url: string }>(
+      firebase.functions,
+      "uploadFile",
+    )(payload);
+    return result.data;
+  },
+
+  async improveText(payload) {
+    type ImproveTextPayload = Parameters<FunctionsService["improveText"]>[0];
+    const result = await httpsCallable<ImproveTextPayload, { improvedText: string }>(
+      firebase.functions,
+      "improveText",
+    )(payload);
+    return result.data;
+  },
+
+  async deleteBrandSite(payload) {
+    type DeleteBrandSitePayload = Parameters<FunctionsService["deleteBrandSite"]>[0];
+    const result = await httpsCallable<DeleteBrandSitePayload, { success: boolean; brandSiteId: string }>(
+      firebase.functions,
+      "deleteBrandSite",
+    )(payload);
     return result.data;
   },
 };

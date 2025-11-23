@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import {
   AuditLogSeverity,
   AuditLogQueryFilters,
@@ -39,10 +41,11 @@ import {
   Info,
   FileText,
 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function AuditLogPage() {
+  const { t } = useTranslation();
+  const { formatDateTime } = useDateFormatting();
   const [filters] = useState<AuditLogQueryFilters>({});
   const [searchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -100,7 +103,7 @@ export default function AuditLogPage() {
   const formatTimestamp = (timestamp?: string) => {
     if (!timestamp) return "N/A";
     try {
-      return format(new Date(timestamp), "MMM dd, yyyy HH:mm:ss");
+      return formatDateTime(new Date(timestamp));
     } catch {
       return timestamp;
     }
@@ -110,20 +113,20 @@ export default function AuditLogPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Audit Log</h1>
+        <h1 className="text-3xl font-bold text-foreground">{t('settings.security.auditLog.pageTitle')}</h1>
         <p className="text-gray-600 mt-2">
-          Track and monitor all activities and changes in your organization
+          {t('settings.security.auditLog.pageDescription')}
         </p>
       </div>
 
       {/* Results Card */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Activity Log</CardTitle>
+              <CardTitle className="text-lg">{t('settings.security.auditLog.activityLog.title')}</CardTitle>
               <CardDescription>
-                {total} total entries found
+                {t('settings.security.auditLog.activityLog.description', { total })}
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -135,11 +138,11 @@ export default function AuditLogPage() {
                 className="text-gray-600"
               >
                 <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
-                Refresh
+                {t('settings.security.auditLog.refresh')}
               </Button>
               <Button variant="outline" size="sm" className="text-gray-600">
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {t('settings.security.auditLog.export')}
               </Button>
             </div>
           </div>
@@ -151,7 +154,7 @@ export default function AuditLogPage() {
             </div>
           ) : error ? (
             <div className="text-center py-12 text-red-600">
-              Failed to load audit logs. Please try again.
+              {t('settings.security.auditLog.error')}
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-12">
@@ -159,12 +162,12 @@ export default function AuditLogPage() {
                 <FileText className="mx-auto h-12 w-12 text-gray-400" />
                 <div>
                   <p className="text-lg font-medium text-gray-900 mb-2">
-                    No audit logs found
+                    {t('settings.security.auditLog.noLogs.title')}
                   </p>
                   <p className="text-sm text-gray-500 mb-4">
                     {Object.keys(filters).length > 0 || searchQuery || dateRange.start || dateRange.end
-                      ? "Try adjusting your filters to see more results."
-                      : "Create a product or invoice to generate audit logs."}
+                      ? t('settings.security.auditLog.noLogs.adjustFilters')
+                      : t('settings.security.auditLog.noLogs.createContent')}
                   </p>
                 </div>
               </div>
@@ -174,18 +177,18 @@ export default function AuditLogPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.timestamp')}</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.user')}</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.action')}</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.resource')}</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.severity')}</TableHead>
+                    <TableHead>{t('settings.security.auditLog.table.status')}</TableHead>
+                    <TableHead className="text-right">{t('settings.security.auditLog.table.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {logs.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-gray-50">
+                    <TableRow key={log.id} className="hover:bg-muted/50">
                       <TableCell className="font-mono text-sm">
                         {formatTimestamp(log.timestamp)}
                       </TableCell>
@@ -224,14 +227,14 @@ export default function AuditLogPage() {
                             getSeverityColor(log.severity || "info")
                           )}
                         >
-                          {log.severity || "info"}
+                          {t(`settings.security.auditLog.severity.${log.severity || "info"}`)}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getStatusIcon(log.outcome?.status || "success")}
                           <span className="text-sm">
-                            {log.outcome?.status || "success"}
+                            {t(`settings.security.auditLog.status.${log.outcome?.status || "success"}`)}
                           </span>
                         </div>
                       </TableCell>
@@ -260,9 +263,9 @@ export default function AuditLogPage() {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Audit Log Details</DialogTitle>
+            <DialogTitle>{t('settings.security.auditLog.detailDialog.title')}</DialogTitle>
             <DialogDescription>
-              Complete information about this audit log entry
+              {t('settings.security.auditLog.detailDialog.description')}
             </DialogDescription>
           </DialogHeader>
           {selectedLog && (
@@ -270,36 +273,36 @@ export default function AuditLogPage() {
               {/* Basic Info */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Basic Information</CardTitle>
+                  <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.basicInformation.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-gray-500">Action</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.basicInformation.action')}</div>
                       <div className="font-medium">{formatAction(selectedLog.action)}</div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Timestamp</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.basicInformation.timestamp')}</div>
                       <div className="font-medium">
                         {formatTimestamp(selectedLog.timestamp)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Severity</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.basicInformation.severity')}</div>
                       <Badge
                         className={cn(
                           "border mt-1",
                           getSeverityColor(selectedLog.severity || "info")
                         )}
                       >
-                        {selectedLog.severity || "info"}
+                        {t(`settings.security.auditLog.severity.${selectedLog.severity || "info"}`)}
                       </Badge>
                     </div>
                     <div>
-                      <div className="text-gray-500">Status</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.basicInformation.status')}</div>
                       <div className="flex items-center gap-2 mt-1">
                         {getStatusIcon(selectedLog.outcome?.status || "success")}
-                        <span>{selectedLog.outcome?.status || "success"}</span>
+                        <span>{t(`settings.security.auditLog.status.${selectedLog.outcome?.status || "success"}`)}</span>
                       </div>
                     </div>
                   </div>
@@ -309,26 +312,26 @@ export default function AuditLogPage() {
               {/* User Info */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">User Information</CardTitle>
+                  <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.userInformation.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-gray-500">Name</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.userInformation.name')}</div>
                       <div className="font-medium">{selectedLog.user?.name}</div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Email</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.userInformation.email')}</div>
                       <div className="font-medium">{selectedLog.user?.email}</div>
                     </div>
                     <div>
-                      <div className="text-gray-500">Role</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.userInformation.role')}</div>
                       <div className="font-medium">
                         {selectedLog.user?.role || "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-gray-500">IP Address</div>
+                      <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.userInformation.ipAddress')}</div>
                       <div className="font-mono text-xs">
                         {selectedLog.user?.ipAddress || "—"}
                       </div>
@@ -341,23 +344,23 @@ export default function AuditLogPage() {
               {selectedLog.resource && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Resource Information</CardTitle>
+                    <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.resourceInformation.title')}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-gray-500">Type</div>
+                        <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.resourceInformation.type')}</div>
                         <div className="font-medium">{selectedLog.resource.type}</div>
                       </div>
                       <div>
-                        <div className="text-gray-500">ID</div>
+                        <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.resourceInformation.id')}</div>
                         <div className="font-mono text-xs">
                           {selectedLog.resource.id}
                         </div>
                       </div>
                       {selectedLog.resource.name && (
                         <div className="col-span-2">
-                          <div className="text-gray-500">Name</div>
+                          <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.resourceInformation.name')}</div>
                           <div className="font-medium">
                             {selectedLog.resource.name}
                           </div>
@@ -372,20 +375,20 @@ export default function AuditLogPage() {
               {selectedLog.changes && selectedLog.changes.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Changes</CardTitle>
+                    <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.changes.title')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {selectedLog.changes?.map((change, idx) => (
                         <div
                           key={idx}
-                          className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg"
+                          className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg"
                         >
                           <div className="flex-1">
                             <div className="font-medium text-sm">{change.field}</div>
                             <div className="grid grid-cols-2 gap-4 mt-2 text-xs">
                               <div>
-                                <div className="text-gray-500">Old Value</div>
+                                <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.changes.oldValue')}</div>
                                 <div className="font-mono break-all">
                                   {change.oldValue !== undefined
                                     ? JSON.stringify(change.oldValue, null, 2)
@@ -393,7 +396,7 @@ export default function AuditLogPage() {
                                 </div>
                               </div>
                               <div>
-                                <div className="text-gray-500">New Value</div>
+                                <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.changes.newValue')}</div>
                                 <div className="font-mono break-all">
                                   {change.newValue !== undefined
                                     ? JSON.stringify(change.newValue, null, 2)
@@ -413,12 +416,12 @@ export default function AuditLogPage() {
               {selectedLog.outcome && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Outcome</CardTitle>
+                    <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.outcome.title')}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     {selectedLog.outcome.message && (
                       <div>
-                        <div className="text-gray-500">Message</div>
+                        <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.outcome.message')}</div>
                         <div className="font-medium">
                           {selectedLog.outcome.message}
                         </div>
@@ -426,7 +429,7 @@ export default function AuditLogPage() {
                     )}
                     {selectedLog.outcome.errorMessage && (
                       <div>
-                        <div className="text-gray-500">Error</div>
+                        <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.outcome.error')}</div>
                         <div className="font-mono text-xs text-red-600 break-all">
                           {selectedLog.outcome.errorMessage}
                         </div>
@@ -434,7 +437,7 @@ export default function AuditLogPage() {
                     )}
                     {selectedLog.outcome.durationMs && (
                       <div>
-                        <div className="text-gray-500">Duration</div>
+                        <div className="text-gray-500">{t('settings.security.auditLog.detailDialog.outcome.duration')}</div>
                         <div className="font-medium">
                           {selectedLog.outcome.durationMs}ms
                         </div>
@@ -448,10 +451,10 @@ export default function AuditLogPage() {
               {selectedLog.metadata && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Metadata</CardTitle>
+                    <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.metadata.title')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <pre className="text-xs bg-gray-50 p-4 rounded-lg overflow-x-auto">
+                    <pre className="text-xs bg-muted/50 p-4 rounded-lg overflow-x-auto">
                       {JSON.stringify(selectedLog.metadata, null, 2)}
                     </pre>
                   </CardContent>

@@ -9,7 +9,7 @@ const textareaVariants = cva(
     variants: {
       variant: {
         default: "",
-        input: "h-9 min-h-9 items-center border-gray-300 rounded-sm focus-visible:border-blue-500 focus-visible:ring-blue-500",
+        input: "h-9 min-h-9 items-center border-border rounded-sm focus-visible:border-primary focus-visible:ring-primary/50",
       },
     },
     defaultVariants: {

@@ -11,6 +11,11 @@ interface BrandSite {
   error?: string;
   files?: Record<string, string>;
   html?: string;
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+  }>;
 }
 
 interface ManualEditorTabProps {

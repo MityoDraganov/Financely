@@ -32,6 +32,7 @@ export const useAnalyticsMetrics = (
             start: defaultStart,
             end: defaultEnd,
           },
+          dataSources: [],
         };
       }
       return functionsService.getAnalyticsMetrics({

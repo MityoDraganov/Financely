@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,30 +16,51 @@ export function WorkflowHeader({
   onUpdateWorkflow, 
   onCancelEdit 
 }: WorkflowHeaderProps) {
+  const { t } = useTranslation();
+  
+  const getTriggerGroupLabel = (groupId: string) => {
+    return t(`workflows.builder.triggerGroups.${groupId}`) || groupId;
+  };
+  
+  const getTriggerLabel = (triggerValue: string) => {
+    // Try translation first, fallback to formatted label
+    const translationKey = `workflows.triggers.${triggerValue.replace(/\./g, '')}`;
+    const translated = t(translationKey);
+    if (translated !== translationKey) {
+      return translated;
+    }
+    
+    // Fallback: format the trigger value nicely
+    return triggerValue
+      .split('.')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+  
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              {editingWorkflow ? `Edit Workflow: ${editingWorkflow.name}` : "Create New Workflow"}
+              {editingWorkflow ? t('workflows.builder.edit', { name: editingWorkflow.name }) : t('workflows.builder.create')}
               {editingWorkflow && (
                 <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  Editing
+                  {t('workflows.builder.editing')}
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
               {editingWorkflow 
-                ? "Modify your existing workflow automation. Changes will be saved when you click Save."
-                : "Build automated workflows to streamline your business processes"
+                ? t('workflows.builder.description.edit')
+                : t('workflows.builder.description.create')
               }
             </CardDescription>
           </div>
           {editingWorkflow && onCancelEdit && (
             <Button variant="outline" onClick={onCancelEdit}>
               <X className="w-4 h-4 mr-2" />
-              Cancel Edit
+              {t('workflows.builder.cancelEdit')}
             </Button>
           )}
         </div>
@@ -46,16 +68,16 @@ export function WorkflowHeader({
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="name">Workflow Name *</Label>
+            <Label htmlFor="name">{t('workflows.builder.fields.name')}</Label>
             <Input
               id="name"
               value={workflow.name || ""}
               onChange={(e) => onUpdateWorkflow({ name: e.target.value })}
-              placeholder="Enter workflow name"
+              placeholder={t('workflows.builder.fields.namePlaceholder')}
             />
           </div>
           <div>
-            <Label htmlFor="category">Category</Label>
+            <Label htmlFor="category">{t('workflows.builder.fields.category')}</Label>
             <Select
               value={workflow.category || "general"}
               onValueChange={(value) => onUpdateWorkflow({ category: value })}
@@ -64,29 +86,29 @@ export function WorkflowHeader({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="finance">Finance</SelectItem>
-                <SelectItem value="onboarding">Onboarding</SelectItem>
-                <SelectItem value="approval">Approval</SelectItem>
-                <SelectItem value="contracts">Contracts</SelectItem>
+                <SelectItem value="general">{t('workflows.builder.categories.general')}</SelectItem>
+                <SelectItem value="finance">{t('workflows.builder.categories.finance')}</SelectItem>
+                <SelectItem value="onboarding">{t('workflows.builder.categories.onboarding')}</SelectItem>
+                <SelectItem value="approval">{t('workflows.builder.categories.approval')}</SelectItem>
+                <SelectItem value="contracts">{t('workflows.builder.categories.contracts')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
         
         <div>
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">{t('workflows.builder.fields.description')}</Label>
           <Textarea
             id="description"
             value={workflow.description || ""}
             onChange={(e) => onUpdateWorkflow({ description: e.target.value })}
-            placeholder="Describe what this workflow does"
+            placeholder={t('workflows.builder.fields.descriptionPlaceholder')}
             rows={3}
           />
         </div>
 
         <div>
-          <Label htmlFor="trigger">Trigger *</Label>
+          <Label htmlFor="trigger">{t('workflows.builder.fields.trigger')}</Label>
           <Select
             value={workflow.trigger?.type || "manual.trigger"}
             onValueChange={(value) => onUpdateWorkflow({ 
@@ -100,11 +122,11 @@ export function WorkflowHeader({
               {TRIGGER_GROUPS.map((group) => (
                 <div key={group.id}>
                   <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
-                    {group.label}
+                    {getTriggerGroupLabel(group.id)}
                   </div>
                   {group.triggers.map((trigger) => (
                     <SelectItem key={trigger.value} value={trigger.value} className="pl-6">
-                      {trigger.label}
+                      {getTriggerLabel(trigger.value)}
                     </SelectItem>
                   ))}
                 </div>

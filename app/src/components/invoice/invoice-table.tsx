@@ -56,7 +56,6 @@ export function InvoiceTable({
 	productLockedFields,
 	mappingProducts,
 	onAddRow,
-	onRemoveRow,
 	onProductSelect,
 	onProductClear,
 	onCellChange,

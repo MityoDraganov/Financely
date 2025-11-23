@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ const STATUS_ICONS: Record<WorkflowExecutionStatus, React.ReactNode> = {
 };
 
 export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecutionHistoryProps) {
+  const { t } = useTranslation();
   const { executions, isLoading, error } = useWorkflowExecutions(workflowId);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<WorkflowExecutionStatus | "all">("all");
@@ -56,23 +58,23 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
 
   // Helper function to get execution title
   const getExecutionTitle = (execution: WorkflowExecution): string => {
-    if (execution.status === 'running') return 'Running now';
-    if (execution.status === 'failed') return 'Failed execution';
-    if (execution.status === 'completed') return 'Completed successfully';
-    if (execution.status === 'pending') return 'Waiting to start';
-    return 'Execution';
+    if (execution.status === 'running') return t('workflows.executionHistory.titles.running');
+    if (execution.status === 'failed') return t('workflows.executionHistory.titles.failed');
+    if (execution.status === 'completed') return t('workflows.executionHistory.titles.completed');
+    if (execution.status === 'pending') return t('workflows.executionHistory.titles.pending');
+    return t('workflows.executionHistory.titles.execution');
   };
 
   // Helper function to format trigger type for display
   const formatTriggerType = (triggerType?: string): string => {
-    if (!triggerType) return 'Manual';
+    if (!triggerType) return t('workflows.executionHistory.triggerTypes.manual');
     const triggerMap: Record<string, string> = {
-      'invoice.created': 'Invoice Created',
-      'invoice.paid': 'Invoice Paid',
-      'user.registered': 'User Registered',
-      'webhook': 'Webhook',
-      'schedule': 'Scheduled',
-      'manual': 'Manual'
+      'invoice.created': t('workflows.executionHistory.triggerTypes.invoiceCreated'),
+      'invoice.paid': t('workflows.executionHistory.triggerTypes.invoicePaid'),
+      'user.registered': t('workflows.executionHistory.triggerTypes.userRegistered'),
+      'webhook': t('workflows.executionHistory.triggerTypes.webhook'),
+      'schedule': t('workflows.executionHistory.triggerTypes.scheduled'),
+      'manual': t('workflows.executionHistory.triggerTypes.manual')
     };
     return triggerMap[triggerType] || triggerType.replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -86,10 +88,10 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMinutes < 1) return t('workflows.executionHistory.time.justNow');
+    if (diffMinutes < 60) return t('workflows.executionHistory.time.minutesAgo', { minutes: diffMinutes });
+    if (diffHours < 24) return t('workflows.executionHistory.time.hoursAgo', { hours: diffHours });
+    if (diffDays < 7) return t('workflows.executionHistory.time.daysAgo', { days: diffDays });
     return date.toLocaleDateString();
   };
 
@@ -107,16 +109,16 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
     });
 
   const getDuration = (execution: WorkflowExecution) => {
-    if (!execution.completedAt) return "Running...";
+    if (!execution.completedAt) return t('workflows.executionHistory.duration.running');
     
     const start = new Date(execution.startedAt);
     const end = new Date(execution.completedAt);
     const duration = end.getTime() - start.getTime();
     
-    if (duration < 1000) return "< 1s";
-    if (duration < 60000) return `${Math.round(duration / 1000)}s`;
-    if (duration < 3600000) return `${Math.round(duration / 60000)}m`;
-    return `${Math.round(duration / 3600000)}h`;
+    if (duration < 1000) return t('workflows.executionHistory.duration.lessThanSecond');
+    if (duration < 60000) return t('workflows.executionHistory.duration.seconds', { seconds: Math.round(duration / 1000) });
+    if (duration < 3600000) return t('workflows.executionHistory.duration.minutes', { minutes: Math.round(duration / 60000) });
+    return t('workflows.executionHistory.duration.hours', { hours: Math.round(duration / 3600000) });
   };
 
   const getExecutionSummary = (execution: WorkflowExecution) => {
@@ -135,7 +137,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading execution history...</div>
+        <div className="text-muted-foreground">{t('workflows.executionHistory.loading')}</div>
       </div>
     );
   }
@@ -143,7 +145,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-red-600">Error loading execution history: {error.message}</div>
+        <div className="text-red-600">{t('workflows.executionHistory.error', { message: error.message })}</div>
       </div>
     );
   }
@@ -153,15 +155,15 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold">Execution History</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">{t('workflows.executionHistory.title')}</h2>
           <p className="text-sm text-muted-foreground">
-            {filteredExecutions.length} of {executions.length} executions
+            {t('workflows.executionHistory.count', { filtered: filteredExecutions.length, total: executions.length })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            {t('workflows.executionHistory.refresh')}
           </Button>
         </div>
       </div>
@@ -172,7 +174,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
-              placeholder="Search by ID or trigger..."
+              placeholder={t('workflows.executionHistory.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -185,12 +187,12 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="running">Running</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="all">{t('workflows.executionHistory.statusFilters.all')}</SelectItem>
+              <SelectItem value="pending">{t('workflows.executionHistory.statusFilters.pending')}</SelectItem>
+              <SelectItem value="running">{t('workflows.executionHistory.statusFilters.running')}</SelectItem>
+              <SelectItem value="completed">{t('workflows.executionHistory.statusFilters.completed')}</SelectItem>
+              <SelectItem value="failed">{t('workflows.executionHistory.statusFilters.failed')}</SelectItem>
+              <SelectItem value="cancelled">{t('workflows.executionHistory.statusFilters.cancelled')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as "newest" | "oldest")}>
@@ -198,8 +200,8 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="newest">Newest</SelectItem>
-              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="newest">{t('workflows.executionHistory.sort.newest')}</SelectItem>
+              <SelectItem value="oldest">{t('workflows.executionHistory.sort.oldest')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -228,7 +230,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                         {getExecutionTitle(execution)}
                       </h4>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        <span>Triggered by {formatTriggerType(execution.triggerType)}</span>
+                        <span>{t('workflows.executionHistory.triggeredBy', { trigger: formatTriggerType(execution.triggerType) })}</span>
                         <span>•</span>
                         <span>{formatRelativeTime(execution.startedAt)}</span>
                         {execution.status === 'running' && (
@@ -244,7 +246,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                     {execution.status === 'failed' && (
                       <Button variant="outline" size="sm" className="text-xs">
                         <RefreshCw className="w-3 h-3 mr-1" />
-                        Retry
+                        {t('workflows.executionHistory.retry')}
                       </Button>
                     )}
                     <Button
@@ -267,7 +269,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                     <div className="p-3 bg-red-50 border border-red-200 rounded-md">
                       <div className="flex items-center gap-2 text-red-800">
                         <XCircle className="w-4 h-4" />
-                        <span className="font-medium">Error Details:</span>
+                        <span className="font-medium">{t('workflows.executionHistory.errorDetails')}</span>
                       </div>
                       <p className="text-red-700 text-sm mt-1 wrap-break-word">
                         {getErrorMessage(execution.error)}
@@ -279,8 +281,8 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                   {execution.status === "running" && summary.totalSteps > 0 && (
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span>Progress</span>
-                        <span>{summary.completedSteps} of {summary.totalSteps} steps</span>
+                        <span>{t('workflows.executionHistory.progress')}</span>
+                        <span>{t('workflows.executionHistory.progressSteps', { completed: summary.completedSteps, total: summary.totalSteps })}</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
                         <div 
@@ -294,7 +296,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                   {/* Recent Logs - Only if there are logs */}
                   {execution.logs && execution.logs.length > 0 && (
                     <div className="space-y-2">
-                      <h5 className="font-medium text-sm">Recent Activity</h5>
+                      <h5 className="font-medium text-sm">{t('workflows.executionHistory.recentActivity')}</h5>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {execution.logs.slice(-3).map((log, index) => (
                           <div key={index} className="flex items-start gap-2 text-xs p-2 bg-muted/50 rounded">
@@ -316,7 +318,7 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                         ))}
                         {execution.logs.length > 3 && (
                           <div className="text-xs text-muted-foreground text-center py-2">
-                            ... and {execution.logs.length - 3} more logs
+                            {t('workflows.executionHistory.moreLogs', { count: execution.logs.length - 3 })}
                           </div>
                         )}
                       </div>
@@ -327,12 +329,12 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
                   <div className="flex justify-end gap-2 pt-2 border-t">
                     <Button variant="outline" size="sm">
                       <ExternalLink className="w-4 h-4 mr-1" />
-                      View Details
+                      {t('workflows.executionHistory.viewDetails')}
                     </Button>
                     {execution.status === "failed" && (
                       <Button variant="outline" size="sm">
                         <RefreshCw className="w-4 h-4 mr-1" />
-                        Retry Execution
+                        {t('workflows.executionHistory.retryExecution')}
                       </Button>
                     )}
                   </div>
@@ -349,11 +351,11 @@ export default function WorkflowExecutionHistory({ workflowId }: WorkflowExecuti
           <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
             <Activity className="w-6 h-6 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">No executions found</h3>
+          <h3 className="text-lg font-semibold mb-1">{t('workflows.executionHistory.emptyState.title')}</h3>
           <p className="text-sm text-muted-foreground">
             {executions.length === 0 
-              ? "This workflow hasn't been executed yet."
-              : "Try adjusting your search or filter criteria."
+              ? t('workflows.executionHistory.emptyState.noExecutions')
+              : t('workflows.executionHistory.emptyState.noResults')
             }
           </p>
         </div>

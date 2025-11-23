@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Plus, Play, Pause, Archive, MoreHorizontal, Settings, Workflow, FileText, History, Trash2, Eye } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Plus, Play, Pause, Archive, MoreHorizontal, Settings, Workflow, History, Trash2, Eye } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +15,11 @@ import WorkflowBuilderWrapper from "@/components/workflow/workflow-builder-wrapp
 import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
 import WorkflowPreview from "@/components/workflow/workflow-preview";
 import { Workflow as WorkflowType, CreateWorkflowInput } from "@/core";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 
 export default function WorkflowsPage() {
+  const { t } = useTranslation();
+  const { formatDateTable, formatDateTime } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowType | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowType | null>(null);
@@ -39,21 +44,26 @@ export default function WorkflowsPage() {
     // Create a simple example workflow
     const workflowData = {
       orgId: currentOrganization.id,
-      name: "New Workflow",
-      description: "A new workflow created from the UI",
+      name: t('workflows.builder.create'),
+      description: t('workflows.builder.description.create'),
       trigger: {
         type: "manual.trigger" as const,
       },
       steps: [
         {
           id: "step1",
-          name: "Initial Step",
+          name: t('workflows.builder.steps.step', { number: 1 }),
           type: "action" as const,
           actions: [
             {
-              type: "notify.user" as const,
+              type: "send.email" as const,
+              id: "action1",
+              name: "",
               config: {
-                message: "Workflow executed successfully",
+                recipients: [],
+                subject: "",
+                body: "",
+                isHtml: false,
               },
             },
           ],
@@ -69,7 +79,7 @@ export default function WorkflowsPage() {
         notifyOnSuccess: false,
         maxConcurrentExecutions: 10,
       },
-      tags: ["example"],
+      tags: [],
       category: "general",
       n8nEnabled: false,
     };
@@ -144,63 +154,45 @@ export default function WorkflowsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800">{t('workflows.status.active')}</Badge>;
       case "paused":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Paused</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{t('workflows.status.paused')}</Badge>;
       case "draft":
-        return <Badge variant="outline" className="bg-gray-100 text-gray-800">Draft</Badge>;
+        return <Badge variant="outline" className="bg-gray-100 text-gray-800">{t('workflows.status.draft')}</Badge>;
       case "archived":
-        return <Badge variant="destructive" className="bg-red-100 text-red-800">Archived</Badge>;
+        return <Badge variant="destructive" className="bg-red-100 text-red-800">{t('workflows.status.archived')}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const getTriggerTypeLabel = (triggerType: string) => {
-    switch (triggerType) {
-      case "invoice.created":
-        return "Invoice Created";
-      case "invoice.sent":
-        return "Invoice Sent";
-      case "invoice.paid":
-        return "Invoice Paid";
-      case "invoice.overdue":
-        return "Invoice Overdue";
-      case "proposal.created":
-        return "Proposal Created";
-      case "proposal.approved":
-        return "Proposal Approved";
-      case "contract.expiring":
-        return "Contract Expiring";
-      case "schedule.cron":
-        return "Scheduled";
-      case "manual.trigger":
-        return "Manual Trigger";
-      default:
-        return triggerType;
-    }
+    const triggerMap: Record<string, string> = {
+      "invoice.created": t('workflows.triggers.invoiceCreated'),
+      "invoice.sent": t('workflows.triggers.invoiceSent'),
+      "invoice.paid": t('workflows.triggers.invoicePaid'),
+      "invoice.overdue": t('workflows.triggers.invoiceOverdue'),
+      "proposal.created": t('workflows.triggers.proposalCreated'),
+      "proposal.approved": t('workflows.triggers.proposalApproved'),
+      "contract.expiring": t('workflows.triggers.contractExpiring'),
+      "contract.expired": t('workflows.triggers.contractExpired'),
+      "user.joined": t('workflows.triggers.userJoined'),
+      "schedule.cron": t('workflows.triggers.scheduled'),
+      "webhook.external": t('workflows.triggers.webhook'),
+      "manual.trigger": t('workflows.triggers.manual'),
+    };
+    return triggerMap[triggerType] || triggerType;
   };
 
   const formatTimestamp = (timestamp: string | undefined) => {
-    if (!timestamp) return "Unknown";
-    
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 7 * 24) {
-      return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-    }
+    if (!timestamp) return '';
+    return formatDateTable(timestamp);
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading workflows...</div>
+        <div className="text-muted-foreground">{t('workflows.loading')}</div>
       </div>
     );
   }
@@ -210,39 +202,27 @@ export default function WorkflowsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Workflows</h1>
+          <h1 className="text-3xl font-bold text-foreground">{t('workflows.title')}</h1>
           <p className="text-muted-foreground">
-            Automate your business processes with custom workflows
+            {t('workflows.subtitle')}
           </p>
         </div>
         <Button onClick={handleCreateWorkflow} disabled={createWorkflow.isPending}>
           <Plus className="w-4 h-4 mr-2" />
-          {createWorkflow.isPending ? "Creating..." : "Create Workflow"}
+          {createWorkflow.isPending ? t('workflows.creating') : t('workflows.create')}
         </Button>
       </div>
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="workflows" className="flex items-center gap-2">
             <Workflow className="w-4 h-4" />
-            Workflows
-          </TabsTrigger>
-          <TabsTrigger value="builder" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            Builder
-          </TabsTrigger>
-          <TabsTrigger value="preview" className="flex items-center gap-2">
-            <Eye className="w-4 h-4" />
-            Preview
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Templates
+            {t('workflows.tabs.workflows')}
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="w-4 h-4" />
-            History
+            {t('workflows.tabs.history')}
           </TabsTrigger>
         </TabsList>
 
@@ -256,14 +236,14 @@ export default function WorkflowsPage() {
                     <Settings className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">No workflows yet</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{t('workflows.noWorkflows.title')}</h3>
                     <p className="text-muted-foreground">
-                      Create your first workflow to automate your business processes
+                      {t('workflows.noWorkflows.description')}
                     </p>
                   </div>
                   <Button onClick={handleCreateWorkflow} disabled={createWorkflow.isPending}>
                     <Plus className="w-4 h-4 mr-2" />
-                    {createWorkflow.isPending ? "Creating..." : "Create Your First Workflow"}
+                    {createWorkflow.isPending ? t('workflows.creating') : t('workflows.noWorkflows.createFirst')}
                   </Button>
                 </div>
               </CardContent>
@@ -273,16 +253,20 @@ export default function WorkflowsPage() {
                   {workflows.map((workflow) => (
                     <Card 
                       key={workflow.id} 
-                      className={`hover:shadow-md transition-shadow ${
-                        editingWorkflow?.id === workflow.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                      }`}
+                      className={cn(
+                        "hover:shadow-lg transition-all duration-200 border-2",
+                        "hover:border-primary/50",
+                        editingWorkflow?.id === workflow.id 
+                          ? 'ring-2 ring-primary shadow-lg bg-primary/5 border-primary' 
+                          : 'border-border'
+                      )}
                     >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-lg">{workflow.name}</CardTitle>
                         <CardDescription className="text-sm">
-                          {workflow.description || "No description"}
+                          {workflow.description || t('workflows.details.noDescription')}
                         </CardDescription>
                       </div>
                       <DropdownMenu>
@@ -296,27 +280,27 @@ export default function WorkflowsPage() {
                                 onClick={() => handlePreviewWorkflow(workflow)}
                               >
                                 <Eye className="w-4 h-4 mr-2" />
-                                Preview
+                                {t('workflows.actions.preview')}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleEditWorkflow(workflow)}
                               >
                                 <Settings className="w-4 h-4 mr-2" />
-                                Edit
+                                {t('workflows.actions.edit')}
                               </DropdownMenuItem>
                           {workflow.status === "active" ? (
                             <DropdownMenuItem
                               onClick={() => pauseWorkflow.mutate(workflow.id)}
                             >
                               <Pause className="w-4 h-4 mr-2" />
-                              Pause
+                              {t('workflows.actions.pause')}
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
                               onClick={() => activateWorkflow.mutate(workflow.id)}
                             >
                               <Play className="w-4 h-4 mr-2" />
-                              Activate
+                              {t('workflows.actions.activate')}
                             </DropdownMenuItem>
                           )}
                               <DropdownMenuSeparator />
@@ -325,14 +309,14 @@ export default function WorkflowsPage() {
                                 className="text-orange-600 hover:bg-orange-50"
                               >
                                 <Archive className="w-4 h-4 mr-2" />
-                                Archive
+                                {t('workflows.actions.archive')}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteWorkflow(workflow)}
                                 className="text-red-600 hover:bg-red-50 focus:bg-red-50"
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
-                                Delete Permanently
+                                {t('workflows.actions.delete')}
                               </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -344,7 +328,7 @@ export default function WorkflowsPage() {
                           {getStatusBadge(workflow.status)}
                           {editingWorkflow?.id === workflow.id && (
                             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                              Editing
+                              {t('workflows.status.editing')}
                             </Badge>
                           )}
                         </div>
@@ -355,13 +339,13 @@ export default function WorkflowsPage() {
                     
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Trigger:</span>
+                        <span className="text-muted-foreground">{t('workflows.details.trigger')}</span>
                         <span className="font-medium">
                           {getTriggerTypeLabel(workflow.trigger.type)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Steps:</span>
+                        <span className="text-muted-foreground">{t('workflows.details.steps')}</span>
                         <span className="font-medium">{workflow.steps.length}</span>
                       </div>
                       {workflow.tags.length > 0 && (
@@ -373,7 +357,7 @@ export default function WorkflowsPage() {
                           ))}
                           {workflow.tags.length > 3 && (
                             <span className="text-xs text-muted-foreground">
-                              +{workflow.tags.length - 3} more
+                              {t('workflows.details.moreTags', { count: workflow.tags.length - 3 })}
                             </span>
                           )}
                         </div>
@@ -386,11 +370,11 @@ export default function WorkflowsPage() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="text-xs text-muted-foreground cursor-help">
-                                Created {formatTimestamp(workflow.createdAt)}
+                                {t('workflows.details.created', { time: formatTimestamp(workflow.createdAt) })}
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{workflow.createdAt ? new Date(workflow.createdAt).toLocaleString() : "Unknown"}</p>
+                              <p>{workflow.createdAt ? formatDateTime(workflow.createdAt) : ''}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -407,11 +391,11 @@ export default function WorkflowsPage() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="text-xs text-muted-foreground cursor-help">
-                                Updated {formatTimestamp(workflow.updatedAt)}
+                                {t('workflows.details.updated', { time: formatTimestamp(workflow.updatedAt) || '' })}
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{new Date(workflow.updatedAt).toLocaleString()}</p>
+                              <p>{formatDateTime(workflow.updatedAt)}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -427,7 +411,7 @@ export default function WorkflowsPage() {
                         className="flex-1"
                       >
                         <Eye className="w-3 h-3 mr-1" />
-                        Preview
+                        {t('workflows.actions.preview')}
                       </Button>
                       <Button 
                         variant="outline" 
@@ -436,7 +420,7 @@ export default function WorkflowsPage() {
                         className="flex-1"
                       >
                         <Settings className="w-3 h-3 mr-1" />
-                        Edit
+                        {t('workflows.actions.edit')}
                       </Button>
                     </div>
                   </CardContent>
@@ -465,9 +449,9 @@ export default function WorkflowsPage() {
                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                     <Eye className="w-8 h-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">No workflow selected for preview</h3>
+                  <h3 className="text-lg font-semibold mb-2 text-foreground">{t('workflows.preview.noSelection.title')}</h3>
                   <p className="text-muted-foreground">
-                    Select a workflow from the list to preview its structure and execution flow
+                    {t('workflows.preview.noSelection.description')}
                   </p>
                 </div>
               )}
@@ -476,14 +460,14 @@ export default function WorkflowsPage() {
         <TabsContent value="history">
           {workflows.length > 0 ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Select a workflow to view execution history</h3>
+              <h3 className="text-lg font-semibold text-foreground">{t('workflows.history.selectWorkflow')}</h3>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {workflows.map((workflow) => (
                   <Card key={workflow.id} className="cursor-pointer hover:shadow-md transition-shadow">
                     <CardContent className="p-4">
                       <h4 className="font-medium">{workflow.name}</h4>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {workflow.description || "No description"}
+                        {workflow.description || t('workflows.details.noDescription')}
                       </p>
                       <div className="mt-2">
                         <WorkflowExecutionHistory workflowId={workflow.id} />
@@ -498,9 +482,9 @@ export default function WorkflowsPage() {
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <History className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No workflows to view history</h3>
+              <h3 className="text-lg font-semibold mb-2 text-foreground">{t('workflows.history.noWorkflows.title')}</h3>
               <p className="text-muted-foreground">
-                Create a workflow first to see its execution history
+                {t('workflows.history.noWorkflows.description')}
               </p>
             </div>
           )}
@@ -511,33 +495,33 @@ export default function WorkflowsPage() {
           <AlertDialog open={!!workflowToDelete} onOpenChange={() => setWorkflowToDelete(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
+                <AlertDialogTitle>{t('workflows.delete.title')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete "{workflowToDelete?.name}"? This action cannot be undone.
+                  {t('workflows.delete.description', { name: workflowToDelete?.name || '' })}
                   <br />
                   <br />
-                  <strong>This will permanently remove:</strong>
+                  <strong>{t('workflows.delete.willRemove')}</strong>
                   <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>The workflow and all its steps</li>
-                    <li>All execution history</li>
-                    <li>All associated data</li>
+                    <li>{t('workflows.delete.willRemoveList.workflow')}</li>
+                    <li>{t('workflows.delete.willRemoveList.history')}</li>
+                    <li>{t('workflows.delete.willRemoveList.data')}</li>
                   </ul>
                   <br />
                   <span className="text-orange-600 font-medium">
-                    Consider archiving instead if you want to keep the data for historical reference.
+                    {t('workflows.delete.considerArchive')}
                   </span>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={cancelDeleteWorkflow}>
-                  Cancel
+                  {t('workflows.delete.cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={confirmDeleteWorkflow}
                   className="bg-red-600 hover:bg-red-700"
                   disabled={deleteWorkflow.isPending}
                 >
-                  {deleteWorkflow.isPending ? "Deleting..." : "Delete Permanently"}
+                  {deleteWorkflow.isPending ? t('workflows.delete.deleting') : t('workflows.delete.confirm')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

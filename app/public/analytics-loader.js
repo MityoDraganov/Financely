@@ -8,9 +8,10 @@
 (function() {
   'use strict';
 
-  // Configuration from injected script tag
+  // Configuration - will be loaded from API
   const config = {
     orgId: null,
+    apiUrl: null,
     siteId: null,
     brandName: null,
     enabled: false,
@@ -28,6 +29,7 @@
     // Consent and banner settings
     consentDefault: 'denied',
     bannerProvider: 'custom',
+    consentBannerStyling: null,
     // Legacy strategy field (for backward compatibility)
     strategy: null,
     // Firebase configuration
@@ -40,62 +42,98 @@
     return;
   }
 
-  // Get configuration from script tag
+  // Get minimal configuration from script tag (only orgId, siteId, and optionally apiUrl or firebaseProjectId)
   const currentScript = document.currentScript || document.querySelector('script[data-analytics-org-id]');
   if (currentScript) {
     config.orgId = currentScript.getAttribute('data-analytics-org-id');
-    config.siteId = currentScript.getAttribute('data-analytics-site-id') || '';
-    config.brandName = currentScript.getAttribute('data-analytics-brand-name') || '';
-    config.enabled = currentScript.getAttribute('data-analytics-enabled') === 'true';
+    config.siteId = currentScript.getAttribute('data-analytics-site-id');
+    const firebaseProjectId = currentScript.getAttribute('data-firebase-project');
+    const functionUrl = currentScript.getAttribute('data-analytics-function-url');
     
-    // Read provider enable flags
-    config.enableGA4 = currentScript.getAttribute('data-analytics-enable-ga4') === 'true';
-    config.enablePlausible = currentScript.getAttribute('data-analytics-enable-plausible') === 'true';
-    config.enableUmami = currentScript.getAttribute('data-analytics-enable-umami') === 'true';
-    config.enableClarity = currentScript.getAttribute('data-analytics-enable-clarity') === 'true';
-    
-    // Read provider configuration
-    config.ga4MeasurementId = currentScript.getAttribute('data-analytics-ga4-id') || null;
-    config.clarityProjectId = currentScript.getAttribute('data-analytics-clarity-id') || null;
-    config.plausibleDomain = currentScript.getAttribute('data-analytics-plausible-domain') || null;
-    config.umamiScriptUrl = currentScript.getAttribute('data-analytics-umami-url') || null;
-    config.umamiWebsiteId = currentScript.getAttribute('data-analytics-umami-website-id') || null;
-    
-    // Read consent and banner settings
-    config.consentDefault = currentScript.getAttribute('data-analytics-consent-default') || 'denied';
-    config.bannerProvider = currentScript.getAttribute('data-analytics-banner-provider') || 'custom';
-    
-    // Read consent banner styling if available
-    const stylingAttr = currentScript.getAttribute('data-consent-banner-styling');
-    if (stylingAttr) {
-      try {
-        config.consentBannerStyling = JSON.parse(decodeURIComponent(stylingAttr));
-      } catch (e) {
-        console.warn('Financely Analytics: Failed to parse consent banner styling', e);
-      }
+    // Construct API URL from firebaseProjectId if provided, otherwise use data-api-url
+    if (firebaseProjectId) {
+      config.apiUrl = `https://us-central1-${firebaseProjectId}.cloudfunctions.net`;
+      config.firebaseProjectId = firebaseProjectId;
+      config.functionUrl = functionUrl || `https://us-central1-${firebaseProjectId}.cloudfunctions.net/storeAnalyticsEvent`;
+    } else {
+      config.apiUrl = currentScript.getAttribute('data-api-url') || 
+        currentScript.getAttribute('data-api-base-url') ||
+        'https://us-central1-YOUR_PROJECT.cloudfunctions.net';
     }
-    
-    // Legacy strategy field (for backward compatibility)
-    config.strategy = currentScript.getAttribute('data-analytics-strategy') || null;
-    
-    // Migrate legacy strategy to new enable flags if new flags are not set
-    if (!config.enableGA4 && !config.enablePlausible && !config.enableUmami && config.strategy) {
-      if (config.strategy === 'gtag_only') {
-        config.enableGA4 = true;
-      } else if (config.strategy === 'plausible') {
-        config.enablePlausible = true;
-      } else if (config.strategy === 'umami') {
-        config.enableUmami = true;
-      }
-    }
-    
-    config.firebaseProjectId = currentScript.getAttribute('data-firebase-project') || null;
-    config.functionUrl = currentScript.getAttribute('data-analytics-function-url') || null;
   }
 
-  if (!config.enabled || !config.orgId) {
+  if (!config.orgId) {
+    console.error('Financely Analytics: data-analytics-org-id attribute is required');
     return;
   }
+
+  // Load analytics configuration from API
+  async function loadConfig() {
+    try {
+      const response = await fetch(`${config.apiUrl}/getAnalyticsConfig?organizationId=${config.orgId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load analytics config: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      // Merge API response into config
+      config.siteId = data.siteId || config.siteId || null;
+      config.brandName = data.brandName || null;
+      config.enabled = data.enabled ?? false;
+      config.enableGA4 = data.enableGA4 ?? false;
+      config.enablePlausible = data.enablePlausible ?? false;
+      config.enableUmami = data.enableUmami ?? false;
+      config.enableClarity = data.enableClarity ?? false;
+      config.ga4MeasurementId = data.ga4MeasurementId || null;
+      config.clarityProjectId = data.clarityProjectId || null;
+      config.plausibleDomain = data.plausibleDomain || null;
+      config.umamiScriptUrl = data.umamiScriptUrl || null;
+      config.umamiWebsiteId = data.umamiWebsiteId || null;
+      config.consentDefault = data.consentDefault || 'denied';
+      config.bannerProvider = data.bannerProvider || 'custom';
+      config.consentBannerStyling = data.consentBannerStyling || null;
+      config.strategy = data.strategy || null;
+      
+      // Update firebaseProjectId and functionUrl from API if not already set
+      if (data.firebaseProjectId && !config.firebaseProjectId) {
+        config.firebaseProjectId = data.firebaseProjectId;
+        // Update API URL if we got firebaseProjectId from API
+        if (!config.apiUrl || config.apiUrl.includes('YOUR_PROJECT')) {
+          config.apiUrl = `https://us-central1-${data.firebaseProjectId}.cloudfunctions.net`;
+        }
+      }
+      if (data.functionUrl && !config.functionUrl) {
+        config.functionUrl = data.functionUrl;
+      } else if (config.firebaseProjectId && !config.functionUrl) {
+        // Construct functionUrl from firebaseProjectId if not provided
+        config.functionUrl = `https://us-central1-${config.firebaseProjectId}.cloudfunctions.net/storeAnalyticsEvent`;
+      }
+      
+      // Migrate legacy strategy to new enable flags if new flags are not set
+      if (!config.enableGA4 && !config.enablePlausible && !config.enableUmami && config.strategy) {
+        if (config.strategy === 'gtag_only') {
+          config.enableGA4 = true;
+        } else if (config.strategy === 'plausible') {
+          config.enablePlausible = true;
+        } else if (config.strategy === 'umami') {
+          config.enableUmami = true;
+        }
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Financely Analytics: Failed to load configuration', error);
+      return null;
+    }
+  }
+
+  // Initialize analytics (will be called after config is loaded)
+  async function init() {
+    const analyticsConfig = await loadConfig();
+    
+    if (!analyticsConfig || !config.enabled || !config.orgId) {
+      return;
+    }
 
   // Helper to get URL parameters (define before use)
   function getUrlParameter(name) {
@@ -441,6 +479,8 @@
           statusText: response.statusText,
           url: url,
           event: eventName,
+          orgId: config.orgId,
+          siteId: config.siteId,
         });
       } else {
         // Success - log in verbose mode only (use debug level)

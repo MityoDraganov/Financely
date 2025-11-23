@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getFirestore, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { firebase } from "@/infrastructure/firebase";
 import { useEffect, useState } from "react";
+import { serviceHost } from "@/services";
 
 interface BrandSite {
   id: string;
@@ -20,6 +21,33 @@ interface BrandSite {
     version?: number;
     regenerateSectionType?: "hero" | "about" | "features" | "contact";
   };
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    description?: string;
+    context?: string;
+    type?: "standard" | "blog" | "contact";
+    order?: number;
+    contentEntries?: Array<{
+      id: string;
+      title: string;
+      summary?: string;
+      link?: string;
+      image?: string;
+      description?: string; // Rich text HTML for AI
+      localization?: {
+        defaultLanguage: "en";
+        languages: Record<string, {
+          title: string;
+          description: string;
+          summary?: string;
+          image?: string;
+          link?: string;
+        }>;
+      };
+    }>;
+  }>;
   versions?: Array<{
     version: number;
     html: string;
@@ -34,6 +62,25 @@ interface BrandSite {
     createdAt: string;
     description?: string;
   }>;
+  conversations?: Array<{
+    id: string;
+    title?: string;
+    messages: Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      attachments?: string[];
+      timestamp: string;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  chatRequest?: {
+    id: string;
+    status: "pending" | "processing" | "complete";
+    message: string;
+    conversationId?: string;
+  };
 }
 
 /**
@@ -60,10 +107,28 @@ export const useBrandSite = (brandSiteId: string | null) => {
     },
     enabled: !!brandSiteId,
     refetchInterval: (query) => {
-      // Poll every 2 seconds if status is pending/generating/deploying
+      // Poll more frequently if status is pending/generating/deploying (for streaming updates)
       const data = query.state.data as BrandSite | null;
       if (data?.status === "pending" || data?.status === "generating" || data?.status === "deploying") {
-        return 2000;
+        // Poll even faster if files are being updated (HTML streaming)
+        if (data?.files && Object.keys(data.files).length > 0) {
+          return 300; // Poll every 300ms when HTML is streaming
+        }
+        return 500; // Poll every 500ms for faster streaming updates
+      }
+      // Poll if there's a pending chat request (waiting for backend to process)
+      if (data?.chatRequest && (data.chatRequest.status === "pending" || data.chatRequest.status === "processing")) {
+        return 500; // Poll every 500ms while waiting for chat request to be processed
+      }
+      // Also poll if there are conversations (to catch streaming message updates)
+      if (data?.conversations && (data.conversations as any[]).length > 0) {
+        // Check if any conversation has a streaming message
+        const hasStreaming = (data.conversations as any[]).some(conv => 
+          conv.messages?.some((m: any) => m.id?.startsWith("assistant-streaming"))
+        );
+        if (hasStreaming) {
+          return 300; // Poll every 300ms when streaming (matches backend update interval)
+        }
       }
       return false; // Stop polling when done
     },
@@ -193,6 +258,24 @@ export const useBrandSitesByOrganization = (organizationId: string | null | unde
       }
     },
     enabled: !!organizationId,
+  });
+};
+
+/**
+ * Hook to update a brand site
+ */
+export const useUpdateBrandSite = () => {
+  const queryClient = useQueryClient();
+  const databaseService = serviceHost.getDatabaseService();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<BrandSite> }) => {
+      await databaseService.update("brandSites", id, data);
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["brandSite", id] });
+      queryClient.invalidateQueries({ queryKey: ["brandSites"] });
+    },
   });
 };
 

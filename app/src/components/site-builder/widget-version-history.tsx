@@ -1,6 +1,8 @@
 import { History, Eye, RotateCcw } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
+import { formatDateTime } from "@/utils/date-formatting";
 
 interface WidgetVersion {
   version: number;
@@ -25,6 +27,7 @@ export function WidgetVersionHistory({
   onRestoreVersion,
   isRestoring,
 }: WidgetVersionHistoryProps) {
+  const { t, i18n } = useTranslation();
   if (versions.length === 0) {
     return null;
   }
@@ -34,11 +37,11 @@ export function WidgetVersionHistory({
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2 text-sm font-semibold">
           <History className="h-4 w-4" />
-          Version History
+          {t('siteBuilder.widgets.widgetVersionHistory.title')}
         </Label>
         {currentVersion && (
           <span className="text-xs text-muted-foreground">
-            Current: v{currentVersion}
+            {t('siteBuilder.widgets.widgetVersionHistory.current', { version: currentVersion })}
           </span>
         )}
       </div>
@@ -52,10 +55,10 @@ export function WidgetVersionHistory({
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Version {version.version}</span>
+                  <span className="text-sm font-medium">{t('siteBuilder.widgets.widgetVersionHistory.version', { number: version.version })}</span>
                   {version.version === currentVersion && (
                     <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                      Current
+                      {t('siteBuilder.widgets.widgetVersionHistory.currentBadge')}
                     </span>
                   )}
                 </div>
@@ -64,14 +67,8 @@ export function WidgetVersionHistory({
                 )}
                 <p className="text-xs text-gray-400 mt-1">
                   {version.createdAt
-                    ? new Date(version.createdAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "Unknown date"}
+                    ? formatDateTime(version.createdAt, i18n.language)
+                    : t('siteBuilder.widgets.widgetVersionHistory.unknownDate')}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -81,7 +78,7 @@ export function WidgetVersionHistory({
                   onClick={() => onPreviewVersion(version)}
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" />
-                  Preview
+                  {t('siteBuilder.widgets.widgetVersionHistory.preview')}
                 </Button>
                 {version.version !== currentVersion && (
                   <Button
@@ -91,7 +88,7 @@ export function WidgetVersionHistory({
                     disabled={isRestoring}
                   >
                     <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                    Restore
+                    {t('siteBuilder.widgets.widgetVersionHistory.restore')}
                   </Button>
                 )}
               </div>

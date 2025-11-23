@@ -1,7 +1,7 @@
 import { onCall } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
-import { AnalyticsService } from "../services/analytics-service";
+import { AnalyticsMetrics, AnalyticsService } from "../services/analytics-service";
 import { getDatabaseService } from "../services/database-service";
 import { getAnalyticsConfigRepository } from "../repositories/analytics-config-repository";
 
@@ -53,58 +53,109 @@ export const getAnalyticsMetrics = onCall<GetAnalyticsMetricsPayload>(
         orgId,
         enabled: analyticsConfig.enabled,
         siteId: analyticsConfig.siteId || "none",
-        hasGA4: !!analyticsConfig.ga4MeasurementId,
+        enableGA4: analyticsConfig.enableGA4,
+        enablePlausible: analyticsConfig.enablePlausible,
+        enableUmami: analyticsConfig.enableUmami,
+        enableClarity: analyticsConfig.enableClarity,
       });
 
-      // Try to get metrics from stored events first (real-time data)
-      // If siteId is not set, query all events for the org
-      const storedMetrics = await analyticsService.getStoredAnalyticsEvents(
-        orgId,
-        analyticsConfig.siteId || undefined,
+      // Collect metrics from all enabled providers in parallel
+      const metricsPromises: Array<{
+        source: "firestore" | "ga4" | "plausible" | "umami" | "clarity";
+        metrics: Promise<AnalyticsMetrics | null>;
+      }> = [];
+
+      // Always try Firestore first (real-time data from our own tracking)
+      metricsPromises.push({
+        source: "firestore",
+        metrics: analyticsService.getStoredAnalyticsEvents(
+          orgId,
+          analyticsConfig.siteId || undefined,
+          start,
+          end,
+        ),
+      });
+
+      // Fetch from GA4 if enabled
+      if (analyticsConfig.enableGA4 && analyticsConfig.ga4MeasurementId) {
+        metricsPromises.push({
+          source: "ga4",
+          metrics: analyticsService.getGA4Metrics({
+            propertyId: analyticsConfig.ga4MeasurementId,
+            startDate: start,
+            endDate: end,
+            orgId,
+          }),
+        });
+      }
+
+      // Fetch from Plausible if enabled
+      if (analyticsConfig.enablePlausible && analyticsConfig.plausibleDomain) {
+        metricsPromises.push({
+          source: "plausible",
+          metrics: analyticsService.getPlausibleMetrics({
+            domain: analyticsConfig.plausibleDomain,
+            startDate: start,
+            endDate: end,
+            // Note: API key would need to be stored in config if required
+          }),
+        });
+      }
+
+      // Fetch from Umami if enabled
+      if (
+        analyticsConfig.enableUmami &&
+        analyticsConfig.umamiScriptUrl &&
+        analyticsConfig.umamiWebsiteId
+      ) {
+        metricsPromises.push({
+          source: "umami",
+          metrics: analyticsService.getUmamiMetrics({
+            websiteId: analyticsConfig.umamiWebsiteId,
+            apiUrl: analyticsConfig.umamiScriptUrl,
+            startDate: start,
+            endDate: end,
+            // Note: API key would need to be stored in config if required
+          }),
+        });
+      }
+
+
+      // Wait for all metrics to be fetched (in parallel)
+      const metricsResults = await Promise.allSettled(
+        metricsPromises.map((p) => p.metrics),
+      );
+
+      // Map results back to sources
+      const sourcesWithMetrics = metricsPromises.map((promise, index) => {
+        const result = metricsResults[index];
+        return {
+          source: promise.source,
+          metrics:
+            result.status === "fulfilled" ? result.value : null,
+        };
+      });
+
+      // Aggregate metrics from all sources
+      const aggregatedMetrics = await analyticsService.aggregateMetrics(
+        sourcesWithMetrics,
         start,
         end,
       );
 
-      // If we got metrics (even if empty), return them
-      // Empty metrics are valid - it means no events in the date range
-      if (storedMetrics) {
-        logger.info("Returning stored analytics metrics", {
-          orgId,
-          pageViews: storedMetrics.pageViews,
-          visitors: storedMetrics.visitors,
-          hasData: storedMetrics.pageViews > 0 || storedMetrics.visitors > 0,
-        });
-        return storedMetrics;
-      }
+      // Add metadata about which sources provided data
+      const activeSources = sourcesWithMetrics
+        .filter((s) => s.metrics !== null)
+        .map((s) => s.source);
 
-      // If no stored events, try GA4 API (requires credentials)
-      if (analyticsConfig.ga4MeasurementId) {
-        const ga4Metrics = await analyticsService.getGA4Metrics({
-          propertyId: analyticsConfig.ga4MeasurementId,
-          startDate: start,
-          endDate: end,
-          orgId,
-        });
+      logger.info("Aggregated analytics metrics", {
+        orgId,
+        activeSources,
+        pageViews: aggregatedMetrics.pageViews,
+        visitors: aggregatedMetrics.visitors,
+      });
 
-        if (ga4Metrics) {
-          return ga4Metrics;
-        }
-      }
-
-      // Return empty metrics if no data available
-      return {
-        pageViews: 0,
-        visitors: 0,
-        bounceRate: 0,
-        avgSessionDuration: 0,
-        topPages: [],
-        trafficSources: [],
-        devices: [],
-        browsers: [],
-        referrers: [],
-        pageViewsOverTime: [],
-        dateRange: { start, end },
-      };
+      return aggregatedMetrics;
     } catch (error) {
       logger.error("Error fetching analytics metrics", {
         error: error instanceof Error ? error.message : "Unknown error",

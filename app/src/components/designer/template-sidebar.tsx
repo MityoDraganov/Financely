@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -37,9 +38,9 @@ type TemplateSidebarProps = {
 		binding: string;
 		label: string;
 		description?: string;
-		elementType: "text" | "input" | "table";
+		elementType: "text" | "input" | "table" | "currency";
 	}>;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table") => void;
+	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
 	isRequired: (binding: string | undefined) => boolean;
 };
 
@@ -57,10 +58,11 @@ export function TemplateSidebar({
 	onAddRequiredElement,
 	isRequired,
 }: TemplateSidebarProps) {
+	const { t } = useTranslation();
 	return (
 		<div className="h-full p-4 border-r bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
 			<div className="flex items-center justify-between mb-4">
-				<div className="font-semibold text-base text-neutral-800">Templates</div>
+				<div className="font-semibold text-base text-neutral-800">{t('designer.sidebar.templates')}</div>
 			</div>
 			<div className="mb-4 space-y-2.5">
 				<Button
@@ -70,7 +72,7 @@ export function TemplateSidebar({
 					onClick={onOpenAIBuilder}
 				>
 					<Sparkles className="h-4 w-4 mr-2 animate-pulse" />
-					<span className="font-medium">AI Builder</span>
+					<span className="font-medium">{t('designer.sidebar.aiBuilder')}</span>
 				</Button>
 				<Button
 					variant="outline"
@@ -79,13 +81,13 @@ export function TemplateSidebar({
 					onClick={onCreateNewTemplate}
 				>
 					<Plus className="h-4 w-4 mr-2" />
-					New Template
+					{t('designer.sidebar.newTemplate')}
 				</Button>
 			</div>
 			<div className="space-y-2">
 				{templates.length === 0 && (
 					<div className="text-xs text-neutral-500">
-						No templates yet. Click "New" to create your first template.
+						{t('designer.sidebar.noTemplates')}
 					</div>
 				)}
 			</div>
@@ -94,7 +96,7 @@ export function TemplateSidebar({
 				<div className="mt-5 mb-5 p-3 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/50 shadow-sm">
 					<div className="text-xs font-semibold uppercase text-amber-700 mb-2.5 flex items-center gap-1.5">
 						<Lock className="h-3.5 w-3.5" />
-						Required Fields
+						{t('designer.sidebar.requiredFields')}
 					</div>
 					<div className="space-y-2">
 						{missingRequiredFields.map((field) => (
@@ -104,7 +106,7 @@ export function TemplateSidebar({
 								size="sm"
 								onClick={() => {
 									onAddRequiredElement(field.binding, field.label, field.elementType);
-									toast.success(`Added ${field.label}`, { duration: 2000 });
+									toast.success(t('designer.sidebar.addedField', { label: field.label }), { duration: 2000 });
 								}}
 								className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300/60 bg-white/80 hover:bg-amber-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
 							>
@@ -123,7 +125,7 @@ export function TemplateSidebar({
 			<div className="mt-5">
 				<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
-					<span>Palette</span>
+					<span>{t('designer.sidebar.palette')}</span>
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
 				</div>
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
@@ -131,7 +133,7 @@ export function TemplateSidebar({
 						variant="secondary"
 						onClick={() => {
 							onAddElement("text");
-							toast.success("Text element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.textAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -142,13 +144,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Text</span>
+						<span className="font-medium">{t('designer.sidebar.text')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("image");
-							toast.success("Image element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.imageAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -159,13 +161,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<ImageIcon className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Image</span>
+						<span className="font-medium">{t('designer.sidebar.image')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("table");
-							toast.success("Table element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.tableAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -176,13 +178,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<TableIcon className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Table</span>
+						<span className="font-medium">{t('designer.sidebar.table')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("input");
-							toast.success("Input element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.inputAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -193,13 +195,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Input</span>
+						<span className="font-medium">{t('designer.sidebar.input')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("box");
-							toast.success("Box element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.boxAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -210,13 +212,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<Square className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Box</span>
+						<span className="font-medium">{t('designer.sidebar.box')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("line");
-							toast.success("Line element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.lineAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -227,13 +229,13 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Line</span>
+						<span className="font-medium">{t('designer.sidebar.line')}</span>
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => {
 							onAddElement("currency");
-							toast.success("Currency element added", { duration: 1500 });
+							toast.success(t('designer.sidebar.currencyAdded'), { duration: 1500 });
 						}}
 						draggable
 						onDragStart={(e) => {
@@ -244,15 +246,15 @@ export function TemplateSidebar({
 						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
 					>
 						<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">Currency</span>
+						<span className="font-medium">{t('designer.sidebar.currency')}</span>
 					</Button>
 				</div>
 				<div className="mt-5">
-					<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
-						<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
-						<span>Elements</span>
-						<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
-					</div>
+				<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+					<span>{t('designer.elements')}</span>
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+				</div>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 						{(currentTemplate?.elements ?? []).map((el) => {
 							const binding = el.type === "text" ? el.binding :
@@ -328,23 +330,23 @@ export function TemplateSidebar({
 												<span className="truncate flex-1 text-sm">
 													{(() => {
 														if (el.type === "text") {
-															return (el as Extract<TemplateElement, { type: "text" }>).text ?? "Text";
+															return (el as Extract<TemplateElement, { type: "text" }>).text ?? t('designer.sidebar.text');
 														} else if (el.type === "table") {
-															return "Items Table";
+															return t('designer.sidebar.itemsTable');
 														} else if (el.type === "image") {
-															return "Image";
+															return t('designer.sidebar.image');
 														} else if (el.type === "input") {
-															return "Input Field";
+															return t('designer.sidebar.inputField');
 														} else if (el.type === "currency") {
-															return "Currency Field";
+															return t('designer.sidebar.currencyField');
 														} else if (el.type === "box") {
-															return "Box";
+															return t('designer.sidebar.box');
 														} else if (el.type === "line") {
-															return "Line";
+															return t('designer.sidebar.line');
 														}
 														// Fallback for any other element type
 														const element = el as TemplateElement;
-														return `Element ${element.id.slice(0, 6)}`;
+														return t('designer.sidebar.element', { id: element.id.slice(0, 6) });
 													})()}
 												</span>
 											</div>
@@ -352,16 +354,16 @@ export function TemplateSidebar({
 									</ContextMenuTrigger>
 									<ContextMenuContent>
 										<ContextMenuItem onClick={() => onSelectElement(el.id)}>
-											Select
+											{t('designer.sidebar.select')}
 										</ContextMenuItem>
 										<ContextMenuSeparator />
 										<ContextMenuItem onClick={() => onDuplicateElement(el.id)}>
 											<Copy className="mr-2 h-4 w-4" />
-											Duplicate
+											{t('designer.sidebar.duplicate')}
 										</ContextMenuItem>
 										<ContextMenuSeparator />
 										<ContextMenuItem onClick={() => onDeleteElement(el.id)} variant="destructive">
-											Delete
+											{t('designer.sidebar.delete')}
 										</ContextMenuItem>
 									</ContextMenuContent>
 								</ContextMenu>

@@ -1,16 +1,27 @@
-import { Loader2, ExternalLink } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Loader2, ExternalLink, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface BrandSite {
   status?: "pending" | "generating" | "deploying" | "success" | "failed";
   deployedUrl?: string;
   error?: string;
+  html?: string;
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+  }>;
 }
 
 interface SiteStatusDisplayProps {
   brandSite: BrandSite | null;
+  onRetry?: () => void;
+  isRetrying?: boolean;
 }
 
-export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
+export function SiteStatusDisplay({ brandSite, onRetry, isRetrying = false }: SiteStatusDisplayProps) {
+  const { t } = useTranslation();
   if (!brandSite) return null;
 
   const status = brandSite.status;
@@ -29,15 +40,15 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
 
   return (
     <div className={`p-4 border rounded-lg ${statusColor}`}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex-1">
           {status === "pending" && (
             <>
               <p className="text-sm font-medium text-blue-900">
-                Site generation queued...
+                {t('siteBuilder.widgets.siteStatus.pending.title')}
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                Waiting to start generation
+                {t('siteBuilder.widgets.siteStatus.pending.description')}
               </p>
             </>
           )}
@@ -45,10 +56,10 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
             <>
               <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Generating site with AI...
+                {t('siteBuilder.widgets.siteStatus.generating.title')}
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                This may take 1-2 minutes
+                {t('siteBuilder.widgets.siteStatus.generating.description')}
               </p>
             </>
           )}
@@ -56,17 +67,17 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
             <>
               <p className="text-sm font-medium text-blue-900 flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Deploying site...
+                {t('siteBuilder.widgets.siteStatus.deploying.title')}
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                Setting up hosting and DNS
+                {t('siteBuilder.widgets.siteStatus.deploying.description')}
               </p>
             </>
           )}
           {status === "success" && brandSite.deployedUrl && (
             <>
               <p className="text-sm font-medium text-green-900">
-                Site Generated Successfully!
+                {t('siteBuilder.widgets.siteStatus.success.title')}
               </p>
               <a
                 href={brandSite.deployedUrl}
@@ -82,14 +93,35 @@ export function SiteStatusDisplay({ brandSite }: SiteStatusDisplayProps) {
           {status === "failed" && (
             <>
               <p className="text-sm font-medium text-red-900">
-                Site Generation Failed
+                {t('siteBuilder.widgets.siteStatus.failed.title')}
               </p>
               <p className="text-xs text-red-700 mt-1">
-                {brandSite.error || "Unknown error occurred"}
+                {brandSite.error || t('siteBuilder.widgets.siteStatus.failed.unknownError')}
               </p>
             </>
           )}
         </div>
+        {status === "failed" && onRetry && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onRetry}
+            disabled={isRetrying}
+            className="shrink-0"
+          >
+            {isRetrying ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                {t('siteBuilder.widgets.siteStatus.retrying')}
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1.5" />
+                {t('siteBuilder.widgets.siteStatus.retry')}
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );

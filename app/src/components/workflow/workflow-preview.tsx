@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,14 +11,13 @@ import {
   Clock, 
   Mail, 
   MessageSquare, 
-  FileText, 
   Zap, 
   AlertCircle,
   X,
   Settings,
   Eye
 } from "lucide-react";
-import { Workflow } from "@/core";
+import { Workflow, WorkflowAction } from "@/core";
 
 interface WorkflowPreviewProps {
   workflow: Workflow;
@@ -31,8 +31,6 @@ const getActionIcon = (actionType: string) => {
       return <Mail className="w-4 h-4" />;
     case "send.slack":
       return <MessageSquare className="w-4 h-4" />;
-    case "create.invoice":
-      return <FileText className="w-4 h-4" />;
     case "update.invoice.status":
       return <Settings className="w-4 h-4" />;
     case "create.task":
@@ -49,57 +47,56 @@ const getActionIcon = (actionType: string) => {
   }
 };
 
-const getActionLabel = (actionType: string) => {
+const getActionLabel = (actionType: string, t: (key: string) => string) => {
   switch (actionType) {
     case "send.email":
     case "send_email":
-      return "Send Email";
+      return t('workflows.preview.actionLabels.sendEmail');
     case "send.slack":
-      return "Send Slack Message";
-    case "create.invoice":
-      return "Create Invoice";
+      return t('workflows.preview.actionLabels.sendSlack');
     case "update.invoice.status":
-      return "Update Invoice Status";
+      return t('workflows.preview.actionLabels.updateInvoiceStatus');
     case "create.task":
-      return "Create Task";
+      return t('workflows.preview.actionLabels.createTask');
     case "call.webhook":
     case "http_request":
-      return "HTTP Request";
+      return t('workflows.preview.actionLabels.httpRequest');
     case "notify.user":
-      return "Notify User";
+      return t('workflows.preview.actionLabels.notifyUser');
     case "wait.delay":
-      return "Wait/Delay";
+      return t('workflows.preview.actionLabels.waitDelay');
     default:
       return actionType;
   }
 };
 
-const getTriggerLabel = (triggerType: string) => {
+const getTriggerLabel = (triggerType: string, t: (key: string) => string) => {
   switch (triggerType) {
     case "invoice.created":
-      return "Invoice Created";
+      return t('workflows.preview.triggerLabels.invoiceCreated');
     case "invoice.sent":
-      return "Invoice Sent";
+      return t('workflows.preview.triggerLabels.invoiceSent');
     case "invoice.paid":
-      return "Invoice Paid";
+      return t('workflows.preview.triggerLabels.invoicePaid');
     case "invoice.overdue":
-      return "Invoice Overdue";
+      return t('workflows.preview.triggerLabels.invoiceOverdue');
     case "proposal.created":
-      return "Proposal Created";
+      return t('workflows.preview.triggerLabels.proposalCreated');
     case "proposal.approved":
-      return "Proposal Approved";
+      return t('workflows.preview.triggerLabels.proposalApproved');
     case "contract.expiring":
-      return "Contract Expiring";
+      return t('workflows.preview.triggerLabels.contractExpiring');
     case "schedule.cron":
-      return "Scheduled";
+      return t('workflows.preview.triggerLabels.scheduled');
     case "manual.trigger":
-      return "Manual Trigger";
+      return t('workflows.preview.triggerLabels.manualTrigger');
     default:
       return triggerType;
   }
 };
 
 export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewProps) {
+  const { t } = useTranslation();
   const [simulationStep, setSimulationStep] = useState<number | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
@@ -112,7 +109,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
     try {
       // Validate workflow has steps
       if (!workflow.steps || workflow.steps.length === 0) {
-        throw new Error("Workflow has no steps to simulate");
+        throw new Error(t('workflows.preview.error.noSteps'));
       }
       
       // Simulate workflow execution step by step
@@ -132,7 +129,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
       
     } catch (error) {
       console.error("Simulation error:", error);
-      setSimulationError(error instanceof Error ? error.message : "Simulation failed");
+      setSimulationError(error instanceof Error ? error.message : t('workflows.preview.error.title'));
     } finally {
       setIsSimulating(false);
     }
@@ -157,32 +154,32 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Eye className="w-8 h-8" />
-            Workflow Preview
+            {t('workflows.preview.title')}
           </h1>
           <p className="text-muted-foreground">
-            Preview how "{workflow.name}" will execute
+            {t('workflows.preview.description', { name: workflow.name })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleSimulate} disabled={isSimulating}>
             <Play className="w-4 h-4 mr-2" />
-            {isSimulating ? "Simulating..." : "Simulate Execution"}
+            {isSimulating ? t('workflows.preview.simulating') : t('workflows.preview.simulateExecution')}
           </Button>
           {isSimulating && (
             <Button variant="outline" onClick={stopSimulation}>
               <Pause className="w-4 h-4 mr-2" />
-              Stop
+              {t('workflows.preview.stop')}
             </Button>
           )}
           {simulationStep !== null && !isSimulating && (
             <Button variant="outline" onClick={resetSimulation}>
               <X className="w-4 h-4 mr-2" />
-              Reset
+              {t('workflows.preview.reset')}
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>
             <X className="w-4 h-4 mr-2" />
-            Close Preview
+            {t('workflows.preview.closePreview')}
           </Button>
         </div>
       </div>
@@ -201,22 +198,22 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground">Trigger</h4>
-              <p className="text-sm">{getTriggerLabel(workflow.trigger.type)}</p>
+              <h4 className="font-medium text-sm text-muted-foreground">{t('workflows.preview.overview.trigger')}</h4>
+              <p className="text-sm">{getTriggerLabel(workflow.trigger.type, t)}</p>
             </div>
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground">Steps</h4>
-              <p className="text-sm">{workflow.steps.length} step{workflow.steps.length !== 1 ? 's' : ''}</p>
+              <h4 className="font-medium text-sm text-muted-foreground">{t('workflows.preview.overview.steps')}</h4>
+              <p className="text-sm">{t('workflows.preview.overview.stepsCount', { count: workflow.steps.length, defaultValue: workflow.steps.length === 1 ? '{{count}} step' : '{{count}} steps' })}</p>
             </div>
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground">Version</h4>
+              <h4 className="font-medium text-sm text-muted-foreground">{t('workflows.preview.overview.version')}</h4>
               <p className="text-sm">v{workflow.version}</p>
             </div>
           </div>
           
           {workflow.tags.length > 0 && (
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground mb-2">Tags</h4>
+              <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('workflows.preview.overview.tags')}</h4>
               <div className="flex flex-wrap gap-1">
                 {workflow.tags.map((tag) => (
                   <Badge key={tag} variant="outline" className="text-xs">
@@ -232,9 +229,9 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
       {/* Execution Flow */}
       <Card>
         <CardHeader>
-          <CardTitle>Execution Flow</CardTitle>
+          <CardTitle>{t('workflows.preview.executionFlow.title')}</CardTitle>
           <CardDescription>
-            Visual representation of how this workflow will execute
+            {t('workflows.preview.executionFlow.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -244,8 +241,8 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border-2 border-blue-200">
                 <Zap className="w-5 h-5 text-blue-600" />
                 <div>
-                  <h4 className="font-medium text-blue-900">Trigger</h4>
-                  <p className="text-sm text-blue-700">{getTriggerLabel(workflow.trigger.type)}</p>
+                  <h4 className="font-medium text-blue-900">{t('workflows.preview.executionFlow.trigger')}</h4>
+                  <p className="text-sm text-blue-700">{getTriggerLabel(workflow.trigger.type, t)}</p>
                 </div>
               </div>
               <ArrowRight className="w-5 h-5 text-muted-foreground" />
@@ -279,7 +276,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
                       <div>
                         <h4 className="font-medium">{step.name}</h4>
                         <p className="text-sm text-muted-foreground">
-                          {step.actions.length} action{step.actions.length !== 1 ? 's' : ''}
+                          {t('workflows.preview.executionFlow.actionsCount', { count: step.actions.length, defaultValue: step.actions.length === 1 ? '{{count}} action' : '{{count}} actions' })}
                         </p>
                       </div>
                     </div>
@@ -289,13 +286,13 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
 
                 {/* Actions in this step */}
                 <div className="ml-8 space-y-2">
-                  {step.actions.map((action, actionIndex) => (
+                  {step.actions.map((action: WorkflowAction, actionIndex: number) => (
                     <div key={actionIndex} className="flex items-center gap-2 p-2 bg-muted/50 rounded">
                       {getActionIcon(action.type)}
-                      <span className="text-sm font-medium">{getActionLabel(action.type)}</span>
+                      <span className="text-sm font-medium">{getActionLabel(action.type, t)}</span>
                       {action.config && Object.keys(action.config).length > 0 && (
                         <Badge variant="outline" className="text-xs">
-                          Configured
+                          {t('workflows.preview.executionFlow.configured')}
                         </Badge>
                       )}
                     </div>
@@ -312,8 +309,8 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
                     <CheckCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-green-900">Workflow Completed</h4>
-                    <p className="text-sm text-green-700">All steps executed successfully</p>
+                    <h4 className="font-medium text-green-900">{t('workflows.preview.completed.title')}</h4>
+                    <p className="text-sm text-green-700">{t('workflows.preview.completed.description')}</p>
                   </div>
                 </div>
               </div>
@@ -327,7 +324,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
                     <AlertCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-red-900">Simulation Error</h4>
+                    <h4 className="font-medium text-red-900">{t('workflows.preview.error.title')}</h4>
                     <p className="text-sm text-red-700">{simulationError}</p>
                   </div>
                 </div>
@@ -340,41 +337,41 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
       {/* Configuration Details */}
       <Card>
         <CardHeader>
-          <CardTitle>Configuration Details</CardTitle>
+          <CardTitle>{t('workflows.preview.configDetails.title')}</CardTitle>
           <CardDescription>
-            Detailed view of workflow settings and parameters
+            {t('workflows.preview.configDetails.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground mb-2">Settings</h4>
+              <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('workflows.preview.configDetails.settings')}</h4>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Max Retries:</span>
+                  <span>{t('workflows.preview.configDetails.maxRetries')}</span>
                   <span>{workflow.settings.maxRetries}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Timeout:</span>
+                  <span>{t('workflows.preview.configDetails.timeout')}</span>
                   <span>{workflow.settings.timeoutSeconds}s</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Max Concurrent:</span>
+                  <span>{t('workflows.preview.configDetails.maxConcurrent')}</span>
                   <span>{workflow.settings.maxConcurrentExecutions}</span>
                 </div>
               </div>
             </div>
             
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground mb-2">Notifications</h4>
+              <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('workflows.preview.configDetails.notifications')}</h4>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Notify on Failure:</span>
-                  <span>{workflow.settings.notifyOnFailure ? 'Yes' : 'No'}</span>
+                  <span>{t('workflows.preview.configDetails.notifyOnFailure')}</span>
+                  <span>{workflow.settings.notifyOnFailure ? t('workflows.preview.configDetails.yes') : t('workflows.preview.configDetails.no')}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Notify on Success:</span>
-                  <span>{workflow.settings.notifyOnSuccess ? 'Yes' : 'No'}</span>
+                  <span>{t('workflows.preview.configDetails.notifyOnSuccess')}</span>
+                  <span>{workflow.settings.notifyOnSuccess ? t('workflows.preview.configDetails.yes') : t('workflows.preview.configDetails.no')}</span>
                 </div>
               </div>
             </div>
@@ -384,10 +381,10 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">n8n Integration Enabled</span>
+                <span className="text-sm font-medium text-blue-900">{t('workflows.preview.configDetails.n8nEnabled')}</span>
               </div>
               <p className="text-sm text-blue-700 mt-1">
-                This workflow is integrated with n8n for advanced automation capabilities.
+                {t('workflows.preview.configDetails.n8nDescription')}
               </p>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,8 @@ export function WorkflowActionComponent({
   onUpdateAction, 
   onDeleteAction 
 }: WorkflowActionProps) {
+  const { t } = useTranslation();
+  
   const handleUpdateConfig = (config: any) => {
     onUpdateAction(stepId, actionIndex, { config });
   };
@@ -31,7 +34,7 @@ export function WorkflowActionComponent({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{action.type}</Badge>
-          <span className="text-sm font-medium">Action {actionIndex + 1}</span>
+          <span className="text-sm font-medium">{t('workflows.builder.action.action', { number: actionIndex + 1 })}</span>
         </div>
         <Button variant="outline" size="sm" onClick={handleDelete}>
           <Trash2 className="w-4 h-4" />
@@ -40,9 +43,9 @@ export function WorkflowActionComponent({
       
       <div className="space-y-4">
         <div>
-          <Label>Action Name</Label>
+          <Label>{t('workflows.builder.action.name')}</Label>
           <Input
-            placeholder="Send notification to Slack"
+            placeholder={t('workflows.builder.action.namePlaceholder')}
             value={action.name}
             onChange={(e) => handleUpdateName(e.target.value)}
           />
@@ -52,7 +55,7 @@ export function WorkflowActionComponent({
           <HttpActionConfig action={action} onUpdateConfig={handleUpdateConfig} />
         )}
 
-        {action.type === "send_email" && (
+        {action.type === "send.email" && (
           <EmailActionConfig action={action} onUpdateConfig={handleUpdateConfig} />
         )}
       </div>

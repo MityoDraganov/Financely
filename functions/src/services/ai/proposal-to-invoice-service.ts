@@ -6,7 +6,7 @@
 
 import { AIService } from "./ai-service";
 import { Proposal, Organization } from "../../core";
-import { Template, TemplateElement } from "../../core/entities/template";
+import { Template } from "../../core/entities/template";
 import { loggerService } from "../logger-service";
 import { getBindingValue, setBindingValue } from "../../core/entities/invoice";
 import type { InvoiceDataValue } from "../../core/entities/invoice";
@@ -102,48 +102,11 @@ export class ProposalToInvoiceService {
 
   /**
    * Extract all bindings from template
+   * Uses the shared utility function for consistency with compliance validation
    */
   private extractTemplateBindings(template: Template): Set<string> {
-    const bindings = new Set<string>();
-    const elements = template.elements ?? [];
-    
-    for (const element of elements) {
-      if (element.type === "text") {
-        const textEl = element as Extract<TemplateElement, { type: "text" }>;
-        if (textEl.binding) {
-          bindings.add(textEl.binding);
-        }
-      } else if (element.type === "input") {
-        const inputEl = element as Extract<TemplateElement, { type: "input" }>;
-        if (inputEl.binding) {
-          bindings.add(inputEl.binding);
-        }
-      } else if (element.type === "currency") {
-        const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
-        if (currencyEl.binding) {
-          bindings.add(currencyEl.binding);
-        }
-      } else if (element.type === "image") {
-        // Image elements may have optional binding property
-        const imageEl = element as Extract<TemplateElement, { type: "image" }> & { binding?: string };
-        if (imageEl.binding) {
-          bindings.add(imageEl.binding);
-        }
-      } else if (element.type === "table") {
-        const tableEl = element as Extract<TemplateElement, { type: "table" }>;
-        if (tableEl.itemsBinding) {
-          bindings.add(tableEl.itemsBinding);
-          // Also add column bindings
-          for (const col of tableEl.columns) {
-            if (col.binding) {
-              bindings.add(`${tableEl.itemsBinding}.${col.binding}`); // For reference, but items are arrays
-            }
-          }
-        }
-      }
-    }
-    
-    return bindings;
+    const { extractTemplateBindings } = require("../../utils/invoice-compliance");
+    return extractTemplateBindings(template.elements ?? []);
   }
 
   /**

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ const aiSettingsSchema = z.object({
 type AISettingsForm = z.infer<typeof aiSettingsSchema>;
 
 export default function AISettingsPage() {
+  const { t } = useTranslation();
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -67,11 +69,11 @@ export default function AISettingsPage() {
         },
       });
 
-      toast.success("AI settings updated successfully");
+      toast.success(t('settings.organization.aiSettings.toasts.updated'));
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Failed to update AI settings:", error);
-      toast.error("Failed to update AI settings");
+      toast.error(t('settings.organization.aiSettings.toasts.updateFailed'));
     }
   };
 
@@ -88,9 +90,9 @@ export default function AISettingsPage() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="space-y-0.5 pb-3 border-b">
-        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">AI Settings</h2>
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('settings.organization.aiSettings.pageTitle')}</h2>
         <p className="text-sm text-muted-foreground">
-          Configure AI-powered features and automation for your organization.
+          {t('settings.organization.aiSettings.pageDescription')}
         </p>
       </div>
 
@@ -98,20 +100,19 @@ export default function AISettingsPage() {
         {/* Proposal Suggestions */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Proposal Suggestions</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('settings.organization.aiSettings.proposalSuggestions.title')}</CardTitle>
             <CardDescription className="text-sm">
-              Automatically generate proposal suggestions when new leads are created.
+              {t('settings.organization.aiSettings.proposalSuggestions.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
               <div className="space-y-0.5 flex-1">
                 <Label htmlFor="autoProposalSuggestions" className="text-sm font-medium">
-                  Automatic Proposal Suggestions
+                  {t('settings.organization.aiSettings.proposalSuggestions.autoSuggestions')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, AI will automatically generate proposal suggestions for new leads.
-                  You can also manually request suggestions from the leads page.
+                  {t('settings.organization.aiSettings.proposalSuggestions.autoSuggestionsDescription')}
                 </p>
               </div>
               <Switch
@@ -133,7 +134,7 @@ export default function AISettingsPage() {
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                 <p className="text-sm font-medium">
-                  You have unsaved changes
+                  {t('settings.organization.general.unsavedChanges')}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -146,14 +147,14 @@ export default function AISettingsPage() {
                   }}
                   className="flex-1 sm:flex-none"
                 >
-                  Cancel
+                  {t('settings.organization.general.cancel')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateOrganization.isPending}
                   className="flex-1 sm:flex-none"
                 >
-                  {updateOrganization.isPending ? "Saving..." : "Save Changes"}
+                  {updateOrganization.isPending ? t('settings.organization.general.saving') : t('settings.organization.general.saveChanges')}
                 </Button>
               </div>
             </div>

@@ -76,31 +76,31 @@ export class ProductToInvoiceService {
 
   /**
    * Extract all bindings from template elements
+   * Uses the shared utility function for consistency with compliance validation
+   * Note: For AI context, we also need to provide table column bindings with full path format
    */
   private extractTemplateBindings(template: Template): Set<string> {
-    const bindings = new Set<string>();
-    const elements = template.elements ?? [];
+    const { extractTemplateBindings } = require("../../utils/invoice-compliance");
+    const baseBindings = extractTemplateBindings(template.elements ?? []);
     
+    // For AI context, also add table column bindings with full path format (items[*].field)
+    // This helps AI understand the table structure better
+    const elements = template.elements ?? [];
     for (const element of elements) {
-      if (element.type === "text" || element.type === "input" || element.type === "currency") {
-        const binding = (element as Extract<TemplateElement, { type: "text" | "input" | "currency" }>).binding;
-        if (binding) {
-          bindings.add(binding);
-        }
-      } else if (element.type === "table") {
+      if (element.type === "table") {
         const tableEl = element as Extract<TemplateElement, { type: "table" }>;
         if (tableEl.itemsBinding) {
-          bindings.add(tableEl.itemsBinding);
-        }
-        for (const col of tableEl.columns ?? []) {
-          if (col.binding) {
-            bindings.add(`${tableEl.itemsBinding}[*].${col.binding}`);
+          for (const col of tableEl.columns ?? []) {
+            if (col.binding) {
+              // Add full path format for AI context (e.g., "items[*].description")
+              baseBindings.add(`${tableEl.itemsBinding}[*].${col.binding}`);
+            }
           }
         }
       }
     }
     
-    return bindings;
+    return baseBindings;
   }
 
   /**

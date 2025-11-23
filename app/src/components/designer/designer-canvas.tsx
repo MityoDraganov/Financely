@@ -46,8 +46,15 @@ type DesignerCanvasProps = {
 	saveMutation: { mutate: (data: { elements: TemplateElement[] }) => void };
 };
 
-const PAGE_WIDTH = 794;
-const PAGE_HEIGHT = 1123;
+// Page dimensions in pixels (at 96 DPI to match PDF rendering)
+const PAGE_SIZES = {
+	A4: { width: 794, height: 1123 },
+	Letter: { width: 816, height: 1056 },
+} as const;
+
+function getPageDimensions(pageSize: string | undefined): { width: number; height: number } {
+	return PAGE_SIZES[pageSize as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
+}
 
 export function DesignerCanvas({
 	template,
@@ -71,6 +78,9 @@ export function DesignerCanvas({
 	onTableHeaderChange,
 }: DesignerCanvasProps) {
 	const elements = draftElements ?? template?.elements ?? [];
+	const pageDimensions = getPageDimensions(template?.pageSize);
+	const PAGE_WIDTH = pageDimensions.width;
+	const PAGE_HEIGHT = pageDimensions.height;
 
 	return (
 		<div className="flex-1 overflow-auto bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-50 grid place-items-center"
@@ -101,7 +111,7 @@ export function DesignerCanvas({
 			)}
 			<div
 				ref={pageRef}
-				className="bg-white shadow-2xl relative rounded-sm border-4 border-neutral-200 transition-all duration-300 hover:shadow-3xl"
+				className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
 				style={{
 					width: PAGE_WIDTH * state.zoom,
 					height: PAGE_HEIGHT * state.zoom,

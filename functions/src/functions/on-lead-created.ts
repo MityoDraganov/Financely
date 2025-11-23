@@ -1,6 +1,8 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
+import { FieldValue } from "firebase-admin/firestore";
+import { v4 as uuidv4 } from "uuid";
 import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getProductRepository } from "../repositories/product-repository";
@@ -9,8 +11,70 @@ import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { getProposalGenerationService } from "../services/ai/proposal-generation-service";
 import { Lead } from "../core";
+import { WorkflowExecutionEngine } from "../services/workflow-execution-engine";
+import { WorkflowEvent } from "../core/entities/workflow-execution";
+import { HttpRequestExecutor } from "../executors/http-request-executor";
+import { EmailExecutor } from "../executors/email-executor";
+import { InvoiceExecutor } from "../executors/invoice-executor";
+import { ProposalExecutor } from "../executors/proposal-executor";
+import { LeadExecutor } from "../executors/lead-executor";
+import { ContactExecutor } from "../executors/contact-executor";
+import { SystemExecutor } from "../executors/system-executor";
+import { SlackExecutor } from "../executors/slack-executor";
+import { PdfExecutor } from "../executors/pdf-executor";
+import { ProductExecutor } from "../executors/product-executor";
+import { StripeExecutor } from "../executors/stripe-executor";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const resendApiKey = defineSecret("RESEND_API_KEY");
+const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
+const resendFromName = defineSecret("RESEND_FROM_NAME");
+
+function getExecutionEngine(): WorkflowExecutionEngine {
+  const executionEngine = new WorkflowExecutionEngine();
+  
+  const httpExecutor = new HttpRequestExecutor();
+  const emailExecutor = new EmailExecutor({
+    resendApiKey: resendApiKey.value(),
+    resendFromEmail: resendFromEmail.value(),
+    resendFromName: resendFromName.value(),
+  });
+  const invoiceExecutor = new InvoiceExecutor();
+  const proposalExecutor = new ProposalExecutor({
+    resendApiKey: resendApiKey.value(),
+    resendFromEmail: resendFromEmail.value(),
+    resendFromName: resendFromName.value(),
+  });
+  const leadExecutor = new LeadExecutor();
+  const contactExecutor = new ContactExecutor();
+  const systemExecutor = new SystemExecutor();
+  const slackExecutor = new SlackExecutor();
+  const pdfExecutor = new PdfExecutor();
+  const productExecutor = new ProductExecutor();
+  const stripeExecutor = new StripeExecutor();
+
+  executionEngine.registerExecutor("http_request", httpExecutor);
+  executionEngine.registerExecutor("call.webhook", httpExecutor);
+  executionEngine.registerExecutor("send.email", emailExecutor);
+  executionEngine.registerExecutor("send.slack", slackExecutor);
+  executionEngine.registerExecutor("update.invoice.status", invoiceExecutor);
+  executionEngine.registerExecutor("generate.pdf", pdfExecutor);
+  executionEngine.registerExecutor("create.proposal", proposalExecutor);
+  executionEngine.registerExecutor("send.proposal", proposalExecutor);
+  executionEngine.registerExecutor("convert.proposal_to_invoice", proposalExecutor);
+  executionEngine.registerExecutor("create.lead", leadExecutor);
+  executionEngine.registerExecutor("update.lead.status", leadExecutor);
+  executionEngine.registerExecutor("convert.lead_to_contact", leadExecutor);
+  executionEngine.registerExecutor("create.contact", contactExecutor);
+  executionEngine.registerExecutor("update.contact", contactExecutor);
+  executionEngine.registerExecutor("add.product_to_proposal", productExecutor);
+  executionEngine.registerExecutor("create.stripe.invoice", stripeExecutor);
+  executionEngine.registerExecutor("wait.delay", systemExecutor);
+  executionEngine.registerExecutor("archive.record", systemExecutor);
+  executionEngine.registerExecutor("update.field", systemExecutor);
+  
+  return executionEngine;
+}
 
 /**
  * Firestore trigger that automatically generates proposal suggestions for new leads
@@ -20,7 +84,7 @@ export const onLeadCreated = onDocumentCreated(
   {
     document: "leads/{leadId}",
     region: "us-central1",
-    secrets: [geminiApiKey],
+    secrets: [geminiApiKey, resendApiKey, resendFromEmail, resendFromName],
     timeoutSeconds: 540, // 9 minutes max
     memory: "512MiB",
   },
@@ -39,7 +103,37 @@ export const onLeadCreated = onDocumentCreated(
       return;
     }
 
-    // Only process new leads
+    // Trigger workflow for lead.created event (always, regardless of status)
+    try {
+      const workflowEvent: WorkflowEvent = {
+        eventId: uuidv4(),
+        tenantId: organizationId,
+        type: "lead.created",
+        payload: {
+          leadId,
+          ...leadData,
+        },
+        timestamp: FieldValue.serverTimestamp() as any,
+      };
+
+      const executionEngine = getExecutionEngine();
+      await executionEngine.processEvent(workflowEvent);
+      
+      logger.info("Triggered workflow for lead.created event", {
+        leadId,
+        organizationId,
+        eventId: workflowEvent.eventId,
+      });
+    } catch (error) {
+      logger.error("Error triggering workflow for lead.created event", {
+        leadId,
+        organizationId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      // Don't throw - we don't want to fail the lead creation if workflow trigger fails
+    }
+
+    // Only process new leads for proposal generation
     if (leadData.status !== "new") {
       logger.info("Lead not in 'new' status, skipping auto-proposal generation", {
         leadId,

@@ -111,6 +111,7 @@ export const currencyElementSchema = templateElementBaseSchema.extend({
     rate: z.number().optional(),
   })).default([]),
   mode: z.enum(["independent", "linked", "formula"]).default("independent"),
+  formula: z.string().optional(), // Formula for formula mode (Excel-like syntax)
   align: z.enum(["left", "center", "right"]).default("left"),
 });
 

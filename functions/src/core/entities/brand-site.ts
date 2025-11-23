@@ -30,25 +30,80 @@ export const brandSiteDataSchema = z.object({
       model: z.string().optional(),
       version: z.number().int().default(1),
       regenerateSectionType: z.enum(["hero", "about", "features", "contact"]).optional(),
+      lastGeneratedPages: z.array(z.object({
+        id: z.string(),
+        slug: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        context: z.string().optional(),
+        type: z.string(),
+        contentEntries: z.array(z.any()).optional(),
+      })).optional(),
     })
     .optional(),
   status: brandSiteStatusSchema.default("pending"),
   subdomain: z.string().optional(),
   customDomain: z.string().optional(),
+  altDomains: z.array(z.string()).optional(), // Additional domains (e.g., www.example.com)
   deployedUrl: z.string().optional(),
   error: z.string().optional(),
   lastRegeneratedAt: z.string().optional(),
+  // Cloudflare hosting fields
+  currentVersionId: z.string().optional(), // Reference to latest live version in Cloudflare
+  primaryDomain: z.string().optional(), // Primary domain for this brand site (e.g., "acme-finance.com")
+  hostingProvider: z.enum(["firebase", "cloudflare"]).default("firebase"), // Track which hosting provider is used
   // AI generation context (temporary, not saved to brand)
   context: z.string().optional(),
   contextImages: z.array(z.string().url()).default([]),
+  // Page management
+  pages: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1),
+        slug: z.string().min(1),
+        description: z.string().optional(),
+        context: z.string().optional(),
+        type: z.enum(["standard", "blog", "contact"]).default("standard"),
+        order: z.number().int().default(0),
+        contentEntries: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string().min(1),
+              summary: z.string().optional(),
+              link: z.string().url().optional(),
+              image: z.string().url().optional(),
+              description: z.string().optional(), // Rich text HTML for AI
+              localization: z.object({
+                defaultLanguage: z.literal("en"),
+                languages: z.record(z.string(), z.object({
+                  title: z.string(),
+                  description: z.string(),
+                  summary: z.string().optional(),
+                  image: z.string().url().optional(),
+                  link: z.string().url().optional(),
+                })),
+              }).optional(),
+            }),
+          )
+          .default([]),
+      }),
+    )
+    .default([]),
   // Version history - stores previous versions of the site
   versions: z.array(
     z.object({
       version: z.number().int(),
+      versionId: z.string().optional(), // Cloudflare version ID (e.g., nanoid or timestamp-based)
       html: z.string(),
       files: z.record(z.string(), z.string()).optional(), // Store files for version history
       deployedUrl: z.string().optional(),
       previewUrl: z.string().optional(), // Preview URL for viewing without making live
+      sourceType: z.enum(["ai-builder", "manual", "imported"]).optional(), // How this version was created
+      aiPrompt: z.string().optional(), // AI prompt used to generate (if applicable)
+      notes: z.string().optional(), // User notes about this version
+      layoutConfig: z.unknown().optional(), // Optional layout config used to generate HTML
       metadata: z
         .object({
           generatedAt: z.string().optional(),
@@ -57,9 +112,49 @@ export const brandSiteDataSchema = z.object({
         })
         .optional(),
       createdAt: z.string(),
+      createdByUserId: z.string().optional(), // User who created this version
       description: z.string().optional(),
     })
   ).default([]),
+  // Chat conversations - stores AI chat history
+  conversations: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(), // Auto-generated from first message or user-defined
+        messages: z.array(
+          z.object({
+            id: z.string(),
+            role: z.enum(["user", "assistant"]),
+            content: z.string(),
+            attachments: z.array(z.string().url()).optional(),
+            timestamp: z.string(),
+          })
+        ),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+      })
+    )
+    .default([]),
+  // Chat request - temporary field for async processing
+  chatRequest: z
+    .object({
+      id: z.string(),
+      message: z.string(),
+      attachments: z.array(z.string().url()).optional(),
+      conversationHistory: z.array(
+        z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+          attachments: z.array(z.string().url()).optional(),
+        })
+      ).optional(),
+      conversationId: z.string().nullable().optional(),
+      status: z.enum(["pending", "processing", "completed"]),
+      createdAt: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export type BrandSiteData = z.infer<typeof brandSiteDataSchema>;
@@ -80,12 +175,16 @@ export type UpdateBrandSiteInput = Partial<
     | "status"
     | "subdomain"
     | "customDomain"
+    | "altDomains"
     | "deployedUrl"
     | "error"
     | "metadata"
     | "lastRegeneratedAt"
     | "context"
     | "contextImages"
+    | "currentVersionId"
+    | "primaryDomain"
+    | "hostingProvider"
   >
 >;
 

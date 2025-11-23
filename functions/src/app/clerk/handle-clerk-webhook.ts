@@ -59,6 +59,9 @@ export async function handleClerkWebhook(
   const databaseService = serviceHost.getDatabaseService();
   const userRepository = repositoryHost.getUsersRepository(databaseService);
 
+  // Store event for workflow trigger (if needed)
+  (dependencies as any).verifiedEvent = event;
+
   // Handle different event types
   switch (event.type) {
     case ClerkEventType.USER_CREATED:
@@ -67,6 +70,9 @@ export async function handleClerkWebhook(
         { clerkUser: event.data },
         { loggerService, userRepository },
       );
+      
+      // Note: Workflow trigger for user.joined will be handled in the Clerk webhook function
+      // after the user is created in Firestore, so we can get the organization IDs
       break;
 
     case ClerkEventType.USER_UPDATED:

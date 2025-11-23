@@ -118,6 +118,33 @@ export const useRegenerateSite = () => {
 };
 
 /**
+ * Hook to update brand site pages
+ */
+export const useUpdateBrandSitePages = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.updateBrandSitePages>[0]) =>
+      functionsService.updateBrandSitePages(payload),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success("Page settings saved");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to update brand site pages:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to save pages: ${errorMessage}`);
+    },
+  });
+};
+
+/**
  * Hook to add a custom domain to a brand site
  */
 export const useAddCustomDomain = () => {
@@ -144,6 +171,61 @@ export const useAddCustomDomain = () => {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       toast.error(`Failed to add custom domain: ${errorMessage}`);
+    },
+  });
+};
+
+/**
+ * Hook to remove a custom domain from a brand site
+ */
+export const useRemoveCustomDomain = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      brandSiteId: string;
+      customDomain: string;
+    }) => functionsService.removeCustomDomain(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites", variables.brandSiteId],
+      });
+      toast.success(result.message || "Custom domain removed successfully");
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to remove custom domain:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to remove custom domain: ${errorMessage}`);
+    },
+  });
+};
+
+/**
+ * Hook to publish a brand site to Cloudflare
+ */
+export const usePublishBrandSite = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof functionsService.publishBrandSite>[0]) =>
+      functionsService.publishBrandSite(payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["brandSite", variables.brandSiteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["brandSites"],
+      });
+      toast.success(
+        `Site published successfully! ${result.publishedDomains.length > 0 ? `Available at: ${result.publishedDomains[0]}` : ""}`
+      );
+    },
+    onError: (error: unknown) => {
+      console.error("Failed to publish brand site:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to publish site: ${errorMessage}`);
     },
   });
 };

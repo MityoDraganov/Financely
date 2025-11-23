@@ -85,7 +85,9 @@ export class FirebaseHostingService {
   private async makeRequest<T>(
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     endpoint: string,
-		body?: unknown
+		body?: unknown,
+    maxRetries = 3,
+    retryCount = 0,
   ): Promise<T> {
     let token: string;
     try {
@@ -118,6 +120,8 @@ export class FirebaseHostingService {
       endpoint,
       url: url.replace(token, "REDACTED"),
       hasBody: body !== undefined && body !== null,
+      retryCount,
+      maxRetries,
     });
 
     try {
@@ -154,31 +158,87 @@ export class FirebaseHostingService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText}`;
+        let errorMessage: string;
+        let errorJson: any = null;
         
         try {
-          const errorJson = JSON.parse(errorText);
+          errorJson = JSON.parse(errorText);
+          // Extract the actual error message from API response
           if (errorJson.error?.message) {
-            errorMessage = `Firebase Hosting API error: ${errorJson.error.message}`;
+            errorMessage = errorJson.error.message;
           } else if (errorJson.message) {
-            errorMessage = `Firebase Hosting API error: ${errorJson.message}`;
+            errorMessage = errorJson.message;
+          } else if (errorText) {
+            errorMessage = errorText;
+          } else {
+            errorMessage = `${response.status} ${response.statusText}`;
           }
         } catch {
           // If not JSON, use the text as is
-          if (errorText && errorText.length < 500) {
-            errorMessage = `Firebase Hosting API error: ${response.status} ${response.statusText} - ${errorText}`;
+          if (errorText) {
+            errorMessage = errorText;
+          } else {
+            errorMessage = `${response.status} ${response.statusText}`;
           }
         }
         
-        logger.error("Firebase Hosting API error", {
+        // Check if this is a retryable error (quota/rate limit)
+        const isQuotaError = 
+          errorMessage.includes("Resource has been exhausted") || 
+          errorMessage.includes("quota") ||
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("rateLimitExceeded") ||
+          (errorJson?.error?.status === "RESOURCE_EXHAUSTED");
+        
+        const isRetryable = 
+          response.status === 429 || // Too Many Requests
+          response.status === 503 || // Service Unavailable
+          response.status === 500 || // Internal Server Error
+          isQuotaError;
+
+        if (isRetryable && retryCount < maxRetries) {
+          // Calculate exponential backoff: 2^retryCount seconds, max 30 seconds
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          
+          logger.warn("Firebase Hosting API error, retrying", {
+            status: response.status,
+            statusText: response.statusText,
+            errorMessage,
+            errorJson,
+            errorText: errorText.substring(0, 500),
+            endpoint,
+            method,
+            retryCount: retryCount + 1,
+            maxRetries,
+            delayMs: delay,
+            isQuotaError,
+          });
+
+          // Wait before retry
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
+          // Retry the request
+          return await this.makeRequest<T>(method, endpoint, body, maxRetries, retryCount + 1);
+        }
+        
+        // Log full error details
+        logger.error("Firebase Hosting API error (after retries)", {
           status: response.status,
           statusText: response.statusText,
-          error: errorText.substring(0, 1000), // Truncate long errors
+          errorMessage,
+          errorJson: errorJson ? JSON.stringify(errorJson) : null,
+          errorText: errorText.substring(0, 2000),
           endpoint,
           method,
           url: url.replace(token, "REDACTED"),
+          retryCount,
+          maxRetries,
+          projectId: this.projectId,
+          isRetryable,
+          isQuotaError,
         });
         
+        // Return the actual API error message
         throw new Error(errorMessage);
       }
 
@@ -194,6 +254,26 @@ export class FirebaseHostingService {
 					  }
 					: { message: "Unknown error" };
 
+      // Check if this is a retryable network error
+      const isNetworkError = error instanceof TypeError && 
+        (error.message.includes("fetch") || error.message.includes("Failed to fetch"));
+      
+      if (isNetworkError && retryCount < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        
+        logger.warn("Firebase Hosting API network error, retrying", {
+          error: errorDetails.message,
+          endpoint,
+          method,
+          retryCount: retryCount + 1,
+          maxRetries,
+          delayMs: delay,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return await this.makeRequest<T>(method, endpoint, body, maxRetries, retryCount + 1);
+      }
+
       logger.error("Firebase Hosting API request failed", {
         ...errorDetails,
         endpoint,
@@ -201,6 +281,7 @@ export class FirebaseHostingService {
         url: url.replace(token, "REDACTED"),
         projectId: this.projectId,
         apiBaseUrl: this.hostingApiBaseUrl,
+        retryCount,
       });
 
       // Provide more helpful error messages for common fetch failures
@@ -225,6 +306,35 @@ export class FirebaseHostingService {
         throw new Error(`Firebase Hosting API error: ${error.message}`);
       }
       
+      throw error;
+    }
+  }
+
+  /**
+   * List all Firebase Hosting sites in the project
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites/list
+   */
+  async listAllSites(): Promise<Array<{ siteId: string; name?: string; defaultUrl?: string }>> {
+    try {
+      const endpoint = `/projects/${this.projectId}/sites`;
+      const response = await this.makeRequest<{
+        sites?: Array<{
+          name: string;
+          siteId?: string;
+          defaultUrl?: string;
+        }>;
+      }>("GET", endpoint);
+
+      return (response.sites || []).map((site) => ({
+        siteId: site.siteId || site.name.split("/").pop() || "",
+        name: site.name,
+        defaultUrl: site.defaultUrl,
+      }));
+    } catch (error) {
+      logger.error("Failed to list Firebase Hosting sites", {
+        projectId: this.projectId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       throw error;
     }
   }
@@ -1423,6 +1533,35 @@ export class FirebaseHostingService {
   }
 
   /**
+   * Delete a custom domain from Firebase Hosting
+   * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/delete
+   */
+  async deleteCustomDomain(siteId: string, domain: string): Promise<void> {
+    const normalizedSiteId = siteId
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
+    
+    // Format: DELETE /v1beta1/projects/{project}/sites/{site}/customDomains/{domain}
+    const endpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}/customDomains/${encodeURIComponent(domain)}`;
+    
+    try {
+      await this.makeRequest("DELETE", endpoint);
+      logger.info("Custom domain deleted from Firebase Hosting", {
+        siteId: normalizedSiteId,
+        domain,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Failed to delete custom domain from Firebase Hosting", {
+        siteId: normalizedSiteId,
+        domain,
+        error: errorMessage,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * List all domains for a site
    * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites.customDomains/list
    */
@@ -1516,5 +1655,93 @@ export class FirebaseHostingService {
 		});
 
 		return previewUrl;
+	}
+
+	/**
+	 * Delete a Firebase Hosting site
+	 * Reference: https://firebase.google.com/docs/reference/hosting/rest/v1beta1/projects.sites/delete
+	 * @param siteId - The site ID to delete
+	 */
+	async deleteSite(siteId: string): Promise<void> {
+		if (!siteId || typeof siteId !== "string") {
+			throw new Error("Site ID is required and must be a string");
+		}
+
+		const normalizedSiteId = siteId
+			.toLowerCase()
+			.replace(/[^a-z0-9-]/g, "-");
+
+		// Check if this is the default site (cannot be deleted)
+		if (normalizedSiteId === this.projectId) {
+			logger.warn("Cannot delete default Firebase Hosting site", {
+				siteId: normalizedSiteId,
+				projectId: this.projectId,
+				note: "Default site (with same ID as project) cannot be deleted via API",
+			});
+			// Don't throw - just log and return (treat as success since we can't delete it anyway)
+			return;
+		}
+
+		logger.info("Deleting Firebase Hosting site", {
+			siteId: normalizedSiteId,
+			projectId: this.projectId,
+		});
+
+		// Use project-scoped endpoint (correct format per Firebase Hosting API docs)
+		// DELETE /v1beta1/projects/{project}/sites/{siteId}
+		const projectScopedEndpoint = `/projects/${this.projectId}/sites/${normalizedSiteId}`;
+		
+		// Also try site-scoped as fallback (some operations support both)
+		const siteScopedEndpoint = `/sites/${normalizedSiteId}`;
+
+		// Try project-scoped first (correct format), then site-scoped as fallback
+		for (const endpoint of [projectScopedEndpoint, siteScopedEndpoint]) {
+			try {
+				await this.makeRequest("DELETE", endpoint);
+				logger.info("Firebase Hosting site deleted successfully", {
+					siteId: normalizedSiteId,
+					endpoint,
+					projectId: this.projectId,
+				});
+				return;
+			} catch (error: unknown) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				
+				// Check if error is 404 (site not found - already deleted or never existed)
+				const isNotFound = 
+					errorMessage.includes("404") || 
+					errorMessage.toLowerCase().includes("not found") ||
+					errorMessage.toLowerCase().includes("does not exist");
+
+				if (isNotFound) {
+					logger.info("Firebase Hosting site does not exist (already deleted or never created)", {
+						siteId: normalizedSiteId,
+						endpoint,
+						projectId: this.projectId,
+						note: "Treating 404 as success - site is already deleted",
+					});
+					return; // Treat 404 as success - site is already deleted
+				}
+
+				// If this is the last endpoint, throw the error
+				if (endpoint === siteScopedEndpoint) {
+					logger.error("Failed to delete Firebase Hosting site (both endpoints failed)", {
+						siteId: normalizedSiteId,
+						projectId: this.projectId,
+						projectScopedEndpoint,
+						siteScopedEndpoint,
+						error: errorMessage,
+					});
+					throw error;
+				}
+
+				// Try next endpoint
+				logger.debug("Failed to delete with project-scoped endpoint, trying site-scoped", {
+					siteId: normalizedSiteId,
+					projectId: this.projectId,
+					error: errorMessage.substring(0, 200),
+				});
+			}
+		}
 	}
 }

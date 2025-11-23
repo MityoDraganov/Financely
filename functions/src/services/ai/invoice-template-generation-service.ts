@@ -12,6 +12,8 @@ import { validateTemplateCompliance } from "../../utils/invoice-compliance";
  */
 export class InvoiceTemplateGenerationService {
   private aiService: AIService;
+  private currentCurrency: string = "USD";
+  private currentRegion: "US" | "EU" | "CA" | "AU" | "UK" = "US";
 
   constructor(aiService?: AIService) {
     this.aiService = aiService || getAIService();
@@ -42,7 +44,7 @@ export class InvoiceTemplateGenerationService {
     }));
     
     // Create prompt for AI
-    const prompt = this.buildTemplatePrompt(context, requiredFields, region, options);
+    const prompt = this.buildTemplatePrompt(context, requiredFields, region, organization, options);
     
     // Define the expected JSON schema for template data
     const schema = {
@@ -91,6 +93,12 @@ export class InvoiceTemplateGenerationService {
               format: { type: "object" as const },
               itemsBinding: { type: "string" as const },
               columns: { type: "array" as const },
+              // Currency element specific fields (optional)
+              currency: { type: "string" as const },
+              mode: { type: "string" as const, enum: ["independent", "linked", "formula"] },
+              formula: { type: "string" as const },
+              // Table column specific fields (optional)
+              calc: { type: "string" as const },
             },
           },
         },
@@ -142,7 +150,7 @@ export class InvoiceTemplateGenerationService {
           },
           margins: result.brand?.margins || { top: 40, right: 40, bottom: 40, left: 40 },
         },
-        elements: this.enrichElements(result.elements, requiredFields, region),
+        elements: this.enrichElements(result.elements, requiredFields, region, organization),
         status: "draft",
         compliance: {
           region,
@@ -218,12 +226,27 @@ export class InvoiceTemplateGenerationService {
       parts.push(`Brand Colors: Primary ${brandColors.primary || "#111827"}, Secondary ${brandColors.secondary || "#6b7280"}, Accent ${brandColors.accent || "#2563eb"}`);
     }
     
-    if (orgData.settings?.defaultCurrency) {
-      parts.push(`Default Currency: ${orgData.settings.defaultCurrency}`);
+    // Determine currency based on region if not set in org settings
+    let currency = orgData.settings?.defaultCurrency;
+    if (!currency) {
+      // Set default currency based on region
+      const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
+        US: "USD",
+        EU: "EUR",
+        CA: "CAD",
+        AU: "AUD",
+        UK: "GBP",
+      };
+      currency = regionCurrencyMap[region] || "USD";
+    }
+    
+    if (currency) {
+      parts.push(`Default Currency: ${currency}`);
     }
     
     parts.push(`\nCompliance Region: ${region}`);
     parts.push(`This invoice template must comply with ${region} invoice requirements.`);
+    parts.push(`🚨 CRITICAL: For ${region} region, use currency ${currency} (NOT USD unless explicitly specified). All monetary fields and table columns must use ${currency}.`);
     
     return parts.join("\n");
   }
@@ -235,6 +258,7 @@ export class InvoiceTemplateGenerationService {
     context: string,
     requiredFields: Array<{ binding: string; label: string; description?: string; format?: string }>,
     region: "US" | "EU" | "CA" | "AU" | "UK",
+    organization: Organization,
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       includeLogo?: boolean;
@@ -243,6 +267,16 @@ export class InvoiceTemplateGenerationService {
   ): string {
     const style = options?.style || "modern";
     const includeLogo = options?.includeLogo ?? true;
+    
+    // Determine currency based on region if not set in org settings
+    const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
+      US: "USD",
+      EU: "EUR",
+      CA: "CAD",
+      AU: "AUD",
+      UK: "GBP",
+    };
+    const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
     
     const requiredFieldsList = requiredFields.map((f, idx) => 
       `${idx + 1}. ${f.binding} (${f.label})${f.description ? `: ${f.description}` : ""}${f.format ? ` [Format: ${f.format}]` : ""}`
@@ -277,8 +311,9 @@ Design Requirements:
 - Use Currency elements for: total, subtotal, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.
 - NEVER use Input elements for monetary amounts - this is incorrect
 - Currency elements automatically format with currency symbol and proper locale formatting
-- Set currency code (e.g., "USD", "EUR", "GBP") from organization context
-- For table price columns (unitPrice, lineTotal, etc.), set column type to "currency" and specify currency code
+- Set currency code based on region: EU → EUR, US → USD, CA → CAD, AU → AUD, UK → GBP
+- For ${region} region, use ${currency || (region === "EU" ? "EUR" : region === "US" ? "USD" : region === "CA" ? "CAD" : region === "AU" ? "AUD" : region === "UK" ? "GBP" : "USD")} for ALL currency fields
+- For table price columns (unitPrice, lineTotal, etc.), set column type to "currency" and specify currency code as ${currency || (region === "EU" ? "EUR" : "USD")}
 
 - Date fields should use Input elements with variant="date" or Text elements with date formatting
 
@@ -299,6 +334,8 @@ Element Guidelines:
   * Specify the currency code in the column (e.g., currency: "USD", "EUR", "GBP") from organization context
   * Currency columns automatically format with currency symbol and proper locale formatting
   * Currency columns support field linking for automatic conversion between currencies
+  * **FORMULA FOR TABLE COLUMNS**: For calculated columns (like "Line Total", "Total", "Amount"), add a "calc" property with a formula
+  * Example for line total: { id: "col-total", header: "Line Total", type: "currency", currency: "USD", binding: "total", width: 100, align: "right", calc: "=quantity * unitPrice" }
   * Example: { id: "col-price", header: "Price", type: "currency", currency: "USD", binding: "unitPrice", width: 100, align: "right" }
 - Input elements: Use ONLY for date fields (variant="date") or basic text inputs. NEVER use Input elements for monetary amounts.
 - 🚨 Currency elements: MANDATORY for ALL monetary values (totals, subtotals, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.)
@@ -306,7 +343,8 @@ Element Guidelines:
   * Set currency code (e.g., "USD", "EUR", "GBP") from organization context
   * Set binding to the monetary field (e.g., binding: "total", binding: "subtotal")
   * Supports field linking for automatic conversion between currencies
-  * Example: { type: "currency", currency: "USD", binding: "total", x: 550, y: 650, width: 200, height: 32 }
+  * **FORMULA MODE**: For calculated fields (subtotal, netAmount, vatTotal, taxTotal, total, grossTotal), set mode: "formula" and provide a formula
+  * Example: { type: "currency", currency: "USD", binding: "total", x: 550, y: 650, width: 200, height: 32, mode: "formula", formula: "=SUM(items[*].total)" }
 - Box elements: Use for sections/containers with borders
 - Line elements: Use for separators
 
@@ -378,16 +416,84 @@ CRITICAL: Data Accuracy Rules
 
 ${options?.customPrompt ? `\n\nADDITIONAL USER INSTRUCTIONS:\n${options.customPrompt}\n\nPlease incorporate these specific requirements into the template design while maintaining compliance and professional appearance.` : ""}
 
+🧮 FORMULA GENERATION RULES (CRITICAL for calculated fields):
+
+A. TABLE COLUMN FORMULAS (for calculated columns like "Line Total", "Total", "Amount"):
+   - For table columns that should be calculated (e.g., lineTotal = quantity * unitPrice), add a "calc" property to the column object
+   - Pattern: Use column bindings directly (e.g., "quantity", "unitPrice") - these will be resolved to row-specific paths at runtime
+   - Example: If you create columns with bindings "quantity" and "unitPrice", and a "total" column, set: { id: "col-total", header: "Total", type: "currency", binding: "total", calc: "=quantity * unitPrice", ... }
+   - Example: If you create columns with bindings "qty" and "price", and a "lineTotal" column, set: { id: "col-line", header: "Line Total", type: "currency", binding: "lineTotal", calc: "=qty * price", ... }
+   - IMPORTANT: Use the ACTUAL column binding names you create, not hardcoded names
+   - Common calculated columns: "total", "lineTotal", "amount", "itemTotal" should typically have formulas
+   - The "calc" property should be a string starting with "=" (e.g., "=quantity * unitPrice")
+
+B. CURRENCY ELEMENT FORMULAS (for calculated fields like subtotal, netAmount, vatTotal, taxTotal, total, grossTotal):
+   - Set mode: "formula" (NOT "independent" or "linked")
+   - Generate appropriate formulas based on the ACTUAL bindings you create in the template
+
+FORMULA PATTERNS (use the ACTUAL binding names you create, not hardcoded names):
+
+C. Subtotal/Net Amount Fields (subtotal, netAmount, net, etc.):
+   - These should sum all line item totals from the items table
+   - Pattern: =SUM({itemsBinding}[*].{totalColumnBinding})
+   - Example: If you create a table with itemsBinding="items" and a column with binding="total", use: =SUM(items[*].total)
+   - Example: If you create a table with itemsBinding="lineItems" and a column with binding="lineTotal", use: =SUM(lineItems[*].lineTotal)
+   - IMPORTANT: Use the ACTUAL itemsBinding and total column binding you create, not hardcoded "items" or "total"
+
+D. VAT/Tax Total Fields (vatTotal, taxTotal, vat, tax, etc.):
+   - These should calculate tax as a percentage of the subtotal
+   - Pattern: =IF({subtotalBinding} > 0, {subtotalBinding} * {taxRate}, 0)
+   - Tax rates: EU = 20% (0.20), US = 0% (0), CA = varies, AU = 10% (0.10), UK = 20% (0.20)
+   - Example for EU: =IF(subtotal > 0, subtotal * 0.20, IF(netAmount > 0, netAmount * 0.20, 0))
+   - IMPORTANT: Use the ACTUAL subtotal/netAmount binding names you create, check for both "subtotal" and "netAmount" variants
+
+E. Total/Gross Total Fields (total, grossTotal, grandTotal, etc.):
+   - These should ALWAYS sum subtotal/netAmount + tax/VAT
+   - Formula MUST add the base amount (subtotal or netAmount) to the tax amount (vatTotal or taxTotal)
+   - Pattern: =IF({subtotalBinding} > 0, {subtotalBinding}, IF({netAmountBinding} > 0, {netAmountBinding}, 0)) + IF({vatBinding} > 0, {vatBinding}, IF({taxBinding} > 0, {taxBinding}, 0))
+   - Example: =IF(subtotal > 0, subtotal, IF(netAmount > 0, netAmount, 0)) + IF(vatTotal > 0, vatTotal, IF(taxTotal > 0, taxTotal, 0))
+   - CRITICAL: The formula MUST use the + operator to add the base amount and tax amount together
+   - IMPORTANT: Use the ACTUAL binding names you create, check for all variants (subtotal/netAmount, vatTotal/taxTotal)
+   - NEVER generate a formula that returns only the base amount without adding the tax
+
+FORMULA SYNTAX:
+- All formulas must start with "="
+- Use SUM() function for summing arrays: SUM(arrayName[*].fieldName)
+- Use IF() function for conditional logic: IF(condition, trueValue, falseValue)
+- Support nested IF for fallbacks: IF(primary > 0, primary, IF(fallback > 0, fallback, 0))
+- Array wildcard [*] automatically expands to all items at runtime
+- Field references use exact binding names (e.g., "subtotal", "netAmount", "vatTotal", "items[*].total")
+
+CRITICAL FORMULA GENERATION STEPS:
+1. Identify which fields are calculated (subtotal/netAmount, vatTotal/taxTotal, total/grossTotal)
+2. Look at the table you create - note its itemsBinding (e.g., "items", "lineItems", "invoiceItems")
+3. Look at the table columns - identify which column represents the line total (binding like "total", "lineTotal", "amount", "itemTotal")
+4. Generate formulas using the ACTUAL binding names you create
+5. For VAT/tax, use the appropriate rate for the region (EU=20%, US=0%, etc.)
+6. Always include fallbacks using IF() to handle missing fields gracefully
+
+EXAMPLE FORMULA GENERATION:
+- If you create: table with itemsBinding="items", column with binding="lineTotal"
+- And you create: currency element with binding="subtotal"
+- Then formula should be: =SUM(items[*].lineTotal) (using YOUR actual bindings)
+
+- If you create: currency element with binding="vatTotal" for EU region
+- And you created: currency element with binding="subtotal"
+- Then formula should be: =IF(subtotal > 0, subtotal * 0.20, 0) (using YOUR actual binding name)
+
 FINAL VALIDATION BEFORE OUTPUT:
 1. ✅ All monetary fields (total, subtotal, taxTotal, etc.) use Currency elements (NOT Input)
 2. ✅ All table price columns have type="currency" with currency code specified
-3. ✅ Every element satisfies: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
-4. ✅ No elements overflow canvas boundaries
-5. ✅ All required compliance fields have elements with correct bindings
+3. ✅ Calculated table columns (lineTotal, total, amount) have "calc" property with formulas using ACTUAL column binding names
+4. ✅ Calculated currency fields have mode: "formula" with appropriate formulas using ACTUAL binding names
+5. ✅ Formulas reference the ACTUAL itemsBinding and column bindings you create, not hardcoded names
+6. ✅ Every element satisfies: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
+7. ✅ No elements overflow canvas boundaries
+8. ✅ All required compliance fields have elements with correct bindings
 
-Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. Use only real data from the organization context provided.
+Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. For calculated currency fields, generate formulas using the ACTUAL binding names you create in the template. Use only real data from the organization context provided.
 
-REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position.`;
+REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position. Formulas must use YOUR actual binding names, not hardcoded field names.`;
   }
 
   private getStyleDescription(style: string): string {
@@ -474,8 +580,22 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
       columns?: any[];
     }>,
     requiredFields: Array<{ binding: string; label: string; format?: string }>,
-    region: "US" | "EU" | "CA" | "AU" | "UK"
+    region: "US" | "EU" | "CA" | "AU" | "UK",
+    organization: Organization
   ): TemplateElement[] {
+    // Determine currency based on region if not set in org settings
+    const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
+      US: "USD",
+      EU: "EUR",
+      CA: "CAD",
+      AU: "AUD",
+      UK: "GBP",
+    };
+    const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
+    
+    // Store currency for use in createElementForBinding
+    this.currentCurrency = currency;
+    this.currentRegion = region;
     const enriched: TemplateElement[] = [];
     const existingBindings = new Set<string>();
     
@@ -484,7 +604,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
       // Clamp to canvas before normalizing
       this.clampToCanvas(el);
       
-      const element = this.normalizeElement(el, region);
+      const element = this.normalizeElement(el, region, currency);
       if (element) {
         // Double-check canvas boundaries after normalization
         this.clampToCanvas(element);
@@ -506,7 +626,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
       : 100;
     
     for (const field of missingFields) {
-      const element = this.createElementForBinding(field, currentY);
+      const element = this.createElementForBinding(field, currentY, region, currency);
       if (element) {
         // Ensure new elements are within canvas
         this.clampToCanvas(element);
@@ -558,7 +678,8 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
    */
   private normalizeElement(
     el: any,
-    region: "US" | "EU" | "CA" | "AU" | "UK"
+    region: "US" | "EU" | "CA" | "AU" | "UK",
+    currency: string
   ): TemplateElement | null {
     const base = {
       id: el.id || `el-${Date.now()}-${Math.random()}`,
@@ -605,13 +726,22 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
     }
 
     if (el.type === "table") {
+      // Preserve calc formulas from AI-generated columns
+      const normalizedColumns = el.columns 
+        ? el.columns.map((col: any) => ({
+            ...col,
+            // Preserve calc if it exists
+            ...(col.calc ? { calc: col.calc } : {}),
+          }))
+        : undefined;
+      
       return {
         ...base,
         type: "table",
         rowHeight: 28,
         headerHeight: 28,
         stripe: true,
-        columns: el.columns || [
+        columns: normalizedColumns || [
           {
             id: `col-${Date.now()}-1`,
             header: "Description",
@@ -639,8 +769,8 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             align: "right",
             type: "currency",
             binding: "unitPrice",
-            currency: "USD",
-            format: { kind: "currency", currency: "USD" },
+            currency: el.currency || currency,
+            format: { kind: "currency", currency: el.currency || currency },
             showTotal: false,
           },
           {
@@ -650,8 +780,8 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             align: "right",
             type: "currency",
             binding: "total",
-            currency: "USD",
-            format: { kind: "currency", currency: "USD" },
+            currency: el.currency || currency,
+            format: { kind: "currency", currency: el.currency || currency },
             showTotal: false,
           },
         ],
@@ -661,14 +791,19 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
     }
 
     if (el.type === "currency") {
+      // Preserve formula if AI provided it, otherwise determine mode based on whether formula exists
+      const hasFormula = el.formula && el.formula.trim() !== "";
+      const mode = hasFormula ? "formula" : (el.mode || "independent");
+      
       return {
         ...base,
         type: "currency",
         placeholder: el.placeholder || "",
         binding: el.binding,
-        currency: el.currency || "USD",
+        currency: el.currency || currency,
         currencyLinks: el.currencyLinks || [],
-        mode: el.mode || "independent",
+        mode: mode,
+        formula: hasFormula ? el.formula : undefined,
         align: el.align || "right",
       };
     }
@@ -715,7 +850,9 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
    */
   private createElementForBinding(
     field: { binding: string; label: string; format?: string },
-    yPosition: number
+    yPosition: number,
+    region: "US" | "EU" | "CA" | "AU" | "UK",
+    currency: string
   ): TemplateElement | null {
     // Handle nested object fields (e.g., seller.name, seller.address)
     // For nested fields, we create a text element that can display the value
@@ -798,9 +935,10 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             header: "Price",
             width: 100,
             align: "right",
-            type: "number",
+            type: "currency",
             binding: "unitPrice",
-            format: { kind: "currency", currency: "USD" },
+            currency: currency,
+            format: { kind: "currency", currency: currency },
             showTotal: false,
           },
           {
@@ -808,9 +946,10 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
             header: "Total",
             width: 100,
             align: "right",
-            type: "number",
+            type: "currency",
             binding: "total",
-            format: { kind: "currency", currency: "USD" },
+            currency: currency,
+            format: { kind: "currency", currency: currency },
             showTotal: false,
           },
         ],
@@ -859,6 +998,34 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
       const maxWidth = 794 - currencyX - 40; // Leave 40px right margin
       const currencyWidth = Math.min(200, maxWidth);
       
+      // Determine if this field should have a formula based on binding name patterns
+      // The AI will generate the actual formula, but we mark it as a calculated field
+      const isCalculatedField = 
+        field.binding.toLowerCase().includes("subtotal") ||
+        field.binding.toLowerCase().includes("netamount") ||
+        field.binding.toLowerCase().includes("net") ||
+        field.binding.toLowerCase().includes("vattotal") ||
+        field.binding.toLowerCase().includes("taxtotal") ||
+        field.binding.toLowerCase().includes("vat") ||
+        field.binding.toLowerCase().includes("tax") ||
+        field.binding.toLowerCase() === "total" ||
+        field.binding.toLowerCase().includes("grosstotal") ||
+        field.binding.toLowerCase().includes("grandtotal");
+      
+      // For calculated fields, set mode to "formula"
+      // The AI should have generated the formula in the template, but if it didn't, we'll let it be independent
+      // The AI prompt now instructs it to generate formulas, so we trust the AI's output
+      let mode: "independent" | "linked" | "formula" = "independent";
+      let formula: string | undefined = undefined;
+      
+      if (isCalculatedField) {
+        // Mark as formula mode - the AI should have provided the formula in the generated template
+        // If the AI didn't provide a formula, the element will be independent (user can set it manually)
+        mode = "formula";
+        // Note: We don't hardcode formulas here anymore - the AI generates them based on actual bindings
+        // The formula will be set by the AI in the generated template, or can be set manually by the user
+      }
+      
       return {
         id: `el-${Date.now()}-currency`,
         type: "currency",
@@ -871,9 +1038,10 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
         visible: true,
         placeholder: "0.00",
         binding: field.binding,
-        currency: "USD", // Will be overridden by organization currency if available
+        currency: currency,
         currencyLinks: [],
-        mode: "independent",
+        mode: mode,
+        formula: formula,
         align: "right",
       };
     }
@@ -929,7 +1097,7 @@ REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE
     for (const binding of missingBindings) {
       const field = requiredFields.find(f => f.binding === binding);
       if (field) {
-        const element = this.createElementForBinding(field, maxY + 20);
+        const element = this.createElementForBinding(field, maxY + 20, this.currentRegion, this.currentCurrency);
         if (element) {
           newElements.push(element);
         }

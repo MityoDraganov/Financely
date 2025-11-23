@@ -129,7 +129,7 @@ export class N8nIntegrationService {
   private convertStepToN8nNodes(step: WorkflowStep, stepIndex: number): any[] {
     const nodes: any[] = [];
 
-    step.actions.forEach((action, actionIndex) => {
+    step.actions.forEach((action: any, actionIndex: number) => {
       const nodeId = `step-${stepIndex}-action-${actionIndex}`;
       const node = this.convertActionToN8nNode(action, nodeId, stepIndex, actionIndex);
       nodes.push(node);
@@ -261,7 +261,7 @@ export class N8nIntegrationService {
 
     // Connect steps in sequence
     steps.forEach((step, stepIndex) => {
-      step.actions.forEach((_action, actionIndex) => {
+      step.actions.forEach((_action: any, actionIndex: number) => {
         const currentNodeId = `step-${stepIndex}-action-${actionIndex}`;
         
         // Connect to next action in same step

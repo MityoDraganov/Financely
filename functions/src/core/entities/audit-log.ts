@@ -109,6 +109,7 @@ export const auditLogActionTypeSchema = z.enum([
   "site.version.restored",
   "site.domain.added",
   "site.domain.removed",
+  "site.pages.updated",
   
   // Analytics & Configuration
   "analytics.config.updated",

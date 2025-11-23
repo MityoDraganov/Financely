@@ -11,10 +11,23 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { UserButton } from "@clerk/clerk-react";
-import { Brush, FileText, LayoutDashboard, Settings, Zap, Users, Sparkles, MessageSquare, Package, BarChart3, Menu } from "lucide-react";
+import {
+	Brush,
+	FileText,
+	LayoutDashboard,
+	Settings,
+	Zap,
+	Users,
+	Sparkles,
+	MessageSquare,
+	Package,
+	BarChart3,
+	Menu,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ModeToggle } from "./ui/mode-toggle";
+import { LanguageSelector } from "./language-selector";
 import { useOrganizationBranding } from "@/hooks/use-organization-branding";
 import { Button } from "./ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -29,76 +42,103 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Eye, Plus } from "lucide-react";
+import { memo, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
-const items = [
-	{
-		title: "Dashboard",
-		href: "/dashboard",
-		icon: LayoutDashboard,
-	},
-	{
-		title: "Products",
-		href: "/products",
-		icon: Package,
-	},
-	{
-		title: "Invoices",
-		href: "/invoices",
-		icon: FileText,
-	},
-	{
-		title: "Contacts",
-		href: "/contacts",
-		icon: Users,
-	},
-	{
-		title: "Leads",
-		href: "/leads",
-		icon: MessageSquare,
-	},
-	{
-		title: "Proposals",
-		href: "/proposals",
-		icon: FileText,
-	},
-	{
-		title: "Templates",
-		href: "/templates",
-		icon: Brush,
-	},
-	{
-		title: "Workflows",
-		href: "/workflows",
-		icon: Zap,
-	},
-	{
-		title: "Site Builder",
-		href: "/site-builder",
-		icon: Sparkles,
-	},
-	{
-		title: "Analytics",
-		href: "/analytics",
-		icon: BarChart3,
-	},
-	{
-		title: "Settings",
-		href: "/settings/organization/general",
-		icon: Settings,
-	},
-];
+// Navigation items will be created with translations inside the component
+
+// Memoized navigation item component to prevent unnecessary re-renders
+const NavItem = memo(({ item, isMobile, toggleSidebar, title }: { item: { href: string; icon: React.ComponentType }; isMobile: boolean; toggleSidebar: () => void; title: string }) => {
+	const handleClick = useCallback(() => {
+		if (isMobile) {
+			toggleSidebar();
+		}
+	}, [isMobile, toggleSidebar]);
+
+	return (
+		<SidebarMenuItem>
+			<SidebarMenuButton asChild tooltip={title}>
+				<Link to={item.href} onClick={handleClick}>
+					<item.icon />
+					<span>{title}</span>
+				</Link>
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
+});
+
+NavItem.displayName = "NavItem";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-	const { organizationName, organizationLogo } = useOrganizationBranding();
-	const displayName = organizationName || "Financely";
-	const displayInitial = displayName.charAt(0).toUpperCase();
+	const { t } = useTranslation();
+	const { organizationName } = useOrganizationBranding();
+	const displayName = useMemo(() => organizationName || "Financely", [organizationName]);
 	const isMobile = useMediaQuery("(max-width: 768px)");
-	const { toggleSidebar } = useSidebar();
+	const { toggleSidebar, state } = useSidebar();
 	const location = useLocation();
-	const isCreateInvoicePage = location.pathname === "/create-invoice";
-	const isDesignerPage = location.pathname.startsWith("/designer");
+	const isCreateInvoicePage = useMemo(() => location.pathname === "/create-invoice", [location.pathname]);
+	const isDesignerPage = useMemo(() => location.pathname.startsWith("/designer"), [location.pathname]);
 	const invoiceTemplate = useInvoiceTemplate();
 	const designerTemplate = useDesignerTemplate();
+
+	// Navigation items with translations
+	const navItems = useMemo(() => [
+		{
+			title: t("layout.navigation.dashboard"),
+			href: "/dashboard",
+			icon: LayoutDashboard,
+		},
+		{
+			title: t("layout.navigation.products"),
+			href: "/products",
+			icon: Package,
+		},
+		{
+			title: t("layout.navigation.invoices"),
+			href: "/invoices",
+			icon: FileText,
+		},
+		{
+			title: t("layout.navigation.contacts"),
+			href: "/contacts",
+			icon: Users,
+		},
+		{
+			title: t("layout.navigation.leads"),
+			href: "/leads",
+			icon: MessageSquare,
+		},
+		{
+			title: t("layout.navigation.proposals"),
+			href: "/proposals",
+			icon: FileText,
+		},
+		{
+			title: t("layout.navigation.templates"),
+			href: "/templates",
+			icon: Brush,
+		},
+		{
+			title: t("layout.navigation.workflows"),
+			href: "/workflows",
+			icon: Zap,
+		},
+		{
+			title: t("layout.navigation.siteBuilder"),
+			href: "/site-builder",
+			icon: Sparkles,
+		},
+		{
+			title: t("layout.navigation.analytics"),
+			href: "/analytics",
+			icon: BarChart3,
+		},
+		{
+			title: t("layout.navigation.settings"),
+			href: "/settings/organization/general",
+			icon: Settings,
+		},
+	], [t]);
 
 	return (
 		<div className="flex flex-1 overflow-x-hidden min-w-0">
@@ -112,18 +152,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						onClick={toggleSidebar}
 					>
 						<Menu className="h-5 w-5" />
-						<span className="sr-only">Toggle Menu</span>
+						<span className="sr-only">{t("layout.mobile.toggleMenu")}</span>
 					</Button>
 					{isCreateInvoicePage && invoiceTemplate && (
 						<>
 							<div className="flex-1 min-w-0">
 								<Select
 									value={invoiceTemplate.selectedTemplateId}
-									onValueChange={invoiceTemplate.setSelectedTemplateId}
+									onValueChange={
+										invoiceTemplate.setSelectedTemplateId
+									}
 								>
-									<SelectTrigger className="h-9 w-full">
-										<SelectValue placeholder="Select template" />
-									</SelectTrigger>
+								<SelectTrigger className="h-9 w-full">
+									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
+								</SelectTrigger>
 									<SelectContent>
 										{invoiceTemplate.templates.map((t) => (
 											<SelectItem key={t.id} value={t.id}>
@@ -139,23 +181,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={() => invoiceTemplate.setPreviewDialogOpen(true)}
+								onClick={() =>
+									invoiceTemplate.setPreviewDialogOpen(true)
+								}
 								className="shrink-0"
 								disabled={!invoiceTemplate.selectedTemplate}
 							>
 								<Eye className="h-4 w-4 mr-1.5" />
-								Preview
+								{t("layout.preview")}
 							</Button>
 						</>
 					)}
 					{isDesignerPage && designerTemplate && (
 						<div className="flex-1 min-w-0">
 							<Select
-								value={designerTemplate.currentTemplate?.id ?? ""}
-								onValueChange={designerTemplate.onTemplateChange}
+								value={
+									designerTemplate.currentTemplate?.id ?? ""
+								}
+								onValueChange={
+									designerTemplate.onTemplateChange
+								}
 							>
 								<SelectTrigger className="h-9 w-full">
-									<SelectValue placeholder="Select template" />
+									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
 								</SelectTrigger>
 								<SelectContent>
 									{designerTemplate.templates.map((t) => (
@@ -164,7 +212,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 										</SelectItem>
 									))}
 									<SelectItem value="new">
-										<Plus className="h-4 w-4 mr-1" /> New template
+										<Plus className="h-4 w-4 mr-1" /> {t("layout.templateSelector.newTemplate")}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -176,67 +224,55 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			<Sidebar collapsible="icon">
 				<SidebarHeader className="flex flex-col gap-3 p-4 border-b min-w-0 overflow-x-hidden">
 					<div className="flex items-center justify-between w-full min-w-0 group-data-[collapsible=icon]:justify-center">
-						<div className="flex items-center gap-2 min-w-0 flex-1">
-							{organizationLogo ? (
-								<>
-									<img 
-										src={organizationLogo} 
-										alt={displayName}
-										className="h-8 w-auto shrink-0 group-data-[collapsible=icon]:hidden"
-									/>
-									<img 
-										src={organizationLogo} 
-										alt={displayName}
-										className="h-6 w-6 rounded shrink-0 group-data-[collapsible=icon]:block hidden object-contain"
-									/>
-								</>
-							) : (
-								<>
-									<h2 className="text-xl font-bold truncate group-data-[collapsible=icon]:hidden">
-										{displayName}
-									</h2>
-									<h2 className="text-xl font-bold group-data-[collapsible=icon]:block hidden">
-										{displayInitial}
-									</h2>
-								</>
-							)}
+						<div className="flex items-center gap-2 flex-1">
+							<img
+								src={"/financely-logo.svg"}
+								alt={displayName}
+								className="-ml-2.5 h-7 w-auto object-contain transition-opacity duration-200 hover:opacity-80 group-data-[collapsible=icon]:hidden"
+								loading="eager"
+								decoding="async"
+							/>
 						</div>
 						{!isMobile && <SidebarTrigger className="shrink-0" />}
 					</div>
 					<div className="w-full min-w-0 overflow-x-hidden group-data-[collapsible=icon]:hidden">
 						<div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-							Organization
+							{t("layout.organization")}
 						</div>
 						<OrganizationSwitcher />
 					</div>
 				</SidebarHeader>
 				<SidebarContent className="flex flex-col justify-between">
 					<SidebarGroup>
-						{items.map((item) => (
-							<SidebarMenuItem key={item.title}>
-								<SidebarMenuButton asChild tooltip={item.title}>
-									<Link to={item.href} onClick={() => isMobile && toggleSidebar()}>
-										<item.icon />
-										<span>{item.title}</span>
-									</Link>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
+						{navItems.map((item) => (
+							<NavItem
+								key={item.href}
+								item={item}
+								isMobile={isMobile}
+								toggleSidebar={toggleSidebar}
+								title={item.title}
+							/>
 						))}
 					</SidebarGroup>
 
 					<div>
 						<SidebarSeparator />
-						<SidebarGroup className="flex flex-row justify-between items-center">
-							<SidebarMenuItem>
-								<UserButton showName />
+						<SidebarGroup className={`flex flex-col justify-between gap-2 ${state === "collapsed" ? "gap-1" : ""}`}>
+							<div className={`flex items-center justify-between gap-2 ${state === "collapsed" ? "flex-col gap-1" : ""}`}>
+								<LanguageSelector />
+								<ModeToggle />
+							</div>
+							<SidebarMenuItem className="flex justify-center items-center w-full">
+								<UserButton showName={!isMobile && state === "expanded"} />
 							</SidebarMenuItem>
-							<ModeToggle />
 						</SidebarGroup>
 					</div>
 				</SidebarContent>
 				<SidebarFooter />
 			</Sidebar>
-			<div className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? 'pt-14' : ''}`}>
+			<div
+				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? "pt-14" : ""}`}
+			>
 				{children}
 			</div>
 		</div>

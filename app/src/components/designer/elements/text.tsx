@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ interface TextPropertiesProps {
 }
 
 export function TextProperties({ element, onChange, isNarrow, allElements = [] }: TextPropertiesProps) {
+	const { t: translate } = useTranslation();
 	const t = element as Extract<TemplateElement, { type: "text" }>;
 	const [bindingInput, setBindingInput] = useState(t.binding ?? "");
 	
@@ -98,10 +100,10 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
-			<h4 className={typography.subsectionTitle}>Position & Size</h4>
+			<h4 className={typography.subsectionTitle}>{translate('designer.elementProperties.common.positionAndSize')}</h4>
 			<div className={isNarrow ? components.gridNarrow : components.grid}>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>X</Label>
+					<Label className={typography.fieldLabel}>{translate('designer.elementProperties.common.x')}</Label>
 					<Input
 						type="number"
 						value={element.x}
@@ -110,7 +112,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Y</Label>
+					<Label className={typography.fieldLabel}>{translate('designer.elementProperties.common.y')}</Label>
 					<Input
 						type="number"
 						value={element.y}
@@ -119,7 +121,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Width</Label>
+					<Label className={typography.fieldLabel}>{translate('designer.elementProperties.common.width')}</Label>
 					<Input
 						type="number"
 						value={element.width}
@@ -128,7 +130,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					/>
 				</div>
 				<div className={components.field}>
-					<Label className={typography.fieldLabel}>Height</Label>
+					<Label className={typography.fieldLabel}>{translate('designer.elementProperties.common.height')}</Label>
 					<Input
 						type="number"
 						value={element.height}
@@ -142,14 +144,14 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 
 	return (
 		<div className={components.section}>
-			<h3 className={typography.sectionTitle}>Text</h3>
+			<h3 className={typography.sectionTitle}>{translate('designer.elementProperties.text.title')}</h3>
 			
 			{/* Content */}
 			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>Content</h4>
+				<h4 className={typography.subsectionTitle}>{translate('designer.elementProperties.text.content')}</h4>
 				<div className={components.subsection}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Text</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.text')}</Label>
 						<Input
 							value={t.text ?? ""}
 							onChange={(e) =>
@@ -173,10 +175,10 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Data Binding</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.binding.dataBinding')}</Label>
 						<div className={spacing.fieldGroupGap}>
 							<Input
-								placeholder="e.g., invoice.customerName"
+								placeholder={translate('designer.elementProperties.binding.bindingPlaceholder')}
 								value={bindingInput}
 								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
 								onChange={(e) => {
@@ -204,11 +206,11 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
 									<div className="flex-1 min-w-0">
 										<p className={`${typography.errorText} mb-1.5`}>
-											This binding is already used by another element
+											{translate('designer.elementProperties.binding.duplicateError')}
 										</p>
 										<div className="flex items-center gap-2">
 											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+												{translate('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
 											</p>
 											<Button
 												type="button"
@@ -235,7 +237,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 												}}
 											>
 												<Check className="h-3 w-3 mr-1" />
-												Use
+												{translate('designer.elementProperties.binding.use')}
 											</Button>
 										</div>
 									</div>
@@ -247,10 +249,10 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 			</section>
 			{/* Typography */}
 			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
-				<h4 className={typography.subsectionTitle}>Typography</h4>
+				<h4 className={typography.subsectionTitle}>{translate('designer.elementProperties.text.typography')}</h4>
 				<div className={components.grid}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Font Size</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.fontSize')}</Label>
 						<Input
 							type="number"
 							value={t.typography.fontSize}
@@ -275,7 +277,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Weight</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.weight')}</Label>
 						<Select
 							value={t.typography.fontWeight}
 							onValueChange={(v) =>
@@ -300,15 +302,15 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="normal">Normal</SelectItem>
-								<SelectItem value="medium">Medium</SelectItem>
-								<SelectItem value="semibold">Semibold</SelectItem>
-								<SelectItem value="bold">Bold</SelectItem>
+								<SelectItem value="normal">{translate('designer.elementProperties.text.fontWeights.normal')}</SelectItem>
+								<SelectItem value="medium">{translate('designer.elementProperties.text.fontWeights.medium')}</SelectItem>
+								<SelectItem value="semibold">{translate('designer.elementProperties.text.fontWeights.semibold')}</SelectItem>
+								<SelectItem value="bold">{translate('designer.elementProperties.text.fontWeights.bold')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Color</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.color')}</Label>
 						<Input
 							placeholder="#111827"
 							value={t.typography.color}
@@ -333,7 +335,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 						/>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Alignment</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.alignment')}</Label>
 						<Select
 							value={t.typography.align}
 							onValueChange={(v) =>
@@ -358,14 +360,14 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="left">Left</SelectItem>
-								<SelectItem value="center">Center</SelectItem>
-								<SelectItem value="right">Right</SelectItem>
+								<SelectItem value="left">{translate('designer.elementProperties.text.alignments.left')}</SelectItem>
+								<SelectItem value="center">{translate('designer.elementProperties.text.alignments.center')}</SelectItem>
+								<SelectItem value="right">{translate('designer.elementProperties.text.alignments.right')}</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Uppercase</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.uppercase')}</Label>
 						<div className="flex items-center h-9">
 							<Switch
 								checked={t.typography.uppercase}
@@ -394,10 +396,10 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 			
 			{/* Enhanced Styling Section */}
 			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
-				<h4 className={typography.subsectionTitle}>Styling</h4>
+				<h4 className={typography.subsectionTitle}>{translate('designer.elementProperties.text.styling')}</h4>
 				<div className={components.grid}>
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Background Color</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.backgroundColor')}</Label>
 						<div className="flex gap-2">
 							<Input
 								type="color"
@@ -412,7 +414,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 							/>
 							<Input
-								placeholder="#ffffff or transparent"
+								placeholder={translate('designer.elementProperties.text.backgroundColorPlaceholder')}
 								value={t.backgroundColor || ""}
 								onChange={(e) => {
 									const newBg = e.target.value || undefined;
@@ -427,7 +429,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					</div>
 					
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Padding (px)</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.padding')}</Label>
 						<Input
 							type="number"
 							min="0"
@@ -444,7 +446,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					</div>
 					
 					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Opacity</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.opacity')}</Label>
 						<div className="flex gap-2 items-center">
 							<Input
 								type="range"
@@ -470,7 +472,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 				{/* Shadow Controls */}
 				<div className={`${components.card} ${spacing.fieldGroupGap}`}>
 					<div className="flex items-center justify-between">
-						<Label className={typography.fieldLabel}>Shadow</Label>
+						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.shadow')}</Label>
 						<Switch
 							checked={t.shadow?.enabled || false}
 							onCheckedChange={(checked) => {
@@ -493,7 +495,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					{t.shadow?.enabled && (
 						<div className={components.grid}>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Blur</Label>
+								<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.blur')}</Label>
 								<Input
 									type="number"
 									min="0"
@@ -512,7 +514,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								/>
 							</div>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Offset Y</Label>
+								<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.offsetY')}</Label>
 								<Input
 									type="number"
 									min="-10"
@@ -531,7 +533,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 								/>
 							</div>
 							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Shadow Color</Label>
+								<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.shadowColor')}</Label>
 								<div className="flex gap-2">
 									<Input
 										type="color"

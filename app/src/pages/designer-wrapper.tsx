@@ -8,7 +8,7 @@ import { generateUniqueTemplateName } from "@/utils/template-naming";
 import { DesignerTemplateProvider } from "@/contexts/designer-template-context";
 import TemplateDesignerPage from "./designer";
 import AppLayout from "@/components/layout";
-import type { Template, TemplateData } from "@/core";
+import type { TemplateData } from "@/core";
 
 export default function DesignerWrapper() {
 	const navigate = useNavigate();

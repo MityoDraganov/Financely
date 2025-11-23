@@ -2,6 +2,8 @@ import { History, Eye, ExternalLink, RotateCcw, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import { formatDateTime } from "@/utils/date-formatting";
 
 interface BrandSiteVersion {
   version: number;
@@ -33,6 +35,7 @@ export function SiteVersionHistory({
   onRestoreVersion,
   isRestoring,
 }: SiteVersionHistoryProps) {
+  const { t, i18n } = useTranslation();
   if (!brandSite) return null;
 
   const versions = brandSite.versions || [];
@@ -44,16 +47,16 @@ export function SiteVersionHistory({
         <div className="flex items-center justify-between">
           <Label className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Version History
+            {t('siteBuilder.siteVersionHistory.title')}
           </Label>
           {currentVersionNumber && (
             <span className="text-xs text-gray-500">
-              Current: v{currentVersionNumber}
+              {t('siteBuilder.siteVersionHistory.current', { version: currentVersionNumber })}
             </span>
           )}
         </div>
         <p className="text-sm text-gray-500 text-center py-4">
-          No previous versions available
+          {t('siteBuilder.siteVersionHistory.noVersions')}
         </p>
       </div>
     );
@@ -64,11 +67,11 @@ export function SiteVersionHistory({
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2">
           <History className="h-4 w-4" />
-          Version History
+          {t('siteBuilder.siteVersionHistory.title')}
         </Label>
         {currentVersionNumber && (
           <span className="text-xs text-gray-500">
-            Current: v{currentVersionNumber}
+            {t('siteBuilder.siteVersionHistory.current', { version: currentVersionNumber })}
           </span>
         )}
       </div>
@@ -86,10 +89,10 @@ export function SiteVersionHistory({
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Version {version.version}</span>
+                    <span className="text-sm font-medium">{t('siteBuilder.siteVersionHistory.version', { number: version.version })}</span>
                     {isCurrent && (
                       <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                        Current
+                        {t('siteBuilder.siteVersionHistory.currentBadge')}
                       </span>
                     )}
                   </div>
@@ -98,14 +101,8 @@ export function SiteVersionHistory({
                   )}
                   <p className="text-xs text-gray-400 mt-1">
                     {version.createdAt
-                      ? new Date(version.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Unknown date"}
+                      ? formatDateTime(version.createdAt, i18n.language)
+                      : t('siteBuilder.siteVersionHistory.unknownDate')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -118,14 +115,14 @@ export function SiteVersionHistory({
                       onClick={() => {
                         const previewWindow = window.open(version.previewUrl, "_blank");
                         if (!previewWindow) {
-                          toast.error("Popup blocked. Please allow popups for this site and try again.");
+                          toast.error(t('siteBuilder.siteVersionHistory.popupBlocked'));
                         }
                       }}
                       className="h-8"
-                      title="Preview this version"
+                      title={t('siteBuilder.siteVersionHistory.previewTitle')}
                     >
                       <Eye className="h-3 w-3 mr-1" />
-                      Preview
+                      {t('siteBuilder.siteVersionHistory.preview')}
                     </Button>
                   ) : (
                     <Button
@@ -141,17 +138,17 @@ export function SiteVersionHistory({
                       }}
                       disabled={isPreviewing}
                       className="h-8"
-                      title={isPreviewing ? "Creating preview..." : "Create preview for this version"}
+                      title={isPreviewing ? t('siteBuilder.siteVersionHistory.creatingPreviewTitle') : t('siteBuilder.siteVersionHistory.createPreviewTitle')}
                     >
                       {isPreviewing ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Creating...
+                          {t('siteBuilder.siteVersionHistory.creatingPreview')}
                         </>
                       ) : (
                         <>
                           <Eye className="h-3 w-3 mr-1" />
-                          Preview
+                          {t('siteBuilder.siteVersionHistory.preview')}
                         </>
                       )}
                     </Button>
@@ -164,10 +161,10 @@ export function SiteVersionHistory({
                       size="sm"
                       onClick={() => window.open(brandSite.deployedUrl, "_blank")}
                       className="h-8"
-                      title="View live site"
+                      title={t('siteBuilder.siteVersionHistory.liveTitle')}
                     >
                       <ExternalLink className="h-3 w-3 mr-1" />
-                      Live
+                      {t('siteBuilder.siteVersionHistory.live')}
                     </Button>
                   )}
                   {/* Restore button - only show for non-current versions */}
@@ -177,7 +174,7 @@ export function SiteVersionHistory({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        if (!confirm("Are you sure you want to restore this version? This will replace your current live site.")) {
+                        if (!confirm(t('siteBuilder.siteVersionHistory.restoreConfirm'))) {
                           return;
                         }
                         onRestoreVersion(version.version);
@@ -190,7 +187,7 @@ export function SiteVersionHistory({
                       ) : (
                         <>
                           <RotateCcw className="h-3 w-3 mr-1" />
-                          Restore
+                          {t('siteBuilder.siteVersionHistory.restore')}
                         </>
                       )}
                     </Button>

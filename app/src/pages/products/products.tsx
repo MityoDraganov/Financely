@@ -1,4 +1,6 @@
 import { useState, useRef, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,12 +14,13 @@ import { useProductsByOrg, useDeleteProduct, useUpdateProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
 import { useOrganizationContext } from "@/contexts/organization-context";
 import { CreateProductInput } from "@/core";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { CURRENCIES, formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
 import { useFileUpload } from "@/hooks/use-file-upload";
 
 export default function ProductsPage() {
+  const { t } = useTranslation();
+  const { formatDateTable, formatDateTime } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -100,7 +103,7 @@ export default function ProductsPage() {
 
   const handleImageUpload = async (file: File) => {
     if (!currentOrganization?.id) {
-      toast.error("Organization ID is required");
+      toast.error(t('products.messages.orgIdRequired'));
       return;
     }
 
@@ -112,9 +115,9 @@ export default function ProductsPage() {
         ...prev,
         images: [...(prev.images || []), url],
       }));
-      toast.success("Image uploaded successfully");
+      toast.success(t('products.messages.imageUploaded'));
     } else {
-      toast.error(imageUpload.error || "Failed to upload image");
+      toast.error(imageUpload.error || t('products.messages.imageUploadFailed'));
     }
   };
 
@@ -137,12 +140,12 @@ export default function ProductsPage() {
 
   const handleCreateProduct = async () => {
     if (!currentOrganization?.id) {
-      toast.error("Organization ID is required");
+      toast.error(t('products.messages.orgIdRequired'));
       return;
     }
 
     if (!formData.name || !formData.price) {
-      toast.error("Name and price are required");
+      toast.error(t('products.messages.namePriceRequired'));
       return;
     }
 
@@ -162,6 +165,7 @@ export default function ProductsPage() {
       } as CreateProductInput;
 
       await createProductMutation.mutateAsync(productPayload);
+      toast.success(t('products.messages.productCreated'));
 
       setIsCreateDialogOpen(false);
       setFormData({
@@ -177,20 +181,20 @@ export default function ProductsPage() {
         images: [],
       });
     } catch (error) {
-      toast.error(`Failed to create product: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(t('products.messages.createFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
     }
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) {
+    if (!confirm(t('products.messages.deleteConfirm'))) {
       return;
     }
 
     try {
       await deleteProductMutation.mutateAsync(id);
-      toast.success("Product deleted successfully");
+      toast.success(t('products.messages.productDeleted'));
     } catch (error) {
-      toast.error(`Failed to delete product: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(t('products.messages.deleteFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
     }
   };
 
@@ -220,7 +224,7 @@ export default function ProductsPage() {
 
   const handleEditImageUpload = async (file: File) => {
     if (!currentOrganization?.id) {
-      toast.error("Organization ID is required");
+      toast.error(t('products.messages.orgIdRequired'));
       return;
     }
 
@@ -232,20 +236,20 @@ export default function ProductsPage() {
         ...formData,
         images: [...(formData.images || []), url],
       });
-      toast.success("Image uploaded successfully");
+      toast.success(t('products.messages.imageUploaded'));
     } else {
-      toast.error(imageUpload.error || "Failed to upload image");
+      toast.error(imageUpload.error || t('products.messages.imageUploadFailed'));
     }
   };
 
   const handleUpdateProduct = async () => {
     if (!editingProduct?.id || !currentOrganization?.id) {
-      toast.error("Product ID is required");
+      toast.error(t('products.messages.orgIdRequired'));
       return;
     }
 
     if (!formData.name || !formData.price) {
-      toast.error("Name and price are required");
+      toast.error(t('products.messages.namePriceRequired'));
       return;
     }
 
@@ -272,7 +276,7 @@ export default function ProductsPage() {
         data: updateData,
       });
 
-      toast.success("Product updated successfully");
+      toast.success(t('products.messages.productUpdated'));
       setIsEditDialogOpen(false);
       setEditingProduct(null);
       setFormData({
@@ -288,7 +292,7 @@ export default function ProductsPage() {
         images: [],
       });
     } catch (error) {
-      toast.error(`Failed to update product: ${error instanceof Error ? error.message : "Unknown error"}`);
+      toast.error(t('products.messages.updateFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
     }
   };
 
@@ -297,12 +301,12 @@ export default function ProductsPage() {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Products</h1>
-            <p className="text-muted-foreground">Manage your products</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
+            <p className="text-muted-foreground">{t('products.manageProducts')}</p>
           </div>
         </div>
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading products...</div>
+          <div className="text-muted-foreground">{t('products.loading')}</div>
         </div>
       </div>
     );
@@ -313,59 +317,59 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Products</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Create and manage your product catalog</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">{t('products.subtitle')}</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              New Product
+              {t('products.newProduct')}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
             <DialogHeader>
-              <DialogTitle>Create New Product</DialogTitle>
+              <DialogTitle>{t('products.createTitle')}</DialogTitle>
               <DialogDescription>
-                Add a new product to your catalog
+                {t('products.createDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Product Name *</Label>
+                  <Label htmlFor="name">{t('products.form.productName')}</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter product name"
+                    placeholder={t('products.form.productNamePlaceholder')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sku">SKU</Label>
+                  <Label htmlFor="sku">{t('products.form.sku')}</Label>
                   <Input
                     id="sku"
                     value={formData.sku}
                     onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
-                    placeholder="Product SKU"
+                    placeholder={t('products.form.skuPlaceholder')}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t('products.form.description')}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="Product description"
+                  placeholder={t('products.form.descriptionPlaceholder')}
                   rows={3}
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price *</Label>
+                  <Label htmlFor="price">{t('products.form.price')}</Label>
                   <Input
                     id="price"
                     type="number"
@@ -373,17 +377,17 @@ export default function ProductsPage() {
                     min="0"
                     value={formData.price}
                     onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    placeholder="0.00"
+                    placeholder={t('products.form.pricePlaceholder')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
+                  <Label htmlFor="currency">{t('products.form.currency')}</Label>
                   <Select
                     value={formData.currency}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
+                      <SelectValue placeholder={t('products.form.currencyPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {CURRENCIES.map((currency) => (
@@ -398,27 +402,27 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">{t('products.form.category')}</Label>
                   <Input
                     id="category"
                     value={formData.category}
                     onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                    placeholder="Product category"
+                    placeholder={t('products.form.categoryPlaceholder')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
+                  <Label htmlFor="status">{t('products.form.status')}</Label>
                   <Select
                     value={formData.status}
                     onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t('products.form.statusPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="archived">Archived</SelectItem>
+                      <SelectItem value="active">{t('products.status.active')}</SelectItem>
+                      <SelectItem value="inactive">{t('products.status.inactive')}</SelectItem>
+                      <SelectItem value="archived">{t('products.status.archived')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -426,14 +430,14 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="stockQuantity">Stock Quantity</Label>
+                  <Label htmlFor="stockQuantity">{t('products.form.stockQuantity')}</Label>
                   <Input
                     id="stockQuantity"
                     type="number"
                     min="0"
                     value={formData.stockQuantity || ""}
                     onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
-                    placeholder="0"
+                    placeholder={t('products.form.stockQuantityPlaceholder')}
                   />
                 </div>
                 <div className="space-y-2 flex items-end">
@@ -443,31 +447,31 @@ export default function ProductsPage() {
                       id="trackInventory"
                       checked={formData.trackInventory}
                       onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                      className="rounded border-gray-300"
+                      className="rounded border-border"
                     />
-                    <Label htmlFor="trackInventory" className="cursor-pointer">Track Inventory</Label>
+                    <Label htmlFor="trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
                   </div>
                 </div>
               </div>
 
               {/* Product Images */}
               <div className="space-y-2">
-                <Label>Product Images</Label>
+                <Label>{t('products.images.title')}</Label>
                 <div className="space-y-3">
                   {formData.images && formData.images.length > 0 && (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {formData.images.map((image, index) => (
                         <div key={index} className="relative group">
-                          <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                          <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
                             <img
                               src={image}
-                              alt={`Product image ${index + 1}`}
+                              alt={t('products.images.imageAlt', { index: index + 1 })}
                               className="w-full h-full object-cover"
                             />
                             {index === 0 && (
                               <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
                                 <Star className="h-3 w-3 fill-current" />
-                                <span>Featured</span>
+                                <span>{t('products.images.featured')}</span>
                               </div>
                             )}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -477,7 +481,7 @@ export default function ProductsPage() {
                                   size="sm"
                                   onClick={() => handleSetFeaturedImage(index)}
                                   className="h-8 w-8 p-0"
-                                  title="Set as featured"
+                                  title={t('products.images.setAsFeatured')}
                                 >
                                   <Star className="h-4 w-4" />
                                 </Button>
@@ -487,7 +491,7 @@ export default function ProductsPage() {
                                 size="sm"
                                 onClick={() => handleRemoveImage(index)}
                                 className="h-8 w-8 p-0"
-                                title="Remove image"
+                                title={t('products.images.removeImage')}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -520,10 +524,10 @@ export default function ProductsPage() {
                       className="w-full"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      {imageUpload.isUploading ? "Uploading..." : "Add Images"}
+                      {imageUpload.isUploading ? t('products.images.uploading') : t('products.images.addImages')}
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      First image will be used as featured image. You can reorder by setting a different image as featured.
+                      {t('products.images.featuredHint')}
                     </p>
                   </div>
                 </div>
@@ -534,13 +538,13 @@ export default function ProductsPage() {
                 variant="outline"
                 onClick={() => setIsCreateDialogOpen(false)}
               >
-                Cancel
+                {t('products.actions.cancel')}
               </Button>
               <Button
                 onClick={handleCreateProduct}
                 disabled={createProductMutation.isPending || !formData.name || !formData.price}
               >
-                {createProductMutation.isPending ? "Creating..." : "Create Product"}
+                {createProductMutation.isPending ? t('products.actions.creating') : t('products.actions.create')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -567,48 +571,48 @@ export default function ProductsPage() {
         }}>
           <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
             <DialogHeader>
-              <DialogTitle>Edit Product</DialogTitle>
+              <DialogTitle>{t('products.editTitle')}</DialogTitle>
               <DialogDescription>
-                Update product information
+                {t('products.editDescription')}
               </DialogDescription>
             </DialogHeader>
             {editingProductData ? (
               <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-name">Product Name *</Label>
+                    <Label htmlFor="edit-name">{t('products.form.productName')}</Label>
                     <Input
                       id="edit-name"
                       value={formData.name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter product name"
+                      placeholder={t('products.form.productNamePlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-sku">SKU</Label>
+                    <Label htmlFor="edit-sku">{t('products.form.sku')}</Label>
                     <Input
                       id="edit-sku"
                       value={formData.sku}
                       onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
-                      placeholder="Product SKU"
+                      placeholder={t('products.form.skuPlaceholder')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-description">Description</Label>
+                  <Label htmlFor="edit-description">{t('products.form.description')}</Label>
                   <Textarea
                     id="edit-description"
                     value={formData.description}
                     onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Product description"
+                    placeholder={t('products.form.descriptionPlaceholder')}
                     rows={3}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-price">Price *</Label>
+                    <Label htmlFor="edit-price">{t('products.form.price')}</Label>
                     <Input
                       id="edit-price"
                       type="number"
@@ -616,17 +620,17 @@ export default function ProductsPage() {
                       min="0"
                       value={formData.price}
                       onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
+                      placeholder={t('products.form.pricePlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-currency">Currency</Label>
+                    <Label htmlFor="edit-currency">{t('products.form.currency')}</Label>
                     <Select
                       value={formData.currency}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
+                        <SelectValue placeholder={t('products.form.currencyPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
                         {CURRENCIES.map((currency) => (
@@ -641,27 +645,27 @@ export default function ProductsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-category">Category</Label>
+                    <Label htmlFor="edit-category">{t('products.form.category')}</Label>
                     <Input
                       id="edit-category"
                       value={formData.category}
                       onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                      placeholder="Product category"
+                      placeholder={t('products.form.categoryPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-status">Status</Label>
+                    <Label htmlFor="edit-status">{t('products.form.status')}</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder={t('products.form.statusPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="archived">Archived</SelectItem>
+                        <SelectItem value="active">{t('products.status.active')}</SelectItem>
+                        <SelectItem value="inactive">{t('products.status.inactive')}</SelectItem>
+                        <SelectItem value="archived">{t('products.status.archived')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -669,14 +673,14 @@ export default function ProductsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-stockQuantity">Stock Quantity</Label>
+                    <Label htmlFor="edit-stockQuantity">{t('products.form.stockQuantity')}</Label>
                     <Input
                       id="edit-stockQuantity"
                       type="number"
                       min="0"
                       value={formData.stockQuantity || ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      placeholder="0"
+                      placeholder={t('products.form.stockQuantityPlaceholder')}
                     />
                   </div>
                   <div className="space-y-2 flex items-end">
@@ -686,31 +690,31 @@ export default function ProductsPage() {
                         id="edit-trackInventory"
                         checked={formData.trackInventory}
                         onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                        className="rounded border-gray-300"
+                        className="rounded border-border"
                       />
-                      <Label htmlFor="edit-trackInventory" className="cursor-pointer">Track Inventory</Label>
+                      <Label htmlFor="edit-trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
                     </div>
                   </div>
                 </div>
 
                 {/* Product Images */}
                 <div className="space-y-2">
-                  <Label>Product Images</Label>
+                  <Label>{t('products.images.title')}</Label>
                   <div className="space-y-3">
                     {formData.images && formData.images.length > 0 && (
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                         {formData.images.map((image, index) => (
                           <div key={index} className="relative group">
-                            <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                            <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
                               <img
                                 src={image}
-                                alt={`Product image ${index + 1}`}
+                                alt={t('products.images.imageAlt', { index: index + 1 })}
                                 className="w-full h-full object-cover"
                               />
                               {index === 0 && (
                                 <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
                                   <Star className="h-3 w-3 fill-current" />
-                                  <span>Featured</span>
+                                  <span>{t('products.images.featured')}</span>
                                 </div>
                               )}
                               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -720,7 +724,7 @@ export default function ProductsPage() {
                                     size="sm"
                                     onClick={() => handleSetFeaturedImage(index)}
                                     className="h-8 w-8 p-0"
-                                    title="Set as featured"
+                                    title={t('products.images.setAsFeatured')}
                                   >
                                     <Star className="h-4 w-4" />
                                   </Button>
@@ -730,7 +734,7 @@ export default function ProductsPage() {
                                   size="sm"
                                   onClick={() => handleRemoveImage(index)}
                                   className="h-8 w-8 p-0"
-                                  title="Remove image"
+                                  title={t('products.images.removeImage')}
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
@@ -763,10 +767,10 @@ export default function ProductsPage() {
                         className="w-full"
                       >
                         <Upload className="h-4 w-4 mr-2" />
-                        {imageUpload.isUploading ? "Uploading..." : "Add Images"}
+                        {imageUpload.isUploading ? t('products.images.uploading') : t('products.images.addImages')}
                       </Button>
                       <p className="text-xs text-muted-foreground mt-1">
-                        First image will be used as featured image. You can reorder by setting a different image as featured.
+                        {t('products.images.featuredHint')}
                       </p>
                     </div>
                   </div>
@@ -774,7 +778,7 @@ export default function ProductsPage() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">Loading product data...</p>
+                <p className="text-muted-foreground">{t('products.details.loading')}</p>
               </div>
             )}
             <DialogFooter>
@@ -785,13 +789,13 @@ export default function ProductsPage() {
                   setEditingProduct(null);
                 }}
               >
-                Cancel
+                {t('products.actions.cancel')}
               </Button>
               <Button
                 onClick={handleUpdateProduct}
                 disabled={updateProductMutation.isPending || !formData.name || !formData.price}
               >
-                {updateProductMutation.isPending ? "Updating..." : "Update Product"}
+                {updateProductMutation.isPending ? t('products.actions.updating') : t('products.actions.update')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -803,7 +807,7 @@ export default function ProductsPage() {
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Search products..."
+            placeholder={t('products.filters.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 w-full"
@@ -811,20 +815,20 @@ export default function ProductsPage() {
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder={t('products.filters.statusFilter')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="all">{t('products.status.all')}</SelectItem>
+            <SelectItem value="active">{t('products.status.active')}</SelectItem>
+            <SelectItem value="inactive">{t('products.status.inactive')}</SelectItem>
+            <SelectItem value="archived">{t('products.status.archived')}</SelectItem>
           </SelectContent>
         </Select>
         <Card className="p-3 sm:p-4">
           <div className="flex items-center space-x-2">
             <Package className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">{filteredProducts.length}</span>
-            <span className="text-sm text-muted-foreground hidden sm:inline">products</span>
+            <span className="text-sm text-muted-foreground hidden sm:inline">{t('products.filters.product')}</span>
           </div>
         </Card>
       </div>
@@ -835,11 +839,11 @@ export default function ProductsPage() {
           <CardContent>
             <div className="text-center py-8 px-4">
               <Package className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-sm font-semibold text-gray-900">No products</h3>
+              <h3 className="mt-2 text-sm font-semibold text-foreground">{t('products.empty.title')}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {searchTerm.trim() || statusFilter !== "all"
-                  ? "No products match your filters."
-                  : "Get started by creating a new product."}
+                  ? t('products.empty.noMatch')
+                  : t('products.empty.getStarted')}
               </p>
             </div>
           </CardContent>
@@ -863,14 +867,14 @@ export default function ProductsPage() {
                     </colgroup>
                     <thead className="[&_tr]:border-b">
                       <tr className="hover:bg-neutral-100/50 border-b transition-colors">
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Product</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">SKU</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Price</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Stock</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Category</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Status</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10 hidden lg:table-cell">Created</th>
-                        <th className="text-left align-top font-medium px-3 py-2 h-10">Actions</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.product')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.sku')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.price')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.stock')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.category')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.status')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10 hidden lg:table-cell">{t('products.table.created')}</th>
+                        <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.actions')}</th>
                       </tr>
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
@@ -918,7 +922,7 @@ export default function ProductsPage() {
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-sm">{product.stockQuantity ?? 0}</span>
                                 {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
-                                  <Badge variant="destructive" className="text-xs shrink-0">Low</Badge>
+                                  <Badge variant="destructive" className="text-xs shrink-0">{t('products.labels.low')}</Badge>
                                 )}
                               </div>
                             ) : (
@@ -937,14 +941,14 @@ export default function ProductsPage() {
                           </td>
                           <td className="p-3 align-top">
                             <Badge className={getStatusColor(product.status)}>
-                              {product.status}
+                              {t(`products.status.${product.status}`)}
                             </Badge>
                           </td>
                           <td className="p-3 align-top hidden lg:table-cell">
                             <span className="text-sm text-muted-foreground whitespace-nowrap">
                               {product.createdAt
-                                ? format(new Date(product.createdAt), "MMM d, yyyy")
-                                : "N/A"}
+                                ? formatDateTable(product.createdAt)
+                                : t('products.details.na')}
                             </span>
                           </td>
                           <td className="p-3 align-top">
@@ -952,7 +956,7 @@ export default function ProductsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="View product details"
+                                title={t('products.actions.viewDetails')}
                                 onClick={() => setSelectedProduct({ id: product.id })}
                                 className="h-8 w-8 p-0 shrink-0"
                               >
@@ -961,7 +965,7 @@ export default function ProductsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Edit product"
+                                title={t('products.actions.editProduct')}
                                 onClick={() => handleEditProduct(product.id)}
                                 className="h-8 w-8 p-0 shrink-0"
                               >
@@ -970,7 +974,7 @@ export default function ProductsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Delete product"
+                                title={t('products.actions.deleteProduct')}
                                 onClick={() => handleDeleteProduct(product.id)}
                                 disabled={deleteProductMutation.isPending}
                                 className="h-8 w-8 p-0 shrink-0"
@@ -990,11 +994,11 @@ export default function ProductsPage() {
             {/* Mobile View */}
             <div className="md:hidden space-y-4">
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold">All Products</h2>
+                <h2 className="text-xl font-semibold text-foreground">{t('products.mobile.allProducts')}</h2>
                 <p className="text-sm text-muted-foreground">
                   {searchTerm.trim() || statusFilter !== "all"
-                    ? `Showing ${filteredProducts.length} of ${products.length} products`
-                    : `Showing all ${products.length} products`
+                    ? t('products.mobile.showing', { count: filteredProducts.length, total: products.length })
+                    : t('products.mobile.showingAll', { count: products.length })
                   }
                 </p>
               </div>
@@ -1038,36 +1042,36 @@ export default function ProductsPage() {
 
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
-                          <span className="text-muted-foreground">Price:</span>
+                          <span className="text-muted-foreground">{t('products.mobile.price')}</span>
                           <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Status:</span>
+                          <span className="text-muted-foreground">{t('products.mobile.status')}</span>
                           <div className="mt-1">
                             <Badge className={getStatusColor(product.status)}>
-                              {product.status}
+                              {t(`products.status.${product.status}`)}
                             </Badge>
                           </div>
                         </div>
                         {product.sku && (
                           <div>
-                            <span className="text-muted-foreground">SKU:</span>
+                            <span className="text-muted-foreground">{t('products.mobile.sku')}</span>
                             <p className="font-medium">{product.sku}</p>
                           </div>
                         )}
                         {product.category && (
                           <div>
-                            <span className="text-muted-foreground">Category:</span>
+                            <span className="text-muted-foreground">{t('products.mobile.category')}</span>
                             <p className="font-medium">{product.category}</p>
                           </div>
                         )}
                         {product.trackInventory && (
                           <div>
-                            <span className="text-muted-foreground">Stock:</span>
+                            <span className="text-muted-foreground">{t('products.mobile.stock')}</span>
                             <p className="font-medium">
                               {product.stockQuantity ?? 0}
                               {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
-                                <Badge variant="destructive" className="ml-2">Low</Badge>
+                                <Badge variant="destructive" className="ml-2">{t('products.labels.low')}</Badge>
                               )}
                             </p>
                           </div>
@@ -1081,7 +1085,7 @@ export default function ProductsPage() {
                           onClick={() => setSelectedProduct({ id: product.id })}
                         >
                           <Eye className="h-4 w-4 mr-2" />
-                          View
+                          {t('products.actions.view')}
                         </Button>
                         <Button
                           variant="ghost"
@@ -1089,7 +1093,7 @@ export default function ProductsPage() {
                           onClick={() => handleEditProduct(product.id)}
                         >
                           <Edit className="h-4 w-4 mr-2" />
-                          Edit
+                          {t('products.actions.edit')}
                         </Button>
                         <Button
                           variant="ghost"
@@ -1098,7 +1102,7 @@ export default function ProductsPage() {
                           disabled={deleteProductMutation.isPending}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          {t('products.actions.delete')}
                         </Button>
                       </div>
                     </div>
@@ -1113,9 +1117,9 @@ export default function ProductsPage() {
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
           <DialogHeader>
-            <DialogTitle>Product Details</DialogTitle>
+            <DialogTitle>{t('products.details.title')}</DialogTitle>
             <DialogDescription>
-              View detailed information about this product
+              {t('products.details.description')}
             </DialogDescription>
           </DialogHeader>
           {selectedProductData ? (
@@ -1123,18 +1127,18 @@ export default function ProductsPage() {
               {/* Basic Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground">Product Name</Label>
+                  <Label className="text-muted-foreground">{t('products.details.productName')}</Label>
                   <p className="font-medium">{selectedProductData.name}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">SKU</Label>
+                  <Label className="text-muted-foreground">{t('products.details.sku')}</Label>
                   <p className="font-medium">{selectedProductData.sku || "—"}</p>
                 </div>
               </div>
 
               {selectedProductData.description && (
                 <div>
-                  <Label className="text-muted-foreground">Description</Label>
+                  <Label className="text-muted-foreground">{t('products.details.descriptionLabel')}</Label>
                   <p className="mt-1">{selectedProductData.description}</p>
                 </div>
               )}
@@ -1142,13 +1146,13 @@ export default function ProductsPage() {
               {/* Pricing */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground">Price</Label>
+                  <Label className="text-muted-foreground">{t('products.details.price')}</Label>
                   <p className="font-medium text-lg">
                     {formatCurrency(selectedProductData.price, selectedProductData.currency)}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Currency</Label>
+                  <Label className="text-muted-foreground">{t('products.details.currency')}</Label>
                   <p className="font-medium">{selectedProductData.currency}</p>
                 </div>
               </div>
@@ -1157,19 +1161,19 @@ export default function ProductsPage() {
               {selectedProductData.trackInventory && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-muted-foreground">Stock Quantity</Label>
+                    <Label className="text-muted-foreground">{t('products.details.stockQuantity')}</Label>
                     <p className="font-medium">
                       {selectedProductData.stockQuantity ?? 0}
                       {selectedProductData.lowStockThreshold && 
                        selectedProductData.stockQuantity !== undefined &&
                        selectedProductData.stockQuantity <= selectedProductData.lowStockThreshold && (
-                        <Badge variant="destructive" className="ml-2">Low Stock</Badge>
+                        <Badge variant="destructive" className="ml-2">{t('products.details.lowStock')}</Badge>
                       )}
                     </p>
                   </div>
                   {selectedProductData.lowStockThreshold && (
                     <div>
-                      <Label className="text-muted-foreground">Low Stock Threshold</Label>
+                      <Label className="text-muted-foreground">{t('products.details.lowStockThreshold')}</Label>
                       <p className="font-medium">{selectedProductData.lowStockThreshold}</p>
                     </div>
                   )}
@@ -1179,13 +1183,13 @@ export default function ProductsPage() {
               {/* Category & Status */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground">Category</Label>
+                  <Label className="text-muted-foreground">{t('products.details.category')}</Label>
                   <p className="font-medium">{selectedProductData.category || "—"}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Status</Label>
+                  <Label className="text-muted-foreground">{t('products.details.status')}</Label>
                   <Badge className={getStatusColor(selectedProductData.status)}>
-                    {selectedProductData.status}
+                    {t(`products.status.${selectedProductData.status}`)}
                   </Badge>
                 </div>
               </div>
@@ -1193,7 +1197,7 @@ export default function ProductsPage() {
               {/* Images */}
               {selectedProductData.images && selectedProductData.images.length > 0 && (
                 <div>
-                  <Label className="text-muted-foreground">Product Images</Label>
+                  <Label className="text-muted-foreground">{t('products.details.productImages')}</Label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
                     {selectedProductData.images.map((image, index) => (
                       <div key={index} className="relative group">
@@ -1206,7 +1210,7 @@ export default function ProductsPage() {
                           {index === 0 && (
                             <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
                               <Star className="h-3 w-3 fill-current" />
-                              <span>Featured</span>
+                              <span>{t('products.images.featured')}</span>
                             </div>
                           )}
                         </div>
@@ -1220,7 +1224,7 @@ export default function ProductsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {selectedProductData.cost !== undefined && (
                   <div>
-                    <Label className="text-muted-foreground">Cost</Label>
+                    <Label className="text-muted-foreground">{t('products.details.cost')}</Label>
                     <p className="font-medium">
                       {formatCurrency(selectedProductData.cost, selectedProductData.currency)}
                     </p>
@@ -1228,7 +1232,7 @@ export default function ProductsPage() {
                 )}
                 {selectedProductData.taxRate !== undefined && (
                   <div>
-                    <Label className="text-muted-foreground">Tax Rate</Label>
+                    <Label className="text-muted-foreground">{t('products.details.taxRate')}</Label>
                     <p className="font-medium">{selectedProductData.taxRate}%</p>
                   </div>
                 )}
@@ -1237,7 +1241,7 @@ export default function ProductsPage() {
               {/* Tags */}
               {selectedProductData.tags && selectedProductData.tags.length > 0 && (
                 <div>
-                  <Label className="text-muted-foreground">Tags</Label>
+                  <Label className="text-muted-foreground">{t('products.details.tags')}</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {selectedProductData.tags.map((tag, index) => (
                       <Badge key={index} variant="secondary">
@@ -1252,17 +1256,17 @@ export default function ProductsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
                 {selectedProductData.createdAt && (
                   <div>
-                    <Label className="text-muted-foreground">Created</Label>
+                    <Label className="text-muted-foreground">{t('products.details.created')}</Label>
                     <p className="font-medium">
-                      {format(new Date(selectedProductData.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                      {formatDateTime(selectedProductData.createdAt)}
                     </p>
                   </div>
                 )}
                 {selectedProductData.updatedAt && (
                   <div>
-                    <Label className="text-muted-foreground">Last Updated</Label>
+                    <Label className="text-muted-foreground">{t('products.details.lastUpdated')}</Label>
                     <p className="font-medium">
-                      {format(new Date(selectedProductData.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                      {formatDateTime(selectedProductData.updatedAt)}
                     </p>
                   </div>
                 )}
@@ -1270,12 +1274,12 @@ export default function ProductsPage() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading product details...</p>
+              <p className="text-muted-foreground">{t('products.details.loading')}</p>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedProduct(null)}>
-              Close
+              {t('products.details.close')}
             </Button>
           </DialogFooter>
         </DialogContent>

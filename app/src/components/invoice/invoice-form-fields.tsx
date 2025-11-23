@@ -41,7 +41,6 @@ interface InvoiceFormFieldsProps {
 
 export function InvoiceFormFields({
 	bindings,
-	formData,
 	getValue,
 	setValue,
 	complianceValidation,

@@ -1,0 +1,23 @@
+/* TipTap Editor Styles - Ensure colors are visible */
+.ProseMirror {
+  outline: none;
+}
+
+.ProseMirror p {
+  margin: 0.5rem 0;
+}
+
+/* Critical: Ensure inline color styles from TipTap Color extension are visible */
+/* TipTap Color extension sets inline style="color: #hex" attributes on spans */
+/* Inline styles have highest specificity and should work, but prose might interfere */
+
+/* The solution: Don't set color with !important (that would override inline styles) */
+/* Instead, ensure prose doesn't set color on spans that have inline color styles */
+/* Inline style attributes have highest specificity, so they should work naturally */
+
+/* Remove prose color for spans - let inline styles work */
+.ProseMirror.prose span[style*="color"] {
+  /* Don't set color here - the inline style attribute will handle it */
+  /* Inline styles in HTML attributes have highest specificity */
+}
+

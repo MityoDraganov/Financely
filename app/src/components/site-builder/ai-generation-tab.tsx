@@ -11,6 +11,15 @@ interface BrandSite {
   status?: "pending" | "generating" | "deploying" | "success" | "failed";
   deployedUrl?: string;
   error?: string;
+  pages?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    description?: string;
+    context?: string;
+    type?: "standard" | "blog" | "contact";
+    order?: number;
+  }>;
   metadata?: { version?: number };
   versions?: Array<{
     version: number;

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export function CurrencyProperties({
   isNarrow,
   allElements = [],
 }: CurrencyPropertiesProps) {
+  const { t } = useTranslation();
   const [bindingInput, setBindingInput] = useState(element.binding ?? "");
   const [currencyPopoverOpen, setCurrencyPopoverOpen] = useState(false);
 
@@ -106,10 +108,10 @@ export function CurrencyProperties({
   // Common position/size controls
   const common = (
     <section className={`${components.section} ${separators.subsectionDivider}`}>
-      <h4 className={typography.subsectionTitle}>Position & Size</h4>
+      <h4 className={typography.subsectionTitle}>{t('designer.elementProperties.common.positionAndSize')}</h4>
       <div className={isNarrow ? components.gridNarrow : components.grid}>
         <div className={components.field}>
-          <Label className={typography.fieldLabel}>X</Label>
+          <Label className={typography.fieldLabel}>{t('designer.elementProperties.common.x')}</Label>
           <Input
             type="number"
             value={element.x}
@@ -118,7 +120,7 @@ export function CurrencyProperties({
           />
         </div>
         <div className={components.field}>
-          <Label className={typography.fieldLabel}>Y</Label>
+          <Label className={typography.fieldLabel}>{t('designer.elementProperties.common.y')}</Label>
           <Input
             type="number"
             value={element.y}
@@ -127,7 +129,7 @@ export function CurrencyProperties({
           />
         </div>
         <div className={components.field}>
-          <Label className={typography.fieldLabel}>Width</Label>
+          <Label className={typography.fieldLabel}>{t('designer.elementProperties.common.width')}</Label>
           <Input
             type="number"
             value={element.width}
@@ -136,7 +138,7 @@ export function CurrencyProperties({
           />
         </div>
         <div className={components.field}>
-          <Label className={typography.fieldLabel}>Height</Label>
+          <Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
           <Input
             type="number"
             value={element.height}
@@ -150,16 +152,16 @@ export function CurrencyProperties({
 
   return (
     <div className={components.section}>
-      <h3 className={typography.sectionTitle}>Currency</h3>
+      <h3 className={typography.sectionTitle}>{t('designer.elementProperties.currency.title')}</h3>
       
       {/* Currency Settings */}
       <section className={components.subsection}>
-        <h4 className={typography.subsectionTitle}>Settings</h4>
+        <h4 className={typography.subsectionTitle}>{t('designer.elementProperties.currency.settings')}</h4>
         <div className={components.grid}>
           <div className={`${components.field} col-span-full`}>
-            <Label className={typography.fieldLabel}>Placeholder</Label>
+            <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.placeholder')}</Label>
             <Input
-              placeholder="Placeholder"
+              placeholder={t('designer.elementProperties.currency.placeholder')}
               value={element.placeholder}
               onChange={(e) =>
                 onChange({
@@ -172,7 +174,7 @@ export function CurrencyProperties({
           </div>
 
           <div className={components.field}>
-            <Label className={typography.fieldLabel}>Currency</Label>
+            <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.currency')}</Label>
             <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -187,15 +189,15 @@ export function CurrencyProperties({
                           ? `${curr.code} - ${curr.name}${curr.symbol ? ` (${curr.symbol})` : ""}`
                           : element.currency;
                       })()
-                    : "Select currency..."}
+                    : t('designer.elementProperties.currency.selectCurrency')}
                   <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Search currency..." />
+                  <CommandInput placeholder={t('designer.elementProperties.currency.searchCurrency')} />
                   <CommandList>
-                    <CommandEmpty>No currency found.</CommandEmpty>
+                    <CommandEmpty>{t('designer.elementProperties.currency.noCurrencyFound')}</CommandEmpty>
                     <CommandGroup>
                       {CURRENCIES.map((curr) => (
                         <CommandItem
@@ -237,7 +239,7 @@ export function CurrencyProperties({
           </div>
 
           <div className={components.field}>
-            <Label className={typography.fieldLabel}>Align</Label>
+            <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.align')}</Label>
             <Select
               value={element.align}
               onValueChange={(v) =>
@@ -251,17 +253,17 @@ export function CurrencyProperties({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="left">Left</SelectItem>
-                <SelectItem value="center">Center</SelectItem>
-                <SelectItem value="right">Right</SelectItem>
+                <SelectItem value="left">{t('designer.elementProperties.currency.alignments.left')}</SelectItem>
+                <SelectItem value="center">{t('designer.elementProperties.currency.alignments.center')}</SelectItem>
+                <SelectItem value="right">{t('designer.elementProperties.currency.alignments.right')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className={components.field}>
-            <Label className={typography.fieldLabel}>Mode</Label>
+            <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.mode')}</Label>
             <Select
-              value={element.mode || "independent"}
+              value={element.mode || (element.formula ? "formula" : "independent")}
               onValueChange={(v) =>
                 onChange({
                   ...element,
@@ -273,18 +275,18 @@ export function CurrencyProperties({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="independent">Independent</SelectItem>
-                <SelectItem value="linked">Linked</SelectItem>
-                <SelectItem value="formula">Formula</SelectItem>
+                <SelectItem value="independent">{t('designer.elementProperties.currency.modes.independent')}</SelectItem>
+                <SelectItem value="linked">{t('designer.elementProperties.currency.modes.linked')}</SelectItem>
+                <SelectItem value="formula">{t('designer.elementProperties.currency.modes.formula')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className={`${components.field} col-span-full`}>
-            <Label className={typography.fieldLabel}>Data Binding</Label>
+            <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.dataBinding')}</Label>
             <div className={spacing.fieldGroupGap}>
               <Input
-                placeholder="e.g., invoice.total"
+                placeholder={t('designer.elementProperties.currency.bindingPlaceholder')}
                 value={bindingInput}
                 className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
                 onChange={(e) => {
@@ -301,11 +303,11 @@ export function CurrencyProperties({
                   <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className={`${typography.errorText} mb-1.5`}>
-                      This binding is already used by another element
+                      {t('designer.elementProperties.binding.duplicateError')}
                     </p>
                     <div className="flex items-center gap-2">
                       <p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-                        Suggested: <span className="font-mono font-medium">{suggestedBinding}</span>
+                        {t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
                       </p>
                       <Button
                         type="button"
@@ -321,7 +323,7 @@ export function CurrencyProperties({
                         }}
                       >
                         <Check className="h-3 w-3 mr-1" />
-                        Use
+                        {t('designer.elementProperties.binding.use')}
                       </Button>
                     </div>
                   </div>
