@@ -15,7 +15,7 @@ interface UseInvoiceAutoFillProps {
 	currentOrganization: Organization | undefined;
 	getValue: (path: string) => InvoiceDataValue;
 	bindings: Array<{ path: string; label: string }>;
-	tableConfigs: Array<{ itemsPath: string }>;
+	tableConfigs: Array<{ itemsPath: string; columns: Array<{ binding: string; type: string }> }>;
 	getTableItems: (itemsPath: string) => Array<Record<string, InvoiceDataValue>>;
 }
 
@@ -27,7 +27,7 @@ export function useInvoiceAutoFill({
 	bindings,
 	tableConfigs,
 	getTableItems,
-}: UseInvoiceAutoFillProps) {
+}: UseInvoiceAutoFillProps): { handleAutoFill: (field: AutoFillField) => void } {
 	const handleAutoFill = useCallback(
 		(field: AutoFillField) => {
 			const newData = { ...formData };
@@ -178,86 +178,134 @@ export function useInvoiceAutoFill({
 			);
 
 			if (isCalculatedField) {
-				const items = getValue("items");
-				if (Array.isArray(items) && items.length > 0) {
-					let calculatedValue = 0;
-
-					if (
-						field.binding === "total" ||
-						field.binding === "grossTotal"
-					) {
-						for (const item of items) {
-							if (
-								typeof item === "object" &&
-								item !== null
-							) {
-								const itemTotal =
-									(item as Record<string, InvoiceDataValue>)
-										.total ||
-									(item as Record<string, InvoiceDataValue>)
-										.amount ||
-									0;
-								calculatedValue +=
-									typeof itemTotal === "number"
-										? itemTotal
-										: 0;
-							}
-						}
-						const vatTotal = getValue("vatTotal");
-						if (typeof vatTotal === "number") {
-							calculatedValue += vatTotal;
-						}
-					} else if (
-						field.binding === "netAmount" ||
-						field.binding === "subtotal"
-					) {
-						for (const item of items) {
-							if (
-								typeof item === "object" &&
-								item !== null
-							) {
-								const itemTotal =
-									(item as Record<string, InvoiceDataValue>)
-										.total ||
-									(item as Record<string, InvoiceDataValue>)
-										.amount ||
-									0;
-								calculatedValue +=
-									typeof itemTotal === "number"
-										? itemTotal
-										: 0;
-							}
-						}
-					} else if (
-						field.binding === "vatTotal" ||
-						field.binding === "taxTotal"
-					) {
-						calculatedValue = 0;
-					}
-
-					setBindingValue(newData, field.binding, calculatedValue);
-					setFormData(newData);
-					toast.success(
-						`Calculated ${field.label}: ${calculatedValue.toFixed(2)}`
+				// Find total column bindings for each table (same logic as calculatedTotals)
+				const totalColumnBindings = new Map<string, string>();
+				for (const tableConfig of tableConfigs) {
+					// Look for common total binding names
+					let totalCol = tableConfig.columns.find(
+						(col) => 
+							(col.type === "currency" || col.type === "number") &&
+							(col.binding?.toLowerCase().includes("total") ||
+							 col.binding?.toLowerCase().includes("amount") ||
+							 col.binding === "total" ||
+							 col.binding === "amount" ||
+							 col.binding === "lineTotal" ||
+							 col.binding === "itemTotal")
 					);
-					return;
-				} else {
-					toast.info(
-						`Please add items first, then ${field.label} will be calculated automatically`
-					);
-					setTimeout(() => {
-						const tablesSection = document.querySelector(
-							'[data-section="tables"]'
+					
+					// Fallback to any currency/number column
+					if (!totalCol) {
+						totalCol = tableConfig.columns.find(
+							(col) => col.type === "currency" || col.type === "number"
 						);
-						if (tablesSection) {
-							tablesSection.scrollIntoView({
-								behavior: "smooth",
-								block: "center",
-							});
-						}
-					}, 100);
-					return;
+					}
+					
+					if (totalCol?.binding) {
+						totalColumnBindings.set(tableConfig.itemsPath, totalCol.binding);
+					}
 				}
+
+				let calculatedValue = 0;
+
+				if (
+					field.binding === "total" ||
+					field.binding === "grossTotal"
+				) {
+					// Sum totals from all tables
+					for (const tableConfig of tableConfigs) {
+						const tableItems = getTableItems(tableConfig.itemsPath);
+						const totalBinding = totalColumnBindings.get(tableConfig.itemsPath) || "total";
+						
+						for (const item of tableItems) {
+							// Try the identified total binding first
+							let itemTotal: number = 0;
+							
+							if (totalBinding && typeof item[totalBinding] === "number") {
+								itemTotal = item[totalBinding] as number;
+							} else {
+								// Fallback to common field names
+								itemTotal =
+									typeof item.total === "number"
+										? item.total
+										: typeof item.amount === "number"
+											? item.amount
+											: typeof item.lineTotal === "number"
+												? item.lineTotal
+												: typeof item.itemTotal === "number"
+													? item.itemTotal
+													: 0;
+							}
+							
+							calculatedValue += itemTotal;
+						}
+					}
+					
+					const vatTotal = getValue("vatTotal");
+					if (typeof vatTotal === "number") {
+						calculatedValue += vatTotal;
+					}
+				} else if (
+					field.binding === "netAmount" ||
+					field.binding === "subtotal"
+				) {
+					// Sum totals from all tables (without VAT)
+					for (const tableConfig of tableConfigs) {
+						const tableItems = getTableItems(tableConfig.itemsPath);
+						const totalBinding = totalColumnBindings.get(tableConfig.itemsPath) || "total";
+						
+						for (const item of tableItems) {
+							// Try the identified total binding first
+							let itemTotal: number = 0;
+							
+							if (totalBinding && typeof item[totalBinding] === "number") {
+								itemTotal = item[totalBinding] as number;
+							} else {
+								// Fallback to common field names
+								itemTotal =
+									typeof item.total === "number"
+										? item.total
+										: typeof item.amount === "number"
+											? item.amount
+											: typeof item.lineTotal === "number"
+												? item.lineTotal
+												: typeof item.itemTotal === "number"
+													? item.itemTotal
+													: 0;
+							}
+							
+							calculatedValue += itemTotal;
+						}
+					}
+				} else if (
+					field.binding === "vatTotal" ||
+					field.binding === "taxTotal"
+				) {
+					calculatedValue = 0;
+				}
+
+				setBindingValue(newData, field.binding, calculatedValue);
+				setFormData(newData);
+				toast.success(
+					`Calculated ${field.label}: ${calculatedValue.toFixed(2)}`
+				);
+				return;
+			} else {
+				// Not a calculated field, but user clicked auto-fill
+				toast.info(
+					`Please add items first, then ${field.label} will be calculated automatically`
+				);
+				setTimeout(() => {
+					const tablesSection = document.querySelector(
+						'[data-section="tables"]'
+					);
+					if (tablesSection) {
+						tablesSection.scrollIntoView({
+							behavior: "smooth",
+							block: "center",
+						});
+					}
+				}, 100);
+				return;
 			}
 
 			// Handle regular input fields

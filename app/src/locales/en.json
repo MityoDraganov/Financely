@@ -589,6 +589,21 @@
 			"cancel": "Cancel",
 			"delete": "Delete",
 			"deleting": "Deleting..."
+		},
+		"bulkDelete": {
+			"selectAll": "Select all",
+			"deselectAll": "Deselect all",
+			"delete": "Delete {{count}} selected",
+			"clear": "Clear selection",
+			"title": "Delete {{count}} template",
+			"title_plural": "Delete {{count}} templates",
+			"description": "Are you sure you want to delete {{count}} selected template? This action cannot be undone.",
+			"description_plural": "Are you sure you want to delete {{count}} selected templates? This action cannot be undone.",
+			"confirm": "Delete {{count}} template",
+			"confirm_plural": "Delete {{count}} templates",
+			"deleting": "Deleting...",
+			"success": "Successfully deleted {{count}} template",
+			"success_plural": "Successfully deleted {{count}} templates"
 		}
 	},
 	"designer": {

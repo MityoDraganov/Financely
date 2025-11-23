@@ -258,9 +258,16 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         if (el.type === "table") {
             const tbl = el as Extract<TemplateElement, { type: "table" }>;
             const items = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];
+            // Calculate dynamic table height based on actual content (no scrolling for PDF/print)
+            const headerHeight = tbl.headerHeight * zoom;
+            const minRowHeight = tbl.rowHeight * zoom;
+            const actualContentHeight = items.length * minRowHeight;
+            // Table height should be header + content (no clamping for PDF/print compatibility)
+            const totalTableHeight = headerHeight + actualContentHeight;
+            
             return (
-                <div key={tbl.id} style={commonStyle}>
-                    <div style={{ width: "100%", height: "100%", fontSize: 10 * zoom, color: "#374151", overflow: "hidden" }}>
+                <div key={tbl.id} style={{ ...commonStyle, height: totalTableHeight }}>
+                    <div style={{ width: "100%", height: "100%", fontSize: 10 * zoom, color: "#374151", overflow: "visible", display: "flex", flexDirection: "column" }}>
                         <div style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: "1px solid #e5e7eb", height: tbl.headerHeight * zoom }}>
                             {tbl.columns.map((c) => (
                                 <div key={c.id} style={{ display: "flex", alignItems: "center", padding: `${4 * zoom}px`, fontWeight: 600 }}>
@@ -268,9 +275,9 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                 </div>
                             ))}
                         </div>
-                        <div style={{ height: `calc(100% - ${tbl.headerHeight * zoom}px)`, overflow: "hidden" }}>
+                        <div style={{ flex: 1, minHeight: 0, overflow: "visible" }}>
                             {items.map((row, idx) => (
-                                <div key={idx} style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: tbl.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb", height: tbl.rowHeight * zoom }}>
+                                <div key={idx} style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: tbl.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb", minHeight: tbl.rowHeight * zoom, padding: `${4 * zoom}px 0` }}>
                                     {tbl.columns.map((c) => {
                                         const columnBinding = c.binding || c.id;
                                         const raw = getByPath<unknown>(row, columnBinding);
@@ -300,7 +307,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                         const justify = c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start";
                                         
                                         return (
-                                            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `${4 * zoom}px` }}>
+                                            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `${4 * zoom}px`, wordBreak: "break-word", overflowWrap: "break-word", minHeight: `${20 * zoom}px` }}>
                                                 {text}
                                             </div>
                                         );

@@ -19,14 +19,18 @@ export type Formula = z.infer<typeof formulaSchema>;
  * - items.total (binding path)
  * - items[0].price (array item binding)
  * - items[0].quantity (array item with nested property)
+ * - items[*].total (array wildcard)
  * 
  * Pattern breakdown:
  * - [A-Za-z0-9_]+ - starts with identifier
- * - (?:\[[0-9]+\])? - optional array index (e.g., [0])
+ * - (?:\[[0-9*]+\])? - optional array index (e.g., [0]) or wildcard [*]
  * - (?:\.[A-Za-z0-9_]+)* - zero or more dot-separated properties
- * - (?:\[[0-9]+\])? - optional array index after properties (for nested arrays)
+ * - (?:\[[0-9*]+\])? - optional array index after properties (for nested arrays)
+ * 
+ * Lookahead ensures the reference is followed by valid operators or end of string
+ * This allows matching references before comparison operators (>, <, =, etc.)
  */
-export const FORMULA_REFERENCE_PATTERN = /([A-Za-z0-9_]+(?:\[[0-9]+\])?(?:\.[A-Za-z0-9_]+(?:\[[0-9]+\])?)*)/g;
+export const FORMULA_REFERENCE_PATTERN = /([A-Za-z0-9_]+(?:\[[0-9*]+\])?(?:\.[A-Za-z0-9_]+(?:\[[0-9*]+\])?)*)(?=[+\-*/(),<>=!]|$)/g;
 
 /**
  * Supported formula functions

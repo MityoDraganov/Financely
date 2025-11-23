@@ -263,7 +263,7 @@ export function CurrencyProperties({
           <div className={components.field}>
             <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.mode')}</Label>
             <Select
-              value={element.mode || "independent"}
+              value={element.mode || (element.formula ? "formula" : "independent")}
               onValueChange={(v) =>
                 onChange({
                   ...element,

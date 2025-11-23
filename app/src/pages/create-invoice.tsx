@@ -972,7 +972,9 @@ export default function CreateInvoicePage() {
 			return;
 		}
 
-		const region =
+		// Use template's stored region if available, otherwise detect from organization
+		// This ensures templates created for specific regions (e.g., EU) use the correct validation
+		const region = selectedTemplate.compliance?.region || 
 			invoiceComplianceService.detectRegion(currentOrganization);
 		const invoiceData = {
 			orgId: currentOrganization.id,
@@ -1444,8 +1446,38 @@ export default function CreateInvoicePage() {
 								col.binding.toLowerCase() === "price")
 					);
 					if (priceCol && product.price !== undefined) {
+						// Get the template column to check its currency
+						const tableEl = selectedTemplate?.elements?.find(
+							(e) => e.type === "table" && 
+							(e as Extract<TemplateElement, { type: "table" }>).itemsBinding === itemsPath
+						) as Extract<TemplateElement, { type: "table" }> | undefined;
+						
+						const templatePriceCol = tableEl?.columns?.find((c) => c.id === priceCol.id);
+						const columnCurrency = templatePriceCol?.currency || 
+							(templatePriceCol?.type === "currency" && templatePriceCol.format?.currency) ||
+							defaultCurrency;
+						
+						// Convert currency if product currency differs from column currency
+						let finalPrice = product.price;
+						if (product.currency && product.currency !== columnCurrency) {
+							try {
+								// Import getExchangeRate for currency conversion
+								const { getExchangeRate } = await import("@/utils/currencies");
+								const rate = await getExchangeRate(product.currency, columnCurrency);
+								const convertedPrice = product.price * rate;
+								finalPrice = typeof convertedPrice === "number" ? roundCurrency(convertedPrice) as number : product.price;
+								console.log(
+									`Currency conversion: ${product.price} ${product.currency} * ${rate} = ${finalPrice} ${columnCurrency}`
+								);
+							} catch (error) {
+								console.error("Failed to convert currency, using original price:", error);
+								// Fallback to original price if conversion fails
+								finalPrice = product.price;
+							}
+						}
+						
 						// Round currency values to 2 decimal places
-						rowData[priceCol.binding] = roundCurrency(product.price);
+						rowData[priceCol.binding] = roundCurrency(finalPrice);
 						lockedFields.add(priceCol.binding);
 					} else {
 						// Fallback to common field names
@@ -1462,11 +1494,11 @@ export default function CreateInvoicePage() {
 							col.type === "text"
 					);
 					if (currencyCol && product.currency) {
-						rowData[currencyCol.binding] = product.currency;
+						rowData[currencyCol.binding] = product.currency as InvoiceDataValue;
 						lockedFields.add(currencyCol.binding);
 					} else if (product.currency) {
 						// Fallback to common field name
-						rowData.currency = product.currency;
+						rowData.currency = product.currency as InvoiceDataValue;
 						lockedFields.add("currency");
 					}
 
@@ -1554,7 +1586,7 @@ export default function CreateInvoicePage() {
 				});
 			}
 		},
-		[selectedTemplate, currentOrganization, formData, products, tableConfigs, evaluateFormulas, updateLinkedCurrencyFields]
+		[selectedTemplate, currentOrganization, formData, products, tableConfigs, evaluateFormulas, updateLinkedCurrencyFields, defaultCurrency]
 	);
 
 	// Clear product selection for a specific row
@@ -1590,7 +1622,8 @@ export default function CreateInvoicePage() {
 		}
 
 		// Pre-validate compliance before saving
-		const region =
+		// Use template's stored region if available, otherwise detect from organization
+		const region = selectedTemplate.compliance?.region || 
 			invoiceComplianceService.detectRegion(currentOrganization);
 		const invoiceData = {
 			orgId: currentOrganization.id,
@@ -1726,21 +1759,84 @@ export default function CreateInvoicePage() {
 		let subtotal = 0;
 		let total = 0;
 
-		// Calculate totals - currency is handled per-field, so we just sum all totals
-		for (const item of allItems) {
-			const itemTotal =
-				typeof item.total === "number"
-					? item.total
-					: typeof item.amount === "number"
-						? item.amount
-						: 0;
+		// Find the total column binding for each table
+		// Look for columns that are likely to be totals (currency/number with showTotal, or binding names like "total", "amount", "lineTotal")
+		const totalColumnBindings = new Map<string, string>(); // itemsPath -> totalColumnBinding
+		
+		for (const tableConfig of tableConfigs) {
+			// Find the table element to check for showTotal flag
+			const tableEl = selectedTemplate?.elements?.find(
+				(el) => el.type === "table" && 
+				(el as Extract<TemplateElement, { type: "table" }>).itemsBinding === tableConfig.itemsPath
+			) as Extract<TemplateElement, { type: "table" }> | undefined;
+			
+			// First, try to find a column with showTotal flag
+			let totalCol = tableConfig.columns.find(
+				(col) => {
+					if (col.type !== "currency" && col.type !== "number") return false;
+					const templateCol = tableEl?.columns?.find((c) => c.id === col.id);
+					return templateCol?.showTotal === true;
+				}
+			);
+			
+			// If not found, look for common total binding names
+			if (!totalCol) {
+				totalCol = tableConfig.columns.find(
+					(col) => 
+						(col.type === "currency" || col.type === "number") &&
+						(col.binding?.toLowerCase().includes("total") ||
+						 col.binding?.toLowerCase().includes("amount") ||
+						 col.binding === "total" ||
+						 col.binding === "amount" ||
+						 col.binding === "lineTotal" ||
+						 col.binding === "itemTotal")
+				);
+			}
+			
+			// Fallback to any currency/number column as last resort
+			if (!totalCol) {
+				totalCol = tableConfig.columns.find(
+					(col) => col.type === "currency" || col.type === "number"
+				);
+			}
+			
+			if (totalCol?.binding) {
+				totalColumnBindings.set(tableConfig.itemsPath, totalCol.binding);
+			}
+		}
 
-			subtotal += itemTotal;
-			total += itemTotal;
+		// Calculate totals - currency is handled per-field, so we just sum all totals
+		for (const tableConfig of tableConfigs) {
+			const tableItems = getTableItems(tableConfig.itemsPath);
+			const totalBinding = totalColumnBindings.get(tableConfig.itemsPath) || "total";
+			
+			for (const item of tableItems) {
+				// Try the identified total binding first
+				let itemTotal: number = 0;
+				
+				if (totalBinding && typeof item[totalBinding] === "number") {
+					itemTotal = item[totalBinding] as number;
+				} else {
+					// Fallback to common field names
+					itemTotal =
+						typeof item.total === "number"
+							? item.total
+							: typeof item.amount === "number"
+								? item.amount
+								: typeof item.lineTotal === "number"
+									? item.lineTotal
+									: typeof item.itemTotal === "number"
+										? item.itemTotal
+										: 0;
+				}
+
+				subtotal += itemTotal;
+				total += itemTotal;
+			}
 		}
 
 		return { subtotal, total };
-	}, [allItems]);
+	}, [tableConfigs, selectedTemplate, getTableItems]);
 
 	// Add table row
 	const addTableRow = async (

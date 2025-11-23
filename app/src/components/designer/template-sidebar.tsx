@@ -38,9 +38,9 @@ type TemplateSidebarProps = {
 		binding: string;
 		label: string;
 		description?: string;
-		elementType: "text" | "input" | "table";
+		elementType: "text" | "input" | "table" | "currency";
 	}>;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table") => void;
+	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
 	isRequired: (binding: string | undefined) => boolean;
 };
 

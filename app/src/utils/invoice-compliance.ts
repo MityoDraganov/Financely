@@ -165,21 +165,8 @@ export function validateInvoiceCompliance(
   
   // Additional validations for specific regions
   if (region === "EU") {
-    // Check if items have VAT information
-    const items = getBindingValue(data, "items");
-    if (Array.isArray(items) && items.length > 0) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i] as Record<string, InvoiceDataValue>;
-        if (typeof item === "object" && item !== null) {
-          if (!item.vatRate && item.vatRate !== 0) {
-            warnings.push(`Item ${i + 1} is missing VAT rate (required for EU invoices)`);
-          }
-          if (!item.vatAmount && item.vatAmount !== 0) {
-            warnings.push(`Item ${i + 1} is missing VAT amount (required for EU invoices)`);
-          }
-        }
-      }
-    }
+    // VAT is calculated at invoice level, not per item
+    // No need to check per-item VAT fields
     
     // Check for reverse charge note if reverse charge is enabled
     const reverseCharge = getBindingValue(data, "reverseCharge");
@@ -298,7 +285,7 @@ export function isRequiredBinding(region: InvoiceRegion, binding: string): boole
 
 /**
  * Get all bindings used in template elements
- * Handles different element types: text, input, image have `binding`, tables have `itemsBinding`
+ * Handles different element types: text, input, image, currency have `binding`, tables have `itemsBinding` and column bindings
  * 
  * @param elements - Template elements
  * @returns Set of unique binding paths
@@ -307,18 +294,36 @@ export function extractTemplateBindings(elements: Array<{
   type: string;
   binding?: string;
   itemsBinding?: string;
+  columns?: Array<{ binding?: string }>;
 }>): Set<string> {
   const bindings = new Set<string>();
   
   for (const element of elements) {
-    // Handle regular bindings (text, input, image elements)
+    // Handle regular bindings (text, input, image, currency elements)
+    // Currency elements also have binding property
     if (element.binding) {
       bindings.add(element.binding);
     }
     
-    // Handle table itemsBinding
+    // Handle table itemsBinding and column bindings
     if (element.type === "table" && "itemsBinding" in element && element.itemsBinding) {
-      bindings.add(element.itemsBinding);
+      const itemsBinding = element.itemsBinding;
+      bindings.add(itemsBinding);
+      
+      // Extract column bindings - these represent fields within table items
+      // For compliance, we check if the column binding matches required fields
+      // Note: Column bindings are relative to the table items (e.g., "description", "quantity")
+      // The full path would be items[0].description, but for compliance validation,
+      // we check if the column binding matches the field name in required bindings
+      if ("columns" in element && Array.isArray(element.columns)) {
+        for (const col of element.columns) {
+          if (col.binding) {
+            // Add the column binding as-is (e.g., "description", "quantity")
+            // Compliance validation will check if this matches required fields
+            bindings.add(col.binding);
+          }
+        }
+      }
     }
   }
   
@@ -327,6 +332,11 @@ export function extractTemplateBindings(elements: Array<{
 
 /**
  * Validate template has all required bindings for compliance
+ * 
+ * Handles:
+ * - Direct bindings (e.g., "invoiceNumber", "seller.name")
+ * - Table itemsBinding (e.g., "items")
+ * - Table column bindings (e.g., "description", "quantity" within items table)
  * 
  * @param elements - Template elements
  * @param region - Compliance region
@@ -337,6 +347,7 @@ export function validateTemplateCompliance(
     type: string;
     binding?: string;
     itemsBinding?: string;
+    columns?: Array<{ binding?: string }>;
   }>,
   region: InvoiceRegion
 ): string[] {
@@ -345,9 +356,30 @@ export function validateTemplateCompliance(
   const missing: string[] = [];
   
   for (const required of requiredBindings) {
-    if (!templateBindings.has(required)) {
-      missing.push(required);
+    // Check if binding exists directly
+    if (templateBindings.has(required)) {
+      continue;
     }
+    
+    // For table item fields (e.g., items[0].description), check if:
+    // 1. The itemsBinding exists (e.g., "items")
+    // 2. The column binding exists (e.g., "description")
+    // This handles cases where required field is "items" (array) or a field within items
+    if (required === "items") {
+      // Check if any table has itemsBinding
+      const hasItemsBinding = elements.some(
+        (el) => el.type === "table" && "itemsBinding" in el && el.itemsBinding === "items"
+      );
+      if (hasItemsBinding) {
+        continue;
+      }
+    } else if (required.includes(".")) {
+      // For nested bindings like "seller.name", check if any part matches
+      // This is already handled by direct binding check above
+    }
+    
+    // If we get here, the binding is missing
+    missing.push(required);
   }
   
   return missing;

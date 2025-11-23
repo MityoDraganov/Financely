@@ -12,8 +12,8 @@ type ComplianceStatusProps = {
 		missingBindings: string[];
 	} | null;
 	template: Template | undefined;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table") => void;
-	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table";
+	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
+	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
 };
 
 export function ComplianceStatus({

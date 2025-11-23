@@ -32,7 +32,7 @@ import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { useGenerateInvoiceTemplate } from "@/hooks/service-hooks/use-invoice-template-generation";
 import { toast } from "sonner";
-import { isRequiredBinding } from "@/utils/invoice-compliance";
+import { isRequiredBinding, extractTemplateBindings } from "@/utils/invoice-compliance";
 import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
 import { generateUniqueTemplateName } from "@/utils/template-naming";
 import { TemplateSidebar } from "@/components/designer/template-sidebar";
@@ -61,6 +61,7 @@ export default function TemplateDesignerPage() {
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
+	const isCreatingTemplateRef = useRef<boolean>(false);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const designerTemplateContext = useDesignerTemplate();
@@ -164,14 +165,18 @@ export default function TemplateDesignerPage() {
 	function determineElementTypeForBinding(
 		binding: string,
 		format?: "string" | "number" | "date" | "boolean" | "object" | "array"
-	): "text" | "input" | "table" {
+	): "text" | "input" | "table" | "currency" {
 		if (binding === "items" || format === "array") {
 			return "table";
 		}
 		if (format === "date" || binding.includes("Date") || binding.includes("date")) {
 			return "input";
 		}
-		if (format === "number" || binding.includes("Amount") || binding.includes("Total") || binding.includes("Rate")) {
+		// Currency fields should use currency element type
+		if (format === "number" && (binding.includes("Amount") || binding.includes("Total") || binding.includes("Price") || binding.includes("vatTotal") || binding.includes("netAmount") || binding.includes("grossTotal"))) {
+			return "currency";
+		}
+		if (format === "number" || binding.includes("Rate")) {
 			return "input";
 		}
 		return "text";
@@ -183,29 +188,58 @@ export default function TemplateDesignerPage() {
 		
 		const region = complianceStatus.region;
 		const schema = COMPLIANCE_SCHEMAS[region];
-		const existingBindings = new Set(
-			(currentTemplate.elements ?? []).flatMap(el => {
-				const bindings: string[] = [];
-				if (el.type === "text" || el.type === "input" || el.type === "image" || el.type === "currency") {
-					if (el.binding) bindings.push(el.binding);
+		
+		// Use the proper extraction function to get all bindings (including table columns)
+		const existingBindings = extractTemplateBindings(currentTemplate.elements ?? []);
+		
+		// Also check table column bindings for nested fields
+		// For example, if required field is "items" and we have a table with itemsBinding="items", it's satisfied
+		// For fields within items (like "description", "quantity"), we check column bindings
+		const elements = currentTemplate.elements ?? [];
+		for (const el of elements) {
+			if (el.type === "table" && el.itemsBinding) {
+				// If required field is the items array itself, mark it as found
+				existingBindings.add(el.itemsBinding);
+				
+				// Add column bindings to the set
+				const tableEl = el as Extract<TemplateElement, { type: "table" }>;
+				for (const col of tableEl.columns ?? []) {
+					if (col.binding) {
+						existingBindings.add(col.binding);
+					}
 				}
-				if (el.type === "table" && el.itemsBinding) {
-					bindings.push(el.itemsBinding);
-				}
-				return bindings;
-			})
-		);
+			}
+		}
 		
 		return schema.requiredFields
-			.filter(field => !existingBindings.has(field.binding))
+			.filter(field => {
+				// Check direct binding match
+				if (existingBindings.has(field.binding)) {
+					return false;
+				}
+				
+				// For "items" array, check if any table has itemsBinding="items"
+				if (field.binding === "items") {
+					return !elements.some(
+						(el) => el.type === "table" && 
+						(el as Extract<TemplateElement, { type: "table" }>).itemsBinding === "items"
+					);
+				}
+				
+				// For nested bindings like "seller.name", check if any element has that exact binding
+				// This is already handled by the direct check above
+				return true;
+			})
 			.map(field => ({
-				...field,
+				binding: field.binding,
+				label: field.label,
+				description: field.description,
 				elementType: determineElementTypeForBinding(field.binding, field.format),
 			}));
 	}, [complianceStatus, currentTemplate]);
 
 	// Function to add required element with pre-configured binding
-	function addRequiredElement(binding: string, label: string, elementType: "text" | "input" | "table") {
+	function addRequiredElement(binding: string, label: string, elementType: "text" | "input" | "table" | "currency") {
 		if (!currentTemplate) return;
 		
 		// Determine position - stack them vertically
@@ -300,6 +334,29 @@ export default function TemplateDesignerPage() {
 			setDraftElements(next);
 			setState((s) => ({ ...s, selectedElementId: inputElement.id }));
 			saveMutation.mutate({ elements: next });
+		} else if (elementType === "currency") {
+			// Add currency element
+			const currencyElement: TemplateElement = {
+				id: crypto.randomUUID(),
+				type: "currency",
+				x: 60,
+				y: yPosition,
+				width: 200,
+				height: 32,
+				rotation: 0,
+				zIndex: 1,
+				visible: true,
+				placeholder: "0.00",
+				binding: binding,
+				currency: currentOrg?.settings?.defaultCurrency || "USD",
+				currencyLinks: [],
+				mode: "independent",
+				align: "right",
+			};
+			const next = [...existingElements, currencyElement];
+			setDraftElements(next);
+			setState((s) => ({ ...s, selectedElementId: currencyElement.id }));
+			saveMutation.mutate({ elements: next });
 		} else {
 			// Add text element
 			const textElement: TemplateElement = {
@@ -372,9 +429,34 @@ export default function TemplateDesignerPage() {
 				// Template not found, redirect to templates list
 				navigate("/templates");
 			}
-		} else if (!contextCurrentTemplateId && !createTemplate.isPending && !createTemplate.isSuccess) {
+		} else if (
+			!contextCurrentTemplateId && 
+			!createTemplate.isPending && 
+			!createTemplate.isSuccess &&
+			!isCreatingTemplateRef.current
+		) {
 			// No template ID in URL and no template selected - auto-create a new one
-			handleCreateNewTemplate();
+			// Use ref to prevent multiple simultaneous creations
+			isCreatingTemplateRef.current = true;
+			const createPromise = handleCreateNewTemplate();
+			if (createPromise && typeof createPromise.then === 'function') {
+				createPromise
+					.then(() => {
+						// Reset flag after a delay to allow state updates to propagate
+						setTimeout(() => {
+							isCreatingTemplateRef.current = false;
+						}, 1000);
+					})
+					.catch(() => {
+						// Reset flag on error so user can retry
+						isCreatingTemplateRef.current = false;
+					});
+			} else {
+				// If it doesn't return a promise, reset after a delay
+				setTimeout(() => {
+					isCreatingTemplateRef.current = false;
+				}, 2000);
+			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [templates, contextCurrentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
@@ -386,6 +468,8 @@ export default function TemplateDesignerPage() {
 				...s,
 				currentTemplateId: contextCurrentTemplateId,
 			}));
+			// Reset creation flag when template ID is set
+			isCreatingTemplateRef.current = false;
 		}
 	}, [contextCurrentTemplateId, state.currentTemplateId]);
 

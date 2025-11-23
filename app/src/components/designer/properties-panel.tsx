@@ -39,8 +39,8 @@ type PropertiesPanelProps = {
 	} | null;
 	saveMutation: UseMutationResult<void, Error, Partial<TemplateData>, unknown>;
 	onUpdateElement: (partial: Partial<TemplateElement>) => void;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table") => void;
-	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table";
+	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
+	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
 	// Version history props
 	templateId?: string;

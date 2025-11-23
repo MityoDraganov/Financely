@@ -344,7 +344,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";
 
           return `
-            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify};">
+            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify}; word-break: break-word; overflow-wrap: break-word; min-height: 20px;">
               ${text}
             </div>
           `;
@@ -357,7 +357,8 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             display: grid;
             grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
             border-bottom: ${borderStyle};
-            height: ${el.rowHeight}px;
+            min-height: ${el.rowHeight}px;
+            padding: 4px 0;
           ">
             ${cellsHTML}
           </div>
@@ -461,9 +462,16 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }
 
+      // Calculate actual table height based on content (no scrolling for PDF/print)
+      const headerHeight = el.headerHeight || 28;
+      const rowHeight = el.rowHeight || 28;
+      const actualContentHeight = items.length * rowHeight;
+      const totalsHeight = totalsHTML ? rowHeight : 0;
+      const totalTableHeight = headerHeight + actualContentHeight + totalsHeight;
+      
       return `
-        <div style="${commonStyle}">
-          <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: hidden;">
+        <div style="${commonStyle}; height: ${totalTableHeight}px;">
+          <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: visible;">
             <div style="
               display: grid;
               grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
@@ -472,7 +480,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             ">
               ${columnsHTML}
             </div>
-            <div style="height: calc(100% - ${el.headerHeight}px); overflow: hidden;">
+            <div style="overflow: visible;">
               ${rowsHTML}
               ${totalsHTML}
             </div>

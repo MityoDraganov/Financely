@@ -7,7 +7,7 @@ interface DesignerTemplateContextValue {
 	setCurrentTemplateId: (id: string | undefined) => void;
 	currentTemplate: Template | undefined;
 	onTemplateChange: (id: string) => void;
-	onCreateNewTemplate: () => void;
+	onCreateNewTemplate: () => void | Promise<void>;
 }
 
 const DesignerTemplateContext = createContext<DesignerTemplateContextValue | null>(null);
@@ -27,7 +27,7 @@ export function DesignerTemplateProvider({
 	setCurrentTemplateId: (id: string | undefined) => void;
 	currentTemplate: Template | undefined;
 	onTemplateChange: (id: string) => void;
-	onCreateNewTemplate: () => void;
+	onCreateNewTemplate: () => void | Promise<void>;
 }) {
 	return (
 		<DesignerTemplateContext.Provider
