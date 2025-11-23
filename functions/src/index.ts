@@ -20,11 +20,26 @@ export { createWorkflow } from "./functions/create-workflow";
 // Workflow execution functions
 export { 
   onInvoiceCreated, 
-  onInvoicePaid, 
+  onInvoicePaid,
+  onInvoiceSent,
+  onLeadConverted,
+  onLeadQualified,
+  onContactCreated,
+  onContactUpdated,
+  onProposalCreated,
+  onProposalStatusChanged,
+  onProductCreated,
+  onProductLowStock,
+  checkCronWorkflows,
+  checkOverdueInvoices,
+  checkContractExpiry,
   triggerWorkflow, 
   executeStep, 
   webhookHandler 
 } from "./functions/workflow-triggers";
+
+// Note: onLeadCreated (lead.created trigger) is exported from ./functions/on-lead-created
+// Note: onClerkWebhookEvent (user.joined trigger) is exported from ./functions/clerk/on-clerk-event-webhook
 
 export { 
   createWorkflow as createWorkflowV2, 
@@ -38,6 +53,7 @@ export {
 export { createInvite } from "./functions/create-invite";
 export { acceptInvite } from "./functions/accept-invite";
 export { revokeInvite } from "./functions/revoke-invite";
+export { revokeMember } from "./functions/revoke-member";
 
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";
@@ -78,6 +94,9 @@ export { deployManualSite } from "./functions/deploy-manual-site";
 export { restoreWidgetVersion } from "./functions/restore-widget-version";
 export { saveWidgetVersion } from "./functions/save-widget-version";
 export { translateWidgetText } from "./functions/translate-widget-text";
+
+// Analytics functions
+export { getAnalyticsConfig } from "./functions/get-analytics-config";
 
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";

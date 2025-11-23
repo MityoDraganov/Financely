@@ -1,4 +1,4 @@
-import { WorkflowTriggerType, WorkflowActionType, WorkflowAction } from "@/core";
+import { WorkflowTriggerType, WorkflowActionType, WorkflowAction, Workflow, UpdateWorkflowInput } from "@/core";
 
 export interface WorkflowStep {
   id: string;
@@ -130,9 +130,9 @@ export const ACTION_TYPES = [
 ] as const;
 
 export interface WorkflowBuilderProps {
-  editingWorkflow?: any | null;
+  editingWorkflow?: Workflow | null;
   onCancelEdit?: () => void;
-  onPreview?: (workflow: any) => void;
+  onPreview?: (workflow: Workflow) => void;
 }
 
 export interface WorkflowStepProps {
@@ -151,9 +151,9 @@ export interface WorkflowActionProps {
 }
 
 export interface WorkflowHeaderProps {
-  workflow: any;
-  editingWorkflow?: any | null;
-  onUpdateWorkflow: (updates: any) => void;
+  workflow: Workflow;
+  editingWorkflow?: Workflow | null;
+  onUpdateWorkflow: (updates: UpdateWorkflowInput) => void;
   onCancelEdit?: () => void;
 }
 
@@ -172,9 +172,9 @@ export interface WorkflowStepsProps {
 }
 
 export interface WorkflowActionsProps {
-  workflow: any;
+  workflow: Workflow;
   onSave: () => void;
-  onPreview?: (workflow: any) => void;
+  onPreview?: (workflow: Workflow) => void;
   isSaving: boolean;
 }
 

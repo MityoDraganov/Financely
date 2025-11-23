@@ -75,6 +75,12 @@ interface BrandSite {
     createdAt: string;
     updatedAt: string;
   }>;
+  chatRequest?: {
+    id: string;
+    status: "pending" | "processing" | "complete";
+    message: string;
+    conversationId?: string;
+  };
 }
 
 /**
@@ -109,6 +115,10 @@ export const useBrandSite = (brandSiteId: string | null) => {
           return 300; // Poll every 300ms when HTML is streaming
         }
         return 500; // Poll every 500ms for faster streaming updates
+      }
+      // Poll if there's a pending chat request (waiting for backend to process)
+      if (data?.chatRequest && (data.chatRequest.status === "pending" || data.chatRequest.status === "processing")) {
+        return 500; // Poll every 500ms while waiting for chat request to be processed
       }
       // Also poll if there are conversations (to catch streaming message updates)
       if (data?.conversations && (data.conversations as any[]).length > 0) {

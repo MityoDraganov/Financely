@@ -5,12 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Globe, Sparkles, Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sparkles, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
 import { useImproveText } from "@/hooks/service-hooks/use-improve-text";
 import { LanguageSelector } from "./language-selector";
-import { languages, getLanguageByCode } from "@/utils/languages";
+import { getLanguageByCode } from "@/utils/languages";
 import { toast } from "sonner";
 import { RichTextEditor } from "./rich-text-editor";
 
@@ -18,6 +18,7 @@ interface ArticleLocalization {
   title: string;
   description: string; // Rich text HTML
   summary?: string;
+  link?: string;
   image?: string; // Featured image URL
 }
 
@@ -654,7 +655,9 @@ export function AddArticleDialog({
                               handleImageUpload(file, langCode);
                             }
                             // Reset input
-                            input.value = "";
+                            if (input) {
+                              input.value = "";
+                            }
                           };
                           document.body.appendChild(input);
                           fileInputRefs.current[inputId] = input;

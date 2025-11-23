@@ -48,18 +48,18 @@ const FontSize = Extension.create({
     return {
       setFontSize:
         (fontSize: string) =>
-        ({ chain }) => {
+        ({ chain }: { chain: any }) => {
           return chain().setMark("textStyle", { fontSize }).run();
         },
       unsetFontSize:
         () =>
-        ({ chain }) => {
+        ({ chain }: { chain: any }) => {
           return chain()
             .setMark("textStyle", { fontSize: null })
             .removeEmptyTextStyle()
             .run();
         },
-    };
+    } as any;
   },
 });
 import { 
@@ -77,7 +77,6 @@ import {
   Undo,
   Redo,
   Palette,
-  Type,
   Highlighter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -135,7 +134,6 @@ const HIGHLIGHT_COLORS = [
 export function RichTextEditor({
   content,
   onChange,
-  placeholder = "Start typing...",
   disabled = false,
   className,
 }: RichTextEditorProps) {
@@ -350,7 +348,7 @@ export function RichTextEditor({
           value={currentFontSize}
           onValueChange={(value) => {
             const fontSize = value.replace("px", "");
-            editor.chain().focus().setFontSize(fontSize).run();
+            (editor.chain().focus() as any).setFontSize(fontSize).run();
           }}
         >
           <SelectTrigger className="w-[100px] h-8">

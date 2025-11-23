@@ -13,7 +13,7 @@ import WorkflowBuilder from "@/components/workflow/workflow-builder";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 
 export default function WorkflowExecutionPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { formatDateTable } = useDateFormatting();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -290,7 +290,7 @@ export default function WorkflowExecutionPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">{t('workflows.execution.overview.details.created')}</span>
                   <span className="font-medium">
-                    {workflow.createdAt ? formatDateTable(workflow.createdAt, i18n.language) : 'N/A'}
+                    {workflow.createdAt ? formatDateTable(workflow.createdAt) : 'N/A'}
                   </span>
                 </div>
                 {workflow.tags.length > 0 && (

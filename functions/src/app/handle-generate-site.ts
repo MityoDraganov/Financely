@@ -10,6 +10,7 @@ import { logger } from "firebase-functions";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { firestore } from "firebase-admin";
+import { listOrganizationImages, filterValidProductImages } from "../utils/list-organization-images";
 
 interface GenerateSiteInput {
   organizationId: string;
@@ -393,6 +394,7 @@ export function applyIntegrations(
     pageType?: "standard" | "blog" | "contact";
     pageSlug?: string;
     customFavicon?: string;
+    availablePages?: Array<{ slug: string; title: string; href: string }>;
   },
 ): string {
   let output = html;
@@ -457,6 +459,66 @@ export function applyIntegrations(
         output = `<head>${faviconLink}</head>\n${output}`;
       }
     }
+  }
+
+  // Remove invalid placeholder image URLs (like B84A62?text=..., 000000?text=..., etc.)
+  // These are placeholder image services that Gemini sometimes generates
+  output = output.replace(
+    /<img[^>]+src=["']([^"']*(?:B84A62|000000|placeholder|via\.placeholder|dummyimage|placehold\.it)[^"']*)["'][^>]*>/gi,
+    (match, url) => {
+      // Remove the entire img tag if it's a placeholder URL
+      return '';
+    }
+  );
+  
+  // Remove invalid image URLs from background-image CSS
+  output = output.replace(
+    /background-image:\s*url\(["']?([^"')]*(?:B84A62|000000|placeholder|via\.placeholder|dummyimage|placehold\.it)[^"')]*)["']?\)/gi,
+    (match, url) => {
+      // Remove the background-image property
+      return '';
+    }
+  );
+  
+  // Remove data URIs that might be placeholder images (but keep valid ones)
+  output = output.replace(
+    /<img[^>]+src=["']data:image\/[^"']*B84A62[^"']*["'][^>]*>/gi,
+    ''
+  );
+  output = output.replace(
+    /<img[^>]+src=["']data:image\/[^"']*000000[^"']*["'][^>]*>/gi,
+    ''
+  );
+
+  // Remove links to non-existent pages (404 prevention)
+  if (options.availablePages && options.availablePages.length > 0) {
+    const validPaths = options.availablePages.map((p: { href: string }) => p.href);
+    // Also add common valid paths
+    validPaths.push('/', '/index', '/index.html', '/home', '/home.html');
+    
+    // Remove internal links that don't match valid paths (but keep external links and anchors)
+    output = output.replace(
+      /<a([^>]*)\s+href=["'](\/[^"']+)["']([^>]*)>(.*?)<\/a>/gi,
+      (match, before, href, after, content) => {
+        // Skip if it's an anchor link (#) or external link (http/https)
+        if (href.startsWith('#') || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+          return match;
+        }
+        // Normalize href (remove trailing slash, handle index)
+        const normalizedHref = href === '/' || href === '/index' || href === '/home' ? '/' : href.replace(/\/$/, '');
+        // Check if it's a valid path
+        const isValid = validPaths.some((path: string) => {
+          const normalizedPath = path === '/' || path === '/index' || path === '/home' ? '/' : path.replace(/\/$/, '');
+          return normalizedHref === normalizedPath || normalizedHref.startsWith(normalizedPath + '/');
+        });
+        
+        if (isValid || href.endsWith('.html') || href.endsWith('.pdf') || href.endsWith('.jpg') || href.endsWith('.png') || href.endsWith('.jpeg') || href.endsWith('.webp')) {
+          return match;
+        }
+        // Remove the link but keep the content - convert to button or span
+        return `<button${before}${after} type="button">${content}</button>`;
+      }
+    );
   }
 
   // Rewrite Firebase Storage image URLs to use proxy (fixes CORS issues)
@@ -562,7 +624,11 @@ export async function handleGenerateSite(
   };
   const logoUrl = organization.settings?.branding?.customLogo || organization.logoUrl;
     const description = organization.settings?.branding?.description;
-    const brandImages = organization.settings?.branding?.brandImages || [];
+    // Get all available images from organization's storage
+    const allAvailableImages = await listOrganizationImages(
+      input.organizationId,
+      config.firebaseProjectId,
+    );
     const customFavicon = organization.settings?.branding?.customFavicon;
 
     logger.debug("Step 4: Finding existing brand site", {
@@ -719,9 +785,9 @@ export async function handleGenerateSite(
           logoUrl,
           tone,
             description,
-            brandImages,
+            brandImages: allAvailableImages, // Use all available images from storage
             context: brandSite.context,
-            contextImages: brandSite.contextImages || [],
+            contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
             products: productsForContext,
             widgets: widgetContext,
         },
@@ -796,14 +862,20 @@ export async function handleGenerateSite(
         ],
       });
 
-      const productsForContext = products.map((p) => ({
-        name: p.name,
-        description: p.description,
-        price: p.price,
-        currency: p.currency,
-        category: p.category,
-        images: p.images,
-      }));
+      // Filter product images to only include those that exist in storage
+      const productsForContext = products.map((p) => {
+        const validImages = p.images
+          ? filterValidProductImages(p.images, allAvailableImages)
+          : [];
+        return {
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          currency: p.currency,
+          category: p.category,
+          images: validImages, // Only include images that actually exist
+        };
+      });
 
       // Prepare widget configuration for AI context
       // Include complete widget information so AI knows what widgets are available
@@ -911,6 +983,11 @@ export async function handleGenerateSite(
             );
             
             // Re-apply integrations in case widget/analytics config changed
+            const availablePagesForPreserved = pagesToGenerate.map((p) => ({
+              slug: p.slug,
+              title: p.title,
+              href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+            }));
             preservedHtml = applyIntegrations(preservedHtml, {
               widgets,
               organizationId: organization.id,
@@ -920,6 +997,7 @@ export async function handleGenerateSite(
               tempSiteId: `brand-${brandSiteId}`,
               brandName,
               customFavicon,
+              availablePages: availablePagesForPreserved,
             });
             
             generatedPageFiles[filePath] = preservedHtml;
@@ -976,15 +1054,22 @@ export async function handleGenerateSite(
         // Use streaming generation for live preview
         // Update Firestore progressively as HTML chunks arrive
         let pageHtml = "";
+        // Build available pages list for this page to know what it can link to
+        const availablePages = pagesToGenerate.map((p) => ({
+          slug: p.slug,
+          title: p.title,
+          href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+        }));
+
         const pageContextForPrompt = {
           brandName,
           colors: brandColors,
           logoUrl,
           tone,
           description,
-          brandImages,
+          brandImages: allAvailableImages, // Use all available images from storage
           context: pageContext || brandSite.context,
-          contextImages: brandSite.contextImages || [],
+          contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
           products: productsForContext,
           widgets: widgetContext,
           pageTitle: page.title,
@@ -992,6 +1077,7 @@ export async function handleGenerateSite(
           pageSlug: page.slug,
           pageType: page.type,
           pageContentEntries: page.contentEntries,
+          availablePages, // List of pages that exist and can be linked to
         };
 
         // Throttle Firestore updates to avoid excessive writes (max 1 update per 500ms)
@@ -1057,15 +1143,22 @@ export async function handleGenerateSite(
             brandSiteId,
             pageSlug: page.slug,
           });
+          // Build available pages list
+          const availablePagesForFallback = pagesToGenerate.map((p) => ({
+            slug: p.slug,
+            title: p.title,
+            href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+          }));
+
           pageHtml = await geminiService.generateSiteHtml({
             brandName,
             colors: brandColors,
             logoUrl,
             tone,
             description,
-            brandImages,
+            brandImages: allAvailableImages, // Use all available images from storage
             context: pageContext || brandSite.context,
-            contextImages: brandSite.contextImages || [],
+            contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
             products: productsForContext,
             widgets: widgetContext,
             pageTitle: page.title,
@@ -1073,6 +1166,7 @@ export async function handleGenerateSite(
             pageSlug: page.slug,
             pageType: page.type,
             pageContentEntries: page.contentEntries,
+            availablePages: availablePagesForFallback,
           });
         }
 
@@ -1095,6 +1189,7 @@ export async function handleGenerateSite(
           pageType: page.type,
           pageSlug: page.slug,
           customFavicon,
+          availablePages, // Pass available pages for link validation
         });
 
         generatedPageFiles[filePath] = pageHtml;

@@ -1,19 +1,14 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   FileText, 
-  Mail, 
   Users, 
   ShoppingCart,
-  Zap,
-  CheckCircle,
   ArrowRight
 } from "lucide-react";
 import { WorkflowData, WorkflowTriggerType, WorkflowActionType } from "@/core";
-import { cn } from "@/lib/utils";
 
 export interface WorkflowTemplate {
   id: string;
@@ -113,7 +108,7 @@ const workflowTemplates: WorkflowTemplate[] = [
               id: "action_1",
               type: "convert.lead_to_contact" as WorkflowActionType,
               name: "Convert to Contact",
-              config: {},
+              config: { leadId: "" } as any,
             },
           ],
         },
@@ -154,7 +149,7 @@ const workflowTemplates: WorkflowTemplate[] = [
               id: "action_1",
               type: "convert.proposal_to_invoice" as WorkflowActionType,
               name: "Convert Proposal",
-              config: {},
+              config: { proposalId: "" } as any,
             },
           ],
         },
@@ -217,7 +212,7 @@ const workflowTemplates: WorkflowTemplate[] = [
               config: {
                 userId: "{{admin.id}}",
                 message: "New user {{user.name}} joined the organization",
-              },
+              } as any,
             },
           ],
         },
@@ -289,7 +284,6 @@ interface WorkflowTemplatesProps {
 }
 
 export function WorkflowTemplates({ onSelectTemplate, className }: WorkflowTemplatesProps) {
-  const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const categories = [

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Send, Image as ImageIcon, X, Sparkles, Plus, MessageSquare, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChatGenerateSite } from "@/hooks/service-hooks/use-chat-generate-site";
 import { useUploadFile } from "@/hooks/service-hooks/use-upload-file";
 import { useBrandSite, useUpdateBrandSite } from "@/hooks/repository-hooks/use-brand-site";
@@ -51,8 +52,12 @@ export function AIChatBuilder({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedPageSlug, setSelectedPageSlug] = useState<string>("index"); // "index" = home page, "all" = entire site
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Track streaming message content lengths to detect completion
+  const streamingContentLengthsRef = useRef<Map<string, { length: number; lastUpdate: number }>>(new Map());
+  const streamingTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const uploadFile = useUploadFile();
   const chatGenerateSite = useChatGenerateSite();
+  const queryClient = useQueryClient();
   const { data: brandSite } = useBrandSite(brandSiteId);
   
   // Debug: Log brandSite updates
@@ -73,40 +78,75 @@ export function AIChatBuilder({
   
   // Helper function to save conversation to Firestore
   const saveConversation = useMemo(() => async (conversationId: string, conversationMessages: ChatMessage[], title?: string) => {
-    if (!brandSiteId) return;
-
-    const conversations = brandSite?.conversations || [];
-    const existingIndex = conversations.findIndex(c => c.id === conversationId);
-    
-    // Generate title from first user message if not provided
-    const conversationTitle = title || conversationMessages
-      .find(m => m.role === "user")?.content
-      .substring(0, 50) || "New Conversation";
-
-    const conversationData = {
-      id: conversationId,
-      title: conversationTitle,
-      messages: conversationMessages.filter(m => !m.isTyping), // Remove typing indicators
-      createdAt: existingIndex >= 0 
-        ? conversations[existingIndex].createdAt 
-        : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    let updatedConversations: typeof conversations;
-    if (existingIndex >= 0) {
-      updatedConversations = [...conversations];
-      updatedConversations[existingIndex] = conversationData;
-    } else {
-      updatedConversations = [...conversations, conversationData];
+    if (!brandSiteId) {
+      console.warn("saveConversation: No brandSiteId, skipping save");
+      return;
     }
 
-    await updateBrandSite.mutateAsync({
-      id: brandSiteId,
-      data: {
-        conversations: updatedConversations,
-      },
-    });
+    if (!updateBrandSite) {
+      console.warn("saveConversation: updateBrandSite mutation not available, skipping save");
+      return;
+    }
+
+    try {
+      const conversations = brandSite?.conversations || [];
+      const existingIndex = conversations.findIndex(c => c.id === conversationId);
+      
+      // Generate title from first user message if not provided
+      const firstUserMessage = conversationMessages.find(m => m.role === "user");
+      const conversationTitle = title || (firstUserMessage?.content?.substring(0, 50) || "New Conversation");
+
+      // Filter out undefined values and typing indicators
+      const cleanMessages = conversationMessages
+        .filter(m => !m.isTyping)
+        .map(m => {
+          const clean: {
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            timestamp: string;
+            attachments?: string[];
+          } = {
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            timestamp: m.timestamp,
+          };
+          // Only include attachments if they exist and are not empty
+          if (m.attachments && m.attachments.length > 0) {
+            clean.attachments = m.attachments;
+          }
+          return clean;
+        });
+
+      const conversationData = {
+        id: conversationId,
+        title: conversationTitle,
+        messages: cleanMessages,
+        createdAt: existingIndex >= 0 
+          ? conversations[existingIndex].createdAt 
+          : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      let updatedConversations: typeof conversations;
+      if (existingIndex >= 0) {
+        updatedConversations = [...conversations];
+        updatedConversations[existingIndex] = conversationData;
+      } else {
+        updatedConversations = [...conversations, conversationData];
+      }
+
+      await updateBrandSite.mutateAsync({
+        id: brandSiteId,
+        data: {
+          conversations: updatedConversations,
+        },
+      });
+    } catch (error) {
+      console.error("saveConversation: Error saving conversation:", error);
+      throw error; // Re-throw so caller can handle it
+    }
   }, [brandSiteId, brandSite?.conversations, updateBrandSite]);
   
   // Track processing step based on brand site status
@@ -290,22 +330,88 @@ export function AIChatBuilder({
       });
       
       setMessages((prev) => {
-        // Remove any existing typing indicators
-        const withoutTyping = prev.filter(m => !m.isTyping);
+        // Remove any existing typing indicators (except the streaming one we're about to add/update)
+        const withoutTyping = prev.filter(m => !m.isTyping || m.id === streamingMessage.id);
         
         // Check if streaming message already exists
         const existingIndex = withoutTyping.findIndex(m => m.id === streamingMessage.id);
         
+        // Check if streaming is still active by comparing content length and tracking updates
+        const currentContentLength = streamingMessage.content?.length || 0;
+        const previousLengthData = streamingContentLengthsRef.current.get(streamingMessage.id);
+        const previousLength = previousLengthData?.length || 0;
+        
+        // Clear any existing timeout for this message
+        const existingTimeout = streamingTimeoutRef.current.get(streamingMessage.id);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+          streamingTimeoutRef.current.delete(streamingMessage.id);
+        }
+        
+        // Check if content is still growing
+        const isContentGrowing = !previousLengthData || currentContentLength > previousLength;
+        
+        // Update tracking
+        streamingContentLengthsRef.current.set(streamingMessage.id, {
+          length: currentContentLength,
+          lastUpdate: Date.now(),
+        });
+        
+        // If content is growing, it's still streaming
+        // If content stopped growing, wait 2 seconds before marking as complete
+        let isStillStreaming = isContentGrowing;
+        
+        if (!isContentGrowing && previousLengthData) {
+          // Content stopped growing - set timeout to mark as complete after 2 seconds
+          const timeout = setTimeout(() => {
+            setMessages((prev) => {
+              const updated = prev.map((msg) => {
+                if (msg.id === streamingMessage.id) {
+                  return { ...msg, isTyping: false, processingStep: undefined };
+                }
+                return msg;
+              });
+              return updated;
+            });
+            streamingContentLengthsRef.current.delete(streamingMessage.id);
+            streamingTimeoutRef.current.delete(streamingMessage.id);
+          }, 2000); // 2 second delay to ensure streaming is complete
+          
+          streamingTimeoutRef.current.set(streamingMessage.id, timeout);
+          isStillStreaming = true; // Keep as streaming during the timeout
+        }
+        
+        // Determine processing step based on content length and status
+        const getStreamingStep = (): ProcessingStep => {
+          const contentLength = streamingMessage.content?.length || 0;
+          if (contentLength < 50) return "analyzing";
+          if (contentLength < 200) return "generating";
+          return "finalizing";
+        };
+        
         if (existingIndex >= 0) {
-          // Update existing streaming message
+          // Update existing streaming message - keep isTyping true while streaming
           const updated = [...withoutTyping];
-          updated[existingIndex] = { ...streamingMessage, isTyping: false };
-          console.log("🔄 Updated streaming message:", updated[existingIndex].content.substring(0, 50));
+          updated[existingIndex] = { 
+            ...streamingMessage, 
+            isTyping: isStillStreaming,
+            processingStep: isStillStreaming ? getStreamingStep() : undefined,
+          };
+          console.log("🔄 Updated streaming message:", {
+            contentLength: updated[existingIndex].content.length,
+            isTyping: updated[existingIndex].isTyping,
+            processingStep: updated[existingIndex].processingStep,
+            isContentGrowing,
+          });
           return updated;
         } else {
-          // Add new streaming message
+          // Add new streaming message - mark as typing with animation
           console.log("➕ Added new streaming message");
-          return [...withoutTyping, { ...streamingMessage, isTyping: false }];
+          return [...withoutTyping, { 
+            ...streamingMessage, 
+            isTyping: true,
+            processingStep: getStreamingStep(),
+          }];
         }
       });
       return;
@@ -654,8 +760,14 @@ export function AIChatBuilder({
     const currentAttachments = [...attachments];
     setAttachments([]);
 
-    // Save user message immediately
-    await saveConversation(conversationId, updatedMessages);
+    // Save user message immediately (non-blocking - don't wait for it)
+    console.log("💾 Saving conversation before sending...", { conversationId, messageCount: updatedMessages.length });
+    saveConversation(conversationId, updatedMessages).then(() => {
+      console.log("✅ Conversation saved successfully");
+    }).catch((error) => {
+      console.error("❌ Failed to save conversation:", error);
+      // Continue anyway - we'll save it later
+    });
 
     // Add typing indicator with processing step
     const currentStep = getProcessingStep();
@@ -680,49 +792,88 @@ export function AIChatBuilder({
         attachments: m.attachments,
       }));
 
-    chatGenerateSite.mutate(
-      {
-        brandSiteId,
-        message: userMessage.content,
-        attachments: currentAttachments,
-        conversationHistory,
-        ...(conversationId && { conversationId }),
-        ...(selectedPageSlug !== "all" && { pageSlug: selectedPageSlug }),
-      } as {
-        brandSiteId: string;
-        message: string;
-        attachments: string[];
-        conversationHistory: Array<{ role: "user" | "assistant"; content: string; attachments?: string[] }>;
-        conversationId?: string;
-        pageSlug?: string;
-      },
-      {
-        onSuccess: async () => {
-          // Keep typing indicator visible - it will be replaced when streaming message arrives
-          // The backend will create a streaming message that we'll pick up via polling
-          console.log("✅ Chat request sent, waiting for streaming response...");
-        },
-        onError: async (error) => {
-          // Remove typing indicator
-          const messagesWithoutTyping = messagesWithTyping.filter((m) => !m.isTyping);
+    console.log("🚀 Sending chat message:", {
+      brandSiteId,
+      message: userMessage.content,
+      conversationId,
+      conversationHistoryLength: conversationHistory.length,
+      selectedPageSlug,
+      attachmentsCount: currentAttachments.length,
+    });
 
-          // Add error message
-          const errorMessage: ChatMessage = {
-            id: `error-${Date.now()}`,
-            role: "assistant",
-            content: t("siteBuilder.aiChatBuilder.toasts.error", {
-              message: error instanceof Error ? error.message : t("siteBuilder.aiChatBuilder.toasts.unknownError"),
-            }),
-            timestamp: new Date().toISOString(),
-          };
-          const finalMessages = [...messagesWithoutTyping, errorMessage];
-          setMessages(finalMessages);
+    if (!chatGenerateSite) {
+      console.error("❌ chatGenerateSite mutation is not available");
+      toast.error("Chat service is not available. Please refresh the page.");
+      return;
+    }
 
-          // Save conversation with error message
-          await saveConversation(conversationId, finalMessages);
+    try {
+      console.log("📞 Calling chatGenerateSite.mutate...");
+      chatGenerateSite.mutate(
+        {
+          brandSiteId,
+          message: userMessage.content,
+          attachments: currentAttachments,
+          conversationHistory,
+          ...(conversationId && { conversationId }),
+          ...(selectedPageSlug !== "all" && { pageSlug: selectedPageSlug }),
+        } as {
+          brandSiteId: string;
+          message: string;
+          attachments: string[];
+          conversationHistory: Array<{ role: "user" | "assistant"; content: string; attachments?: string[] }>;
+          conversationId?: string;
+          pageSlug?: string;
         },
-      },
-    );
+        {
+          onSuccess: async (result) => {
+            // Keep typing indicator visible - it will be replaced when streaming message arrives
+            // The backend will create a streaming message that we'll pick up via polling
+            console.log("✅ Chat request sent successfully, waiting for streaming response...", {
+              result,
+              brandSiteId,
+              chatRequestId: "chatRequestId" in result ? result.chatRequestId : "unknown",
+            });
+            
+            // Force immediate refetch to get the chatRequest and start polling
+            if (brandSiteId) {
+              // Invalidate and refetch immediately to pick up the chatRequest
+              await queryClient.invalidateQueries({
+                queryKey: ["brandSite", brandSiteId],
+              });
+              // Manually trigger a refetch to start polling immediately
+              await queryClient.refetchQueries({
+                queryKey: ["brandSite", brandSiteId],
+              });
+              console.log("🔄 Refetched brandSite to start polling for chatRequest...");
+            }
+          },
+          onError: async (error) => {
+            console.error("❌ Chat request failed:", error);
+            // Remove typing indicator
+            const messagesWithoutTyping = messagesWithTyping.filter((m) => !m.isTyping);
+
+            // Add error message
+            const errorMessage: ChatMessage = {
+              id: `error-${Date.now()}`,
+              role: "assistant",
+              content: t("siteBuilder.aiChatBuilder.toasts.error", {
+                message: error instanceof Error ? error.message : t("siteBuilder.aiChatBuilder.toasts.unknownError"),
+              }),
+              timestamp: new Date().toISOString(),
+            };
+            const finalMessages = [...messagesWithoutTyping, errorMessage];
+            setMessages(finalMessages);
+
+            // Save conversation with error message
+            await saveConversation(conversationId, finalMessages);
+          },
+        },
+      );
+    } catch (error) {
+      console.error("❌ Error calling chatGenerateSite.mutate:", error);
+      toast.error("Failed to send message. Please try again.");
+    }
   };
 
   const handleNewConversation = () => {
@@ -859,7 +1010,8 @@ export function AIChatBuilder({
                     : "bg-muted"
                 }`}
               >
-                {message.isTyping ? (
+                {message.isTyping && !message.content ? (
+                  // Typing indicator without content yet (initial state)
                   <div className="space-y-4">
                     {message.processingStep && (
                       <div className="flex justify-center py-2">
@@ -876,6 +1028,15 @@ export function AIChatBuilder({
                   </div>
                 ) : (
                   <>
+                    {/* Show animation while streaming if we have content */}
+                    {message.isTyping && message.content && message.processingStep && (
+                      <div className="flex justify-center py-2 mb-2">
+                        <ProcessingStepAnimation
+                          step={message.processingStep}
+                          size={80}
+                        />
+                      </div>
+                    )}
                     {message.attachments && message.attachments.length > 0 && (
                       <div className="mb-2 space-y-2">
                         {message.attachments.map((url, idx) => (

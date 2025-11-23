@@ -55,7 +55,7 @@ export function WorkflowActionComponent({
           <HttpActionConfig action={action} onUpdateConfig={handleUpdateConfig} />
         )}
 
-        {action.type === "send_email" && (
+        {action.type === "send.email" && (
           <EmailActionConfig action={action} onUpdateConfig={handleUpdateConfig} />
         )}
       </div>

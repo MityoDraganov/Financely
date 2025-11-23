@@ -11,14 +11,13 @@ import {
   Clock, 
   Mail, 
   MessageSquare, 
-  FileText, 
   Zap, 
   AlertCircle,
   X,
   Settings,
   Eye
 } from "lucide-react";
-import { Workflow } from "@/core";
+import { Workflow, WorkflowAction } from "@/core";
 
 interface WorkflowPreviewProps {
   workflow: Workflow;
@@ -48,7 +47,7 @@ const getActionIcon = (actionType: string) => {
   }
 };
 
-const getActionLabel = (actionType: string, t: any) => {
+const getActionLabel = (actionType: string, t: (key: string) => string) => {
   switch (actionType) {
     case "send.email":
     case "send_email":
@@ -71,7 +70,7 @@ const getActionLabel = (actionType: string, t: any) => {
   }
 };
 
-const getTriggerLabel = (triggerType: string, t: any) => {
+const getTriggerLabel = (triggerType: string, t: (key: string) => string) => {
   switch (triggerType) {
     case "invoice.created":
       return t('workflows.preview.triggerLabels.invoiceCreated');
@@ -287,7 +286,7 @@ export default function WorkflowPreview({ workflow, onClose }: WorkflowPreviewPr
 
                 {/* Actions in this step */}
                 <div className="ml-8 space-y-2">
-                  {step.actions.map((action, actionIndex) => (
+                  {step.actions.map((action: WorkflowAction, actionIndex: number) => (
                     <div key={actionIndex} className="flex items-center gap-2 p-2 bg-muted/50 rounded">
                       {getActionIcon(action.type)}
                       <span className="text-sm font-medium">{getActionLabel(action.type, t)}</span>

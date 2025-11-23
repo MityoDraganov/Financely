@@ -16,8 +16,8 @@ export default function OrganizationBillingPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
@@ -26,8 +26,8 @@ export default function OrganizationBillingPage() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">{t('settings.organization.billing.noOrganization.title')}</h3>
-        <p className="text-gray-600">{t('settings.organization.billing.noOrganization.description')}</p>
+        <h3 className="text-lg font-medium text-foreground mb-2">{t('settings.organization.billing.noOrganization.title')}</h3>
+        <p className="text-muted-foreground">{t('settings.organization.billing.noOrganization.description')}</p>
       </div>
     );
   }
@@ -62,8 +62,8 @@ export default function OrganizationBillingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('settings.organization.billing.title')}</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">{t('settings.organization.billing.title')}</h1>
+        <p className="text-muted-foreground mt-1">
           {t('settings.organization.billing.description')}
         </p>
       </div>
@@ -95,7 +95,7 @@ export default function OrganizationBillingPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-semibold capitalize">{subscription.plan} Plan</h3>
-                  <p className="text-gray-600">
+                  <p className="text-muted-foreground">
                     {currentPlanPrice.monthly === 0 
                       ? t('settings.organization.billing.currentPlan.freeForever')
                       : t('settings.organization.billing.currentPlan.perMonth', { price: currentPlanPrice.monthly })
@@ -105,7 +105,7 @@ export default function OrganizationBillingPage() {
                 {isTrialing && (
                   <div className="text-right">
                     <p className="text-sm text-orange-600 font-medium">{t('settings.organization.billing.currentPlan.trialPeriod')}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       {t('settings.organization.billing.currentPlan.trialEnds', { date: formatDate(subscription.trialEnd) })}
                     </p>
                   </div>
@@ -113,7 +113,7 @@ export default function OrganizationBillingPage() {
               </div>
 
               {subscription.currentPeriodEnd && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   <span>
                     {isTrialing ? t('settings.organization.billing.currentPlan.trialEnds', { date: formatDate(subscription.currentPeriodEnd) }) : t('settings.organization.billing.currentPlan.nextBillingDate')}: {formatDate(subscription.currentPeriodEnd)}
@@ -159,18 +159,18 @@ export default function OrganizationBillingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-foreground">
                     {organization.usage.invoiceCount}
                   </div>
-                  <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.invoicesCreated')}</div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-sm text-muted-foreground">{t('settings.organization.billing.usage.invoicesCreated')}</div>
+                  <div className="text-xs text-muted-foreground/80 mt-1">
                     {subscription.plan === "free" ? t('settings.organization.billing.usage.limit', { limit: "5" }) : t('settings.organization.billing.usage.unlimited')}
                   </div>
                 </div>
                 
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-foreground">
                     {organization.usage.templateCount}
                   </div>
                   <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.templates')}</div>
@@ -179,8 +179,8 @@ export default function OrganizationBillingPage() {
                   </div>
                 </div>
                 
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">
+                <div className="text-center p-4 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-foreground">
                     {organization.memberIds.length}
                   </div>
                   <div className="text-sm text-gray-600">{t('settings.organization.billing.usage.teamMembers')}</div>
@@ -214,8 +214,8 @@ export default function OrganizationBillingPage() {
                     key={plan}
                     className={`p-4 rounded-lg border ${
                       isCurrentPlan 
-                        ? "border-blue-500 bg-blue-50" 
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-primary bg-primary/10 dark:bg-primary/20" 
+                        : "border-border hover:border-primary/50"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -226,7 +226,7 @@ export default function OrganizationBillingPage() {
                     </div>
                     <div className="text-2xl font-bold mb-2">
                       ${planPrice.monthly}
-                      <span className="text-sm font-normal text-gray-600">{t('settings.organization.billing.availablePlans.perMonthLabel')}</span>
+                      <span className="text-sm font-normal text-muted-foreground">{t('settings.organization.billing.availablePlans.perMonthLabel')}</span>
                     </div>
                     <Button 
                       size="sm" 
@@ -249,7 +249,7 @@ export default function OrganizationBillingPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{t('settings.organization.billing.billingInformation.paymentMethod')}</span>
+                <span className="text-muted-foreground">{t('settings.organization.billing.billingInformation.paymentMethod')}</span>
                 <span className="font-medium">•••• •••• •••• 4242</span>
               </div>
               <div className="flex items-center justify-between text-sm">

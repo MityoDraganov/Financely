@@ -202,7 +202,7 @@ export default function WorkflowsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{t('workflows.title')}</h1>
+          <h1 className="text-3xl font-bold text-foreground">{t('workflows.title')}</h1>
           <p className="text-muted-foreground">
             {t('workflows.subtitle')}
           </p>
@@ -236,7 +236,7 @@ export default function WorkflowsPage() {
                     <Settings className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">{t('workflows.noWorkflows.title')}</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{t('workflows.noWorkflows.title')}</h3>
                     <p className="text-muted-foreground">
                       {t('workflows.noWorkflows.description')}
                     </p>
@@ -449,7 +449,7 @@ export default function WorkflowsPage() {
                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                     <Eye className="w-8 h-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">{t('workflows.preview.noSelection.title')}</h3>
+                  <h3 className="text-lg font-semibold mb-2 text-foreground">{t('workflows.preview.noSelection.title')}</h3>
                   <p className="text-muted-foreground">
                     {t('workflows.preview.noSelection.description')}
                   </p>
@@ -460,7 +460,7 @@ export default function WorkflowsPage() {
         <TabsContent value="history">
           {workflows.length > 0 ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">{t('workflows.history.selectWorkflow')}</h3>
+              <h3 className="text-lg font-semibold text-foreground">{t('workflows.history.selectWorkflow')}</h3>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {workflows.map((workflow) => (
                   <Card key={workflow.id} className="cursor-pointer hover:shadow-md transition-shadow">
@@ -482,7 +482,7 @@ export default function WorkflowsPage() {
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <History className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">{t('workflows.history.noWorkflows.title')}</h3>
+              <h3 className="text-lg font-semibold mb-2 text-foreground">{t('workflows.history.noWorkflows.title')}</h3>
               <p className="text-muted-foreground">
                 {t('workflows.history.noWorkflows.description')}
               </p>

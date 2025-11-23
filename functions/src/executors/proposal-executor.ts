@@ -103,17 +103,31 @@ export class ProposalExecutor implements ActionExecutor {
       throw new Error("orgId or tenantId is required in context");
     }
 
-    // Build proposal data
+    // Build proposal items
+    const proposalItems = config.items.map(item => ({
+      description: this.resolveTemplate(item.description, context),
+      qty: item.quantity,
+      unitPrice: item.price,
+    }));
+
+    // Calculate totals
+    const subtotal = proposalItems.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
+    const taxTotal = 0; // No tax by default
+    const total = subtotal + taxTotal;
+
+    // Build proposal data according to ProposalData schema
     const proposalData = {
-      orgId,
-      customerId: resolvedClientId,
+      organizationId: orgId,
+      ...(resolvedClientId && { leadId: resolvedClientId }), // Using leadId field if clientId is provided
       title: `Proposal for ${resolvedClientId}`,
-      items: config.items.map(item => ({
-        description: this.resolveTemplate(item.description, context),
-        qty: item.quantity,
-        unitPrice: item.price,
-      })),
+      status: "DRAFT" as const,
+      items: proposalItems,
+      subtotal,
+      taxTotal,
+      total,
       currency: "USD",
+      aiGenerated: false,
+      isIncomplete: false,
       ...(config.validUntil && { validUntil: this.resolveTemplate(config.validUntil, context) }),
     };
 

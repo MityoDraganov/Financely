@@ -131,7 +131,7 @@ export default function LeadsPage() {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{t('leads.title')}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('leads.title')}</h1>
             <p className="text-muted-foreground">{t('leads.subtitle')}</p>
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function LeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">{t('leads.title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('leads.title')}</h1>
           <p className="text-muted-foreground">{t('leads.subtitle')}</p>
         </div>
       </div>
@@ -211,7 +211,7 @@ export default function LeadsPage() {
           {filteredLeads.length === 0 ? (
             <div className="text-center py-8">
               <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-sm font-semibold text-gray-900">{t('leads.empty.title')}</h3>
+              <h3 className="mt-2 text-sm font-semibold text-foreground">{t('leads.empty.title')}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {searchTerm.trim() || statusFilter !== "all" || widgetTypeFilter !== "all"
                   ? t('leads.empty.noMatch')

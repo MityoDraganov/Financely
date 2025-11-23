@@ -142,6 +142,33 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 			return;
 		}
 
+		// Validate workflow actions before saving
+		for (const step of workflow.steps || []) {
+			for (const action of step.actions || []) {
+				if (action.type === "send.email") {
+					const emailConfig = action.config as any;
+					if (!emailConfig.recipients || emailConfig.recipients.length === 0) {
+						toast.error(t("workflows.builder.toast.emailNoRecipients", { stepName: step.name || "Step" }));
+						return;
+					}
+					// Filter out empty recipient strings
+					const validRecipients = emailConfig.recipients.filter((email: string) => email && email.trim().length > 0);
+					if (validRecipients.length === 0) {
+						toast.error(t("workflows.builder.toast.emailNoValidRecipients", { stepName: step.name || "Step" }));
+						return;
+					}
+					if (!emailConfig.subject || emailConfig.subject.trim().length === 0) {
+						toast.error(t("workflows.builder.toast.emailNoSubject", { stepName: step.name || "Step" }));
+						return;
+					}
+					if (!emailConfig.body || emailConfig.body.trim().length === 0) {
+						toast.error(t("workflows.builder.toast.emailNoBody", { stepName: step.name || "Step" }));
+						return;
+					}
+				}
+			}
+		}
+
 		try {
 			if (editingWorkflow) {
 				// Update existing workflow
@@ -562,7 +589,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 	return (
 		<div className="space-y-6">
 			<WorkflowHeader
-				workflow={workflow}
+				workflow={workflow as any}
 				editingWorkflow={editingWorkflow}
 				onUpdateWorkflow={handleUpdateWorkflow}
 				onCancelEdit={onCancelEdit}
@@ -612,7 +639,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 			/>
 
 			<WorkflowActions
-				workflow={workflow}
+				workflow={workflow as any}
 				onSave={handleSaveWorkflow}
 				onPreview={onPreview}
 				isSaving={createWorkflow.isPending}

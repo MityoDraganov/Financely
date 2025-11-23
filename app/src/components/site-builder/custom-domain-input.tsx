@@ -1,10 +1,9 @@
-import { Loader2, CheckCircle2, AlertCircle, Info, Copy } from "lucide-react";
+import { Loader2, CheckCircle2, Info, Copy } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
 import { toast } from "sonner";
 
 interface CustomDomainInputProps {
@@ -33,13 +32,10 @@ export function CustomDomainInput({
   dnsInstructions,
   message,
 }: CustomDomainInputProps) {
-  const [copied, setCopied] = useState(false);
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
     toast.success("Copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
+    // Copy feedback handled by toast
   };
 
   return (

@@ -525,8 +525,19 @@ export default function TemplateDesignerPage() {
 		},
 	});
 
-	const PAGE_WIDTH = 794;
-	const PAGE_HEIGHT = 1123;
+	// Page dimensions in pixels (at 96 DPI to match PDF rendering)
+	const PAGE_SIZES = {
+		A4: { width: 794, height: 1123 },
+		Letter: { width: 816, height: 1056 },
+	} as const;
+	
+	function getPageDimensions(pageSize: string | undefined): { width: number; height: number } {
+		return PAGE_SIZES[pageSize as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
+	}
+	
+	const pageDimensions = getPageDimensions(currentTemplate?.pageSize);
+	const PAGE_WIDTH = pageDimensions.width;
+	const PAGE_HEIGHT = pageDimensions.height;
 	const SNAP_THRESHOLD = 5; // pixels
 
 	function calculateSnapPositions(

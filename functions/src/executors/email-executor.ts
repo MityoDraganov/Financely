@@ -21,22 +21,34 @@ export interface EmailExecutorConfig {
 export class EmailExecutor implements ActionExecutor {
   type = "send_email";
   private emailService: ResendEmailService;
+  private fromEmail: string;
+  private fromName: string;
 
   constructor(secrets?: {
     resendApiKey?: string;
     resendFromEmail?: string;
     resendFromName?: string;
   }) {
-    // Use provided secrets or fallback to environment variables
-    const apiKey = secrets?.resendApiKey || process.env.RESEND_API_KEY || '';
-    const fromEmail = secrets?.resendFromEmail || process.env.RESEND_FROM_EMAIL || '';
-    const fromName = secrets?.resendFromName || process.env.RESEND_FROM_NAME || '';
+    // Secrets are required - no fallback to process.env in Firebase Functions
+    if (!secrets?.resendApiKey) {
+      throw new Error("RESEND_API_KEY secret is required for EmailExecutor");
+    }
+    if (!secrets?.resendFromEmail) {
+      throw new Error("RESEND_FROM_EMAIL secret is required for EmailExecutor");
+    }
+    if (!secrets?.resendFromName) {
+      throw new Error("RESEND_FROM_NAME secret is required for EmailExecutor");
+    }
+
+    // Store from email/name for use in execute method
+    this.fromEmail = secrets.resendFromEmail;
+    this.fromName = secrets.resendFromName;
 
     // Initialize Resend email service
     this.emailService = new ResendEmailService({
-      apiKey,
-      defaultFromEmail: fromEmail,
-      defaultFromName: fromName,
+      apiKey: secrets.resendApiKey,
+      defaultFromEmail: secrets.resendFromEmail,
+      defaultFromName: secrets.resendFromName,
     });
   }
 
@@ -52,15 +64,43 @@ export class EmailExecutor implements ActionExecutor {
       logger.info("Executing email action", { 
         runId, 
         actionId: action.id,
-        recipientCount: action.config.recipients?.length || 0 
+        actionType: action.type,
+        recipientCount: action.config?.recipients?.length || 0,
+        hasConfig: !!action.config,
+        configKeys: action.config ? Object.keys(action.config) : [],
+        fullAction: JSON.stringify(action, null, 2)
       });
 
       const config = action.config as EmailExecutorConfig;
       
       // Validate required fields
-      if (!config.recipients || config.recipients.length === 0) {
-        throw new Error("No recipients specified");
+      if (!config || !config.recipients || config.recipients.length === 0) {
+        logger.error("Email action validation failed", {
+          runId,
+          actionId: action.id,
+          hasConfig: !!config,
+          recipients: config?.recipients,
+          recipientCount: config?.recipients?.length || 0,
+          configStructure: config ? Object.keys(config) : [],
+          fullAction: JSON.stringify(action, null, 2),
+          contextKeys: Object.keys(context)
+        });
+        throw new Error(`Email action "${action.name || action.id}" has no recipients specified. Please add at least one recipient email address in the workflow configuration.`);
       }
+      
+      // Filter out empty recipient strings
+      const validRecipients = config.recipients.filter((email: string) => email && email.trim().length > 0);
+      if (validRecipients.length === 0) {
+        logger.error("Email action has no valid recipients after filtering", {
+          runId,
+          actionId: action.id,
+          originalRecipients: config.recipients
+        });
+        throw new Error(`Email action "${action.name || action.id}" has no valid recipients. All recipient email addresses are empty.`);
+      }
+      
+      // Use filtered recipients
+      config.recipients = validRecipients;
       if (!config.subject) {
         throw new Error("Email subject is required");
       }
@@ -77,15 +117,17 @@ export class EmailExecutor implements ActionExecutor {
       const resolvedReplyTo = config.replyTo ? this.resolveTemplate(config.replyTo, context) : undefined;
 
       // Prepare email options for the new service
+      // Following the same pattern as invoice emails (send-invoice-email.ts)
       const emailOptions: EmailSendOptions = {
         to: resolvedRecipients.map(email => ({ email })),
         from: {
-          email: 'noreply@financely.app',
-          name: 'Financely',
+          email: this.fromEmail,
+          name: this.fromName,
         },
         subject: resolvedSubject,
+        // Always provide both html and text for better email client compatibility
         html: config.isHtml ? resolvedBody : undefined,
-        text: config.isHtml ? undefined : resolvedBody,
+        text: config.isHtml ? this.stripHtml(resolvedBody) : resolvedBody,
         cc: resolvedCc.length > 0 ? resolvedCc.map(email => ({ email })) : undefined,
         bcc: resolvedBcc.length > 0 ? resolvedBcc.map(email => ({ email })) : undefined,
         replyTo: resolvedReplyTo ? { email: resolvedReplyTo } : undefined,
@@ -153,5 +195,20 @@ export class EmailExecutor implements ActionExecutor {
       }
       return undefined;
     }, obj);
+  }
+
+  /**
+   * Strip HTML tags from text for plain text fallback
+   */
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+      .replace(/&amp;/g, '&') // Replace &amp; with &
+      .replace(/&lt;/g, '<') // Replace &lt; with <
+      .replace(/&gt;/g, '>') // Replace &gt; with >
+      .replace(/&quot;/g, '"') // Replace &quot; with "
+      .replace(/&#39;/g, "'") // Replace &#39; with '
+      .trim();
   }
 }

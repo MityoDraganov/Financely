@@ -38,8 +38,9 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
   const [isSaving, setIsSaving] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
 
-  // Configure Monaco theme on mount
+  // Configure Monaco themes and detect system theme
   useEffect(() => {
+    // Define dark theme
     monaco.editor.defineTheme("financely-dark", {
       base: "vs-dark",
       inherit: true,
@@ -49,7 +50,42 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
         "editor.foreground": "#d4d4d4",
       },
     });
+
+    // Define light theme
+    monaco.editor.defineTheme("financely-light", {
+      base: "vs",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": "#ffffff",
+        "editor.foreground": "#000000",
+      },
+    });
   }, []);
+
+  // Detect theme and update Monaco editor theme
+  useEffect(() => {
+    const checkTheme = () => {
+      // Theme is handled by MonacoEditor component prop
+      const editor = monaco.editor.getEditors()[0];
+      if (editor) {
+        // Theme is set via MonacoEditor component prop, not updateOptions
+        // This effect is kept for potential future use
+      }
+    };
+
+    // Check on mount
+    checkTheme();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, [selectedFile]);
 
   // Build file tree from flat file structure
   useEffect(() => {
@@ -216,18 +252,18 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
         return (
           <div key={node.path}>
             <div
-              className={`flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                isSelected ? "bg-blue-100 dark:bg-blue-900" : ""
+              className={`flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-muted/50 ${
+                isSelected ? "bg-primary/10 dark:bg-primary/20" : ""
               }`}
               style={{ paddingLeft: `${level * 16 + 8}px` }}
               onClick={() => toggleFolder(node.path)}
             >
               {isExpanded ? (
-                <FolderOpen className="h-4 w-4 text-blue-500" />
+                <FolderOpen className="h-4 w-4 text-primary" />
               ) : (
-                <Folder className="h-4 w-4 text-blue-500" />
+                <Folder className="h-4 w-4 text-primary" />
               )}
-              <span className="text-sm">{node.name}</span>
+              <span className="text-sm text-foreground">{node.name}</span>
             </div>
             {isExpanded && node.children && (
               <div>{renderFileTree(node.children, level + 1)}</div>
@@ -239,15 +275,15 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       return (
         <div
           key={node.path}
-          className={`flex items-center justify-between gap-2 px-2 py-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${
-            isSelected ? "bg-blue-100 dark:bg-blue-900" : ""
+          className={`flex items-center justify-between gap-2 px-2 py-1 cursor-pointer hover:bg-muted/50 ${
+            isSelected ? "bg-primary/10 dark:bg-primary/20" : ""
           }`}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => handleFileSelect(node.path)}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <FileText className="h-4 w-4 text-gray-500 shrink-0" />
-            <span className="text-sm truncate">{node.name}</span>
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm truncate text-foreground">{node.name}</span>
           </div>
           <Button
             variant="ghost"
@@ -285,9 +321,9 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
   return (
     <div className="flex h-[calc(100vh-200px)] border rounded-lg overflow-hidden">
       {/* File Tree Sidebar */}
-      <div className="w-64 border-r bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <div className="p-2 border-b flex items-center justify-between">
-          <h3 className="font-semibold text-sm">{t("siteBuilder.fileEditor.files")}</h3>
+      <div className="w-64 border-r bg-muted/30 flex flex-col">
+        <div className="p-2 border-b border-border flex items-center justify-between">
+          <h3 className="font-semibold text-sm text-foreground">{t("siteBuilder.fileEditor.files")}</h3>
           <Button
             variant="ghost"
             size="icon"
@@ -301,7 +337,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
           {fileTree.length > 0 ? (
             renderFileTree(fileTree)
           ) : (
-            <div className="p-4 text-sm text-gray-500 text-center">
+            <div className="p-4 text-sm text-muted-foreground text-center">
               {t("siteBuilder.fileEditor.emptyState.noFiles")}
             </div>
           )}
@@ -312,8 +348,8 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
       <div className="flex-1 flex flex-col">
         {selectedFile ? (
           <>
-            <div className="border-b p-2 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
-              <span className="text-sm font-medium">{selectedFile}</span>
+            <div className="border-b border-border p-2 flex items-center justify-between bg-muted/30">
+              <span className="text-sm font-medium text-foreground">{selectedFile}</span>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -340,7 +376,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
                 language={getLanguageFromPath(selectedFile)}
                 value={editorContent}
                 onChange={handleContentChange}
-                theme="financely-dark"
+                theme={document.documentElement.classList.contains("dark") ? "financely-dark" : "financely-light"}
                 options={{
                   minimap: { enabled: true },
                   fontSize: 14,
@@ -351,7 +387,7 @@ export function FileEditor({ files: initialFiles, onSave, onDeploy}: FileEditorP
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>{t("siteBuilder.fileEditor.emptyState.selectFile")}</p>

@@ -110,6 +110,11 @@ export interface FunctionsService {
     code: string;
   }): Promise<{ success: boolean; organizationId: string; message: string }>;
 
+  revokeMember(payload: {
+    organizationId: string;
+    memberId: string;
+  }): Promise<{ success: boolean; message: string }>;
+
   /**
    * Create a workflow with the specified configuration.
    * 
@@ -250,7 +255,7 @@ export interface FunctionsService {
     }>;
     conversationId?: string;
     pageSlug?: string;
-  }): Promise<{ response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string }>;
+  }): Promise<{ response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string; chatRequestId?: string }>;
   updateAnalyticsScript(payload: {
     brandSiteId: string;
   }): Promise<{ success: boolean; brandSiteId: string }>;

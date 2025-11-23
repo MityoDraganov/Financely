@@ -160,7 +160,7 @@ export default function InvoicesPage() {
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="space-y-0.5">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('invoices.title')}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('invoices.title')}</h1>
               <p className="text-sm text-muted-foreground">
                 {t('invoices.subtitle')}
               </p>
@@ -276,7 +276,7 @@ export default function InvoicesPage() {
             <CardContent className="p-6 text-center">
               <div className="text-destructive">
                 <FileText className="mx-auto h-10 w-10 mb-3" />
-                <h3 className="text-base font-semibold mb-1.5">{t('invoices.error.loadFailed')}</h3>
+                <h3 className="text-base font-semibold mb-1.5 text-foreground">{t('invoices.error.loadFailed')}</h3>
                 <p className="text-sm text-muted-foreground">{t('invoices.error.tryAgain')}</p>
               </div>
             </CardContent>
@@ -289,7 +289,7 @@ export default function InvoicesPage() {
               <Card>
                 <CardContent className="p-6 text-center">
                   <FileText className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                  <h3 className="text-base font-semibold mb-1.5">
+                  <h3 className="text-base font-semibold mb-1.5 text-foreground">
                     {searchTerm || statusFilter !== "all" ? t('invoices.empty.noInvoicesFound') : t('invoices.empty.noInvoicesYet')}
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
@@ -324,7 +324,7 @@ export default function InvoicesPage() {
                             
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 mb-1.5">
-                                <h3 className="font-semibold text-sm sm:text-base truncate">
+                                <h3 className="font-semibold text-sm sm:text-base truncate text-foreground">
                                   {invoiceNumber}
                                 </h3>
                                 <Badge variant={getStatusColor(invoice.status)} className="shrink-0 w-fit text-xs">

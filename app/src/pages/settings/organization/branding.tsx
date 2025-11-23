@@ -333,8 +333,8 @@ export default function OrganizationBrandingPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
@@ -342,15 +342,15 @@ export default function OrganizationBrandingPage() {
   return (
     <div className="space-y-8 pb-24">
       {/* Header with proper typography hierarchy */}
-      <div className="border-b border-gray-200 pb-6">
+      <div className="border-b border-border pb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-50 rounded-lg">
               <Palette className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{t('settings.organization.branding.pageTitle')}</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-2xl font-bold text-foreground">{t('settings.organization.branding.pageTitle')}</h1>
+              <p className="text-muted-foreground mt-1">
                 {t('settings.organization.branding.pageDescription')}
               </p>
             </div>
@@ -371,7 +371,7 @@ export default function OrganizationBrandingPage() {
           {/* Left Column - Settings */}
           <div className="space-y-8">
             {/* Logo & Visual Identity */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-lg">
                   <div className="p-2 bg-blue-50 rounded-lg">
@@ -404,13 +404,13 @@ export default function OrganizationBrandingPage() {
                         <img
                           src={watch("customLogo")}
                           alt="Logo preview"
-                          className="h-20 w-auto rounded border border-gray-200 object-contain"
+                          className="h-20 w-auto rounded border border-border object-contain"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-muted"
                           onClick={handleLogoRemove}
                         >
                           <X className="h-3 w-3" />
@@ -419,7 +419,7 @@ export default function OrganizationBrandingPage() {
                     ) : (
                       <div
                         onClick={() => logoUploadRef.current?.click()}
-                        className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-gray-400 transition-colors"
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:border-primary/50 transition-colors"
                       >
                         <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
                         <p className="text-sm text-gray-600">{t('settings.organization.branding.logoVisualIdentity.clickToUpload')}</p>
@@ -466,13 +466,13 @@ export default function OrganizationBrandingPage() {
                         <img
                           src={watch("customFavicon")}
                           alt="Favicon preview"
-                          className="h-12 w-12 rounded border border-gray-200 object-contain"
+                          className="h-12 w-12 rounded border border-border object-contain"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-gray-100"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-muted"
                           onClick={handleFaviconRemove}
                         >
                           <X className="h-3 w-3" />
@@ -523,7 +523,7 @@ export default function OrganizationBrandingPage() {
             </Card>
 
             {/* Gallery Section */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -568,13 +568,13 @@ export default function OrganizationBrandingPage() {
                       <img
                         src={url}
                         alt={`Gallery ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        className="w-full h-32 object-cover rounded-lg border border-border"
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white shadow-sm hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background border border-border shadow-sm hover:bg-destructive/10 dark:hover:bg-destructive/20 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => handleGalleryRemove(index)}
                       >
                         <X className="h-3 w-3 text-red-600" />
@@ -584,7 +584,7 @@ export default function OrganizationBrandingPage() {
                   {/* Plus placeholder - always last */}
                   <div
                     onClick={() => galleryUploadRef.current?.click()}
-                    className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-32 cursor-pointer hover:border-gray-400 transition-colors bg-gray-50"
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg h-32 cursor-pointer hover:border-primary/50 transition-colors bg-muted/50"
                   >
                     <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
                     <p className="text-xs text-gray-600">{t('settings.organization.branding.gallery.addImage')}</p>
@@ -602,7 +602,7 @@ export default function OrganizationBrandingPage() {
             </Card>
 
             {/* Brand Description */}
-            <Card className="shadow-sm border-gray-200/50">
+            <Card className="shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-3 text-lg">
                   <div className="p-2 bg-blue-50 rounded-lg">
@@ -821,7 +821,7 @@ export default function OrganizationBrandingPage() {
         </div>
 
         {/* Save Button Footer - Always visible, sticky at bottom */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 shadow-lg z-50">
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-end">
               <div className="flex gap-2">

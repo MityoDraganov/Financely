@@ -66,14 +66,25 @@ export class ContactExecutor implements ActionExecutor {
       throw new Error("orgId or tenantId is required in context");
     }
 
-    // Build contact data
+    // Split name into firstName and lastName
+    const nameParts = resolvedName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    // Build contact data according to ContactData schema
     const contactData = {
       organizationId: orgId,
-      data: {
-        name: resolvedName,
-        ...(resolvedEmail && { email: resolvedEmail }),
-        ...(resolvedPhone && { phone: resolvedPhone }),
-        ...(resolvedCompany && { company: resolvedCompany }),
+      firstName: firstName || "Unknown",
+      lastName: lastName || "Contact",
+      email: resolvedEmail || "",
+      phone: resolvedPhone ? (Array.isArray(resolvedPhone) ? resolvedPhone : [resolvedPhone]) : [],
+      ...(resolvedCompany && { company: resolvedCompany }),
+      tags: [],
+      status: "lead" as const,
+      preferences: {
+        preferredContactMethod: "email" as const,
+        marketingOptIn: false,
+        newsletterOptIn: false,
       },
     };
 
@@ -123,13 +134,10 @@ export class ContactExecutor implements ActionExecutor {
       throw new Error(`Contact not found: ${resolvedContactId}`);
     }
 
-    // Update contact data
-    const contactData = (contact as any).data || {};
-    Object.assign(contactData, resolvedUpdates);
-
+    // Update contact data - resolvedUpdates should be a partial ContactData
     await contactRepository.update({
       id: resolvedContactId,
-      data: { data: contactData }
+      data: resolvedUpdates as any
     });
 
     logger.info("Contact updated successfully", { 
@@ -161,4 +169,5 @@ export class ContactExecutor implements ActionExecutor {
     }, obj);
   }
 }
+
 

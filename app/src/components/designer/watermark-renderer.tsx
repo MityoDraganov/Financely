@@ -50,19 +50,21 @@ export function WatermarkRenderer({ template, zoom }: WatermarkRendererProps) {
 	const width = (watermark.width || 200) * zoom;
 	const height = watermark.height ? watermark.height * zoom : undefined;
 	const opacity = watermark.opacity ?? 0.1;
-	const blendMode = watermark.blendMode || "normal";
+	const repeat = watermark.repeat || "none";
 
 	if (watermarkImageUrl) {
-		return (
-			<div
-				key="watermark-image"
-				style={{
-					position: "absolute",
-					...positionStyle,
-					width,
-					height: height || width,
+		// Image watermark
+		if (repeat === "none") {
+			// Single image watermark
+			return (
+				<div
+					key="watermark-image"
+					style={{
+						position: "absolute",
+						...positionStyle,
+						width,
+						height: height || width,
 					opacity,
-					mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
 					pointerEvents: "none",
 					zIndex: 1000,
 				}}
@@ -74,7 +76,42 @@ export function WatermarkRenderer({ template, zoom }: WatermarkRendererProps) {
 				/>
 			</div>
 		);
+	} else {
+		// Tiled/repeated image watermark
+		const backgroundSize = repeat === "repeat" 
+			? `${width}px ${height || width}px`
+			: repeat === "repeat-x"
+			? `${width}px auto`
+			: `${width}px auto`; // repeat-y
+		
+		// Map repeat values to valid CSS background-repeat values
+		const cssRepeat: React.CSSProperties["backgroundRepeat"] = 
+			repeat === "repeat" ? "repeat" :
+			repeat === "repeat-x" ? "repeat-x" :
+			repeat === "repeat-y" ? "repeat-y" :
+			"no-repeat";
+		
+		return (
+			<div
+				key="watermark-image-tiled"
+				style={{
+					position: "absolute",
+					left: 0,
+					top: 0,
+					width: "100%",
+					height: "100%",
+					backgroundImage: `url(${watermarkImageUrl})`,
+					backgroundRepeat: cssRepeat,
+					backgroundSize,
+					opacity,
+					pointerEvents: "none",
+					zIndex: 1000,
+					transform: `rotate(${watermark.rotation || 0}deg)`,
+				}}
+			/>
+		);
 	}
+}
 
 	if (watermarkText) {
 		return (
@@ -86,7 +123,6 @@ export function WatermarkRenderer({ template, zoom }: WatermarkRendererProps) {
 					width,
 					minWidth: width,
 					opacity,
-					mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
 					pointerEvents: "none",
 					zIndex: 1000,
 					fontSize: Math.max(24, width / 10) * zoom,

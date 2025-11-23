@@ -78,7 +78,7 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('templates.title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('templates.title')}</h1>
           <p className="text-muted-foreground mt-1">
             {t('templates.subtitle')}
           </p>
@@ -94,7 +94,7 @@ export default function TemplatesPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">{t('templates.empty.title')}</h3>
+            <h3 className="text-lg font-semibold mb-2 text-foreground">{t('templates.empty.title')}</h3>
             <p className="text-muted-foreground mb-6 text-center max-w-md">
               {t('templates.empty.description')}
             </p>

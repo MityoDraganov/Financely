@@ -26,7 +26,7 @@ export default function InputElement({ element }: InputElementProps) {
 			<input
 				type={inp.variant}
 				placeholder={inp.placeholder}
-				className="w-[95%] h-[80%] border border-neutral-200 rounded px-2 text-[10px] bg-white"
+				className="w-[95%] h-[80%] border border-neutral-200 dark:border-neutral-700 rounded px-2 text-[10px] bg-white dark:bg-neutral-900 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
 				style={{ textAlign: inp.align as React.CSSProperties["textAlign"] }}
 				readOnly
 			/>

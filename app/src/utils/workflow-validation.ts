@@ -18,7 +18,7 @@ export interface WorkflowValidationResult {
 /**
  * Validate a single workflow action
  */
-export function validateAction(action: WorkflowAction, stepId: string): string[] {
+export function validateAction(action: WorkflowAction, _stepId: string): string[] {
   const errors: string[] = [];
 
   if (!action.type) {
@@ -31,57 +31,47 @@ export function validateAction(action: WorkflowAction, stepId: string): string[]
 
   // Validate action-specific configs
   switch (action.type) {
-    case "send.email":
-      if (!action.config.recipients || action.config.recipients.length === 0) {
+    case "send.email": {
+      const config = action.config as { recipients?: string[]; subject?: string; body?: string };
+      if (!config.recipients || config.recipients.length === 0) {
         errors.push("Email recipients are required");
       }
-      if (!action.config.subject || action.config.subject.trim() === "") {
+      if (!config.subject || config.subject.trim() === "") {
         errors.push("Email subject is required");
       }
-      if (!action.config.body || action.config.body.trim() === "") {
+      if (!config.body || config.body.trim() === "") {
         errors.push("Email body is required");
       }
       break;
+    }
 
     case "call.webhook":
-    case "http_request":
-      if (!action.config.url || action.config.url.trim() === "") {
+    case "http_request": {
+      const config = action.config as { url?: string; method?: string };
+      if (!config.url || config.url.trim() === "") {
         errors.push("Webhook URL is required");
       }
-      if (!action.config.method) {
+      if (!config.method) {
         errors.push("HTTP method is required");
       }
       break;
+    }
 
-    case "create.invoice":
-      if (!action.config.clientId || action.config.clientId.trim() === "") {
-        errors.push("Client ID is required for invoice creation");
-      }
-      if (typeof action.config.amount !== "number" || action.config.amount <= 0) {
-        errors.push("Valid invoice amount is required");
-      }
-      break;
-
-    case "notify.user":
-      if (!action.config.userId || action.config.userId.trim() === "") {
-        errors.push("User ID is required for notifications");
-      }
-      if (!action.config.message || action.config.message.trim() === "") {
-        errors.push("Notification message is required");
-      }
-      break;
-
-    case "create.proposal":
-      if (!action.config.clientId || action.config.clientId.trim() === "") {
+    case "create.proposal": {
+      const config = action.config as { clientId?: string };
+      if (!config.clientId || config.clientId.trim() === "") {
         errors.push("Client ID is required for proposal creation");
       }
       break;
+    }
 
-    case "wait.delay":
-      if (typeof action.config.delaySeconds !== "number" || action.config.delaySeconds <= 0) {
+    case "wait.delay": {
+      const config = action.config as { delaySeconds?: number };
+      if (typeof config.delaySeconds !== "number" || config.delaySeconds <= 0) {
         errors.push("Valid delay duration is required");
       }
       break;
+    }
   }
 
   return errors;
@@ -107,7 +97,7 @@ export function validateStep(step: WorkflowStep, index: number): string[] {
       if (!step.actions || step.actions.length === 0) {
         errors.push("Action steps must have at least one action");
       } else {
-        step.actions.forEach((action, actionIndex) => {
+        step.actions.forEach((action: WorkflowAction, actionIndex: number) => {
           const actionErrors = validateAction(action, step.id);
           if (actionErrors.length > 0) {
             errors.push(`Action ${actionIndex + 1}: ${actionErrors.join(", ")}`);
@@ -120,7 +110,7 @@ export function validateStep(step: WorkflowStep, index: number): string[] {
       if (!step.conditions || step.conditions.length === 0) {
         errors.push("Conditional steps must have at least one condition");
       } else {
-        step.conditions.forEach((condition, conditionIndex) => {
+        step.conditions.forEach((condition: any, conditionIndex: number) => {
           if (!condition.field || condition.field.trim() === "") {
             errors.push(`Condition ${conditionIndex + 1}: Field is required`);
           }

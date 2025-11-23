@@ -6,6 +6,7 @@ import { getProductRepository } from "../repositories/product-repository";
 import { GeminiService } from "../services/gemini-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { injectNavigation, applyIntegrations } from "./handle-generate-site";
+import { listOrganizationImages, filterValidProductImages } from "../utils/list-organization-images";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -186,6 +187,7 @@ async function performIncrementalEdit(
   currentHtml: string,
   context: string,
   brandSite: any,
+  allAvailableImages: string[],
   onStreamChunk?: (chunk: string, accumulated: string) => Promise<void>,
 ): Promise<{ response: string; updatedHtml: string }> {
   // For now, we'll do a simple approach - full regeneration with context
@@ -200,18 +202,27 @@ async function performIncrementalEdit(
   const titleMatch = currentHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
   const pageTitle = titleMatch ? titleMatch[1].trim() : undefined;
 
+  // Get available pages for linking validation
+  const pages = (brandSite.pages as any[]) || [];
+  const availablePages = pages.map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+  }));
+
   const updatedHtml = await geminiService.generateSiteHtml({
     brandName: brandSite.brandName,
     colors: brandColors,
     logoUrl: brandSite.logoUrl,
     tone: brandSite.tone || "professional",
     description: brandSite.context,
-    brandImages: brandSite.contextImages || [],
+    brandImages: allAvailableImages, // Use all available images from storage
     context: `${context}\n\nCurrent page HTML (for reference - preserve structure and styling):\n${currentHtml.substring(0, 2000)}...\n\nUser wants to: ${message}\n\nPlease update ONLY this page accordingly, keeping the overall structure and styling but making the requested changes. Do NOT regenerate the entire page from scratch - make incremental edits.`,
-    contextImages: [],
+    contextImages: allAvailableImages, // Use all available images from storage
     products: [],
     widgets: brandSite.widgets,
     pageTitle,
+    availablePages,
   });
 
   return {
@@ -246,11 +257,30 @@ export async function handleChatGenerateSite(
       throw new Error("Organization not found");
     }
 
+    // Get all available images from organization's storage
+    // We need firebaseProjectId - get it from environment or config
+    const firebaseProjectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+    const allAvailableImages = await listOrganizationImages(
+      brandSite.organizationId,
+      firebaseProjectId,
+    );
+
     // Get products for context
     const products = await productRepository.getAll({
       queryConstraints: [
         { field: "organizationId", operator: "==", value: brandSite.organizationId },
       ],
+    });
+
+    // Filter product images to only include those that exist in storage
+    const productsWithValidImages = products.map((p) => {
+      const validImages = p.images
+        ? filterValidProductImages(p.images, allAvailableImages)
+        : [];
+      return {
+        ...p,
+        images: validImages, // Only include images that actually exist
+      };
     });
 
     // Build conversation context
@@ -276,16 +306,28 @@ export async function handleChatGenerateSite(
       const conversations = (brandSite.conversations as any[]) || [];
       const conversationExists = conversations.some((c: any) => c.id === conversationId);
       if (!conversationExists) {
+        // Filter out undefined values from conversationHistory
+        const cleanHistory = (input.conversationHistory || []).map((msg: any) => {
+          const clean: any = {
+            role: msg.role,
+            content: msg.content,
+          };
+          if (msg.attachments && msg.attachments.length > 0) {
+            clean.attachments = msg.attachments;
+          }
+          return clean;
+        });
+        
         const newConversation = {
           id: conversationId,
           title: input.message.substring(0, 50) || "New Conversation",
           messages: [
-            ...input.conversationHistory,
+            ...cleanHistory,
             {
               id: `user-${Date.now()}`,
               role: "user" as const,
               content: input.message,
-              attachments: input.attachments,
+              ...(input.attachments && input.attachments.length > 0 && { attachments: input.attachments }),
               timestamp: new Date().toISOString(),
             },
           ],
@@ -303,6 +345,7 @@ export async function handleChatGenerateSite(
         logger.info("Created new conversation in Firestore", {
           brandSiteId: input.brandSiteId,
           conversationId,
+          messageCount: newConversation.messages.length,
         });
       }
     }
@@ -405,14 +448,64 @@ export async function handleChatGenerateSite(
           return;
         }
 
-        const conversationIndex = conversations.findIndex((c) => c.id === conversationId);
+        let conversationIndex = conversations.findIndex((c) => c.id === conversationId);
         if (conversationIndex < 0) {
-          logger.warn("Conversation not found for streaming update", {
+          // Conversation doesn't exist yet - create it with the user message
+          logger.info("Conversation not found for streaming update, creating it", {
             conversationId,
             availableConversationIds: conversations.map((c: any) => c.id),
             brandSiteId: input.brandSiteId,
           });
-          return;
+          
+          // Filter out undefined values from conversationHistory
+          const cleanHistory = (input.conversationHistory || []).map((msg: any) => {
+            const clean: any = {
+              role: msg.role,
+              content: msg.content,
+            };
+            if (msg.attachments && msg.attachments.length > 0) {
+              clean.attachments = msg.attachments;
+            }
+            return clean;
+          });
+          
+          const userMessage: any = {
+            id: `user-${Date.now()}`,
+            role: "user" as const,
+            content: input.message,
+            timestamp: new Date().toISOString(),
+          };
+          if (input.attachments && input.attachments.length > 0) {
+            userMessage.attachments = input.attachments;
+          }
+          
+          const newConversation = {
+            id: conversationId,
+            title: input.message.substring(0, 50) || "New Conversation",
+            messages: [
+              ...cleanHistory,
+              userMessage,
+            ],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          
+          conversations.push(newConversation);
+          conversationIndex = conversations.length - 1;
+          
+          // Save the new conversation first
+          await brandSiteRepository.update({
+            id: input.brandSiteId,
+            data: {
+              conversations: conversations,
+            } as any,
+          });
+          
+          logger.info("Created conversation for streaming", {
+            conversationId,
+            brandSiteId: input.brandSiteId,
+            messageCount: newConversation.messages.length,
+          });
         }
 
         const conversation = conversations[conversationIndex];
@@ -531,6 +624,20 @@ export async function handleChatGenerateSite(
         accent: "#10b981",
       };
 
+      // Get available pages for linking validation (include the new page being created)
+      const availablePages = [
+        ...pages.map((p) => ({
+          slug: p.slug,
+          title: p.title,
+          href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+        })),
+        {
+          slug: finalSlug,
+          title: detectedPageTitle!,
+          href: `/${finalSlug}`,
+        },
+      ];
+
       // Generate HTML for the new page
       updatedHtml = await geminiService.generateSiteHtml({
         brandName: brandSite.brandName,
@@ -538,10 +645,10 @@ export async function handleChatGenerateSite(
         logoUrl: brandSite.logoUrl,
         tone: brandSite.tone || "professional",
         description: brandSite.context,
-        brandImages: brandSite.contextImages || [],
+        brandImages: allAvailableImages, // Use all available images from storage
         context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Each page needs a unique hero section featuring a relevant background (image or color), a clear page title, a subheadline, and primary/secondary call-to-action buttons. Center hero content within a max-width container and avoid placing extra logos inside the hero. Use a different layout structure, different hero style, and page-specific content that focuses on "${detectedPageTitle}". DO NOT repeat the same structure as other pages. Ensure the page is accessible at its correct URL path and has a clear visual identity.`,
-        contextImages: input.attachments.length > 0 ? input.attachments : brandSite.contextImages || [],
-        products: products.map((p) => ({
+        contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages, // Combine with all available images
+        products: productsWithValidImages.map((p) => ({
           name: p.name,
           description: p.description,
           price: p.price,
@@ -554,6 +661,7 @@ export async function handleChatGenerateSite(
         pagePurpose: input.message,
         pageSlug: finalSlug,
         pageType: detectedPageType,
+        availablePages,
       });
 
       // Stream response about page creation
@@ -590,6 +698,7 @@ export async function handleChatGenerateSite(
               pageHtml,
               `${conversationContext}\n\nIMPORTANT: You are updating the "${page.slug}" page as part of a site-wide update. Apply the requested changes to this page while maintaining its unique identity and structure.`,
               brandSite,
+              allAvailableImages,
             );
             updatedPages.push({ slug: page.slug, html: editResult.updatedHtml });
           }
@@ -666,6 +775,7 @@ export async function handleChatGenerateSite(
           pageHtmlToEdit,
           `${conversationContext}\n\nIMPORTANT: You are editing ONLY the "${targetPageSlug}" page. Do NOT modify other pages. Focus your changes on this specific page only.`,
           brandSite,
+          allAvailableImages,
         );
         updatedHtml = editResult.updatedHtml;
         
@@ -696,10 +806,10 @@ export async function handleChatGenerateSite(
         logoUrl: brandSite.logoUrl,
         tone: brandSite.tone || "professional",
         description: brandSite.context,
-        brandImages: brandSite.contextImages || [],
+        brandImages: allAvailableImages, // Use all available images from storage
         context: `${brandSite.context || ""}\n\nUser request: ${input.message}`,
-        contextImages: input.attachments.length > 0 ? input.attachments : brandSite.contextImages || [],
-        products: products.map((p) => ({
+        contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages, // Combine with all available images
+        products: productsWithValidImages.map((p) => ({
           name: p.name,
           description: p.description,
           price: p.price,
@@ -872,6 +982,11 @@ export async function handleChatGenerateSite(
                 brandSite.brandName
               );
               const customFavicon = organization.settings?.branding?.customFavicon;
+              const availablePagesForSiteEdit = pages.map((p: any) => ({
+                slug: p.slug,
+                title: p.title,
+                href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+              }));
               const indexWithIntegrations = applyIntegrations(updatedIndexHtml, {
                 widgets: (brandSite as any).widgets,
                 organizationId: organization.id,
@@ -882,6 +997,7 @@ export async function handleChatGenerateSite(
                 pageType: "standard", // Index page is typically standard
                 pageSlug: "index",
                 customFavicon,
+                availablePages: availablePagesForSiteEdit,
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               
@@ -909,6 +1025,11 @@ export async function handleChatGenerateSite(
             if (indexHtml) {
               const customFavicon = organization.settings?.branding?.customFavicon;
               const indexWithNav = injectNavigation(indexHtml, allPages, "index", updatedBrandSite.brandName);
+              const availablePagesForRegen = allPages.map((p: any) => ({
+                slug: p.slug,
+                title: p.title,
+                href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+              }));
               const indexWithIntegrations = applyIntegrations(indexWithNav, {
                 widgets: (updatedBrandSite as any).widgets,
                 organizationId: organization.id,
@@ -919,6 +1040,7 @@ export async function handleChatGenerateSite(
                 pageType: "standard", // Index page is typically standard
                 pageSlug: "index",
                 customFavicon,
+                availablePages: availablePagesForRegen,
               });
               filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
             }
@@ -932,6 +1054,11 @@ export async function handleChatGenerateSite(
                 const customFavicon = organization.settings?.branding?.customFavicon;
                 const pageWithNav = injectNavigation(pageFile, allPages, page.slug, updatedBrandSite.brandName);
                 const pageType = page.type || "standard";
+                const availablePagesForPage = allPages.map((p: any) => ({
+                  slug: p.slug,
+                  title: p.title,
+                  href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+                }));
                 const pageWithIntegrations = applyIntegrations(pageWithNav, {
                   widgets: (updatedBrandSite as any).widgets,
                   organizationId: organization.id,
@@ -942,6 +1069,7 @@ export async function handleChatGenerateSite(
                   pageType: pageType,
                   pageSlug: page.slug,
                   customFavicon,
+                  availablePages: availablePagesForPage,
                 });
                 filesToDeploy.push({ path: `/${page.slug}/index.html`, contents: pageWithIntegrations });
               }
@@ -968,6 +1096,11 @@ export async function handleChatGenerateSite(
                   brandSite.brandName,
                 );
                 const customFavicon = organization.settings?.branding?.customFavicon;
+                const availablePagesForFinal = pages.map((p: any) => ({
+                  slug: p.slug,
+                  title: p.title,
+                  href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
+                }));
                 const indexWithIntegrations = applyIntegrations(updatedIndexHtml, {
                   widgets: (brandSite as any).widgets,
                   organizationId: organization.id,
@@ -978,6 +1111,7 @@ export async function handleChatGenerateSite(
                   pageType: "standard", // Index page is typically standard
                   pageSlug: "index",
                   customFavicon,
+                  availablePages: availablePagesForFinal,
                 });
                 filesToDeploy.push({ path: "/index.html", contents: indexWithIntegrations });
               }

@@ -301,7 +301,7 @@ export default function ProductsPage() {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{t('products.title')}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
             <p className="text-muted-foreground">{t('products.manageProducts')}</p>
           </div>
         </div>
@@ -317,7 +317,7 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('products.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
           <p className="text-sm sm:text-base text-muted-foreground">{t('products.subtitle')}</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -447,7 +447,7 @@ export default function ProductsPage() {
                       id="trackInventory"
                       checked={formData.trackInventory}
                       onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                      className="rounded border-gray-300"
+                      className="rounded border-border"
                     />
                     <Label htmlFor="trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
                   </div>
@@ -462,7 +462,7 @@ export default function ProductsPage() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {formData.images.map((image, index) => (
                         <div key={index} className="relative group">
-                          <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                          <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
                             <img
                               src={image}
                               alt={t('products.images.imageAlt', { index: index + 1 })}
@@ -690,7 +690,7 @@ export default function ProductsPage() {
                         id="edit-trackInventory"
                         checked={formData.trackInventory}
                         onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                        className="rounded border-gray-300"
+                        className="rounded border-border"
                       />
                       <Label htmlFor="edit-trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
                     </div>
@@ -705,7 +705,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                         {formData.images.map((image, index) => (
                           <div key={index} className="relative group">
-                            <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                            <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
                               <img
                                 src={image}
                                 alt={t('products.images.imageAlt', { index: index + 1 })}
@@ -839,7 +839,7 @@ export default function ProductsPage() {
           <CardContent>
             <div className="text-center py-8 px-4">
               <Package className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-sm font-semibold text-gray-900">{t('products.empty.title')}</h3>
+              <h3 className="mt-2 text-sm font-semibold text-foreground">{t('products.empty.title')}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {searchTerm.trim() || statusFilter !== "all"
                   ? t('products.empty.noMatch')
@@ -994,7 +994,7 @@ export default function ProductsPage() {
             {/* Mobile View */}
             <div className="md:hidden space-y-4">
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold">{t('products.mobile.allProducts')}</h2>
+                <h2 className="text-xl font-semibold text-foreground">{t('products.mobile.allProducts')}</h2>
                 <p className="text-sm text-muted-foreground">
                   {searchTerm.trim() || statusFilter !== "all"
                     ? t('products.mobile.showing', { count: filteredProducts.length, total: products.length })

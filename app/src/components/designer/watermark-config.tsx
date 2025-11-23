@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +13,7 @@ import { Template } from "@/core";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { TemplateData } from "@/core";
 import { typography, spacing, separators, components } from "./design-system";
+import { toast } from "sonner";
 
 type WatermarkConfigProps = {
 	template: Template;
@@ -21,6 +23,40 @@ type WatermarkConfigProps = {
 
 export function WatermarkConfig({ template, organizationLogo, saveMutation }: WatermarkConfigProps) {
 	const { t } = useTranslation();
+	const navigate = useNavigate();
+	
+	// Ensure brand object exists (defensive check for AI-generated templates)
+	const brand = template.brand || {
+		fonts: ["Inter"],
+		colors: {
+			primary: "#111827",
+			secondary: "#6b7280",
+			accent: "#2563eb",
+		},
+		margins: { top: 40, right: 40, bottom: 40, left: 40 },
+	};
+	
+	// Helper function to wrap mutations with error handling
+	const handleMutation = (
+		data: Partial<TemplateData>,
+		options?: {
+			onSuccess?: () => void;
+			skipErrorToast?: boolean;
+		}
+	) => {
+		saveMutation.mutate(data, {
+			onError: (error) => {
+				console.error("Failed to save watermark setting:", error);
+				if (!options?.skipErrorToast) {
+					toast.error(t('designer.watermark.saveError', {
+						defaultValue: "Failed to save watermark settings. Please try again."
+					}));
+				}
+			},
+			onSuccess: options?.onSuccess,
+		});
+	};
+	
 	return (
 		<section className={`${components.section} ${separators.sectionDivider}`}>
 			<h3 className={typography.sectionTitle}>{t('designer.watermark.title')}</h3>
@@ -30,9 +66,10 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 					<input
 						id="watermark-enabled"
 						type="checkbox"
-						checked={template.brand.watermark?.enabled ?? false}
+						checked={brand.watermark?.enabled ?? false}
 						onChange={(e) => {
-							const currentWatermark = template.brand.watermark || {
+							const isEnabling = e.target.checked;
+							const currentWatermark = brand.watermark || {
 								enabled: false,
 								position: "center" as const,
 								width: 200,
@@ -41,28 +78,84 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								blendMode: "normal" as const,
 								repeat: "none" as const,
 							};
-							saveMutation.mutate({
-								brand: {
-									...template.brand,
-									watermark: {
-										...currentWatermark,
-										enabled: e.target.checked,
-										imageUrl: currentWatermark.imageUrl,
+							
+							// If enabling watermark, use organization logo if available
+							if (isEnabling && !currentWatermark.imageUrl && !currentWatermark.text) {
+								if (organizationLogo) {
+									// Automatically use organization logo
+									handleMutation(
+										{
+											brand: {
+												...brand,
+												watermark: {
+													...currentWatermark,
+													enabled: true,
+													imageUrl: organizationLogo,
+												},
+											},
+										},
+										{
+											onSuccess: () => {
+												toast.success(t('designer.watermark.enabled', {
+													defaultValue: "Watermark enabled with organization logo"
+												}));
+											},
+										}
+									);
+									return;
+								}
+								
+								// No logo available, show warning with link to settings
+								toast.warning(
+									t('designer.watermark.logoRequired', {
+										defaultValue: "Organization logo is required to enable watermark"
+									}),
+									{
+										action: {
+											label: t('designer.watermark.goToSettings', {
+												defaultValue: "Go to Settings"
+											}),
+											onClick: () => navigate("/settings/organization/branding"),
+										},
+										duration: 5000,
+									}
+								);
+								return;
+							}
+							
+							handleMutation(
+								{
+									brand: {
+										...brand,
+										watermark: {
+											...currentWatermark,
+											enabled: isEnabling,
+											imageUrl: currentWatermark.imageUrl,
+										},
 									},
 								},
-							});
+								{
+									onSuccess: () => {
+										if (isEnabling) {
+											toast.success(t('designer.watermark.enabled', {
+												defaultValue: "Watermark enabled"
+											}));
+										}
+									},
+								}
+							);
 						}}
 						className="h-4 w-4 rounded border-gray-300"
 					/>
 				</div>
-				{template.brand.watermark?.enabled && (
+				{brand.watermark?.enabled && (
 					<div className={`${separators.nestedContent} ${spacing.fieldGroupGap}`}>
 						<div className={components.field}>
 							<Label htmlFor="watermark-type" className={typography.fieldLabel}>{t('designer.watermark.type')}</Label>
 							<Select
-								value={template.brand.watermark?.imageUrl ? "image" : "text"}
+								value={brand.watermark?.imageUrl ? "image" : "text"}
 								onValueChange={(v) => {
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -71,13 +164,24 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										blendMode: "normal" as const,
 										repeat: "none" as const,
 									};
-									saveMutation.mutate({
+									
+									const imageUrl = v === "image" ? (organizationLogo || currentWatermark.imageUrl) : undefined;
+									const text = v === "text" ? (currentWatermark.text || t('designer.watermark.textPlaceholder')) : undefined;
+									
+									// If switching to image but no image URL available, show warning
+									if (v === "image" && !imageUrl) {
+										toast.warning(t('designer.watermark.imageUrlRequired', {
+											defaultValue: "Please provide an image URL for the watermark"
+										}));
+									}
+									
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
-												imageUrl: v === "image" ? (organizationLogo || currentWatermark.imageUrl) : undefined,
-												text: v === "text" ? (currentWatermark.text || t('designer.watermark.textPlaceholder')) : undefined,
+												imageUrl,
+												text,
 											},
 										},
 									});
@@ -92,14 +196,14 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								</SelectContent>
 							</Select>
 						</div>
-						{template.brand.watermark?.imageUrl ? (
+						{brand.watermark?.imageUrl ? (
 							<div className={components.field}>
 								<Label htmlFor="watermark-image-url" className={typography.fieldLabel}>{t('designer.watermark.imageUrl')}</Label>
 								<Input
 									id="watermark-image-url"
-									value={template.brand.watermark.imageUrl || ""}
+									value={brand.watermark?.imageUrl || ""}
 									onChange={(e) => {
-										const currentWatermark = template.brand.watermark || {
+										const currentWatermark = brand.watermark || {
 											enabled: true,
 											position: "center" as const,
 											width: 200,
@@ -108,12 +212,22 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											blendMode: "normal" as const,
 											repeat: "none" as const,
 										};
-										saveMutation.mutate({
+										const imageUrl = e.target.value || undefined;
+										
+										// Validate URL format if provided
+										if (imageUrl && !imageUrl.match(/^https?:\/\/.+/)) {
+											toast.warning(t('designer.watermark.invalidUrl', {
+												defaultValue: "Please enter a valid URL starting with http:// or https://"
+											}));
+											return;
+										}
+										
+										handleMutation({
 											brand: {
-												...template.brand,
+												...brand,
 												watermark: {
 													...currentWatermark,
-													imageUrl: e.target.value || undefined,
+													imageUrl,
 												},
 											},
 										});
@@ -127,9 +241,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								<Label htmlFor="watermark-text" className={typography.fieldLabel}>{t('designer.watermark.text')}</Label>
 								<Input
 									id="watermark-text"
-									value={template.brand.watermark?.text || ""}
+									value={brand.watermark?.text || ""}
 									onChange={(e) => {
-										const currentWatermark = template.brand.watermark || {
+										const currentWatermark = brand.watermark || {
 											enabled: true,
 											position: "center" as const,
 											width: 200,
@@ -138,9 +252,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											blendMode: "normal" as const,
 											repeat: "none" as const,
 										};
-										saveMutation.mutate({
+										handleMutation({
 											brand: {
-												...template.brand,
+												...brand,
 												watermark: {
 													...currentWatermark,
 													text: e.target.value || undefined,
@@ -156,9 +270,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 						<div className={components.field}>
 							<Label htmlFor="watermark-position" className={typography.fieldLabel}>{t('designer.watermark.position')}</Label>
 							<Select
-								value={template.brand.watermark?.position || "center"}
+								value={brand.watermark?.position || "center"}
 								onValueChange={(v) => {
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -167,9 +281,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										blendMode: "normal" as const,
 										repeat: "none" as const,
 									};
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												position: v as typeof currentWatermark.position,
@@ -200,10 +314,10 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 							<Input
 								id="watermark-width"
 								type="number"
-								value={template.brand.watermark?.width ?? ""}
+								value={brand.watermark?.width ?? ""}
 								onChange={(e) => {
 									const inputValue = e.target.value;
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -221,9 +335,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										widthValue = isNaN(numValue) ? undefined : numValue;
 									}
 
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												width: widthValue ?? currentWatermark.width ?? 200,
@@ -234,7 +348,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								onBlur={(e) => {
 									const inputValue = e.target.value.trim();
 									if (inputValue === "" || inputValue === null || inputValue === undefined) {
-										const currentWatermark = template.brand.watermark || {
+										const currentWatermark = brand.watermark || {
 											enabled: true,
 											position: "center" as const,
 											width: 200,
@@ -243,9 +357,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											blendMode: "normal" as const,
 											repeat: "none" as const,
 										};
-										saveMutation.mutate({
+										handleMutation({
 											brand: {
-												...template.brand,
+												...brand,
 												watermark: {
 													...currentWatermark,
 													width: 200,
@@ -264,9 +378,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								type="number"
 								min={50}
 								max={1000}
-								value={template.brand.watermark?.height || ""}
+								value={brand.watermark?.height || ""}
 								onChange={(e) => {
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -275,12 +389,22 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										blendMode: "normal" as const,
 										repeat: "none" as const,
 									};
-									saveMutation.mutate({
+									const heightValue = e.target.value ? Number(e.target.value) : undefined;
+									
+									// Validate height range
+									if (heightValue !== undefined && (heightValue < 50 || heightValue > 1000)) {
+										toast.warning(t('designer.watermark.heightRange', {
+											defaultValue: "Height must be between 50 and 1000 pixels"
+										}));
+										return;
+									}
+									
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
-												height: e.target.value ? Number(e.target.value) : undefined,
+												height: heightValue,
 											},
 										},
 									});
@@ -298,9 +422,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								type="range"
 								min={-180}
 								max={180}
-								value={template.brand.watermark?.rotation || 0}
+								value={brand.watermark?.rotation || 0}
 								onChange={(e) => {
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -309,15 +433,15 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										blendMode: "normal" as const,
 										repeat: "none" as const,
 									};
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												rotation: Number(e.target.value),
 											},
 										},
-									});
+									}, { skipErrorToast: true }); // Skip toast for slider changes (too frequent)
 								}}
 								className="h-2 flex-1"
 							/>
@@ -327,10 +451,10 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								min={-180}
 								max={180}
 								step={1}
-								value={template.brand.watermark?.rotation ?? ""}
+								value={brand.watermark?.rotation ?? ""}
 								onChange={(e) => {
 									const inputValue = e.target.value;
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -348,9 +472,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										rotationValue = isNaN(numValue) ? currentWatermark.rotation ?? 0 : Math.max(-180, Math.min(180, numValue));
 									}
 
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												rotation: rotationValue,
@@ -361,7 +485,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								onBlur={(e) => {
 									const inputValue = e.target.value.trim();
 									if (inputValue === "" || inputValue === null || inputValue === undefined) {
-										const currentWatermark = template.brand.watermark || {
+										const currentWatermark = brand.watermark || {
 											enabled: true,
 											position: "center" as const,
 											width: 200,
@@ -370,9 +494,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											blendMode: "normal" as const,
 											repeat: "none" as const,
 										};
-										saveMutation.mutate({
+										handleMutation({
 											brand: {
-												...template.brand,
+												...brand,
 												watermark: {
 													...currentWatermark,
 													rotation: currentWatermark.rotation ?? 0,
@@ -396,9 +520,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								min={0}
 								max={100}
 								step={1}
-								value={Math.round((template.brand.watermark?.opacity || 0.1) * 100)}
+								value={Math.round((brand.watermark?.opacity || 0.1) * 100)}
 								onChange={(e) => {
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -407,15 +531,15 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										blendMode: "normal" as const,
 										repeat: "none" as const,
 									};
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												opacity: Number(e.target.value) / 100,
 											},
 										},
-									});
+									}, { skipErrorToast: true }); // Skip toast for slider changes (too frequent)
 								}}
 								className="h-2 flex-1"
 							/>
@@ -426,12 +550,12 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								max={100}
 								step={1}
 								value={(() => {
-									const opacity = template.brand.watermark?.opacity ?? 0.1;
+									const opacity = brand.watermark?.opacity ?? 0.1;
 									return Math.round(opacity * 100);
 								})()}
 								onChange={(e) => {
 									const inputValue = e.target.value;
-									const currentWatermark = template.brand.watermark || {
+									const currentWatermark = brand.watermark || {
 										enabled: true,
 										position: "center" as const,
 										width: 200,
@@ -449,9 +573,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 										opacityValue = isNaN(numValue) ? currentWatermark.opacity ?? 0.1 : Math.max(0, Math.min(100, numValue)) / 100;
 									}
 
-									saveMutation.mutate({
+									handleMutation({
 										brand: {
-											...template.brand,
+											...brand,
 											watermark: {
 												...currentWatermark,
 												opacity: opacityValue,
@@ -462,7 +586,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								onBlur={(e) => {
 									const inputValue = e.target.value.trim();
 									if (inputValue === "" || inputValue === null || inputValue === undefined) {
-										const currentWatermark = template.brand.watermark || {
+										const currentWatermark = brand.watermark || {
 											enabled: true,
 											position: "center" as const,
 											width: 200,
@@ -471,9 +595,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 											blendMode: "normal" as const,
 											repeat: "none" as const,
 										};
-										saveMutation.mutate({
+										handleMutation({
 											brand: {
-												...template.brand,
+												...brand,
 												watermark: {
 													...currentWatermark,
 													opacity: currentWatermark.opacity ?? 0.1,
@@ -489,49 +613,11 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 						</div>
 					</div>
 					<div className={components.field}>
-						<Label htmlFor="watermark-blend-mode" className={typography.fieldLabel}>{t('designer.watermark.blendMode')}</Label>
-						<Select
-							value={template.brand.watermark?.blendMode || "normal"}
-							onValueChange={(v) => {
-								const currentWatermark = template.brand.watermark || {
-									enabled: true,
-									position: "center" as const,
-									width: 200,
-									rotation: 0,
-									opacity: 0.1,
-									blendMode: "normal" as const,
-									repeat: "none" as const,
-								};
-								saveMutation.mutate({
-									brand: {
-										...template.brand,
-										watermark: {
-											...currentWatermark,
-											blendMode: v as typeof currentWatermark.blendMode,
-										},
-									},
-								});
-							}}
-						>
-							<SelectTrigger className={components.inputHeight}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="normal">{t('designer.watermark.blendModes.normal')}</SelectItem>
-								<SelectItem value="multiply">{t('designer.watermark.blendModes.multiply')}</SelectItem>
-								<SelectItem value="screen">{t('designer.watermark.blendModes.screen')}</SelectItem>
-								<SelectItem value="overlay">{t('designer.watermark.blendModes.overlay')}</SelectItem>
-								<SelectItem value="soft-light">{t('designer.watermark.blendModes.softLight')}</SelectItem>
-								<SelectItem value="hard-light">{t('designer.watermark.blendModes.hardLight')}</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div className={components.field}>
 						<Label htmlFor="watermark-repeat" className={typography.fieldLabel}>{t('designer.watermark.repeat')}</Label>
 						<Select
-							value={template.brand.watermark?.repeat || "none"}
+							value={brand.watermark?.repeat || "none"}
 							onValueChange={(v) => {
-								const currentWatermark = template.brand.watermark || {
+								const currentWatermark = brand.watermark || {
 									enabled: true,
 									position: "center" as const,
 									width: 200,
@@ -540,9 +626,9 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 									blendMode: "normal" as const,
 									repeat: "none" as const,
 								};
-								saveMutation.mutate({
+								handleMutation({
 									brand: {
-										...template.brand,
+										...brand,
 										watermark: {
 											...currentWatermark,
 											repeat: v as typeof currentWatermark.repeat,

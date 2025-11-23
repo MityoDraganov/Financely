@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Plus, 
   Zap, 
-  ArrowRight, 
   Mail, 
   FileText, 
   Users, 
@@ -14,12 +13,9 @@ import {
   CheckCircle,
   AlertCircle,
   Settings,
-  Trash2,
-  GripVertical,
-  Play,
-  Eye
+  Trash2
 } from "lucide-react";
-import { WorkflowStep, WorkflowTriggerType } from "@/core";
+import { WorkflowStep, WorkflowTriggerType, WorkflowAction } from "@/core";
 import { cn } from "@/lib/utils";
 
 interface WorkflowVisualFlowProps {
@@ -73,7 +69,6 @@ export function WorkflowVisualFlow({
   trigger,
   steps,
   onAddStep,
-  onUpdateStep,
   onDeleteStep,
   onStepClick,
   selectedStepId,
@@ -177,7 +172,7 @@ export function WorkflowVisualFlow({
                           {/* Actions Preview */}
                           {actionCount > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
-                              {step.actions.slice(0, 3).map((action, actionIndex) => {
+                              {step.actions.slice(0, 3).map((action: WorkflowAction, actionIndex: number) => {
                                 const ActionIcon = getActionIcon(action.type);
                                 return (
                                   <Badge

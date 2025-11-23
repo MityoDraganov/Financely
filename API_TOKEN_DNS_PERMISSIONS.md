@@ -63,3 +63,4 @@ The code calls `createSubdomain()` which uses the Cloudflare API. If the token d
 
 The verification step I added will now catch this and fail with a clear error message.
 
+

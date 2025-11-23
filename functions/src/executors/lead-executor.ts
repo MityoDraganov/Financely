@@ -74,16 +74,23 @@ export class LeadExecutor implements ActionExecutor {
       throw new Error("orgId or tenantId is required in context");
     }
 
-    // Build lead data
+    // Split name into firstName and lastName
+    const nameParts = resolvedName.trim().split(/\s+/);
+    const firstName = nameParts[0] || undefined;
+    const lastName = nameParts.slice(1).join(" ") || undefined;
+
+    // Build lead data according to LeadData schema
     const leadData = {
       organizationId: orgId,
-      data: {
-        name: resolvedName,
-        ...(resolvedEmail && { email: resolvedEmail }),
-        ...(resolvedPhone && { phone: resolvedPhone }),
-        ...(resolvedSource && { source: resolvedSource }),
-        status: config.status || "new",
-      },
+      widgetType: "contactForm" as const,
+      source: (resolvedSource as "widget" | "manual" | "import") || "manual",
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(resolvedEmail && { email: resolvedEmail }),
+      ...(resolvedPhone && { phone: resolvedPhone }),
+      formData: {},
+      status: config.status || "new",
+      tags: [],
     };
 
     const databaseService = getDatabaseService();
@@ -122,13 +129,10 @@ export class LeadExecutor implements ActionExecutor {
       throw new Error(`Lead not found: ${resolvedLeadId}`);
     }
 
-    // Update status in data
-    const leadData = (lead as any).data || {};
-    leadData.status = config.status;
-
+    // Update status
     await leadRepository.update({
       id: resolvedLeadId,
-      data: { data: leadData }
+      data: { status: config.status } as any
     });
 
     logger.info("Lead status updated successfully", { 
@@ -176,21 +180,26 @@ export class LeadExecutor implements ActionExecutor {
     // Create contact from lead data
     const contactData = {
       organizationId: orgId,
-      data: {
-        name: leadData.name || "",
-        email: leadData.email,
-        phone: leadData.phone,
-        company: leadData.company,
+      firstName: leadData.firstName || "Unknown",
+      lastName: leadData.lastName || "Contact",
+      email: leadData.email || "",
+      phone: leadData.phone ? (Array.isArray(leadData.phone) ? leadData.phone : [leadData.phone]) : [],
+      ...(leadData.company && { company: leadData.company }),
+      tags: [],
+      status: "lead" as const,
+      preferences: {
+        preferredContactMethod: "email" as const,
+        marketingOptIn: false,
+        newsletterOptIn: false,
       },
     };
 
     const contactId = await contactRepository.create({ data: contactData });
 
     // Update lead status to converted
-    leadData.status = "converted";
     await leadRepository.update({
       id: resolvedLeadId,
-      data: { data: leadData }
+      data: { status: "converted" } as any
     });
 
     logger.info("Lead converted to contact successfully", { 
@@ -223,4 +232,5 @@ export class LeadExecutor implements ActionExecutor {
     }, obj);
   }
 }
+
 

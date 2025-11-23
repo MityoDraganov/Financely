@@ -430,38 +430,75 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         const width = (watermark.width || 200) * zoom;
         const height = watermark.height ? watermark.height * zoom : undefined;
         const opacity = watermark.opacity ?? 0.1;
-        const blendMode = watermark.blendMode || "normal";
+        const repeat = watermark.repeat || "none";
 
         if (watermarkImageUrl) {
-            watermarkElement = (
-                <div
-                    style={{
-                        position: "absolute",
-                        ...positionStyle,
-                        width,
-                        height,
-                        opacity,
-                        mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
-                        pointerEvents: "none",
-                        zIndex: 0,
-                    }}
-                >
-                    <img
-                        src={watermarkImageUrl}
-                        alt="Watermark"
-                        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            // Image watermark
+            if (repeat === "none") {
+                // Single image watermark
+                watermarkElement = (
+                    <div
+                        style={{
+                            position: "absolute",
+                            ...positionStyle,
+                            width,
+                            height: height || width,
+                            opacity,
+                            pointerEvents: "none",
+                            zIndex: 0,
+                        }}
+                    >
+                        <img
+                            src={watermarkImageUrl}
+                            alt="Watermark"
+                            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                        />
+                    </div>
+                );
+            } else {
+                // Tiled/repeated image watermark
+                const backgroundSize = repeat === "repeat" 
+                    ? `${width}px ${height || width}px`
+                    : repeat === "repeat-x"
+                    ? `${width}px auto`
+                    : `${width}px auto`; // repeat-y
+                
+                // Map repeat values to valid CSS background-repeat values
+                const cssRepeat: React.CSSProperties["backgroundRepeat"] = 
+                    repeat === "repeat" ? "repeat" :
+                    repeat === "repeat-x" ? "repeat-x" :
+                    repeat === "repeat-y" ? "repeat-y" :
+                    "no-repeat";
+                
+                watermarkElement = (
+                    <div
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            width: "100%",
+                            height: "100%",
+                            backgroundImage: `url(${watermarkImageUrl})`,
+                            backgroundRepeat: cssRepeat,
+                            backgroundSize,
+                            opacity,
+                            pointerEvents: "none",
+                            zIndex: 0,
+                            transform: `rotate(${watermark.rotation || 0}deg)`,
+                        }}
                     />
-                </div>
-            );
+                );
+            }
         } else if (watermarkText) {
+            // Text watermarks don't support repeat (would require complex pattern generation)
             watermarkElement = (
                 <div
                     style={{
                         position: "absolute",
                         ...positionStyle,
                         width,
+                        minWidth: width,
                         opacity,
-                        mixBlendMode: blendMode as React.CSSProperties["mixBlendMode"],
                         pointerEvents: "none",
                         zIndex: 0,
                         fontSize: Math.max(24, width / 10) * zoom,
@@ -480,7 +517,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
     return (
         <div className="grid place-items-center">
             <div
-                className="bg-white shadow relative border"
+                className="bg-white dark:bg-neutral-900 shadow relative border border-border"
                 style={{ width: size.w * zoom, height: size.h * zoom }}
             >
                 {watermarkElement}

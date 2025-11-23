@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GitBranch } from "lucide-react";
 import { WorkflowCondition, WorkflowConditionOperator } from "@/core";
-import { cn } from "@/lib/utils";
 
 interface ConditionalBranchEditorProps {
   conditions: WorkflowCondition[];
@@ -83,7 +81,6 @@ export function ConditionalBranchEditor({
   availableFields = defaultFields,
   className,
 }: ConditionalBranchEditorProps) {
-  const { t } = useTranslation();
   const [logicOperator, setLogicOperator] = useState<"AND" | "OR">("AND");
 
   const addCondition = () => {
@@ -223,7 +220,7 @@ export function ConditionalBranchEditor({
                       ) : (
                         <Input
                           type={condition.field === "invoice.amount" || condition.field === "product.stock" ? "number" : "text"}
-                          value={condition.value || ""}
+                          value={typeof condition.value === "boolean" ? String(condition.value) : (condition.value || "")}
                           onChange={(e) =>
                             updateCondition(index, { 
                               value: condition.field === "invoice.amount" || condition.field === "product.stock" 
@@ -271,7 +268,7 @@ export function ConditionalBranchEditor({
             <p className="text-xs text-muted-foreground">
               {conditions
                 .map(
-                  (cond, idx) =>
+                  (cond) =>
                     `${cond.field || "?"} ${conditionOperators.find((o) => o.value === cond.operator)?.label || cond.operator} ${isValueRequired(cond.operator) ? cond.value || "?" : ""}`
                 )
                 .join(` ${logicOperator} `)}

@@ -76,8 +76,8 @@ export class InvoiceExecutor implements ActionExecutor {
     // Build invoice data structure
     const items = config.items || [{
       description: "Service",
-      qty: 1,
-      unitPrice: config.amount
+      quantity: 1,
+      price: config.amount
     }];
 
     const invoiceData: Record<string, unknown> = {

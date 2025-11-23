@@ -38,8 +38,8 @@ export class WorkflowExecutionEngine {
 
   private initializeActionExecutors(): void {
     // Email actions
-    this.actionExecutors.set("send_email", {
-      type: "send_email",
+    this.actionExecutors.set("send.email", {
+      type: "send.email",
       execute: this.executeEmailAction.bind(this),
     });
 
@@ -342,7 +342,7 @@ export class WorkflowExecutionEngine {
   private async executeEmailAction(action: WorkflowAction, context: WorkflowExecutionContext) {
     try {
       // Check if config matches email schema
-      if (action.type !== "send_email") {
+      if (action.type !== "send.email") {
         throw new Error(`Invalid action type for email executor: ${action.type}`);
       }
 

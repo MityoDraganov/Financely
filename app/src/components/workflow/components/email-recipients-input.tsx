@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Mail, X, ChevronDown, ChevronUp, User, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -231,7 +231,7 @@ export function EmailRecipientsInput({
                 setOpen(true);
               }
             }}
-            onBlur={(e) => {
+            onBlur={() => {
               // Delay to allow click on suggestion
               setTimeout(() => {
                 setIsFocused(false);
@@ -357,4 +357,5 @@ export function EmailRecipientsInput({
     </div>
   );
 }
+
 

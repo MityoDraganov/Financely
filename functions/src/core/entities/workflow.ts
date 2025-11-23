@@ -269,7 +269,7 @@ export type WorkflowAction = z.infer<typeof workflowActionSchema>;
 /**
  * Workflow step that can contain actions and conditions
  */
-export const workflowStepSchema = z.object({
+export const workflowStepSchema: z.ZodType<any> = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(["action", "condition", "delay", "parallel"]),

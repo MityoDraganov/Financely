@@ -54,6 +54,11 @@ interface BrandContext {
     image?: string;
     description?: string;
   }>;
+  availablePages?: Array<{
+    slug: string;
+    title: string;
+    href: string; // The URL path for this page
+  }>;
 }
 
 interface GeminiResponse {
@@ -590,6 +595,7 @@ export class GeminiService {
       pagePurpose,
       pageSlug,
       pageType,
+      availablePages,
     } = brandContext;
 
     let prompt = `Generate a complete, modern, responsive multi-page website HTML for a brand called "${brandName}".
@@ -638,9 +644,39 @@ BRAND COLOR USAGE (MANDATORY):
       prompt += `\n\nHeader: The navigation will be automatically injected. Make the header sticky on larger screens and collapsible on mobile. Highlight the active page link using the primary color.`;
     }
 
-    if (brandImages && brandImages.length > 0) {
-      prompt += `\n\nInclude these brand images in the gallery/portfolio section: ${brandImages.join(", ")}`;
+    // 🚨 CRITICAL IMAGE RULES
+    prompt += `\n\n🚨 CRITICAL IMAGE USAGE RULES - READ CAREFULLY:
+- You MUST ONLY use images that are explicitly provided in this prompt (brandImages, contextImages, product images, or logoUrl)
+- DO NOT create placeholder images, data URIs, or placeholder image service URLs
+- DO NOT use URLs like "B84A62?text=...", "000000?text=...", or any placeholder image services
+- DO NOT use data URIs for images (data:image/...)
+- DO NOT invent or generate image URLs
+- If no images are provided for a section, use CSS background colors or gradients instead of images
+- If you need an image but none is provided, omit the image entirely and use text/color-based design
+- ALL images must be valid URLs from the provided list below`;
+
+    if (logoUrl) {
+      prompt += `\n- Logo URL: ${logoUrl}`;
     }
+
+    if (brandImages && brandImages.length > 0) {
+      prompt += `\n- Brand Images (use ONLY these in gallery/portfolio sections): ${brandImages.join(", ")}`;
+    }
+
+    if (contextImages && contextImages.length > 0) {
+      prompt += `\n- Context Images (use ONLY these as reference): ${contextImages.join(", ")}`;
+    }
+
+    if (products && products.length > 0) {
+      const productImages = products
+        .flatMap(p => p.images || [])
+        .filter(Boolean);
+      if (productImages.length > 0) {
+        prompt += `\n- Product Images (use ONLY these for product cards): ${productImages.join(", ")}`;
+      }
+    }
+
+    prompt += `\n\n⚠️ REMEMBER: If an image is not in the list above, DO NOT use it. Use CSS colors/gradients instead or omit the image entirely.`;
 
     if (pageTitle) {
       prompt += `\n\n🎯 PAGE-SPECIFIC REQUIREMENTS - THIS IS CRITICAL:
@@ -741,7 +777,25 @@ FOOTER REQUIREMENTS:
 
 Navigation will be injected automatically, so focus on unique content for this page and avoid creating navigation bars manually.
 
-LAYOUT & POSITIONING REQUIREMENTS:
+🚨 CRITICAL LINKING RULES - READ CAREFULLY:
+- You MUST ONLY create links (<a href="...">) to pages that actually exist on the website
+- DO NOT create links to pages that don't exist (this will cause 404 errors)
+- DO NOT invent page URLs like "/services", "/products", "/about" unless they are in the available pages list below
+- If you want to link to a page that doesn't exist, either:
+  1. DO NOT create the link at all, OR
+  2. Use a generic call-to-action button without a link (e.g., "Learn More" button with onclick handler or no href)
+- ALL internal links must point to pages in the available pages list below`;
+
+    if (availablePages && availablePages.length > 0) {
+      prompt += `\n\n📄 AVAILABLE PAGES (you can ONLY link to these pages):
+${availablePages.map((page: { slug: string; title: string; href: string }) => `- ${page.title} (slug: "${page.slug}", URL: ${page.href})`).join("\n")}
+
+⚠️ CRITICAL: You can ONLY create links to the pages listed above. If a page is not in this list, DO NOT create a link to it. Use buttons without links or generic CTAs instead.`;
+    } else {
+      prompt += `\n\n⚠️ WARNING: No additional pages are available. You can ONLY link to the homepage ("/"). DO NOT create links to other pages like "/services", "/about", "/contact", etc.`;
+    }
+
+    prompt += `\n\nLAYOUT & POSITIONING REQUIREMENTS:
 - Use CSS Grid or Flexbox for all layouts (never use absolute positioning except for overlays/modals)
 - Follow a consistent spacing system (16px base unit) for margins and padding
 - Set a maximum content width (~1200px) and center it within the viewport
@@ -759,10 +813,7 @@ LAYOUT & POSITIONING REQUIREMENTS:
 ${context}`;
     }
 
-    if (contextImages && contextImages.length > 0) {
-      prompt += `\n\nContext Images (use these as reference for styling and content):
-${contextImages.join(", ")}`;
-    }
+    // Note: contextImages are already listed in the CRITICAL IMAGE USAGE RULES section above
 
     if (products && products.length > 0) {
       prompt += `\n\nProducts/Services to Feature:
@@ -805,8 +856,7 @@ Available Widgets (These are REAL, functional widgets - not placeholders):`;
         
         if (displayMode === "inline") {
           inlineWidgets.push("contactForm");
-          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
-  <div data-financely-widget="contactForm"></div>
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear with data-financely-widget="contactForm" attribute.
   The widget-loader.js will automatically replace this div with the functional contact form.`;
         } else {
           prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
@@ -821,8 +871,7 @@ Available Widgets (These are REAL, functional widgets - not placeholders):`;
         
         if (displayMode === "inline") {
           inlineWidgets.push("invoiceRequest");
-          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
-  <div data-financely-widget="invoiceRequest"></div>
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear with data-financely-widget="invoiceRequest" attribute.
   The widget-loader.js will automatically replace this div with the functional invoice request form.`;
         } else {
           prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
@@ -837,8 +886,7 @@ Available Widgets (These are REAL, functional widgets - not placeholders):`;
         
         if (displayMode === "inline") {
           inlineWidgets.push("quoteRequest");
-          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear:
-  <div data-financely-widget="quoteRequest"></div>
+          prompt += `\n  ⚠️ INLINE MODE: You MUST add a placeholder div where you want the widget to appear with data-financely-widget="quoteRequest" attribute.
   The widget-loader.js will automatically replace this div with the functional quote request form.`;
         } else {
           prompt += `\n  ✅ FLOATING MODE: The widget-loader.js will automatically create a floating button. You do NOT need to add anything.`;
@@ -849,14 +897,14 @@ Available Widgets (These are REAL, functional widgets - not placeholders):`;
 - Focus on creating engaging content: hero sections, product showcases, service descriptions, testimonials, company information
 - Create general call-to-action buttons for general actions (e.g., "Learn More", "View Products", "See Our Work", "Explore Services")
 - DO NOT create buttons specifically for contact/invoice/quote actions - the widgets handle those
-- For inline widgets: Add the required placeholder div (<div data-financely-widget="widgetType"></div>) in an appropriate location within your content
+- For inline widgets: Add the required placeholder div with data-financely-widget attribute in an appropriate location within your content
 - For floating widgets: Do nothing - the widget-loader.js will create the floating button automatically
 - Create compelling content that naturally leads users to want to contact, request quotes, or request invoices
 
 🔧 TECHNICAL DETAILS:
-- The widget script (<script src="/widget-loader.js">) will be automatically injected before the closing </body> tag
+- The widget script will be automatically injected before the closing body tag
 - Floating widgets: widget-loader.js automatically creates a floating button based on the configured position (bottom-right, top-left, etc.)
-- Inline widgets: widget-loader.js looks for <div data-financely-widget="widgetType"></div> and replaces it with the functional form
+- Inline widgets: widget-loader.js looks for div elements with data-financely-widget attribute and replaces them with the functional form
 - All widget functionality (forms, validation, submissions) is handled by widget-loader.js - you do NOT implement any of this
 - Widgets integrate with the organization's backend automatically
 

@@ -50,13 +50,31 @@ export class WorkflowExecutionEngine {
    */
   async processEvent(event: WorkflowEvent): Promise<void> {
     try {
-      logger.info("Processing workflow event", { eventId: event.eventId, type: event.type });
+      logger.info("Processing workflow event", { 
+        eventId: event.eventId, 
+        type: event.type,
+        tenantId: event.tenantId,
+        payloadKeys: Object.keys(event.payload || {})
+      });
 
       // Find active workflows that match this trigger
       const workflows = await this.findMatchingWorkflows(event.tenantId, event.type);
       
+      logger.info("Workflow search completed", {
+        eventId: event.eventId,
+        type: event.type,
+        tenantId: event.tenantId,
+        workflowsFound: workflows.length,
+        workflowIds: workflows.map((w: any) => w.id)
+      });
+      
       if (workflows.length === 0) {
-        logger.info("No matching workflows found", { eventId: event.eventId, type: event.type });
+        logger.info("No matching workflows found", { 
+          eventId: event.eventId, 
+          type: event.type,
+          tenantId: event.tenantId,
+          message: "No active workflows found with this trigger type for this organization"
+        });
         return;
       }
 
@@ -69,12 +87,19 @@ export class WorkflowExecutionEngine {
       
       logger.info("Created workflow runs", { 
         eventId: event.eventId, 
-        workflowCount: workflows.length 
+        workflowCount: workflows.length,
+        runIds: await Promise.all(runPromises.map(async () => {
+          // We can't easily get runIds here, but we log them in createWorkflowRun
+          return "created";
+        }))
       });
     } catch (error) {
       logger.error("Error processing workflow event", { 
-        eventId: event.eventId, 
-        error: error instanceof Error ? error.message : "Unknown error" 
+        eventId: event.eventId,
+        type: event.type,
+        tenantId: event.tenantId,
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
@@ -84,6 +109,29 @@ export class WorkflowExecutionEngine {
    * Find workflows that match the given trigger type
    */
   private async findMatchingWorkflows(tenantId: string, triggerType: string): Promise<any[]> {
+    logger.info("Searching for matching workflows", {
+      tenantId,
+      triggerType
+    });
+
+    // First, let's check what workflows exist for this org (for debugging)
+    const allWorkflowsSnapshot = await db
+      .collection("workflows")
+      .where("orgId", "==", tenantId)
+      .get();
+
+    logger.info("All workflows for organization", {
+      tenantId,
+      totalWorkflows: allWorkflowsSnapshot.size,
+      workflows: allWorkflowsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+        status: doc.data().status,
+        triggerType: doc.data().trigger?.type,
+        orgId: doc.data().orgId
+      }))
+    });
+
     // Use the new workflow structure - look for workflows with matching trigger type
     const workflowsSnapshot = await db
       .collection("workflows")
@@ -92,6 +140,17 @@ export class WorkflowExecutionEngine {
       .where("trigger.type", "==", triggerType)
       .get();
 
+    logger.info("Workflow query executed", {
+      tenantId,
+      triggerType,
+      totalDocs: workflowsSnapshot.size,
+      queryConditions: {
+        orgId: tenantId,
+        status: "active",
+        "trigger.type": triggerType
+      }
+    });
+
     const matchingWorkflows: any[] = [];
 
     for (const workflowDoc of workflowsSnapshot.docs) {
@@ -99,12 +158,21 @@ export class WorkflowExecutionEngine {
       // Add the document ID to the workflow object
       workflow.id = workflowDoc.id;
       matchingWorkflows.push(workflow);
+      
+      logger.info("Found matching workflow", {
+        workflowId: workflowDoc.id,
+        workflowName: workflow.name,
+        triggerType: workflow.trigger?.type,
+        status: workflow.status,
+        stepCount: workflow.steps?.length || 0
+      });
     }
 
     logger.info("Found matching workflows", { 
       tenantId, 
       triggerType, 
-      count: matchingWorkflows.length 
+      count: matchingWorkflows.length,
+      workflowIds: matchingWorkflows.map(w => w.id)
     });
 
     return matchingWorkflows;
@@ -299,16 +367,71 @@ export class WorkflowExecutionEngine {
 
       // Execute each action in the step
       const results: Record<string, unknown> = {};
+      const actions = (stepDefinition as any).actions || [];
       
-      for (const action of (stepDefinition as any).actions || []) {
+      logger.info("Executing step actions", {
+        runId,
+        stepId,
+        actionCount: actions.length,
+        actionTypes: actions.map((a: any) => a.type)
+      });
+      
+      for (const action of actions) {
+        logger.info("Executing action", {
+          runId,
+          stepId,
+          actionType: action.type,
+          actionId: action.id,
+          hasConfig: !!action.config,
+          configKeys: action.config ? Object.keys(action.config) : [],
+          actionStructure: JSON.stringify({
+            id: action.id,
+            type: action.type,
+            name: action.name,
+            configKeys: action.config ? Object.keys(action.config) : []
+          })
+        });
+
         const executor = this.actionExecutors.get(action.type);
         if (!executor) {
+          logger.error("No executor found for action type", {
+            runId,
+            stepId,
+            actionType: action.type,
+            availableTypes: Array.from(this.actionExecutors.keys())
+          });
           throw new Error(`No executor found for action type: ${action.type}`);
         }
 
+        logger.info("Found executor for action", {
+          runId,
+          stepId,
+          actionType: action.type,
+          executorType: executor.type
+        });
+
         // Execute the action
-        const actionResult = await executor.execute(action, context, runId);
-        results[action.id] = actionResult;
+        try {
+          const actionResult = await executor.execute(action, context, runId);
+          results[action.id] = actionResult;
+          
+          logger.info("Action executed successfully", {
+            runId,
+            stepId,
+            actionType: action.type,
+            actionId: action.id
+          });
+        } catch (error) {
+          logger.error("Error executing action", {
+            runId,
+            stepId,
+            actionType: action.type,
+            actionId: action.id,
+            error: error instanceof Error ? error.message : "Unknown error",
+            actionConfig: JSON.stringify(action.config, null, 2)
+          });
+          throw error;
+        }
       }
 
       // Clean results to remove undefined values before saving to Firestore

@@ -89,7 +89,7 @@ export function StepEditorDialog({
         newAction = {
           id: `action_${Date.now()}`,
           type: actionType,
-          name: "",
+          name: "Send Email", // Default name
           config: {
             recipients: [],
             subject: "",
@@ -102,8 +102,8 @@ export function StepEditorDialog({
       case "http_request":
         newAction = {
           id: `action_${Date.now()}`,
-          type: actionType,
-          name: "",
+          type: actionType === "http_request" ? "call.webhook" : actionType,
+          name: "Call Webhook", // Default name
           config: {
             method: "POST" as const,
             url: "",
@@ -114,18 +114,23 @@ export function StepEditorDialog({
         newAction = {
           id: `action_${Date.now()}`,
           type: actionType,
-          name: "",
+          name: "Wait/Delay", // Default name
           config: {
             delaySeconds: 60,
           },
         };
         break;
       default:
+        // Generate a default name from the action type
+        const defaultName = actionType
+          .split('.')
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' ');
         // For other actions, use HTTP config as fallback
         newAction = {
           id: `action_${Date.now()}`,
           type: actionType,
-          name: "",
+          name: defaultName, // Default name from action type
           config: {
             method: "POST" as const,
             url: "",
@@ -306,6 +311,20 @@ export function StepEditorDialog({
                         </Button>
                       </div>
 
+                      {/* Action name input */}
+                      <div>
+                        <Label>{t('workflows.builder.stepEditor.actions.name')}</Label>
+                        <Input
+                          value={action.name || ""}
+                          onChange={(e) =>
+                            handleUpdateAction(index, {
+                              name: e.target.value,
+                            })
+                          }
+                          placeholder={t('workflows.builder.stepEditor.actions.namePlaceholder')}
+                        />
+                      </div>
+
                       {/* Action-specific configs */}
                       {action.type === "send.email" && "recipients" in action.config && (
                         <div className="space-y-2">
@@ -317,7 +336,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   recipients: emails,
-                                },
+                                } as any,
                               });
                             }}
                             placeholder={t('workflows.builder.stepEditor.actions.email.recipientsPlaceholder')}
@@ -330,7 +349,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   subject: e.target.value,
-                                },
+                                } as any,
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.email.subjectPlaceholder')}
@@ -343,7 +362,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   body: e.target.value,
-                                },
+                                } as any,
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.email.bodyPlaceholder')}
@@ -359,7 +378,7 @@ export function StepEditorDialog({
                                   config: {
                                     ...action.config,
                                     isHtml: e.target.checked,
-                                  },
+                                  } as any,
                                 })
                               }
                               className="rounded"
@@ -381,7 +400,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   url: e.target.value,
-                                },
+                                } as any,
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.webhook.urlPlaceholder')}
@@ -394,7 +413,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   method: value as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
-                                },
+                                } as any,
                               })
                             }
                           >
@@ -424,7 +443,7 @@ export function StepEditorDialog({
                                 config: {
                                   ...action.config,
                                   delaySeconds: parseInt(e.target.value, 10) || 0,
-                                },
+                                } as any,
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.delay.placeholder')}

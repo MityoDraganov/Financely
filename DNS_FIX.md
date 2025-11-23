@@ -67,3 +67,4 @@ Should return: `financely-sites-worker.mityodraganow.workers.dev` or a Cloudflar
 2. ✅ Verify wildcard route exists: `*.financely.app/*` → `financely-sites-worker`
 3. ✅ Test the site
 
+

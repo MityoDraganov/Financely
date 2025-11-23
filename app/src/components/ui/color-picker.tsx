@@ -629,7 +629,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="w-12 h-12 rounded border-2 border-gray-300 shadow-sm hover:border-gray-400 transition-colors"
+            className="w-12 h-12 rounded border-2 border-border shadow-sm hover:border-primary/50 transition-colors"
             style={{ backgroundColor: internalColor }}
             aria-label="Pick color"
           />
@@ -638,7 +638,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
               ref={popoverRef}
               className={`absolute z-[100] left-0 ${
                 popoverPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
-              } p-4 bg-white border border-gray-200 rounded-lg shadow-xl w-[240px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto`}
+              } p-4 bg-background border border-border rounded-lg shadow-xl w-[240px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto`}
             >
               <div className="space-y-4">
                 <div className="relative">
@@ -646,7 +646,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
                     ref={canvasRef}
                     width={200}
                     height={200}
-                    className="cursor-crosshair rounded border border-gray-300"
+                    className="cursor-crosshair rounded border border-border"
                     onClick={handleCanvasClick}
                     onMouseDown={() => setIsDragging(true)}
                     onMouseUp={() => setIsDragging(false)}
@@ -659,7 +659,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
                     ref={hueSliderRef}
                     width={200}
                     height={20}
-                    className="cursor-pointer rounded border border-gray-300"
+                    className="cursor-pointer rounded border border-border"
                     onClick={handleHueSliderClick}
                     onMouseDown={() => setIsHueDragging(true)}
                     onMouseUp={() => setIsHueDragging(false)}

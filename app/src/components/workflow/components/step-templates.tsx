@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,14 +6,10 @@ import {
   Mail, 
   FileText, 
   Clock, 
-  CheckCircle, 
   Zap,
-  Users,
-  ShoppingCart,
   GitBranch
 } from "lucide-react";
 import { WorkflowStep, WorkflowActionType } from "@/core";
-import { cn } from "@/lib/utils";
 
 export interface StepTemplate {
   id: string;
@@ -126,7 +121,6 @@ interface StepTemplatesProps {
 }
 
 export function StepTemplates({ onSelectTemplate, className }: StepTemplatesProps) {
-  const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const categories = [

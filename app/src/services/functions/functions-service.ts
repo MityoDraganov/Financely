@@ -81,6 +81,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async revokeMember(payload: { organizationId: string; memberId: string }): Promise<{ success: boolean; message: string }> {
+    const result = await httpsCallable<
+      { organizationId: string; memberId: string },
+      { success: boolean; message: string }
+    >(
+      firebase.functions,
+      "revokeMember",
+    )(payload);
+    return result.data;
+  },
+
   async createWorkflow(payload) {
     type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
     const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(
@@ -116,7 +127,7 @@ export const functionsService: FunctionsService = {
     >[0];
     const result = await httpsCallable<
       ChatGenerateSitePayload,
-      { response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string }
+      { response: string; updated: boolean; requiresClarification: boolean; brandSiteId: string; chatRequestId?: string }
     >(firebase.functions, "chatGenerateSite")(payload);
     return result.data;
   },

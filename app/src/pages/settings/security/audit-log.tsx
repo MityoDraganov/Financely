@@ -113,14 +113,14 @@ export default function AuditLogPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">{t('settings.security.auditLog.pageTitle')}</h1>
+        <h1 className="text-3xl font-bold text-foreground">{t('settings.security.auditLog.pageTitle')}</h1>
         <p className="text-gray-600 mt-2">
           {t('settings.security.auditLog.pageDescription')}
         </p>
       </div>
 
       {/* Results Card */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -188,7 +188,7 @@ export default function AuditLogPage() {
                 </TableHeader>
                 <TableBody>
                   {logs.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-gray-50">
+                    <TableRow key={log.id} className="hover:bg-muted/50">
                       <TableCell className="font-mono text-sm">
                         {formatTimestamp(log.timestamp)}
                       </TableCell>
@@ -382,7 +382,7 @@ export default function AuditLogPage() {
                       {selectedLog.changes?.map((change, idx) => (
                         <div
                           key={idx}
-                          className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg"
+                          className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg"
                         >
                           <div className="flex-1">
                             <div className="font-medium text-sm">{change.field}</div>
@@ -454,7 +454,7 @@ export default function AuditLogPage() {
                     <CardTitle className="text-base">{t('settings.security.auditLog.detailDialog.metadata.title')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <pre className="text-xs bg-gray-50 p-4 rounded-lg overflow-x-auto">
+                    <pre className="text-xs bg-muted/50 p-4 rounded-lg overflow-x-auto">
                       {JSON.stringify(selectedLog.metadata, null, 2)}
                     </pre>
                   </CardContent>

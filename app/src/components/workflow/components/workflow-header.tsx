@@ -19,7 +19,7 @@ export function WorkflowHeader({
   const { t } = useTranslation();
   
   const getTriggerGroupLabel = (groupId: string) => {
-    return t(`workflows.builder.triggerGroups.${groupId}` as any) || groupId;
+    return t(`workflows.builder.triggerGroups.${groupId}`) || groupId;
   };
   
   const getTriggerLabel = (triggerValue: string) => {

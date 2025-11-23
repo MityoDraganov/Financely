@@ -76,3 +76,4 @@ wrangler kv key get --namespace-id=c989958d896c45fdababde535507edd3 "bloomora.fi
    - Add: `*.financely.app/*` → `financely-sites-worker`
 4. **Test with a new site** - it should work automatically!
 
+

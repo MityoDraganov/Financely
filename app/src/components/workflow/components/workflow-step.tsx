@@ -41,7 +41,7 @@ export function WorkflowStepComponent({
       newAction = {
       id: `action_${Date.now()}`,
         type: actionType === "http_request" ? "call.webhook" : actionType,
-      name: "",
+      name: "Call Webhook", // Default name
       config: {
         method: "POST" as const,
         url: "",
@@ -51,7 +51,7 @@ export function WorkflowStepComponent({
       newAction = {
       id: `action_${Date.now()}`,
       type: actionType,
-      name: "",
+      name: "Send Email", // Default name
       config: {
         recipients: [],
         subject: "",
@@ -60,12 +60,17 @@ export function WorkflowStepComponent({
       },
     };
     } else {
+      // Generate a default name from the action type
+      const defaultName = actionType
+        .split('.')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
       // For actions that don't match the union type, use HTTP config as a fallback
       // The actual config will be handled by the action editor
       newAction = {
         id: `action_${Date.now()}`,
         type: actionType,
-        name: "",
+        name: defaultName, // Default name from action type
         config: {
           method: "POST" as const,
           url: "",

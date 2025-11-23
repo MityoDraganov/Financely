@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +12,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { WorkflowStep, WorkflowData } from "@/core";
+import { WorkflowData } from "@/core";
 import { cn } from "@/lib/utils";
 
 interface ExecutionPreviewProps {
@@ -44,7 +43,6 @@ export function ExecutionPreview({
   onClose,
   className,
 }: ExecutionPreviewProps) {
-  const { t } = useTranslation();
   const [executionState, setExecutionState] = useState<ExecutionState>({
     status: "idle",
     currentStepId: null,
@@ -53,7 +51,7 @@ export function ExecutionPreview({
     logs: [],
   });
 
-  const [simulationSpeed, setSimulationSpeed] = useState(1000); // ms per step
+  const [simulationSpeed] = useState(1000); // ms per step
 
   useEffect(() => {
     if (executionState.status === "running") {
@@ -106,7 +104,7 @@ export function ExecutionPreview({
       ];
 
       // Simulate action execution
-      nextStep.actions.forEach((action) => {
+      nextStep.actions.forEach((action: any) => {
         newLogs.push({
           stepId: nextStep.id,
           actionId: action.id,

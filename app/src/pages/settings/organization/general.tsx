@@ -13,11 +13,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
-import { useDateFormatting } from "@/hooks/use-date-formatting";
 
 type OrganizationGeneralForm = z.infer<ReturnType<typeof getOrganizationGeneralSchema>>;
 
-function getOrganizationGeneralSchema(t: (key: string) => string) {
+function getOrganizationGeneralSchema(_t: (key: string) => string) {
   return z.object({
     name: z.string().min(1, "Organization name is required"),
     description: z.string().optional(),
@@ -34,7 +33,6 @@ function getOrganizationGeneralSchema(t: (key: string) => string) {
 
 export default function OrganizationGeneralPage() {
   const { t } = useTranslation();
-  const { formatDateTable } = useDateFormatting();
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -133,8 +131,8 @@ export default function OrganizationGeneralPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="h-64 bg-gray-200 rounded animate-pulse" />
+        <div className="h-8 bg-muted rounded animate-pulse" />
+        <div className="h-64 bg-muted rounded animate-pulse" />
       </div>
     );
   }
@@ -143,7 +141,7 @@ export default function OrganizationGeneralPage() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="space-y-0.5 pb-3 border-b">
-        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('settings.organization.general.pageTitle')}</h2>
+        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{t('settings.organization.general.pageTitle')}</h2>
         <p className="text-sm text-muted-foreground">
           {t('settings.organization.general.pageDescription')}
         </p>

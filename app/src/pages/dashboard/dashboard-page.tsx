@@ -113,7 +113,7 @@ export default function DashboardPage() {
     <div className="p-6 space-y-4 min-w-0 overflow-x-hidden w-full">
       {/* Header */}
       <div className="space-y-2 min-w-0">
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           {currentOrganization?.name 
             ? t('dashboard.welcome', { name: currentOrganization.name })
             : t('dashboard.welcomeFallback')}
@@ -153,7 +153,7 @@ export default function DashboardPage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : totalInvoices}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -170,7 +170,7 @@ export default function DashboardPage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-foreground">
                   {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${paidRevenue.toLocaleString()}`}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-foreground">
                   {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${outstandingAmount.toLocaleString()}`}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-foreground">
                   {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : draftInvoices.length}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -223,7 +223,7 @@ export default function DashboardPage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-foreground">
                   {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${(paidRevenue + outstandingAmount + draftAmount).toLocaleString()}`}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -240,7 +240,7 @@ export default function DashboardPage() {
             <Brush className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-foreground">
               {isTemplatesLoading ? <Skeleton className="h-8 w-16" /> : totalTemplates}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -455,7 +455,7 @@ export default function DashboardPage() {
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-gray-400" />
+                      <div className="h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-500" />
                       <span className="text-sm">{t('dashboard.invoiceStatus.draft')}</span>
                     </div>
                     <div className="text-right">

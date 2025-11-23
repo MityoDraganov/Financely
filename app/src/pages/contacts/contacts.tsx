@@ -300,7 +300,7 @@ export default function ContactsPage() {
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('contacts.title')}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
             <p className="text-sm text-muted-foreground">{t('contacts.subtitle')}</p>
           </div>
         </div>
@@ -316,7 +316,7 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">{t('contacts.title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
           <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -452,7 +452,7 @@ export default function ContactsPage() {
         <Card>
           <CardContent className="text-center py-8">
             <User className="mx-auto h-10 w-10 text-muted-foreground" />
-            <h3 className="mt-2 text-sm font-semibold">{t('contacts.empty.title')}</h3>
+            <h3 className="mt-2 text-sm font-semibold text-foreground">{t('contacts.empty.title')}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {searchTerm.trim() 
                 ? t('contacts.empty.noMatch')

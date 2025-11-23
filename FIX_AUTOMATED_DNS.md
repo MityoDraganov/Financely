@@ -63,3 +63,4 @@ After fixing permissions/Zone ID, regenerate a site and check:
 2. Cloudflare Dashboard → DNS shows the CNAME record
 3. `dig bloomora.financely.app` returns the record
 
+

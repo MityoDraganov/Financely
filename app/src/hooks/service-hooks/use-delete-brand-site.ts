@@ -13,7 +13,7 @@ export const useDeleteBrandSite = () => {
   return useMutation({
     mutationFn: (payload: Parameters<typeof functionsService.deleteBrandSite>[0]) =>
       functionsService.deleteBrandSite(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (_result, variables) => {
       // Invalidate queries to refresh the list
       queryClient.invalidateQueries({
         queryKey: ["brandSites"],

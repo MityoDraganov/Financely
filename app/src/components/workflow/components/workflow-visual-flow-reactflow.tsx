@@ -477,7 +477,7 @@ export function WorkflowVisualFlowReactFlow({
           : yPosition + 200;
 
         if (step.trueBranchSteps && step.trueBranchSteps.length > 0) {
-          step.trueBranchSteps.forEach((branchStep, branchIndex) => {
+          step.trueBranchSteps.forEach((branchStep: any, branchIndex: number) => {
             const branchNode: Node = {
               id: `${step.id}-true-${branchStep.id}`,
               type: "workflow", // Use workflow type for identical styling
@@ -560,7 +560,7 @@ export function WorkflowVisualFlowReactFlow({
           : yPosition + 200;
 
         if (step.falseBranchSteps && step.falseBranchSteps.length > 0) {
-          step.falseBranchSteps.forEach((branchStep, branchIndex) => {
+          step.falseBranchSteps.forEach((branchStep: any, branchIndex: number) => {
             const branchNode: Node = {
               id: `${step.id}-false-${branchStep.id}`,
               type: "workflow", // Use workflow type instead of branchStep for identical styling

@@ -74,7 +74,7 @@ export default function ProposalsPage() {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{t('proposals.title')}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('proposals.title')}</h1>
             <p className="text-muted-foreground">{t('proposals.subtitleLoading')}</p>
           </div>
         </div>
@@ -90,7 +90,7 @@ export default function ProposalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">{t('proposals.title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('proposals.title')}</h1>
           <p className="text-muted-foreground">{t('proposals.subtitle')}</p>
         </div>
         <Button onClick={() => navigate("/proposals/new")}>
@@ -147,7 +147,7 @@ export default function ProposalsPage() {
           {filteredProposals.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-sm font-semibold text-gray-900">{t('proposals.empty.title')}</h3>
+              <h3 className="mt-2 text-sm font-semibold text-foreground">{t('proposals.empty.title')}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {searchTerm.trim() || statusFilter !== "all"
                   ? t('proposals.empty.noMatch')

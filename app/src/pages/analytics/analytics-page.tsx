@@ -322,7 +322,7 @@ export default function AnalyticsPage() {
 		<div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold">
+					<h1 className="text-3xl font-bold text-foreground">
 						{t("analytics.title")}
 					</h1>
 					<p className="text-muted-foreground mt-2">
