@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 export function CTA(): React.ReactElement {
   const { t } = useTranslation();
@@ -13,8 +14,9 @@ export function CTA(): React.ReactElement {
           <p className="text-white/80 dark:text-white/90">{t('landing.cta.description')}</p>
         </div>
         <div className="flex gap-3">
-          <Button className="rounded-xl bg-white dark:bg-[#2a2d35] px-6 text-[#166534] dark:text-gray-100 shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">{t('landing.cta.startFree')}</Button>
-          <Button className="rounded-xl bg-white/10 dark:bg-white/20 backdrop-blur-sm px-6 text-white border border-white/20 dark:border-white/30 hover:bg-white/20 dark:hover:bg-white/30 transition-colors">{t('landing.cta.bookDemo')}</Button>
+          <Button asChild className="rounded-xl bg-white dark:bg-[#2a2d35] px-6 text-[#166534] dark:text-gray-100 shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">
+            <Link to="/sign-up">{t('landing.cta.startFree')}</Link>
+          </Button>
         </div>
       </div>
     </section>

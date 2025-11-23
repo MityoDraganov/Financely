@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
 
 export function Pricing(): React.ReactElement {
@@ -22,7 +23,9 @@ export function Pricing(): React.ReactElement {
               <li className="flex items-center justify-center gap-2"><Check className="h-4 w-4 text-[#166534] dark:text-[#22c55e] flex-shrink-0" /> {t('landing.pricing.starter.invoicesPerMonth')}</li>
               <li className="flex items-center justify-center gap-2"><Check className="h-4 w-4 text-[#166534] dark:text-[#22c55e] flex-shrink-0" /> {t('landing.pricing.starter.basicSupport')}</li>
             </ul>
-            <Button className="mt-6 w-full rounded-xl bg-[#166534] dark:bg-[#22c55e] text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-[#12502b] dark:hover:bg-[#16a34a] transition-colors">{t('landing.pricing.starter.chooseStarter')}</Button>
+            <Button asChild className="mt-6 w-full rounded-xl bg-[#166534] dark:bg-[#22c55e] text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-[#12502b] dark:hover:bg-[#16a34a] transition-colors">
+              <Link to="/sign-up">{t('landing.pricing.starter.chooseStarter')}</Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -37,7 +40,9 @@ export function Pricing(): React.ReactElement {
               <li className="flex items-center justify-center gap-2"><Check className="h-4 w-4 text-[#166534] dark:text-[#22c55e] flex-shrink-0" /> {t('landing.pricing.pro.approvalWorkflows')}</li>
               <li className="flex items-center justify-center gap-2"><Check className="h-4 w-4 text-[#166534] dark:text-[#22c55e] flex-shrink-0" /> {t('landing.pricing.pro.prioritySupport')}</li>
             </ul>
-            <Button className="mt-6 w-full rounded-xl bg-[#166534] dark:bg-[#22c55e] text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-[#12502b] dark:hover:bg-[#16a34a] transition-colors">{t('landing.pricing.pro.choosePro')}</Button>
+            <Button asChild className="mt-6 w-full rounded-xl bg-[#166534] dark:bg-[#22c55e] text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-[#12502b] dark:hover:bg-[#16a34a] transition-colors">
+              <Link to="/sign-up">{t('landing.pricing.pro.choosePro')}</Link>
+            </Button>
           </CardContent>
         </Card>
 

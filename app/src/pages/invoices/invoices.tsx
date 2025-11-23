@@ -27,22 +27,7 @@ import type { Invoice } from "@/core/entities/invoice";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-
-// Helper to safely get a value from dynamic invoice data
-function getInvoiceValue(invoice: Invoice, path: string): string {
-  const parts = path.split(".");
-  let value: unknown = invoice.data;
-  
-  for (const part of parts) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      value = (value as Record<string, unknown>)[part];
-    } else {
-      return "";
-    }
-  }
-  
-  return value ? String(value) : "";
-}
+import { getInvoiceValue, formatInvoiceAmount, getInvoiceAmountAndCurrency } from "@/utils/invoice-helpers";
 
 // Helper to format invoice display number
 function getInvoiceNumber(invoice: Invoice): string {
@@ -74,19 +59,9 @@ function getBuyerName(invoice: Invoice, unknownLabel: string): string {
   );
 }
 
-// Helper to get total amount
+// Helper to get total amount (formatted with currency)
 function getTotalAmount(invoice: Invoice): string {
-  const total =
-    getInvoiceValue(invoice, "total") ||
-    getInvoiceValue(invoice, "totalAmount") ||
-    getInvoiceValue(invoice, "grandTotal");
-  
-  if (total) {
-    const num = parseFloat(total);
-    return isNaN(num) ? total : num.toFixed(2);
-  }
-  
-  return "—";
+  return formatInvoiceAmount(invoice);
 }
 
 // Helper to get status color
@@ -148,9 +123,8 @@ export default function InvoicesPage() {
   // Calculate summary stats
   const totalInvoices = invoices?.length || 0;
   const totalRevenue = invoices?.reduce((sum, invoice) => {
-    const amount = getTotalAmount(invoice);
-    const num = parseFloat(amount.replace(/[^0-9.-]/g, ''));
-    return sum + (isNaN(num) ? 0 : num);
+    const { amount } = getInvoiceAmountAndCurrency(invoice);
+    return sum + amount;
   }, 0) || 0;
 
   return (
@@ -351,7 +325,7 @@ export default function InvoicesPage() {
                           <div className="flex items-center justify-between gap-2.5 pt-2 border-t">
                             <div className="text-left">
                               <p className="text-base sm:text-lg font-semibold">
-                                ${totalAmount}
+                                {totalAmount}
                               </p>
                             </div>
                             

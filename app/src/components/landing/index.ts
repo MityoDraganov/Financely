@@ -7,6 +7,10 @@ export * from "./Pricing";
 export * from "./FAQ";
 export * from "./CTA";
 export * from "./Footer";
+export * from "./TrustSignals";
+export * from "./ProblemSolution";
+export * from "./Testimonials";
+export * from "./ProductDemo";
 export * from "./constants";
 
 

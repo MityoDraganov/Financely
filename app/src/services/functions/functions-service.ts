@@ -155,10 +155,8 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
-  async removeCustomDomain(payload) {
-    type RemoveCustomDomainPayload = Parameters<
-      FunctionsService["removeCustomDomain"]
-    >[0];
+  async removeCustomDomain(payload: Parameters<FunctionsService["removeCustomDomain"]>[0]) {
+    type RemoveCustomDomainPayload = Parameters<FunctionsService["removeCustomDomain"]>[0];
     type RemoveCustomDomainResponse = Awaited<ReturnType<FunctionsService["removeCustomDomain"]>>;
     const result = await httpsCallable<
       RemoveCustomDomainPayload,

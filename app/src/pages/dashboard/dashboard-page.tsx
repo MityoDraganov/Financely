@@ -16,41 +16,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { Invoice } from "@/core/entities/invoice";
-
-// Helper to safely get a value from dynamic invoice data
-function getInvoiceValue(invoice: Invoice, path: string): string {
-  const parts = path.split(".");
-  let value: unknown = invoice.data;
-  
-  for (const part of parts) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      value = (value as Record<string, unknown>)[part];
-    } else {
-      return "";
-    }
-  }
-  
-  return value ? String(value) : "";
-}
-
-// Helper to get total amount from invoice (checks multiple field names)
-function getInvoiceAmount(invoice: Invoice): number {
-  const total =
-    getInvoiceValue(invoice, "total") ||
-    getInvoiceValue(invoice, "totalAmount") ||
-    getInvoiceValue(invoice, "grandTotal") ||
-    getInvoiceValue(invoice, "amount");
-  
-  if (total) {
-    // Remove any currency symbols and parse
-    const cleaned = total.replace(/[^0-9.-]/g, '');
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? 0 : num;
-  }
-  
-  return 0;
-}
+import { getInvoiceAmount, getInvoiceValue } from "@/utils/invoice-helpers";
 
 export default function DashboardPage() {
   const { t } = useTranslation();

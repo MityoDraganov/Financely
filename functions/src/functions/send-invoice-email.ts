@@ -11,6 +11,7 @@ import {
   generateInvoiceEmailHTML,
 } from "../utils/branding-email";
 import { getStorage } from "firebase-admin/storage";
+import { formatInvoiceAmount } from "../utils/invoice-helpers";
 
 // Define secrets using Firebase Functions Secret Manager
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -148,16 +149,11 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       
       const invoiceNumber = invoiceData.invoiceNumber as string || invoice.id;
       const customerName = (buyer?.name as string) || "Customer";
-      const amount = invoiceData.total as number || invoiceData.subtotal as number || 0;
       const dueDate = invoiceData.dueDate as string || "";
       const description = invoiceData.description as string || "";
 
-      // Format amount as currency
-      const currency = (invoiceData.currency as string) || "USD";
-      const formattedAmount = new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-      }).format(typeof amount === "number" ? amount : 0);
+      // Format amount with currency using utility function
+      const formattedAmount = formatInvoiceAmount(invoice);
 
       // Format due date
       const formattedDueDate = dueDate

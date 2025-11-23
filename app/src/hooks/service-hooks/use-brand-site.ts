@@ -186,7 +186,7 @@ export const useRemoveCustomDomain = () => {
       brandSiteId: string;
       customDomain: string;
     }) => functionsService.removeCustomDomain(payload),
-    onSuccess: (result, variables) => {
+    onSuccess: (result: { success: boolean; message?: string }, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["brandSites", variables.brandSiteId],
       });

@@ -20,12 +20,22 @@ import {
 } from "@/components/ui/dialog";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import type { Template } from "@/core";
+import type { Template, TemplateData } from "@/core";
 import type { Organization } from "@/core/entities/organization";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { generateUniqueTemplateName } from "@/utils/template-naming";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { templateService } from "@/services/template-service";
+
+type GenerateTemplatePayload = {
+	organizationId: string;
+	region?: "US" | "EU" | "CA" | "AU" | "UK";
+	options?: {
+		style?: "modern" | "classic" | "minimal" | "professional";
+		includeLogo?: boolean;
+		customPrompt?: string;
+	};
+};
 
 type AIBuilderDialogProps = {
 	open: boolean;
@@ -33,7 +43,7 @@ type AIBuilderDialogProps = {
 	currentOrg: Organization | undefined;
 	currentTemplate: Template | undefined;
 	templates: Template[];
-	generateTemplate: UseMutationResult<any, Error, any, unknown>;
+	generateTemplate: UseMutationResult<TemplateData, Error, GenerateTemplatePayload, unknown>;
 	onTemplateCreated: (templateId: string) => void;
 };
 
@@ -95,8 +105,8 @@ export function AIBuilderDialog({
 				setAiPrompt("");
 			}
 		}}>
-			<DialogContent className="max-w-md">
-				<DialogHeader>
+			<DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+				<DialogHeader className="shrink-0">
 					<DialogTitle className="flex items-center gap-2">
 						<Sparkles className="h-5 w-5 text-purple-500" />
 						{t('designer.aiBuilder.title')}
@@ -105,7 +115,7 @@ export function AIBuilderDialog({
 						{t('designer.aiBuilder.description')}
 					</DialogDescription>
 				</DialogHeader>
-				<div className="space-y-4 py-4">
+				<div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
 					<div className="space-y-2">
 						<Label>{t('designer.aiBuilder.style')}</Label>
 						<Select
@@ -153,7 +163,7 @@ export function AIBuilderDialog({
 						</div>
 					)}
 				</div>
-				<DialogFooter>
+				<DialogFooter className="shrink-0">
 					<Button
 						variant="outline"
 						onClick={() => onOpenChange(false)}

@@ -2387,7 +2387,7 @@
 			"badge": "New · Approvals → Invoice in one click",
 			"title": "Automate Invoices, Approvals & Renewals",
 			"description": "Financely is a finance ops hub: create legally compliant invoices, route proposals for approval, and never miss a contract renewal.",
-			"startFreeTrial": "Start Free Trial",
+			"startFreeTrial": "Start for Free",
 			"bookDemo": "Book a Demo",
 			"noCreditCard": "No credit card · Cancel anytime"
 		},
@@ -2470,7 +2470,7 @@
 				},
 				"dataSecurity": {
 					"question": "How is my data secured?",
-					"answer": "We build on Google Cloud/Firebase with role-based access, audit logs, and org-level isolation. Only authorized users can view or edit invoices and approvals."
+					"answer": "We build on Google Cloud/Firebase with role-based access, audit logs, and org-level isolation."
 				}
 			}
 		},
@@ -2492,6 +2492,94 @@
 			"privacy": "Privacy",
 			"terms": "Terms",
 			"copyright": "© {{year}} Financely. All rights reserved."
+		},
+		"trustSignals": {
+			"soc2Compliant": "SOC 2 Compliant",
+			"gdprCompliant": "GDPR Compliant",
+			"rated": "4.9/5 Rated",
+			"trustedBy": "Trusted by leading companies",
+			"activeUsers": "Active Users",
+			"companies": "Companies",
+			"uptime": "Uptime",
+			"support": "Support"
+		},
+		"problemSolution": {
+			"title": "Stop Wasting Time on Manual Finance Tasks",
+			"subtitle": "Every hour spent on manual invoicing, approvals, and tracking is an hour lost. Financely automates your entire finance workflow.",
+			"problemsTitle": "The Problems",
+			"solutionsTitle": "The Solution",
+			"problems": {
+				"timeWasting": {
+					"title": "Hours Lost on Manual Tasks",
+					"description": "Creating invoices, tracking approvals, and managing renewals manually wastes 10+ hours per week."
+				},
+				"errors": {
+					"title": "Human Errors Cost Money",
+					"description": "Manual data entry leads to mistakes, duplicate invoices, and compliance issues that cost your business."
+				},
+				"compliance": {
+					"title": "Compliance Headaches",
+					"description": "Keeping up with tax rules, invoice requirements, and audit trails manually is error-prone and risky."
+				},
+				"cashFlow": {
+					"title": "Poor Cash Flow Visibility",
+					"description": "Without automation, you can't track payments, overdue invoices, or forecast revenue accurately."
+				}
+			},
+			"solutions": {
+				"automation": "Automated invoice generation with smart templates and tax calculations",
+				"compliance": "Built-in compliance checks for EU/US requirements with audit trails",
+				"tracking": "Real-time payment tracking, overdue alerts, and cash flow forecasting",
+				"integration": "Seamless integration with Stripe, Firebase, and your existing tools"
+			},
+			"cta": "Ready to reclaim your time?",
+			"ctaSubtext": "Join 500+ companies already using Financely to automate their finance operations."
+		},
+		"testimonials": {
+			"title": "Loved by finance teams worldwide",
+			"subtitle": "See what our customers say about automating their finance operations",
+			"testimonial1": {
+				"name": "Sarah Chen",
+				"role": "CFO",
+				"company": "TechFlow Inc.",
+				"content": "Financely cut our invoice processing time by 80%. The approval workflows are a game-changer, and we never miss a renewal deadline anymore."
+			},
+			"testimonial2": {
+				"name": "Michael Rodriguez",
+				"role": "Finance Manager",
+				"company": "StartupHub",
+				"content": "As a solo founder, I needed something that just works. Financely handles everything from invoices to proposals, and the AI features are incredible."
+			},
+			"testimonial3": {
+				"name": "Emma Thompson",
+				"role": "Operations Director",
+				"company": "GrowthCo",
+				"content": "The compliance features saved us from multiple audit issues. Plus, the real-time analytics help us make better financial decisions."
+			}
+		},
+		"productDemo": {
+			"title": "See Financely in Action",
+			"subtitle": "Watch how teams use Financely to automate invoices, approvals, and renewals in minutes",
+			"watchDemo": "Watch Demo",
+			"tryNow": "Try It Free",
+			"features": {
+				"invoices": {
+					"title": "Smart Invoice Creation",
+					"description": "Create legally compliant invoices in seconds with auto-numbering, tax calculations, and custom branding."
+				},
+				"contacts": {
+					"title": "Unified Contact Management",
+					"description": "Manage all your clients, leads, and contacts in one place with full CRM capabilities."
+				},
+				"automation": {
+					"title": "Workflow Automation",
+					"description": "Automate approval processes, renewals, and notifications with powerful workflow builder."
+				},
+				"analytics": {
+					"title": "Real-Time Analytics",
+					"description": "Track revenue, overdue invoices, and cash flow with beautiful, actionable dashboards."
+				}
+			}
 		}
 	},
 	"layout": {

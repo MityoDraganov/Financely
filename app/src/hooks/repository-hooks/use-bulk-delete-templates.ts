@@ -16,7 +16,7 @@ export function useBulkDeleteTemplates() {
         )
       );
     },
-    onSuccess: (_, templateIds) => {
+    onSuccess: () => {
       // Invalidate templates query once after all deletions
       queryClient.invalidateQueries({ queryKey: ["templates"] });
     },

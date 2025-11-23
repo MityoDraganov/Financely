@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Player } from "@lottiefiles/react-lottie-player";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { LOTTIE } from "./constants";
 
 export function Hero(): React.ReactElement {
@@ -14,12 +15,12 @@ export function Hero(): React.ReactElement {
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-2">
         <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <p className="mb-3 inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide text-white">{t('landing.hero.badge')}</p>
-          <h1 className="text-5xl font-extrabold leading-[1.1] tracking-tight md:text-6xl">{t('landing.hero.title')}</h1>
-          <p className="mt-6 max-w-xl text-lg text-gray-100">{t('landing.hero.description')}</p>
+          <h1 className="text-5xl font-extrabold leading-[1.1] tracking-tight md:text-6xl lg:text-7xl">{t('landing.hero.title')}</h1>
+          <p className="mt-6 max-w-xl text-lg md:text-xl text-gray-100 leading-relaxed">{t('landing.hero.description')}</p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Button variant="outline" className="rounded-xl bg-white dark:bg-[#2a2d35] px-7 py-3 font-semibold text-[#166534] dark:text-gray-100 shadow dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">{t('landing.hero.startFreeTrial')}</Button>
-            <Button variant="outline" className="rounded-xl border-white dark:border-gray-400 px-7 py-3 transition-colors text-white dark:text-gray-100 hover:bg-white/10 dark:hover:bg-gray-400/10">{t('landing.hero.bookDemo')}</Button>
-            <span className="ml-2 text-sm text-gray-200 dark:text-gray-300">{t('landing.hero.noCreditCard')}</span>
+            <Button asChild variant="outline" className="rounded-xl bg-white dark:bg-[#2a2d35] px-7 py-3 font-semibold text-[#166534] dark:text-gray-100 shadow dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">
+              <Link to="/sign-up">{t('landing.hero.startFreeTrial')}</Link>
+            </Button>
           </div>
         </motion.div>
 

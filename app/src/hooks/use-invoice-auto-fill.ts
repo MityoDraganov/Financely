@@ -289,26 +289,9 @@ export function useInvoiceAutoFill({
 					`Calculated ${field.label}: ${calculatedValue.toFixed(2)}`
 				);
 				return;
-			} else {
-				// Not a calculated field, but user clicked auto-fill
-				toast.info(
-					`Please add items first, then ${field.label} will be calculated automatically`
-				);
-				setTimeout(() => {
-					const tablesSection = document.querySelector(
-						'[data-section="tables"]'
-					);
-					if (tablesSection) {
-						tablesSection.scrollIntoView({
-							behavior: "smooth",
-							block: "center",
-						});
-					}
-				}, 100);
-				return;
 			}
 
-			// Handle regular input fields
+			// Handle regular input fields (only reached if not a calculated field)
 			const bindingField = bindings.find(
 				(b) => b.path === field.binding
 			);
@@ -341,7 +324,10 @@ export function useInvoiceAutoFill({
 				);
 
 				if (similarField) {
-					const inputId = `binding-${similarField.path}`;
+					// Extract values - TypeScript type narrowing should work, but using non-null assertion as fallback
+					const path = similarField!.path;
+					const label = similarField!.label;
+					const inputId = `binding-${path}`;
 					setTimeout(() => {
 						const input = document.getElementById(inputId);
 						if (input) {
@@ -351,7 +337,7 @@ export function useInvoiceAutoFill({
 								block: "center",
 							});
 							toast.info(
-								`Focused similar field: ${similarField.label}`
+								`Focused similar field: ${label}`
 							);
 						} else {
 							toast.info(

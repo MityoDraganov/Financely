@@ -21,7 +21,6 @@ export function Navbar(): React.ReactElement {
         <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
           <a href="#features" className="text-gray-700 dark:text-gray-300 hover:text-[#166534] dark:hover:text-[#22c55e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] dark:focus-visible:ring-[#22c55e] focus-visible:rounded transition-colors">{t('landing.navbar.features')}</a>
           <a href="#how-it-works" className="text-gray-700 dark:text-gray-300 hover:text-[#166534] dark:hover:text-[#22c55e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] dark:focus-visible:ring-[#22c55e] focus-visible:rounded transition-colors">{t('landing.navbar.howItWorks')}</a>
-          <a href="#pricing" className="text-gray-700 dark:text-gray-300 hover:text-[#166534] dark:hover:text-[#22c55e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] dark:focus-visible:ring-[#22c55e] focus-visible:rounded transition-colors">{t('landing.navbar.pricing')}</a>
           <a href="#faq" className="text-gray-700 dark:text-gray-300 hover:text-[#166534] dark:hover:text-[#22c55e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#166534] dark:focus-visible:ring-[#22c55e] focus-visible:rounded transition-colors">{t('landing.navbar.faq')}</a>
         </nav>
         <div className="flex items-center gap-2">

@@ -684,4 +684,17 @@ export interface FunctionsService {
   deleteBrandSite(payload: {
     brandSiteId: string;
   }): Promise<{ success: boolean; brandSiteId: string }>;
+
+  /**
+   * Remove a custom domain from a brand site
+   * 
+   * @param payload - The removal payload
+   * @param payload.brandSiteId - Brand site ID
+   * @param payload.customDomain - Custom domain to remove
+   * @returns Promise with removal result
+   */
+  removeCustomDomain(payload: {
+    brandSiteId: string;
+    customDomain: string;
+  }): Promise<{ success: boolean; message?: string }>;
 }

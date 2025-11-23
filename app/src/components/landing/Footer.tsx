@@ -15,7 +15,6 @@ export function Footer(): React.ReactElement {
           <h5 className="mb-3 font-semibold text-white dark:text-gray-100">{t('landing.footer.product')}</h5>
           <ul className="space-y-2 text-sm">
             <li><a href="#features" className="text-gray-300 dark:text-gray-400 hover:text-white dark:hover:text-gray-200 transition-colors">{t('landing.footer.features')}</a></li>
-            <li><a href="#pricing" className="text-gray-300 dark:text-gray-400 hover:text-white dark:hover:text-gray-200 transition-colors">{t('landing.footer.pricing')}</a></li>
           </ul>
         </div>
         <div>
