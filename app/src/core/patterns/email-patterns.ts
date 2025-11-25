@@ -5,6 +5,7 @@ export type RowLayoutVariant =
   | "2col-50-50"
   | "2col-33-67"
   | "2col-67-33"
+  | "2col-60-40"
   | "3col";
 
 export interface Pattern {

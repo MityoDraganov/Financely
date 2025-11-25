@@ -327,11 +327,87 @@ export default function EmailDesignerPage() {
 
 	const handleDeleteBlock = (blockId: string) => {
 		if (!draftTemplate) return;
-		const nextBlocks = draftTemplate.blocks.filter((block) => block.id !== blockId);
+		
+		// Helper to recursively find and remove a block (including nested ones)
+		const removeBlock = (blocks: EmailTemplateBlock[], id: string): EmailTemplateBlock[] => {
+			return blocks
+				.filter(block => block.id !== id)
+				.map(block => {
+					if (block.type === "columns") {
+						const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+						return {
+							...colsBlock,
+							columns: colsBlock.columns.map(col => ({
+								...col,
+								blocks: removeBlock(col.blocks || [], id),
+							})),
+						} as EmailTemplateBlock;
+					}
+					if (block.type === "container") {
+						const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+						return {
+							...containerBlock,
+							blocks: removeBlock(containerBlock.blocks || [], id),
+						} as EmailTemplateBlock;
+					}
+					return block;
+				});
+		};
+		
+		const nextBlocks = removeBlock(draftTemplate.blocks, blockId);
 		handleDraftChange({ blocks: nextBlocks });
 		if (selectedBlockId === blockId) {
 			setSelectedBlockId(undefined);
 		}
+	};
+
+	const handleDuplicateBlock = (blockId: string) => {
+		if (!draftTemplate) return;
+		
+		// Helper to recursively duplicate a block (including nested ones)
+		const duplicateBlockRecursive = (block: EmailTemplateBlock): EmailTemplateBlock => {
+			const duplicated = {
+				...block,
+				id: crypto.randomUUID(),
+			};
+			
+			if (block.type === "columns") {
+				const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+				return {
+					...duplicated,
+					columns: colsBlock.columns.map(col => ({
+						...col,
+						id: crypto.randomUUID(),
+						blocks: (col.blocks || []).map(duplicateBlockRecursive),
+					})),
+				} as EmailTemplateBlock;
+			}
+			
+			if (block.type === "container") {
+				const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+				return {
+					...duplicated,
+					blocks: (containerBlock.blocks || []).map(duplicateBlockRecursive),
+				} as EmailTemplateBlock;
+			}
+			
+			return duplicated;
+		};
+		
+		const blockToDuplicate = draftTemplate.blocks.find(b => b.id === blockId);
+		if (!blockToDuplicate) return;
+		
+		const duplicated = duplicateBlockRecursive(blockToDuplicate);
+		const blockIndex = draftTemplate.blocks.findIndex(b => b.id === blockId);
+		const nextBlocks = [
+			...draftTemplate.blocks.slice(0, blockIndex + 1),
+			duplicated,
+			...draftTemplate.blocks.slice(blockIndex + 1),
+		];
+		
+		handleDraftChange({ blocks: nextBlocks });
+		setSelectedBlockId(duplicated.id);
+		toast.success(t("emailDesigner.toast.duplicated"));
 	};
 
 	const handleReorderBlocks = (fromIndex: number, toIndex: number) => {
@@ -420,6 +496,8 @@ export default function EmailDesignerPage() {
 			selectedBlockId={selectedBlockId}
 			onSelectBlock={setSelectedBlockId}
 			onReorderBlocks={handleReorderBlocks}
+			onDuplicateBlock={handleDuplicateBlock}
+			onDeleteBlock={handleDeleteBlock}
 			currentSection={currentSection}
 			onSectionChange={setCurrentSection}
 		/>

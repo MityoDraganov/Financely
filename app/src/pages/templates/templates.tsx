@@ -291,160 +291,160 @@ export default function TemplatesPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground">{t('templates.sections.invoice.title')}</h2>
           <p className="text-sm text-muted-foreground">{t('templates.sections.invoice.description')}</p>
-        </div>
+      </div>
 
-        {/* Selection Controls */}
-        {templates && templates.length > 0 && (
-          <div className="flex items-center gap-4 pb-2 border-b">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={allSelected}
-                onCheckedChange={handleSelectAll}
-                aria-label={allSelected ? "Deselect all" : "Select all"}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSelectAll}
-                className="h-auto p-0 font-normal"
-              >
-                {allSelected
-                  ? (t('templates.bulkDelete.deselectAll') || 'Deselect all')
-                  : (t('templates.bulkDelete.selectAll') || 'Select all')}
-              </Button>
-            </div>
-            {selectedTemplateIds.size > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {selectedTemplateIds.size} {selectedTemplateIds.size === 1 ? 'template' : 'templates'} selected
-              </span>
-            )}
+      {/* Selection Controls */}
+      {templates && templates.length > 0 && (
+        <div className="flex items-center gap-4 pb-2 border-b">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={handleSelectAll}
+              aria-label={allSelected ? "Deselect all" : "Select all"}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSelectAll}
+              className="h-auto p-0 font-normal"
+            >
+              {allSelected
+                ? (t('templates.bulkDelete.deselectAll') || 'Deselect all')
+                : (t('templates.bulkDelete.selectAll') || 'Select all')}
+            </Button>
           </div>
-        )}
+          {selectedTemplateIds.size > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {selectedTemplateIds.size} {selectedTemplateIds.size === 1 ? 'template' : 'templates'} selected
+            </span>
+          )}
+        </div>
+      )}
 
-        {/* Templates Grid */}
-        {!templates || templates.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2 text-foreground">{t('templates.empty.title')}</h3>
-              <p className="text-muted-foreground mb-6 text-center max-w-md">
-                {t('templates.empty.description')}
-              </p>
+      {/* Templates Grid */}
+      {!templates || templates.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2 text-foreground">{t('templates.empty.title')}</h3>
+            <p className="text-muted-foreground mb-6 text-center max-w-md">
+              {t('templates.empty.description')}
+            </p>
               <Button onClick={handleCreateInvoiceTemplate}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('templates.empty.createFirst')}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((template) => {
-              const isSelected = selectedTemplateIds.has(template.id);
-              return (
-                <Card
-                  key={template.id}
-                  className={`hover:shadow-lg transition-all cursor-pointer group ${
-                    isSelected ? "ring-2 ring-primary" : ""
-                  }`}
-                  onClick={(e) => {
-                    // Don't navigate if clicking on checkbox or action buttons
-                    const target = e.target as HTMLElement;
-                    if (
-                      target.closest('button') ||
-                      target.closest('[role="checkbox"]') ||
-                      target.closest('input[type="checkbox"]')
-                    ) {
-                      return;
-                    }
-                    handleEdit(template.id);
-                  }}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => handleToggleSelect(template.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${template.name || t('templates.card.untitled')}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-lg mb-1">{template.name || t('templates.card.untitled')}</CardTitle>
-                          <CardDescription className="line-clamp-2">
-                            {template.description || t('templates.card.noDescription')}
-                          </CardDescription>
-                        </div>
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(template.id);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete({ id: template.id, name: template.name || t('templates.card.untitled') });
-                          }}
-                          disabled={deleteTemplate.isPending}
-                        >
-                          {deleteTemplate.isPending && templateToDelete?.id === template.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('templates.empty.createFirst')}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.map((template) => {
+            const isSelected = selectedTemplateIds.has(template.id);
+            return (
+              <Card
+                key={template.id}
+                className={`hover:shadow-lg transition-all cursor-pointer group ${
+                  isSelected ? "ring-2 ring-primary" : ""
+                }`}
+                onClick={(e) => {
+                  // Don't navigate if clicking on checkbox or action buttons
+                  const target = e.target as HTMLElement;
+                  if (
+                    target.closest('button') ||
+                    target.closest('[role="checkbox"]') ||
+                    target.closest('input[type="checkbox"]')
+                  ) {
+                    return;
+                  }
+                  handleEdit(template.id);
+                }}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => handleToggleSelect(template.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select ${template.name || t('templates.card.untitled')}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg mb-1">{template.name || t('templates.card.untitled')}</CardTitle>
+                        <CardDescription className="line-clamp-2">
+                          {template.description || t('templates.card.noDescription')}
+                        </CardDescription>
                       </div>
                     </div>
-                  </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Status Badge */}
-                    <div className="flex items-center gap-2">
-                      <Badge variant={template.status === "published" ? "default" : "secondary"}>
-                        {template.status === "published" ? t('templates.card.published') : t('templates.card.draft')}
-                      </Badge>
-                      {template.compliance?.region && (
-                        <Badge variant="outline">
-                          {template.compliance.region}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      {template.createdAt && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>
-                            {formatDateTable(template.createdAt)}
-                          </span>
-                        </div>
-                      )}
-                      {template.elements && (
-                        <span>
-                          {template.elements.length === 1
-                            ? t('templates.card.elements', { count: template.elements.length })
-                            : t('templates.card.elementsPlural', { count: template.elements.length })}
-                        </span>
-                      )}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(template.id);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete({ id: template.id, name: template.name || t('templates.card.untitled') });
+                        }}
+                        disabled={deleteTemplate.isPending}
+                      >
+                        {deleteTemplate.isPending && templateToDelete?.id === template.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-                </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={template.status === "published" ? "default" : "secondary"}>
+                      {template.status === "published" ? t('templates.card.published') : t('templates.card.draft')}
+                    </Badge>
+                    {template.compliance?.region && (
+                      <Badge variant="outline">
+                        {template.compliance.region}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    {template.createdAt && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {formatDateTable(template.createdAt)}
+                        </span>
+                      </div>
+                    )}
+                    {template.elements && (
+                      <span>
+                        {template.elements.length === 1
+                          ? t('templates.card.elements', { count: template.elements.length })
+                          : t('templates.card.elementsPlural', { count: template.elements.length })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
       </section>
       <section className="space-y-4">
         <div className="flex flex-col gap-1">

@@ -1,7 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Sparkles, 
   Layout, 
@@ -47,7 +45,7 @@ export function PatternSelector({ section, onSelectPattern, className }: Pattern
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="px-2">
+      <div className="px-2 pt-3">
         <h3 className="text-sm font-semibold text-foreground mb-1">
           {t("emailDesigner.patterns.title")}
         </h3>
@@ -55,36 +53,34 @@ export function PatternSelector({ section, onSelectPattern, className }: Pattern
           {t("emailDesigner.patterns.description")}
         </p>
       </div>
-      <ScrollArea className="h-[400px]">
-        <div className="space-y-2 px-2">
-          {patterns.map((pattern) => {
-            const Icon = patternIcons[pattern.id] || Layout;
-            return (
-              <Card
-                key={pattern.id}
-                className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => onSelectPattern(pattern)}
-              >
-                <CardHeader className="p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-md bg-muted">
-                      <Icon className="h-4 w-4 text-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-semibold leading-tight">
-                        {pattern.label}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1 line-clamp-2">
-                        {pattern.description}
-                      </CardDescription>
-                    </div>
+      <div className="space-y-2 px-2 pb-3">
+        {patterns.map((pattern) => {
+          const Icon = patternIcons[pattern.id] || Layout;
+          return (
+            <Card
+              key={pattern.id}
+              className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => onSelectPattern(pattern)}
+            >
+              <CardHeader className="p-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-md bg-muted">
+                    <Icon className="h-4 w-4 text-foreground" />
                   </div>
-                </CardHeader>
-              </Card>
-            );
-          })}
-        </div>
-      </ScrollArea>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-sm font-semibold leading-tight">
+                      {pattern.label}
+                    </CardTitle>
+                    <CardDescription className="text-xs mt-1 line-clamp-2">
+                      {pattern.description}
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

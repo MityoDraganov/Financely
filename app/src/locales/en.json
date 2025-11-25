@@ -999,6 +999,14 @@
 			"title": "Layout Patterns",
 			"description": "Choose a pre-designed layout pattern"
 		},
+		"sidebar": {
+			"select": "Select",
+			"duplicate": "Duplicate",
+			"delete": "Delete",
+			"column": "Column",
+			"nestedBlockSingular": "1 nested block",
+			"nestedBlocksPlural": "{{count}} nested blocks"
+		},
 		"blocks": {
 			"title": "Content blocks",
 			"currentBlocks": "Current blocks",
@@ -1136,7 +1144,8 @@
 			"created": "Email template created",
 			"createFailed": "Failed to create template",
 			"saved": "Template saved",
-			"saveFailed": "Failed to save template"
+			"saveFailed": "Failed to save template",
+			"duplicated": "Block duplicated"
 		},
 		"canvasHeader": {
 			"selectTemplate": "Select template",
