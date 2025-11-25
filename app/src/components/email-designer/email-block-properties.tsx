@@ -1,0 +1,1503 @@
+import { EmailTemplateBlock } from "@/core";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { useTranslation } from "react-i18next";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus } from "lucide-react";
+
+type EmailBlockPropertiesProps = {
+  block?: EmailTemplateBlock;
+  onChange: (updatedBlock: EmailTemplateBlock) => void;
+  onDelete: (blockId: string) => void;
+  onAddNestedBlock?: (parentBlockId: string, blockType: EmailTemplateBlock["type"], columnId?: string) => void;
+};
+
+// Helper function to get default typography
+const getDefaultTypography = () => ({
+  fontSize: 16,
+  fontWeight: "normal" as const,
+  lineHeight: 1.5,
+  letterSpacing: 0,
+  color: "",
+  fontStyle: "normal" as const,
+  textDecoration: "none" as const,
+});
+
+// Helper function to get default spacing
+const getDefaultSpacing = () => ({
+  paddingTop: 0,
+  paddingRight: 0,
+  paddingBottom: 0,
+  paddingLeft: 0,
+  marginTop: 0,
+  marginRight: 0,
+  marginBottom: 0,
+  marginLeft: 0,
+});
+
+// Helper function to get default border
+const getDefaultBorder = () => ({
+  borderWidth: 0,
+  borderColor: "#e5e7eb",
+  borderStyle: "solid" as const,
+  borderRadius: 0,
+});
+
+export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock }: EmailBlockPropertiesProps) {
+  const { t } = useTranslation();
+
+  if (!block) {
+    return (
+      <Card className="h-full border-none bg-card/80 shadow-none">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">{t("emailDesigner.properties.title")}</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          {t("emailDesigner.properties.empty")}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const renderTypographyControls = () => {
+    // Elements that support typography
+    const supportsTypography = ["subject", "preheader", "text", "button", "navigation", "footerText", "unsubscribe"].includes(block.type);
+    if (!supportsTypography) return null;
+    
+    // Type guard to ensure typography exists
+    const blockWithTypography = block as Extract<EmailTemplateBlock, { typography?: any }>;
+    const typography = (blockWithTypography.typography || getDefaultTypography());
+    
+    if (!typography) return null;
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
+            {t("emailDesigner.properties.typography")}
+          </Label>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.fontSize")}</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={72}
+                  value={typography.fontSize}
+                  onChange={(e) => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, fontSize: Number(e.target.value) } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.fontWeight")}</Label>
+                <Select
+                  value={typography.fontWeight}
+                  onValueChange={(value: "normal" | "400" | "500" | "600" | "700" | "bold") => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, fontWeight: value } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="400">400</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                    <SelectItem value="600">600</SelectItem>
+                    <SelectItem value="700">700</SelectItem>
+                    <SelectItem value="bold">Bold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.lineHeight")}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={typography.lineHeight}
+                  onChange={(e) => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, lineHeight: Number(e.target.value) } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.letterSpacing")}</Label>
+                <Input
+                  type="number"
+                  min={-2}
+                  max={5}
+                  step={0.1}
+                  value={typography.letterSpacing}
+                  onChange={(e) => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, letterSpacing: Number(e.target.value) } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("emailDesigner.properties.textColor")}</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="color"
+                  value={typography.color || "#000000"}
+                  onChange={(e) => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, color: e.target.value } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8 w-16"
+                />
+                <Input
+                  value={typography.color || ""}
+                  onChange={(e) => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, color: e.target.value } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  placeholder="#000000"
+                  className="h-8 flex-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.fontStyle")}</Label>
+                <Select
+                  value={typography.fontStyle}
+                  onValueChange={(value: "normal" | "italic") => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, fontStyle: value } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="italic">Italic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.textDecoration")}</Label>
+                <Select
+                  value={typography.textDecoration}
+                  onValueChange={(value: "none" | "underline" | "line-through") => {
+                    const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
+                      ? { ...block, typography: { ...typography, textDecoration: value } }
+                      : block;
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="underline">Underline</SelectItem>
+                    <SelectItem value="line-through">Line Through</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSpacingControls = () => {
+    // Elements that support spacing
+    const supportsSpacing = ["subject", "preheader", "text", "button", "divider", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer"].includes(block.type);
+    const spacing = supportsSpacing
+      ? (block.spacing || getDefaultSpacing())
+      : null;
+    
+    if (!spacing) return null;
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
+            {t("emailDesigner.properties.spacing")}
+          </Label>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs mb-2 block">{t("emailDesigner.properties.padding")}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Top</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.paddingTop}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, paddingTop: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Right</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.paddingRight}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, paddingRight: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Bottom</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.paddingBottom}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, paddingBottom: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Left</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.paddingLeft}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, paddingLeft: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-2 block">{t("emailDesigner.properties.margin")}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Top</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.marginTop}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, marginTop: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Right</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.marginRight}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, marginRight: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Bottom</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.marginBottom}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, marginBottom: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Left</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    value={spacing.marginLeft}
+                    onChange={(e) => {
+                      const updated = { ...block, spacing: { ...spacing, marginLeft: Number(e.target.value) } };
+                      onChange(updated as EmailTemplateBlock);
+                    }}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderBorderControls = () => {
+    // Elements that support borders
+    const supportsBorder = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "divider"].includes(block.type);
+    if (!supportsBorder) return null;
+    
+    // Type guard to ensure border exists
+    const blockWithBorder = block as Extract<EmailTemplateBlock, { border?: any }>;
+    const border = (blockWithBorder.border || getDefaultBorder());
+    
+    if (!border) return null;
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 block">
+            {t("emailDesigner.properties.border")}
+          </Label>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.borderWidth")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={8}
+                  value={border.borderWidth}
+                  onChange={(e) => {
+                    const updated = { ...block, border: { ...border, borderWidth: Number(e.target.value) } };
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{t("emailDesigner.properties.borderRadius")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={24}
+                  value={border.borderRadius}
+                  onChange={(e) => {
+                    const updated = { ...block, border: { ...border, borderRadius: Number(e.target.value) } };
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("emailDesigner.properties.borderColor")}</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="color"
+                  value={border.borderColor}
+                  onChange={(e) => {
+                    const updated = { ...block, border: { ...border, borderColor: e.target.value } };
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  className="h-8 w-16"
+                />
+                <Input
+                  value={border.borderColor}
+                  onChange={(e) => {
+                    const updated = { ...block, border: { ...border, borderColor: e.target.value } };
+                    onChange(updated as EmailTemplateBlock);
+                  }}
+                  placeholder="#e5e7eb"
+                  className="h-8 flex-1"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("emailDesigner.properties.borderStyle")}</Label>
+              <Select
+                value={border.borderStyle}
+                onValueChange={(value: "solid" | "dashed" | "dotted") => {
+                  const updated = { ...block, border: { ...border, borderStyle: value } };
+                  onChange(updated as EmailTemplateBlock);
+                }}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solid">{t("emailDesigner.properties.solid")}</SelectItem>
+                  <SelectItem value="dashed">{t("emailDesigner.properties.dashed")}</SelectItem>
+                  <SelectItem value="dotted">{t("emailDesigner.properties.dotted")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderBackgroundColorControls = () => {
+    // Elements that support background color
+    const supportsBackground = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer", "divider"].includes(block.type);
+    
+    if (!supportsBackground) return null;
+
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
+        <div className="flex gap-2">
+          <Input
+            type="color"
+            value={(block as Extract<EmailTemplateBlock, { backgroundColor?: string }>).backgroundColor || "#ffffff"}
+            onChange={(e) => onChange({ ...block, backgroundColor: e.target.value } as EmailTemplateBlock)}
+            className="h-8 w-16"
+          />
+          <Input
+            value={(block as Extract<EmailTemplateBlock, { backgroundColor?: string }>).backgroundColor || ""}
+            onChange={(e) => onChange({ ...block, backgroundColor: e.target.value } as EmailTemplateBlock)}
+            placeholder="transparent"
+            className="h-8 flex-1"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="h-full border-none bg-card/80 shadow-none flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 shrink-0">
+        <CardTitle className="text-lg font-semibold">
+          {t(`emailDesigner.blocks.${block.type}` as const)}
+        </CardTitle>
+        <Button variant="destructive" size="sm" onClick={() => onDelete(block.id)}>
+          {t("emailDesigner.properties.delete")}
+        </Button>
+      </CardHeader>
+      <CardContent className="flex-1 min-h-0 p-0">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-6">
+            {/* Content/Base Properties */}
+            {(block.type === "subject" || block.type === "preheader") && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.textContent")}</Label>
+                  <Textarea
+                    value={block.content}
+                    onChange={(e) => onChange({ ...block, content: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={block.backgroundColor || "#ffffff"}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      className="h-8 w-16"
+                    />
+                    <Input
+                      value={block.backgroundColor || ""}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      placeholder="transparent"
+                      className="h-8 flex-1"
+                    />
+                  </div>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+            {block.type === "text" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.textContent")}</Label>
+                  <Textarea
+                    value={block.content}
+                    onChange={(e) => onChange({ ...block, content: e.target.value })}
+                    rows={4}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.alignment")}</Label>
+                  <Select
+                    value={block.align}
+                    onValueChange={(value: "left" | "center" | "right" | "justify") =>
+                      onChange({ ...block, align: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                      <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                      <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      <SelectItem value="justify">Justify</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="emphasizeToggle">{t("emailDesigner.properties.emphasize")}</Label>
+                  <Switch
+                    id="emphasizeToggle"
+                    checked={block.emphasize}
+                    onCheckedChange={(checked) => onChange({ ...block, emphasize: checked })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={block.backgroundColor || "#ffffff"}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      className="h-8 w-16"
+                    />
+                    <Input
+                      value={block.backgroundColor || ""}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      placeholder="transparent"
+                      className="h-8 flex-1"
+                    />
+                  </div>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "button" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.label")}</Label>
+                  <Input
+                    value={block.label}
+                    onChange={(e) => onChange({ ...block, label: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.url")}</Label>
+                  <Input
+                    value={block.url}
+                    onChange={(e) => onChange({ ...block, url: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.variant")}</Label>
+                    <Select
+                      value={block.variant}
+                      onValueChange={(value: "primary" | "secondary" | "link") =>
+                        onChange({ ...block, variant: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">{t("emailDesigner.properties.primary")}</SelectItem>
+                        <SelectItem value="secondary">{t("emailDesigner.properties.secondary")}</SelectItem>
+                        <SelectItem value="link">{t("emailDesigner.properties.link")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={block.align}
+                      onValueChange={(value: "left" | "center" | "right") =>
+                        onChange({ ...block, align: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.buttonWidth")}</Label>
+                    <Select
+                      value={block.buttonWidth || "auto"}
+                      onValueChange={(value: "auto" | "full") =>
+                        onChange({ ...block, buttonWidth: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Auto</SelectItem>
+                        <SelectItem value="full">Full Width</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.buttonHeight")}</Label>
+                    <Input
+                      type="number"
+                      min={32}
+                      max={64}
+                      value={block.buttonHeight || 44}
+                      onChange={(e) => onChange({ ...block, buttonHeight: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={block.backgroundColor || "#2563eb"}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      className="h-8 w-16"
+                    />
+                    <Input
+                      value={block.backgroundColor || ""}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value })}
+                      placeholder="#2563eb"
+                      className="h-8 flex-1"
+                    />
+                  </div>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "divider" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.style")}</Label>
+                    <Select
+                      value={block.style}
+                      onValueChange={(value: "solid" | "dashed" | "dotted") => onChange({ ...block, style: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="solid">{t("emailDesigner.properties.solid")}</SelectItem>
+                        <SelectItem value="dashed">{t("emailDesigner.properties.dashed")}</SelectItem>
+                        <SelectItem value="dotted">{t("emailDesigner.properties.dotted")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={block.align || "center"}
+                      onValueChange={(value: "left" | "center" | "right") => onChange({ ...block, align: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.dividerWidth")} ({block.dividerWidth || 100}%)</Label>
+                    <Slider
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[block.dividerWidth || 100]}
+                      onValueChange={([value]) => onChange({ ...block, dividerWidth: value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.lineWidth")} ({block.width || 1}px)</Label>
+                    <Slider
+                      min={1}
+                      max={8}
+                      step={1}
+                      value={[block.width || 1]}
+                      onValueChange={([value]) => onChange({ ...block, width: value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("emailDesigner.properties.color")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={block.color || "#e5e7eb"}
+                      onChange={(e) => onChange({ ...block, color: e.target.value })}
+                      className="h-8 w-16"
+                    />
+                    <Input
+                      value={block.color || ""}
+                      onChange={(e) => onChange({ ...block, color: e.target.value })}
+                      placeholder="#e5e7eb"
+                      className="h-8 flex-1"
+                    />
+                  </div>
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "spacer" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.height")}: {block.height}px</Label>
+                  <Slider
+                    min={8}
+                    max={128}
+                    step={1}
+                    value={[block.height]}
+                    onValueChange={([value]) => onChange({ ...block, height: value })}
+                  />
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+              </>
+            )}
+
+            {block.type === "image" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.imageUrl")}</Label>
+                  <Input
+                    value={block.src}
+                    onChange={(e) => onChange({ ...block, src: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.altText")}</Label>
+                  <Input
+                    value={block.alt || ""}
+                    onChange={(e) => onChange({ ...block, alt: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.width")}</Label>
+                    <Input
+                      type="number"
+                      min={24}
+                      max={600}
+                      value={block.width}
+                      onChange={(e) => onChange({ ...block, width: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={block.align}
+                      onValueChange={(value: "left" | "center" | "right") =>
+                        onChange({ ...block, align: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.borderRadius")}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={block.borderRadius || 0}
+                    onChange={(e) => onChange({ ...block, borderRadius: Number(e.target.value) })}
+                  />
+                </div>
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "logo" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.imageUrl")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).src}
+                    onChange={(e) => onChange({ ...block, src: e.target.value } as EmailTemplateBlock)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.altText")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).alt || ""}
+                    onChange={(e) => onChange({ ...block, alt: e.target.value } as EmailTemplateBlock)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.width")}</Label>
+                    <Input
+                      type="number"
+                      min={24}
+                      max={300}
+                      value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).width}
+                      onChange={(e) => onChange({ ...block, width: Number(e.target.value) } as EmailTemplateBlock)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).align}
+                      onValueChange={(value: "left" | "center" | "right") =>
+                        onChange({ ...block, align: value } as EmailTemplateBlock)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.link")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).link || ""}
+                    onChange={(e) => onChange({ ...block, link: e.target.value } as EmailTemplateBlock)}
+                    placeholder="https://example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.borderRadius")}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).borderRadius || 0}
+                    onChange={(e) => onChange({ ...block, borderRadius: Number(e.target.value) } as EmailTemplateBlock)}
+                  />
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "navigation" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.navigationLinks")}</Label>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {t("emailDesigner.properties.navigationLinksHint")}
+                  </div>
+                  <div className="space-y-2">
+                    {((block as Extract<EmailTemplateBlock, { type: "navigation" }>).links || []).map((link: { label: string; url: string }, idx: number) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input
+                          placeholder={t("emailDesigner.properties.linkLabel")}
+                          value={link.label}
+                          onChange={(e) => {
+                            const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+                            const updatedLinks = [...(navBlock.links || [])];
+                            updatedLinks[idx] = { ...link, label: e.target.value };
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                          className="flex-1"
+                        />
+                        <Input
+                          placeholder={t("emailDesigner.properties.url")}
+                          value={link.url}
+                          onChange={(e) => {
+                            const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+                            const updatedLinks = [...(navBlock.links || [])];
+                            updatedLinks[idx] = { ...link, url: e.target.value };
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+                            const updatedLinks = (navBlock.links || []).filter((_: { label: string; url: string }, i: number) => i !== idx);
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+                        onChange({ ...block, links: [...(navBlock.links || []), { label: "", url: "" }] } as EmailTemplateBlock);
+                      }}
+                    >
+                      + {t("emailDesigner.properties.addLink")}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.alignment")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "navigation" }>).align}
+                    onValueChange={(value: "left" | "center" | "right") =>
+                      onChange({ ...block, align: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                      <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                      <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "footerText" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.textContent")}</Label>
+                  <Textarea
+                    value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).content}
+                    onChange={(e) => onChange({ ...block, content: e.target.value } as EmailTemplateBlock)}
+                    rows={4}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.alignment")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).align}
+                    onValueChange={(value: "left" | "center" | "right") =>
+                      onChange({ ...block, align: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                      <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                      <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).backgroundColor || "#ffffff"}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value } as EmailTemplateBlock)}
+                      className="h-8 w-16"
+                    />
+                    <Input
+                      value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).backgroundColor || ""}
+                      onChange={(e) => onChange({ ...block, backgroundColor: e.target.value } as EmailTemplateBlock)}
+                      placeholder="transparent"
+                      className="h-8 flex-1"
+                    />
+                  </div>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "socialLinks" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.socialLinks")}</Label>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {t("emailDesigner.properties.socialLinksHint")}
+                  </div>
+                  <div className="space-y-2">
+                    {((block as Extract<EmailTemplateBlock, { type: "socialLinks" }>).links || []).map((link, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Select
+                          value={link.platform}
+                          onValueChange={(value: "facebook" | "twitter" | "instagram" | "linkedin" | "youtube" | "custom") => {
+                            const socialBlock = block as Extract<EmailTemplateBlock, { type: "socialLinks" }>;
+                            const updatedLinks = [...(socialBlock.links || [])];
+                            updatedLinks[idx] = { ...link, platform: value };
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="facebook">Facebook</SelectItem>
+                            <SelectItem value="twitter">Twitter</SelectItem>
+                            <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="linkedin">LinkedIn</SelectItem>
+                            <SelectItem value="youtube">YouTube</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder={t("emailDesigner.properties.url")}
+                          value={link.url}
+                          onChange={(e) => {
+                            const socialBlock = block as Extract<EmailTemplateBlock, { type: "socialLinks" }>;
+                            const updatedLinks = [...(socialBlock.links || [])];
+                            updatedLinks[idx] = { ...link, url: e.target.value };
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const socialBlock = block as Extract<EmailTemplateBlock, { type: "socialLinks" }>;
+                            const updatedLinks = (socialBlock.links || []).filter((_: { platform: string; url: string; icon?: string }, i: number) => i !== idx);
+                            onChange({ ...block, links: updatedLinks } as EmailTemplateBlock);
+                          }}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const socialBlock = block as Extract<EmailTemplateBlock, { type: "socialLinks" }>;
+                        onChange({ ...block, links: [...(socialBlock.links || []), { platform: "custom", url: "" }] } as EmailTemplateBlock);
+                      }}
+                    >
+                      + {t("emailDesigner.properties.addLink")}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.iconSize")}</Label>
+                    <Input
+                      type="number"
+                      min={16}
+                      max={48}
+                      value={(block as Extract<EmailTemplateBlock, { type: "socialLinks" }>).iconSize || 24}
+                      onChange={(e) => onChange({ ...block, iconSize: Number(e.target.value) } as EmailTemplateBlock)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={(block as Extract<EmailTemplateBlock, { type: "socialLinks" }>).align}
+                      onValueChange={(value: "left" | "center" | "right") =>
+                        onChange({ ...block, align: value } as EmailTemplateBlock)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "unsubscribe" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.text")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).text}
+                    onChange={(e) => onChange({ ...block, text: e.target.value } as EmailTemplateBlock)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.url")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).url}
+                    onChange={(e) => onChange({ ...block, url: e.target.value } as EmailTemplateBlock)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.alignment")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).align}
+                    onValueChange={(value: "left" | "center" | "right") =>
+                      onChange({ ...block, align: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                      <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                      <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
+                {renderTypographyControls()}
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "columns" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.columnCount")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "columns" }>).columnCount || "2"}
+                    onValueChange={(value: "2" | "3" | "4") => {
+                      const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+                      const newCount = parseInt(value);
+                      const currentColumns = colsBlock.columns || [];
+                      const newColumns = Array.from({ length: newCount }, (_, i) => {
+                        if (i < currentColumns.length) {
+                          return { ...currentColumns[i], width: 100 / newCount };
+                        }
+                        return {
+                          id: crypto.randomUUID(),
+                          width: 100 / newCount,
+                          blocks: [],
+                        };
+                      });
+                      onChange({
+                        ...block,
+                        columnCount: value,
+                        columns: newColumns.slice(0, newCount),
+                      } as EmailTemplateBlock);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">{t("emailDesigner.properties.twoColumns")}</SelectItem>
+                      <SelectItem value="3">{t("emailDesigner.properties.threeColumns")}</SelectItem>
+                      <SelectItem value="4">{t("emailDesigner.properties.fourColumns")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.gap")}: {(block as Extract<EmailTemplateBlock, { type: "columns" }>).gap || 16}px</Label>
+                  <Slider
+                    min={0}
+                    max={48}
+                    step={4}
+                    value={[(block as Extract<EmailTemplateBlock, { type: "columns" }>).gap || 16]}
+                    onValueChange={([value]) => onChange({ ...block, gap: value } as EmailTemplateBlock)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.alignment")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "columns" }>).align || "left"}
+                    onValueChange={(value: "left" | "center" | "right") =>
+                      onChange({ ...block, align: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                      <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                      <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>{t("emailDesigner.properties.stackOnMobile")}</Label>
+                    <Switch
+                      checked={(block as Extract<EmailTemplateBlock, { type: "columns" }>).stackOnMobile ?? true}
+                      onCheckedChange={(checked) =>
+                        onChange({ ...block, stackOnMobile: checked } as EmailTemplateBlock)
+                      }
+                    />
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">{t("emailDesigner.properties.columns")}</Label>
+                  {(block as Extract<EmailTemplateBlock, { type: "columns" }>).columns.map((column, colIdx) => (
+                    <div key={column.id} className="p-3 border rounded-md space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">{t("emailDesigner.properties.column")} {colIdx + 1}</Label>
+                        <span className="text-xs text-muted-foreground">{column.blocks?.length || 0} {t("emailDesigner.properties.blocks")}</span>
+                      </div>
+                      {onAddNestedBlock && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => onAddNestedBlock(block.id, "text", column.id)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {t("emailDesigner.properties.addText")}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => onAddNestedBlock(block.id, "image", column.id)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {t("emailDesigner.properties.addImage")}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "container" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.maxWidth")}</Label>
+                    <Select
+                      value={String((block as Extract<EmailTemplateBlock, { type: "container" }>).maxWidth || 600)}
+                      onValueChange={(value) =>
+                        onChange({ ...block, maxWidth: parseInt(value) as 520 | 600 | 680 | 800 } as EmailTemplateBlock)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="520">520px</SelectItem>
+                        <SelectItem value="600">600px</SelectItem>
+                        <SelectItem value="680">680px</SelectItem>
+                        <SelectItem value="800">800px</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+                    <Select
+                      value={(block as Extract<EmailTemplateBlock, { type: "container" }>).align || "center"}
+                      onValueChange={(value: "left" | "center" | "right") =>
+                        onChange({ ...block, align: value } as EmailTemplateBlock)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.padding")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "container" }>).padding || "md"}
+                    onValueChange={(value: "none" | "xs" | "sm" | "md" | "lg") =>
+                      onChange({ ...block, padding: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("emailDesigner.properties.paddingNone")}</SelectItem>
+                      <SelectItem value="xs">{t("emailDesigner.properties.paddingXS")}</SelectItem>
+                      <SelectItem value="sm">{t("emailDesigner.properties.paddingSM")}</SelectItem>
+                      <SelectItem value="md">{t("emailDesigner.properties.paddingMD")}</SelectItem>
+                      <SelectItem value="lg">{t("emailDesigner.properties.paddingLG")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">{t("emailDesigner.properties.nestedBlocks")}</Label>
+                  <div className="p-3 border rounded-md space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {(block as Extract<EmailTemplateBlock, { type: "container" }>).blocks?.length || 0} {t("emailDesigner.properties.blocks")}
+                      </span>
+                    </div>
+                    {onAddNestedBlock && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => onAddNestedBlock(block.id, "text")}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {t("emailDesigner.properties.addText")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => onAddNestedBlock(block.id, "image")}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {t("emailDesigner.properties.addImage")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => onAddNestedBlock(block.id, "button")}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {t("emailDesigner.properties.addButton")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => onAddNestedBlock(block.id, "divider")}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {t("emailDesigner.properties.addDivider")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}

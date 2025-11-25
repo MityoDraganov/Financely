@@ -9,6 +9,15 @@
         ".write": "auth != null"
       }
     },
+    "emailTemplates": {
+      ".indexOn": ["orgId"],
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$templateId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
     "organizations": {
       ".read": "auth != null",
       ".write": "auth != null",

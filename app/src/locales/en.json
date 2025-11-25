@@ -569,6 +569,20 @@
 	"templates": {
 		"title": "Templates",
 		"subtitle": "Manage your invoice templates",
+		"actions": {
+			"createInvoice": "Create invoice template",
+			"createEmail": "Create email template"
+		},
+		"sections": {
+			"invoice": {
+				"title": "Invoice templates",
+				"description": "Reusable PDF layouts for invoices and proposals."
+			},
+			"email": {
+				"title": "Email templates",
+				"description": "Transactional emails for invoices, proposals, and workflow events."
+			}
+		},
 		"createNew": "Create New Template",
 		"empty": {
 			"title": "No templates yet",
@@ -604,6 +618,23 @@
 			"deleting": "Deleting...",
 			"success": "Successfully deleted {{count}} template",
 			"success_plural": "Successfully deleted {{count}} templates"
+		},
+		"email": {
+			"empty": {
+				"title": "No email templates yet",
+				"description": "Create customizable email layouts for invoices, proposals, and workflow events.",
+				"createFirst": "Create your first email template"
+			},
+			"card": {
+				"untitled": "Untitled email template",
+				"noSubject": "No subject"
+			},
+			"status": {
+				"draft": "Draft",
+				"published": "Published"
+			},
+			"lastUpdated": "Updated {{date}}",
+			"openDesigner": "Open email designer"
 		}
 	},
 	"designer": {
@@ -946,6 +977,173 @@
 					"right": "Right"
 				}
 			}
+		}
+	},
+	"emailDesigner": {
+		"title": "Email Templates",
+		"subtitle": "Design transactional emails that stay on-brand for every organization.",
+		"actions": {
+			"create": "New email template",
+			"save": "Save template"
+		},
+		"templates": {
+			"title": "Templates",
+			"empty": "No email templates yet. Create one to get started."
+		},
+		"sections": {
+			"header": "Header",
+			"body": "Body",
+			"footer": "Footer"
+		},
+		"blocks": {
+			"title": "Content blocks",
+			"currentBlocks": "Current blocks",
+			"addBlocks": "Add blocks",
+			"subject": "Subject",
+			"preheader": "Preheader",
+			"logo": "Logo",
+			"navigation": "Navigation",
+			"container": "Container",
+			"columns": "Columns",
+			"text": "Text",
+			"button": "Button",
+			"divider": "Divider",
+			"spacer": "Spacer",
+			"image": "Image",
+			"footerText": "Footer Text",
+			"socialLinks": "Social Links",
+			"unsubscribe": "Unsubscribe"
+		},
+		"preview": {
+			"title": "Preview",
+			"subtitle": "See how the email will look in inboxes.",
+			"subjectLabel": "Subject",
+			"empty": "Add your first block to start designing.",
+			"emptySection": "This section is empty. Add blocks from the sidebar.",
+			"emptyColumns": "No columns configured",
+			"emptyColumn": "Empty column",
+			"emptyContainer": "Empty container"
+		},
+		"empty": {
+			"title": "Create your first email template",
+			"description": "There are no email templates yet. Start by creating one and customize it in the designer.",
+			"action": "Create email template"
+		},
+		"properties": {
+			"title": "Block settings",
+			"empty": "Select a block to edit its content.",
+			"delete": "Remove block",
+			"textContent": "Content",
+			"alignment": "Alignment",
+			"alignLeft": "Left",
+			"alignCenter": "Center",
+			"alignRight": "Right",
+			"emphasize": "Emphasize text",
+			"label": "Label",
+			"url": "Link URL",
+			"variant": "Variant",
+			"primary": "Primary",
+			"secondary": "Secondary",
+			"link": "Link",
+			"style": "Style",
+			"solid": "Solid",
+			"dashed": "Dashed",
+			"dotted": "Dotted",
+			"height": "Height",
+			"imageUrl": "Image URL",
+			"altText": "Alt text",
+			"width": "Width (px)",
+			"typography": "Typography",
+			"fontSize": "Font size",
+			"fontWeight": "Font weight",
+			"lineHeight": "Line height",
+			"letterSpacing": "Letter spacing",
+			"textColor": "Text color",
+			"fontStyle": "Font style",
+			"textDecoration": "Text decoration",
+			"spacing": "Spacing",
+			"padding": "Padding",
+			"margin": "Margin",
+			"border": "Border",
+			"borderWidth": "Border width",
+			"borderColor": "Border color",
+			"borderStyle": "Border style",
+			"borderRadius": "Border radius",
+			"backgroundColor": "Background color",
+			"color": "Color",
+			"dividerWidth": "Divider width",
+			"lineWidth": "Line width",
+			"buttonWidth": "Button width",
+			"buttonHeight": "Button height",
+			"link": "Link",
+			"navigationLinks": "Navigation Links",
+			"navigationLinksHint": "Add navigation menu items",
+			"linkLabel": "Label",
+			"addLink": "Add Link",
+			"socialLinks": "Social Links",
+			"socialLinksHint": "Add social media links",
+			"iconSize": "Icon Size",
+			"text": "Text",
+			"columnCount": "Column Count",
+			"twoColumns": "2 Columns",
+			"threeColumns": "3 Columns",
+			"fourColumns": "4 Columns",
+			"gap": "Gap",
+			"stackOnMobile": "Stack on Mobile",
+			"maxWidth": "Max Width",
+			"padding": "Padding",
+			"paddingNone": "None",
+			"paddingXS": "Extra Small",
+			"paddingSM": "Small",
+			"paddingMD": "Medium",
+			"paddingLG": "Large",
+			"columns": "Columns",
+			"column": "Column",
+			"blocks": "blocks",
+			"nestedBlocks": "Nested Blocks",
+			"addText": "Add Text",
+			"addImage": "Add Image",
+			"addButton": "Add Button",
+			"addDivider": "Add Divider"
+		},
+		"settings": {
+			"title": "Template settings",
+			"name": "Template name",
+			"subject": "Subject",
+			"preheader": "Preheader",
+			"preheaderPlaceholder": "Short summary shown next to the subject line",
+			"background": "Background",
+			"surface": "Surface",
+			"primaryColor": "Primary color",
+			"textColor": "Text color",
+			"fontFamily": "Font family",
+			"subjectTypography": "Subject typography",
+			"preheaderTypography": "Preheader typography"
+		},
+		"defaults": {
+			"newTemplateName": "New email template",
+			"subject": "Thanks for working with us",
+			"preheader": "Here is a quick update on your request.",
+			"greeting": "Hi {{customer.name}},",
+			"body": "We're excited to share the latest update regarding your invoice.",
+			"cta": "View details"
+		},
+		"toast": {
+			"created": "Email template created",
+			"createFailed": "Failed to create template",
+			"saved": "Template saved",
+			"saveFailed": "Failed to save template"
+		},
+		"canvasHeader": {
+			"selectTemplate": "Select template",
+			"newTemplate": "New template",
+			"live": "Live"
+		},
+		"mobile": {
+			"templates": "Templates",
+			"blocks": "Blocks",
+			"preview": "Preview",
+			"properties": "Properties"
 		}
 	},
 	"workflows": {

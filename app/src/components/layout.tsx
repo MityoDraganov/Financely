@@ -34,6 +34,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useLocation } from "react-router-dom";
 import { useInvoiceTemplate } from "@/contexts/invoice-template-context";
 import { useDesignerTemplate } from "@/contexts/designer-template-context";
+import { useEmailDesignerTemplate } from "@/contexts/email-designer-template-context";
 import {
 	Select,
 	SelectContent,
@@ -78,8 +79,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const location = useLocation();
 	const isCreateInvoicePage = useMemo(() => location.pathname === "/create-invoice", [location.pathname]);
 	const isDesignerPage = useMemo(() => location.pathname.startsWith("/designer"), [location.pathname]);
+	const isEmailDesignerPage = useMemo(() => location.pathname.startsWith("/email-designer"), [location.pathname]);
 	const invoiceTemplate = useInvoiceTemplate();
 	const designerTemplate = useDesignerTemplate();
+	const emailDesignerTemplate = useEmailDesignerTemplate();
 
 	// Navigation items with translations
 	const navItems = useMemo(() => [
@@ -207,6 +210,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 								</SelectTrigger>
 								<SelectContent>
 									{designerTemplate.templates.map((t) => (
+										<SelectItem key={t.id} value={t.id}>
+											{t.name}
+										</SelectItem>
+									))}
+									<SelectItem value="new">
+										<Plus className="h-4 w-4 mr-1" /> {t("layout.templateSelector.newTemplate")}
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+					{isEmailDesignerPage && emailDesignerTemplate && (
+						<div className="flex-1 min-w-0">
+							<Select
+								value={
+									emailDesignerTemplate.currentTemplate?.id ?? ""
+								}
+								onValueChange={
+									emailDesignerTemplate.onTemplateChange
+								}
+							>
+								<SelectTrigger className="h-9 w-full">
+									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
+								</SelectTrigger>
+								<SelectContent>
+									{emailDesignerTemplate.templates.map((t) => (
 										<SelectItem key={t.id} value={t.id}>
 											{t.name}
 										</SelectItem>
