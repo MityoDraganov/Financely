@@ -1116,7 +1116,35 @@
 			"addText": "Add Text",
 			"addImage": "Add Image",
 			"addButton": "Add Button",
-			"addDivider": "Add Divider"
+			"addDivider": "Add Divider",
+			"chooseImage": "Browse library",
+			"aspectRatio": "Aspect Ratio",
+			"aspectRatioAuto": "Auto (Natural)",
+			"aspectRatio1_1": "1:1 (Square)",
+			"aspectRatio16_9": "16:9 (Widescreen)",
+			"aspectRatio4_3": "4:3 (Standard)",
+			"aspectRatio3_2": "3:2 (Photo)",
+			"aspectRatio21_9": "21:9 (Ultrawide)",
+			"aspectRatioCustom": "Custom",
+			"aspectRatioCustomValue": "Custom Ratio (Width/Height)",
+			"aspectRatioCustomHint": "Enter a decimal value, e.g., 1.5 for 3:2 ratio"
+		},
+		"imagePicker": {
+			"title": "Brand image library",
+			"description": "Browse existing brand assets or upload a new image.",
+			"logo": "Logo",
+			"favicon": "Favicon",
+			"identitySection": "Brand identity",
+			"identityHint": "Logos and favicons configured for your organization.",
+			"galleryTitle": "Gallery",
+			"galleryHint": "All brand images you've uploaded.",
+			"emptyState": "You haven’t added any brand images yet.",
+			"uploadTitle": "Need a different image?",
+			"uploadHint": "Upload PNG, JPG, or GIF up to 5MB. New images become part of your brand gallery.",
+			"uploadCta": "Upload image",
+			"uploading": "Uploading...",
+			"uploadPreviewAlt": "Image upload preview",
+			"useImage": "Use image"
 		},
 		"settings": {
 			"title": "Template settings",
@@ -1145,7 +1173,11 @@
 			"createFailed": "Failed to create template",
 			"saved": "Template saved",
 			"saveFailed": "Failed to save template",
-			"duplicated": "Block duplicated"
+			"duplicated": "Block duplicated",
+			"imageUploaded": "Image added to your brand gallery",
+			"imageUploadFailed": "Failed to upload image. Please try again.",
+			"imageUploadNoOrg": "Select an organization before uploading images.",
+			"imagePickerMissing": "Unable to attach the image to this block."
 		},
 		"canvasHeader": {
 			"selectTemplate": "Select template",

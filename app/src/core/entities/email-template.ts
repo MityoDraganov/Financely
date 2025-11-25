@@ -125,6 +125,8 @@ export const emailLogoBlockSchema = emailBlockBaseSchema.extend({
   width: z.number().min(24).max(300).default(120),
   align: z.enum(["left", "center", "right"]).default("center"),
   link: z.string().optional(),
+  aspectRatio: z.enum(["auto", "1:1", "16:9", "4:3", "3:2", "21:9", "custom"]).default("auto"),
+  aspectRatioCustom: z.number().optional(), // Custom aspect ratio (width/height), e.g., 1.5 for 3:2
   spacing: emailSpacingSchema.optional(),
   border: emailBorderSchema.optional(),
   borderRadius: z.number().min(0).max(24).default(0),
@@ -260,6 +262,8 @@ export const emailImageBlockSchema = emailBlockBaseSchema.extend({
   alt: z.string().optional(),
   width: z.number().min(24).max(600).default(400),
   align: z.enum(["left", "center", "right"]).default("center"),
+  aspectRatio: z.enum(["auto", "1:1", "16:9", "4:3", "3:2", "21:9", "custom"]).default("auto"),
+  aspectRatioCustom: z.number().optional(), // Custom aspect ratio (width/height), e.g., 1.5 for 3:2
   spacing: emailSpacingSchema.optional(),
   border: emailBorderSchema.optional(),
   borderRadius: z.number().min(0).max(24).default(0),

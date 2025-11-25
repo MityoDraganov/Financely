@@ -17,6 +17,7 @@ type EmailBlockPropertiesProps = {
   onChange: (updatedBlock: EmailTemplateBlock) => void;
   onDelete: (blockId: string) => void;
   onAddNestedBlock?: (parentBlockId: string, blockType: EmailTemplateBlock["type"], columnId?: string) => void;
+	onOpenImagePicker?: (blockId: string) => void;
 };
 
 // Helper function to get default typography
@@ -50,7 +51,7 @@ const getDefaultBorder = () => ({
   borderRadius: 0,
 });
 
-export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock }: EmailBlockPropertiesProps) {
+export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock, onOpenImagePicker }: EmailBlockPropertiesProps) {
   const { t } = useTranslation();
 
   if (!block) {
@@ -833,10 +834,26 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
               <>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.imageUrl")}</Label>
-                  <Input
-                    value={block.src}
-                    onChange={(e) => onChange({ ...block, src: e.target.value })}
-                  />
+						<div className="relative">
+							<Input
+								type="url"
+								value={block.src}
+								onChange={(e) => onChange({ ...block, src: e.target.value })}
+								className={onOpenImagePicker ? "pr-24" : undefined}
+								placeholder="https://"
+							/>
+							{onOpenImagePicker && (
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									onClick={() => onOpenImagePicker(block.id)}
+									className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-xs"
+								>
+									{t("emailDesigner.properties.chooseImage")}
+								</Button>
+							)}
+						</div>
                 </div>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.altText")}</Label>
@@ -876,6 +893,45 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.aspectRatio")}</Label>
+                  <Select
+                    value={block.aspectRatio || "auto"}
+                    onValueChange={(value: "auto" | "1:1" | "16:9" | "4:3" | "3:2" | "21:9" | "custom") =>
+                      onChange({ ...block, aspectRatio: value, ...(value !== "custom" ? { aspectRatioCustom: undefined } : {}) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">{t("emailDesigner.properties.aspectRatioAuto")}</SelectItem>
+                      <SelectItem value="1:1">{t("emailDesigner.properties.aspectRatio1_1")}</SelectItem>
+                      <SelectItem value="16:9">{t("emailDesigner.properties.aspectRatio16_9")}</SelectItem>
+                      <SelectItem value="4:3">{t("emailDesigner.properties.aspectRatio4_3")}</SelectItem>
+                      <SelectItem value="3:2">{t("emailDesigner.properties.aspectRatio3_2")}</SelectItem>
+                      <SelectItem value="21:9">{t("emailDesigner.properties.aspectRatio21_9")}</SelectItem>
+                      <SelectItem value="custom">{t("emailDesigner.properties.aspectRatioCustom")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {block.aspectRatio === "custom" && (
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.aspectRatioCustomValue")}</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min={0.1}
+                      max={10}
+                      value={block.aspectRatioCustom || 1}
+                      onChange={(e) => onChange({ ...block, aspectRatioCustom: Number(e.target.value) })}
+                      placeholder="1.5"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("emailDesigner.properties.aspectRatioCustomHint")}
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.borderRadius")}</Label>
                   <Input
                     type="number"
@@ -896,10 +952,26 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
               <>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.imageUrl")}</Label>
-                  <Input
-                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).src}
-                    onChange={(e) => onChange({ ...block, src: e.target.value } as EmailTemplateBlock)}
-                  />
+                  <div className="relative">
+                    <Input
+                      type="url"
+                      value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).src}
+                      onChange={(e) => onChange({ ...block, src: e.target.value } as EmailTemplateBlock)}
+                      className={onOpenImagePicker ? "pr-24" : undefined}
+                      placeholder="https://"
+                    />
+                    {onOpenImagePicker && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onOpenImagePicker(block.id)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-xs"
+                      >
+                        {t("emailDesigner.properties.chooseImage")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.altText")}</Label>
@@ -938,6 +1010,45 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.aspectRatio")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).aspectRatio || "auto"}
+                    onValueChange={(value: "auto" | "1:1" | "16:9" | "4:3" | "3:2" | "21:9" | "custom") =>
+                      onChange({ ...block, aspectRatio: value, ...(value !== "custom" ? { aspectRatioCustom: undefined } : {}) } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">{t("emailDesigner.properties.aspectRatioAuto")}</SelectItem>
+                      <SelectItem value="1:1">{t("emailDesigner.properties.aspectRatio1_1")}</SelectItem>
+                      <SelectItem value="16:9">{t("emailDesigner.properties.aspectRatio16_9")}</SelectItem>
+                      <SelectItem value="4:3">{t("emailDesigner.properties.aspectRatio4_3")}</SelectItem>
+                      <SelectItem value="3:2">{t("emailDesigner.properties.aspectRatio3_2")}</SelectItem>
+                      <SelectItem value="21:9">{t("emailDesigner.properties.aspectRatio21_9")}</SelectItem>
+                      <SelectItem value="custom">{t("emailDesigner.properties.aspectRatioCustom")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(block as Extract<EmailTemplateBlock, { type: "logo" }>).aspectRatio === "custom" && (
+                  <div className="space-y-2">
+                    <Label>{t("emailDesigner.properties.aspectRatioCustomValue")}</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min={0.1}
+                      max={10}
+                      value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).aspectRatioCustom || 1}
+                      onChange={(e) => onChange({ ...block, aspectRatioCustom: Number(e.target.value) } as EmailTemplateBlock)}
+                      placeholder="1.5"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("emailDesigner.properties.aspectRatioCustomHint")}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.link")}</Label>
                   <Input

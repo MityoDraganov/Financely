@@ -5,6 +5,35 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { Separator } from "@/components/ui/separator";
 
+// Helper function to calculate aspect ratio CSS value
+function getAspectRatioStyle(
+  aspectRatio: "auto" | "1:1" | "16:9" | "4:3" | "3:2" | "21:9" | "custom" | undefined,
+  aspectRatioCustom: number | undefined,
+  width: number
+): { aspectRatio?: string; height?: string } {
+  if (!aspectRatio || aspectRatio === "auto") {
+    return {};
+  }
+
+  if (aspectRatio === "custom" && aspectRatioCustom) {
+    return {
+      aspectRatio: `${aspectRatioCustom}`,
+    };
+  }
+
+  const ratioMap: Record<string, string> = {
+    "1:1": "1 / 1",
+    "16:9": "16 / 9",
+    "4:3": "4 / 3",
+    "3:2": "3 / 2",
+    "21:9": "21 / 9",
+  };
+
+  return {
+    aspectRatio: ratioMap[aspectRatio],
+  };
+}
+
 type CanvasProps = {
   blocks: EmailTemplateBlock[];
   selectedBlockId?: string;
@@ -363,13 +392,19 @@ function BlockPreview({
       );
     }
     case "image": {
-      const spacing = (block.spacing || {}) as EmailSpacing;
-      const border = (block.border || {}) as EmailBorder;
+      const imageBlock = block as Extract<EmailTemplateBlock, { type: "image" }>;
+      const spacing = (imageBlock.spacing || {}) as EmailSpacing;
+      const border = (imageBlock.border || {}) as EmailBorder;
+      const aspectRatioStyle = getAspectRatioStyle(
+        imageBlock.aspectRatio,
+        imageBlock.aspectRatioCustom,
+        imageBlock.width
+      );
       
       return (
         <div
           style={{
-            textAlign: block.align,
+            textAlign: imageBlock.align,
             paddingTop: spacing.paddingTop ? `${spacing.paddingTop}px` : undefined,
             paddingRight: spacing.paddingRight ? `${spacing.paddingRight}px` : undefined,
             paddingBottom: spacing.paddingBottom ? `${spacing.paddingBottom}px` : undefined,
@@ -378,18 +413,20 @@ function BlockPreview({
             marginRight: spacing.marginRight ? `${spacing.marginRight}px` : undefined,
             marginBottom: spacing.marginBottom ? `${spacing.marginBottom}px` : undefined,
             marginLeft: spacing.marginLeft ? `${spacing.marginLeft}px` : undefined,
-            backgroundColor: block.backgroundColor || "transparent",
+            backgroundColor: imageBlock.backgroundColor || "transparent",
           }}
         >
           <div className="inline-flex items-center justify-center overflow-hidden">
-            {block.src ? (
+            {imageBlock.src ? (
               <img
-                src={block.src}
-                alt={block.alt || ""}
+                src={imageBlock.src}
+                alt={imageBlock.alt || ""}
                 style={{
-                  maxWidth: `${block.width}px`,
+                  maxWidth: `${imageBlock.width}px`,
                   width: "100%",
-                  borderRadius: block.borderRadius ? `${block.borderRadius}px` : undefined,
+                  ...aspectRatioStyle,
+                  objectFit: "cover",
+                  borderRadius: imageBlock.borderRadius ? `${imageBlock.borderRadius}px` : undefined,
                   borderWidth: border.borderWidth ? `${border.borderWidth}px` : undefined,
                   borderColor: border.borderColor || "transparent",
                   borderStyle: border.borderStyle || "solid",
@@ -397,11 +434,12 @@ function BlockPreview({
               />
             ) : (
               <div
-                className="text-xs text-muted-foreground py-8 px-4"
+                className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
                 style={{
-                  maxWidth: `${block.width}px`,
+                  maxWidth: `${imageBlock.width}px`,
                   width: "100%",
-                  borderRadius: block.borderRadius ? `${block.borderRadius}px` : undefined,
+                  ...aspectRatioStyle,
+                  borderRadius: imageBlock.borderRadius ? `${imageBlock.borderRadius}px` : undefined,
                   borderWidth: border.borderWidth ? `${border.borderWidth}px` : undefined,
                   borderColor: border.borderColor || "#e5e7eb",
                   borderStyle: border.borderStyle || "dashed",
@@ -418,6 +456,11 @@ function BlockPreview({
       const logoBlock = block as Extract<EmailTemplateBlock, { type: "logo" }>;
       const spacing = (logoBlock.spacing || {}) as EmailSpacing;
       const border = (logoBlock.border || {}) as EmailBorder;
+      const aspectRatioStyle = getAspectRatioStyle(
+        logoBlock.aspectRatio,
+        logoBlock.aspectRatioCustom,
+        logoBlock.width
+      );
       
       return (
         <div
@@ -442,6 +485,8 @@ function BlockPreview({
                 style={{
                   maxWidth: `${logoBlock.width}px`,
                   width: "100%",
+                  ...aspectRatioStyle,
+                  objectFit: "cover",
                   borderRadius: logoBlock.borderRadius ? `${logoBlock.borderRadius}px` : undefined,
                   borderWidth: border.borderWidth ? `${border.borderWidth}px` : undefined,
                   borderColor: border.borderColor || "transparent",
@@ -450,10 +495,11 @@ function BlockPreview({
               />
             ) : (
               <div
-                className="text-xs text-muted-foreground py-8 px-4"
+                className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
                 style={{
                   maxWidth: `${logoBlock.width}px`,
                   width: "100%",
+                  ...aspectRatioStyle,
                   borderRadius: logoBlock.borderRadius ? `${logoBlock.borderRadius}px` : undefined,
                   borderWidth: border.borderWidth ? `${border.borderWidth}px` : undefined,
                   borderColor: border.borderColor || "#e5e7eb",

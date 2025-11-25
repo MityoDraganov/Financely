@@ -32,9 +32,18 @@ import { EmailCanvasHeader } from "@/components/email-designer/email-canvas-head
 import { EmailDesignerCanvas } from "@/components/email-designer/email-designer-canvas";
 import { EmailBlockProperties } from "@/components/email-designer/email-block-properties";
 import { EmailTemplateSettings } from "@/components/email-designer/email-template-settings";
+import { BrandImagePickerDialog } from "@/components/brand-image-picker-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePresence } from "@/hooks/use-presence";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+
+type BrandAssets = {
+	logo?: string;
+	favicon?: string;
+	gallery: string[];
+};
 
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
@@ -53,6 +62,12 @@ export default function EmailDesignerPage() {
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const [mobilePanelTab, setMobilePanelTab] = useState<"blocks" | "preview" | "properties">("blocks");
+	const [imagePickerOpen, setImagePickerOpen] = useState(false);
+	const [imagePickerTargetBlockId, setImagePickerTargetBlockId] = useState<string | null>(null);
+	const [brandAssets, setBrandAssets] = useState<BrandAssets>({ gallery: [] });
+	const [uploadState, setUploadState] = useState<{ preview: string; progress: number } | null>(null);
+	const fileUpload = useFileUpload();
+	const updateOrganization = useUpdateOrganization();
 	
 	// Use context values with safe defaults
 	const safeTemplates = useMemo(() => {
@@ -89,6 +104,28 @@ export default function EmailDesignerPage() {
 	}, [safeTemplates, safeContextCurrentTemplateId]);
 
 	const { activeUsers } = usePresence(baseTemplate?.id);
+
+	useEffect(() => {
+		const branding = currentOrg?.settings?.branding;
+		setBrandAssets({
+			logo: branding?.customLogo,
+			favicon: branding?.customFavicon,
+			gallery: branding?.brandImages ?? [],
+		});
+	}, [currentOrg?.id, currentOrg?.settings?.branding]);
+
+	useEffect(() => {
+		setUploadState((prev) =>
+			prev ? { ...prev, progress: fileUpload.uploadProgress } : prev,
+		);
+	}, [fileUpload.uploadProgress]);
+
+	const selectedBlock = useMemo(() => {
+		if (!draftTemplate?.blocks || !selectedBlockId) {
+			return undefined;
+		}
+		return findBlockById(draftTemplate.blocks, selectedBlockId);
+	}, [draftTemplate?.blocks, selectedBlockId]);
 
 	// Keep refs in sync for stable event handlers
 	useEffect(() => {
@@ -286,12 +323,80 @@ export default function EmailDesignerPage() {
 		}
 	};
 
+	const handleOpenImagePicker = (blockId: string) => {
+		setImagePickerTargetBlockId(blockId);
+		setImagePickerOpen(true);
+	};
+
+	const handleImagePickerOpenChange = (open: boolean) => {
+		setImagePickerOpen(open);
+		if (!open) {
+			setImagePickerTargetBlockId(null);
+		}
+	};
+
+	const handleSelectBrandImage = (url: string) => {
+		if (!draftTemplate || !imagePickerTargetBlockId) return;
+		const targetBlock = findBlockById(draftTemplate.blocks, imagePickerTargetBlockId);
+		if (!targetBlock || (targetBlock.type !== "image" && targetBlock.type !== "logo")) {
+			toast.error(t("emailDesigner.toast.imagePickerMissing"));
+			handleImagePickerOpenChange(false);
+			return;
+		}
+		handleUpdateBlock(targetBlock.id, { ...targetBlock, src: url });
+		handleImagePickerOpenChange(false);
+	};
+
+	const handleBrandImageUpload = async (file: File) => {
+		if (!currentOrg) {
+			toast.error(t("emailDesigner.toast.imageUploadNoOrg"));
+			return;
+		}
+		const preview = URL.createObjectURL(file);
+		setUploadState({ preview, progress: 0 });
+		const extension = file.name.split(".").pop() || "png";
+		const path = `organizations/${currentOrg.id}/branding/email-designer-${Date.now()}.${extension}`;
+		try {
+			const url = await fileUpload.uploadFile(file, path);
+			if (!url) {
+				throw new Error(fileUpload.error || "upload failed");
+			}
+			const branding = currentOrg.settings?.branding;
+			const nextImages = [...(branding?.brandImages ?? []), url];
+			const updatedSettings = {
+				...(currentOrg.settings || {}),
+				branding: {
+					...(branding ?? {}),
+					brandImages: nextImages,
+				},
+			};
+			await updateOrganization.mutateAsync({
+				id: currentOrg.id,
+				data: {
+					settings: updatedSettings,
+				},
+			});
+			setBrandAssets({
+				logo: updatedSettings.branding?.customLogo,
+				favicon: updatedSettings.branding?.customFavicon,
+				gallery: nextImages,
+			});
+			queryClient.invalidateQueries({ queryKey: ["organizations", currentOrg.id] });
+			toast.success(t("emailDesigner.toast.imageUploaded"));
+		} catch (error) {
+			console.error("Failed to upload brand image:", error);
+			toast.error(t("emailDesigner.toast.imageUploadFailed"));
+		} finally {
+			setUploadState(null);
+			URL.revokeObjectURL(preview);
+		}
+	};
+
 	const handleUpdateBlock = (blockId: string, updatedBlock: EmailTemplateBlock) => {
 		if (!draftTemplate) return;
-		const nextBlocks = draftTemplate.blocks.map((block) =>
-			block.id === blockId ? updatedBlock : block,
-		);
-		
+		const { blocks: nextBlocks, updated } = updateBlockTree(draftTemplate.blocks, blockId, updatedBlock);
+		if (!updated) return;
+
 		// Sync subject/preheader blocks with template fields
 		const updates: Partial<EmailTemplate> = { blocks: nextBlocks };
 		if (updatedBlock.type === "subject") {
@@ -299,7 +404,7 @@ export default function EmailDesignerPage() {
 		} else if (updatedBlock.type === "preheader") {
 			updates.preheader = updatedBlock.content;
 		}
-		
+
 		handleDraftChange(updates);
 	};
 
@@ -473,16 +578,14 @@ export default function EmailDesignerPage() {
 		);
 	}
 
-	if (!draftTemplate || !baseTemplate) {
-		return (
-			<div className="p-6 space-y-4">
-				<Skeleton className="h-10 w-64" />
-				<Skeleton className="h-[600px] w-full" />
-			</div>
-		);
-	}
-
-	const selectedBlock = (draftTemplate.blocks ?? []).find((block) => block.id === selectedBlockId);
+if (!draftTemplate || !baseTemplate) {
+	return (
+		<div className="p-6 space-y-4">
+			<Skeleton className="h-10 w-64" />
+			<Skeleton className="h-[600px] w-full" />
+		</div>
+	);
+}
 
 	const sidebarContent = (
 		<EmailSidebar
@@ -511,6 +614,7 @@ export default function EmailDesignerPage() {
 				onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
 				onDelete={handleDeleteBlock}
 				onAddNestedBlock={handleAddNestedBlock}
+				onOpenImagePicker={handleOpenImagePicker}
 			/>
 			) : (
 				<div className="h-full overflow-y-auto">
@@ -584,6 +688,7 @@ export default function EmailDesignerPage() {
 	);
 
 	return (
+		<>
 		<div className="flex h-screen overflow-hidden">
 			{isMobile ? (
 				<>
@@ -746,6 +851,16 @@ export default function EmailDesignerPage() {
 				</ResizablePanelGroup>
 			)}
 		</div>
+		<BrandImagePickerDialog
+			open={imagePickerOpen}
+			onOpenChange={handleImagePickerOpenChange}
+			assets={brandAssets}
+			onSelect={handleSelectBrandImage}
+			onUploadImage={handleBrandImageUpload}
+			isUploading={fileUpload.isUploading}
+			uploadState={uploadState}
+		/>
+		</>
 	);
 }
 
@@ -775,6 +890,7 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			alt: "Logo",
 			width: 120,
 			align: "center",
+			aspectRatio: "auto",
 			borderRadius: 0,
 		};
 	}
@@ -839,6 +955,7 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			alt: "",
 			width: 400,
 			align: "center",
+			aspectRatio: "auto",
 			borderRadius: 0,
 		};
 	}
@@ -908,6 +1025,73 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 		align: "left",
 		emphasize: false,
 	};
+}
+
+function findBlockById(blocks: EmailTemplateBlock[], blockId: string): EmailTemplateBlock | undefined {
+	for (const block of blocks) {
+		if (block.id === blockId) {
+			return block;
+		}
+		if (block.type === "columns") {
+			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+			for (const column of colsBlock.columns ?? []) {
+				const nested = findBlockById(column.blocks || [], blockId);
+				if (nested) {
+					return nested;
+				}
+			}
+		} else if (block.type === "container") {
+			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+			const nested = findBlockById(containerBlock.blocks || [], blockId);
+			if (nested) {
+				return nested;
+			}
+		}
+	}
+	return undefined;
+}
+
+function updateBlockTree(
+	blocks: EmailTemplateBlock[],
+	blockId: string,
+	updatedBlock: EmailTemplateBlock,
+): { blocks: EmailTemplateBlock[]; updated: boolean } {
+	let hasUpdated = false;
+
+	const nextBlocks = blocks.map((block) => {
+		if (block.id === blockId) {
+			hasUpdated = true;
+			return updatedBlock;
+		}
+
+		if (block.type === "columns") {
+			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+			let columnUpdated = false;
+			const nextColumns = colsBlock.columns.map((column) => {
+				const result = updateBlockTree(column.blocks || [], blockId, updatedBlock);
+				if (result.updated) {
+					columnUpdated = true;
+					return { ...column, blocks: result.blocks };
+				}
+				return column;
+			});
+			if (columnUpdated) {
+				hasUpdated = true;
+				return { ...colsBlock, columns: nextColumns } as EmailTemplateBlock;
+			}
+		} else if (block.type === "container") {
+			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+			const result = updateBlockTree(containerBlock.blocks || [], blockId, updatedBlock);
+			if (result.updated) {
+				hasUpdated = true;
+				return { ...containerBlock, blocks: result.blocks } as EmailTemplateBlock;
+			}
+		}
+
+		return block;
+	});
+
+	return { blocks: hasUpdated ? nextBlocks : blocks, updated: hasUpdated };
 }
 
 
