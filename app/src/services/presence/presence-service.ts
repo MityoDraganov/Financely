@@ -14,6 +14,7 @@ export interface UserPresence {
     x: number;
     y: number;
   };
+  selectedBlockId?: string;
   lastSeen: number;
   isActive: boolean;
   isOnline?: boolean;
@@ -24,6 +25,7 @@ export interface PresenceService {
   joinTemplate: (templateId: string, user: AuthUser, organization?: { id: string; name: string }) => Promise<void>;
   leaveTemplate: (templateId: string, user: AuthUser) => Promise<void>;
   updateCursor: (templateId: string, user: AuthUser, cursor: { x: number; y: number }) => Promise<void>;
+  updateSelection: (templateId: string, user: AuthUser, selectedBlockId: string | undefined) => Promise<void>;
   subscribeToPresence: (templateId: string, callback: (users: UserPresence[]) => void) => () => void;
 }
 
@@ -108,6 +110,21 @@ export const presenceService: PresenceService = {
       });
     } catch (error) {
       console.error("PresenceService: Failed to update cursor:", error);
+      throw error;
+    }
+  },
+
+  async updateSelection(templateId: string, user: AuthUser, selectedBlockId: string | undefined) {
+    const presenceRef = ref(firebase.database, `${PRESENCE_PATH}/${templateId}/${user.uid}`);
+    
+    try {
+      await update(presenceRef, {
+        selectedBlockId: selectedBlockId || null,
+        lastSeen: serverTimestamp(),
+        isActive: true,
+      });
+    } catch (error) {
+      console.error("PresenceService: Failed to update selection:", error);
       throw error;
     }
   },

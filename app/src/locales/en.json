@@ -1036,6 +1036,16 @@
 			"emptyColumn": "Empty column",
 			"emptyContainer": "Empty container"
 		},
+		"tabs": {
+			"visual": "Visual",
+			"html": "HTML"
+		},
+		"html": {
+			"converting": "Converting...",
+			"conversionError": "Error converting between visual and HTML views",
+			"conversionWarning": "Could not convert HTML to visual blocks. The HTML structure may be too complex. Try editing in HTML view.",
+			"converted": "Converted {{count}} blocks from HTML"
+		},
 		"empty": {
 			"title": "Create your first email template",
 			"description": "There are no email templates yet. Start by creating one and customize it in the designer.",

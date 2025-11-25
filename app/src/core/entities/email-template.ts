@@ -92,7 +92,8 @@ const emailBlockBaseSchema = z.object({
     "socialLinks",
     "unsubscribe",
     "columns",
-    "container"
+    "container",
+    "rawHtml" // For preserving HTML that can't be parsed into visual blocks
   ]),
   section: z.enum(["header", "body", "footer"]).default("body"),
 });
@@ -270,6 +271,14 @@ export const emailImageBlockSchema = emailBlockBaseSchema.extend({
   backgroundColor: z.string().optional(),
 });
 
+export const emailRawHtmlBlockSchema = emailBlockBaseSchema.extend({
+  type: z.literal("rawHtml"),
+  html: z.string().default(""), // Raw HTML content that can't be parsed into visual blocks
+  spacing: emailSpacingSchema.optional(),
+  backgroundColor: z.string().optional(),
+  border: emailBorderSchema.optional(),
+});
+
 export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
   emailSubjectBlockSchema,
   emailPreheaderBlockSchema,
@@ -285,6 +294,7 @@ export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
   emailUnsubscribeBlockSchema,
   emailColumnsBlockSchema,
   emailContainerBlockSchema,
+  emailRawHtmlBlockSchema,
 ]);
 
 export type EmailTemplateBlock = z.infer<typeof emailTemplateBlockSchema>;
@@ -313,6 +323,9 @@ export const emailTemplateDataSchema = z.object({
   isSystemDefault: z.boolean().default(false),
   isLocked: z.boolean().default(false),
   allowedContexts: z.array(z.string()).default([]),
+  // HTML is the source of truth - stored in database
+  htmlContent: z.string().default(""),
+  // Blocks are derived from HTML for visual editing (not stored)
   blocks: z.array(emailTemplateBlockSchema).default([]),
   designTokens: emailTemplateDesignTokensSchema.default({}),
   // Sections structure - for organizing blocks

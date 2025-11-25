@@ -247,6 +247,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 							</Select>
 						</div>
 					)}
+					{/* UserButton on mobile - outside sidebar to avoid dialog issues */}
+					<div className="shrink-0">
+						<UserButton />
+					</div>
 				</div>
 			)}
 
@@ -291,9 +295,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 								<LanguageSelector />
 								<ModeToggle />
 							</div>
-							<SidebarMenuItem className="flex justify-center items-center w-full">
-								<UserButton showName={!isMobile && state === "expanded"} />
-							</SidebarMenuItem>
+							{/* UserButton only on desktop - on mobile it's in the header */}
+							{!isMobile && (
+								<SidebarMenuItem className="flex justify-center items-center w-full">
+									<UserButton showName={state === "expanded"} />
+								</SidebarMenuItem>
+							)}
 						</SidebarGroup>
 					</div>
 				</SidebarContent>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { presenceService, UserPresence } from "@/services/presence/presence-service";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -98,7 +98,7 @@ export function usePresence(templateId: string | undefined) {
   }, [templateId, authUser?.uid]);
 
   // Update cursor position
-  const updateCursor = async (cursor: { x: number; y: number }) => {
+  const updateCursor = useCallback(async (cursor: { x: number; y: number }) => {
     if (!templateId || !authUser) {
       return;
     }
@@ -108,11 +108,25 @@ export function usePresence(templateId: string | undefined) {
     } catch (error) {
       console.error("Failed to update cursor:", error);
     }
-  };
+  }, [templateId, authUser]);
+
+  // Update selected block
+  const updateSelection = useCallback(async (selectedBlockId: string | undefined) => {
+    if (!templateId || !authUser) {
+      return;
+    }
+
+    try {
+      await presenceService.updateSelection(templateId, authUser, selectedBlockId);
+    } catch (error) {
+      console.error("Failed to update selection:", error);
+    }
+  }, [templateId, authUser]);
 
   return {
     activeUsers,
     isConnected,
     updateCursor,
+    updateSelection,
   };
 }

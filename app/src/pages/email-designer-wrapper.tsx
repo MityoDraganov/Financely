@@ -74,45 +74,20 @@ export default function EmailDesignerWrapper() {
 		
 		const uniqueName = `New Email Template ${templates.length + 1}`;
 		
+		// Create blank template - no default content
+		// Users can add blocks as needed, no generic placeholder text
 		const templateData: EmailTemplateData = {
 			orgId,
 			name: uniqueName,
-			subject: t("emailDesigner.defaults.subject"),
-			preheader: t("emailDesigner.defaults.preheader"),
+			subject: "", // Empty subject - user can set it
+			preheader: "", // Empty preheader - user can set it
 			status: "draft",
 			version: 1,
 			isLocked: false,
 			isSystemDefault: false,
 			allowedContexts: ["organization", "invoice", "proposal"],
-			blocks: [
-				{
-					id: crypto.randomUUID(),
-					type: "text",
-					section: "body",
-					content: t("emailDesigner.defaults.greeting"),
-					align: "left",
-					emphasize: true,
-				},
-				{
-					id: crypto.randomUUID(),
-					type: "text",
-					section: "body",
-					content: t("emailDesigner.defaults.body"),
-					align: "left",
-					emphasize: false,
-				},
-				{
-					id: crypto.randomUUID(),
-					type: "button",
-					section: "body",
-					label: t("emailDesigner.defaults.cta"),
-					url: "https://example.com",
-					variant: "primary",
-					align: "center",
-					buttonWidth: "auto",
-					buttonHeight: 44,
-				},
-			],
+			htmlContent: "", // Empty HTML - blank template
+			blocks: [], // Empty blocks - no default content
 			designTokens: brandDesignTokens,
 		};
 		
