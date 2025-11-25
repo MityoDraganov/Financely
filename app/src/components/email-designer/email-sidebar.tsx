@@ -22,6 +22,8 @@ import {
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { PatternSelector } from "./pattern-selector";
+import { Pattern } from "@/core/patterns/email-patterns";
 
 type BlockType = EmailTemplateBlock["type"];
 
@@ -31,6 +33,7 @@ type EmailSidebarProps = {
 	onCreateNewTemplate: () => void;
 	isCreating?: boolean;
 	onAddBlock: (type: BlockType, section: EmailSection) => void;
+	onAddPattern?: (pattern: Pattern) => void;
 	blocks?: EmailTemplateBlock[];
 	selectedBlockId?: string;
 	onSelectBlock?: (blockId: string) => void;
@@ -147,6 +150,7 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 
 export function EmailSidebar({
 	onAddBlock,
+	onAddPattern,
 	blocks = [],
 	selectedBlockId,
 	onSelectBlock,
@@ -377,6 +381,24 @@ export function EmailSidebar({
 							)}
 						</div>
 					</ScrollArea>
+					<Separator />
+				</>
+			)}
+
+			{/* Patterns Section */}
+			{onAddPattern && (
+				<>
+					<div className="p-3 border-b shrink-0">
+						<h3 className="text-sm font-semibold text-foreground">
+							{t("emailDesigner.patterns.title")}
+						</h3>
+					</div>
+					<div className="shrink-0 border-b">
+						<PatternSelector
+							section={currentSection}
+							onSelectPattern={onAddPattern}
+						/>
+					</div>
 					<Separator />
 				</>
 			)}

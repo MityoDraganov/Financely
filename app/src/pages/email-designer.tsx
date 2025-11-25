@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Menu, Settings, Eye, Save, Loader2, Mail } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
+import { Pattern } from "@/core/patterns/email-patterns";
 import { emailTemplateService } from "@/services/email-template-service";
 import { useCreateEmailTemplate } from "@/hooks/repository-hooks/use-create-email-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -232,6 +233,59 @@ export default function EmailDesignerPage() {
 		}
 	};
 
+	const handleAddPattern = (pattern: Pattern) => {
+		if (!draftTemplate) return;
+		
+		// Convert pattern to blocks using columns structure
+		const newBlocks: EmailTemplateBlock[] = [];
+		
+		for (const row of pattern.defaultRows) {
+			// For multi-column rows, create a columns block
+			if (row.layoutVariant !== "1col") {
+				const columnCount = row.layoutVariant === "3col" ? "3" : "2";
+				const columnsBlock = createBlock("columns", pattern.allowedSectionKinds[0]) as Extract<EmailTemplateBlock, { type: "columns" }>;
+				columnsBlock.columnCount = columnCount;
+				columnsBlock.gap = row.gap === "sm" ? 8 : row.gap === "md" ? 16 : row.gap === "lg" ? 24 : 16;
+				columnsBlock.stackOnMobile = row.stackOnMobile ?? true;
+				
+				// Create columns with blocks
+				columnsBlock.columns = row.columns.map((col) => ({
+					id: crypto.randomUUID(),
+					width: col.widthPercent,
+					blocks: col.defaultBlocks.map((patternBlock) => {
+						const block = createBlock(patternBlock.type, pattern.allowedSectionKinds[0]);
+						if (patternBlock.defaults) {
+							Object.assign(block, patternBlock.defaults);
+						}
+						return block;
+					}),
+				}));
+				
+				newBlocks.push(columnsBlock);
+			} else {
+				// For single column rows, add blocks directly
+				for (const column of row.columns) {
+					for (const patternBlock of column.defaultBlocks) {
+						const block = createBlock(patternBlock.type, pattern.allowedSectionKinds[0]);
+						if (patternBlock.defaults) {
+							Object.assign(block, patternBlock.defaults);
+						}
+						newBlocks.push(block);
+					}
+				}
+			}
+		}
+		
+		handleDraftChange({ blocks: [...draftTemplate.blocks, ...newBlocks] });
+		if (newBlocks.length > 0) {
+			setSelectedBlockId(newBlocks[0].id);
+		}
+		if (isMobile) {
+			setMobilePanelTab("properties");
+			setMobilePanelOpen(true);
+		}
+	};
+
 	const handleUpdateBlock = (blockId: string, updatedBlock: EmailTemplateBlock) => {
 		if (!draftTemplate) return;
 		const nextBlocks = draftTemplate.blocks.map((block) =>
@@ -361,6 +415,7 @@ export default function EmailDesignerPage() {
 			onCreateNewTemplate={safeContextHandleCreateNewTemplate}
 			isCreating={createTemplate.isPending}
 			onAddBlock={handleAddBlock}
+			onAddPattern={handleAddPattern}
 			blocks={draftTemplate.blocks ?? []}
 			selectedBlockId={selectedBlockId}
 			onSelectBlock={setSelectedBlockId}

@@ -995,6 +995,10 @@
 			"body": "Body",
 			"footer": "Footer"
 		},
+		"patterns": {
+			"title": "Layout Patterns",
+			"description": "Choose a pre-designed layout pattern"
+		},
 		"blocks": {
 			"title": "Content blocks",
 			"currentBlocks": "Current blocks",
