@@ -40,6 +40,9 @@ import { usePresence } from "@/hooks/use-presence";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
+import { useGenerateEmailTemplate } from "@/hooks/service-hooks/use-email-template-generation";
+import { AIEmailBuilderDialog } from "@/components/email-designer/ai-email-builder-dialog";
+import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 
 type BrandAssets = {
 	logo?: string;
@@ -71,6 +74,9 @@ export default function EmailDesignerPage() {
 	const fileUpload = useFileUpload();
 	const updateOrganization = useUpdateOrganization();
 	const authUser = useFirebaseAuthUser();
+	const generateEmailTemplate = useGenerateEmailTemplate();
+	const { data: products = [] } = useProductsByOrg(orgId);
+	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	
 	// Use context values with safe defaults
 	const safeTemplates = useMemo(() => {
@@ -891,6 +897,7 @@ if (!draftTemplate || !baseTemplate) {
 			isCreating={createTemplate.isPending}
 			onAddBlock={handleAddBlock}
 			onAddPattern={handleAddPattern}
+			onOpenAIBuilder={() => setAiBuilderOpen(true)}
 			blocks={draftTemplate.blocks ?? []}
 			selectedBlockId={selectedBlockId}
 			onSelectBlock={setSelectedBlockId}
@@ -1204,6 +1211,25 @@ if (!draftTemplate || !baseTemplate) {
 			onUploadImage={handleBrandImageUpload}
 			isUploading={fileUpload.isUploading}
 			uploadState={uploadState}
+		/>
+		<AIEmailBuilderDialog
+			open={aiBuilderOpen}
+			onOpenChange={setAiBuilderOpen}
+			currentOrg={currentOrg ?? undefined}
+			currentTemplate={baseTemplate ?? undefined}
+			templates={safeTemplates}
+			generateTemplate={generateEmailTemplate}
+			onTemplateCreated={(templateId) => {
+				safeSetContextCurrentTemplateId(templateId);
+				setAiBuilderOpen(false);
+			}}
+			products={products.map((p) => ({
+				name: p.name,
+				description: p.description,
+				price: p.price,
+				imageUrl: p.images?.[0],
+			}))}
+			galleryImages={brandAssets.gallery}
 		/>
 		</>
 	);

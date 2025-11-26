@@ -27,6 +27,7 @@ import {
 	Copy,
 	Trash2,
 	Code2,
+	Sparkles,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +45,7 @@ type EmailSidebarProps = {
 	isCreating?: boolean;
 	onAddBlock: (type: BlockType, section: EmailSection) => void;
 	onAddPattern?: (pattern: Pattern) => void;
+	onOpenAIBuilder?: () => void;
 	blocks?: EmailTemplateBlock[];
 	selectedBlockId?: string;
 	onSelectBlock?: (blockId: string) => void;
@@ -164,6 +166,7 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 export function EmailSidebar({
 	onAddBlock,
 	onAddPattern,
+	onOpenAIBuilder,
 	blocks = [],
 	selectedBlockId,
 	onSelectBlock,
@@ -588,6 +591,21 @@ export function EmailSidebar({
 						</div>
 						<Separator />
 					</>
+				)}
+
+				{/* AI Builder Section */}
+				{onOpenAIBuilder && (
+					<div className="shrink-0 p-3 border-b">
+						<Button
+							variant="default"
+							size="sm"
+							className="w-full bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+							onClick={onOpenAIBuilder}
+						>
+							<Sparkles className="h-4 w-4 mr-2 animate-pulse" />
+							<span className="font-medium">{t("emailDesigner.aiBuilder.title")}</span>
+						</Button>
+					</div>
 				)}
 
 				{/* Patterns Section */}

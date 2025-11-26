@@ -103,6 +103,7 @@ export { getAnalyticsConfig } from "./functions/get-analytics-config";
 export { onLeadCreated } from "./functions/on-lead-created";
 export { generateProposalSuggestion } from "./functions/generate-proposal-suggestion";
 export { generateInvoiceTemplate } from "./functions/generate-invoice-template";
+export { generateEmailTemplate } from "./functions/generate-email-template";
 export { convertProposalToInvoice } from "./functions/convert-proposal-to-invoice";
 export { generateInvoiceFromProposal } from "./functions/generate-invoice-from-proposal";
 export { generateWidget } from "./functions/generate-widget";

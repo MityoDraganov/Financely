@@ -1024,7 +1024,8 @@
 			"image": "Image",
 			"footerText": "Footer Text",
 			"socialLinks": "Social Links",
-			"unsubscribe": "Unsubscribe"
+			"unsubscribe": "Unsubscribe",
+			"rawHtml": "Custom HTML"
 		},
 		"preview": {
 			"title": "Preview",
@@ -1044,6 +1045,43 @@
 		"customHtml": {
 			"editTitle": "Edit Custom HTML",
 			"editDescription": "Edit the HTML code for this custom block. Changes are isolated to this block only."
+		},
+		"aiBuilder": {
+			"title": "AI Email Builder",
+			"description": "Generate beautiful email templates with AI. Describe what you want, upload images, and watch it come to life.",
+			"style": "Style",
+			"modern": "Modern",
+			"classic": "Classic",
+			"minimal": "Minimal",
+			"professional": "Professional",
+			"newsletter": "Newsletter",
+			"transactional": "Transactional",
+			"targetSection": "Target Section",
+			"fullTemplate": "Full Template",
+			"instructions": "Instructions",
+			"instructionsPlaceholder": "Describe the email you want to create. For example: 'Create a welcome email for new customers with a discount code'",
+			"instructionsHint": "Be specific about content, style, and any special requirements.",
+			"logo": "Organization Logo",
+			"logoDescription": "Your organization's logo will be included in the email template by default. You can select a different image from your gallery if needed.",
+			"default": "Default",
+			"selectDifferent": "Select a different logo from gallery",
+			"noLogo": "No logo configured for your organization. You can upload images below to use as a logo.",
+			"images": "Images",
+			"uploadImages": "Upload Images",
+			"imageReference": "Reference Only",
+			"imageUseInTemplate": "Use in Template",
+			"galleryImages": "Gallery Images",
+			"generateCustomHtml": "Generate Custom HTML Blocks",
+			"generate": "Generate",
+			"generating": "Generating...",
+			"cancel": "Cancel",
+			"generateSuccess": "Email template generated successfully!",
+			"generateFailed": "Failed to generate template: {{error}}",
+			"orgNotFound": "Organization not found",
+			"defaultName": "AI Generated Email Template",
+			"invalidImageType": "Please upload image files only",
+			"imageUploadFailed": "Failed to upload image",
+			"uploadingImages": "Uploading images..."
 		},
 		"empty": {
 			"title": "Create your first email template",

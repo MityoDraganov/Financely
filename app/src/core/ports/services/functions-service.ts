@@ -400,6 +400,49 @@ export interface FunctionsService {
   }>;
 
   /**
+   * Generate an email template using AI
+   * Creates a beautiful, functional email template with progressive block rendering
+   * Supports images (reference or use-in-template), organization context, and custom HTML blocks
+   */
+  generateEmailTemplate(payload: {
+    organizationId: string;
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional";
+      customPrompt?: string;
+      images?: Array<{
+        url: string;
+        purpose: "reference" | "use-in-template";
+        description?: string;
+      }>;
+      context?: {
+        products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
+        organizationName?: string;
+        organizationSettings?: Record<string, unknown>;
+        galleryImages?: string[];
+      };
+      generateCustomHtml?: boolean;
+      targetSection?: "header" | "body" | "footer" | "full";
+    };
+  }): Promise<{
+    orgId: string;
+    name: string;
+    description?: string;
+    subject: string;
+    preheader?: string;
+    htmlContent: string;
+    blocks: Array<any>;
+    designTokens: {
+      background: string;
+      surface: string;
+      text: string;
+      primary: string;
+      fontFamily: string;
+      borderRadius: number;
+    };
+    status: "draft" | "published";
+  }>;
+
+  /**
    * Create a product
    */
   createProduct(payload: {

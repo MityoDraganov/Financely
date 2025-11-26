@@ -331,6 +331,70 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async generateEmailTemplate(payload: {
+    organizationId: string;
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional";
+      customPrompt?: string;
+      images?: Array<{
+        url: string;
+        purpose: "reference" | "use-in-template";
+        description?: string;
+      }>;
+      context?: {
+        products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
+        organizationName?: string;
+        organizationSettings?: Record<string, unknown>;
+        galleryImages?: string[];
+      };
+      generateCustomHtml?: boolean;
+      targetSection?: "header" | "body" | "footer" | "full";
+    };
+  }): Promise<{
+    orgId: string;
+    name: string;
+    description?: string;
+    subject: string;
+    preheader?: string;
+    htmlContent: string;
+    blocks: Array<any>;
+    designTokens: {
+      background: string;
+      surface: string;
+      text: string;
+      primary: string;
+      fontFamily: string;
+      borderRadius: number;
+    };
+    status: "draft" | "published";
+  }> {
+    type GenerateEmailTemplatePayload = Parameters<
+      FunctionsService["generateEmailTemplate"]
+    >[0];
+    const result = await httpsCallable<
+      GenerateEmailTemplatePayload,
+      {
+        orgId: string;
+        name: string;
+        description?: string;
+        subject: string;
+        preheader?: string;
+        htmlContent: string;
+        blocks: Array<any>;
+        designTokens: {
+          background: string;
+          surface: string;
+          text: string;
+          primary: string;
+          fontFamily: string;
+          borderRadius: number;
+        };
+        status: "draft" | "published";
+      }
+    >(firebase.functions, "generateEmailTemplate")(payload);
+    return result.data;
+  },
+
   async createProduct(payload) {
     type CreateProductPayload = Parameters<FunctionsService["createProduct"]>[0];
     const result = await httpsCallable<CreateProductPayload, { id: string }>(

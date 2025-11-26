@@ -16,6 +16,14 @@ export const emailTemplateService = {
   create(data: EmailTemplateData) {
     return emailTemplateRepository.create({ data });
   },
+  createDraft(data: EmailTemplateData) {
+    // Create a draft template (same as create, but ensures status is draft)
+    const draftData = {
+      ...data,
+      status: "draft" as const,
+    };
+    return emailTemplateRepository.create({ data: draftData });
+  },
   updateDraft(id: string, data: Partial<EmailTemplateData>) {
     return emailTemplateRepository.update({ id, data });
   },
