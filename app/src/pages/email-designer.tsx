@@ -262,21 +262,21 @@ export default function EmailDesignerPage() {
 				if (parsed.blocks && parsed.blocks.length > 0) {
 					cloned.blocks = parsed.blocks.map((block) => {
 						// Ensure section is set
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						const typedBlock = block as any;
-						if (!typedBlock.section) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const typedBlock = block as any;
+					if (!typedBlock.section) {
 							const blockType = typedBlock.type;
-							if (blockType === "subject" || blockType === "preheader" || blockType === "logo" || blockType === "navigation") {
+						if (blockType === "subject" || blockType === "preheader" || blockType === "logo" || blockType === "navigation") {
 								typedBlock.section = "header";
 								return typedBlock as EmailTemplateBlock;
-							}
-							if (blockType === "footerText" || blockType === "socialLinks" || blockType === "unsubscribe") {
+						}
+						if (blockType === "footerText" || blockType === "socialLinks" || blockType === "unsubscribe") {
 								typedBlock.section = "footer";
 								return typedBlock as EmailTemplateBlock;
-							}
+						}
 							typedBlock.section = "body";
 							return typedBlock as EmailTemplateBlock;
-						}
+			}
 						return typedBlock as EmailTemplateBlock;
 					});
 				} else {
@@ -319,10 +319,10 @@ export default function EmailDesignerPage() {
 			});
 			previousBaseTemplateIdRef.current = baseTemplateId;
 			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
-			isSavingRef.current = false;
+				isSavingRef.current = false;
 			setDraftTemplate(loadTemplateFromHtml(baseTemplate));
-			return;
-		}
+				return;
+			}
 		
 		// If baseTemplate HTML changed (realtime update from another user) and we're not saving
 		if (
@@ -340,7 +340,7 @@ export default function EmailDesignerPage() {
 			// This allows collaborative editing - other users' HTML changes will appear
 			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
 			setDraftTemplate(loadTemplateFromHtml(baseTemplate));
-			return;
+				return;
 		}
 		
 		// If no draft exists but we have a baseTemplate, create draft from HTML
@@ -980,84 +980,30 @@ if (!draftTemplate || !baseTemplate) {
 					}}
 					activeUsers={activeUsers}
 					currentUserId={authUser?.uid}
-					subject={draftTemplate.subject}
-					preheader={draftTemplate.preheader}
-					htmlContent={draftTemplate.htmlContent}
-					onBlocksChange={(newBlocks) => {
-						handleDraftChange({ blocks: newBlocks });
-					}}
-					onHtmlChange={(newHtml) => {
-						if (draftTemplate && newHtml !== draftTemplate.htmlContent) {
-							// HTML changed - try to parse to blocks for visual view
-							// But always save HTML regardless of parsing success
-							let blocks: EmailTemplateBlock[] = [];
-							let subject = draftTemplate.subject;
-							let preheader = draftTemplate.preheader;
-							
-							// If HTML is empty, clear blocks immediately (user wants blank template)
-							if (!newHtml || newHtml.trim() === "") {
-								setDraftTemplate({
-									...draftTemplate,
-									htmlContent: "", // Save empty HTML (source of truth)
-									blocks: [], // Clear blocks when HTML is empty
-									subject: subject || "",
-									preheader: preheader || "",
-								});
-								return;
-							}
-							
-							try {
-								const parsed = parseHtmlToBlocks(
-									newHtml,
-									draftTemplate.designTokens || {
+					onBlockUpdate={(blockId, updates) => {
+						if (draftTemplate) {
+							const updatedBlocks = draftTemplate.blocks.map(block => 
+								block.id === blockId ? { ...block, ...updates } as EmailTemplateBlock : block
+							);
+							// Update HTML content when rawHtml block is updated
+							if ('html' in updates && updates.html !== undefined) {
+								const newHtml = convertBlocksToHtml(
+									updatedBlocks,
+									draftTemplate.designTokens ?? {
 										background: "#ffffff",
 										surface: "#f8fafc",
 										text: "#0f172a",
 										primary: "#2563eb",
 										fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 										borderRadius: 12,
-									}
+									},
+									draftTemplate.subject,
+									draftTemplate.preheader
 								);
-								
-								// Use parsed blocks (will be empty array if HTML couldn't be parsed)
-								blocks = parsed.blocks || [];
-								
-								// Update subject/preheader if found in HTML
-								if (parsed.subject !== undefined) {
-									subject = parsed.subject;
-								}
-								if (parsed.preheader !== undefined) {
-									preheader = parsed.preheader;
-								}
-							} catch (error) {
-								// Parsing failed - use empty blocks
-								console.warn("[EMAIL-DESIGNER] Failed to parse HTML to blocks:", error);
-								blocks = [];
+								handleDraftChange({ blocks: updatedBlocks, htmlContent: newHtml });
+							} else {
+								handleDraftChange({ blocks: updatedBlocks });
 							}
-							
-							setDraftTemplate({
-								...draftTemplate,
-								htmlContent: newHtml, // Always save HTML (source of truth)
-								blocks: blocks, // Use parsed blocks (empty if HTML is empty or can't be parsed)
-								subject,
-								preheader,
-							});
-						}
-					}}
-					onSubjectChange={(newSubject) => {
-						if (draftTemplate) {
-							setDraftTemplate({
-								...draftTemplate,
-								subject: newSubject,
-							});
-						}
-					}}
-					onPreheaderChange={(newPreheader) => {
-						if (draftTemplate) {
-							setDraftTemplate({
-								...draftTemplate,
-								preheader: newPreheader,
-							});
 						}
 					}}
 				/>
@@ -1177,93 +1123,46 @@ if (!draftTemplate || !baseTemplate) {
 										className="m-0 p-0"
 									>
 										<EmailDesignerCanvas
-											blocks={draftTemplate.blocks}
+											blocks={draftTemplate.blocks ?? []}
 											selectedBlockId={selectedBlockId}
 											onSelectBlock={(id) => {
 												setSelectedBlockId(id);
 												setMobilePanelTab("properties");
 											}}
-											designTokens={draftTemplate.designTokens}
+											designTokens={draftTemplate.designTokens ?? {
+												background: "#ffffff",
+												surface: "#f8fafc",
+												text: "#0f172a",
+												primary: "#2563eb",
+												fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+												borderRadius: 12,
+											}}
 											activeUsers={activeUsers}
 											currentUserId={authUser?.uid}
-											subject={draftTemplate.subject}
-											preheader={draftTemplate.preheader}
-											htmlContent={draftTemplate.htmlContent}
-											onBlocksChange={(newBlocks) => {
-												handleDraftChange({ blocks: newBlocks });
-											}}
-											onHtmlChange={(newHtml) => {
-												if (draftTemplate && newHtml !== draftTemplate.htmlContent) {
-													// HTML changed - try to parse to blocks for visual view
-													// But always save HTML regardless of parsing success
-													let blocks: EmailTemplateBlock[] = [];
-													let subject = draftTemplate.subject;
-													let preheader = draftTemplate.preheader;
-													
-													// If HTML is empty, clear blocks immediately (user wants blank template)
-													if (!newHtml || newHtml.trim() === "") {
-														setDraftTemplate({
-															...draftTemplate,
-															htmlContent: "", // Save empty HTML (source of truth)
-															blocks: [], // Clear blocks when HTML is empty
-															subject: subject || "",
-															preheader: preheader || "",
-														});
-														return;
-													}
-													
-													try {
-														const parsed = parseHtmlToBlocks(
-															newHtml,
-															draftTemplate.designTokens || {
+											onBlockUpdate={(blockId, updates) => {
+												if (draftTemplate) {
+													const updatedBlocks = draftTemplate.blocks.map(block => 
+														block.id === blockId ? { ...block, ...updates } as EmailTemplateBlock : block
+													);
+													// Update HTML content when rawHtml block is updated
+													if ('html' in updates && updates.html !== undefined) {
+														const newHtml = convertBlocksToHtml(
+															updatedBlocks,
+															draftTemplate.designTokens ?? {
 																background: "#ffffff",
 																surface: "#f8fafc",
 																text: "#0f172a",
 																primary: "#2563eb",
 																fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 																borderRadius: 12,
-															}
+															},
+															draftTemplate.subject,
+															draftTemplate.preheader
 														);
-														
-														// Use parsed blocks (will be empty array if HTML couldn't be parsed)
-														blocks = parsed.blocks || [];
-														
-														// Update subject/preheader if found in HTML
-														if (parsed.subject !== undefined) {
-															subject = parsed.subject;
-														}
-														if (parsed.preheader !== undefined) {
-															preheader = parsed.preheader;
-														}
-													} catch (error) {
-														// Parsing failed - use empty blocks
-														console.warn("[EMAIL-DESIGNER] Failed to parse HTML to blocks:", error);
-														blocks = [];
+														handleDraftChange({ blocks: updatedBlocks, htmlContent: newHtml });
+													} else {
+														handleDraftChange({ blocks: updatedBlocks });
 													}
-													
-													setDraftTemplate({
-														...draftTemplate,
-														htmlContent: newHtml, // Always save HTML (source of truth)
-														blocks: blocks, // Use parsed blocks (empty if HTML is empty or can't be parsed)
-														subject,
-														preheader,
-													});
-												}
-											}}
-											onSubjectChange={(newSubject) => {
-												if (draftTemplate) {
-													setDraftTemplate({
-														...draftTemplate,
-														subject: newSubject,
-													});
-												}
-											}}
-											onPreheaderChange={(newPreheader) => {
-												if (draftTemplate) {
-													setDraftTemplate({
-														...draftTemplate,
-														preheader: newPreheader,
-													});
 												}
 											}}
 										/>
@@ -1403,6 +1302,14 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			align: "center",
 			aspectRatio: "auto",
 			borderRadius: 0,
+		};
+	}
+	if (type === "rawHtml") {
+		return {
+			id: crypto.randomUUID(),
+			type: "rawHtml",
+			section: section,
+			html: "",
 		};
 	}
 	if (type === "footerText") {

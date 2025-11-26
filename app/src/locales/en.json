@@ -1036,15 +1036,14 @@
 			"emptyColumn": "Empty column",
 			"emptyContainer": "Empty container"
 		},
-		"tabs": {
-			"visual": "Visual",
-			"html": "HTML"
+		"rawHtmlBlock": {
+			"customHtml": "Custom HTML",
+			"edit": "Edit",
+			"editInHtmlView": "Raw HTML block (edit in HTML view)"
 		},
-		"html": {
-			"converting": "Converting...",
-			"conversionError": "Error converting between visual and HTML views",
-			"conversionWarning": "Could not convert HTML to visual blocks. The HTML structure may be too complex. Try editing in HTML view.",
-			"converted": "Converted {{count}} blocks from HTML"
+		"customHtml": {
+			"editTitle": "Edit Custom HTML",
+			"editDescription": "Edit the HTML code for this custom block. Changes are isolated to this block only."
 		},
 		"empty": {
 			"title": "Create your first email template",

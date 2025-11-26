@@ -442,18 +442,21 @@ function parseTableLayout(table: Element): EmailTemplateBlock[] {
 			}
 		}
 
-		// Check for footer indicators
+		// Check for footer indicators (only in last 2 rows, and be more strict)
 		if (rowIndex >= totalRows - 2) {
 			const hasUnsubscribe = row.textContent?.toLowerCase().includes("unsubscribe") ||
 			                      row.textContent?.toLowerCase().includes("отпиш") ||
 			                      row.querySelector('a[href*="unsubscribe" i]') !== null;
-			const hasContact = row.textContent?.includes("@") || 
-			                  row.querySelector('a[href^="mailto:"]') !== null;
-			const hasFooterBg = cellStyles.backgroundColor && 
-			                   (cellStyles.backgroundColor.includes("#f5f1ee") || 
-			                    cellStyles.backgroundColor.includes("#f5f1ee"));
+			// Don't use @ as indicator - too many false positives (email addresses in body)
+			// Only check for mailto: links which are more specific to footers
+			const hasContact = row.querySelector('a[href^="mailto:"]') !== null;
+			// Only check for specific footer background color if it's the last row
+			const hasFooterBg = rowIndex === totalRows - 1 && 
+			                   cellStyles.backgroundColor && 
+			                   cellStyles.backgroundColor.toLowerCase().includes("#f5f1ee");
 			
-			if (hasUnsubscribe || hasContact || hasFooterBg) {
+			// Only mark as footer if we have strong indicators (unsubscribe is strongest)
+			if (hasUnsubscribe || (hasContact && hasFooterBg)) {
 				currentSection = "footer";
 			}
 		}
@@ -583,7 +586,13 @@ function parseTableLayout(table: Element): EmailTemplateBlock[] {
 		}
 
 		// After first few rows, switch to body (unless we detected footer)
+		// Also reset from footer if we're not in the last 2 rows
 		if (rowIndex >= 2 && currentSection === "header") {
+			currentSection = "body";
+		}
+		// If we're not in the last 2 rows and somehow got marked as footer, reset to body
+		if (rowIndex < totalRows - 2 && currentSection === "footer") {
+			console.warn(`[HTML Parser] Row ${rowIndex} was marked as footer but is not in last 2 rows, resetting to body`);
 			currentSection = "body";
 		}
 
@@ -770,7 +779,8 @@ function elementToBlock(
 ): EmailTemplateBlock | null {
 	const tagName = element.tagName.toLowerCase();
 	const styles = parseStyles(element.getAttribute("style") || "");
-	const computedStyles = window.getComputedStyle(element);
+	// Don't use getComputedStyle - it's expensive, breaks in SSR, and picks up app CSS
+	// Only use inline styles from the element itself
 
 	// Handle text elements - extract text content properly, handling nested elements
 	if (tagName === "p" || tagName === "strong" || tagName === "b" || tagName === "em" || tagName === "i" || 
@@ -822,21 +832,21 @@ function elementToBlock(
 			align: (styles.textAlign || "left") as "left" | "center" | "right" | "justify",
 			emphasize: tagName === "strong" || tagName === "b" || tagName === "h1" || tagName === "h2" || tagName === "h3",
 			typography: (() => {
-				// Parse fontSize - handle px, em, rem units
-				const fontSizeStr = styles.fontSize || computedStyles.fontSize || "16";
+				// Parse fontSize - handle px, em, rem units (only from inline styles)
+				const fontSizeStr = styles.fontSize || "16";
 				const fontSize = parseInt(fontSizeStr.replace(/px|em|rem/, "")) || 16;
-				const fontWeight = (styles.fontWeight || computedStyles.fontWeight || "400") as "400" | "600" | "normal" | "500" | "700" | "bold";
-				const lineHeight = parseFloat(styles.lineHeight || computedStyles.lineHeight || "1.5");
-				const letterSpacing = parseFloat(styles.letterSpacing || computedStyles.letterSpacing || "0");
-				const color = styles.color || computedStyles.color || "#000000";
+				const fontWeight = (styles.fontWeight || "400") as "400" | "600" | "normal" | "500" | "700" | "bold";
+				const lineHeight = parseFloat(styles.lineHeight || "1.5");
+				const letterSpacing = parseFloat(styles.letterSpacing || "0");
+				const color = styles.color || "#000000";
 				return {
 					fontSize: isNaN(fontSize) ? 16 : fontSize,
 					fontWeight: fontWeight,
 					lineHeight: isNaN(lineHeight) ? 1.5 : lineHeight,
 					letterSpacing: isNaN(letterSpacing) ? 0 : letterSpacing,
 					color: color,
-					fontStyle: (styles.fontStyle || computedStyles.fontStyle || "normal") as "normal" | "italic",
-					textDecoration: (styles.textDecoration || computedStyles.textDecoration || "none") as "none" | "underline" | "line-through",
+					fontStyle: (styles.fontStyle || "normal") as "normal" | "italic",
+					textDecoration: (styles.textDecoration || "none") as "none" | "underline" | "line-through",
 				};
 			})(),
 			spacing: (() => {
@@ -1089,6 +1099,7 @@ function elementToBlock(
 
 /**
  * Parse style string to object
+ * Converts kebab-case CSS properties to camelCase for easy access
  */
 function parseStyles(styleString: string): Record<string, string> {
 	const styles: Record<string, string> = {};
@@ -1097,6 +1108,10 @@ function parseStyles(styleString: string): Record<string, string> {
 	styleString.split(";").forEach((rule) => {
 		const [key, value] = rule.split(":").map((s) => s.trim());
 		if (key && value) {
+			// Convert kebab-case to camelCase (e.g., "font-size" -> "fontSize")
+			const camelKey = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+			styles[camelKey] = value;
+			// Also keep the original key for backwards compatibility
 			styles[key] = value;
 		}
 	});

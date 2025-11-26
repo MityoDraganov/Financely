@@ -26,6 +26,7 @@ import {
 	Container,
 	Copy,
 	Trash2,
+	Code2,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Separator } from "@/components/ui/separator";
@@ -67,6 +68,7 @@ const getBlocksForSection = (section: EmailSection): { type: BlockType; icon: Re
 		{ type: "divider" as const, icon: Minus, label: "Divider", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "spacer" as const, icon: ScanLine, label: "Spacer", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "image" as const, icon: ImageIcon, label: "Image", sections: ["header", "body", "footer"] as EmailSection[] },
+		{ type: "rawHtml" as const, icon: Code2, label: "Custom HTML", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "footerText" as const, icon: AlignLeft, label: "Footer Text", sections: ["footer"] as EmailSection[] },
 		{ type: "socialLinks" as const, icon: Share2, label: "Social Links", sections: ["footer"] as EmailSection[] },
 		{ type: "unsubscribe" as const, icon: Link2, label: "Unsubscribe", sections: ["footer"] as EmailSection[] },

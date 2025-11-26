@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import {
 	EmailTemplateBlock,
 	EmailTemplateDesignTokens,
@@ -10,10 +10,9 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { Separator } from "@/components/ui/separator";
 import { UserPresence } from "@/services/presence/presence-service";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { EmailHtmlEditor } from "./email-html-editor";
-import { htmlToBlocks } from "@/utils/email-html-converter";
-import { toast } from "sonner";
+import { CustomHtmlEditorModal } from "./custom-html-editor-modal";
+import { Button } from "@/components/ui/button";
+import { Code2, Edit } from "lucide-react";
 
 // Helper function to calculate aspect ratio CSS value
 function getAspectRatioStyle(
@@ -28,43 +27,37 @@ function getAspectRatioStyle(
 		| undefined,
 	aspectRatioCustom: number | undefined
 ): { aspectRatio?: string; height?: string } {
-	if (!aspectRatio || aspectRatio === "auto") {
-		return {};
-	}
+  if (!aspectRatio || aspectRatio === "auto") {
+    return {};
+  }
 
-	if (aspectRatio === "custom" && aspectRatioCustom) {
-		return {
-			aspectRatio: `${aspectRatioCustom}`,
-		};
-	}
+  if (aspectRatio === "custom" && aspectRatioCustom) {
+    return {
+      aspectRatio: `${aspectRatioCustom}`,
+    };
+  }
 
-	const ratioMap: Record<string, string> = {
-		"1:1": "1 / 1",
-		"16:9": "16 / 9",
-		"4:3": "4 / 3",
-		"3:2": "3 / 2",
-		"21:9": "21 / 9",
-	};
+  const ratioMap: Record<string, string> = {
+    "1:1": "1 / 1",
+    "16:9": "16 / 9",
+    "4:3": "4 / 3",
+    "3:2": "3 / 2",
+    "21:9": "21 / 9",
+  };
 
-	return {
-		aspectRatio: ratioMap[aspectRatio],
-	};
+  return {
+    aspectRatio: ratioMap[aspectRatio],
+  };
 }
 
 type CanvasProps = {
-	blocks: EmailTemplateBlock[];
-	selectedBlockId?: string;
-	onSelectBlock: (blockId: string) => void;
-	designTokens: EmailTemplateDesignTokens;
+  blocks: EmailTemplateBlock[];
+  selectedBlockId?: string;
+  onSelectBlock: (blockId: string) => void;
+  designTokens: EmailTemplateDesignTokens;
 	activeUsers?: UserPresence[];
 	currentUserId?: string;
-	subject?: string;
-	preheader?: string;
-	htmlContent?: string;
-	onBlocksChange?: (blocks: EmailTemplateBlock[]) => void;
-	onHtmlChange?: (html: string) => void;
-	onSubjectChange?: (subject: string) => void;
-	onPreheaderChange?: (preheader: string) => void;
+	onBlockUpdate?: (blockId: string, updates: Partial<EmailTemplateBlock>) => void;
 };
 
 // Helper to get a distinct color for each user based on their UID
@@ -74,140 +67,17 @@ function getUserColor(uid: string): string {
 }
 
 export function EmailDesignerCanvas({
-	blocks,
-	selectedBlockId,
-	onSelectBlock,
-	designTokens,
+  blocks,
+  selectedBlockId,
+  onSelectBlock,
+  designTokens,
 	activeUsers = [],
 	currentUserId,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	subject,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	preheader,
-	htmlContent: propHtmlContent,
-	onBlocksChange,
-	onHtmlChange,
-	onSubjectChange,
-	onPreheaderChange,
+	onBlockUpdate,
 }: CanvasProps) {
-	const { t } = useTranslation();
-	const [activeTab, setActiveTab] = useState<"visual" | "html">("visual");
-	const [htmlContent, setHtmlContent] = useState<string>(propHtmlContent || "");
-	const [isConverting, setIsConverting] = useState(false);
-	const isTabSwitchingRef = useRef<boolean>(false);
-	const lastBlocksHashRef = useRef<string>("");
-
-	// Sync HTML content from props (when template HTML changes externally, e.g., from another user)
-	// Only sync when we're on HTML tab and the prop actually changed
-	// IMPORTANT: Don't sync if user is actively editing (htmlContent differs from propHtmlContent)
-	useEffect(() => {
-		// Don't sync if we're in the middle of a tab switch or conversion
-		if (isTabSwitchingRef.current || isConverting) {
-			return;
-		}
-		
-		// Only sync if:
-		// 1. We're on HTML tab
-		// 2. Prop changed (external update, e.g., from another user)
-		// 3. User is not actively editing (htmlContent matches propHtmlContent)
-		// This prevents overwriting user's edits while allowing real-time collaboration
-		if (
-			activeTab === "html" && 
-			propHtmlContent !== undefined && 
-			propHtmlContent !== htmlContent &&
-			htmlContent === propHtmlContent // User is not actively editing
-		) {
-			setHtmlContent(propHtmlContent);
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [activeTab, propHtmlContent]);
-
-	// When switching to HTML tab: Use propHtmlContent (source of truth)
-	// NEVER convert blocks to HTML - HTML is the source of truth, blocks are derived
-	useEffect(() => {
-		if (activeTab === "html") {
-			// HTML is the source of truth - always use propHtmlContent when switching to HTML tab
-			// Don't regenerate from blocks - that would overwrite user's HTML edits
-			if (propHtmlContent !== undefined && propHtmlContent !== htmlContent) {
-				setHtmlContent(propHtmlContent);
-			}
-			// Update blocks hash to track current state
-			lastBlocksHashRef.current = JSON.stringify(blocks);
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [activeTab]);
-
-	// Handle HTML changes - update parent immediately
-	// HTML is the source of truth, so changes should always propagate
-	const handleHtmlChange = (newHtml: string) => {
-		// Always update local state immediately for responsive editing
-		if (newHtml !== htmlContent) {
-			setHtmlContent(newHtml);
-		}
-		
-		// Update parent's HTML (source of truth) - this triggers save
-		// Don't block this during tab switches - user might be editing HTML
-		if (onHtmlChange && newHtml !== propHtmlContent) {
-			onHtmlChange(newHtml);
-		}
-	};
-
-	// Convert HTML back to blocks when switching to visual tab
-	// HTML is source of truth, so we parse HTML to blocks for visual editing
-	const handleTabChange = (newTab: "visual" | "html") => {
-		if (newTab === "visual" && activeTab === "html") {
-			// Switching from HTML to Visual: Parse HTML to blocks
-			// Use the current htmlContent (what user is editing), not propHtmlContent
-			const htmlToParse = htmlContent || propHtmlContent || "";
-			
-			if (htmlToParse.trim() !== "") {
-				setIsConverting(true);
-				isTabSwitchingRef.current = true;
-				try {
-					const result = htmlToBlocks(htmlToParse);
-					// Update blocks from HTML (HTML is source of truth)
-					if (onBlocksChange) {
-						// Always update blocks, even if empty (user might have cleared HTML)
-						onBlocksChange(result.blocks || []);
-					}
-					if (onSubjectChange && result.subject !== undefined) {
-						onSubjectChange(result.subject);
-					}
-					if (onPreheaderChange && result.preheader !== undefined) {
-						onPreheaderChange(result.preheader);
-					}
-					// Update hash to track current blocks state
-					lastBlocksHashRef.current = JSON.stringify(result.blocks || []);
-				} catch (error) {
-					console.error("Error converting HTML to blocks:", error);
-					toast.error(t("emailDesigner.html.conversionError"));
-					// Still switch tabs even if conversion failed - HTML is preserved
-				} finally {
-					setIsConverting(false);
-					setTimeout(() => {
-						isTabSwitchingRef.current = false;
-					}, 100);
-				}
-			} else {
-				// HTML is empty - clear blocks
-				if (onBlocksChange) {
-					onBlocksChange([]);
-				}
-				lastBlocksHashRef.current = JSON.stringify([]);
-			}
-		} else if (newTab === "html" && activeTab === "visual") {
-			// Switching from Visual to HTML: Use propHtmlContent (source of truth)
-			// Don't convert blocks to HTML - HTML is the source, blocks are just a view
-			isTabSwitchingRef.current = true;
-			if (propHtmlContent !== undefined) {
-				setHtmlContent(propHtmlContent);
-			}
-			setTimeout(() => {
-				isTabSwitchingRef.current = false;
-			}, 100);
-		}
-		setActiveTab(newTab);
-	};
+  const { t } = useTranslation();
+	const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+	const editingBlock = editingBlockId ? blocks.find(b => b.id === editingBlockId) : null;
 
 	// Get other users' selections (exclude current user)
 	const otherUsersSelections = useMemo(() => {
@@ -225,37 +95,49 @@ export function EmailDesignerCanvas({
 		return selections;
 	}, [activeUsers, currentUserId]);
 
-	return (
+	const handleEditCustomHtml = (blockId: string) => {
+		setEditingBlockId(blockId);
+	};
+
+	const handleSaveCustomHtml = (html: string) => {
+		if (editingBlockId && onBlockUpdate) {
+			onBlockUpdate(editingBlockId, {
+				html,
+			} as Partial<EmailTemplateBlock>);
+		}
+		setEditingBlockId(null);
+	};
+
+  return (
 		<div className="w-full">
-			<Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as "visual" | "html")} className="w-full">
-				<TabsList className="w-full justify-start mb-4">
-					<TabsTrigger value="visual" className="flex-1">
-						{t("emailDesigner.tabs.visual")}
-					</TabsTrigger>
-					<TabsTrigger value="html" className="flex-1">
-						{t("emailDesigner.tabs.html")}
-					</TabsTrigger>
-				</TabsList>
-				<TabsContent value="visual" className="mt-0">
-					<div
+			{editingBlock && editingBlock.type === "rawHtml" && (
+				<CustomHtmlEditorModal
+					isOpen={true}
+					onClose={() => setEditingBlockId(null)}
+					html={(editingBlock as Extract<EmailTemplateBlock, { type: "rawHtml" }>).html || ""}
+					onSave={handleSaveCustomHtml}
+					blockId={editingBlock.id}
+				/>
+			)}
+            <div
 						className="max-w-5xl mx-auto border shadow-sm rounded-xl overflow-hidden"
-						style={{
-							backgroundColor: designTokens.background,
-							fontFamily: designTokens.fontFamily,
-						}}
-					>
-			<div className="px-6 py-8" style={{ color: designTokens.text }}>
-				{/* Header Section */}
-				{(() => {
+              style={{
+                backgroundColor: designTokens.background,
+                fontFamily: designTokens.fontFamily,
+              }}
+            >
+              <div className="px-6 py-8" style={{ color: designTokens.text }}>
+                {/* Header Section */}
+                {(() => {
 					const headerBlocks = blocks.filter(
 						(b) => (b.section || "body") === "header"
 					);
-					return (
-						<div className="mb-6">
-							<div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-								{t("emailDesigner.sections.header")}
-							</div>
-							<div className="space-y-4">
+                  return (
+                    <div className="mb-6">
+                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {t("emailDesigner.sections.header")}
+                      </div>
+                      <div className="space-y-4">
 								{headerBlocks.map((block) => {
 									const otherUsers =
 										otherUsersSelections.get(block.id) ||
@@ -268,12 +150,12 @@ export function EmailDesignerCanvas({
 
 									return (
 										<div
-											key={block.id}
+                            key={block.id}
 											className="relative"
 										>
 											<button
-												type="button"
-												className={cn(
+                            type="button"
+                            className={cn(
 													"w-full rounded-lg border text-left transition-colors relative",
 													isSelectedByCurrentUser &&
 														"border-primary/50 bg-primary/5",
@@ -298,12 +180,13 @@ export function EmailDesignerCanvas({
 												onClick={() =>
 													onSelectBlock(block.id)
 												}
-											>
+                          >
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
-											</button>
+                          </button>
 											{otherUsers.length > 0 && (
 												<div
 													className="absolute -top-2 left-2 px-2 py-0.5 rounded text-xs font-medium text-white shadow-sm z-10"
@@ -324,31 +207,31 @@ export function EmailDesignerCanvas({
 										</div>
 									);
 								})}
-								{headerBlocks.length === 0 && (
-									<div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                        {headerBlocks.length === 0 && (
+                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
 										{t(
 											"emailDesigner.preview.emptySection"
 										)}
-									</div>
-								)}
-							</div>
-						</div>
-					);
-				})()}
-
-				<Separator className="my-6" />
-
-				{/* Body Section */}
-				{(() => {
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                <Separator className="my-6" />
+                
+                {/* Body Section */}
+                {(() => {
 					const bodyBlocks = blocks.filter(
 						(b) => (b.section || "body") === "body"
 					);
-					return (
-						<div className="mb-6">
-							<div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-								{t("emailDesigner.sections.body")}
-							</div>
-							<div className="space-y-4">
+                  return (
+                    <div className="mb-6">
+                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {t("emailDesigner.sections.body")}
+                      </div>
+                      <div className="space-y-4">
 								{bodyBlocks.map((block) => {
 									const otherUsers =
 										otherUsersSelections.get(block.id) ||
@@ -361,12 +244,12 @@ export function EmailDesignerCanvas({
 
 									return (
 										<div
-											key={block.id}
+                            key={block.id}
 											className="relative"
 										>
 											<button
-												type="button"
-												className={cn(
+                            type="button"
+                            className={cn(
 													"w-full rounded-lg border text-left transition-colors relative",
 													isSelectedByCurrentUser &&
 														"border-primary/50 bg-primary/5",
@@ -391,12 +274,13 @@ export function EmailDesignerCanvas({
 												onClick={() =>
 													onSelectBlock(block.id)
 												}
-											>
+                          >
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
-											</button>
+                          </button>
 											{otherUsers.length > 0 && (
 												<div
 													className="absolute -top-2 left-2 px-2 py-0.5 rounded text-xs font-medium text-white shadow-sm z-10"
@@ -417,29 +301,29 @@ export function EmailDesignerCanvas({
 										</div>
 									);
 								})}
-								{bodyBlocks.length === 0 && (
-									<div className="text-sm text-muted-foreground text-center py-12">
-										{t("emailDesigner.preview.empty")}
-									</div>
-								)}
-							</div>
-						</div>
-					);
-				})()}
-
-				<Separator className="my-6" />
-
-				{/* Footer Section */}
-				{(() => {
+                        {bodyBlocks.length === 0 && (
+                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                            {t("emailDesigner.preview.emptySection")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                <Separator className="my-6" />
+                
+                {/* Footer Section */}
+                {(() => {
 					const footerBlocks = blocks.filter(
 						(b) => (b.section || "body") === "footer"
 					);
-					return (
-						<div>
-							<div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-								{t("emailDesigner.sections.footer")}
-							</div>
-							<div className="space-y-4">
+                  return (
+                    <div>
+                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {t("emailDesigner.sections.footer")}
+                      </div>
+                      <div className="space-y-4">
 								{footerBlocks.map((block) => {
 									const otherUsers =
 										otherUsersSelections.get(block.id) ||
@@ -452,12 +336,12 @@ export function EmailDesignerCanvas({
 
 									return (
 										<div
-											key={block.id}
+                            key={block.id}
 											className="relative"
 										>
 											<button
-												type="button"
-												className={cn(
+                            type="button"
+                            className={cn(
 													"w-full rounded-lg border text-left transition-colors relative",
 													isSelectedByCurrentUser &&
 														"border-primary/50 bg-primary/5",
@@ -482,12 +366,13 @@ export function EmailDesignerCanvas({
 												onClick={() =>
 													onSelectBlock(block.id)
 												}
-											>
+                          >
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
-											</button>
+                          </button>
 											{otherUsers.length > 0 && (
 												<div
 													className="absolute -top-2 left-2 px-2 py-0.5 rounded text-xs font-medium text-white shadow-sm z-10"
@@ -508,75 +393,54 @@ export function EmailDesignerCanvas({
 										</div>
 									);
 								})}
-								{footerBlocks.length === 0 && (
-									<div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                        {footerBlocks.length === 0 && (
+                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
 										{t(
 											"emailDesigner.preview.emptySection"
 										)}
-									</div>
-								)}
-							</div>
-						</div>
-					);
-				})()}
-					</div>
-				</div>
-				</TabsContent>
-				<TabsContent value="html" className="mt-0">
-					<div className="h-[600px] w-full">
-						{isConverting ? (
-							<div className="flex items-center justify-center h-full">
-								<div className="text-center">
-									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-									<p className="text-sm text-muted-foreground">
-										{t("emailDesigner.html.converting")}
-									</p>
-								</div>
-							</div>
-						) : (
-							<EmailHtmlEditor
-								html={htmlContent}
-								onChange={handleHtmlChange}
-								// No onBlur handler - handleHtmlChange already updates parent immediately
-								// and the parent will parse HTML to blocks automatically
-							/>
-						)}
-					</div>
-				</TabsContent>
-			</Tabs>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
 		</div>
-	);
+  );
 }
 
 function BlockPreview({
-	block,
-	designTokens,
+  block,
+  designTokens,
+  onEditCustomHtml,
 }: {
-	block: EmailTemplateBlock;
-	designTokens: EmailTemplateDesignTokens;
+  block: EmailTemplateBlock;
+  designTokens: EmailTemplateDesignTokens;
+  onEditCustomHtml?: () => void;
 }) {
-	const { t } = useTranslation();
-	switch (block.type) {
-		case "subject": {
-			const typography = (block.typography || {}) as EmailTypography;
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			const border = (block.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
+  const { t } = useTranslation();
+  switch (block.type) {
+    case "subject": {
+      const typography = (block.typography || {}) as EmailTypography;
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      const border = (block.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
 						fontSize: typography.fontSize
 							? `${typography.fontSize}px`
 							: undefined,
-						fontWeight: typography.fontWeight || "600",
-						lineHeight: typography.lineHeight || 1.5,
+            fontWeight: typography.fontWeight || "600",
+            lineHeight: typography.lineHeight || 1.5,
 						letterSpacing: typography.letterSpacing
 							? `${typography.letterSpacing}px`
 							: undefined,
-						color: typography.color || designTokens.text,
-						fontStyle: typography.fontStyle || "normal",
-						textDecoration: typography.textDecoration || "none",
-						backgroundColor: block.backgroundColor || "transparent",
+            color: typography.color || designTokens.text,
+            fontStyle: typography.fontStyle || "normal",
+            textDecoration: typography.textDecoration || "none",
+            backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -604,37 +468,37 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
+          }}
+        >
 					{block.content || ""}
-				</div>
-			);
-		}
-		case "preheader": {
-			const typography = (block.typography || {}) as EmailTypography;
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			const border = (block.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
+        </div>
+      );
+    }
+    case "preheader": {
+      const typography = (block.typography || {}) as EmailTypography;
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      const border = (block.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
 						fontSize: typography.fontSize
 							? `${typography.fontSize}px`
 							: undefined,
-						fontWeight: typography.fontWeight || "400",
-						lineHeight: typography.lineHeight || 1.5,
+            fontWeight: typography.fontWeight || "400",
+            lineHeight: typography.lineHeight || 1.5,
 						letterSpacing: typography.letterSpacing
 							? `${typography.letterSpacing}px`
 							: undefined,
-						color: typography.color || designTokens.text,
-						fontStyle: typography.fontStyle || "normal",
-						textDecoration: typography.textDecoration || "none",
-						backgroundColor: block.backgroundColor || "transparent",
+            color: typography.color || designTokens.text,
+            fontStyle: typography.fontStyle || "normal",
+            textDecoration: typography.textDecoration || "none",
+            backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -662,40 +526,40 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					{block.content || "Email preheader"}
-				</div>
-			);
-		}
-		case "text": {
-			const typography = (block.typography || {}) as EmailTypography;
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			const border = (block.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
-						textAlign: block.align,
+          }}
+        >
+          {block.content || "Email preheader"}
+        </div>
+      );
+    }
+    case "text": {
+      const typography = (block.typography || {}) as EmailTypography;
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      const border = (block.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
+            textAlign: block.align,
 						fontSize: typography.fontSize
 							? `${typography.fontSize}px`
 							: undefined,
 						fontWeight: block.emphasize
 							? "600"
 							: typography.fontWeight || "normal",
-						lineHeight: typography.lineHeight || 1.5,
+            lineHeight: typography.lineHeight || 1.5,
 						letterSpacing: typography.letterSpacing
 							? `${typography.letterSpacing}px`
 							: undefined,
-						color: typography.color || designTokens.text,
-						fontStyle: typography.fontStyle || "normal",
-						textDecoration: typography.textDecoration || "none",
-						backgroundColor: block.backgroundColor || "transparent",
+            color: typography.color || designTokens.text,
+            fontStyle: typography.fontStyle || "normal",
+            textDecoration: typography.textDecoration || "none",
+            backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -723,21 +587,21 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
+          }}
+        >
 					{block.content || ""}
-				</div>
-			);
-		}
-		case "button": {
-			const typography = (block.typography || {}) as EmailTypography;
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			const border = (block.border || {}) as EmailBorder;
+        </div>
+      );
+    }
+    case "button": {
+      const typography = (block.typography || {}) as EmailTypography;
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      const border = (block.border || {}) as EmailBorder;
 			const bgColor =
 				block.backgroundColor ||
 				(block.variant === "primary"
@@ -749,31 +613,31 @@ function BlockPreview({
 				block.variant === "link"
 					? typography.color || designTokens.primary
 					: typography.color || "#ffffff";
-
-			return (
-				<div style={{ textAlign: block.align }}>
-					<span
-						className="inline-flex transition-colors"
-						style={{
+      
+      return (
+        <div style={{ textAlign: block.align }}>
+          <span
+            className="inline-flex transition-colors"
+            style={{
 							width:
 								block.buttonWidth === "full" ? "100%" : "auto",
 							height: block.buttonHeight
 								? `${block.buttonHeight}px`
 								: "44px",
-							alignItems: "center",
-							justifyContent: "center",
+              alignItems: "center",
+              justifyContent: "center",
 							fontSize: typography.fontSize
 								? `${typography.fontSize}px`
 								: undefined,
-							fontWeight: typography.fontWeight || "600",
-							lineHeight: typography.lineHeight || 1.5,
+              fontWeight: typography.fontWeight || "600",
+              lineHeight: typography.lineHeight || 1.5,
 							letterSpacing: typography.letterSpacing
 								? `${typography.letterSpacing}px`
 								: undefined,
-							color: textColor,
-							fontStyle: typography.fontStyle || "normal",
-							textDecoration: typography.textDecoration || "none",
-							backgroundColor: bgColor,
+              color: textColor,
+              fontStyle: typography.fontStyle || "normal",
+              textDecoration: typography.textDecoration || "none",
+              backgroundColor: bgColor,
 							paddingTop: spacing.paddingTop
 								? `${spacing.paddingTop}px`
 								: "12px",
@@ -801,28 +665,28 @@ function BlockPreview({
 							borderWidth: border.borderWidth
 								? `${border.borderWidth}px`
 								: undefined,
-							borderColor: border.borderColor || "transparent",
-							borderStyle: border.borderStyle || "solid",
+              borderColor: border.borderColor || "transparent",
+              borderStyle: border.borderStyle || "solid",
 							borderRadius: border.borderRadius
 								? `${border.borderRadius}px`
 								: designTokens.borderRadius
 									? `${designTokens.borderRadius}px`
 									: "8px",
-						}}
-					>
-						{block.label}
-					</span>
-				</div>
-			);
-		}
-		case "divider": {
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			const border = (block.border || {}) as EmailBorder;
-			const dividerWidth = block.dividerWidth || 100;
-
-			return (
-				<div
-					style={{
+            }}
+          >
+            {block.label}
+          </span>
+        </div>
+      );
+    }
+    case "divider": {
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      const border = (block.border || {}) as EmailBorder;
+      const dividerWidth = block.dividerWidth || 100;
+      
+      return (
+        <div
+          style={{
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -847,21 +711,21 @@ function BlockPreview({
 						marginLeft: spacing.marginLeft
 							? `${spacing.marginLeft}px`
 							: undefined,
-						textAlign: block.align || "center",
-						backgroundColor: block.backgroundColor || "transparent",
+            textAlign: block.align || "center",
+            backgroundColor: block.backgroundColor || "transparent",
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					<div
-						style={{
-							width: `${dividerWidth}%`,
+          }}
+        >
+          <div
+            style={{
+              width: `${dividerWidth}%`,
 							marginLeft:
 								block.align === "right"
 									? "auto"
@@ -874,21 +738,21 @@ function BlockPreview({
 									: block.align === "center"
 										? "auto"
 										: "0",
-							borderTopWidth: `${block.width || 1}px`,
-							borderTopStyle: block.style || "solid",
-							borderTopColor: block.color || "#e5e7eb",
-						}}
-					/>
-				</div>
-			);
-		}
-		case "spacer": {
-			const spacing = (block.spacing || {}) as EmailSpacing;
-			return (
-				<div
-					style={{
-						height: `${block.height}px`,
-						backgroundColor: block.backgroundColor || "transparent",
+              borderTopWidth: `${block.width || 1}px`,
+              borderTopStyle: block.style || "solid",
+              borderTopColor: block.color || "#e5e7eb",
+            }}
+          />
+        </div>
+      );
+    }
+    case "spacer": {
+      const spacing = (block.spacing || {}) as EmailSpacing;
+      return (
+        <div
+          style={{
+            height: `${block.height}px`,
+            backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -913,26 +777,26 @@ function BlockPreview({
 						marginLeft: spacing.marginLeft
 							? `${spacing.marginLeft}px`
 							: undefined,
-					}}
-				/>
-			);
-		}
-		case "image": {
+          }}
+        />
+      );
+    }
+    case "image": {
 			const imageBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "image" }
 			>;
-			const spacing = (imageBlock.spacing || {}) as EmailSpacing;
-			const border = (imageBlock.border || {}) as EmailBorder;
-			const aspectRatioStyle = getAspectRatioStyle(
-				imageBlock.aspectRatio,
+      const spacing = (imageBlock.spacing || {}) as EmailSpacing;
+      const border = (imageBlock.border || {}) as EmailBorder;
+      const aspectRatioStyle = getAspectRatioStyle(
+        imageBlock.aspectRatio,
 				imageBlock.aspectRatioCustom
-			);
-
-			return (
-				<div
-					style={{
-						textAlign: imageBlock.align,
+      );
+      
+      return (
+        <div
+          style={{
+            textAlign: imageBlock.align,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -959,18 +823,18 @@ function BlockPreview({
 							: undefined,
 						backgroundColor:
 							imageBlock.backgroundColor || "transparent",
-					}}
-				>
-					<div className="inline-flex items-center justify-center overflow-hidden">
-						{imageBlock.src ? (
-							<img
-								src={imageBlock.src}
-								alt={imageBlock.alt || ""}
-								style={{
-									maxWidth: `${imageBlock.width}px`,
-									width: "100%",
-									...aspectRatioStyle,
-									objectFit: "cover",
+          }}
+        >
+          <div className="inline-flex items-center justify-center overflow-hidden">
+            {imageBlock.src ? (
+              <img
+                src={imageBlock.src}
+                alt={imageBlock.alt || ""}
+                style={{
+                  maxWidth: `${imageBlock.width}px`,
+                  width: "100%",
+                  ...aspectRatioStyle,
+                  objectFit: "cover",
 									borderRadius: imageBlock.borderRadius
 										? `${imageBlock.borderRadius}px`
 										: undefined,
@@ -979,16 +843,16 @@ function BlockPreview({
 										: undefined,
 									borderColor:
 										border.borderColor || "transparent",
-									borderStyle: border.borderStyle || "solid",
-								}}
-							/>
-						) : (
-							<div
-								className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
-								style={{
-									maxWidth: `${imageBlock.width}px`,
-									width: "100%",
-									...aspectRatioStyle,
+                  borderStyle: border.borderStyle || "solid",
+                }}
+              />
+            ) : (
+              <div
+                className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
+                style={{
+                  maxWidth: `${imageBlock.width}px`,
+                  width: "100%",
+                  ...aspectRatioStyle,
 									borderRadius: imageBlock.borderRadius
 										? `${imageBlock.borderRadius}px`
 										: undefined,
@@ -997,32 +861,32 @@ function BlockPreview({
 										: undefined,
 									borderColor:
 										border.borderColor || "#e5e7eb",
-									borderStyle: border.borderStyle || "dashed",
-								}}
-							>
-								Placeholder image
-							</div>
-						)}
-					</div>
-				</div>
-			);
-		}
-		case "logo": {
+                  borderStyle: border.borderStyle || "dashed",
+                }}
+              >
+                Placeholder image
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "logo": {
 			const logoBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "logo" }
 			>;
-			const spacing = (logoBlock.spacing || {}) as EmailSpacing;
-			const border = (logoBlock.border || {}) as EmailBorder;
-			const aspectRatioStyle = getAspectRatioStyle(
-				logoBlock.aspectRatio,
+      const spacing = (logoBlock.spacing || {}) as EmailSpacing;
+      const border = (logoBlock.border || {}) as EmailBorder;
+      const aspectRatioStyle = getAspectRatioStyle(
+        logoBlock.aspectRatio,
 				logoBlock.aspectRatioCustom
-			);
-
-			return (
-				<div
-					style={{
-						textAlign: logoBlock.align,
+      );
+      
+      return (
+        <div
+          style={{
+            textAlign: logoBlock.align,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -1049,18 +913,18 @@ function BlockPreview({
 							: undefined,
 						backgroundColor:
 							logoBlock.backgroundColor || "transparent",
-					}}
-				>
-					<div className="inline-flex items-center justify-center overflow-hidden">
-						{logoBlock.src ? (
-							<img
-								src={logoBlock.src}
-								alt={logoBlock.alt || "Logo"}
-								style={{
-									maxWidth: `${logoBlock.width}px`,
-									width: "100%",
-									...aspectRatioStyle,
-									objectFit: "cover",
+          }}
+        >
+          <div className="inline-flex items-center justify-center overflow-hidden">
+            {logoBlock.src ? (
+              <img
+                src={logoBlock.src}
+                alt={logoBlock.alt || "Logo"}
+                style={{
+                  maxWidth: `${logoBlock.width}px`,
+                  width: "100%",
+                  ...aspectRatioStyle,
+                  objectFit: "cover",
 									borderRadius: logoBlock.borderRadius
 										? `${logoBlock.borderRadius}px`
 										: undefined,
@@ -1069,16 +933,16 @@ function BlockPreview({
 										: undefined,
 									borderColor:
 										border.borderColor || "transparent",
-									borderStyle: border.borderStyle || "solid",
-								}}
-							/>
-						) : (
-							<div
-								className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
-								style={{
-									maxWidth: `${logoBlock.width}px`,
-									width: "100%",
-									...aspectRatioStyle,
+                  borderStyle: border.borderStyle || "solid",
+                }}
+              />
+            ) : (
+              <div
+                className="text-xs text-muted-foreground py-8 px-4 flex items-center justify-center"
+                style={{
+                  maxWidth: `${logoBlock.width}px`,
+                  width: "100%",
+                  ...aspectRatioStyle,
 									borderRadius: logoBlock.borderRadius
 										? `${logoBlock.borderRadius}px`
 										: undefined,
@@ -1087,29 +951,29 @@ function BlockPreview({
 										: undefined,
 									borderColor:
 										border.borderColor || "#e5e7eb",
-									borderStyle: border.borderStyle || "dashed",
-								}}
-							>
-								Logo placeholder
-							</div>
-						)}
-					</div>
-				</div>
-			);
-		}
-		case "navigation": {
+                  borderStyle: border.borderStyle || "dashed",
+                }}
+              >
+                Logo placeholder
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "navigation": {
 			const navBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "navigation" }
 			>;
-			const typography = (navBlock.typography || {}) as EmailTypography;
-			const spacing = (navBlock.spacing || {}) as EmailSpacing;
-			const border = (navBlock.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
-						textAlign: navBlock.align,
+      const typography = (navBlock.typography || {}) as EmailTypography;
+      const spacing = (navBlock.spacing || {}) as EmailSpacing;
+      const border = (navBlock.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
+            textAlign: navBlock.align,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -1139,23 +1003,23 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					<div className="flex flex-wrap gap-2 justify-center">
-						{navBlock.links && navBlock.links.length > 0 ? (
+          }}
+        >
+          <div className="flex flex-wrap gap-2 justify-center">
+            {navBlock.links && navBlock.links.length > 0 ? (
 							navBlock.links.map(
 								(
 									link: { label: string; url: string },
 									idx: number
 								) => (
-									<span
-										key={idx}
-										style={{
+                <span
+                  key={idx}
+                  style={{
 											fontSize: typography.fontSize
 												? `${typography.fontSize}px`
 												: undefined,
@@ -1168,47 +1032,47 @@ function BlockPreview({
 											textDecoration:
 												typography.textDecoration ||
 												"none",
-										}}
-										className="px-2"
-									>
-										{link.label}
-									</span>
+                  }}
+                  className="px-2"
+                >
+                  {link.label}
+                </span>
 								)
 							)
-						) : (
+            ) : (
 							<span className="text-xs text-muted-foreground">
 								Navigation links
 							</span>
-						)}
-					</div>
-				</div>
-			);
-		}
-		case "footerText": {
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "footerText": {
 			const footerBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "footerText" }
 			>;
 			const typography = (footerBlock.typography ||
 				{}) as EmailTypography;
-			const spacing = (footerBlock.spacing || {}) as EmailSpacing;
-			const border = (footerBlock.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
-						textAlign: footerBlock.align,
+      const spacing = (footerBlock.spacing || {}) as EmailSpacing;
+      const border = (footerBlock.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
+            textAlign: footerBlock.align,
 						fontSize: typography.fontSize
 							? `${typography.fontSize}px`
 							: undefined,
-						fontWeight: typography.fontWeight || "normal",
-						lineHeight: typography.lineHeight || 1.5,
+            fontWeight: typography.fontWeight || "normal",
+            lineHeight: typography.lineHeight || 1.5,
 						letterSpacing: typography.letterSpacing
 							? `${typography.letterSpacing}px`
 							: undefined,
-						color: typography.color || designTokens.text,
-						fontStyle: typography.fontStyle || "normal",
-						textDecoration: typography.textDecoration || "none",
+            color: typography.color || designTokens.text,
+            fontStyle: typography.fontStyle || "normal",
+            textDecoration: typography.textDecoration || "none",
 						backgroundColor:
 							footerBlock.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
@@ -1238,29 +1102,29 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					{footerBlock.content || "Footer text"}
-				</div>
-			);
-		}
-		case "socialLinks": {
+          }}
+        >
+          {footerBlock.content || "Footer text"}
+        </div>
+      );
+    }
+    case "socialLinks": {
 			const socialBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "socialLinks" }
 			>;
-			const spacing = (socialBlock.spacing || {}) as EmailSpacing;
-			const border = (socialBlock.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
-						textAlign: socialBlock.align,
+      const spacing = (socialBlock.spacing || {}) as EmailSpacing;
+      const border = (socialBlock.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
+            textAlign: socialBlock.align,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -1290,15 +1154,15 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					<div className="flex flex-wrap gap-3 justify-center">
-						{socialBlock.links && socialBlock.links.length > 0 ? (
+          }}
+        >
+          <div className="flex flex-wrap gap-3 justify-center">
+            {socialBlock.links && socialBlock.links.length > 0 ? (
 							socialBlock.links.map(
 								(
 									link: {
@@ -1308,53 +1172,53 @@ function BlockPreview({
 									},
 									idx: number
 								) => (
-									<div
-										key={idx}
-										className="w-6 h-6 rounded-full bg-muted flex items-center justify-center"
-										style={{
-											width: `${socialBlock.iconSize}px`,
-											height: `${socialBlock.iconSize}px`,
-										}}
-									>
+                <div
+                  key={idx}
+                  className="w-6 h-6 rounded-full bg-muted flex items-center justify-center"
+                  style={{
+                    width: `${socialBlock.iconSize}px`,
+                    height: `${socialBlock.iconSize}px`,
+                  }}
+                >
 										<span className="text-xs">
 											{link.platform[0].toUpperCase()}
 										</span>
-									</div>
+                </div>
 								)
 							)
-						) : (
+            ) : (
 							<span className="text-xs text-muted-foreground">
 								Social links
 							</span>
-						)}
-					</div>
-				</div>
-			);
-		}
-		case "unsubscribe": {
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "unsubscribe": {
 			const unsubscribeBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "unsubscribe" }
 			>;
 			const typography = (unsubscribeBlock.typography ||
 				{}) as EmailTypography;
-			const spacing = (unsubscribeBlock.spacing || {}) as EmailSpacing;
-			const border = (unsubscribeBlock.border || {}) as EmailBorder;
-
-			return (
-				<div
-					style={{
-						textAlign: unsubscribeBlock.align,
+      const spacing = (unsubscribeBlock.spacing || {}) as EmailSpacing;
+      const border = (unsubscribeBlock.border || {}) as EmailBorder;
+      
+      return (
+        <div
+          style={{
+            textAlign: unsubscribeBlock.align,
 						fontSize: typography.fontSize
 							? `${typography.fontSize}px`
 							: undefined,
-						fontWeight: typography.fontWeight || "normal",
-						lineHeight: typography.lineHeight || 1.5,
+            fontWeight: typography.fontWeight || "normal",
+            lineHeight: typography.lineHeight || 1.5,
 						letterSpacing: typography.letterSpacing
 							? `${typography.letterSpacing}px`
 							: undefined,
-						color: typography.color || designTokens.text,
-						fontStyle: typography.fontStyle || "normal",
+            color: typography.color || designTokens.text,
+            fontStyle: typography.fontStyle || "normal",
 						textDecoration:
 							typography.textDecoration || "underline",
 						paddingTop: spacing.paddingTop
@@ -1386,36 +1250,36 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					{unsubscribeBlock.text || "Unsubscribe"}
-				</div>
-			);
-		}
-		case "columns": {
+          }}
+        >
+          {unsubscribeBlock.text || "Unsubscribe"}
+        </div>
+      );
+    }
+    case "columns": {
 			const columnsBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "columns" }
 			>;
-			const spacing = (columnsBlock.spacing || {}) as EmailSpacing;
-			const border = (columnsBlock.border || {}) as EmailBorder;
-			const columnCount = parseInt(columnsBlock.columnCount || "2");
-
-			return (
-				<div
+      const spacing = (columnsBlock.spacing || {}) as EmailSpacing;
+      const border = (columnsBlock.border || {}) as EmailBorder;
+      const columnCount = parseInt(columnsBlock.columnCount || "2");
+      
+      return (
+        <div
 					className={
 						columnsBlock.stackOnMobile ? "max-md:grid-cols-1" : ""
 					}
-					style={{
-						display: "grid",
-						gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-						gap: `${columnsBlock.gap || 16}px`,
-						textAlign: columnsBlock.align,
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+            gap: `${columnsBlock.gap || 16}px`,
+            textAlign: columnsBlock.align,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -1445,94 +1309,94 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
-					{columnsBlock.columns && columnsBlock.columns.length > 0 ? (
-						columnsBlock.columns.map((column) => (
-							<div
-								key={column.id}
+          }}
+        >
+          {columnsBlock.columns && columnsBlock.columns.length > 0 ? (
+            columnsBlock.columns.map((column) => (
+              <div
+                key={column.id}
 								className={
 									columnsBlock.stackOnMobile
 										? "max-md:col-span-full"
 										: ""
 								}
-								style={{
-									minWidth: 0,
-								}}
-							>
-								{column.blocks && column.blocks.length > 0 ? (
-									<div className="space-y-2">
+                style={{
+                  minWidth: 0,
+                }}
+              >
+                {column.blocks && column.blocks.length > 0 ? (
+                  <div className="space-y-2">
 										{column.blocks.map(
 											(
 												nestedBlock: EmailTemplateBlock
 											) => (
-												<BlockPreview
-													key={nestedBlock.id}
-													block={nestedBlock}
-													designTokens={designTokens}
-												/>
+                      <BlockPreview
+                        key={nestedBlock.id}
+                        block={nestedBlock}
+                        designTokens={designTokens}
+                      />
 											)
 										)}
-									</div>
-								) : (
-									<div className="text-xs text-muted-foreground text-center py-8 px-4 border border-dashed rounded">
-										{t("emailDesigner.preview.emptyColumn")}
-									</div>
-								)}
-							</div>
-						))
-					) : (
-						<div className="text-xs text-muted-foreground text-center py-8 px-4">
-							{t("emailDesigner.preview.emptyColumns")}
-						</div>
-					)}
-				</div>
-			);
-		}
-		case "container": {
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground text-center py-8 px-4 border border-dashed rounded">
+                    {t("emailDesigner.preview.emptyColumn")}
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="text-xs text-muted-foreground text-center py-8 px-4">
+              {t("emailDesigner.preview.emptyColumns")}
+            </div>
+          )}
+        </div>
+      );
+    }
+    case "container": {
 			const containerBlock = block as Extract<
 				EmailTemplateBlock,
 				{ type: "container" }
 			>;
-			const spacing = (containerBlock.spacing || {}) as EmailSpacing;
-			const border = (containerBlock.border || {}) as EmailBorder;
-			const paddingMap = {
-				none: 0,
-				xs: 8,
-				sm: 16,
-				md: 24,
-				lg: 32,
-			};
-			const padding = paddingMap[containerBlock.padding || "md"];
-
-			return (
-				<div
-					style={{
-						maxWidth: `${containerBlock.maxWidth || 600}px`,
+      const spacing = (containerBlock.spacing || {}) as EmailSpacing;
+      const border = (containerBlock.border || {}) as EmailBorder;
+      const paddingMap = {
+        none: 0,
+        xs: 8,
+        sm: 16,
+        md: 24,
+        lg: 32,
+      };
+      const padding = paddingMap[containerBlock.padding || "md"];
+      
+      return (
+        <div
+          style={{
+            maxWidth: `${containerBlock.maxWidth || 600}px`,
 						marginLeft:
 							containerBlock.align === "center"
-								? "auto"
-								: containerBlock.align === "right"
-									? "auto"
-									: spacing.marginLeft
-										? `${spacing.marginLeft}px`
-										: "0",
+              ? "auto" 
+              : containerBlock.align === "right" 
+                ? "auto" 
+                : spacing.marginLeft 
+                  ? `${spacing.marginLeft}px` 
+                  : "0",
 						marginRight:
 							containerBlock.align === "center"
-								? "auto"
-								: containerBlock.align === "left"
-									? spacing.marginRight
-										? `${spacing.marginRight}px`
-										: "0"
-									: spacing.marginRight
-										? `${spacing.marginRight}px`
-										: undefined,
-						padding: `${padding}px`,
+              ? "auto" 
+              : containerBlock.align === "left" 
+                ? spacing.marginRight 
+                  ? `${spacing.marginRight}px` 
+                  : "0"
+                : spacing.marginRight 
+                  ? `${spacing.marginRight}px` 
+                  : undefined,
+            padding: `${padding}px`,
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: `${padding}px`,
@@ -1556,34 +1420,34 @@ function BlockPreview({
 						borderWidth: border.borderWidth
 							? `${border.borderWidth}px`
 							: undefined,
-						borderColor: border.borderColor || "transparent",
-						borderStyle: border.borderStyle || "solid",
+            borderColor: border.borderColor || "transparent",
+            borderStyle: border.borderStyle || "solid",
 						borderRadius: border.borderRadius
 							? `${border.borderRadius}px`
 							: undefined,
-					}}
-				>
+          }}
+        >
 					{containerBlock.blocks &&
 					containerBlock.blocks.length > 0 ? (
-						<div className="space-y-4">
+            <div className="space-y-4">
 							{containerBlock.blocks.map(
 								(nestedBlock: EmailTemplateBlock) => (
-									<BlockPreview
-										key={nestedBlock.id}
-										block={nestedBlock}
-										designTokens={designTokens}
-									/>
+                <BlockPreview
+                  key={nestedBlock.id}
+                  block={nestedBlock}
+                  designTokens={designTokens}
+                />
 								)
 							)}
-						</div>
-					) : (
-						<div className="text-xs text-muted-foreground text-center py-8 px-4 border border-dashed rounded">
-							{t("emailDesigner.preview.emptyContainer")}
-						</div>
-					)}
-				</div>
-			);
-		}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground text-center py-8 px-4 border border-dashed rounded">
+              {t("emailDesigner.preview.emptyContainer")}
+            </div>
+          )}
+        </div>
+      );
+    }
 		case "rawHtml": {
 			const rawHtmlBlock = block as Extract<
 				EmailTemplateBlock,
@@ -1594,6 +1458,7 @@ function BlockPreview({
 
 			return (
 				<div
+					className="relative"
 					style={{
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
@@ -1630,22 +1495,39 @@ function BlockPreview({
 							? `${border.borderRadius}px`
 							: undefined,
 					}}
-					className="raw-html-block"
 				>
 					{/* Render raw HTML - use dangerouslySetInnerHTML for preview */}
 					<div
+						className="min-h-[60px] border border-dashed rounded p-4"
 						dangerouslySetInnerHTML={{
 							__html: rawHtmlBlock.html || "",
 						}}
 					/>
-					{/* Show indicator that this is raw HTML */}
-					<div className="mt-2 text-xs text-muted-foreground italic">
-						Raw HTML block (edit in HTML view)
+					{/* Show indicator and edit button */}
+					<div className="flex items-center justify-center gap-2 mt-2">
+						<Code2 className="h-3 w-3 text-muted-foreground" />
+						<p className="text-xs text-muted-foreground">
+							{t("emailDesigner.rawHtmlBlock.customHtml")}
+						</p>
+						{onEditCustomHtml && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-6 px-2 text-xs"
+								onClick={(e) => {
+									e.stopPropagation();
+									onEditCustomHtml();
+								}}
+							>
+								<Edit className="h-3 w-3 mr-1" />
+								{t("emailDesigner.rawHtmlBlock.edit")}
+							</Button>
+						)}
 					</div>
 				</div>
 			);
 		}
-		default:
-			return null;
-	}
+    default:
+      return null;
+  }
 }
