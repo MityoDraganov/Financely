@@ -3,6 +3,11 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      screens: {
+        "2.5xl": "1200px",
+        "3xl": "1440px",
+        "4xl": "1680px",
+      },
       fontFamily: {
         sans: ["Figtree"],
       },

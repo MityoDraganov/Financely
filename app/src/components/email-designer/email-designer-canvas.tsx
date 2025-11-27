@@ -8,7 +8,6 @@ import {
 } from "@/core";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { Separator } from "@/components/ui/separator";
 import { UserPresence } from "@/services/presence/presence-service";
 import { CustomHtmlEditorModal } from "./custom-html-editor-modal";
 import { Button } from "@/components/ui/button";
@@ -134,9 +133,18 @@ export function EmailDesignerCanvas({
 					);
                   return (
                     <div className="mb-6">
-                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {t("emailDesigner.sections.header")}
-                      </div>
+                      {headerBlocks.length > 0 && (
+                        <div className="relative mb-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-border/30"></div>
+                          </div>
+                          <div className="relative flex justify-start">
+                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                              {t("emailDesigner.sections.header")}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-4">
 								{headerBlocks.map((block) => {
 									const otherUsers =
@@ -156,12 +164,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full rounded-lg border text-left transition-colors relative",
+													"w-full text-left transition-colors relative",
 													isSelectedByCurrentUser &&
-														"border-primary/50 bg-primary/5",
+														"ring-2 ring-primary/50 bg-primary/5 rounded",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"border-transparent"
+														"ring-2 rounded"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -219,8 +227,6 @@ export function EmailDesignerCanvas({
                   );
                 })()}
                 
-                <Separator className="my-6" />
-                
                 {/* Body Section */}
                 {(() => {
 					const bodyBlocks = blocks.filter(
@@ -228,9 +234,18 @@ export function EmailDesignerCanvas({
 					);
                   return (
                     <div className="mb-6">
-                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {t("emailDesigner.sections.body")}
-                      </div>
+                      {bodyBlocks.length > 0 && (
+                        <div className="relative mb-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-border/30"></div>
+                          </div>
+                          <div className="relative flex justify-start">
+                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                              {t("emailDesigner.sections.body")}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-4">
 								{bodyBlocks.map((block) => {
 									const otherUsers =
@@ -250,12 +265,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full rounded-lg border text-left transition-colors relative",
+													"w-full text-left transition-colors relative",
 													isSelectedByCurrentUser &&
-														"border-primary/50 bg-primary/5",
+														"ring-2 ring-primary/50 bg-primary/5 rounded",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"border-transparent"
+														"ring-2 rounded"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -311,8 +326,6 @@ export function EmailDesignerCanvas({
                   );
                 })()}
                 
-                <Separator className="my-6" />
-                
                 {/* Footer Section */}
                 {(() => {
 					const footerBlocks = blocks.filter(
@@ -320,9 +333,18 @@ export function EmailDesignerCanvas({
 					);
                   return (
                     <div>
-                      <div className="mb-2 px-2 py-1 bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {t("emailDesigner.sections.footer")}
-                      </div>
+                      {footerBlocks.length > 0 && (
+                        <div className="relative mb-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-border/30"></div>
+                          </div>
+                          <div className="relative flex justify-start">
+                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                              {t("emailDesigner.sections.footer")}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-4">
 								{footerBlocks.map((block) => {
 									const otherUsers =
@@ -342,12 +364,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full rounded-lg border text-left transition-colors relative",
+													"w-full text-left transition-colors relative",
 													isSelectedByCurrentUser &&
-														"border-primary/50 bg-primary/5",
+														"ring-2 ring-primary/50 bg-primary/5 rounded",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"border-transparent"
+														"ring-2 rounded"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -1108,9 +1130,11 @@ function BlockPreview({
 							? `${border.borderRadius}px`
 							: undefined,
           }}
-        >
-          {footerBlock.content || "Footer text"}
-        </div>
+          {...(footerBlock.content && /<[a-z][\s\S]*>/i.test(footerBlock.content)
+            ? { dangerouslySetInnerHTML: { __html: footerBlock.content } }
+            : { children: footerBlock.content || "Footer text" }
+          )}
+        />
       );
     }
     case "socialLinks": {

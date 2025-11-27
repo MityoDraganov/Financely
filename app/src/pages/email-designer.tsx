@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	ResizableHandle,
@@ -33,6 +33,7 @@ import { EmailCanvasHeader } from "@/components/email-designer/email-canvas-head
 import { EmailDesignerCanvas } from "@/components/email-designer/email-designer-canvas";
 import { EmailBlockProperties } from "@/components/email-designer/email-block-properties";
 import { EmailTemplateSettings } from "@/components/email-designer/email-template-settings";
+import { EmailMissingValuesAlert } from "@/components/email-designer/email-missing-values-alert";
 import { BrandImagePickerDialog } from "@/components/brand-image-picker-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,7 +54,10 @@ type BrandAssets = {
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
+	const navigate = useNavigate();
+	const location = useLocation();
 	const queryClient = useQueryClient();
+	const locationState = (location.state as { templateId?: string; action?: "create" } | null) || null;
 	const [selectedBlockId, setSelectedBlockId] = useState<string>();
 	const [draftTemplate, setDraftTemplate] = useState<EmailTemplate | null>(null);
 	const [currentSection, setCurrentSection] = useState<EmailSection>("body");
@@ -146,6 +150,19 @@ export default function EmailDesignerPage() {
 		return findBlockById(draftTemplate.blocks, selectedBlockId);
 	}, [draftTemplate?.blocks, selectedBlockId]);
 
+	// Handle block selection with automatic section switching
+	const handleSelectBlock = (blockId: string | undefined) => {
+		setSelectedBlockId(blockId);
+		
+		// If a block is selected, check its section and switch sidebar if needed
+		if (blockId && draftTemplate?.blocks) {
+			const block = findBlockById(draftTemplate.blocks, blockId);
+			if (block?.section && block.section !== currentSection) {
+				setCurrentSection(block.section);
+			}
+		}
+	};
+
 	// Keep refs in sync for stable event handlers
 	useEffect(() => {
 		draftRef.current = draftTemplate;
@@ -183,9 +200,13 @@ export default function EmailDesignerPage() {
 			!createTemplate.isPending && 
 			!createTemplate.isSuccess &&
 			!isCreatingTemplateRef.current &&
-			safeTemplates.length === 0
+			safeTemplates.length === 0 &&
+			// CRITICAL: Don't auto-create if we're coming from templates page with action: "create"
+			// The wrapper is already handling that case
+			locationState?.action !== "create"
 		) {
 			// No template ID in URL and no template selected - auto-create a new one
+			// But only if we're NOT coming from the templates page with action: "create"
 			isCreatingTemplateRef.current = true;
 			const createPromise = safeContextHandleCreateNewTemplate();
 			if (createPromise && typeof createPromise.then === 'function') {
@@ -216,6 +237,57 @@ export default function EmailDesignerPage() {
 	// Helper to load template: HTML is source of truth, parse to blocks for editing
 	const loadTemplateFromHtml = (template: EmailTemplate): EmailTemplate => {
 		const cloned = JSON.parse(JSON.stringify(template)) as EmailTemplate;
+		
+		// CRITICAL: If template has blocks already with proper sections structure, use them directly
+		// This is especially important for AI-generated templates that come with structured blocks
+		if (cloned.blocks && cloned.blocks.length > 0 && cloned.sections) {
+			// Check if blocks have proper section assignments
+			const blocksWithSections = cloned.blocks.filter(block => {
+				const section = block.section || "body";
+				return section === "header" || section === "body" || section === "footer";
+			});
+			
+			// If we have blocks with sections AND a sections object, use them as-is
+			// This preserves AI-generated structure
+			if (blocksWithSections.length > 0 && cloned.sections.header && cloned.sections.body && cloned.sections.footer) {
+				// Verify that sections object matches the blocks
+				const sectionIds = [
+					...(cloned.sections.header || []),
+					...(cloned.sections.body || []),
+					...(cloned.sections.footer || []),
+				];
+				const blockIds = cloned.blocks.map(b => b.id);
+				const allSectionIdsMatch = sectionIds.length > 0 && sectionIds.every(id => blockIds.includes(id));
+				
+				if (allSectionIdsMatch) {
+					// Blocks are already properly structured - use them directly without parsing HTML
+					console.log("[EMAIL-DESIGNER] Using pre-structured blocks from template (likely AI-generated)", {
+						header: cloned.sections.header.length,
+						body: cloned.sections.body.length,
+						footer: cloned.sections.footer.length,
+					});
+					
+					// Ensure HTML content exists (generate from blocks if needed)
+					if (!cloned.htmlContent || cloned.htmlContent.trim() === "") {
+						cloned.htmlContent = convertBlocksToHtml(
+							cloned.blocks,
+							cloned.designTokens || {
+								background: "#ffffff",
+								surface: "#f8fafc",
+								text: "#0f172a",
+								primary: "#2563eb",
+								fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+								borderRadius: 12,
+							},
+							cloned.subject,
+							cloned.preheader
+						);
+					}
+					
+					return cloned;
+				}
+			}
+		}
 		
 		// Get HTML content (source of truth)
 		// If HTML is explicitly empty, respect that - don't regenerate from blocks
@@ -248,7 +320,7 @@ export default function EmailDesignerPage() {
 			cloned.htmlContent = "";
 		}
 		
-		// Parse HTML to blocks for visual editing
+		// Parse HTML to blocks for visual editing (fallback for templates without structured blocks)
 		// If HTML is empty, blocks should be empty too (no default content)
 		if (htmlContent && htmlContent.trim() !== "") {
 			try {
@@ -374,10 +446,38 @@ export default function EmailDesignerPage() {
 
 	const hasChanges = useMemo(() => {
 		if (!draftTemplate || !baseTemplate) return false;
-		// Compare HTML content (source of truth)
+		
+		// Compare all relevant fields that should trigger saves
+		// Template name
+		if (draftTemplate.name !== baseTemplate.name) return true;
+		
+		// Subject and preheader
+		if (draftTemplate.subject !== baseTemplate.subject) return true;
+		if (draftTemplate.preheader !== baseTemplate.preheader) return true;
+		
+		// Design tokens
+		const draftTokens = draftTemplate.designTokens || {};
+		const baseTokens = baseTemplate.designTokens || {};
+		if (
+			draftTokens.background !== baseTokens.background ||
+			draftTokens.surface !== baseTokens.surface ||
+			draftTokens.text !== baseTokens.text ||
+			draftTokens.primary !== baseTokens.primary ||
+			draftTokens.fontFamily !== baseTokens.fontFamily ||
+			draftTokens.borderRadius !== baseTokens.borderRadius
+		) return true;
+		
+		// Blocks structure (compare as JSON to catch any changes)
+		const draftBlocksStr = JSON.stringify(draftTemplate.blocks || []);
+		const baseBlocksStr = JSON.stringify(baseTemplate.blocks || []);
+		if (draftBlocksStr !== baseBlocksStr) return true;
+		
+		// HTML content (source of truth) - check last to ensure it's always regenerated
 		const draftHtml = draftTemplate.htmlContent || "";
 		const baseHtml = baseTemplate.htmlContent || "";
-		return draftHtml !== baseHtml;
+		if (draftHtml !== baseHtml) return true;
+		
+		return false;
 	}, [draftTemplate, baseTemplate]);
 
 	const saveMutation = useMutation({
@@ -441,6 +541,7 @@ export default function EmailDesignerPage() {
 				return obj;
 			};
 			
+			// Always save all fields to ensure all property changes are persisted
 			const savedData = removeUndefined({
 				name: template.name,
 				subject: template.subject || "Email", // Ensure subject is never empty
@@ -455,6 +556,8 @@ export default function EmailDesignerPage() {
 					fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 					borderRadius: 12,
 				},
+				// Also save sections if they exist
+				sections: template.sections,
 			});
 			
 			console.log("[EMAIL-DESIGNER] Saving HTML:", {
@@ -527,7 +630,8 @@ export default function EmailDesignerPage() {
 		}
 
 		autoSaveTimerRef.current = setTimeout(() => {
-			// Convert blocks to HTML before saving
+			// Always regenerate HTML from blocks to ensure it's in sync
+			// This ensures that any property changes (design tokens, name, etc.) are reflected in HTML
 			const htmlContent = convertBlocksToHtml(
 				draftTemplate.blocks,
 				draftTemplate.designTokens || {
@@ -542,9 +646,10 @@ export default function EmailDesignerPage() {
 				draftTemplate.preheader
 			);
 			
+			// Save all fields including the regenerated HTML
 			autoSaveMutate({
 				...draftTemplate,
-				htmlContent,
+				htmlContent, // Always use regenerated HTML to ensure sync
 			});
 		}, 1500); // debounce to avoid excessive writes
 
@@ -565,7 +670,7 @@ export default function EmailDesignerPage() {
 		if (!draftTemplate) return;
 		const newBlock = createBlock(type, section);
 		handleDraftChange({ blocks: [...draftTemplate.blocks, newBlock] });
-		setSelectedBlockId(newBlock.id);
+		handleSelectBlock(newBlock.id);
 		if (isMobile) {
 			setMobilePanelTab("properties");
 			setMobilePanelOpen(true);
@@ -617,7 +722,7 @@ export default function EmailDesignerPage() {
 		
 		handleDraftChange({ blocks: [...draftTemplate.blocks, ...newBlocks] });
 		if (newBlocks.length > 0) {
-			setSelectedBlockId(newBlocks[0].id);
+			handleSelectBlock(newBlocks[0].id);
 		}
 		if (isMobile) {
 			setMobilePanelTab("properties");
@@ -729,7 +834,7 @@ export default function EmailDesignerPage() {
 			const containerBlock = parentBlock as Extract<EmailTemplateBlock, { type: "container" }>;
 			handleUpdateBlock(parentBlockId, { ...containerBlock, blocks: [...(containerBlock.blocks || []), newBlock] } as EmailTemplateBlock);
 		}
-		setSelectedBlockId(newBlock.id);
+		handleSelectBlock(newBlock.id);
 	};
 
 	const handleDeleteBlock = (blockId: string) => {
@@ -813,7 +918,7 @@ export default function EmailDesignerPage() {
 		];
 		
 		handleDraftChange({ blocks: nextBlocks });
-		setSelectedBlockId(duplicated.id);
+		handleSelectBlock(duplicated.id);
 		toast.success(t("emailDesigner.toast.duplicated"));
 	};
 
@@ -889,6 +994,26 @@ if (!draftTemplate || !baseTemplate) {
 	);
 }
 
+	const handleNavigateToField = (blockId: string, field: string) => {
+		// Select the block first (this will automatically switch section via handleSelectBlock)
+		handleSelectBlock(blockId);
+		
+		// Scroll to the properties panel (if mobile, switch to properties tab)
+		if (isMobile) {
+			setMobilePanelTab("properties");
+			setMobilePanelOpen(true);
+		}
+		
+		// The EmailBlockProperties component should handle focusing the specific field
+		// We'll use a small delay to ensure the component has rendered
+		setTimeout(() => {
+			// Trigger a custom event that the properties component can listen to
+			window.dispatchEvent(new CustomEvent("email-designer:focus-field", {
+				detail: { blockId, field }
+			}));
+		}, 100);
+	};
+
 	const sidebarContent = (
 		<EmailSidebar
 			templates={safeTemplates}
@@ -900,7 +1025,7 @@ if (!draftTemplate || !baseTemplate) {
 			onOpenAIBuilder={() => setAiBuilderOpen(true)}
 			blocks={draftTemplate.blocks ?? []}
 			selectedBlockId={selectedBlockId}
-			onSelectBlock={setSelectedBlockId}
+			onSelectBlock={handleSelectBlock}
 			onReorderBlocks={handleReorderBlocks}
 			onDuplicateBlock={handleDuplicateBlock}
 			onDeleteBlock={handleDeleteBlock}
@@ -911,6 +1036,15 @@ if (!draftTemplate || !baseTemplate) {
 
 	const propertiesContent = (
 		<div className="h-full flex flex-col overflow-hidden">
+			{/* Missing Values Alert - Top Priority */}
+			<div className="p-3 border-b shrink-0">
+				<EmailMissingValuesAlert
+					blocks={draftTemplate.blocks ?? []}
+					onNavigateToField={handleNavigateToField}
+				/>
+			</div>
+			
+			<div className="flex-1 min-h-0 overflow-y-auto">
 			{selectedBlock ? (
 			<EmailBlockProperties
 				block={selectedBlock}
@@ -920,7 +1054,6 @@ if (!draftTemplate || !baseTemplate) {
 				onOpenImagePicker={handleOpenImagePicker}
 			/>
 			) : (
-				<div className="h-full overflow-y-auto">
 					<EmailTemplateSettings
 						name={draftTemplate.name ?? ""}
 						designTokens={draftTemplate.designTokens ?? {
@@ -946,8 +1079,8 @@ if (!draftTemplate || !baseTemplate) {
 							});
 						}}
 					/>
-				</div>
 			)}
+			</div>
 		</div>
 	);
 
@@ -971,7 +1104,7 @@ if (!draftTemplate || !baseTemplate) {
 					blocks={draftTemplate.blocks ?? []}
 					selectedBlockId={selectedBlockId}
 					onSelectBlock={(id) => {
-						setSelectedBlockId(id);
+						handleSelectBlock(id);
 						if (isMobile) {
 							setMobilePanelTab("properties");
 							setMobilePanelOpen(true);
@@ -1129,13 +1262,13 @@ if (!draftTemplate || !baseTemplate) {
 										value="preview"
 										className="m-0 p-0"
 									>
-										<EmailDesignerCanvas
+											<EmailDesignerCanvas
 											blocks={draftTemplate.blocks ?? []}
-											selectedBlockId={selectedBlockId}
-											onSelectBlock={(id) => {
-												setSelectedBlockId(id);
-												setMobilePanelTab("properties");
-											}}
+												selectedBlockId={selectedBlockId}
+												onSelectBlock={(id) => {
+													handleSelectBlock(id);
+													setMobilePanelTab("properties");
+												}}
 											designTokens={draftTemplate.designTokens ?? {
 												background: "#ffffff",
 												surface: "#f8fafc",
@@ -1222,6 +1355,8 @@ if (!draftTemplate || !baseTemplate) {
 			onTemplateCreated={(templateId) => {
 				safeSetContextCurrentTemplateId(templateId);
 				setAiBuilderOpen(false);
+				// Navigate to the newly created template
+				navigate(`/email-designer/${templateId}`, { replace: true });
 			}}
 			products={products.map((p) => ({
 				name: p.name,

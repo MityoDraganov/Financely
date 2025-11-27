@@ -203,7 +203,15 @@ export function AIEmailBuilderDialog({
 		}
 
 		try {
+			// Build images array - only include selected logo if it's selected
 			const allImages = [
+				// Include selected logo if it exists and is selected
+				...(selectedLogo ? [{
+					url: selectedLogo,
+					purpose: "use-in-template" as const,
+					description: "Organization logo",
+				}] : []),
+				// Include uploaded images
 				...uploadedImages
 					.filter((img) => img.url)
 					.map((img) => ({
@@ -211,10 +219,13 @@ export function AIEmailBuilderDialog({
 						purpose: img.purpose,
 						description: img.description,
 					})),
-				...selectedGalleryImages.map((url) => ({
-					url,
-					purpose: "use-in-template" as const,
-				})),
+				// Include selected gallery images (excluding logo if it's already included)
+				...selectedGalleryImages
+					.filter((url) => url !== selectedLogo) // Don't duplicate logo
+					.map((url) => ({
+						url,
+						purpose: "use-in-template" as const,
+					})),
 			];
 
 			const generatedTemplate = await generateTemplate.mutateAsync({
@@ -227,7 +238,7 @@ export function AIEmailBuilderDialog({
 						products: products.length > 0 ? products : undefined,
 						organizationName: currentOrg.name,
 						organizationSettings: currentOrg.settings,
-						galleryImages: galleryImages.length > 0 ? galleryImages : undefined,
+						// DO NOT pass galleryImages - AI should only use explicitly selected images
 					},
 					generateCustomHtml,
 					targetSection,

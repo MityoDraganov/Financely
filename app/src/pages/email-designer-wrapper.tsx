@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -33,6 +33,7 @@ export default function EmailDesignerWrapper() {
 	} = useEmailTemplates(orgId);
 	const createTemplate = useCreateEmailTemplate();
 	const [currentTemplateId, setCurrentTemplateId] = useState<string | undefined>(templateIdFromUrl);
+	const hasHandledCreateActionRef = useRef(false);
 	
 	const locationState = (location.state as { templateId?: string; action?: "create" } | null) || null;
 
@@ -109,12 +110,26 @@ export default function EmailDesignerWrapper() {
 		}
 	}, [handleCreateNewTemplate, navigate]);
 
-	// Auto-create if location state says so
+	// Auto-create if location state says so (only once)
 	useEffect(() => {
-		if (locationState?.action === "create" && !createTemplate.isPending && templates.length === 0) {
-			handleCreateNewTemplate();
+		if (
+			locationState?.action === "create" && 
+			!createTemplate.isPending && 
+			!createTemplate.isSuccess &&
+			templates.length === 0 &&
+			!hasHandledCreateActionRef.current
+		) {
+			hasHandledCreateActionRef.current = true;
+			handleCreateNewTemplate().finally(() => {
+				// Clear location state after handling to prevent re-triggering
+				window.history.replaceState({}, '', location.pathname);
+			});
 		}
-	}, [locationState?.action, createTemplate.isPending, templates.length, handleCreateNewTemplate]);
+		// Reset ref when location changes (user navigates away and back) or when template is created
+		if (!locationState?.action || createTemplate.isSuccess) {
+			hasHandledCreateActionRef.current = false;
+		}
+	}, [locationState?.action, createTemplate.isPending, createTemplate.isSuccess, templates.length, handleCreateNewTemplate, location.pathname]);
 
 	return (
 		<ErrorBoundary>

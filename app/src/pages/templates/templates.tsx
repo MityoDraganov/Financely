@@ -220,7 +220,7 @@ export default function TemplatesPage() {
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-10 w-32" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="h-48" />
           ))}
@@ -230,7 +230,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
@@ -287,10 +287,10 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">{t('templates.sections.invoice.title')}</h2>
-          <p className="text-sm text-muted-foreground">{t('templates.sections.invoice.description')}</p>
+          <h2 className="text-lg font-semibold text-foreground">{t('templates.sections.invoice.title')}</h2>
+          <p className="text-xs text-muted-foreground">{t('templates.sections.invoice.description')}</p>
       </div>
 
       {/* Selection Controls */}
@@ -337,13 +337,13 @@ export default function TemplatesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
           {templates.map((template) => {
             const isSelected = selectedTemplateIds.has(template.id);
             return (
               <Card
                 key={template.id}
-                className={`hover:shadow-lg transition-all cursor-pointer group ${
+                className={`flex flex-col h-full w-full hover:shadow-lg transition-all cursor-pointer group overflow-hidden ${
                   isSelected ? "ring-2 ring-primary" : ""
                 }`}
                 onClick={(e) => {
@@ -359,38 +359,41 @@ export default function TemplatesPage() {
                   handleEdit(template.id);
                 }}
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                <CardHeader className="shrink-0 p-4 pb-3 w-full overflow-hidden">
+                  <div className="flex items-start justify-between gap-1.5 w-full">
+                    <div className="flex items-start gap-2 flex-1 min-w-0 w-full overflow-hidden">
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => handleToggleSelect(template.id)}
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`Select ${template.name || t('templates.card.untitled')}`}
+                        className="shrink-0 mt-0.5 h-4 w-4"
                       />
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg mb-1">{template.name || t('templates.card.untitled')}</CardTitle>
-                        <CardDescription className="line-clamp-2">
+                      <div className="flex-1 min-w-0 w-full overflow-hidden">
+                        <CardTitle className="text-sm font-semibold mb-0.5 wrap-break-word leading-tight" title={template.name || t('templates.card.untitled')}>
+                          {template.name || t('templates.card.untitled')}
+                        </CardTitle>
+                        <CardDescription className="text-xs line-clamp-3 wrap-break-word text-muted-foreground leading-relaxed" title={template.description || t('templates.card.noDescription')}>
                           {template.description || t('templates.card.noDescription')}
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-7 w-7 shrink-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEdit(template.id);
                         }}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDelete({ id: template.id, name: template.name || t('templates.card.untitled') });
@@ -398,40 +401,40 @@ export default function TemplatesPage() {
                         disabled={deleteTemplate.isPending}
                       >
                         {deleteTemplate.isPending && templateToDelete?.id === template.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         )}
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="flex-1 flex flex-col p-4 pt-2 w-full overflow-hidden">
+                <div className="space-y-2 w-full">
                   {/* Status Badge */}
-                  <div className="flex items-center gap-2">
-                    <Badge variant={template.status === "published" ? "default" : "secondary"}>
+                  <div className="flex items-center gap-1.5 flex-wrap w-full">
+                    <Badge variant={template.status === "published" ? "default" : "secondary"} className="shrink-0 text-xs px-1.5 py-0.5 h-auto wrap-break-word">
                       {template.status === "published" ? t('templates.card.published') : t('templates.card.draft')}
                     </Badge>
                     {template.compliance?.region && (
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="shrink-0 max-w-full text-xs px-1.5 py-0.5 h-auto wrap-break-word" title={template.compliance.region}>
                         {template.compliance.region}
                       </Badge>
                     )}
                   </div>
 
                   {/* Metadata */}
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap w-full">
                     {template.createdAt && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        <span className="wrap-break-word">
                           {formatDateTable(template.createdAt)}
                         </span>
                       </div>
                     )}
                     {template.elements && (
-                      <span>
+                      <span className="shrink-0 wrap-break-word">
                         {template.elements.length === 1
                           ? t('templates.card.elements', { count: template.elements.length })
                           : t('templates.card.elementsPlural', { count: template.elements.length })}
@@ -446,10 +449,10 @@ export default function TemplatesPage() {
         </div>
       )}
       </section>
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold text-foreground">{t('templates.sections.email.title')}</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-lg font-semibold text-foreground">{t('templates.sections.email.title')}</h2>
+          <p className="text-xs text-muted-foreground">
             {t('templates.sections.email.description')}
           </p>
         </div>
@@ -482,7 +485,7 @@ export default function TemplatesPage() {
         )}
 
         {isLoadingEmailTemplates ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
             {[1, 2, 3].map((item) => (
               <Card key={item}>
                 <CardContent className="space-y-4 py-6">
@@ -511,13 +514,13 @@ export default function TemplatesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
             {emailTemplates.map((template) => {
               const isSelected = selectedEmailTemplateIds.has(template.id);
               return (
                 <Card
                   key={template.id}
-                  className={`flex flex-col h-full hover:shadow-lg transition-all cursor-pointer group ${
+                  className={`flex flex-col h-full w-full hover:shadow-lg transition-all cursor-pointer group overflow-hidden ${
                     isSelected ? "ring-2 ring-primary" : ""
                   }`}
                   onClick={(e) => {
@@ -532,38 +535,41 @@ export default function TemplatesPage() {
                     handleOpenEmailTemplate(template.id);
                   }}
                 >
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <CardHeader className="shrink-0 p-4 pb-3 w-full overflow-hidden">
+                    <div className="flex items-start justify-between gap-1.5 w-full">
+                      <div className="flex items-start gap-2 flex-1 min-w-0 w-full overflow-hidden">
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => handleEmailToggleSelect(template.id)}
                           onClick={(e) => e.stopPropagation()}
                           aria-label={`Select ${template.name || t('templates.email.card.untitled')}`}
+                          className="shrink-0 mt-0.5 h-4 w-4"
                         />
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-lg truncate">{template.name || t('templates.email.card.untitled')}</CardTitle>
-                          <CardDescription className="truncate">
+                        <div className="min-w-0 flex-1 w-full overflow-hidden">
+                          <CardTitle className="text-sm font-semibold mb-0.5 wrap-break-word leading-tight" title={template.name || t('templates.email.card.untitled')}>
+                            {template.name || t('templates.email.card.untitled')}
+                          </CardTitle>
+                          <CardDescription className="text-xs line-clamp-3 wrap-break-word text-muted-foreground leading-relaxed" title={template.subject || t('templates.email.card.noSubject')}>
                             {template.subject || t('templates.email.card.noSubject')}
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7 shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenEmailTemplate(template.id);
                           }}
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteEmail({ id: template.id, name: template.name || t('templates.email.card.untitled') });
@@ -571,23 +577,23 @@ export default function TemplatesPage() {
                           disabled={deleteEmailTemplate.isPending}
                         >
                           {deleteEmailTemplate.isPending && emailTemplateToDelete?.id === template.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           )}
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-1">
-                    <div className="flex items-center justify-between text-sm text-muted-foreground flex-wrap gap-2">
-                      <Badge variant={template.status === "published" ? "default" : "secondary"}>
+                  <CardContent className="flex-1 flex flex-col p-4 pt-2 pb-3 w-full overflow-hidden">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-1.5 w-full">
+                      <Badge variant={template.status === "published" ? "default" : "secondary"} className="shrink-0 text-xs px-1.5 py-0.5 h-auto wrap-break-word">
                         {template.status === "published"
                           ? t('templates.email.status.published')
                           : t('templates.email.status.draft')}
                       </Badge>
                       {(template.updatedAt || template.createdAt) && (
-                        <div>
+                        <div className="shrink-0 wrap-break-word">
                           {t('templates.email.lastUpdated', {
                             date: formatDateTable(template.updatedAt || template.createdAt || ""),
                           })}
@@ -595,10 +601,11 @@ export default function TemplatesPage() {
                       )}
                     </div>
                   </CardContent>
-                  <div className="px-6 pb-6">
+                  <div className="px-4 pb-4 shrink-0 w-full">
                     <Button
                       variant="outline"
-                      className="w-full"
+                      size="sm"
+                      className="w-full h-8 text-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleOpenEmailTemplate(template.id);

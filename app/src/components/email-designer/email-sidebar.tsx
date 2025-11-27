@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -182,6 +182,43 @@ export function EmailSidebar({
 	const dragIndexRef = useRef<number | null>(null);
 	const lastReorderRef = useRef<{ from: number; to: number } | null>(null);
 	const blocksContainerRef = useRef<HTMLDivElement | null>(null);
+	const sectionSelectorRef = useRef<HTMLDivElement | null>(null);
+	const [shouldUseColumnLayout, setShouldUseColumnLayout] = useState(false);
+
+	// Check if buttons can fit in a row
+	useEffect(() => {
+		const checkLayout = () => {
+			if (!sectionSelectorRef.current) return;
+			const container = sectionSelectorRef.current;
+			const buttons = container.querySelectorAll("button");
+			if (buttons.length === 0) return;
+			
+			// Get container width (accounting for padding: 8px on each side = 16px total)
+			const containerWidth = container.offsetWidth - 16;
+			
+			// Estimate minimum width needed per button (text + padding)
+			// Each button needs roughly 60-70px minimum
+			const minButtonWidth = 60;
+			const gapWidth = 8; // 2 gaps between 3 buttons = 8px
+			const totalNeeded = (minButtonWidth * 3) + gapWidth;
+			
+			// If container is narrower than needed, use column layout
+			setShouldUseColumnLayout(containerWidth < totalNeeded);
+		};
+
+		// Initial check
+		checkLayout();
+		
+		// Observe container resize
+		const resizeObserver = new ResizeObserver(checkLayout);
+		if (sectionSelectorRef.current) {
+			resizeObserver.observe(sectionSelectorRef.current);
+		}
+
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
 	
 	// Filter blocks by current section (default to "body" if section is missing)
 	const sectionBlocks = blocks.filter(block => (block.section || "body") === currentSection);
@@ -337,11 +374,14 @@ export function EmailSidebar({
 			{/* Section Selector - Fixed at top */}
 			{onSectionChange && (
 				<div className="p-2 border-b shrink-0 bg-muted/30">
-					<div className="grid grid-cols-3 gap-1">
+					<div 
+						ref={sectionSelectorRef}
+						className={`flex gap-1 ${shouldUseColumnLayout ? "flex-col" : "flex-row"}`}
+					>
 						<Button
 							variant={currentSection === "header" ? "secondary" : "ghost"}
 							size="sm"
-							className="text-xs h-7"
+							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
 							onClick={() => onSectionChange("header")}
 						>
 							{t("emailDesigner.sections.header")}
@@ -349,7 +389,7 @@ export function EmailSidebar({
 						<Button
 							variant={currentSection === "body" ? "secondary" : "ghost"}
 							size="sm"
-							className="text-xs h-7"
+							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
 							onClick={() => onSectionChange("body")}
 						>
 							{t("emailDesigner.sections.body")}
@@ -357,7 +397,7 @@ export function EmailSidebar({
 						<Button
 							variant={currentSection === "footer" ? "secondary" : "ghost"}
 							size="sm"
-							className="text-xs h-7"
+							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
 							onClick={() => onSectionChange("footer")}
 						>
 							{t("emailDesigner.sections.footer")}
@@ -599,11 +639,11 @@ export function EmailSidebar({
 						<Button
 							variant="default"
 							size="sm"
-							className="w-full bg-gradient-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+							className="w-full bg-linear-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5 px-2.5"
 							onClick={onOpenAIBuilder}
 						>
-							<Sparkles className="h-4 w-4 mr-2 animate-pulse" />
-							<span className="font-medium">{t("emailDesigner.aiBuilder.title")}</span>
+							<Sparkles className="h-3.5 w-3.5 animate-pulse shrink-0" />
+							<span className="font-medium text-xs leading-tight">{t("emailDesigner.aiBuilder.buttonLabel")}</span>
 						</Button>
 					</div>
 				)}

@@ -1048,6 +1048,7 @@
 		},
 		"aiBuilder": {
 			"title": "AI Email Builder",
+			"buttonLabel": "AI Builder",
 			"description": "Generate beautiful email templates with AI. Describe what you want, upload images, and watch it come to life.",
 			"style": "Style",
 			"modern": "Modern",
@@ -1236,6 +1237,17 @@
 			"blocks": "Blocks",
 			"preview": "Preview",
 			"properties": "Properties"
+		},
+		"missingValues": {
+			"title": "Missing Information",
+			"description": "{{count}} field needs to be filled in",
+			"description_plural": "{{count}} fields need to be filled in",
+			"buttonUrl": "Button URL: {{label}}",
+			"logoLink": "Logo link",
+			"navigationLink": "Navigation link: {{label}}",
+			"unsubscribeUrl": "Unsubscribe URL",
+			"footerEmail": "Footer email address",
+			"footerPhone": "Footer phone number"
 		}
 	},
 	"workflows": {

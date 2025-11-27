@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus } from "lucide-react";
+import { parseNumber } from "@/lib/field-formatting";
 
 type EmailBlockPropertiesProps = {
   block?: EmailTemplateBlock;
@@ -94,8 +95,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   max={72}
                   value={typography.fontSize}
                   onChange={(e) => {
+                    const parsed = parseNumber(e.target.value);
                     const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
-                      ? { ...block, typography: { ...typography, fontSize: Number(e.target.value) } }
+                      ? { ...block, typography: { ...typography, fontSize: parsed } }
                       : block;
                     onChange(updated as EmailTemplateBlock);
                   }}
@@ -137,8 +139,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   step={0.1}
                   value={typography.lineHeight}
                   onChange={(e) => {
+                    const parsed = parseNumber(e.target.value);
                     const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
-                      ? { ...block, typography: { ...typography, lineHeight: Number(e.target.value) } }
+                      ? { ...block, typography: { ...typography, lineHeight: parsed } }
                       : block;
                     onChange(updated as EmailTemplateBlock);
                   }}
@@ -154,8 +157,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   step={0.1}
                   value={typography.letterSpacing}
                   onChange={(e) => {
+                    const parsed = parseNumber(e.target.value);
                     const updated = (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "button")
-                      ? { ...block, typography: { ...typography, letterSpacing: Number(e.target.value) } }
+                      ? { ...block, typography: { ...typography, letterSpacing: parsed } }
                       : block;
                     onChange(updated as EmailTemplateBlock);
                   }}
@@ -266,7 +270,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.paddingTop}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, paddingTop: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, paddingTop: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -280,7 +285,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.paddingRight}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, paddingRight: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, paddingRight: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -294,7 +300,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.paddingBottom}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, paddingBottom: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, paddingBottom: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -308,7 +315,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.paddingLeft}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, paddingLeft: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, paddingLeft: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -327,7 +335,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.marginTop}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, marginTop: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, marginTop: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -341,7 +350,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.marginRight}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, marginRight: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, marginRight: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -355,7 +365,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.marginBottom}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, marginBottom: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, marginBottom: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -369,7 +380,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     max={64}
                     value={spacing.marginLeft}
                     onChange={(e) => {
-                      const updated = { ...block, spacing: { ...spacing, marginLeft: Number(e.target.value) } };
+                      const parsed = parseNumber(e.target.value, false);
+                      const updated = { ...block, spacing: { ...spacing, marginLeft: parsed } };
                       onChange(updated as EmailTemplateBlock);
                     }}
                     className="h-8"
@@ -410,7 +422,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   max={8}
                   value={border.borderWidth}
                   onChange={(e) => {
-                    const updated = { ...block, border: { ...border, borderWidth: Number(e.target.value) } };
+                    const parsed = parseNumber(e.target.value, false);
+                    const updated = { ...block, border: { ...border, borderWidth: parsed } };
                     onChange(updated as EmailTemplateBlock);
                   }}
                   className="h-8"
@@ -424,7 +437,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   max={24}
                   value={border.borderRadius}
                   onChange={(e) => {
-                    const updated = { ...block, border: { ...border, borderRadius: Number(e.target.value) } };
+                    const parsed = parseNumber(e.target.value, false);
+                    const updated = { ...block, border: { ...border, borderRadius: parsed } };
                     onChange(updated as EmailTemplateBlock);
                   }}
                   className="h-8"
@@ -697,7 +711,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={32}
                       max={64}
                       value={block.buttonHeight || 44}
-                      onChange={(e) => onChange({ ...block, buttonHeight: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value, false);
+                        onChange({ ...block, buttonHeight: parsed });
+                      }}
                     />
                   </div>
                 </div>
@@ -870,7 +887,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={24}
                       max={600}
                       value={block.width}
-                      onChange={(e) => onChange({ ...block, width: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value, false);
+                        onChange({ ...block, width: parsed });
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -923,7 +943,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={0.1}
                       max={10}
                       value={block.aspectRatioCustom || 1}
-                      onChange={(e) => onChange({ ...block, aspectRatioCustom: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value);
+                        onChange({ ...block, aspectRatioCustom: parsed });
+                      }}
                       placeholder="1.5"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -938,7 +961,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     min={0}
                     max={24}
                     value={block.borderRadius || 0}
-                    onChange={(e) => onChange({ ...block, borderRadius: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const parsed = parseNumber(e.target.value, false);
+                      onChange({ ...block, borderRadius: parsed });
+                    }}
                   />
                 </div>
                 <Separator />
@@ -988,7 +1014,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={24}
                       max={300}
                       value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).width}
-                      onChange={(e) => onChange({ ...block, width: Number(e.target.value) } as EmailTemplateBlock)}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value, false);
+                        onChange({ ...block, width: parsed } as EmailTemplateBlock);
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1041,7 +1070,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={0.1}
                       max={10}
                       value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).aspectRatioCustom || 1}
-                      onChange={(e) => onChange({ ...block, aspectRatioCustom: Number(e.target.value) } as EmailTemplateBlock)}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value);
+                        onChange({ ...block, aspectRatioCustom: parsed } as EmailTemplateBlock);
+                      }}
                       placeholder="1.5"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -1064,7 +1096,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     min={0}
                     max={24}
                     value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).borderRadius || 0}
-                    onChange={(e) => onChange({ ...block, borderRadius: Number(e.target.value) } as EmailTemplateBlock)}
+                    onChange={(e) => {
+                      const parsed = parseNumber(e.target.value, false);
+                      onChange({ ...block, borderRadius: parsed } as EmailTemplateBlock);
+                    }}
                   />
                 </div>
                 <Separator />
@@ -1291,7 +1326,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       min={16}
                       max={48}
                       value={(block as Extract<EmailTemplateBlock, { type: "socialLinks" }>).iconSize || 24}
-                      onChange={(e) => onChange({ ...block, iconSize: Number(e.target.value) } as EmailTemplateBlock)}
+                      onChange={(e) => {
+                        const parsed = parseNumber(e.target.value, false);
+                        onChange({ ...block, iconSize: parsed } as EmailTemplateBlock);
+                      }}
                     />
                   </div>
                   <div className="space-y-2">

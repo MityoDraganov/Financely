@@ -1048,6 +1048,7 @@
 		},
 		"aiBuilder": {
 			"title": "AI Конструктор на Имейли",
+			"buttonLabel": "AI Конструктор",
 			"description": "Генерирай красиви имейл шаблони с AI. Опиши какво искаш, качи изображения и гледай как оживява.",
 			"style": "Стил",
 			"modern": "Модерен",
@@ -1233,6 +1234,17 @@
 			"blocks": "Блокове",
 			"preview": "Преглед",
 			"properties": "Свойства"
+		},
+		"missingValues": {
+			"title": "Липсваща информация",
+			"description": "{{count}} поле трябва да бъде попълнено",
+			"description_plural": "{{count}} полета трябва да бъдат попълнени",
+			"buttonUrl": "URL на бутон: {{label}}",
+			"logoLink": "Връзка на лого",
+			"navigationLink": "Връзка за навигация: {{label}}",
+			"unsubscribeUrl": "URL за отписване",
+			"footerEmail": "Имейл адрес във футъра",
+			"footerPhone": "Телефонен номер във футъра"
 		}
 	},
 	"workflows": {

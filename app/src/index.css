@@ -1,3 +1,6 @@
+/* CSS layer order for Tailwind v4 and Clerk */
+@layer theme, base, clerk, components, utilities;
+
 @import "tailwindcss";
 
 /* Custom dark mode variant */

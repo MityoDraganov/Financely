@@ -85,6 +85,28 @@ export class EmailTemplateGenerationService {
         subject: { type: "string" as const, description: "Email subject line" },
         preheader: { type: "string" as const, description: "Email preheader text (preview text)" },
         htmlContent: { type: "string" as const, description: "Complete HTML email content" },
+        blocks: {
+          type: "object" as const,
+          description: "Structured blocks organized by section",
+          properties: {
+            header: {
+              type: "array" as const,
+              description: "Blocks for the header section (logo, navigation, etc.)",
+              items: { type: "object" as const },
+            },
+            body: {
+              type: "array" as const,
+              description: "Blocks for the body section (main content, text, images, buttons, etc.)",
+              items: { type: "object" as const },
+            },
+            footer: {
+              type: "array" as const,
+              description: "Blocks for the footer section (contact info, unsubscribe, social links, etc.)",
+              items: { type: "object" as const },
+            },
+          },
+          required: ["header", "body", "footer"],
+        },
         designTokens: {
           type: "object" as const,
           properties: {
@@ -97,7 +119,7 @@ export class EmailTemplateGenerationService {
           },
         },
       },
-      required: ["name", "subject", "htmlContent", "designTokens"],
+      required: ["name", "subject", "htmlContent", "blocks", "designTokens"],
     };
     
     try {
@@ -107,6 +129,11 @@ export class EmailTemplateGenerationService {
         subject: string;
         preheader?: string;
         htmlContent: string;
+        blocks: {
+          header: Array<any>;
+          body: Array<any>;
+          footer: Array<any>;
+        };
         designTokens: {
           background: string;
           surface: string;
@@ -120,15 +147,35 @@ export class EmailTemplateGenerationService {
         maxTokens: 32768, // Large token limit for full HTML email content
       });
       
-      // Parse HTML to blocks - only use rawHtml if generateCustomHtml is true
-      // When generateCustomHtml is false, return empty blocks - frontend will parse HTML
-      // When generateCustomHtml is true, create rawHtml block
-      const blocks = options?.generateCustomHtml 
-        ? this.parseHtmlToBlocksWithCustomHtml(result.htmlContent)
-        : this.parseHtmlToBlocks(result.htmlContent);
+      // Use the structured blocks from AI response
+      // Ensure each block has an id and correct section
+      const headerBlocks = (result.blocks.header || []).map((block: any, index: number) => ({
+        ...block,
+        id: block.id || `block-header-${Date.now()}-${index}`,
+        section: "header" as const,
+      }));
       
-      // Build sections from blocks (will be empty if blocks are empty, frontend will parse)
-      const sections = this.buildSections(blocks);
+      const bodyBlocks = (result.blocks.body || []).map((block: any, index: number) => ({
+        ...block,
+        id: block.id || `block-body-${Date.now()}-${index}`,
+        section: "body" as const,
+      }));
+      
+      const footerBlocks = (result.blocks.footer || []).map((block: any, index: number) => ({
+        ...block,
+        id: block.id || `block-footer-${Date.now()}-${index}`,
+        section: "footer" as const,
+      }));
+      
+      // Combine all blocks from all sections into a single array
+      const allBlocks = [...headerBlocks, ...bodyBlocks, ...footerBlocks];
+      
+      // Build sections from the structured blocks
+      const sections = {
+        header: headerBlocks.map((block) => block.id),
+        body: bodyBlocks.map((block) => block.id),
+        footer: footerBlocks.map((block) => block.id),
+      };
       
       // Build template data
       const template: EmailTemplateData = {
@@ -138,7 +185,7 @@ export class EmailTemplateGenerationService {
         subject: result.subject,
         preheader: result.preheader,
         htmlContent: result.htmlContent,
-        blocks,
+        blocks: allBlocks,
         designTokens: result.designTokens || {
           background: "#ffffff",
           surface: "#f8fafc",
@@ -158,7 +205,7 @@ export class EmailTemplateGenerationService {
       logger.info("Email template generated successfully", {
         organizationId: organization.id,
         templateName: template.name,
-        blockCount: blocks.length,
+        blockCount: allBlocks.length,
         htmlLength: result.htmlContent.length,
       });
       
@@ -217,8 +264,21 @@ export class EmailTemplateGenerationService {
       parts.push(`Logo URL: ${logoUrl}`);
     }
     
+    // Organization URLs for buttons and links
+    const websiteUrl = orgData.website || orgData.settings?.branding?.customDomain;
+    if (websiteUrl) {
+      parts.push(`Website URL: ${websiteUrl}`);
+      parts.push(`Use this URL for buttons, links, and call-to-action elements: ${websiteUrl}`);
+    } else {
+      parts.push(`⚠️ Website URL not available - use placeholder "#" for buttons/links that need to be filled by user`);
+    }
+    
     if (additionalContext?.products && additionalContext.products.length > 0) {
-      parts.push(`\nProducts (${additionalContext.products.length}):`);
+      parts.push(`\n📦 Available Products (${additionalContext.products.length}) - FOR CONTEXT ONLY:`);
+      parts.push(`⚠️ IMPORTANT: These products are available for reference, but DO NOT include them in the email unless:`);
+      parts.push(`   1. The user explicitly requests products in their prompt, OR`);
+      parts.push(`   2. The email type is specifically product-focused (product announcement, catalog, etc.)`);
+      parts.push(`   For most email types (newsletter, transactional, welcome, etc.), DO NOT include products.`);
       additionalContext.products.forEach((p, idx) => {
         parts.push(`  ${idx + 1}. ${p.name}${p.description ? ` - ${p.description}` : ""}${p.price ? ` - $${p.price}` : ""}${p.imageUrl ? ` [Image: ${p.imageUrl}]` : ""}`);
       });
@@ -272,7 +332,7 @@ export class EmailTemplateGenerationService {
       accent: "#10b981",
     };
     
-    let prompt = `You are a professional email template designer. Create a beautiful, functional, and email-client-compatible HTML email template.
+    let prompt = `You are a professional email template designer with deep expertise in high-converting email design. Create a beautiful, functional, and email-client-compatible HTML email template.
 
 Organization Context:
 ${context}
@@ -287,12 +347,92 @@ Design Requirements:
 - Maximum width: 600px for email container
 - Mobile-responsive design with media queries where supported
 
-${logoUrl ? `- Include organization logo: ${logoUrl}` : "- No logo available"}
-
 Brand Colors:
 - Primary: ${brandColors.primary}
 - Secondary: ${brandColors.secondary}
 - Accent: ${brandColors.accent}
+
+📧 PROFESSIONAL EMAIL DESIGN PRINCIPLES (FOLLOW THESE):
+
+1. CORE PRINCIPLES:
+   - Clarity over creativity: Users skim emails in 3-5 seconds. Make it readable instantly.
+   - One primary goal per email: Every template should have ONE main action.
+   - Scannable visual hierarchy: Short blocks, strong headings, clear spacing.
+   - Mobile-first: 70-80% of opens happen on phones. Design for mobile first.
+   - Safe HTML: Use table-based layout (industry standard for email compatibility).
+
+2. UNIVERSAL LAYOUT STRUCTURE:
+   A. Preheader Text: 35-90 characters, hidden in body but visible in inbox preview
+   B. Header: Logo centered, optional nav links (desktop only)
+   C. Hero Block: Short headline (max 7 words), one-paragraph explanation, CTA button
+   D. Content Blocks: Reusable text, image+text, icon grid, button row, divider
+   E. CTA Block: Always isolate your primary action
+   F. Footer: Brand identity, address, unsubscribe, legal links
+
+3. DESIGN SYSTEM RULES:
+   Typography:
+   - Base: 16px
+   - Headlines: 20-28px (h1: 24-32px, h2: 20-24px, h3: 18-20px)
+   - Line height: 1.4-1.6 for body, 1.2-1.3 for headings
+   - Fonts: System fonts (Arial, Helvetica) for email-client safety
+   - Font weights: 700 for h1, 600 for h2, 500 for emphasis, 400 for body
+   - Minimum 4-6px size difference between heading levels
+   
+   Colors:
+   - Primary color: Use ONLY for CTA buttons and highlights
+   - Background: white or off-white (#f8f8f8)
+   - Secondary: muted grey (#666/#888) for body text
+   
+   Spacing:
+   - Section padding: 28-40px
+   - Inner cell padding: 16-20px
+   - Consistent spacing rhythm (use multiples of 4px: 8, 12, 16, 20, 24, 32px)
+   
+   Layout:
+   - 600px fixed-width table
+   - 100% width on mobile via fluid containers
+   - Stack images + text on mobile
+   
+   Buttons:
+   - Height: 44-48px
+   - Padding: 16px horizontal
+   - Rounded: 6px
+   - Text: bold, white
+   - Full-width on mobile
+   
+   Images:
+   - Max width: 600px
+   - Compress to <150kb
+   - Avoid background images (they fail in Outlook)
+   
+   LOGO SIZING - CRITICAL:
+   - Logos MUST have: max-width: 120-160px, width: auto, height: auto, max-height: 80px
+   - Logo should NEVER take more than 20% of total email height
+   - Header padding should be reasonable: 20-32px (not excessive)
+   - Logo must be properly sized inline: style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;"
+   - Example: <img src="logo.jpg" alt="Logo" style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;" />
+
+4. BEHAVIORAL PSYCHOLOGY:
+   - F-pattern: Readers scan top → left → right → scroll. Place CTA in this path.
+   - Hick's Law: Fewer choices = faster decision. One CTA = better conversion.
+   - Consistency: Match brand voice across emails, site, and app for higher trust.
+   - Loss aversion: Deadlines or "don't miss" messaging drives action.
+   - Social proof: Testimonials, badges, reviews add instant trust.
+
+5. EMAIL TYPE PATTERNS:
+   Welcome/Onboarding: Logo → Bold headline → 1-2 benefit sentences → Main CTA → Secondary micro-CTA → Social proof → Footer
+   Transactional: Status badge → Summary card (items, price, delivery) → CTA → Support info
+   Newsletter: Hero header → 2-5 content blocks (thumbnail + headline + summary + "Read more") → Footer
+   Promotion: Big visual/text banner → Short pitch → Offer box → CTA → Secondary offers (2-4 cards)
+   
+6. LAYOUT & POSITIONING SENSE:
+   - Use COLUMNS blocks for side-by-side content (products, galleries, features)
+   - Stack elements vertically for mobile-first approach
+   - Group related content together (heading + paragraph, image + text)
+   - Use dividers/spacers to create visual separation between sections
+   - Center-align logos and primary CTAs
+   - Left-align body text for readability
+   - Create visual flow: top to bottom, most important first
 
 🚨 CRITICAL IMAGE USAGE RULES:
 - You MUST ONLY use images that are explicitly provided in this prompt
@@ -328,17 +468,16 @@ Brand Colors:
       }
     }
     
-    if (options?.context?.galleryImages && options.context.galleryImages.length > 0) {
-      prompt += `\n- Available Gallery Images (you can use these in the template):`;
-      options.context.galleryImages.slice(0, 10).forEach((url, idx) => {
-        prompt += `\n  ${idx + 1}. ${url}`;
-      });
-      if (options.context.galleryImages.length > 10) {
-        prompt += `\n  ... and ${options.context.galleryImages.length - 10} more`;
-      }
-    }
+    // CRITICAL: Only mention images that were explicitly selected in the dialog
+    // Do NOT mention galleryImages from context - those are just for reference in the UI
+    // The AI should ONLY use images from the options.images array
     
-    prompt += `\n\n⚠️ REMEMBER: If an image is not in the list above, DO NOT use it. Use CSS colors/gradients instead or omit the image entirely.`;
+    prompt += `\n\n🚨🚨🚨 CRITICAL IMAGE USAGE RULE 🚨🚨🚨
+⚠️ YOU MUST ONLY USE IMAGES THAT ARE EXPLICITLY LISTED ABOVE IN THE "Images to Use in Template" SECTION.
+⚠️ DO NOT use any images that are not in that list.
+⚠️ DO NOT use placeholder image URLs, data URIs, or any other image sources.
+⚠️ If an image is not in the "Images to Use in Template" list above, DO NOT use it. Use CSS colors/gradients instead or omit the image entirely.
+⚠️ The organization may have other images in their gallery, but you MUST NOT use them unless they are explicitly listed above.`;
 
     prompt += `\n\n🚨🚨🚨 CRITICAL: HTML STRUCTURE FOR VISUAL BUILDER - ABSOLUTE REQUIREMENTS 🚨🚨🚨
 
@@ -384,8 +523,14 @@ AVAILABLE BLOCK TYPES AND THEIR EXACT HTML STRUCTURE:
 
 6. LOGO BLOCK:
    Structure: <img> tag, optionally wrapped in <a>
-   Example: <a href="#"><img src="logo.jpg" alt="Logo" style="display:block; max-width:160px; height:auto;" /></a>
-   Rules: Simple logo image, typically in header.
+   Example: <a href="#"><img src="logo.jpg" alt="Logo" style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;" /></a>
+   Rules: Simple logo image, typically in header. 
+   CRITICAL LOGO SIZING RULES:
+   - MUST include: max-width: 120-160px, width: auto, height: auto, max-height: 80px
+   - Logo should NEVER take more than 20% of total email height
+   - Header padding should be 20-32px (not excessive)
+   - Always set width:auto and height:auto to maintain aspect ratio
+   - Example with ALL required styles: style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;"
 
 🚫 FORBIDDEN STRUCTURES (when generateCustomHtml is false):
 - Complex nested tables with multiple levels
@@ -475,6 +620,22 @@ Wrong 3: Custom div structures:
 </div>
 → DO NOT use flexbox or custom div layouts. Use COLUMNS table structure instead.
 
+URL HANDLING - CRITICAL:
+- If organization website URL is provided in context, use it for all buttons and links
+- If website URL is NOT available, use placeholder "#" for href attributes
+- DO NOT use "https://example.com" or other fake URLs
+- For unsubscribe links, use "#unsubscribe" placeholder if real URL not available
+- For email links, use "mailto:" format if email is provided in context
+- All URLs should be either real organization URLs or placeholders that can be detected and filled later
+
+TYPOGRAPHY HIERARCHY - CRITICAL:
+- Use proper heading hierarchy: h1 (24-32px) for main titles, h2 (20-24px) for section titles, h3 (18-20px) for subsections
+- Body text should be 14-16px, never smaller than 12px
+- Use font-weight to create hierarchy: 700 for h1, 600 for h2, 500 for emphasis, 400 for body
+- Line height: 1.2-1.3 for headings, 1.5-1.6 for body text
+- Create clear visual hierarchy through size, weight, and spacing differences
+- Headings should be noticeably larger than body text (at least 4-6px difference)
+
 KEY RULES - FOLLOW THESE EXACTLY:
 1. Each block type must be a SIMPLE, FLAT HTML structure - NO deep nesting
 2. Use COLUMNS blocks (simple table with <td> elements) for ANY side-by-side layouts:
@@ -488,8 +649,11 @@ KEY RULES - FOLLOW THESE EXACTLY:
 6. NO complex nesting - maximum 2 levels deep (outer table → inner table for columns)
 7. ${generateCustomHtml ? "You may use minimal custom HTML, but prefer standard blocks." : "🚫🚫🚫 ABSOLUTELY NO custom HTML - only use the block types listed above. If you generate custom HTML, the template will be uneditable in the visual builder. This is CRITICAL. 🚫🚫🚫"}
 8. For products: Use COLUMNS block with image in one column, text in another
-9. For galleries: Use COLUMNS block with multiple <td> elements, each containing one <img>
+9. LOGO SIZING: Logos MUST have max-width: 120-160px, width:auto, height:auto, and max-height:80px to prevent oversized headers. Never let logos take more than 20% of email height. Header padding should be reasonable (20-32px).
+10. For galleries: Use COLUMNS block with multiple <td> elements, each containing one <img>
 10. Keep structure FLAT: outer wrapper table → section rows → simple content blocks
+11. DISTRIBUTE content across sections: header blocks in header, body blocks in body, footer blocks in footer
+12. DO NOT put everything in one section - use proper section distribution
 
 COMPLETE TEMPLATE STRUCTURE EXAMPLE (follow this pattern exactly):
 
@@ -516,7 +680,7 @@ COMPLETE TEMPLATE STRUCTURE EXAMPLE (follow this pattern exactly):
           <!-- HEADER: Logo (one row, one block) -->
           <tr>
             <td align="center" style="padding:20px 32px 12px 32px;">
-              <a href="#"><img src="logo.jpg" alt="Logo" style="display:block; max-width:160px; height:auto;" /></a>
+              <a href="#"><img src="logo.jpg" alt="Logo" style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;" /></a>
             </td>
           </tr>
           
@@ -534,43 +698,11 @@ COMPLETE TEMPLATE STRUCTURE EXAMPLE (follow this pattern exactly):
             </td>
           </tr>
           
-          <!-- BODY: Product showcase using COLUMNS (one row, one columns block) -->
-          <tr>
-            <td style="padding:0 28px 12px 28px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td width="50%" valign="top" style="padding-right:6px;">
-                    <img src="product1.jpg" alt="Product 1" style="display:block; width:100%; height:auto;" />
-                  </td>
-                  <td width="50%" valign="top" style="padding-left:6px;">
-                    <h3 style="font-size:18px; color:#B84A62; margin:0 0 10px 0;">Product Name</h3>
-                    <p style="font-size:14px; color:#555555; margin:0 0 10px 0;">Product description</p>
-                    <p style="font-size:16px; font-weight:bold; color:#B84A62; margin:0;">$65</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          <!-- BODY: Feature showcase using COLUMNS (example - only include if user requests features) -->
+          <!-- NOTE: Products should ONLY be included if user explicitly requests them in their prompt -->
+          <!-- For most emails (newsletter, transactional, welcome), focus on content, not products -->
           
-          <!-- BODY: Another product (repeat the columns structure) -->
-          <tr>
-            <td style="padding:12px 28px 12px 28px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td width="50%" valign="top" style="padding-right:6px;">
-                    <img src="product2.jpg" alt="Product 2" style="display:block; width:100%; height:auto;" />
-                  </td>
-                  <td width="50%" valign="top" style="padding-left:6px;">
-                    <h3 style="font-size:18px; color:#B84A62; margin:0 0 10px 0;">Product Name 2</h3>
-                    <p style="font-size:14px; color:#555555; margin:0 0 10px 0;">Product description 2</p>
-                    <p style="font-size:16px; font-weight:bold; color:#B84A62; margin:0;">$120</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <!-- BODY: Gallery using COLUMNS (one row, one columns block with 3 columns) -->
+          <!-- BODY: Gallery using COLUMNS (one row, one columns block with 3 columns) - only if user requests -->
           <tr>
             <td style="padding:12px 28px 12px 28px;">
               <h2 style="font-size:20px; color:#B84A62; margin:0 0 15px 0; text-align:center;">Our Gallery</h2>
@@ -621,12 +753,16 @@ COMPLETE TEMPLATE STRUCTURE EXAMPLE (follow this pattern exactly):
 
 KEY POINTS FROM THIS EXAMPLE:
 - Each content element is in its own <tr><td> row
-- Products use COLUMNS blocks (simple table with 2 <td> elements)
-- Gallery uses COLUMNS block (simple table with 3 <td> elements)
+- Content is distributed across header, body, and footer sections
+- Header has logo (1 block)
+- Body has main content (text, images, buttons)
+- Footer has contact info and unsubscribe (2-3 blocks)
+- Gallery uses COLUMNS block (simple table with 3 <td> elements) - only if user requests
 - Each text element is separate
 - Each image is separate
 - NO complex nesting - maximum 2 levels (outer table → columns table)
 - Simple, flat structure that the parser can understand
+- Products are NOT shown in this example - only include if user explicitly requests them
 
 Email Template Structure:
 1. HTML DOCTYPE and proper structure
@@ -651,30 +787,120 @@ Email HTML Best Practices:
 - Use background-color on <td> elements for colored sections
 - Ensure text has sufficient contrast (WCAG AA minimum)
 
+SECTION-SPECIFIC BLOCK TYPES (CRITICAL - USE CORRECT BLOCKS FOR EACH SECTION):
+
+HEADER SECTION (section="header"):
+- logo: Organization logo (REQUIRED if logo is available)
+- subject: Email subject line (optional, typically handled separately)
+- preheader: Preview text (optional, typically handled separately)
+- navigation: Navigation links (optional)
+- text: Header text, tagline, or announcement (optional)
+- divider: Visual separator (optional)
+- spacer: Spacing element (optional)
+- image: Hero image or header image (optional)
+DO NOT put body content (products, main text, buttons) in header section.
+
+BODY SECTION (section="body"):
+- text: Paragraphs, headings, descriptions
+- image: Product images, content images
+- button: Call-to-action buttons
+- divider: Visual separators
+- spacer: Spacing elements
+- columns: Multi-column layouts (products, features, galleries)
+- container: Grouped content containers
+- rawHtml: Custom HTML (only if generateCustomHtml is true)
+DO NOT put header-specific blocks (logo, navigation) or footer-specific blocks in body section.
+
+FOOTER SECTION (section="footer"):
+- footerText: Contact information, address, copyright text
+- socialLinks: Social media links
+- unsubscribe: Unsubscribe link (REQUIRED for marketing emails)
+- text: Footer text content
+- divider: Visual separator (optional)
+- spacer: Spacing element (optional)
+DO NOT put header or body content in footer section.
+
 ${targetSection === "header" ? `
 HEADER SECTION REQUIREMENTS:
-- Include logo if available
-- Organization name
-- Navigation or tagline
-- Professional header design
+- MUST include logo block if organization logo is available
+- Can include navigation block for menu links
+- Can include text block for tagline or announcement
+- Keep it simple and professional
 - Height should be reasonable (100-150px typical)
+- DO NOT put body content here
 ` : ""}
 
 ${targetSection === "body" ? `
 BODY SECTION REQUIREMENTS:
-- Main content area
-- Can include: text, images, buttons, product showcases, feature lists
+- Main content area with products, features, descriptions
+- Use text blocks for headings and paragraphs
+- Use image blocks for product images
+- Use button blocks for call-to-action buttons
+- Use columns blocks for side-by-side layouts (products, galleries)
 - Use proper spacing and typography hierarchy
 - Make it engaging and readable
+- DO NOT put header or footer blocks here
 ` : ""}
 
 ${targetSection === "footer" ? `
 FOOTER SECTION REQUIREMENTS:
-- Contact information
-- Social media links (if applicable)
-- Unsubscribe link (required for marketing emails)
-- Copyright/legal text
+- MUST include unsubscribe block (required for marketing emails)
+- Include footerText blocks for contact information, address
+- Include socialLinks block if organization has social media
+- Include copyright/legal text in footerText blocks
 - Professional footer design
+- DO NOT put header or body content here
+` : ""}
+
+${targetSection === "full" ? `
+FULL TEMPLATE REQUIREMENTS - DISTRIBUTE CONTENT ACROSS SECTIONS:
+
+🚨 CRITICAL SECTION DISTRIBUTION RULES 🚨
+You MUST distribute content across ALL THREE sections. DO NOT put everything in one section.
+
+1. HEADER SECTION (section="header") - REQUIRED:
+   - Logo block (if available) - MUST be in header
+   - Navigation block (optional) - for menu links
+   - Text block for tagline/announcement (optional)
+   - Subject/preheader blocks (if applicable)
+   - Keep header simple, professional, and focused
+   - Header should be 1-3 blocks maximum
+   - DO NOT put main content, products, or body text in header
+
+2. BODY SECTION (section="body") - REQUIRED:
+   - Main content: text blocks for headings and paragraphs
+   - Hero images or content images
+   - Call-to-action buttons
+   - Product showcases (ONLY if user requested products or email type is product-focused)
+   - Image galleries (ONLY if user requested)
+   - Feature lists, testimonials, etc.
+   - This is where MOST of your content should go
+   - Body should have 3-10 blocks typically
+   - DO NOT put header or footer content in body
+
+3. FOOTER SECTION (section="footer") - REQUIRED:
+   - footerText blocks for contact information (address, email, phone)
+   - socialLinks block (if organization has social media)
+   - unsubscribe block (REQUIRED for marketing emails)
+   - Copyright/legal text in footerText blocks
+   - Footer should be 2-4 blocks typically
+   - DO NOT put main content, products, or body text in footer
+
+HTML STRUCTURE FOR SECTIONS:
+When generating HTML, structure it like this:
+- Outer wrapper table
+- Header section: <tr><td> with header blocks (logo, navigation, etc.)
+- Body section: <tr><td> with body blocks (text, images, buttons, etc.)
+- Footer section: <tr><td> with footer blocks (footerText, socialLinks, unsubscribe)
+
+Each section should be in separate <tr><td> rows. DO NOT wrap everything in one container.
+
+EXAMPLE DISTRIBUTION:
+- Header: Logo + Navigation (2 blocks)
+- Body: Heading + Description + Image + Button + Product showcase (5 blocks)
+- Footer: Contact info + Social links + Unsubscribe (3 blocks)
+
+Total: 10 blocks distributed across 3 sections - NOT all in one section!
 ` : ""}
 
 ${generateCustomHtml ? `
@@ -685,6 +911,19 @@ CUSTOM HTML MODE:
 ` : ""}
 
 ${options?.customPrompt ? `\n\nADDITIONAL USER INSTRUCTIONS:\n${options.customPrompt}\n\nPlease incorporate these specific requirements into the template design while maintaining email client compatibility and professional appearance.` : ""}
+
+🚨 PRODUCT INCLUSION RULES 🚨
+${options?.context?.products && options.context.products.length > 0 ? `
+Products are available in context, but:
+- DO NOT include products unless the user explicitly requests them in their prompt
+- DO NOT include products in standard email types (newsletter, transactional, welcome, etc.)
+- ONLY include products if:
+  1. User explicitly says "include products", "show products", "product catalog", "feature products", etc., OR
+  2. The email type is clearly product-focused (product announcement, new product launch, catalog email, etc.)
+- For most emails, focus on content, announcements, updates, and calls-to-action
+- Products are for context/knowledge only - not required in every email
+- If user says "newsletter", "welcome email", "transactional", "update", etc. - DO NOT include products
+` : ""}
 
 Design Quality:
 - Professional appearance appropriate for ${style} style
@@ -714,27 +953,82 @@ Return a JSON object with:
 - subject: Email subject line
 - preheader: Preview text (optional)
 - htmlContent: Complete HTML email code (using ONLY standard block types)
+- blocks: A structured object with THREE sections:
+  {
+    "header": [/* array of blocks for header section */],
+    "body": [/* array of blocks for body section */],
+    "footer": [/* array of blocks for footer section */]
+  }
+  Each block must have: id (string), type (string), section (string: "header"|"body"|"footer"), and type-specific properties
 - designTokens: Design token values used
+
+🚨 CRITICAL: The blocks object MUST have all three sections (header, body, footer) with blocks properly distributed.
+DO NOT put all blocks in one section. Distribute them across all three sections.
 
 ${generateCustomHtml ? "" : `
 🚫🚫🚫 FINAL VALIDATION CHECKLIST BEFORE GENERATING HTML 🚫🚫🚫
 Before you generate the htmlContent, verify:
 1. ✅ Are you using ONLY text, image, button, divider, columns, logo blocks?
-2. ✅ Are products using COLUMNS blocks (simple 2-column table)?
-3. ✅ Are galleries using COLUMNS blocks (simple multi-column table)?
-4. ✅ Is each text element in its own <p> or <h1>-<h6> tag?
-5. ✅ Is each image in its own <img> tag (or in a columns block)?
-6. ✅ Is each button a standalone <a> tag with button styling?
-7. ✅ Is the structure FLAT (max 2 nesting levels)?
-8. ✅ Are you following the COMPLETE TEMPLATE STRUCTURE EXAMPLE above?
-9. ✅ Are you avoiding complex nested tables?
-10. ✅ Are you avoiding custom HTML structures?
+2. ✅ Have you distributed content across header, body, and footer sections?
+3. ✅ Is header content in header section (logo, navigation)?
+4. ✅ Is main content in body section (text, images, buttons)?
+5. ✅ Is footer content in footer section (contact info, unsubscribe)?
+6. ✅ ${options?.context?.products && options.context.products.length > 0 ? "Have you ONLY included products if the user explicitly requested them?" : "N/A - No products in context"}
+7. ✅ Are galleries using COLUMNS blocks (simple multi-column table)?
+8. ✅ Is each text element in its own <p> or <h1>-<h6> tag?
+9. ✅ Is each image in its own <img> tag (or in a columns block)?
+10. ✅ Is each button a standalone <a> tag with button styling?
+11. ✅ Is the structure FLAT (max 2 nesting levels)?
+12. ✅ Are you following the COMPLETE TEMPLATE STRUCTURE EXAMPLE above?
+13. ✅ Are you avoiding complex nested tables?
+14. ✅ Are you avoiding custom HTML structures?
 
 If you answered NO to any of these, STOP and regenerate with the correct structure.
 The htmlContent MUST be parseable into visual blocks, NOT a single rawHtml block.
+The content MUST be distributed across sections, NOT all in one section.
 🚫🚫🚫`}
 
-The htmlContent must be a complete, valid HTML email that can be sent immediately AND parsed into visual builder blocks. If the HTML cannot be parsed into visual blocks, it will become a single uneditable rawHtml block, which breaks the user experience.`;
+The htmlContent must be a complete, valid HTML email that can be sent immediately AND parsed into visual builder blocks. If the HTML cannot be parsed into visual blocks, it will become a single uneditable rawHtml block, which breaks the user experience.
+
+🚨 CRITICAL BLOCKS STRUCTURE REQUIREMENT 🚨
+You MUST return blocks in a structured format with THREE sections:
+{
+  "header": [
+    { "id": "block-header-1", "type": "logo", "section": "header", "src": "...", "alt": "Logo" },
+    { "id": "block-header-2", "type": "navigation", "section": "header", "links": [...] }
+  ],
+  "body": [
+    { "id": "block-body-1", "type": "text", "section": "body", "content": "Welcome!", ... },
+    { "id": "block-body-2", "type": "image", "section": "body", "src": "...", "alt": "..." },
+    { "id": "block-body-3", "type": "button", "section": "body", "label": "Shop Now", "url": "#", ... }
+  ],
+  "footer": [
+    { "id": "block-footer-1", "type": "footerText", "section": "footer", "content": "Contact info", ... },
+    { "id": "block-footer-2", "type": "unsubscribe", "section": "footer", "text": "Unsubscribe", "url": "#unsubscribe", ... }
+  ]
+}
+
+Each block MUST have:
+- id: unique string identifier (e.g., "block-header-1", "block-body-1")
+- type: one of "text", "image", "button", "divider", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "columns", "container", "spacer"
+- section: "header", "body", or "footer" (must match the section it's in)
+- Type-specific properties:
+  - text: { content: string, align?: "left"|"center"|"right", typography?: {...}, ... }
+  - image: { src: string, alt?: string, width?: number, align?: "left"|"center"|"right", ... }
+  - button: { label: string, url: string, variant?: "primary"|"secondary", align?: "left"|"center"|"right", ... }
+  - logo: { src: string, alt?: string, width?: number, link?: string, ... }
+  - navigation: { links: Array<{label: string, url: string}>, align?: "left"|"center"|"right", ... }
+  - footerText: { content: string, align?: "left"|"center"|"right", ... }
+  - unsubscribe: { text: string, url: string, align?: "left"|"center"|"right", ... }
+  - columns: { columnCount: "2"|"3"|"4", columns: Array<{id: string, width: number, blocks: Array<...>}>, ... }
+  - divider: { style: "solid"|"dashed"|"dotted", color: string, width: number, ... }
+
+DO NOT put all blocks in one section. You MUST distribute them:
+- Header: logo, navigation, tagline (1-3 blocks typically)
+- Body: main content, text, images, buttons (3-10 blocks typically)
+- Footer: contact info, unsubscribe, social links (2-4 blocks typically)
+
+This structured format ensures the visual builder can correctly display blocks in their proper sections.`;
 
     return prompt;
   }
@@ -749,58 +1043,6 @@ The htmlContent must be a complete, valid HTML email that can be sent immediatel
       transactional: "Transaction-focused design with clear information hierarchy and call-to-action",
     };
     return descriptions[style] || descriptions.modern;
-  }
-
-  /**
-   * Parse HTML to structured blocks
-   * Returns empty array - the frontend's htmlToBlocks will parse the HTML properly
-   * This ensures the AI generates proper HTML that can be parsed into visual blocks
-   */
-  private parseHtmlToBlocks(_html: string): Array<any> {
-    // Return empty blocks - the frontend's htmlToBlocks will parse the HTML
-    // This ensures we don't lose any content and the frontend can properly parse
-    // structured blocks from the HTML using its robust parser
-    return [];
-  }
-
-  /**
-   * Parse HTML allowing custom HTML blocks (when generateCustomHtml is true)
-   */
-  private parseHtmlToBlocksWithCustomHtml(html: string): Array<any> {
-    // When custom HTML is explicitly requested, create a single rawHtml block
-    // The user explicitly wants custom HTML, so we preserve it as rawHtml
-    return [
-      {
-        id: `block-${Date.now()}-custom`,
-        type: "rawHtml",
-        section: "body",
-        html: html,
-      },
-    ];
-  }
-
-  /**
-   * Build sections structure from blocks
-   */
-  private buildSections(blocks: Array<any>): { header: string[]; body: string[]; footer: string[] } {
-    const sections = {
-      header: [] as string[],
-      body: [] as string[],
-      footer: [] as string[],
-    };
-    
-    blocks.forEach((block) => {
-      const section = block.section || "body";
-      if (section === "header") {
-        sections.header.push(block.id);
-      } else if (section === "footer") {
-        sections.footer.push(block.id);
-      } else {
-        sections.body.push(block.id);
-      }
-    });
-    
-    return sections;
   }
 }
 

@@ -60,7 +60,48 @@ function BrandingProvider({ children }: { children: React.ReactNode }) {
 
 function App() {
 	return (
-			<ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+			<ClerkProvider 
+				publishableKey={PUBLISHABLE_KEY}
+				appearance={{
+					cssLayerName: "clerk",
+					variables: {
+						colorText: "hsl(var(--foreground))",
+						colorTextSecondary: "hsl(var(--muted-foreground))",
+						colorBackground: "hsl(var(--background))",
+						colorInputBackground: "hsl(var(--background))",
+						colorInputText: "hsl(var(--foreground))",
+						colorNeutral: "hsl(var(--foreground))",
+						colorDanger: "hsl(var(--destructive))",
+						colorSuccess: "hsl(var(--primary))",
+						colorWarning: "hsl(38, 92%, 50%)",
+						colorShimmer: "hsl(var(--muted))",
+					},
+					elements: {
+						userButtonPopoverCard: {
+							backgroundColor: "hsl(var(--background))",
+							color: "hsl(var(--foreground))",
+						},
+						userButtonPopoverActionButton: {
+							color: "hsl(var(--foreground))",
+							"&:hover": {
+								backgroundColor: "hsl(var(--muted))",
+							},
+						},
+						userButtonPopoverActionButtonText: {
+							color: "hsl(var(--foreground))",
+						},
+						userButtonPopoverFooter: {
+							backgroundColor: "hsl(var(--background))",
+						},
+						userButtonPopoverHeaderTitle: {
+							color: "hsl(var(--foreground))",
+						},
+						userButtonPopoverHeaderSubtitle: {
+							color: "hsl(var(--muted-foreground))",
+						},
+					},
+				}}
+			>
 				<QueryClientProvider client={queryClient}>
 					<ClerkAuthProvider>
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
