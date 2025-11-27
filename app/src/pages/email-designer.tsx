@@ -65,6 +65,8 @@ const defaultDesignTokens: EmailTemplateDesignTokens = {
 	borderRadius: 12,
 };
 
+const AUTOSAVE_DEBOUNCE_MS = 500;
+
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -269,6 +271,31 @@ export default function EmailDesignerPage() {
 		
 		return cloned;
 	};
+
+	const areOverridesSynced = (overrides: Partial<EmailTemplate>, base: EmailTemplate) => {
+		if (overrides.name !== undefined && overrides.name !== base.name) {
+			return false;
+		}
+		if (overrides.subject !== undefined && overrides.subject !== base.subject) {
+			return false;
+		}
+		if (overrides.preheader !== undefined && overrides.preheader !== base.preheader) {
+			return false;
+		}
+		if (overrides.htmlContent !== undefined && overrides.htmlContent !== base.htmlContent) {
+			return false;
+		}
+		if (overrides.blocks && JSON.stringify(overrides.blocks) !== JSON.stringify(base.blocks ?? [])) {
+			return false;
+		}
+		if (overrides.sections && JSON.stringify(overrides.sections) !== JSON.stringify(base.sections ?? {})) {
+			return false;
+		}
+		if (overrides.designTokens && JSON.stringify(overrides.designTokens) !== JSON.stringify(base.designTokens ?? defaultDesignTokens)) {
+			return false;
+		}
+		return true;
+	};
 	
 	// Get base template from context (without draft state)
 	const baseTemplate = useMemo(() => {
@@ -316,12 +343,22 @@ export default function EmailDesignerPage() {
 		};
 	}, [normalizedBaseTemplate, draftOverrides]);
 
+	useEffect(() => {
+		if (!draftOverrides || !normalizedBaseTemplate) {
+			return;
+		}
+
+		if (areOverridesSynced(draftOverrides, normalizedBaseTemplate)) {
+			setDraftOverrides(null);
+		}
+	}, [draftOverrides, normalizedBaseTemplate]);
+
 	// Reset local overrides when template changes
 	useEffect(() => {
 		setDraftOverrides(null);
 	}, [baseTemplate?.id]);
 
-	const { activeUsers, updateSelection } = usePresence(baseTemplate?.id);
+	const { activeUsers, updateSelection, updateCursor } = usePresence(baseTemplate?.id);
 
 	useEffect(() => {
 		const branding = currentOrg?.settings?.branding;
@@ -509,10 +546,6 @@ export default function EmailDesignerPage() {
 			// The real-time subscription will update baseTemplate automatically
 			queryClient.invalidateQueries({ queryKey: ["email-templates", orgId] });
 			toast.success(t("emailDesigner.toast.saved"));
-			// Clear overrides so we rely on realtime data
-			setTimeout(() => {
-				setDraftOverrides(null);
-			}, 200);
 		},
 		onError: (error) => {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -575,7 +608,7 @@ export default function EmailDesignerPage() {
 				...draftTemplate,
 				htmlContent, // Always use regenerated HTML to ensure sync
 			});
-		}, 1500); // debounce to avoid excessive writes
+		}, AUTOSAVE_DEBOUNCE_MS); // debounce to avoid excessive writes
 
 		return () => {
 			if (autoSaveTimerRef.current) {
@@ -1046,6 +1079,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 					}}
 					activeUsers={activeUsers}
 					currentUserId={authUser?.uid}
+					onCursorMove={updateCursor}
 					onBlockUpdate={(blockId, updates) => {
 						if (draftTemplate) {
 							const updatedBlocks = draftTemplate.blocks.map(block => 
@@ -1205,6 +1239,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 											}}
 											activeUsers={activeUsers}
 											currentUserId={authUser?.uid}
+											onCursorMove={updateCursor}
 											onBlockUpdate={(blockId, updates) => {
 												if (draftTemplate) {
 													const updatedBlocks = draftTemplate.blocks.map(block => 

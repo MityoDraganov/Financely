@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import {
 	EmailTemplateBlock,
 	EmailTemplateDesignTokens,
@@ -12,6 +13,7 @@ import { UserPresence } from "@/services/presence/presence-service";
 import { CustomHtmlEditorModal } from "./custom-html-editor-modal";
 import { Button } from "@/components/ui/button";
 import { Code2, Edit } from "lucide-react";
+import { LiveCursor } from "@/components/designer/live-cursor";
 
 // Helper function to calculate aspect ratio CSS value
 function getAspectRatioStyle(
@@ -57,6 +59,7 @@ type CanvasProps = {
 	activeUsers?: UserPresence[];
 	currentUserId?: string;
 	onBlockUpdate?: (blockId: string, updates: Partial<EmailTemplateBlock>) => void;
+	onCursorMove?: (point: { x: number; y: number }) => void;
 };
 
 // Helper to get a distinct color for each user based on their UID
@@ -73,10 +76,12 @@ export function EmailDesignerCanvas({
 	activeUsers = [],
 	currentUserId,
 	onBlockUpdate,
+	onCursorMove,
 }: CanvasProps) {
   const { t } = useTranslation();
 	const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
 	const editingBlock = editingBlockId ? blocks.find(b => b.id === editingBlockId) : null;
+	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	// Get other users' selections (exclude current user)
 	const otherUsersSelections = useMemo(() => {
@@ -107,6 +112,16 @@ export function EmailDesignerCanvas({
 		setEditingBlockId(null);
 	};
 
+	const handleMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+		if (!onCursorMove || !containerRef.current) {
+			return;
+		}
+		const rect = containerRef.current.getBoundingClientRect();
+		const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+		const y = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
+		onCursorMove({ x, y });
+	};
+
   return (
 		<div className="w-full">
 			{editingBlock && editingBlock.type === "rawHtml" && (
@@ -119,12 +134,19 @@ export function EmailDesignerCanvas({
 				/>
 			)}
             <div
-						className="max-w-5xl mx-auto border shadow-sm rounded-xl overflow-hidden"
+						ref={containerRef}
+						className="relative max-w-5xl mx-auto border shadow-sm rounded-xl overflow-hidden"
               style={{
                 backgroundColor: designTokens.background,
                 fontFamily: designTokens.fontFamily,
               }}
+							onMouseMove={handleMouseMove}
             >
+							{activeUsers
+								.filter((user) => user.uid !== currentUserId && user.cursor)
+								.map((user) => (
+									<LiveCursor key={user.uid} user={user} zoom={1} />
+								))}
               <div className="px-6 py-8" style={{ color: designTokens.text }}>
                 {/* Header Section */}
                 {(() => {
