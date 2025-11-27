@@ -21,7 +21,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
+import {
+	EmailTemplate,
+	EmailTemplateBlock,
+	EmailSection,
+	EmailTemplateDesignTokens,
+} from "@/core";
 import { Pattern } from "@/core/patterns/email-patterns";
 import { emailTemplateService } from "@/services/email-template-service";
 import { parseHtmlToBlocks, convertBlocksToHtml } from "@/utils/email-html-sync";
@@ -51,6 +56,15 @@ type BrandAssets = {
 	gallery: string[];
 };
 
+const defaultDesignTokens: EmailTemplateDesignTokens = {
+	background: "#ffffff",
+	surface: "#f8fafc",
+	text: "#0f172a",
+	primary: "#2563eb",
+	fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+	borderRadius: 12,
+};
+
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -59,10 +73,8 @@ export default function EmailDesignerPage() {
 	const queryClient = useQueryClient();
 	const locationState = (location.state as { templateId?: string; action?: "create" } | null) || null;
 	const [selectedBlockId, setSelectedBlockId] = useState<string>();
-	const [draftTemplate, setDraftTemplate] = useState<EmailTemplate | null>(null);
+	const [draftOverrides, setDraftOverrides] = useState<Partial<EmailTemplate> | null>(null);
 	const [currentSection, setCurrentSection] = useState<EmailSection>("body");
-	const draftRef = useRef<EmailTemplate | null>(null);
-	const currentTemplateRef = useRef<EmailTemplate | null>(null);
 	const isCreatingTemplateRef = useRef<boolean>(false);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || "";
@@ -110,130 +122,6 @@ export default function EmailDesignerPage() {
 		};
 	}, [isMobile, mobilePanelOpen]);
 
-	// Get base template from context (without draft state)
-	const baseTemplate = useMemo(() => {
-		const templateId = safeContextCurrentTemplateId;
-		const template = safeTemplates.find((t: EmailTemplate) => t.id === templateId) ?? safeTemplates[0];
-		console.log("[EMAIL-DESIGNER] baseTemplate computed:", {
-			timestamp: new Date().toISOString(),
-			requestedTemplateId: templateId,
-			templateFound: !!template,
-			foundTemplateId: template?.id,
-			templateName: template?.name,
-			blocksCount: template?.blocks?.length ?? 0,
-			totalTemplates: safeTemplates.length,
-		});
-		return template;
-	}, [safeTemplates, safeContextCurrentTemplateId]);
-
-	const { activeUsers, updateSelection } = usePresence(baseTemplate?.id);
-
-	useEffect(() => {
-		const branding = currentOrg?.settings?.branding;
-		setBrandAssets({
-			logo: branding?.customLogo,
-			favicon: branding?.customFavicon,
-			gallery: branding?.brandImages ?? [],
-		});
-	}, [currentOrg?.id, currentOrg?.settings?.branding]);
-
-	useEffect(() => {
-		setUploadState((prev) =>
-			prev ? { ...prev, progress: fileUpload.uploadProgress } : prev,
-		);
-	}, [fileUpload.uploadProgress]);
-
-	const selectedBlock = useMemo(() => {
-		if (!draftTemplate?.blocks || !selectedBlockId) {
-			return undefined;
-		}
-		return findBlockById(draftTemplate.blocks, selectedBlockId);
-	}, [draftTemplate?.blocks, selectedBlockId]);
-
-	// Handle block selection with automatic section switching
-	const handleSelectBlock = (blockId: string | undefined) => {
-		setSelectedBlockId(blockId);
-		
-		// If a block is selected, check its section and switch sidebar if needed
-		if (blockId && draftTemplate?.blocks) {
-			const block = findBlockById(draftTemplate.blocks, blockId);
-			if (block?.section && block.section !== currentSection) {
-				setCurrentSection(block.section);
-			}
-		}
-	};
-
-	// Keep refs in sync for stable event handlers
-	useEffect(() => {
-		draftRef.current = draftTemplate;
-	}, [draftTemplate]);
-
-	useEffect(() => {
-		currentTemplateRef.current = baseTemplate ?? null;
-	}, [baseTemplate]);
-
-	// Reset selection when template changes
-	useEffect(() => {
-		setSelectedBlockId(undefined);
-		updateSelection(undefined);
-	}, [safeContextCurrentTemplateId, updateSelection]);
-
-	// Update selection in presence when selectedBlockId changes
-	useEffect(() => {
-		if (baseTemplate?.id) {
-			updateSelection(selectedBlockId);
-		}
-	}, [selectedBlockId, baseTemplate?.id, updateSelection]);
-
-	// Sync context currentTemplateId with URL
-	useEffect(() => {
-		if (templateIdFromUrl) {
-			const templateExists = safeTemplates.some((t: EmailTemplate) => t.id === templateIdFromUrl);
-			if (templateExists && safeContextCurrentTemplateId !== templateIdFromUrl) {
-				safeSetContextCurrentTemplateId(templateIdFromUrl);
-			} else if (!templateExists && safeTemplates.length > 0) {
-				// Template not found, redirect to templates list
-				// navigate("/templates");
-			}
-		} else if (
-			!safeContextCurrentTemplateId && 
-			!createTemplate.isPending && 
-			!createTemplate.isSuccess &&
-			!isCreatingTemplateRef.current &&
-			safeTemplates.length === 0 &&
-			// CRITICAL: Don't auto-create if we're coming from templates page with action: "create"
-			// The wrapper is already handling that case
-			locationState?.action !== "create"
-		) {
-			// No template ID in URL and no template selected - auto-create a new one
-			// But only if we're NOT coming from the templates page with action: "create"
-			isCreatingTemplateRef.current = true;
-			const createPromise = safeContextHandleCreateNewTemplate();
-			if (createPromise && typeof createPromise.then === 'function') {
-				createPromise
-					.then(() => {
-						setTimeout(() => {
-							isCreatingTemplateRef.current = false;
-						}, 1000);
-					})
-					.catch(() => {
-						isCreatingTemplateRef.current = false;
-					});
-			} else {
-				setTimeout(() => {
-					isCreatingTemplateRef.current = false;
-				}, 2000);
-			}
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess]);
-
-	// Track previous base template ID and HTML content to detect realtime updates
-	const previousBaseTemplateIdRef = useRef<string | undefined>(undefined);
-	const previousBaseTemplateHtmlRef = useRef<string>("");
-	const isSavingRef = useRef<boolean>(false);
-	const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-	
 	// Helper to load template: HTML is source of truth, parse to blocks for editing
 	const loadTemplateFromHtml = (template: EmailTemplate): EmailTemplate => {
 		const cloned = JSON.parse(JSON.stringify(template)) as EmailTemplate;
@@ -382,143 +270,190 @@ export default function EmailDesignerPage() {
 		return cloned;
 	};
 	
-	// Sync draft template with base template when realtime updates arrive
-	// HTML is the source of truth - parse to blocks for visual editing
-	useEffect(() => {
-		const baseTemplateId = baseTemplate?.id;
-		const baseTemplateHtml = baseTemplate?.htmlContent || "";
-		
-		// If template ID changed, always sync (user switched templates)
-		if (baseTemplate && baseTemplateId !== previousBaseTemplateIdRef.current) {
-			console.log("[EMAIL-DESIGNER] Template ID changed, loading from HTML:", {
-				from: previousBaseTemplateIdRef.current,
-				to: baseTemplateId,
-				hasHtml: !!baseTemplateHtml,
-			});
-			previousBaseTemplateIdRef.current = baseTemplateId;
-			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
-				isSavingRef.current = false;
-			setDraftTemplate(loadTemplateFromHtml(baseTemplate));
-				return;
-			}
-		
-		// If baseTemplate HTML changed (realtime update from another user) and we're not saving
-		if (
-			baseTemplate &&
-			baseTemplateId === previousBaseTemplateIdRef.current &&
-			baseTemplateHtml !== previousBaseTemplateHtmlRef.current &&
-			!isSavingRef.current
-		) {
-			console.log("[EMAIL-DESIGNER] Realtime HTML update detected, syncing:", {
-				templateId: baseTemplateId,
-				htmlLength: baseTemplateHtml.length,
-			});
-			
-			// Update the draft by parsing the new HTML (realtime update)
-			// This allows collaborative editing - other users' HTML changes will appear
-			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
-			setDraftTemplate(loadTemplateFromHtml(baseTemplate));
-				return;
-		}
-		
-		// If no draft exists but we have a baseTemplate, create draft from HTML
-		if (!draftTemplate && baseTemplate && baseTemplateId === previousBaseTemplateIdRef.current) {
-			console.log("[EMAIL-DESIGNER] Creating draft from HTML:", {
-				templateId: baseTemplateId,
-				htmlLength: baseTemplateHtml.length,
-			});
-			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
-			setDraftTemplate(loadTemplateFromHtml(baseTemplate));
-			return;
-		}
-		
-		// Update HTML ref when baseTemplate changes (even if we don't sync)
-		if (baseTemplate && baseTemplateId === previousBaseTemplateIdRef.current) {
-			previousBaseTemplateHtmlRef.current = baseTemplateHtml;
-		}
-		
+	// Get base template from context (without draft state)
+	const baseTemplate = useMemo(() => {
+		const templateId = safeContextCurrentTemplateId;
+		const template = safeTemplates.find((t: EmailTemplate) => t.id === templateId) ?? safeTemplates[0];
+		console.log("[EMAIL-DESIGNER] baseTemplate computed:", {
+			timestamp: new Date().toISOString(),
+			requestedTemplateId: templateId,
+			templateFound: !!template,
+			foundTemplateId: template?.id,
+			templateName: template?.name,
+			blocksCount: template?.blocks?.length ?? 0,
+			totalTemplates: safeTemplates.length,
+		});
+		return template;
+	}, [safeTemplates, safeContextCurrentTemplateId]);
+
+	const normalizedBaseTemplate = useMemo(() => {
 		if (!baseTemplate) {
-			previousBaseTemplateIdRef.current = undefined;
-			previousBaseTemplateHtmlRef.current = "";
-			isSavingRef.current = false;
+			return null;
 		}
-	}, [baseTemplate?.id, baseTemplate, draftTemplate]);
+		return loadTemplateFromHtml(baseTemplate);
+	}, [baseTemplate]);
+
+	const draftTemplate = useMemo(() => {
+		if (!normalizedBaseTemplate) {
+			return null;
+		}
+
+		const overrides = draftOverrides ?? null;
+		if (!overrides) {
+			return normalizedBaseTemplate;
+		}
+
+		return {
+			...normalizedBaseTemplate,
+			...overrides,
+			blocks: overrides.blocks ?? normalizedBaseTemplate.blocks ?? [],
+			designTokens: overrides.designTokens ?? normalizedBaseTemplate.designTokens ?? defaultDesignTokens,
+			sections: overrides.sections ?? normalizedBaseTemplate.sections,
+			htmlContent: overrides.htmlContent ?? normalizedBaseTemplate.htmlContent ?? "",
+			name: overrides.name ?? normalizedBaseTemplate.name,
+			subject: overrides.subject ?? normalizedBaseTemplate.subject,
+			preheader: overrides.preheader ?? normalizedBaseTemplate.preheader,
+		};
+	}, [normalizedBaseTemplate, draftOverrides]);
+
+	// Reset local overrides when template changes
+	useEffect(() => {
+		setDraftOverrides(null);
+	}, [baseTemplate?.id]);
+
+	const { activeUsers, updateSelection } = usePresence(baseTemplate?.id);
+
+	useEffect(() => {
+		const branding = currentOrg?.settings?.branding;
+		setBrandAssets({
+			logo: branding?.customLogo,
+			favicon: branding?.customFavicon,
+			gallery: branding?.brandImages ?? [],
+		});
+	}, [currentOrg?.id, currentOrg?.settings?.branding]);
+
+	useEffect(() => {
+		setUploadState((prev) =>
+			prev ? { ...prev, progress: fileUpload.uploadProgress } : prev,
+		);
+	}, [fileUpload.uploadProgress]);
+
+	const selectedBlock = useMemo(() => {
+		if (!draftTemplate?.blocks || !selectedBlockId) {
+			return undefined;
+		}
+		return findBlockById(draftTemplate.blocks, selectedBlockId);
+	}, [draftTemplate?.blocks, selectedBlockId]);
+
+	// Handle block selection with automatic section switching
+	const handleSelectBlock = (blockId: string | undefined) => {
+		setSelectedBlockId(blockId);
+		
+		// If a block is selected, check its section and switch sidebar if needed
+		if (blockId && draftTemplate?.blocks) {
+			const block = findBlockById(draftTemplate.blocks, blockId);
+			if (block?.section && block.section !== currentSection) {
+				setCurrentSection(block.section);
+			}
+		}
+	};
+
+	// Reset selection when template changes
+	useEffect(() => {
+		setSelectedBlockId(undefined);
+		updateSelection(undefined);
+	}, [safeContextCurrentTemplateId, updateSelection]);
+
+	// Update selection in presence when selectedBlockId changes
+	useEffect(() => {
+		if (baseTemplate?.id) {
+			updateSelection(selectedBlockId);
+		}
+	}, [selectedBlockId, baseTemplate?.id, updateSelection]);
+
+	// Sync context currentTemplateId with URL
+	useEffect(() => {
+		if (templateIdFromUrl) {
+			const templateExists = safeTemplates.some((t: EmailTemplate) => t.id === templateIdFromUrl);
+			if (templateExists && safeContextCurrentTemplateId !== templateIdFromUrl) {
+				safeSetContextCurrentTemplateId(templateIdFromUrl);
+			} else if (!templateExists && safeTemplates.length > 0) {
+				// Template not found, redirect to templates list
+				// navigate("/templates");
+			}
+		} else if (
+			!safeContextCurrentTemplateId && 
+			!createTemplate.isPending && 
+			!createTemplate.isSuccess && 
+			!isCreatingTemplateRef.current && 
+			safeTemplates.length === 0 && 
+			// CRITICAL: Don't auto-create if we're coming from templates page with action: "create"
+			// The wrapper is already handling that case
+			locationState?.action !== "create"
+		) {
+			// No template ID in URL and no template selected - auto-create a new one
+			// But only if we're NOT coming from the templates page with action: "create"
+			isCreatingTemplateRef.current = true;
+			const createPromise = safeContextHandleCreateNewTemplate();
+			if (createPromise && typeof createPromise.then === "function") {
+				createPromise
+					.then(() => {
+						setTimeout(() => {
+							isCreatingTemplateRef.current = false;
+						}, 1000);
+					})
+					.catch(() => {
+						isCreatingTemplateRef.current = false;
+					});
+			} else {
+				setTimeout(() => {
+					isCreatingTemplateRef.current = false;
+				}, 2000);
+			}
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess]);
+
+	const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
 
 	const hasChanges = useMemo(() => {
-		if (!draftTemplate || !baseTemplate) return false;
-		
-		// Compare all relevant fields that should trigger saves
-		// Template name
-		if (draftTemplate.name !== baseTemplate.name) return true;
-		
-		// Subject and preheader
-		if (draftTemplate.subject !== baseTemplate.subject) return true;
-		if (draftTemplate.preheader !== baseTemplate.preheader) return true;
-		
-		// Design tokens
-		const draftTokens = draftTemplate.designTokens || {};
-		const baseTokens = baseTemplate.designTokens || {};
-		if (
-			draftTokens.background !== baseTokens.background ||
-			draftTokens.surface !== baseTokens.surface ||
-			draftTokens.text !== baseTokens.text ||
-			draftTokens.primary !== baseTokens.primary ||
-			draftTokens.fontFamily !== baseTokens.fontFamily ||
-			draftTokens.borderRadius !== baseTokens.borderRadius
-		) return true;
-		
-		// Blocks structure (compare as JSON to catch any changes)
-		const draftBlocksStr = JSON.stringify(draftTemplate.blocks || []);
-		const baseBlocksStr = JSON.stringify(baseTemplate.blocks || []);
-		if (draftBlocksStr !== baseBlocksStr) return true;
-		
-		// HTML content (source of truth) - check last to ensure it's always regenerated
-		const draftHtml = draftTemplate.htmlContent || "";
-		const baseHtml = baseTemplate.htmlContent || "";
-		if (draftHtml !== baseHtml) return true;
-		
-		return false;
-	}, [draftTemplate, baseTemplate]);
+		if (!draftOverrides) {
+			return false;
+		}
+
+		return Object.keys(draftOverrides).length > 0;
+	}, [draftOverrides]);
 
 	const saveMutation = useMutation({
 		mutationFn: async (template: EmailTemplate) => {
-			if (!baseTemplate) {
-				console.error("[EMAIL-DESIGNER] Save failed - no baseTemplate");
+			if (!template?.id) {
+				console.error("[EMAIL-DESIGNER] Save failed - template missing id");
 				return;
 			}
-			
+
 			const timestamp = new Date().toISOString();
 			console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
 				timestamp,
-				templateId: baseTemplate.id,
+				templateId: template.id,
 				htmlLength: template.htmlContent?.length || 0,
 				blocksCount: template.blocks?.length ?? 0,
 			});
-			
-			// Mark that we're saving
-			isSavingRef.current = true;
-			
+
 			// HTML is the source of truth - convert blocks to HTML if needed
 			let htmlContent = template.htmlContent || "";
-			if (!htmlContent && template.blocks && template.blocks.length > 0) {
+			if ((!htmlContent || !htmlContent.trim()) && template.blocks && template.blocks.length > 0) {
 				htmlContent = convertBlocksToHtml(
 					template.blocks,
-					template.designTokens || baseTemplate.designTokens || {
-						background: "#ffffff",
-						surface: "#f8fafc",
-						text: "#0f172a",
-						primary: "#2563eb",
-						fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-						borderRadius: 12,
-					},
+					template.designTokens || defaultDesignTokens,
 					template.subject,
 					template.preheader
 				);
 			}
-			
+
 			// Ensure blocks is always an array (even if empty)
 			const blocks = Array.isArray(template.blocks) ? template.blocks : [];
-			
+
 			// Remove undefined values recursively (Firebase Realtime Database doesn't allow undefined)
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const removeUndefined = (obj: any): any => {
@@ -528,7 +463,7 @@ export default function EmailDesignerPage() {
 				if (Array.isArray(obj)) {
 					return obj.map(removeUndefined).filter(item => item !== undefined);
 				}
-				if (typeof obj === 'object') {
+				if (typeof obj === "object") {
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const cleaned: any = {};
 					for (const [key, value] of Object.entries(obj)) {
@@ -540,7 +475,7 @@ export default function EmailDesignerPage() {
 				}
 				return obj;
 			};
-			
+
 			// Always save all fields to ensure all property changes are persisted
 			const savedData = removeUndefined({
 				name: template.name,
@@ -548,56 +483,45 @@ export default function EmailDesignerPage() {
 				preheader: template.preheader,
 				htmlContent: htmlContent, // Save HTML as source of truth
 				blocks: blocks, // Always an array (can be empty if HTML can't be parsed)
-				designTokens: template.designTokens ?? baseTemplate.designTokens ?? {
-					background: "#ffffff",
-					surface: "#f8fafc",
-					text: "#0f172a",
-					primary: "#2563eb",
-					fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-					borderRadius: 12,
-				},
-				// Also save sections if they exist
+				designTokens: template.designTokens ?? defaultDesignTokens,
 				sections: template.sections,
 			});
-			
+
 			console.log("[EMAIL-DESIGNER] Saving HTML:", {
-				templateId: baseTemplate.id,
+				templateId: template.id,
 				htmlLength: htmlContent.length,
 				blocksCount: savedData.blocks.length,
 			});
-			
-			// Use updateDraft for realtime database updates (same as invoice templates)
-			await emailTemplateService.updateDraft(baseTemplate.id, savedData);
+
+			await emailTemplateService.updateDraft(template.id, savedData);
 			console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
 				timestamp: new Date().toISOString(),
-				templateId: baseTemplate.id,
+				templateId: template.id,
 			});
 		},
 		onSuccess: async () => {
 			const timestamp = new Date().toISOString();
 			console.log("[EMAIL-DESIGNER] SAVE MUTATION SUCCESS:", {
 				timestamp,
-				templateId: baseTemplate?.id,
+				templateId: draftTemplate?.id,
 			});
 			// Invalidate queries to trigger refetch
 			// The real-time subscription will update baseTemplate automatically
 			queryClient.invalidateQueries({ queryKey: ["email-templates", orgId] });
 			toast.success(t("emailDesigner.toast.saved"));
-			// Clear saving flag - the realtime update will sync the draft
-			// Use a small delay to ensure the realtime update has time to arrive
+			// Clear overrides so we rely on realtime data
 			setTimeout(() => {
-				isSavingRef.current = false;
-			}, 500);
+				setDraftOverrides(null);
+			}, 200);
 		},
 		onError: (error) => {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			console.error("[EMAIL-DESIGNER] SAVE MUTATION ERROR:", {
 				error,
 				errorMessage,
-				templateId: baseTemplate?.id,
+				templateId: draftTemplate?.id,
 				timestamp: new Date().toISOString(),
 			});
-			isSavingRef.current = false;
 			// Show detailed error message to help debug
 			toast.error(`${t("emailDesigner.toast.saveFailed")}: ${errorMessage}`, {
 				duration: 5000,
@@ -616,7 +540,7 @@ export default function EmailDesignerPage() {
 			autoSaveTimerRef.current = null;
 		}
 
-		if (!draftTemplate || !baseTemplate) {
+		if (!draftTemplate || !normalizedBaseTemplate) {
 			return;
 		}
 
@@ -625,7 +549,7 @@ export default function EmailDesignerPage() {
 		}
 
 		// Avoid scheduling another auto-save if one is in progress
-		if (isSavePending || isSavingRef.current) {
+		if (isSavePending) {
 			return;
 		}
 
@@ -659,11 +583,13 @@ export default function EmailDesignerPage() {
 				autoSaveTimerRef.current = null;
 			}
 		};
-	}, [draftTemplate, baseTemplate, hasChanges, isSavePending, autoSaveMutate]);
+	}, [draftTemplate, normalizedBaseTemplate, hasChanges, isSavePending, autoSaveMutate]);
 
 	const handleDraftChange = (updates: Partial<EmailTemplate>) => {
-		if (!draftTemplate) return;
-		setDraftTemplate({ ...draftTemplate, ...updates });
+		setDraftOverrides((prev) => ({
+			...(prev ?? {}),
+			...updates,
+		}));
 	};
 
 	const handleAddBlock = (type: EmailTemplateBlock["type"], section: EmailSection) => {
@@ -985,7 +911,7 @@ export default function EmailDesignerPage() {
 		);
 	}
 
-if (!draftTemplate || !baseTemplate) {
+if (!draftTemplate || !normalizedBaseTemplate) {
 	return (
 		<div className="p-6 space-y-4">
 			<Skeleton className="h-10 w-64" />
@@ -1090,7 +1016,7 @@ if (!draftTemplate || !baseTemplate) {
 				templates={safeTemplates}
 				currentTemplate={baseTemplate}
 				onTemplateChange={async (id: string) => {
-					setDraftTemplate(null);
+					setDraftOverrides(null);
 					setSelectedBlockId(undefined);
 					await safeContextOnTemplateChange(id);
 				}}

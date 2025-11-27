@@ -8,20 +8,20 @@
 // Typography Scale
 export const typography = {
   // Section Headers (Main category titles like "Text", "Table", "Watermark")
-  sectionTitle: "text-sm font-semibold text-neutral-900 tracking-tight",
+  sectionTitle: "text-sm font-semibold text-foreground tracking-tight",
   
   // Subsection Headers (Grouped settings like "Typography", "Position")
-  subsectionTitle: "text-xs font-medium text-neutral-700 uppercase tracking-wider",
+  subsectionTitle: "text-xs font-medium text-foreground/80 uppercase tracking-wider",
   
   // Field Labels (Individual input labels)
-  fieldLabel: "text-xs font-medium text-neutral-600",
+  fieldLabel: "text-xs font-medium text-foreground",
   
   // Helper Text (Descriptions, hints)
-  helperText: "text-[11px] text-neutral-500 leading-relaxed",
+  helperText: "text-[11px] text-muted-foreground leading-relaxed",
   
   // Error/Warning Text
-  errorText: "text-[11px] font-medium text-amber-800",
-  errorTextSecondary: "text-[11px] text-amber-700",
+  errorText: "text-[11px] font-medium text-amber-800 dark:text-amber-400",
+  errorTextSecondary: "text-[11px] text-amber-700 dark:text-amber-500",
 };
 
 // Spacing Scale (using Tailwind's 4px base unit)
@@ -49,16 +49,16 @@ export const spacing = {
 // Visual Separators
 export const separators = {
   // Section divider (between major sections)
-  sectionDivider: "border-t border-neutral-200 pt-6 mt-6",
+  sectionDivider: "border-t border-border pt-6 mt-6",
   
   // Subsection divider (within a section)
-  subsectionDivider: "border-t border-neutral-100 pt-4 mt-4",
+  subsectionDivider: "border-t border-border/50 pt-4 mt-4",
   
   // Nested content indicator (for collapsible/conditional content)
-  nestedContent: "pl-3 ml-3 border-l-2 border-neutral-200",
+  nestedContent: "pl-3 ml-3 border-l-2 border-border",
   
   // Accent border (for important/active sections)
-  accentBorder: "pl-3 ml-3 border-l-2 border-blue-500",
+  accentBorder: "pl-3 ml-3 border-l-2 border-primary",
 };
 
 // Component Styles
@@ -81,31 +81,31 @@ export const components = {
   inputHeightSmall: "h-8",
   
   // Card/Group Container (for grouped related settings)
-  card: "p-3 bg-neutral-50/50 rounded-md border border-neutral-200",
+  card: "p-3 bg-muted/50 rounded-md border border-border",
   
   // Highlighted Section (for important/active content)
-  highlighted: "p-3 bg-blue-50/50 rounded-md border border-blue-200",
+  highlighted: "p-3 bg-primary/10 dark:bg-primary/20 rounded-md border border-primary/30 dark:border-primary/50",
 };
 
 // Color Palette
 export const colors = {
   // Text Colors
-  textPrimary: "text-neutral-900",
-  textSecondary: "text-neutral-600",
-  textTertiary: "text-neutral-500",
-  textMuted: "text-neutral-400",
+  textPrimary: "text-foreground",
+  textSecondary: "text-foreground/80",
+  textTertiary: "text-muted-foreground",
+  textMuted: "text-muted-foreground/70",
   
   // Border Colors
-  borderDefault: "border-neutral-200",
-  borderLight: "border-neutral-100",
-  borderAccent: "border-blue-500",
+  borderDefault: "border-border",
+  borderLight: "border-border/50",
+  borderAccent: "border-primary",
   
   // Background Colors
-  bgDefault: "bg-neutral-50",
-  bgCard: "bg-neutral-50/50",
-  bgAccent: "bg-blue-50/50",
-  bgWarning: "bg-amber-50/50",
-  bgSuccess: "bg-green-50/50",
+  bgDefault: "bg-background",
+  bgCard: "bg-muted/50",
+  bgAccent: "bg-primary/10 dark:bg-primary/20",
+  bgWarning: "bg-amber-50/50 dark:bg-amber-950/20",
+  bgSuccess: "bg-green-50/50 dark:bg-green-950/20",
 };
 
 // Reusable Component Patterns
@@ -124,7 +124,7 @@ export const patterns = {
   fieldLabel: (label: string, required?: boolean) => (
     <label className={typography.fieldLabel}>
       {label}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
+      {required && <span className="text-destructive ml-0.5">*</span>}
     </label>
   ),
   

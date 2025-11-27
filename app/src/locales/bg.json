@@ -837,6 +837,7 @@
 				"settings": "Настройки",
 				"imageUrl": "URL на изображение (По подразбиране)",
 				"imageUrlPlaceholder": "https://...",
+				"browseImages": "Прегледай изображения",
 				"dataBinding": "Връзка с данни (По избор)",
 				"bindingPlaceholder": "напр., company.logoUrl",
 				"bindingHint": "Оставете празно, за да използвате URL по подразбиране. Задайте връзка, за да замените с данни от фактурата.",

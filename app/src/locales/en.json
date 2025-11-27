@@ -837,6 +837,7 @@
 				"settings": "Settings",
 				"imageUrl": "Image URL (Default)",
 				"imageUrlPlaceholder": "https://...",
+				"browseImages": "Browse Images",
 				"dataBinding": "Data Binding (Optional)",
 				"bindingPlaceholder": "e.g., company.logoUrl",
 				"bindingHint": "Leave empty to use default URL. Set a binding to override with data from invoice.",

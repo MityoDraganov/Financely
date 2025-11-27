@@ -153,12 +153,12 @@ export function AIBuilderDialog({
 							className="min-h-[80px] resize-none"
 							rows={3}
 						/>
-						<p className="text-xs text-neutral-500">
+						<p className="text-xs text-muted-foreground">
 							{t('designer.aiBuilder.instructionsHint')}
 						</p>
 					</div>
 					{currentOrg && (
-						<div className="text-xs text-neutral-500">
+						<div className="text-xs text-muted-foreground">
 							{t('designer.aiBuilder.region', { region: currentTemplate?.compliance?.region || invoiceComplianceService.detectRegion(currentOrg) })}
 						</div>
 					)}

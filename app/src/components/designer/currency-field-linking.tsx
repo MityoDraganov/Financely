@@ -146,31 +146,31 @@ export function CurrencyFieldLinking({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Link2 className="h-4 w-4 text-neutral-600" />
-        <h3 className="text-sm font-semibold">Currency Field Linking</h3>
+        <Link2 className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-foreground">Currency Field Linking</h3>
       </div>
 
       {/* Existing Links */}
       {currentField.currencyLinks && currentField.currencyLinks.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs">Active Links</Label>
+          <Label className="text-xs text-foreground">Active Links</Label>
           {currentField.currencyLinks.map((link, index) => (
             <div
               key={index}
-              className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-200"
+              className="flex items-center gap-2 p-2 bg-muted/50 rounded border border-border"
             >
               {link.type === "FX_PAIR" && link.sourceFieldId && (
                 <>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="font-medium text-neutral-700">
+                      <span className="font-medium text-foreground">
                         {getSourceFieldName(link.sourceFieldId)}
                       </span>
-                      <ArrowRight className="h-3 w-3 text-neutral-400 shrink-0" />
-                      <span className="text-neutral-600">{link.targetCurrency}</span>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-foreground">{link.targetCurrency}</span>
                     </div>
                     {link.rate && (
-                      <div className="text-xs text-neutral-500 mt-0.5">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         Rate: {link.rate.toFixed(6)}
                       </div>
                     )}
@@ -208,12 +208,12 @@ export function CurrencyFieldLinking({
       )}
 
       {/* Add New Link */}
-      <div className="space-y-3 p-3 bg-neutral-50 rounded border border-neutral-200">
-        <Label className="text-xs">Add Link</Label>
+      <div className="space-y-3 p-3 bg-muted/50 rounded border border-border">
+        <Label className="text-xs text-foreground">Add Link</Label>
 
         {/* Link Type Selector */}
         <div className="space-y-1">
-          <Label className="text-xs">Link Type</Label>
+          <Label className="text-xs text-foreground">Link Type</Label>
           <Select
             value={linkType}
             onValueChange={(v) => setLinkType(v as CurrencyFieldLink["type"])}
@@ -233,7 +233,7 @@ export function CurrencyFieldLinking({
         {linkType === "FX_PAIR" && (
           <>
             <div className="space-y-1">
-              <Label className="text-xs">Source Field</Label>
+              <Label className="text-xs text-foreground">Source Field</Label>
               <Select value={sourceFieldId} onValueChange={setSourceFieldId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select source field" />
@@ -263,8 +263,8 @@ export function CurrencyFieldLinking({
 
             {/* Visual Arrow - Show conversion preview */}
             {sourceFieldId && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border border-blue-200">
-                <div className="flex-1 text-xs text-neutral-600">
+              <div className="flex items-center gap-2 p-2 bg-background rounded border border-primary/30 dark:border-primary/50">
+                <div className="flex-1 text-xs text-foreground">
                   {(() => {
                     const sourceField = availableFields.find((f) => f.id === sourceFieldId);
                     return sourceField
@@ -272,16 +272,16 @@ export function CurrencyFieldLinking({
                       : getSourceFieldName(sourceFieldId);
                   })()}
                 </div>
-                <ArrowRight className="h-4 w-4 text-blue-500 shrink-0" />
-                <div className="flex-1 text-xs font-medium text-blue-700">
+                <ArrowRight className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 text-xs font-medium text-primary">
                   {currentField.binding || currentField.placeholder || "This field"} ({targetCurrency})
                 </div>
               </div>
             )}
 
             {/* Info about target currency */}
-            <div className="text-xs text-neutral-500 p-2 bg-neutral-50 rounded">
-              Converting to <span className="font-medium">{targetCurrency}</span> (this field's currency)
+            <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+              Converting to <span className="font-medium text-foreground">{targetCurrency}</span> (this field's currency)
             </div>
           </>
         )}
@@ -289,7 +289,7 @@ export function CurrencyFieldLinking({
         {/* FIXED_MULTIPLIER Configuration */}
         {linkType === "FIXED_MULTIPLIER" && (
           <div className="space-y-1">
-            <Label className="text-xs">Multiplier</Label>
+            <Label className="text-xs text-foreground">Multiplier</Label>
             <Input
               type="number"
               step="0.0001"

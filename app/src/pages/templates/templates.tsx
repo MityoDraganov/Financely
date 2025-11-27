@@ -306,7 +306,7 @@ export default function TemplatesPage() {
               variant="ghost"
               size="sm"
               onClick={handleSelectAll}
-              className="h-auto p-0 font-normal"
+              className="h-auto p-0 font-normal text-foreground"
             >
               {allSelected
                 ? (t('templates.bulkDelete.deselectAll') || 'Deselect all')
@@ -469,7 +469,7 @@ export default function TemplatesPage() {
                 variant="ghost"
                 size="sm"
                 onClick={handleEmailSelectAll}
-                className="h-auto p-0 font-normal"
+                className="h-auto p-0 font-normal text-foreground"
               >
                 {allEmailSelected
                   ? (t('templates.bulkDelete.deselectAll') || 'Deselect all')

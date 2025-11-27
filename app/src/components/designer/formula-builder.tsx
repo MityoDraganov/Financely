@@ -223,14 +223,14 @@ export function FormulaBuilder({
 	return (
 		<div className="space-y-3">
 			{/* Toggle Switch */}
-			<div className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+			<div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border">
 				<div className="flex items-center gap-2">
-					<Sparkles className={cn("h-4 w-4", hasFormula ? "text-blue-600" : "text-neutral-400")} />
+					<Sparkles className={cn("h-4 w-4", hasFormula ? "text-primary" : "text-muted-foreground")} />
 					<div>
-						<Label className="text-sm font-medium cursor-pointer" htmlFor="formula-toggle">
+						<Label className="text-sm font-medium cursor-pointer text-foreground" htmlFor="formula-toggle">
 							Use Formula
 						</Label>
-						<p className="text-xs text-neutral-500 mt-0.5">
+						<p className="text-xs text-muted-foreground mt-0.5">
 							Calculate value from other fields
 						</p>
 					</div>
@@ -250,15 +250,15 @@ export function FormulaBuilder({
 							<Button
 								type="button"
 								variant="ghost"
-								className="w-full justify-between h-auto p-2 hover:bg-neutral-50"
+								className="w-full justify-between h-auto p-2 hover:bg-accent text-foreground"
 							>
 								<div className="flex items-center gap-2">
 									{isExpanded ? (
-										<ChevronDown className="h-4 w-4 text-neutral-500" />
+										<ChevronDown className="h-4 w-4 text-muted-foreground" />
 									) : (
-										<ChevronRight className="h-4 w-4 text-neutral-500" />
+										<ChevronRight className="h-4 w-4 text-muted-foreground" />
 									)}
-									<span className="text-xs font-medium text-neutral-700">Formula Editor</span>
+									<span className="text-xs font-medium">Formula Editor</span>
 									{validation.valid && formulaInput.trim() && (
 										<CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
 									)}
@@ -272,7 +272,7 @@ export function FormulaBuilder({
 						<CollapsibleContent className="space-y-3">
 							{/* Formula Input */}
 							<div className="space-y-2">
-								<Label className="text-xs font-medium text-neutral-700">Formula Expression</Label>
+								<Label className="text-xs font-medium text-foreground">Formula Expression</Label>
 								<div className="relative">
 									<Input
 										data-formula-input
@@ -305,7 +305,7 @@ export function FormulaBuilder({
 
 							{/* Quick Actions */}
 							<div className="space-y-2">
-								<Label className="text-xs font-medium text-neutral-700">Quick Insert</Label>
+								<Label className="text-xs font-medium text-foreground">Quick Insert</Label>
 								<div className="flex flex-wrap gap-1.5">
 									<Popover open={showHelper} onOpenChange={setShowHelper}>
 										<PopoverTrigger asChild>
@@ -321,11 +321,11 @@ export function FormulaBuilder({
 										</PopoverTrigger>
 										<PopoverContent className="w-72 p-2" align="start">
 											<div className="space-y-1">
-												<div className="text-xs font-semibold text-neutral-700 mb-2 px-1">
+												<div className="text-xs font-semibold text-foreground mb-2 px-1">
 													Available Fields
 												</div>
 												{availableFields.length === 0 ? (
-													<div className="text-xs text-neutral-500 p-2">
+													<div className="text-xs text-muted-foreground p-2">
 														No number or currency fields available
 													</div>
 												) : (
@@ -336,11 +336,11 @@ export function FormulaBuilder({
 																type="button"
 																variant="ghost"
 																size="sm"
-																className="w-full justify-start h-auto py-2 px-2 text-xs"
+																className="w-full justify-start h-auto py-2 px-2 text-xs text-foreground"
 																onClick={(e) => insertReference(field.reference, e)}
 															>
-																<span className="font-mono text-blue-600">{field.reference}</span>
-																<span className="ml-2 text-neutral-500 truncate">{field.label}</span>
+																<span className="font-mono text-primary">{field.reference}</span>
+																<span className="ml-2 text-muted-foreground truncate">{field.label}</span>
 															</Button>
 														))}
 													</div>
@@ -400,7 +400,7 @@ export function FormulaBuilder({
 										</PopoverTrigger>
 										<PopoverContent className="w-64 p-2" align="start">
 											<div className="space-y-1">
-												<div className="text-xs font-semibold text-neutral-700 mb-2 px-1">
+												<div className="text-xs font-semibold text-foreground mb-2 px-1">
 													Available Functions
 												</div>
 												<div className="max-h-48 overflow-y-auto space-y-0.5">
@@ -419,15 +419,15 @@ export function FormulaBuilder({
 															type="button"
 															variant="ghost"
 															size="sm"
-															className="w-full justify-start h-auto py-2 px-2 text-xs"
+															className="w-full justify-start h-auto py-2 px-2 text-xs text-foreground"
 															onClick={(e) => {
 																e.preventDefault();
 																e.stopPropagation();
 																insertFunction(func.name);
 															}}
 														>
-															<span className="font-mono text-blue-600">{func.name}()</span>
-															<span className="ml-2 text-neutral-500">{func.description}</span>
+															<span className="font-mono text-primary">{func.name}()</span>
+															<span className="ml-2 text-muted-foreground">{func.description}</span>
 														</Button>
 													))}
 												</div>

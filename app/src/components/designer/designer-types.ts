@@ -1,6 +1,6 @@
 export type DesignerState = {
 	currentTemplateId?: string;
-	selectedElementId?: string;
+	selectedElementIds?: string[]; // Changed to array for multi-select
 	zoom: number;
 };
 
@@ -16,6 +16,8 @@ export type DragState = {
 	startY: number;
 	startWidth?: number;
 	startHeight?: number;
+	// For multi-select drag: store initial positions of all selected elements
+	selectedElementPositions?: Map<string, { x: number; y: number }>;
 };
 
 export type SnapGuide = {

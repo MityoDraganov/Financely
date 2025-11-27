@@ -31,6 +31,7 @@ export default function TextElement({ element, zoom }: TextElementProps) {
 	
 	return (
 		<div
+			className="select-none"
 			style={{
 				fontFamily: t.typography.fontFamily,
 				fontSize: t.typography.fontSize * zoom,
@@ -42,7 +43,14 @@ export default function TextElement({ element, zoom }: TextElementProps) {
 				backgroundColor: t.backgroundColor || "transparent",
 				padding: `${(t.padding || 0) * zoom}px`,
 				opacity: t.opacity ?? 1,
+				userSelect: "none",
+				WebkitUserSelect: "none",
+				MozUserSelect: "none",
+				msUserSelect: "none",
 				...shadowStyle,
+			}}
+			onSelectStart={(e) => {
+				e.preventDefault();
 			}}
 		>
 			{t.text}
@@ -216,7 +224,7 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 												type="button"
 												size="sm"
 												variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
 												onClick={() => {
 													setBindingInput(suggestedBinding);
 													onChange({

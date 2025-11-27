@@ -34,7 +34,7 @@ type DesignerCanvasProps = {
 	onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
 	onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 	onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => void;
-	onSelectElement: (id: string) => void;
+	onSelectElement: (id: string, event?: React.MouseEvent | React.PointerEvent) => void;
 	onStartDrag: (element: TemplateElement, e: React.PointerEvent) => void;
 	onStartResize: (element: TemplateElement, edge: DragState["edge"], e: React.PointerEvent) => void;
 	onDuplicateElement: (id: string) => void;
@@ -44,6 +44,7 @@ type DesignerCanvasProps = {
 	onTableHeaderChange?: (tableId: string, columnId: string, header: string) => void;
 	currentTemplateRef: React.MutableRefObject<Template | null>;
 	saveMutation: { mutate: (data: { elements: TemplateElement[] }) => void };
+	dragStartedRef?: React.MutableRefObject<boolean>; // Track if drag actually started (movement detected)
 };
 
 // Page dimensions in pixels (at 96 DPI to match PDF rendering)
@@ -76,6 +77,7 @@ export function DesignerCanvas({
 	onCreateTemplate,
 	isRequired,
 	onTableHeaderChange,
+	dragStartedRef,
 }: DesignerCanvasProps) {
 	const elements = draftElements ?? template?.elements ?? [];
 	const pageDimensions = getPageDimensions(template?.pageSize);
@@ -83,7 +85,7 @@ export function DesignerCanvas({
 	const PAGE_HEIGHT = pageDimensions.height;
 
 	return (
-		<div className="flex-1 overflow-auto bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-50 grid place-items-center"
+		<div className="flex-1 overflow-auto bg-muted/30 grid place-items-center"
 			onDragOver={(e) => {
 				e.preventDefault();
 			}}
@@ -92,7 +94,7 @@ export function DesignerCanvas({
 			}}
 		>
 			{!template && (
-				<div className="text-center text-neutral-500 p-8">
+				<div className="text-center text-muted-foreground p-8">
 					<div className="text-sm mb-2">
 						No template selected.
 					</div>
@@ -112,6 +114,13 @@ export function DesignerCanvas({
 			<div
 				ref={pageRef}
 				className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
+				onClick={(e) => {
+					// Deselect all when clicking on empty canvas (not on an element)
+					// Elements stop propagation, so if we reach here, it's empty space
+					if (e.target === e.currentTarget || (e.target as HTMLElement) === pageRef.current) {
+						onSelectElement("", e);
+					}
+				}}
 				style={{
 					width: PAGE_WIDTH * state.zoom,
 					height: PAGE_HEIGHT * state.zoom,
@@ -120,8 +129,10 @@ export function DesignerCanvas({
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onMouseMove={onMouseMove}
-				onClick={() => {
-					// Deselect if clicking on empty space
+				onClick={(e) => {
+					// Deselect all when clicking on empty canvas (not on an element)
+					// Elements stop propagation, so if we reach here, it's empty space
+					onSelectElement("", e);
 					// Elements stop propagation, so if we reach here, it's empty space
 					// Just deselect - elements will have already handled their own clicks
 					onSelectElement("");
@@ -132,7 +143,7 @@ export function DesignerCanvas({
 					className="absolute inset-0 z-0"
 					style={{
 						backgroundSize: `${8 * state.zoom}px ${8 * state.zoom}px`,
-						backgroundImage: `linear-gradient(to right, #eee 1px, transparent 1px), linear-gradient(to bottom, #eee 1px, transparent 1px)`,
+						backgroundImage: `linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px)`,
 					}}
 					onDragOver={onDragOver}
 					onDrop={onDrop}
@@ -189,7 +200,7 @@ export function DesignerCanvas({
 						<ContextMenu key={el.id}>
 							<ContextMenuTrigger asChild>
 								<div
-									className={`absolute ${state.selectedElementId === el.id ? "ring-2 ring-blue-500" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400" : ""}`}
+									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
@@ -197,17 +208,39 @@ export function DesignerCanvas({
 										height: el.height * state.zoom,
 										transform: `rotate(${el.rotation}deg)`,
 										touchAction: "none",
+										userSelect: "none",
+										WebkitUserSelect: "none",
+										MozUserSelect: "none",
+										msUserSelect: "none",
 										zIndex: el.zIndex ?? 10,
-									}}
-									onClick={(e) => {
-										e.stopPropagation(); // Prevent page onClick from firing
-										onSelectElement(el.id);
 									}}
 									onPointerDown={(e) => {
 										if (e.button !== 0) return;
-										e.preventDefault();
-										e.stopPropagation();
+										// Don't prevent default here - we need click events to fire
+										// We'll prevent text selection via CSS and onSelectStart
+										// Only start drag if there's actual movement (handled in pointer move)
 										onStartDrag(el, e);
+									}}
+									onSelectStart={(e) => {
+										// Prevent text selection
+										e.preventDefault();
+									}}
+									onClick={(e) => {
+										e.stopPropagation(); // Prevent page onClick from firing
+										console.log('[CLICK]', { 
+											elementId: el.id, 
+											shiftKey: e.shiftKey,
+											dragStarted: dragStartedRef?.current,
+											dragElementId: drag?.elementId
+										});
+										// Only select if we didn't drag (check if drag actually started)
+										// If dragStartedRef is true, it means we actually moved the pointer
+										const didDrag = dragStartedRef?.current && drag?.elementId === el.id;
+										if (!didDrag) {
+											onSelectElement(el.id, e);
+										} else {
+											console.log('[CLICK] Skipping selection because drag occurred');
+										}
 									}}
 								>
 									{/* Lock icon for required fields */}
@@ -219,8 +252,8 @@ export function DesignerCanvas({
 											<Lock className="w-3 h-3" />
 										</div>
 									)}
-									{/* Resize handles */}
-									{state.selectedElementId === el.id && (
+									{/* Resize handles - only show for single selection */}
+									{state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && (
 										<>
 											{[
 												{ edge: "nw" as const, cx: 0, cy: 0, cursor: "nwse-resize" },
@@ -234,14 +267,14 @@ export function DesignerCanvas({
 											].map((h) => (
 												<div
 													key={h.edge}
+													className="absolute"
 													style={{
-														position: "absolute",
 														left: `calc(${h.cx * 100}% - 4px)`,
 														top: `calc(${h.cy * 100}% - 4px)`,
 														width: 8,
 														height: 8,
-														background: "white",
-														border: "1px solid #2563eb",
+														background: "hsl(var(--background))",
+														border: "1px solid hsl(var(--primary))",
 														borderRadius: 2,
 														cursor: h.cursor as React.CSSProperties["cursor"],
 													}}

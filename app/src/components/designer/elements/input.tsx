@@ -22,11 +22,11 @@ export default function InputElement({ element }: InputElementProps) {
 	const inp = element;
 	
 	return (
-		<div className="w-full h-full grid place-items-center text-neutral-400">
+		<div className="w-full h-full grid place-items-center text-muted-foreground">
 			<input
 				type={inp.variant}
 				placeholder={inp.placeholder}
-				className="w-[95%] h-[80%] border border-neutral-200 dark:border-neutral-700 rounded px-2 text-[10px] bg-white dark:bg-neutral-900 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
+				className="w-[95%] h-[80%] border border-border rounded px-2 text-[10px] bg-background text-foreground placeholder:text-muted-foreground"
 				style={{ textAlign: inp.align as React.CSSProperties["textAlign"] }}
 				readOnly
 			/>
@@ -265,7 +265,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 												type="button"
 												size="sm"
 												variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
 												onClick={() => {
 													setBindingInput(suggestedBinding);
 													onChange({

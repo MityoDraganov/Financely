@@ -313,7 +313,7 @@ export function CurrencyProperties({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+                        className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
                         onClick={() => {
                           setBindingInput(suggestedBinding);
                           onChange({

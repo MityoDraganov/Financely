@@ -11,7 +11,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Image as ImageIcon } from "lucide-react";
 import { typography, spacing, separators, components, colors } from "../design-system";
 
 interface ImageElementProps {
@@ -29,7 +29,7 @@ export default function ImageElement({ element }: ImageElementProps) {
 			style={{ width: "100%", height: "100%", objectFit: img.objectFit }}
 		/>
 	) : (
-		<div className="w-full h-full bg-neutral-100 grid place-items-center text-neutral-400">
+		<div className="w-full h-full bg-muted grid place-items-center text-muted-foreground">
 			{t('designer.elementProperties.image.title')}
 		</div>
 	);
@@ -40,9 +40,10 @@ interface ImagePropertiesProps {
 	onChange: (partial: Partial<TemplateElement>) => void;
 	isNarrow?: boolean;
 	allElements?: TemplateElement[];
+	onOpenImagePicker?: (elementId: string) => void;
 }
 
-export function ImageProperties({ element, onChange, isNarrow, allElements = [] }: ImagePropertiesProps) {
+export function ImageProperties({ element, onChange, isNarrow, allElements = [], onOpenImagePicker }: ImagePropertiesProps) {
 	const { t } = useTranslation();
 	const [bindingInput, setBindingInput] = useState(element.binding ?? "");
 	
@@ -135,15 +136,28 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 				<div className={components.grid}>
 					<div className={`${components.field} col-span-full`}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.imageUrl')}</Label>
-						<Input
-							placeholder={t('designer.elementProperties.image.imageUrlPlaceholder')}
-							value={element.src}
-							onChange={(e) => {
-								const img = element as Extract<TemplateElement, { type: "image" }>;
-								onChange({ ...img, src: e.target.value });
-							}}
-							className={components.inputHeight}
-						/>
+						<div className="relative">
+							<Input
+								placeholder={t('designer.elementProperties.image.imageUrlPlaceholder')}
+								value={element.src}
+								onChange={(e) => {
+									const img = element as Extract<TemplateElement, { type: "image" }>;
+									onChange({ ...img, src: e.target.value });
+								}}
+								className={`${components.inputHeight} ${onOpenImagePicker ? "pr-9" : ""}`}
+							/>
+							{onOpenImagePicker && (
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									onClick={() => onOpenImagePicker(element.id)}
+									className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+								>
+									<ImageIcon className="h-4 w-4" />
+								</Button>
+							)}
+						</div>
 					</div>
 					<div className={`${components.field} col-span-full`}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.dataBinding')}</Label>
@@ -174,7 +188,7 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [] 
 												type="button"
 												size="sm"
 												variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
 												onClick={() => {
 													setBindingInput(suggestedBinding);
 													const img = element as Extract<TemplateElement, { type: "image" }>;

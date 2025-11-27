@@ -29,7 +29,7 @@ import { typography, spacing, separators, components, colors } from "./design-sy
 
 type PropertiesPanelProps = {
 	template: Template | undefined;
-	selectedElementId: string | undefined;
+	selectedElementIds: string[];
 	draftElements: TemplateElement[] | null;
 	organization: Organization | undefined;
 	complianceStatus: {
@@ -41,6 +41,7 @@ type PropertiesPanelProps = {
 	onUpdateElement: (partial: Partial<TemplateElement>) => void;
 	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
 	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
+	onOpenImagePicker?: (elementId: string) => void;
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
 	// Version history props
 	templateId?: string;
@@ -55,7 +56,7 @@ const PROPS_NARROW_BREAKPOINT_PX = 520;
 
 export function PropertiesPanel({
 	template,
-	selectedElementId,
+	selectedElementIds,
 	draftElements,
 	organization,
 	complianceStatus,
@@ -63,6 +64,7 @@ export function PropertiesPanel({
 	onUpdateElement,
 	onAddRequiredElement,
 	determineElementTypeForBinding,
+	onOpenImagePicker,
 	onPropsNarrowChange,
 	templateId,
 	versions = [],
@@ -90,7 +92,7 @@ export function PropertiesPanel({
 
 	// Scroll to element properties when an element is selected
 	useEffect(() => {
-		if (selectedElementId && elementPropertiesRef.current && propertiesRef.current) {
+		if (selectedElementIds.length > 0 && elementPropertiesRef.current && propertiesRef.current) {
 			// Use setTimeout to ensure the element is rendered before scrolling
 			const timeoutId = setTimeout(() => {
 				const container = propertiesRef.current;
@@ -112,7 +114,7 @@ export function PropertiesPanel({
 
 			return () => clearTimeout(timeoutId);
 		}
-	}, [selectedElementId]);
+	}, [selectedElementIds]);
 
 	if (!template) {
 		return (
@@ -129,9 +131,11 @@ export function PropertiesPanel({
 	}
 
 	const elements = draftElements ?? template.elements ?? [];
-	const selectedElement = selectedElementId
-		? elements.find((e) => e.id === selectedElementId)
-		: undefined;
+	// Handle multiple selections
+	const selectedElements = selectedElementIds.length > 0
+		? elements.filter((e) => selectedElementIds.includes(e.id))
+		: [];
+	const selectedElement = selectedElements.length === 1 ? selectedElements[0] : undefined;
 
 	return (
 		<div
@@ -255,11 +259,12 @@ export function PropertiesPanel({
 				{/* Element Properties */}
 				{selectedElement && (
 					<div ref={elementPropertiesRef} className={separators.sectionDivider}>
-						<ElementProperties
-							element={selectedElement}
-							onChange={onUpdateElement}
-							allElements={elements}
-						/>
+					<ElementProperties
+						element={selectedElement}
+						onChange={onUpdateElement}
+						allElements={elements}
+						onOpenImagePicker={onOpenImagePicker}
+					/>
 					</div>
 				)}
 			</div>
@@ -271,10 +276,12 @@ function ElementProperties({
 	element,
 	onChange,
 	allElements,
+	onOpenImagePicker,
 }: {
 	element: TemplateElement;
 	onChange: (partial: Partial<TemplateElement>) => void;
 	allElements?: TemplateElement[];
+	onOpenImagePicker?: (elementId: string) => void;
 }) {
 	if (element.type === "text") {
 		const t = element as Extract<TemplateElement, { type: "text" }>;
@@ -294,6 +301,7 @@ function ElementProperties({
 				element={img}
 				onChange={onChange}
 				allElements={allElements}
+				onOpenImagePicker={onOpenImagePicker}
 			/>
 		);
 	}

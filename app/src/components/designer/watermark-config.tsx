@@ -145,7 +145,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 								}
 							);
 						}}
-						className="h-4 w-4 rounded border-gray-300"
+						className="h-4 w-4 rounded border-border"
 					/>
 				</div>
 				{brand.watermark?.enabled && (

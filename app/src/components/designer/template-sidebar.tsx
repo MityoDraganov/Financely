@@ -31,7 +31,7 @@ type TemplateSidebarProps = {
 	onCreateNewTemplate: () => void;
 	onOpenAIBuilder: () => void;
 	onAddElement: (kind: TemplateElement["type"]) => void;
-	onSelectElement: (id: string) => void;
+	onSelectElement: (id: string, event?: React.MouseEvent) => void;
 	onDuplicateElement: (id: string) => void;
 	onDeleteElement: (id: string) => void;
 	missingRequiredFields: Array<{
@@ -60,9 +60,9 @@ export function TemplateSidebar({
 }: TemplateSidebarProps) {
 	const { t } = useTranslation();
 	return (
-		<div className="h-full p-4 border-r bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
+		<div className="h-full p-4 border-r bg-background overflow-y-auto">
 			<div className="flex items-center justify-between mb-4">
-				<div className="font-semibold text-base text-neutral-800">{t('designer.sidebar.templates')}</div>
+				<div className="font-semibold text-base text-foreground">{t('designer.sidebar.templates')}</div>
 			</div>
 			<div className="mb-4 space-y-2.5">
 				<Button
@@ -77,7 +77,7 @@ export function TemplateSidebar({
 				<Button
 					variant="outline"
 					size="sm"
-					className="w-full border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-all duration-200 shadow-sm hover:shadow"
+					className="w-full transition-all duration-200 shadow-sm hover:shadow"
 					onClick={onCreateNewTemplate}
 				>
 					<Plus className="h-4 w-4 mr-2" />
@@ -86,15 +86,15 @@ export function TemplateSidebar({
 			</div>
 			<div className="space-y-2">
 				{templates.length === 0 && (
-					<div className="text-xs text-neutral-500">
+					<div className="text-xs text-muted-foreground">
 						{t('designer.sidebar.noTemplates')}
 					</div>
 				)}
 			</div>
 			{/* Required Fields Section */}
 			{missingRequiredFields.length > 0 && currentTemplate && (
-				<div className="mt-5 mb-5 p-3 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/50 shadow-sm">
-					<div className="text-xs font-semibold uppercase text-amber-700 mb-2.5 flex items-center gap-1.5">
+				<div className="mt-5 mb-5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 shadow-sm">
+					<div className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1.5">
 						<Lock className="h-3.5 w-3.5" />
 						{t('designer.sidebar.requiredFields')}
 					</div>
@@ -108,13 +108,13 @@ export function TemplateSidebar({
 									onAddRequiredElement(field.binding, field.label, field.elementType);
 									toast.success(t('designer.sidebar.addedField', { label: field.label }), { duration: 2000 });
 								}}
-								className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300/60 bg-white/80 hover:bg-amber-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+								className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 dark:hover:border-amber-600 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
 							>
-								<Plus className="h-3.5 w-3.5 mr-2 text-amber-600" />
+								<Plus className="h-3.5 w-3.5 mr-2 text-amber-600 dark:text-amber-400" />
 								<span className="text-left flex-1">
-									<div className="font-semibold text-amber-900">{field.label}</div>
+									<div className="font-semibold text-amber-900 dark:text-amber-200">{field.label}</div>
 									{field.description && (
-										<div className="text-xs text-amber-700/70 font-normal mt-0.5">{field.description}</div>
+										<div className="text-xs text-amber-700/70 dark:text-amber-400/70 font-normal mt-0.5">{field.description}</div>
 									)}
 								</span>
 							</Button>
@@ -123,10 +123,10 @@ export function TemplateSidebar({
 				</div>
 			)}
 			<div className="mt-5">
-				<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 					<span>{t('designer.sidebar.palette')}</span>
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
 					<Button
@@ -141,9 +141,9 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "text");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
-						<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" />
+						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
 						<span className="font-medium">{t('designer.sidebar.text')}</span>
 					</Button>
 					<Button
@@ -158,9 +158,9 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "image");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
-						<ImageIcon className="h-4 w-4 mr-2 text-neutral-600" />
+						<ImageIcon className="h-4 w-4 mr-2 text-muted-foreground" />
 						<span className="font-medium">{t('designer.sidebar.image')}</span>
 					</Button>
 					<Button
@@ -175,9 +175,9 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "table");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
-						<TableIcon className="h-4 w-4 mr-2 text-neutral-600" />
+						<TableIcon className="h-4 w-4 mr-2 text-muted-foreground" />
 						<span className="font-medium">{t('designer.sidebar.table')}</span>
 					</Button>
 					<Button
@@ -192,9 +192,9 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "input");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
-						<TypeIcon className="h-4 w-4 mr-2 text-neutral-600" />
+						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
 						<span className="font-medium">{t('designer.sidebar.input')}</span>
 					</Button>
 					<Button
@@ -209,7 +209,7 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "box");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
 						<Square className="h-4 w-4 mr-2 text-neutral-600" />
 						<span className="font-medium">{t('designer.sidebar.box')}</span>
@@ -226,7 +226,7 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "line");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
 						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
 						<span className="font-medium">{t('designer.sidebar.line')}</span>
@@ -243,17 +243,17 @@ export function TemplateSidebar({
 							e.dataTransfer.setData("text/plain", "currency");
 							e.dataTransfer.effectAllowed = "copy";
 						}}
-						className="w-full justify-start hover:bg-neutral-100 hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-neutral-200/50"
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
 						<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
 						<span className="font-medium">{t('designer.sidebar.currency')}</span>
 					</Button>
 				</div>
 				<div className="mt-5">
-				<div className="text-xs font-semibold uppercase text-neutral-600 mb-3 flex items-center gap-2">
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 					<span>{t('designer.elements')}</span>
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-300 to-transparent"></div>
+					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 						{(currentTemplate?.elements ?? []).map((el) => {
@@ -269,10 +269,10 @@ export function TemplateSidebar({
 										<div
 											className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-lg cursor-pointer truncate transition-all duration-200 ${
 												state.selectedElementId === el.id
-													? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-2 border-blue-300 shadow-md"
-													: "hover:bg-neutral-100 hover:shadow-sm border border-transparent hover:border-neutral-200"
-											} ${isRequiredField ? "ring-1 ring-amber-300/50" : ""}`}
-											onClick={() => onSelectElement(el.id)}
+													? "bg-primary/10 dark:bg-primary/20 text-primary border-2 border-primary/30 dark:border-primary/50 shadow-md"
+													: "hover:bg-accent hover:shadow-sm border border-transparent hover:border-border"
+											} ${isRequiredField ? "ring-1 ring-amber-400/50 dark:ring-amber-500/50" : ""}`}
+											onClick={(e) => onSelectElement(el.id, e)}
 										>
 											<div className="flex items-center gap-2">
 												{isRequiredField && (
@@ -280,54 +280,54 @@ export function TemplateSidebar({
 												)}
 												{el.type === "text" && (
 													<TypeIcon className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "image" && (
 													<ImageIcon className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "table" && (
 													<TableIcon className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "input" && (
 													<TypeIcon className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "currency" && (
 													<CircleDollarSign className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "box" && (
 													<Square className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
 												{el.type === "line" && (
 													<Minus className={`h-4 w-4 shrink-0 ${
-														state.selectedElementId === el.id
-															? "text-blue-600"
-															: "text-neutral-500"
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
 													}`} />
 												)}
-												<span className="truncate flex-1 text-sm">
+												<span className="truncate flex-1 text-sm text-foreground">
 													{(() => {
 														if (el.type === "text") {
 															return (el as Extract<TemplateElement, { type: "text" }>).text ?? t('designer.sidebar.text');

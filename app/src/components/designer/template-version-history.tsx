@@ -77,14 +77,14 @@ export function TemplateVersionHistory({
 
   if (versions.length === 0) {
     return (
-      <div className="border-t border-gray-200 pt-4 space-y-3">
+      <div className="border-t border-border pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="flex items-center gap-2">
+          <Label className="flex items-center gap-2 text-foreground">
             <History className="h-4 w-4" />
             {t('designer.versionHistory.title')}
           </Label>
         </div>
-        <p className="text-sm text-gray-500 text-center py-4">
+        <p className="text-sm text-muted-foreground text-center py-4">
           {t('designer.versionHistory.noVersions')}
         </p>
       </div>
@@ -93,21 +93,18 @@ export function TemplateVersionHistory({
 
   return (
     <>
-      <div className="border-t border-gray-200 pt-4 space-y-3">
+      <div className="border-t border-border pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="flex items-center gap-2">
+          <Label className="flex items-center gap-2 text-foreground">
             <History className="h-4 w-4" />
             {t('designer.versionHistory.title')}
           </Label>
           {currentVersion && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted-foreground">
               {t('designer.versionHistory.current')}: v{currentVersion}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500">
-          {t('designer.versionHistory.noVersions')}
-        </p>
         <div className="space-y-2">
           {sortedVersions.map((version) => {
             const isCurrent = version.version === currentVersion;
@@ -116,32 +113,32 @@ export function TemplateVersionHistory({
             return (
               <div
                 key={version.id}
-                className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-accent transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{t('designer.versionHistory.version', { number: version.version })}</span>
+                    <span className="text-sm font-medium text-foreground">{t('designer.versionHistory.version', { number: version.version })}</span>
                     {isCurrent && (
-                      <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded shrink-0">
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-400 rounded shrink-0">
                         {t('designer.versionHistory.current')}
                       </span>
                     )}
                   </div>
                   {version.description && (
-                    <p className="text-xs text-gray-500 mt-1 wrap-break-word">{version.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 wrap-break-word">{version.description}</p>
                   )}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-muted-foreground">
                       {version.createdAt
                         ? formatDateTime(version.createdAt)
                         : t('designer.versionHistory.unknownDate')}
                     </p>
                     {version.createdBy && (
                       <>
-                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-muted-foreground">•</span>
                         <div className="flex items-center gap-1">
-                          <User className="h-3 w-3 text-gray-400" />
-                          <span className="text-xs text-gray-400">
+                          <User className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
                             {isCreatedByCurrentUser ? t('designer.versionHistory.you') : (getUserName(version.createdBy) || t('designer.versionHistory.unknownUser'))}
                           </span>
                         </div>
@@ -149,13 +146,13 @@ export function TemplateVersionHistory({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 ml-2 shrink-0">
+                <div className="flex flex-col items-center gap-2 ml-2 shrink-0">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => setPreviewingVersion(version)}
-                    className="h-8"
+                    className="h-8 text-foreground"
                     title={t('designer.versionHistory.previewButton')}
                   >
                     <Eye className="h-3 w-3 mr-1" />

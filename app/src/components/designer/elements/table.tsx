@@ -47,13 +47,13 @@ export default function TableElement({
 	const tbl = element;
 	
 	return (
-		<div className="w-full h-full border border-neutral-200 bg-white">
+		<div className="w-full h-full border border-border bg-background">
 			<div
 				style={{
 					display: "grid",
 					gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr 1fr",
 					height: tbl.headerHeight * zoom,
-					borderBottom: "1px solid #e5e7eb",
+					borderBottom: "1px solid hsl(var(--border))",
 				}}
 			>
 				{(tbl.columns.length > 0
@@ -67,14 +67,14 @@ export default function TableElement({
 						key={c.id}
 						value={c.header ?? ""}
 						onChange={(e) => onHeaderChange(c.id, e.target.value)}
-						className="border-r last:border-r-0 px-2 text-[10px]"
+						className="border-r last:border-r-0 px-2 text-[10px] bg-background text-foreground border-border"
 						style={{
 							textAlign: c.align,
 						}}
 					/>
 				))}
 			</div>
-			<div className="text-[10px] text-neutral-500 p-2">{t('designer.elementProperties.table.editHeadersHint')}</div>
+			<div className="text-[10px] text-muted-foreground p-2">{t('designer.elementProperties.table.editHeadersHint')}</div>
 		</div>
 	);
 }
@@ -247,7 +247,7 @@ export function TableProperties({
 											type="button"
 											size="sm"
 											variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 bg-white hover:bg-amber-100 shrink-0"
+												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
 											onClick={() => {
 												setBindingInput(suggestedBinding);
 												onChange({ ...tbl, itemsBinding: suggestedBinding });
@@ -379,7 +379,7 @@ export function TableProperties({
 								{/* Currency-specific configuration */}
 								{c.type === "currency" && (
 									<div className={`${separators.nestedContent} ${colors.bgAccent} rounded-md p-3 ${spacing.fieldGroupGap}`}>
-										<h5 className={`${typography.subsectionTitle} text-blue-700`}>{t('designer.elementProperties.table.column.currency.title')}</h5>
+										<h5 className={`${typography.subsectionTitle} text-primary`}>{t('designer.elementProperties.table.column.currency.title')}</h5>
 										<div className={components.grid}>
 											<div className={`${components.field} col-span-full`}>
 												<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.currency.currency')}</Label>
@@ -431,11 +431,11 @@ export function TableProperties({
 																				)}
 																			/>
 																			<span className="font-medium">{curr.code}</span>
-																			<span className="ml-2 text-neutral-500">
+																			<span className="ml-2 text-muted-foreground">
 																				- {curr.name}
 																			</span>
 																			{curr.symbol && (
-																				<span className="ml-1 text-neutral-400">
+																				<span className="ml-1 text-muted-foreground/70">
 																					({curr.symbol})
 																				</span>
 																			)}
@@ -653,7 +653,7 @@ export function TableProperties({
 										
 										{c.showTotal && (
 											<div className={`${separators.nestedContent} ${colors.bgSuccess} rounded-md p-3 ${spacing.fieldGroupGap}`}>
-												<h5 className={`${typography.subsectionTitle} text-green-700`}>{t('designer.elementProperties.table.column.total.totalStyling')}</h5>
+												<h5 className={`${typography.subsectionTitle} text-green-700 dark:text-green-400`}>{t('designer.elementProperties.table.column.total.totalStyling')}</h5>
 												<div className={components.grid}>
 													<div className={components.field}>
 														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.backgroundColor')}</Label>

@@ -44,13 +44,17 @@ import type { DesignerState, DragState, SnapGuide } from "@/components/designer/
 import { useDesignerTemplate } from "@/contexts/designer-template-context";
 import { useTemplateVersions, useSaveTemplateVersion, useRestoreTemplateVersion } from "@/hooks/repository-hooks/use-template-versions";
 import { useUser } from "@clerk/clerk-react";
+import { useTheme } from "@/components/ui/theme-provider";
+import { BrandImagePickerDialog } from "@/components/brand-image-picker-dialog";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const [state, setState] = useState<DesignerState>({ zoom: 1 });
+	const [state, setState] = useState<DesignerState>({ zoom: 1, selectedElementIds: [] });
 	const [drag, setDrag] = useState<DragState | null>(null);
 	const [draftElements, setDraftElements] = useState<
 		TemplateElement[] | null
@@ -62,6 +66,7 @@ export default function TemplateDesignerPage() {
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const isCreatingTemplateRef = useRef<boolean>(false);
+	const dragStartedRef = useRef<boolean>(false); // Track if drag actually started (movement detected)
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const designerTemplateContext = useDesignerTemplate();
@@ -79,6 +84,19 @@ export default function TemplateDesignerPage() {
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const [mobilePanelTab, setMobilePanelTab] = useState<"elements" | "properties">("elements");
+	const { theme } = useTheme();
+	const [imagePickerOpen, setImagePickerOpen] = useState(false);
+	const [imagePickerTargetElementId, setImagePickerTargetElementId] = useState<string | null>(null);
+	const [brandAssets, setBrandAssets] = useState<{ logo?: string; favicon?: string; gallery: string[] }>({ gallery: [] });
+	const [uploadState, setUploadState] = useState<{ preview: string; progress: number } | null>(null);
+	const fileUpload = useFileUpload();
+	const updateOrganization = useUpdateOrganization();
+	
+	// Get theme-aware default text color
+	const getDefaultTextColor = () => {
+		const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+		return isDark ? "#f9fafb" : "#111827"; // Light text for dark bg, dark text for light bg
+	};
 	
 	// Version history hooks
 	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
@@ -89,6 +107,22 @@ export default function TemplateDesignerPage() {
 	
 	// Determine current version (latest version number)
 	const currentVersion = versions.length > 0 ? versions[0].version : null;
+
+	// Load brand assets for image picker
+	useEffect(() => {
+		const branding = currentOrg?.settings?.branding;
+		setBrandAssets({
+			logo: branding?.customLogo,
+			favicon: branding?.customFavicon,
+			gallery: branding?.brandImages ?? [],
+		});
+	}, [currentOrg?.id, currentOrg?.settings?.branding]);
+
+	useEffect(() => {
+		setUploadState((prev) =>
+			prev ? { ...prev, progress: fileUpload.uploadProgress } : prev,
+		);
+	}, [fileUpload.uploadProgress]);
 
 	// Prevent body scroll when mobile panel is open
 	useEffect(() => {
@@ -311,7 +345,7 @@ export default function TemplateDesignerPage() {
 			};
 			const next = [...existingElements, tableElement];
 			setDraftElements(next);
-			setState((s) => ({ ...s, selectedElementId: tableElement.id }));
+			setState((s) => ({ ...s, selectedElementIds: [tableElement.id] }));
 			saveMutation.mutate({ elements: next });
 		} else if (elementType === "input") {
 			// Add input element
@@ -332,7 +366,7 @@ export default function TemplateDesignerPage() {
 			};
 			const next = [...existingElements, inputElement];
 			setDraftElements(next);
-			setState((s) => ({ ...s, selectedElementId: inputElement.id }));
+			setState((s) => ({ ...s, selectedElementIds: [inputElement.id] }));
 			saveMutation.mutate({ elements: next });
 		} else if (elementType === "currency") {
 			// Add currency element
@@ -355,7 +389,7 @@ export default function TemplateDesignerPage() {
 			};
 			const next = [...existingElements, currencyElement];
 			setDraftElements(next);
-			setState((s) => ({ ...s, selectedElementId: currencyElement.id }));
+			setState((s) => ({ ...s, selectedElementIds: [currencyElement.id] }));
 			saveMutation.mutate({ elements: next });
 		} else {
 			// Add text element
@@ -379,7 +413,7 @@ export default function TemplateDesignerPage() {
 					fontWeight: "normal",
 					lineHeight: 1.2,
 					letterSpacing: 0,
-					color: "#111827",
+					color: getDefaultTextColor(),
 					align: "left",
 					uppercase: false,
 					lowercase: false,
@@ -392,7 +426,7 @@ export default function TemplateDesignerPage() {
 			};
 			const next = [...existingElements, textElement];
 			setDraftElements(next);
-			setState((s) => ({ ...s, selectedElementId: textElement.id }));
+			setState((s) => ({ ...s, selectedElementIds: [textElement.id] }));
 			saveMutation.mutate({ elements: next });
 		}
 	}
@@ -406,11 +440,11 @@ export default function TemplateDesignerPage() {
 		currentTemplateRef.current = currentTemplate ?? null;
 	}, [currentTemplate]);
 
-	// Reset selection when template changes to avoid stale element ids
+		// Reset selection when template changes to avoid stale element ids
 	useEffect(() => {
 		setState((s: DesignerState) => ({
 			...s,
-			selectedElementId: undefined,
+			selectedElementIds: [],
 		}));
 	}, [state.currentTemplateId]);
 
@@ -578,7 +612,7 @@ export default function TemplateDesignerPage() {
 				brand: {
 					fonts: ["Inter"],
 					colors: {
-						primary: "#111827",
+						primary: getDefaultTextColor(),
 						secondary: "#6b7280",
 						accent: "#2563eb",
 					},
@@ -954,7 +988,7 @@ export default function TemplateDesignerPage() {
 							fontWeight: "normal",
 							lineHeight: 1.2,
 							letterSpacing: 0,
-							color: "#111827",
+							color: getDefaultTextColor(),
 							align: "left",
 							uppercase: false,
 							lowercase: false,
@@ -1098,25 +1132,67 @@ export default function TemplateDesignerPage() {
 		setDraftElements(next);
 		setState((s: DesignerState) => ({
 			...s,
-			selectedElementId: nextElement.id,
+			selectedElementIds: [nextElement.id],
 		}));
 		console.log("[ADD] persisting draft via saveMutation.mutate");
 		saveMutation.mutate({ elements: next });
 	}
 
+	// Helper function to handle multi-select with Shift+click
+	const handleSelectElement = (elementId: string, event?: React.MouseEvent | React.PointerEvent) => {
+		// Check shiftKey from the event - make sure we're checking the right property
+		const isShiftPressed = Boolean(event?.shiftKey);
+		const currentSelected = state.selectedElementIds || [];
+		
+		console.log('[SELECT]', { 
+			elementId, 
+			isShiftPressed, 
+			currentSelected, 
+			eventType: event?.type,
+			shiftKey: event?.shiftKey,
+			hasEvent: !!event
+		});
+		
+		if (isShiftPressed) {
+			// Toggle selection: add if not selected, remove if already selected
+			if (currentSelected.includes(elementId)) {
+				const newSelected = currentSelected.filter((id) => id !== elementId);
+				console.log('[SELECT] Removing from selection:', newSelected);
+				setState((s) => ({
+					...s,
+					selectedElementIds: newSelected,
+				}));
+			} else {
+				const newSelected = [...currentSelected, elementId];
+				console.log('[SELECT] Adding to selection:', newSelected);
+				setState((s) => ({
+					...s,
+					selectedElementIds: newSelected,
+				}));
+			}
+		} else {
+			// Single select: replace selection
+			console.log('[SELECT] Single select:', [elementId]);
+			setState((s) => ({
+				...s,
+				selectedElementIds: [elementId],
+			}));
+		}
+	};
+
 	function updateSelected(partial: Partial<TemplateElement>) {
-		if (!currentTemplate || !state.selectedElementId) return;
+		if (!currentTemplate || !state.selectedElementIds || state.selectedElementIds.length === 0) return;
 		// Use draftElements if available, otherwise use currentTemplate.elements
 		const currentElements = draftElements ?? currentTemplate.elements ?? [];
 		const next = currentElements.map(
 			(el: TemplateElement) =>
-				el.id === state.selectedElementId
+				state.selectedElementIds?.includes(el.id)
 					? ((): TemplateElement => {
 							const merged = {
 								...el,
 								...partial,
 							} as TemplateElement;
-							const clampedMove = clampMove(
+							const clamped = clampMove(
 								merged.x,
 								merged.y,
 								merged.width,
@@ -1124,8 +1200,8 @@ export default function TemplateDesignerPage() {
 							);
 							return {
 								...merged,
-								x: clampedMove.x,
-								y: clampedMove.y,
+								x: clamped.x,
+								y: clamped.y,
 							} as TemplateElement;
 						})()
 					: el
@@ -1133,6 +1209,76 @@ export default function TemplateDesignerPage() {
 		setDraftElements(next);
 		saveMutation.mutate({ elements: next });
 	}
+
+	const handleOpenImagePicker = (elementId: string) => {
+		setImagePickerTargetElementId(elementId);
+		setImagePickerOpen(true);
+	};
+
+	const handleImagePickerOpenChange = (open: boolean) => {
+		setImagePickerOpen(open);
+		if (!open) {
+			setImagePickerTargetElementId(null);
+		}
+	};
+
+	const handleSelectBrandImage = (url: string) => {
+		if (!currentTemplate || !imagePickerTargetElementId) return;
+		const currentElements = draftElements ?? currentTemplate.elements ?? [];
+		const targetElement = currentElements.find((el) => el.id === imagePickerTargetElementId);
+		if (!targetElement || targetElement.type !== "image") {
+			toast.error(t("emailDesigner.toast.imagePickerMissing"));
+			handleImagePickerOpenChange(false);
+			return;
+		}
+		updateSelected({ ...targetElement, src: url });
+		handleImagePickerOpenChange(false);
+	};
+
+	const handleBrandImageUpload = async (file: File) => {
+		if (!currentOrg) {
+			toast.error(t("emailDesigner.toast.imageUploadNoOrg"));
+			return;
+		}
+		const preview = URL.createObjectURL(file);
+		setUploadState({ preview, progress: 0 });
+		const extension = file.name.split(".").pop() || "png";
+		const path = `organizations/${currentOrg.id}/branding/designer-${Date.now()}.${extension}`;
+		try {
+			const url = await fileUpload.uploadFile(file, path);
+			if (!url) {
+				throw new Error(fileUpload.error || "upload failed");
+			}
+			const branding = currentOrg.settings?.branding;
+			const nextImages = [...(branding?.brandImages ?? []), url];
+			const updatedSettings = {
+				...(currentOrg.settings || {}),
+				branding: {
+					...(branding ?? {}),
+					brandImages: nextImages,
+				},
+			};
+			await updateOrganization.mutateAsync({
+				id: currentOrg.id,
+				data: {
+					settings: updatedSettings,
+				},
+			});
+			setBrandAssets({
+				logo: updatedSettings.branding?.customLogo,
+				favicon: updatedSettings.branding?.customFavicon,
+				gallery: nextImages,
+			});
+			queryClient.invalidateQueries({ queryKey: ["organizations", currentOrg.id] });
+			toast.success(t("emailDesigner.toast.imageUploaded"));
+		} catch (error) {
+			console.error("Failed to upload brand image:", error);
+			toast.error(t("emailDesigner.toast.imageUploadFailed"));
+		} finally {
+			setUploadState(null);
+			URL.revokeObjectURL(preview);
+		}
+	};
 
 	function deleteElement(id: string) {
 		if (!currentTemplate) return;
@@ -1142,7 +1288,7 @@ export default function TemplateDesignerPage() {
 		saveMutation.mutate({ elements: next });
 		setState((s: DesignerState) => ({
 			...s,
-			selectedElementId: undefined,
+			selectedElementIds: [],
 		}));
 	}
 
@@ -1171,7 +1317,7 @@ export default function TemplateDesignerPage() {
 		saveMutation.mutate({ elements: next });
 		setState((s: DesignerState) => ({
 			...s,
-			selectedElementId: duplicated.id,
+			selectedElementIds: [duplicated.id],
 		}));
 		toast.success(t('designer.duplicateSuccess'));
 	}
@@ -1190,9 +1336,31 @@ export default function TemplateDesignerPage() {
 			edge,
 			startWidth,
 			startHeight,
+			selectedElementPositions,
 		} = drag;
 
+		// Track if pointer has moved (to distinguish click from drag)
+		let hasMoved = false;
+		const DRAG_THRESHOLD = 5; // pixels - threshold to distinguish click from drag
+		
+		// Reset drag started flag when drag state is created
+		dragStartedRef.current = false;
+
 		function handlePointerMove(ev: PointerEvent) {
+			const moveDx = Math.abs(ev.clientX - startClientX);
+			const moveDy = Math.abs(ev.clientY - startClientY);
+			
+			// Only consider it a drag if pointer moved beyond threshold
+			if (!hasMoved && (moveDx > DRAG_THRESHOLD || moveDy > DRAG_THRESHOLD)) {
+				hasMoved = true;
+				dragStartedRef.current = true; // Mark that drag has actually started
+				// Prevent click event from firing when we start dragging
+				ev.preventDefault();
+			}
+			
+			// Only process drag if we've moved
+			if (!hasMoved) return;
+			
 			const dx = (ev.clientX - startClientX) / state.zoom;
 			const dy = (ev.clientY - startClientY) / state.zoom;
 
@@ -1203,34 +1371,97 @@ export default function TemplateDesignerPage() {
 				);
 				if (!draggingElement) return base;
 
-				return base.map((item) => {
-					if (item.id !== elementId) return item;
-					if (mode === "move") {
-						const rawX = startX + dx;
-						const rawY = startY + dy;
-
-						// Calculate snapping with guides
+				if (mode === "move") {
+					// Check if we have multiple selected elements to move together
+					const selectedPositions = selectedElementPositions;
+					const selectedIds = state.selectedElementIds || [];
+					
+					if (selectedPositions && selectedIds.length > 1) {
+						// Move all selected elements together
+						// First, calculate the primary element's position with snapping
+						const primaryInitialPos = selectedPositions.get(elementId);
+						if (!primaryInitialPos) return base;
+						
+						const primaryRawX = primaryInitialPos.x + dx;
+						const primaryRawY = primaryInitialPos.y + dy;
+						
 						const { snappedX, snappedY, guides } =
 							calculateSnapPositions(
 								draggingElement,
 								base,
-								rawX,
-								rawY
+								primaryRawX,
+								primaryRawY
 							);
-
+						
 						// Update snap guides
 						setSnapGuides(guides);
-
-						const clamped = clampMove(
+						
+						const primaryClamped = clampMove(
 							snappedX,
 							snappedY,
-							item.width,
-							item.height
+							draggingElement.width,
+							draggingElement.height
 						);
-						return { ...item, x: clamped.x, y: clamped.y };
+						
+						// Calculate the actual delta after snapping/clamping
+						const actualDx = primaryClamped.x - primaryInitialPos.x;
+						const actualDy = primaryClamped.y - primaryInitialPos.y;
+						
+						// Apply the same delta to all selected elements
+						return base.map((item) => {
+							if (!selectedIds.includes(item.id)) return item;
+							
+							if (item.id === elementId) {
+								return { ...item, x: primaryClamped.x, y: primaryClamped.y };
+							}
+							
+							const initialPos = selectedPositions.get(item.id);
+							if (!initialPos) return item;
+							
+							const clamped = clampMove(
+								initialPos.x + actualDx,
+								initialPos.y + actualDy,
+								item.width,
+								item.height
+							);
+							return { ...item, x: clamped.x, y: clamped.y };
+						});
+					} else {
+						// Single element drag (original behavior)
+						return base.map((item) => {
+							if (item.id !== elementId) return item;
+							
+							const rawX = startX + dx;
+							const rawY = startY + dy;
+
+							// Calculate snapping with guides
+							const { snappedX, snappedY, guides } =
+								calculateSnapPositions(
+									draggingElement,
+									base,
+									rawX,
+									rawY
+								);
+
+							// Update snap guides
+							setSnapGuides(guides);
+
+							const clamped = clampMove(
+								snappedX,
+								snappedY,
+								item.width,
+								item.height
+							);
+							return { ...item, x: clamped.x, y: clamped.y };
+						});
 					}
-					// resize logic - clear snap guides during resize
-					setSnapGuides([]);
+				}
+				
+				// resize logic - clear snap guides during resize
+				setSnapGuides([]);
+				return base.map((item) => {
+					if (item.id !== elementId) return item;
+					
 					let nextX = startX;
 					let nextY = startY;
 					let nextW = startWidth ?? item.width;
@@ -1260,11 +1491,20 @@ export default function TemplateDesignerPage() {
 		}
 
 		function handlePointerUp() {
-			const latestDraft = draftRef.current;
-			const tmpl = currentTemplateRef.current;
-			if (latestDraft && tmpl) {
-				saveMutation.mutate({ elements: latestDraft });
+			// If we never moved, it was just a click - don't save drag state
+			// The click handler will handle selection
+			if (hasMoved) {
+				const latestDraft = draftRef.current;
+				const tmpl = currentTemplateRef.current;
+				if (latestDraft && tmpl) {
+					saveMutation.mutate({ elements: latestDraft });
+				}
 			}
+			// Reset drag started flag immediately - click handler will have already checked it
+			// We use requestAnimationFrame to ensure the click handler runs first
+			requestAnimationFrame(() => {
+				dragStartedRef.current = false;
+			});
 			setDrag(null);
 			setDraftElements(null);
 			setSnapGuides([]);
@@ -1292,8 +1532,8 @@ export default function TemplateDesignerPage() {
 				}
 			}}
 			onAddElement={addElement}
-			onSelectElement={(id) => {
-				setState((s) => ({ ...s, selectedElementId: id }));
+			onSelectElement={(id, event) => {
+				handleSelectElement(id, event);
 				if (isMobile) {
 					setMobilePanelTab("properties");
 					setMobilePanelOpen(true);
@@ -1310,7 +1550,7 @@ export default function TemplateDesignerPage() {
 	const propertiesContent = (
 		<PropertiesPanel
 			template={currentTemplate}
-			selectedElementId={state.selectedElementId}
+			selectedElementIds={state.selectedElementIds || []}
 			draftElements={draftElements}
 			organization={currentOrg ?? undefined}
 			complianceStatus={complianceStatus}
@@ -1318,6 +1558,7 @@ export default function TemplateDesignerPage() {
 			onUpdateElement={updateSelected}
 			onAddRequiredElement={addRequiredElement}
 			determineElementTypeForBinding={determineElementTypeForBinding}
+			onOpenImagePicker={handleOpenImagePicker}
 			templateId={templateId}
 			versions={versions}
 			currentVersion={currentVersion}
@@ -1345,7 +1586,7 @@ export default function TemplateDesignerPage() {
 					// Reset draft state when switching templates
 					setDraftElements(null);
 					setDraftBrand(null);
-					setState((s) => ({ ...s, selectedElementId: undefined }));
+					setState((s) => ({ ...s, selectedElementIds: [] }));
 					// Use context handler
 					await contextOnTemplateChange(id);
 				}}
@@ -1373,8 +1614,8 @@ export default function TemplateDesignerPage() {
 						const y = (e.clientY - rect.top) / state.zoom;
 						updateCursor({ x, y });
 					}}
-					onSelectElement={(id) => {
-						setState((s) => ({ ...s, selectedElementId: id }));
+					onSelectElement={(id, event) => {
+						handleSelectElement(id, event);
 						if (isMobile) {
 							setMobilePanelTab("properties");
 							setMobilePanelOpen(true);
@@ -1382,18 +1623,51 @@ export default function TemplateDesignerPage() {
 					}}
 					onStartDrag={(el, e) => {
 						if (e.button !== 0) return;
-						e.preventDefault();
-						e.stopPropagation();
-						setState((s) => ({ ...s, selectedElementId: el.id }));
-						setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
-						setDrag({
-							elementId: el.id,
-							mode: "move",
-							startClientX: e.clientX,
-							startClientY: e.clientY,
-							startX: el.x,
-							startY: el.y,
-						});
+						// Don't prevent default or stop propagation - we need click to fire for selection
+						// Drag will only start if pointer moves (handled in pointer move handler)
+						// When starting drag, ensure this element is selected
+						const selectedIds = state.selectedElementIds || [];
+						if (!selectedIds.includes(el.id)) {
+							setState((s) => ({ ...s, selectedElementIds: [el.id] }));
+							// Update selectedIds for this drag operation
+							const newSelectedIds = [el.id];
+							setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+							// Store initial positions of all selected elements for multi-drag
+							const selectedPositions = new Map<string, { x: number; y: number }>();
+							(currentTemplate?.elements ?? []).forEach((elem) => {
+								if (newSelectedIds.includes(elem.id)) {
+									selectedPositions.set(elem.id, { x: elem.x, y: elem.y });
+								}
+							});
+							setDrag({
+								elementId: el.id,
+								mode: "move",
+								startClientX: e.clientX,
+								startClientY: e.clientY,
+								startX: el.x,
+								startY: el.y,
+								selectedElementPositions: selectedPositions,
+							});
+						} else {
+							// Element is already selected - check if we have multiple selections
+							setDraftElements((currentTemplate?.elements ?? []).map((x) => ({ ...x })));
+							// Store initial positions of all selected elements for multi-drag
+							const selectedPositions = new Map<string, { x: number; y: number }>();
+							(currentTemplate?.elements ?? []).forEach((elem) => {
+								if (selectedIds.includes(elem.id)) {
+									selectedPositions.set(elem.id, { x: elem.x, y: elem.y });
+								}
+							});
+							setDrag({
+								elementId: el.id,
+								mode: "move",
+								startClientX: e.clientX,
+								startClientY: e.clientY,
+								startX: el.x,
+								startY: el.y,
+								selectedElementPositions: selectedPositions,
+							});
+						}
 					}}
 					onStartResize={(el, edge, e) => {
 						e.preventDefault();
@@ -1436,6 +1710,7 @@ export default function TemplateDesignerPage() {
 					}}
 					currentTemplateRef={currentTemplateRef}
 					saveMutation={saveMutation}
+					dragStartedRef={dragStartedRef}
 				/>
 			</div>
 		</div>
@@ -1464,7 +1739,7 @@ export default function TemplateDesignerPage() {
 								}}
 							>
 								<Menu className="h-5 w-5" />
-								<span className="text-xs font-medium">{t('designer.elements')}</span>
+								<span className="text-xs font-medium text-foreground">{t('designer.elements')}</span>
 							</Button>
 							<Button
 								variant={mobilePanelOpen && mobilePanelTab === "properties" ? "secondary" : "ghost"}
@@ -1479,7 +1754,7 @@ export default function TemplateDesignerPage() {
 								}}
 							>
 								<Settings className="h-5 w-5" />
-								<span className="text-xs font-medium">{t('designer.properties')}</span>
+								<span className="text-xs font-medium text-foreground">{t('designer.properties')}</span>
 							</Button>
 						</div>
 					</div>
@@ -1536,10 +1811,19 @@ export default function TemplateDesignerPage() {
 				</ResizablePanelGroup>
 			)}
 
-			<AIBuilderDialog
-				open={aiBuilderOpen}
-				onOpenChange={setAiBuilderOpen}
-				currentOrg={currentOrg ?? undefined}
+		<BrandImagePickerDialog
+			open={imagePickerOpen}
+			onOpenChange={handleImagePickerOpenChange}
+			assets={brandAssets}
+			onSelect={handleSelectBrandImage}
+			onUploadImage={handleBrandImageUpload}
+			isUploading={fileUpload.isUploading}
+			uploadState={uploadState}
+		/>
+		<AIBuilderDialog
+			open={aiBuilderOpen}
+			onOpenChange={setAiBuilderOpen}
+			currentOrg={currentOrg ?? undefined}
 				currentTemplate={currentTemplate}
 				templates={templates}
 				generateTemplate={generateTemplate}
