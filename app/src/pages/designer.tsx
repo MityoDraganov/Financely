@@ -1594,7 +1594,7 @@ export default function TemplateDesignerPage() {
 				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
 				isMobile={isMobile}
 			/>
-			<div className="flex-1 overflow-hidden">
+			<div className="flex-1 overflow-auto pb-16">
 				<DesignerCanvas
 					template={currentTemplate}
 					draftElements={draftElements}

@@ -85,7 +85,7 @@ export function DesignerCanvas({
 	const PAGE_HEIGHT = pageDimensions.height;
 
 	return (
-		<div className="flex-1 overflow-auto bg-muted/30 grid place-items-center"
+		<div className="bg-muted/30 p-8 pr-16"
 			onDragOver={(e) => {
 				e.preventDefault();
 			}}
@@ -93,43 +93,45 @@ export function DesignerCanvas({
 				e.preventDefault();
 			}}
 		>
-			{!template && (
-				<div className="text-center text-muted-foreground p-8">
-					<div className="text-sm mb-2">
-						No template selected.
+			<div className="grid place-items-center min-h-full">
+				{!template && (
+					<div className="text-center text-muted-foreground p-8">
+						<div className="text-sm mb-2">
+							No template selected.
+						</div>
+						<div className="text-xs mb-4">
+							Select an existing template from the
+							dropdown above or create a new one to
+							start designing.
+						</div>
+						<Button
+							size="sm"
+							onClick={onCreateTemplate}
+						>
+							<Plus className="mr-1 h-4 w-4" /> Create template
+						</Button>
 					</div>
-					<div className="text-xs mb-4">
-						Select an existing template from the
-						dropdown above or create a new one to
-						start designing.
-					</div>
-					<Button
-						size="sm"
-						onClick={onCreateTemplate}
+				)}
+				{template && (
+					<div
+						ref={pageRef}
+						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
+						onClick={(e) => {
+							// Deselect all when clicking on empty canvas (not on an element)
+							// Elements stop propagation, so if we reach here, it's empty space
+							if (e.target === e.currentTarget || (e.target as HTMLElement) === pageRef.current) {
+								onSelectElement("", e);
+							}
+						}}
+						style={{
+							width: PAGE_WIDTH * state.zoom,
+							height: PAGE_HEIGHT * state.zoom,
+							position: "relative",
+						}}
+						onDragOver={onDragOver}
+						onDrop={onDrop}
+						onMouseMove={onMouseMove}
 					>
-						<Plus className="mr-1 h-4 w-4" /> Create template
-					</Button>
-				</div>
-			)}
-			<div
-				ref={pageRef}
-				className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
-				onClick={(e) => {
-					// Deselect all when clicking on empty canvas (not on an element)
-					// Elements stop propagation, so if we reach here, it's empty space
-					if (e.target === e.currentTarget || (e.target as HTMLElement) === pageRef.current) {
-						onSelectElement("", e);
-					}
-				}}
-				style={{
-					width: PAGE_WIDTH * state.zoom,
-					height: PAGE_HEIGHT * state.zoom,
-					position: "relative",
-				}}
-				onDragOver={onDragOver}
-				onDrop={onDrop}
-				onMouseMove={onMouseMove}
-			>
 				{/* Grid */}
 				<div
 					className="absolute inset-0 z-0"
@@ -346,6 +348,8 @@ export function DesignerCanvas({
 						</ContextMenu>
 					);
 				})}
+						</div>
+				)}
 			</div>
 		</div>
 	);

@@ -80,7 +80,6 @@ export function StepEditorDialog({
 
   const handleAddAction = (actionType: WorkflowActionType) => {
     if (!editedStep) return;
-    if (!editedStep) return;
 
     let newAction: WorkflowAction;
 
@@ -120,22 +119,23 @@ export function StepEditorDialog({
           },
         };
         break;
-      default:
-        // Generate a default name from the action type
+      default: {
         const defaultName = actionType
-          .split('.')
-          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-          .join(' ');
-        // For other actions, use HTTP config as fallback
+          .split(".")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ");
+
         newAction = {
           id: `action_${Date.now()}`,
           type: actionType,
-          name: defaultName, // Default name from action type
+          name: defaultName,
           config: {
             method: "POST" as const,
             url: "",
           },
         };
+        break;
+      }
     }
 
     setEditedStep({
@@ -144,11 +144,20 @@ export function StepEditorDialog({
     });
   };
 
-  const handleUpdateAction = (index: number, updates: Partial<WorkflowAction>) => {
-    if (!editedStep) return;
-    const updatedActions = [...editedStep.actions];
-    updatedActions[index] = { ...updatedActions[index], ...updates };
-    setEditedStep({ ...editedStep, actions: updatedActions });
+  const handleUpdateAction = (
+    index: number,
+    updater: (action: WorkflowAction) => WorkflowAction
+  ): void => {
+    setEditedStep((prevStep: WorkflowStep | null) => {
+      if (!prevStep) {
+        return prevStep;
+      }
+
+      const updatedActions = [...prevStep.actions];
+      updatedActions[index] = updater(updatedActions[index]);
+
+      return { ...prevStep, actions: updatedActions };
+    });
   };
 
   const handleDeleteAction = (index: number) => {
@@ -317,9 +326,10 @@ export function StepEditorDialog({
                         <Input
                           value={action.name || ""}
                           onChange={(e) =>
-                            handleUpdateAction(index, {
+                            handleUpdateAction(index, (currentAction) => ({
+                              ...currentAction,
                               name: e.target.value,
-                            })
+                            }))
                           }
                           placeholder={t('workflows.builder.stepEditor.actions.namePlaceholder')}
                         />
@@ -331,25 +341,39 @@ export function StepEditorDialog({
                           <Label>{t('workflows.builder.stepEditor.actions.email.recipients')}</Label>
                           <EmailRecipientsInput
                             value={action.config.recipients || []}
-                            onChange={(emails) => {
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  recipients: emails,
-                                } as any,
-                              });
-                            }}
+                            onChange={(emails) =>
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "send.email") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    recipients: emails,
+                                  },
+                                };
+                              })
+                            }
                             placeholder={t('workflows.builder.stepEditor.actions.email.recipientsPlaceholder')}
                           />
                           <Label>{t('workflows.builder.stepEditor.actions.email.subject')}</Label>
                           <Input
                             value={action.config.subject || ""}
                             onChange={(e) =>
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  subject: e.target.value,
-                                } as any,
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "send.email") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    subject: e.target.value,
+                                  },
+                                };
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.email.subjectPlaceholder')}
@@ -358,11 +382,18 @@ export function StepEditorDialog({
                           <Textarea
                             value={action.config.body || ""}
                             onChange={(e) =>
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  body: e.target.value,
-                                } as any,
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "send.email") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    body: e.target.value,
+                                  },
+                                };
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.email.bodyPlaceholder')}
@@ -374,11 +405,18 @@ export function StepEditorDialog({
                               id={`email-html-${index}`}
                               checked={action.config.isHtml || false}
                               onChange={(e) =>
-                                handleUpdateAction(index, {
-                                  config: {
-                                    ...action.config,
-                                    isHtml: e.target.checked,
-                                  } as any,
+                                handleUpdateAction(index, (currentAction) => {
+                                  if (currentAction.type !== "send.email") {
+                                    return currentAction;
+                                  }
+
+                                  return {
+                                    ...currentAction,
+                                    config: {
+                                      ...currentAction.config,
+                                      isHtml: e.target.checked,
+                                    },
+                                  };
                                 })
                               }
                               className="rounded"
@@ -396,11 +434,18 @@ export function StepEditorDialog({
                           <Input
                             value={action.config.url || ""}
                             onChange={(e) =>
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  url: e.target.value,
-                                } as any,
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "call.webhook") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    url: e.target.value,
+                                  },
+                                };
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.webhook.urlPlaceholder')}
@@ -409,11 +454,18 @@ export function StepEditorDialog({
                           <Select
                             value={action.config.method || "POST"}
                             onValueChange={(value) =>
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  method: value as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
-                                } as any,
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "call.webhook") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    method: value as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
+                                  },
+                                };
                               })
                             }
                           >
@@ -439,11 +491,18 @@ export function StepEditorDialog({
                             min="0"
                             value={action.config.delaySeconds || 0}
                             onChange={(e) =>
-                              handleUpdateAction(index, {
-                                config: {
-                                  ...action.config,
-                                  delaySeconds: parseInt(e.target.value, 10) || 0,
-                                } as any,
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "wait.delay") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    delaySeconds: parseInt(e.target.value, 10) || 0,
+                                  },
+                                };
                               })
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.delay.placeholder')}

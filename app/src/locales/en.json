@@ -1315,18 +1315,28 @@
 			}
 		},
 		"triggers": {
-			"invoiceCreated": "Invoice Created",
-			"invoiceSent": "Invoice Sent",
-			"invoicePaid": "Invoice Paid",
-			"invoiceOverdue": "Invoice Overdue",
-			"proposalCreated": "Proposal Created",
-			"proposalApproved": "Proposal Approved",
-			"contractExpiring": "Contract Expiring",
-			"contractExpired": "Contract Expired",
-			"userJoined": "User Joined",
-			"scheduled": "Scheduled",
-			"webhook": "Webhook",
-			"manual": "Manual Trigger"
+			"invoicecreated": "Invoice Created",
+			"invoicesent": "Invoice Sent",
+			"invoicepaid": "Invoice Paid",
+			"invoiceoverdue": "Invoice Overdue",
+			"proposalcreated": "Proposal Created",
+			"proposalsent": "Proposal Sent",
+			"proposalapproved": "Proposal Approved",
+			"proposalrejected": "Proposal Rejected",
+			"proposalconvertedtoinvoice": "Proposal Converted to Invoice",
+			"contractexpiring": "Contract Expiring",
+			"contractexpired": "Contract Expired",
+			"leadcreated": "Lead Created",
+			"leadconverted": "Lead Converted",
+			"leadqualified": "Lead Qualified",
+			"contactcreated": "Contact Created",
+			"contactupdated": "Contact Updated",
+			"productcreated": "Product Created",
+			"productlowstock": "Product Low Stock",
+			"userjoined": "User Joined",
+			"schedulecron": "Scheduled (Cron)",
+			"webhookexternal": "Webhook",
+			"manualtrigger": "Manual Trigger"
 		},
 		"execution": {
 			"title": "Workflow Execution",
@@ -1436,11 +1446,32 @@
 			},
 			"triggerGroups": {
 				"invoice": "Invoice",
+				"proposal": "Proposal",
+				"lead": "Lead",
+				"contact": "Contact",
+				"product": "Product",
+				"contract": "Contract",
+				"user": "User",
+				"system": "System",
 				"manual": "Manual"
 			},
 			"triggerLabels": {
 				"created": "Created",
+				"sent": "Sent",
 				"paid": "Paid",
+				"overdue": "Overdue",
+				"approved": "Approved",
+				"rejected": "Rejected",
+				"convertedToInvoice": "Converted to Invoice",
+				"converted": "Converted",
+				"qualified": "Qualified",
+				"updated": "Updated",
+				"lowStock": "Low Stock",
+				"expiring": "Expiring",
+				"expired": "Expired",
+				"joined": "Joined",
+				"scheduled": "Scheduled",
+				"webhook": "Webhook",
 				"manualTrigger": "Manual Trigger"
 			},
 			"steps": {
@@ -1478,6 +1509,85 @@
 				"validationFailed": "Validation failed: {{errors}}",
 				"updateSuccess": "Workflow updated successfully!",
 				"createSuccess": "Workflow created successfully!"
+			},
+			"stepEditor": {
+				"title": "Edit Step",
+				"description": "Configure the step's properties, actions, and conditions",
+				"stepName": "Step Name *",
+				"stepNamePlaceholder": "Enter step name",
+				"stepType": "Step Type",
+				"stepTypes": {
+					"action": "Action",
+					"condition": "Condition",
+					"delay": "Delay",
+					"parallel": "Parallel"
+				},
+				"delay": {
+					"label": "Delay (seconds)",
+					"placeholder": "0"
+				},
+				"actions": {
+					"label": "Actions",
+					"name": "Action Name",
+					"addAction": "Add Action",
+					"addActionPlaceholder": "Add action",
+					"noActions": "No actions added yet",
+					"noActionsDescription": "Use the dropdown above to add an action",
+					"actionNumber": "Action {{number}}",
+					"actionTypes": {
+						"sendEmail": "Send Email",
+						"createInvoice": "Create Invoice",
+						"callWebhook": "Call Webhook",
+						"notifyUser": "Notify User",
+						"createTask": "Create Task",
+						"waitDelay": "Wait/Delay"
+					},
+					"email": {
+						"recipients": "Recipients",
+						"recipientsPlaceholder": "email1@example.com, email2@example.com",
+						"subject": "Email Subject",
+						"subjectPlaceholder": "Email subject",
+						"body": "Email Body",
+						"bodyPlaceholder": "Email body",
+						"isHtml": "HTML Format"
+					},
+					"webhook": {
+						"url": "Webhook URL",
+						"urlPlaceholder": "https://api.example.com/webhook",
+						"method": "HTTP Method"
+					},
+					"notify": {
+						"userId": "User ID",
+						"userIdPlaceholder": "User ID",
+						"message": "Message",
+						"messagePlaceholder": "Notification message",
+						"type": "Notification Type"
+					},
+					"invoice": {
+						"clientId": "Client ID",
+						"clientIdPlaceholder": "Client ID",
+						"amount": "Amount",
+						"amountPlaceholder": "0.00",
+						"currency": "Currency",
+						"fromProposalId": "From Proposal ID",
+						"fromProposalIdPlaceholder": "Optional - Proposal ID"
+					},
+					"task": {
+						"title": "Title",
+						"titlePlaceholder": "Task title",
+						"description": "Description",
+						"descriptionPlaceholder": "Task description",
+						"assigneeId": "Assignee ID",
+						"assigneeIdPlaceholder": "User ID who will execute the task",
+						"priority": "Priority"
+					},
+					"delay": {
+						"label": "Delay (seconds)",
+						"placeholder": "Delay in seconds"
+					}
+				},
+				"cancel": "Cancel",
+				"save": "Save Changes"
 			}
 		},
 		"executionHistory": {
@@ -1618,25 +1728,61 @@
 				"noSteps": "Workflow has no steps to simulate"
 			},
 			"triggerLabels": {
-				"invoiceCreated": "Invoice Created",
-				"invoiceSent": "Invoice Sent",
-				"invoicePaid": "Invoice Paid",
-				"invoiceOverdue": "Invoice Overdue",
-				"proposalCreated": "Proposal Created",
-				"proposalApproved": "Proposal Approved",
-				"contractExpiring": "Contract Expiring",
-				"scheduled": "Scheduled",
-				"manualTrigger": "Manual Trigger"
+				"invoicecreated": "Invoice Created",
+				"invoicesent": "Invoice Sent",
+				"invoicepaid": "Invoice Paid",
+				"invoiceoverdue": "Invoice Overdue",
+				"proposalcreated": "Proposal Created",
+				"proposalsent": "Proposal Sent",
+				"proposalapproved": "Proposal Approved",
+				"proposalrejected": "Proposal Rejected",
+				"proposalconvertedtoinvoice": "Proposal Converted to Invoice",
+				"contractexpiring": "Contract Expiring",
+				"contractexpired": "Contract Expired",
+				"leadcreated": "Lead Created",
+				"leadconverted": "Lead Converted",
+				"leadqualified": "Lead Qualified",
+				"contactcreated": "Contact Created",
+				"contactupdated": "Contact Updated",
+				"productcreated": "Product Created",
+				"productlowstock": "Product Low Stock",
+				"userjoined": "User Joined",
+				"schedulecron": "Scheduled (Cron)",
+				"webhookexternal": "Webhook",
+				"manualtrigger": "Manual Trigger"
 			},
 			"actionLabels": {
 				"sendEmail": "Send Email",
+				"sendemail": "Send Email",
 				"sendSlack": "Send Slack Message",
+				"sendslack": "Send Slack Message",
 				"createInvoice": "Create Invoice",
+				"createinvoice": "Create Invoice",
 				"updateInvoiceStatus": "Update Invoice Status",
+				"updateinvoicestatus": "Update Invoice Status",
+				"generatepdf": "Generate PDF",
+				"createproposal": "Create Proposal",
+				"sendproposal": "Send Proposal",
+				"convertproposaltoinvoice": "Convert Proposal to Invoice",
+				"createlead": "Create Lead",
+				"updateleadstatus": "Update Lead Status",
+				"convertleadtocontact": "Convert Lead to Contact",
+				"createcontact": "Create Contact",
+				"updatecontact": "Update Contact",
+				"addproducttoproposal": "Add Product to Proposal",
 				"createTask": "Create Task",
+				"createtask": "Create Task",
+				"assigntask": "Assign Task",
 				"httpRequest": "HTTP Request",
+				"httprequest": "HTTP Request",
+				"callwebhook": "Call Webhook",
+				"createstripeinvoice": "Create Stripe Invoice",
 				"notifyUser": "Notify User",
-				"waitDelay": "Wait/Delay"
+				"notifyuser": "Notify User",
+				"waitDelay": "Wait/Delay",
+				"waitdelay": "Wait/Delay",
+				"archiverecord": "Archive Record",
+				"updatefield": "Update Field"
 			},
 			"configured": "Configured"
 		},
