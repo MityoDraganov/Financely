@@ -25,7 +25,6 @@ import {
   Trash2,
   Settings,
   Mail,
-  Clock,
   GitBranch,
   CheckCircle,
 } from "lucide-react";
@@ -43,14 +42,11 @@ interface StepEditorDialogProps {
 const stepTypes = [
   { value: "action", label: "Action", icon: CheckCircle },
   { value: "condition", label: "Condition", icon: GitBranch },
-  { value: "delay", label: "Delay", icon: Clock },
-  { value: "parallel", label: "Parallel", icon: Settings },
 ];
 
 const actionTypes: Array<{ value: WorkflowActionType; label: string; icon: typeof Mail }> = [
   { value: "send.email", label: "Send Email", icon: Mail },
   { value: "call.webhook", label: "Call Webhook", icon: Settings },
-  { value: "wait.delay", label: "Wait/Delay", icon: Clock },
 ];
 
 export function StepEditorDialog({
@@ -106,16 +102,6 @@ export function StepEditorDialog({
           config: {
             method: "POST" as const,
             url: "",
-          },
-        };
-        break;
-      case "wait.delay":
-        newAction = {
-          id: `action_${Date.now()}`,
-          type: actionType,
-          name: "Wait/Delay", // Default name
-          config: {
-            delaySeconds: 60,
           },
         };
         break;
@@ -256,7 +242,7 @@ export function StepEditorDialog({
           )}
 
           {/* Actions Section */}
-          {editedStep.type === "action" && (
+          {(editedStep.type === "action" || editedStep.type === "condition") && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>{t('workflows.builder.stepEditor.actions.label')}</Label>
@@ -480,33 +466,6 @@ export function StepEditorDialog({
                               <SelectItem value="PATCH">PATCH</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
-                      )}
-
-                      {action.type === "wait.delay" && "delaySeconds" in action.config && (
-                        <div className="space-y-2">
-                          <Label>{t('workflows.builder.stepEditor.actions.delay.label')}</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={action.config.delaySeconds || 0}
-                            onChange={(e) =>
-                              handleUpdateAction(index, (currentAction) => {
-                                if (currentAction.type !== "wait.delay") {
-                                  return currentAction;
-                                }
-
-                                return {
-                                  ...currentAction,
-                                config: {
-                                    ...currentAction.config,
-                                  delaySeconds: parseInt(e.target.value, 10) || 0,
-                                  },
-                                };
-                              })
-                            }
-                            placeholder={t('workflows.builder.stepEditor.actions.delay.placeholder')}
-                          />
                         </div>
                       )}
                     </div>

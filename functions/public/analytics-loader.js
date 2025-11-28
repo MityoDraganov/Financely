@@ -135,33 +135,33 @@
       return;
     }
 
-  // Helper to get URL parameters (define before use)
-  function getUrlParameter(name) {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(name) || '';
-  }
+    // Helper to get URL parameters (define before use)
+    function getUrlParameter(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name) || '';
+    }
 
-  // Initialize dataLayer
-  window.dataLayer = window.dataLayer || [];
+    // Initialize dataLayer
+    window.dataLayer = window.dataLayer || [];
   
-  // Push initial dataLayer event with org/site context
-  window.dataLayer.push({
-    event: 'analytics_init',
-    org_id: config.orgId,
-    site_id: config.siteId,
-    brand_name: config.brandName,
-    page_path: window.location.pathname + window.location.search,
-    page_title: document.title,
-    referrer: document.referrer || '',
-    utm_source: getUrlParameter('utm_source'),
-    utm_medium: getUrlParameter('utm_medium'),
-    utm_campaign: getUrlParameter('utm_campaign'),
-    utm_term: getUrlParameter('utm_term'),
-    utm_content: getUrlParameter('utm_content'),
-  });
+    // Push initial dataLayer event with org/site context
+    window.dataLayer.push({
+      event: 'analytics_init',
+      org_id: config.orgId,
+      site_id: config.siteId,
+      brand_name: config.brandName,
+      page_path: window.location.pathname + window.location.search,
+      page_title: document.title,
+      referrer: document.referrer || '',
+      utm_source: getUrlParameter('utm_source'),
+      utm_medium: getUrlParameter('utm_medium'),
+      utm_campaign: getUrlParameter('utm_campaign'),
+      utm_term: getUrlParameter('utm_term'),
+      utm_content: getUrlParameter('utm_content'),
+    });
 
-  // Initialize GA4 Consent Mode (must be called before loading GA4/GTM)
-  function initConsentMode() {
+    // Initialize GA4 Consent Mode (must be called before loading GA4/GTM)
+    function initConsentMode() {
     // Ensure dataLayer exists
     window.dataLayer = window.dataLayer || [];
     
@@ -182,7 +182,7 @@
   }
 
   // Update consent (called when user accepts/rejects)
-  window.updateAnalyticsConsent = function(granted) {
+    window.updateAnalyticsConsent = function(granted) {
     const consentKey = 'financely_analytics_consent_' + config.orgId;
     localStorage.setItem(consentKey, granted ? 'granted' : 'denied');
     
@@ -210,7 +210,7 @@
   };
 
   // Show consent banner
-  function showConsentBanner() {
+    function showConsentBanner() {
     const styling = config.consentBannerStyling || {
       backgroundColor: '#ffffff',
       textColor: '#000000',
@@ -367,7 +367,7 @@
   }
 
   // Track page view
-  function trackPageView() {
+    function trackPageView() {
     const pagePath = window.location.pathname + window.location.search;
     const pageTitle = document.title;
 
@@ -421,7 +421,7 @@
   }
 
   // Store event in Firestore for real-time analytics
-  async function storeEvent(eventName, eventParams) {
+    async function storeEvent(eventName, eventParams) {
     if (!config.orgId) return;
 
     try {
@@ -498,7 +498,7 @@
   }
 
   // Get or create client ID (for visitor tracking)
-  function getClientId() {
+    function getClientId() {
     let clientId = localStorage.getItem('analytics_client_id');
     if (!clientId) {
       clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -508,7 +508,7 @@
   }
 
   // Track custom event
-  window.trackAnalyticsEvent = function(eventName, eventParams) {
+    window.trackAnalyticsEvent = function(eventName, eventParams) {
     const eventData = {
       event: eventName,
       org_id: config.orgId,
@@ -561,7 +561,7 @@
   };
 
   // Load Google Tag Manager
-  function loadGTM() {
+    function loadGTM() {
     if (!config.gtmContainerId) {
       console.warn('Financely Analytics: GTM Container ID not provided');
       return;
@@ -628,7 +628,7 @@
 
   // Load GA4 (gtag)
   // Official pattern: https://developers.google.com/analytics/devguides/collection/ga4
-  function loadGA4() {
+    function loadGA4() {
     if (!config.ga4MeasurementId) {
       console.warn('Financely Analytics: GA4 Measurement ID not provided');
       return;
@@ -678,7 +678,7 @@
 
   // Load Microsoft Clarity
   // Official pattern: https://learn.microsoft.com/en-us/clarity/setup-and-installation/install-clarity
-  function loadClarity() {
+    function loadClarity() {
     if (!config.enableClarity || !config.clarityProjectId) {
       if (config.enableClarity && !config.clarityProjectId) {
         console.warn('Financely Analytics: Clarity enabled but Project ID not provided');
@@ -716,7 +716,7 @@
   }
 
   // Load Plausible
-  function loadPlausible() {
+    function loadPlausible() {
     if (!config.plausibleDomain) {
       console.warn('Financely Analytics: Plausible domain not provided');
       return;
@@ -736,7 +736,7 @@
   }
 
   // Load Umami
-  function loadUmami() {
+    function loadUmami() {
     if (!config.umamiScriptUrl) {
       console.warn('Financely Analytics: Umami script URL not provided');
       return;
@@ -766,7 +766,7 @@
   }
 
   // Log initialization start
-  console.log('Financely Analytics: Initializing analytics loader...', {
+    console.log('Financely Analytics: Initializing analytics loader...', {
     strategy: config.strategy,
     orgId: config.orgId,
     siteId: config.siteId,
@@ -774,46 +774,46 @@
   });
 
   // Check if user has already given consent
-  const consentKey = 'financely_analytics_consent_' + config.orgId;
-  const storedConsent = localStorage.getItem(consentKey);
-  let userConsent = storedConsent === 'granted' ? 'granted' : (storedConsent === 'denied' ? 'denied' : null);
+    const consentKey = 'financely_analytics_consent_' + config.orgId;
+    const storedConsent = localStorage.getItem(consentKey);
+    let userConsent = storedConsent === 'granted' ? 'granted' : (storedConsent === 'denied' ? 'denied' : null);
 
   // Show consent banner if consent is denied by default and user hasn't made a choice
-  if (config.consentDefault === 'denied' && config.bannerProvider === 'custom' && userConsent === null) {
+    if (config.consentDefault === 'denied' && config.bannerProvider === 'custom' && userConsent === null) {
     showConsentBanner();
     // Don't load analytics until consent is given
     return;
   }
 
   // If user explicitly denied, don't load analytics
-  if (userConsent === 'denied') {
+    if (userConsent === 'denied') {
     console.log('Financely Analytics: User denied consent, analytics not loaded');
     return;
   }
 
   // Initialize consent mode first (must be before any GA4/GTM scripts)
-  initConsentMode();
-  console.log('Financely Analytics: Consent mode initialized', {
+    initConsentMode();
+    console.log('Financely Analytics: Consent mode initialized', {
     default: config.consentDefault,
     userConsent: userConsent || 'default',
   });
 
   // Load all enabled analytics providers (can use multiple simultaneously)
-  if (config.enableGA4 && config.ga4MeasurementId) {
+    if (config.enableGA4 && config.ga4MeasurementId) {
     console.log('Financely Analytics: Loading Google Analytics 4', {
       measurementId: config.ga4MeasurementId,
     });
     loadGA4();
   }
 
-  if (config.enablePlausible && config.plausibleDomain) {
+    if (config.enablePlausible && config.plausibleDomain) {
     console.log('Financely Analytics: Loading Plausible Analytics', {
       domain: config.plausibleDomain,
     });
     loadPlausible();
   }
 
-  if (config.enableUmami && config.umamiScriptUrl && config.umamiWebsiteId) {
+    if (config.enableUmami && config.umamiScriptUrl && config.umamiWebsiteId) {
     console.log('Financely Analytics: Loading Umami Analytics', {
       scriptUrl: config.umamiScriptUrl,
       websiteId: config.umamiWebsiteId,
@@ -821,7 +821,7 @@
     loadUmami();
   }
 
-  if (config.enableClarity && config.clarityProjectId) {
+    if (config.enableClarity && config.clarityProjectId) {
     console.log('Financely Analytics: Loading Microsoft Clarity', {
       projectId: config.clarityProjectId,
     });
@@ -829,16 +829,16 @@
   }
 
   // Mark analytics as loaded
-  window.financelyAnalyticsLoaded = true;
+    window.financelyAnalyticsLoaded = true;
 
   // Track initial page view
-  trackPageView();
+    trackPageView();
   
-  console.log('Financely Analytics: Initial page view tracked');
+    console.log('Financely Analytics: Initial page view tracked');
 
   // Track page views on navigation (for SPAs)
-  let lastPath = window.location.pathname;
-  const observer = new MutationObserver(function() {
+    let lastPath = window.location.pathname;
+    const observer = new MutationObserver(function() {
     if (window.location.pathname !== lastPath) {
       lastPath = window.location.pathname;
       trackPageView();
@@ -846,23 +846,23 @@
   });
 
   // Observe URL changes (for SPAs using History API)
-  const originalPushState = history.pushState;
-  const originalReplaceState = history.replaceState;
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
 
-  history.pushState = function() {
+    history.pushState = function() {
     originalPushState.apply(history, arguments);
     setTimeout(trackPageView, 0);
   };
 
-  history.replaceState = function() {
+    history.replaceState = function() {
     originalReplaceState.apply(history, arguments);
     setTimeout(trackPageView, 0);
   };
 
-  window.addEventListener('popstate', trackPageView);
+    window.addEventListener('popstate', trackPageView);
 
   // Analytics Debug Helper (available in console)
-  window.checkAnalytics = function() {
+    window.checkAnalytics = function() {
     const results = {
       analyticsLoader: {
         found: !!document.querySelector('script[data-analytics-org-id]'),
@@ -1118,17 +1118,21 @@
     return results;
   };
 
-  // Final initialization log
-  console.log('%c✅ Financely Analytics Loader initialized', 'color: #10b981; font-weight: bold; font-size: 14px;');
-  console.log('Run checkAnalytics() in console for detailed debug information.');
-  console.log('Configuration:', {
-    strategy: config.strategy,
-    gtmContainerId: config.gtmContainerId || 'Not set',
-    ga4MeasurementId: config.ga4MeasurementId || 'Not set',
-    clarityEnabled: config.enableClarity,
-    clarityProjectId: config.clarityProjectId || 'Not set',
-    consentDefault: config.consentDefault,
-  });
+    // Final initialization log
+    console.log('%c✅ Financely Analytics Loader initialized', 'color: #10b981; font-weight: bold; font-size: 14px;');
+    console.log('Run checkAnalytics() in console for detailed debug information.');
+    console.log('Configuration:', {
+      strategy: config.strategy,
+      gtmContainerId: config.gtmContainerId || 'Not set',
+      ga4MeasurementId: config.ga4MeasurementId || 'Not set',
+      clarityEnabled: config.enableClarity,
+      clarityProjectId: config.clarityProjectId || 'Not set',
+      consentDefault: config.consentDefault,
+    });
+  }
+
+  // Call init to start analytics
+  init();
 
   // Track common events
   document.addEventListener('click', function(e) {

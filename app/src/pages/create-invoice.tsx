@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateInvoice } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
+import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { TemplateElement } from "@/core";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -115,6 +116,7 @@ export default function CreateInvoicePage() {
 	const previewDialogOpen = invoiceTemplateContext?.previewDialogOpen ?? false;
 	const setPreviewDialogOpen = invoiceTemplateContext?.setPreviewDialogOpen ?? (() => {});
 	const { data: products = [] } = useProductsByOrg(currentOrganization?.id);
+	const { data: existingInvoices = [] } = useInvoices(currentOrganization?.id);
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const [formData, setFormData] = useState<Record<string, InvoiceDataValue>>(
 		{}
@@ -1738,6 +1740,7 @@ export default function CreateInvoicePage() {
 		bindings,
 		tableConfigs,
 		getTableItems,
+		existingInvoices,
 	});
 
 	// Get all items from all tables for currency conversion

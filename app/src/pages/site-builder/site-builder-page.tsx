@@ -49,10 +49,6 @@ import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organization
 import {
 	useGenerateSite,
 	useRegenerateSite,
-	useAddCustomDomain,
-	useRemoveCustomDomain,
-	useRestoreBrandSiteVersion,
-	usePreviewBrandSiteVersion,
 	useDeployManualSite,
 	useUpdateBrandSitePages,
 } from "@/hooks/service-hooks/use-brand-site";
@@ -73,8 +69,6 @@ import { QuoteRequestWidgetConfig } from "@/components/site-builder/quote-reques
 import { WidgetVersionHistory } from "@/components/site-builder/widget-version-history";
 import { EmbedScriptSection } from "@/components/site-builder/embed-script-section";
 import { SiteStatusDisplay } from "@/components/site-builder/site-status-display";
-import { SiteVersionHistory } from "@/components/site-builder/site-version-history";
-import { CustomDomainInput } from "@/components/site-builder/custom-domain-input";
 import type { WidgetPosition } from "@/components/site-builder/widget-types";
 import { WidgetPreview } from "@/components/widget-preview";
 import {
@@ -182,22 +176,6 @@ export default function SiteBuilderPage() {
 	const queryClient = useQueryClient();
 	const { data: organization, isLoading } = useCurrentOrganization();
 	const updateOrganization = useUpdateOrganization();
-	const [customDomainInput, setCustomDomainInput] = useState("");
-	const [domainStatus, setDomainStatus] = useState<string | undefined>();
-	const [dnsConfigured, setDnsConfigured] = useState<boolean | undefined>();
-	const [dnsInstructions, setDnsInstructions] = useState<
-		| {
-				type: "A" | "CNAME";
-				name: string;
-				value: string;
-				ttl?: number;
-		  }
-		| undefined
-	>();
-	const [domainMessage, setDomainMessage] = useState<string | undefined>();
-	const [previewingVersion, setPreviewingVersion] = useState<number | null>(
-		null
-	);
 	const [copiedScript, setCopiedScript] = useState(false);
 	const [isPageDialogOpen, setIsPageDialogOpen] = useState(false);
 	const [pageDialogMode, setPageDialogMode] = useState<"create" | "edit">(
@@ -223,10 +201,6 @@ export default function SiteBuilderPage() {
 	const updateBrandSite = useUpdateBrandSite(); // For file updates (not pages)
 	const generateSite = useGenerateSite();
 	const regenerateSite = useRegenerateSite();
-	const addCustomDomain = useAddCustomDomain();
-	const removeCustomDomain = useRemoveCustomDomain();
-	const restoreVersion = useRestoreBrandSiteVersion();
-	const previewVersion = usePreviewBrandSiteVersion();
 	const deployManualSite = useDeployManualSite();
 	const deleteBrandSite = useDeleteBrandSite();
 	const [currentBrandSiteId, setCurrentBrandSiteId] = useState<string | null>(
@@ -1650,267 +1624,6 @@ export default function SiteBuilderPage() {
 							</CollapsibleContent>
 						</Card>
 					</Collapsible>
-
-					{/* Advanced Settings */}
-					{hasSite && (
-						<Collapsible
-							open={expandedSections.advanced}
-							onOpenChange={() => toggleSection("advanced")}
-						>
-							<Card>
-								<CollapsibleTrigger asChild>
-									<CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-										<div className="flex items-center justify-between">
-											<CardTitle className="text-base">
-												{t('siteBuilder.advanced.title')}
-											</CardTitle>
-											{expandedSections.advanced ? (
-												<ChevronDown className="h-4 w-4" />
-											) : (
-												<ChevronRight className="h-4 w-4" />
-											)}
-										</div>
-									</CardHeader>
-								</CollapsibleTrigger>
-								<CollapsibleContent>
-									<CardContent className="space-y-4">
-										<SiteVersionHistory
-											brandSite={brandSite?.data || null}
-											currentVersion={
-												brandSite?.data?.metadata
-													?.version ?? null
-											}
-											previewingVersion={
-												previewingVersion
-											}
-											onPreviewVersion={async (
-												version: number
-											) => {
-												const brandSiteId =
-													currentBrandSiteId ||
-													brandSites[0]?.id;
-												if (!brandSiteId) return;
-												setPreviewingVersion(version);
-												try {
-													const result =
-														await previewVersion.mutateAsync(
-															{
-																brandSiteId,
-																version,
-															}
-														);
-													if (result?.previewUrl) {
-														window.open(
-															result.previewUrl,
-															"_blank"
-														);
-														toast.success(
-															t('siteBuilder.toasts.previewOpened')
-														);
-													}
-												} catch (error) {
-													console.error(
-														"Failed to create preview:",
-														error
-													);
-												} finally {
-													setTimeout(
-														() =>
-															setPreviewingVersion(
-																null
-															),
-														500
-													);
-												}
-											}}
-											onRestoreVersion={(
-												version: number
-											) => {
-												const brandSiteId =
-													currentBrandSiteId ||
-													brandSites[0]?.id;
-												if (!brandSiteId) return;
-												restoreVersion.mutate({
-													brandSiteId,
-													version,
-												});
-											}}
-											isRestoring={
-												restoreVersion.isPending
-											}
-										/>
-										<CustomDomainInput
-											customDomain={customDomainInput}
-											onCustomDomainChange={setCustomDomainInput}
-											onAddDomain={() => {
-												const brandSiteId =
-													currentBrandSiteId ||
-													brandSites[0]?.id;
-												if (
-													!brandSiteId ||
-													!customDomainInput
-												) {
-													toast.error(
-														t('siteBuilder.toasts.errors.enterDomain')
-													);
-													return;
-												}
-												addCustomDomain.mutate(
-													{
-														brandSiteId,
-														customDomain:
-															customDomainInput,
-													},
-													{
-														onSuccess: (result) => {
-															setDomainStatus(
-																result.domainStatus
-															);
-															setDnsConfigured(
-																result.dnsConfigured
-															);
-															setDnsInstructions(
-																result.dnsInstructions
-															);
-															setDomainMessage(
-																result.message
-															);
-															// Don't update customDomainInput - let user type freely
-														},
-													}
-												);
-											}}
-											onRemoveDomain={() => {
-												const brandSiteId =
-													currentBrandSiteId ||
-													brandSites[0]?.id;
-												const domainToRemove =
-													brandSite?.data?.customDomain ||
-													customDomainInput;
-												if (
-													!brandSiteId ||
-													!domainToRemove
-												) {
-													return;
-												}
-												removeCustomDomain.mutate(
-													{
-														brandSiteId,
-														customDomain: domainToRemove,
-													},
-													{
-														onSuccess: () => {
-															setDomainStatus(undefined);
-															setDnsConfigured(false);
-															setDnsInstructions(undefined);
-															setDomainMessage(undefined);
-															setCustomDomainInput("");
-														},
-													}
-												);
-											}}
-											isAdding={addCustomDomain.isPending}
-											isRemoving={removeCustomDomain.isPending}
-											domainStatus={domainStatus}
-											dnsConfigured={dnsConfigured}
-											dnsInstructions={dnsInstructions}
-											message={domainMessage}
-										/>
-										<div className="pt-4 border-t">
-											<Card>
-												<CardHeader className="pb-3">
-													<CardTitle className="text-base flex items-center gap-2">
-														<Code className="h-4 w-4" />
-														{t('siteBuilder.advanced.codeEditor')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													<p className="text-sm text-muted-foreground mb-4">
-														{t('siteBuilder.advanced.codeEditorDescription')}
-													</p>
-													<Button
-														onClick={() => {
-															setActiveMainTab("code");
-															setSidebarOpen(false);
-														}}
-														className="w-full"
-														variant="outline"
-													>
-														<Code className="h-4 w-4 mr-2" />
-														{t('siteBuilder.advanced.openCodeEditor')}
-													</Button>
-												</CardContent>
-											</Card>
-											{!hasSite && (
-												<Card className="mt-4">
-													<CardContent className="pt-6">
-														<p className="text-sm text-muted-foreground mb-4 text-center">
-															{t('siteBuilder.advanced.createBlankSiteDescription')}
-														</p>
-														<Button
-															onClick={async () => {
-																if (!organization?.id) return;
-																const blankHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${organization.settings?.branding?.companyName || organization.name}</title>
-</head>
-<body>
-  <h1>Welcome</h1>
-  <p>Start editing your site files!</p>
-</body>
-</html>`;
-																generateSite.mutate(
-																	{
-																		organizationId: organization.id,
-																		brandName:
-																			organization
-																				.settings
-																				?.branding
-																				?.companyName ||
-																			organization.name,
-																		context: blankHtml,
-																	},
-																	{
-																		onSuccess: (result) => {
-																			setCurrentBrandSiteId(
-																				result.id
-																			);
-																			setActiveMainTab("code");
-																			toast.success(
-																				t('siteBuilder.toasts.blankSiteCreated')
-																			);
-																		},
-																	}
-																);
-															}}
-															disabled={!organization?.id || generateSite.isPending}
-															className="w-full"
-														>
-															{generateSite.isPending ? (
-																<>
-																	<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-																	{t('siteBuilder.createSiteDialog.creating')}
-																</>
-															) : (
-																<>
-																	<Plus className="h-4 w-4 mr-2" />
-																	{t('siteBuilder.advanced.createBlankSite')}
-																</>
-															)}
-														</Button>
-													</CardContent>
-												</Card>
-											)}
-										</div>
-										{/* Code Editor is now available in the main content area via tabs */}
-									</CardContent>
-								</CollapsibleContent>
-							</Card>
-						</Collapsible>
-					)}
 
 					{/* Widgets Section */}
 					<Collapsible

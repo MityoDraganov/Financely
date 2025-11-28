@@ -8,8 +8,15 @@ import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { getAnalyticsConfigRepository } from "../repositories/analytics-config-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
+import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
 
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
+// Cloudflare publisher secrets
+const cloudflareAccountId = defineSecret("CLOUDFLARE_ACCOUNT_ID");
+const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
+const cloudflareR2BucketName = defineSecret("CLOUDFLARE_R2_BUCKET_NAME");
+const cloudflareKvNamespaceId = defineSecret("CLOUDFLARE_KV_NAMESPACE_ID");
+const cloudflareBaseDomain = defineSecret("CLOUDFLARE_BASE_DOMAIN");
 
 /**
  * Update analytics script in existing site HTML without full regeneration
@@ -18,7 +25,14 @@ export const updateAnalyticsScript = onCall(
   {
     region: "us-central1",
     cors: true,
-    secrets: [firebaseProjectId],
+    secrets: [
+      firebaseProjectId,
+      cloudflareAccountId,
+      cloudflareApiToken,
+      cloudflareR2BucketName,
+      cloudflareKvNamespaceId,
+      cloudflareBaseDomain,
+    ],
     timeoutSeconds: 60,
   },
   async (request) => {
@@ -70,9 +84,9 @@ export const updateAnalyticsScript = onCall(
       }
 
       // Remove existing analytics script if present
-      // Match script tag with analytics-loader.js or data-analytics-org-id
+      // Match script tag with analytics-loader.js (relative or absolute) or data-analytics-org-id
       html = html.replace(
-        /<script[^>]*src=["']\/analytics-loader\.js["'][^>]*>.*?<\/script>/gi,
+        /<script[^>]*src=["'][^"']*analytics-loader\.js["'][^>]*>.*?<\/script>/gi,
         "",
       );
       html = html.replace(
@@ -107,26 +121,15 @@ export const updateAnalyticsScript = onCall(
         },
       });
 
-      // Redeploy to Firebase Hosting
+      // Redeploy based on hosting provider
+      const hostingProvider = brandSite.hostingProvider || "firebase";
       const projectIdForDeployment = firebaseProjectId.value();
+      
       if (projectIdForDeployment && brandSite.status === "success") {
         try {
-          const hostingService = new FirebaseHostingService({ projectId: projectIdForDeployment });
-          const siteIdForHosting = `brand-${brandSiteId}`;
-
-          // Ensure site exists
-          await hostingService.createSite(siteIdForHosting);
-
-          // Prepare files to deploy
-          const filesToDeploy: Array<{ path: string; contents: string }> = [
-            { path: "index.html", contents: html },
-          ];
-
-          // Always add analytics-loader.js if analytics is enabled (required for script to work)
-          if (analyticsConfig?.enabled) {
+          // Helper function to read analytics-loader.js
+          const readAnalyticsLoader = (): string | null => {
             try {
-              // Read analytics-loader.js - try multiple paths to support both dev and production
-              let analyticsLoaderPath: string | null = null;
               const possibleAnalyticsPaths = [
                 join(__dirname, "../../public/analytics-loader.js"), // Production: functions/lib/functions -> functions/public
                 join(__dirname, "../../../app/public/analytics-loader.js"), // Dev: functions/lib/functions -> app/public
@@ -135,42 +138,21 @@ export const updateAnalyticsScript = onCall(
               
               for (const path of possibleAnalyticsPaths) {
                 if (existsSync(path)) {
-                  analyticsLoaderPath = path;
-                  break;
+                  return readFileSync(path, "utf-8");
                 }
               }
-              
-              if (analyticsLoaderPath) {
-                try {
-                  const analyticsLoaderContent = readFileSync(analyticsLoaderPath, "utf-8");
-                  filesToDeploy.push({
-                    path: "analytics-loader.js",
-                    contents: analyticsLoaderContent,
-                  });
-                  logger.info("Added analytics-loader.js to deployment", { brandSiteId });
-                } catch (readError) {
-                  logger.warn("Could not read analytics-loader.js, analytics may not work", {
-                    error: readError instanceof Error ? readError.message : "Unknown error",
-                    path: analyticsLoaderPath,
-                  });
-                }
-              } else {
-                logger.warn("analytics-loader.js not found in any expected location", {
-                  brandSiteId,
-                });
-              }
+              return null;
             } catch (error) {
-              logger.warn("Failed to add analytics-loader.js to deployment", {
+              logger.warn("Failed to read analytics-loader.js", {
                 error: error instanceof Error ? error.message : "Unknown error",
               });
+              return null;
             }
-          }
+          };
 
-          // If widgets are enabled, add widget-loader.js to deployment
-          if (organization.settings?.widgets?.enabled) {
+          // Helper function to read widget-loader.js
+          const readWidgetLoader = (): string | null => {
             try {
-              // Read widget-loader.js - try multiple paths to support both dev and production
-              let widgetLoaderPath: string | null = null;
               const possiblePaths = [
                 join(__dirname, "../../public/widget-loader.js"), // Production: functions/lib/functions -> functions/public
                 join(__dirname, "../../../app/public/widget-loader.js"), // Dev: functions/lib/functions -> app/public
@@ -179,50 +161,192 @@ export const updateAnalyticsScript = onCall(
               
               for (const path of possiblePaths) {
                 if (existsSync(path)) {
-                  widgetLoaderPath = path;
-                  break;
+                  return readFileSync(path, "utf-8");
                 }
               }
-              
-              if (!widgetLoaderPath) {
-                throw new Error("widget-loader.js not found in any expected location");
+              return null;
+            } catch (error) {
+              logger.warn("Failed to read widget-loader.js", {
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
+              return null;
+            }
+          };
+
+          if (hostingProvider === "cloudflare") {
+            // Deploy to Cloudflare (R2 + KV)
+            const publisherService = new CloudflarePublisherService({
+              accountId: cloudflareAccountId.value(),
+              apiToken: cloudflareApiToken.value(),
+              r2BucketName: cloudflareR2BucketName.value(),
+              kvNamespaceId: cloudflareKvNamespaceId.value(),
+            });
+
+            // Generate new versionId
+            const versionId = `v${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+            // Prepare files for R2 upload
+            const filesToUpload: Array<{ path: string; content: string; contentType: string }> = [
+              {
+                path: "index.html",
+                content: html,
+                contentType: "text/html; charset=utf-8",
+              },
+            ];
+
+            // Always add analytics-loader.js if analytics is enabled (required for script to work)
+            if (analyticsConfig?.enabled) {
+              const analyticsLoaderContent = readAnalyticsLoader();
+              if (analyticsLoaderContent) {
+                filesToUpload.push({
+                  path: "analytics-loader.js",
+                  content: analyticsLoaderContent,
+                  contentType: "application/javascript; charset=utf-8",
+                });
+                logger.info("Added analytics-loader.js to Cloudflare deployment", { brandSiteId });
+              } else {
+                logger.warn("analytics-loader.js not found, analytics may not work", { brandSiteId });
               }
-              
-              try {
-                const widgetLoaderContent = readFileSync(widgetLoaderPath, "utf-8");
+            }
+
+            // If widgets are enabled, add widget-loader.js to deployment
+            if (organization.settings?.widgets?.enabled) {
+              const widgetLoaderContent = readWidgetLoader();
+              if (widgetLoaderContent) {
+                filesToUpload.push({
+                  path: "widget-loader.js",
+                  content: widgetLoaderContent,
+                  contentType: "application/javascript; charset=utf-8",
+                });
+                logger.info("Added widget-loader.js to Cloudflare deployment", { brandSiteId });
+              } else {
+                logger.warn("widget-loader.js not found, widgets may not work", { brandSiteId });
+              }
+            }
+
+            // Upload to R2
+            await publisherService.uploadSiteVersionToR2(
+              brandSiteId,
+              versionId,
+              filesToUpload
+            );
+
+            // Collect domains for KV mapping
+            const domains: string[] = [];
+            if (brandSite.primaryDomain) {
+              domains.push(brandSite.primaryDomain);
+            }
+            if (brandSite.customDomain) {
+              domains.push(brandSite.customDomain);
+            }
+            if (brandSite.altDomains && brandSite.altDomains.length > 0) {
+              domains.push(...brandSite.altDomains);
+            }
+            if (brandSite.subdomain) {
+              const fullSubdomain = `${brandSite.subdomain}.${cloudflareBaseDomain.value()}`;
+              if (!domains.includes(fullSubdomain)) {
+                domains.push(fullSubdomain);
+              }
+            }
+
+            // Update KV mappings for all domains
+            if (domains.length > 0) {
+              await publisherService.updateSiteHostMappings(
+                domains.map((domain) => ({
+                  hostname: domain,
+                  brandSiteId,
+                  versionId,
+                }))
+              );
+            }
+
+            // Update brand site with new version
+            const existingVersions = brandSite.versions || [];
+            const nextVersionNumber = existingVersions.length > 0 
+              ? Math.max(...existingVersions.map((v: any) => v.version || 0)) + 1
+              : 1;
+
+            const newVersion = {
+              version: nextVersionNumber,
+              versionId,
+              html,
+              files: updatedFiles,
+              createdAt: new Date().toISOString(),
+              description: "Update analytics script",
+            };
+
+            const updatedVersions = [...existingVersions, newVersion];
+
+            await brandSiteRepository.update({
+              id: brandSiteId,
+              data: {
+                currentVersionId: versionId,
+                versions: updatedVersions,
+              },
+            });
+
+            logger.info("Analytics script updated and redeployed to Cloudflare", {
+              brandSiteId,
+              versionId,
+              domains,
+            });
+          } else {
+            // Deploy to Firebase Hosting (legacy)
+            const hostingService = new FirebaseHostingService({ projectId: projectIdForDeployment });
+            const siteIdForHosting = `brand-${brandSiteId}`;
+
+            // Ensure site exists
+            await hostingService.createSite(siteIdForHosting);
+
+            // Prepare files to deploy
+            const filesToDeploy: Array<{ path: string; contents: string }> = [
+              { path: "index.html", contents: html },
+            ];
+
+            // Always add analytics-loader.js if analytics is enabled (required for script to work)
+            if (analyticsConfig?.enabled) {
+              const analyticsLoaderContent = readAnalyticsLoader();
+              if (analyticsLoaderContent) {
+                filesToDeploy.push({
+                  path: "analytics-loader.js",
+                  contents: analyticsLoaderContent,
+                });
+                logger.info("Added analytics-loader.js to Firebase deployment", { brandSiteId });
+              } else {
+                logger.warn("analytics-loader.js not found, analytics may not work", { brandSiteId });
+              }
+            }
+
+            // If widgets are enabled, add widget-loader.js to deployment
+            if (organization.settings?.widgets?.enabled) {
+              const widgetLoaderContent = readWidgetLoader();
+              if (widgetLoaderContent) {
                 filesToDeploy.push({
                   path: "widget-loader.js",
                   contents: widgetLoaderContent,
                 });
-                logger.info("Added widget-loader.js to deployment", { brandSiteId });
-              } catch (readError) {
-                logger.warn("Could not read widget-loader.js, widgets may not work", {
-                  error: readError instanceof Error ? readError.message : "Unknown error",
-                  path: widgetLoaderPath,
-                });
-                // Continue without widget-loader.js - the script tag will still be injected
+                logger.info("Added widget-loader.js to Firebase deployment", { brandSiteId });
+              } else {
+                logger.warn("widget-loader.js not found, widgets may not work", { brandSiteId });
               }
-            } catch (error) {
-              logger.warn("Failed to add widget-loader.js to deployment", {
-                error: error instanceof Error ? error.message : "Unknown error",
-              });
             }
+
+            // Deploy updated HTML, analytics-loader.js, and widget-loader.js (if enabled)
+            await hostingService.deploySite(
+              siteIdForHosting,
+              filesToDeploy,
+              "Update analytics script",
+            );
+
+            logger.info("Analytics script updated and redeployed to Firebase", {
+              brandSiteId,
+              siteId: siteIdForHosting,
+            });
           }
-
-          // Deploy updated HTML, analytics-loader.js, and widget-loader.js (if enabled)
-          await hostingService.deploySite(
-            siteIdForHosting,
-            filesToDeploy,
-            "Update analytics script",
-          );
-
-          logger.info("Analytics script updated and redeployed", {
-            brandSiteId,
-            siteId: siteIdForHosting,
-          });
         } catch (deployError) {
           logger.error("Failed to redeploy after analytics update", {
             brandSiteId,
+            hostingProvider,
             error: deployError instanceof Error ? deployError.message : "Unknown error",
           });
           // Don't throw - HTML is updated in Firestore even if deployment fails
@@ -320,6 +444,6 @@ function generateAnalyticsScript(
     attributes.push(`data-consent-banner-styling="${encodeURIComponent(JSON.stringify(styling))}"`);
   }
 
-  return `<script src="/analytics-loader.js" ${attributes.join(" ")}></script>`;
+  return `<script src="https://financely.app/analytics-loader.js" ${attributes.join(" ")}></script>`;
 }
 

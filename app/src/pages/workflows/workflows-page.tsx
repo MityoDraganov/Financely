@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Play, Pause, Archive, MoreHorizontal, Settings, Workflow, History, Trash2, Eye } from "lucide-react";
+import { Plus, Play, Pause, Archive, MoreHorizontal, Settings, History, Trash2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent} from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWorkflowsByOrg, useActivateWorkflow, usePauseWorkflow, useArchiveWorkflow, useCreateWorkflowFunction, useDeleteWorkflow } from "@/hooks";
@@ -215,16 +215,6 @@ export default function WorkflowsPage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="workflows" className="flex items-center gap-2">
-            <Workflow className="w-4 h-4" />
-            {t('workflows.tabs.workflows')}
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
-            <History className="w-4 h-4" />
-            {t('workflows.tabs.history')}
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="workflows" className="space-y-6">
           {/* Workflows Grid */}

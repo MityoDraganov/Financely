@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs } from "@/components/ui/tabs";
 import { WorkflowStepsProps } from "../types";
 import { WorkflowStepComponent } from "./workflow-step";
 import { WorkflowVisualFlowReactFlow } from "./workflow-visual-flow-reactflow";
 import { Workflow } from "@/core";
-import { LayoutGrid, List } from "lucide-react";
+import { List } from "lucide-react";
 import { StepValidationErrors } from "@/utils/workflow-validation";
 
 export function WorkflowSteps({ 
@@ -54,16 +54,7 @@ export function WorkflowSteps({
             </CardDescription>
           </div>
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "visual" | "list")}>
-            <TabsList>
-              <TabsTrigger value="visual" className="flex items-center gap-2">
-                <LayoutGrid className="w-4 h-4" />
-                {t('workflows.builder.steps.visualView')}
-              </TabsTrigger>
-              <TabsTrigger value="list" className="flex items-center gap-2">
-                <List className="w-4 h-4" />
-                {t('workflows.builder.steps.listView')}
-              </TabsTrigger>
-            </TabsList>
+            
           </Tabs>
         </div>
       </CardHeader>

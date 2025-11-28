@@ -24,7 +24,6 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Invoice } from "@/core/entities/invoice";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { getInvoiceValue, formatInvoiceAmount, getInvoiceAmountAndCurrency } from "@/utils/invoice-helpers";
@@ -62,20 +61,6 @@ function getBuyerName(invoice: Invoice, unknownLabel: string): string {
 // Helper to get total amount (formatted with currency)
 function getTotalAmount(invoice: Invoice): string {
   return formatInvoiceAmount(invoice);
-}
-
-// Helper to get status color
-function getStatusColor(status: string): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case "paid":
-      return "default";
-    case "sent":
-      return "secondary";
-    case "cancelled":
-      return "destructive";
-    default:
-      return "outline";
-  }
 }
 
 export default function InvoicesPage() {
@@ -301,9 +286,7 @@ export default function InvoicesPage() {
                                 <h3 className="font-semibold text-sm sm:text-base truncate text-foreground">
                                   {invoiceNumber}
                                 </h3>
-                                <Badge variant={getStatusColor(invoice.status)} className="shrink-0 w-fit text-xs">
-                                  {t(`dashboard.status.${invoice.status}`) || invoice.status}
-                                </Badge>
+                    
                               </div>
                               
                               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 text-xs sm:text-sm text-muted-foreground">

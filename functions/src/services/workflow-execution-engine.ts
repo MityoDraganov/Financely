@@ -365,6 +365,57 @@ export class WorkflowExecutionEngine {
         rev: FieldValue.increment(1),
       });
 
+      // Handle condition steps with branches
+      if (stepDefinition.type === "condition" && (stepDefinition as any).conditions) {
+        // Log context for debugging
+        logger.info("Evaluating condition", {
+          runId,
+          stepId,
+          conditions: (stepDefinition as any).conditions,
+          contextKeys: Object.keys(context),
+          contextSample: JSON.stringify({
+            invoiceId: context.invoiceId,
+            data: context.data ? (typeof context.data === 'object' ? Object.keys(context.data as object) : context.data) : undefined,
+            total: (context.data as any)?.total,
+            amount: (context.data as any)?.amount,
+          })
+        });
+
+        const conditionMet = this.evaluateConditions((stepDefinition as any).conditions, context);
+        const branchSteps = conditionMet 
+          ? ((stepDefinition as any).trueBranchSteps || [])
+          : ((stepDefinition as any).falseBranchSteps || []);
+
+        logger.info("Condition evaluated", {
+          runId,
+          stepId,
+          conditionMet,
+          branchStepsCount: branchSteps.length,
+          branchType: conditionMet ? "true" : "false"
+        });
+
+        // Execute branch steps
+        for (const branchStep of branchSteps) {
+          await this.executeBranchStep(runId, branchStep, context, stepId);
+        }
+
+        // Mark condition step as completed
+        await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
+          status: "completed",
+          endedAt: FieldValue.serverTimestamp(),
+          result: { conditionMet, branchExecuted: conditionMet ? "true" : "false" },
+          rev: FieldValue.increment(1),
+        });
+
+        // Process next steps
+        for (const nextStepId of stepExecution.next) {
+          await this.createStepExecution(runId, nextStepId, stepDefinition.type);
+        }
+
+        await this.processNextStep(runId);
+        return;
+      }
+
       // Execute each action in the step
       const results: Record<string, unknown> = {};
       const actions = (stepDefinition as any).actions || [];
@@ -506,6 +557,211 @@ export class WorkflowExecutionEngine {
         error: error instanceof Error ? error.message : "Unknown error",
         logs: FieldValue.arrayUnion(errorLogEntry),
       });
+    }
+  }
+
+  /**
+   * Evaluate workflow conditions
+   */
+  private evaluateConditions(conditions: any[], context: Record<string, unknown>): boolean {
+    if (!conditions || conditions.length === 0) {
+      return true; // No conditions means always true
+    }
+
+    // All conditions must be met (AND logic)
+    for (const condition of conditions) {
+      const fieldValue = this.getFieldValue(condition.field, context);
+      
+      logger.info("Evaluating condition", {
+        field: condition.field,
+        operator: condition.operator,
+        expectedValue: condition.value,
+        actualValue: fieldValue,
+        fieldValueType: typeof fieldValue,
+        contextKeys: Object.keys(context)
+      });
+      
+      if (!this.evaluateCondition(condition, fieldValue)) {
+        logger.info("Condition not met", {
+          field: condition.field,
+          operator: condition.operator,
+          expectedValue: condition.value,
+          actualValue: fieldValue
+        });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get field value from context (supports dot notation like "data.grossTotal" or "invoice.amount")
+   */
+  private getFieldValue(field: string, context: Record<string, unknown>): unknown {
+    const parts = field.split(".");
+    let value: any = context;
+
+    // Log available context keys for debugging
+    if (parts.length > 0 && parts[0] === "invoice") {
+      // Support legacy "invoice.amount" by checking common invoice amount fields
+      logger.info("Legacy invoice field detected, checking common amount fields", {
+        field,
+        contextKeys: Object.keys(context),
+        dataKeys: context.data && typeof context.data === "object" ? Object.keys(context.data as object) : []
+      });
+      
+      // Try common invoice amount field names
+      if (parts[1] === "amount" || parts[1] === "total") {
+        const data = context.data as Record<string, unknown> | undefined;
+        if (data) {
+          // Check for grossTotal, total, amount in data object
+          if ("grossTotal" in data) {
+            logger.info("Found grossTotal in data", { grossTotal: data.grossTotal });
+            return data.grossTotal;
+          }
+          if ("total" in data) {
+            logger.info("Found total in data", { total: data.total });
+            return data.total;
+          }
+          if ("amount" in data) {
+            logger.info("Found amount in data", { amount: data.amount });
+            return data.amount;
+          }
+        }
+      }
+    }
+
+    // Standard dot notation traversal
+    for (const part of parts) {
+      if (value && typeof value === "object" && part in value) {
+        value = (value as Record<string, unknown>)[part];
+      } else {
+        logger.warn("Field path not found", {
+          field,
+          currentPath: parts.slice(0, parts.indexOf(part) + 1).join("."),
+          availableKeys: value && typeof value === "object" ? Object.keys(value as object) : [],
+          valueType: typeof value
+        });
+        return undefined;
+      }
+    }
+
+    return value;
+  }
+
+  /**
+   * Evaluate a single condition
+   */
+  private evaluateCondition(condition: any, fieldValue: unknown): boolean {
+    switch (condition.operator) {
+      case "equals":
+        return fieldValue === condition.value;
+      case "not_equals":
+        return fieldValue !== condition.value;
+      case "greater_than":
+        return Number(fieldValue) > Number(condition.value);
+      case "less_than":
+        return Number(fieldValue) < Number(condition.value);
+      case "contains":
+        return String(fieldValue).includes(String(condition.value));
+      case "not_contains":
+        return !String(fieldValue).includes(String(condition.value));
+      case "is_empty":
+        return fieldValue === null || fieldValue === undefined || fieldValue === "";
+      case "is_not_empty":
+        return fieldValue !== null && fieldValue !== undefined && fieldValue !== "";
+      default:
+        logger.warn("Unknown condition operator", { operator: condition.operator });
+        return false;
+    }
+  }
+
+  /**
+   * Execute a branch step (nested step within a condition)
+   */
+  private async executeBranchStep(
+    runId: string,
+    branchStep: any,
+    context: Record<string, unknown>,
+    parentStepId: string
+  ): Promise<void> {
+    const branchStepId = `${parentStepId}_branch_${branchStep.id}`;
+    
+    try {
+      logger.info("Executing branch step", {
+        runId,
+        parentStepId,
+        branchStepId,
+        branchStepName: branchStep.name,
+        actionCount: branchStep.actions?.length || 0
+      });
+
+      // Execute actions in the branch step
+      const results: Record<string, unknown> = {};
+      const actions = branchStep.actions || [];
+
+      for (const action of actions) {
+        logger.info("Executing branch step action", {
+          runId,
+          branchStepId,
+          actionType: action.type,
+          actionId: action.id
+        });
+
+        const executor = this.actionExecutors.get(action.type);
+        if (!executor) {
+          logger.error("No executor found for action type", {
+            runId,
+            branchStepId,
+            actionType: action.type,
+            availableTypes: Array.from(this.actionExecutors.keys())
+          });
+          throw new Error(`No executor found for action type: ${action.type}`);
+        }
+
+        try {
+          const actionResult = await executor.execute(action, context, runId);
+          results[action.id] = actionResult;
+
+          logger.info("Branch step action executed successfully", {
+            runId,
+            branchStepId,
+            actionType: action.type,
+            actionId: action.id
+          });
+        } catch (error) {
+          logger.error("Error executing branch step action", {
+            runId,
+            branchStepId,
+            actionType: action.type,
+            actionId: action.id,
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+          throw error;
+        }
+      }
+
+      // Clean results
+      const cleanedResults = removeUndefinedValues(results);
+
+      logger.info("Branch step completed", {
+        runId,
+        branchStepId,
+        actionCount: actions.length,
+        resultCount: Object.keys(cleanedResults).length
+      });
+
+      // Update context with results
+      Object.assign(context, cleanedResults);
+
+    } catch (error) {
+      logger.error("Error executing branch step", {
+        runId,
+        branchStepId,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+      throw error;
     }
   }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { CreateWorkflowInput, WorkflowActionType, WorkflowData } from "@/core";
-import { useCreateWorkflow } from "@/hooks/repository-hooks/use-workflows";
+import { useCreateWorkflow, useUpdateWorkflow } from "@/hooks/repository-hooks/use-workflows";
 import { useOrganizationContext } from "@/contexts/organization-context";
 import { toast } from "sonner";
 import { WorkflowBuilderProps, WorkflowStep } from "./types";
@@ -28,6 +28,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 	const { editingWorkflow, onCancelEdit, onPreview } = props;
 	const { currentOrganization } = useOrganizationContext();
 	const createWorkflow = useCreateWorkflow();
+	const updateWorkflow = useUpdateWorkflow();
 
 	const [workflow, setWorkflow] = useState<Partial<CreateWorkflowInput>>({
 		name: "",
@@ -173,7 +174,6 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 			if (editingWorkflow) {
 				// Update existing workflow
 				const workflowData = {
-					orgId: currentOrganization.id,
 					name: workflow.name,
 					description: workflow.description || "",
 					trigger: workflow.trigger,
@@ -181,15 +181,13 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 					status: workflow.status || "draft",
 					tags: workflow.tags || [],
 					category: workflow.category || "general",
-					version: editingWorkflow.version ?? 1,
-					settings: {
+					settings: editingWorkflow.settings || {
 						maxRetries: 3,
 						timeoutSeconds: 300,
 						notifyOnFailure: true,
 						notifyOnSuccess: false,
 						maxConcurrentExecutions: 10,
 					},
-					n8nEnabled: workflow.n8nEnabled || false,
 				};
 
 				// Validate for undefined values
@@ -204,8 +202,11 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 					return;
 				}
 
-				// TODO: Implement update workflow - for now, create a new one
-				await createWorkflow.mutateAsync(workflowData);
+				// Update existing workflow
+				await updateWorkflow.mutateAsync({
+					id: editingWorkflow.id,
+					data: workflowData,
+				});
 				toast.success(t("workflows.builder.toast.updateSuccess"));
 
 				// Reset form and exit edit mode
@@ -642,7 +643,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 				workflow={workflow as any}
 				onSave={handleSaveWorkflow}
 				onPreview={onPreview}
-				isSaving={createWorkflow.isPending}
+				isSaving={createWorkflow.isPending || updateWorkflow.isPending}
 				isValid={validationResult.valid}
 			/>
 

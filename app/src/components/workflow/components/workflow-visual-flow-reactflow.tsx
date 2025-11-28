@@ -180,6 +180,45 @@ const ConditionNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdi
     <div className="relative group">
       <Handle type="target" position={Position.Top} className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white dark:!border-gray-800" />
       
+      {/* Edit/Delete buttons - outside clipped div so they're visible */}
+      <div className={cn(
+        "absolute top-0 right-0 flex gap-1 transform translate-x-1/2 -translate-y-1/2 transition-opacity z-20",
+        selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      )}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border shadow-sm relative z-10"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onEdit?.();
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <Settings className="w-3 h-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border shadow-sm relative z-10"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete?.();
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
+      </div>
+      
       {/* Diamond Shape */}
       <div
         className={cn(
@@ -216,42 +255,6 @@ const ConditionNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdi
               </div>
             )}
           </div>
-        </div>
-        
-        {/* Edit/Delete buttons */}
-        <div className="absolute top-0 right-0 flex gap-1 transform translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border shadow-sm relative z-10"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onEdit?.();
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <Settings className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border shadow-sm relative z-10"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete?.();
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
         </div>
       </div>
       
@@ -477,7 +480,7 @@ export function WorkflowVisualFlowReactFlow({
           : yPosition + 200;
 
         if (step.trueBranchSteps && step.trueBranchSteps.length > 0) {
-          step.trueBranchSteps.forEach((branchStep: any, branchIndex: number) => {
+          step.trueBranchSteps.forEach((branchStep: WorkflowStep, branchIndex: number) => {
             const branchNode: Node = {
               id: `${step.id}-true-${branchStep.id}`,
               type: "workflow", // Use workflow type for identical styling
@@ -560,7 +563,7 @@ export function WorkflowVisualFlowReactFlow({
           : yPosition + 200;
 
         if (step.falseBranchSteps && step.falseBranchSteps.length > 0) {
-          step.falseBranchSteps.forEach((branchStep: any, branchIndex: number) => {
+          step.falseBranchSteps.forEach((branchStep: WorkflowStep, branchIndex: number) => {
             const branchNode: Node = {
               id: `${step.id}-false-${branchStep.id}`,
               type: "workflow", // Use workflow type instead of branchStep for identical styling

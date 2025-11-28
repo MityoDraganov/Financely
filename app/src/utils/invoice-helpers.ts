@@ -125,3 +125,71 @@ export function generateInvoiceNumber(organization?: {
   return `${prefix}-${year}-${paddedNumber}`;
 }
 
+/**
+ * Generate a unique invoice number by checking existing invoices
+ * Format: {prefix}-{year}-{sequentialNumber}
+ * 
+ * @param organization - Organization with settings for invoice numbering
+ * @param existingInvoices - Array of existing invoices to check for duplicates
+ * @returns Generated unique invoice number (e.g., "INV-2025-0001")
+ */
+export function generateUniqueInvoiceNumber(
+  organization?: {
+    settings?: {
+      invoicePrefix?: string;
+      invoiceNumberStart?: number;
+    };
+    usage?: {
+      invoiceCount?: number;
+    };
+  },
+  existingInvoices: Invoice[] = []
+): string {
+  const prefix = organization?.settings?.invoicePrefix || "INV";
+  const startNumber = organization?.settings?.invoiceNumberStart || 1;
+  const year = new Date().getFullYear();
+  
+  // Extract existing invoice numbers for the current year and prefix
+  const existingNumbers = new Set<number>();
+  
+  for (const invoice of existingInvoices) {
+    // Try to get invoice number from common bindings
+    const invoiceNumber = 
+      getInvoiceValue(invoice, "invoiceNumber") ||
+      getInvoiceValue(invoice, "number") ||
+      "";
+    
+    if (!invoiceNumber) continue;
+    
+    // Parse invoice number format: {prefix}-{year}-{number}
+    // Escape special regex characters in prefix
+    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = invoiceNumber.match(new RegExp(`^${escapedPrefix}-${year}-(\\d+)$`));
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num)) {
+        existingNumbers.add(num);
+      }
+    }
+  }
+  
+  // Find the next available number
+  let nextNumber = startNumber;
+  
+  // If we have existing numbers, find the highest and increment
+  if (existingNumbers.size > 0) {
+    const maxNumber = Math.max(...Array.from(existingNumbers));
+    nextNumber = maxNumber + 1;
+  }
+  
+  // Ensure we don't go below the start number
+  if (nextNumber < startNumber) {
+    nextNumber = startNumber;
+  }
+  
+  // Format with zero-padding (4 digits)
+  const paddedNumber = String(nextNumber).padStart(4, "0");
+  
+  return `${prefix}-${year}-${paddedNumber}`;
+}
+

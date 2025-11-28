@@ -54,10 +54,6 @@ export function InvoiceTemplateSelector({
 							<strong>Description:</strong>{" "}
 							{selectedTemplate.description || "No description"}
 						</p>
-						<p>
-							<strong>Status:</strong>{" "}
-							{selectedTemplate.status || "Active"}
-						</p>
 					</div>
 				)}
 			</CardContent>

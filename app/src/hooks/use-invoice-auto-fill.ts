@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import { setBindingValue } from "@/core/entities/invoice";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import type { Organization } from "@/core/entities/organization";
-import { generateInvoiceNumber } from "@/utils/invoice-helpers";
+import type { Invoice } from "@/core/entities/invoice";
+import { generateUniqueInvoiceNumber } from "@/utils/invoice-helpers";
 
 interface AutoFillField {
 	binding: string;
@@ -18,6 +19,7 @@ interface UseInvoiceAutoFillProps {
 	bindings: Array<{ path: string; label: string }>;
 	tableConfigs: Array<{ itemsPath: string; columns: Array<{ binding: string; type: string }> }>;
 	getTableItems: (itemsPath: string) => Array<Record<string, InvoiceDataValue>>;
+	existingInvoices?: Invoice[];
 }
 
 export function useInvoiceAutoFill({
@@ -28,6 +30,7 @@ export function useInvoiceAutoFill({
 	bindings,
 	tableConfigs,
 	getTableItems,
+	existingInvoices = [],
 }: UseInvoiceAutoFillProps): { handleAutoFill: (field: AutoFillField) => void } {
 	const handleAutoFill = useCallback(
 		(field: AutoFillField) => {
@@ -69,7 +72,7 @@ export function useInvoiceAutoFill({
 				value =
 					currentOrganization?.settings?.defaultCurrency || "USD";
 			} else if (field.binding === "invoiceNumber") {
-				value = generateInvoiceNumber(currentOrganization);
+				value = generateUniqueInvoiceNumber(currentOrganization, existingInvoices);
 			}
 
 			if (value !== undefined) {
@@ -361,6 +364,7 @@ export function useInvoiceAutoFill({
 			bindings,
 			tableConfigs,
 			getTableItems,
+			existingInvoices,
 		]
 	);
 
