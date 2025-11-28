@@ -18,10 +18,6 @@ export function FAQ(): React.ReactElement {
             <AccordionTrigger className="text-left text-base font-semibold text-gray-900 dark:text-gray-100">{t('landing.faq.questions.invoiceNumbers.question')}</AccordionTrigger>
             <AccordionContent className="text-gray-700 dark:text-gray-300">{t('landing.faq.questions.invoiceNumbers.answer')}</AccordionContent>
           </AccordionItem>
-          <AccordionItem value="item-3">
-            <AccordionTrigger className="text-left text-base font-semibold text-gray-900 dark:text-gray-100">{t('landing.faq.questions.payments.question')}</AccordionTrigger>
-            <AccordionContent className="text-gray-700 dark:text-gray-300">{t('landing.faq.questions.payments.answer')}</AccordionContent>
-          </AccordionItem>
           <AccordionItem value="item-4">
             <AccordionTrigger className="text-left text-base font-semibold text-gray-900 dark:text-gray-100">{t('landing.faq.questions.dataSecurity.question')}</AccordionTrigger>
             <AccordionContent className="text-gray-700 dark:text-gray-300">{t('landing.faq.questions.dataSecurity.answer')}</AccordionContent>

@@ -21,8 +21,8 @@ export function HowItWorks(): React.ReactElement {
         src: LOTTIE.approve,
       },
       {
-        title: t('landing.howItWorks.steps.renew.title'),
-        copy: t('landing.howItWorks.steps.renew.copy'),
+        title: t('landing.howItWorks.steps.convert.title'),
+        copy: t('landing.howItWorks.steps.convert.copy'),
         src: LOTTIE.renew,
       },
     ],

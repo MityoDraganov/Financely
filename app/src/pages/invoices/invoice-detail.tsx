@@ -162,10 +162,14 @@ export default function InvoiceDetailPage() {
     }, [invoice?.id, t]);
 
     const handleSendEmail = () => {
-        if (!invoice || !email) return;
+        if (!invoice || !email || !selectedEmailTemplateId) return;
         
         sendEmail.mutate(
-            { invoiceId: invoice.id, toEmail: email },
+            { 
+                invoiceId: invoice.id, 
+                toEmail: email,
+                emailTemplateId: selectedEmailTemplateId,
+            },
             {
                 onSuccess: () => {
                     toast.success(t('invoiceDetail.email.sent', { email }));

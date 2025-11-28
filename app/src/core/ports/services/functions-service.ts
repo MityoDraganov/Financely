@@ -90,6 +90,7 @@ export interface FunctionsService {
   sendInvoiceEmail(payload: {
     invoiceId: string;
     toEmail: string;
+    emailTemplateId?: string;
   }): Promise<{ sent: boolean }>;
 
   generateInvoiceShareLink(payload: {

@@ -34,7 +34,6 @@ export function ProblemSolution(): React.ReactElement {
     t('landing.problemSolution.solutions.automation'),
     t('landing.problemSolution.solutions.compliance'),
     t('landing.problemSolution.solutions.tracking'),
-    t('landing.problemSolution.solutions.integration'),
   ];
 
   return (

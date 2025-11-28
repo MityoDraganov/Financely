@@ -12,6 +12,31 @@ import {
 } from "../utils/branding-email";
 import { getStorage } from "firebase-admin/storage";
 import { formatInvoiceAmount } from "../utils/invoice-helpers";
+import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
+import { getGenericRepository } from "../repositories/generic-repository";
+import { DatabaseCollection } from "../repositories/config";
+import type { InvoiceDataValue } from "../core";
+
+// Email template types (from Realtime Database)
+interface EmailTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  subject: string;
+  preheader?: string;
+  htmlContent: string;
+  placeholders?: Array<{ id: string; key: string; label?: string; description?: string }>;
+}
+
+// Email template mapping types (from Firestore)
+interface EmailTemplateMapping {
+  id: string;
+  orgId: string;
+  emailTemplateId: string;
+  entityTemplateId: string;
+  entityType: string;
+  mappings: Record<string, string>;
+}
 
 // Define secrets using Firebase Functions Secret Manager
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -21,6 +46,88 @@ const resendFromName = defineSecret("RESEND_FROM_NAME");
 interface SendInvoiceEmailPayload {
   invoiceId: string;
   toEmail: string;
+  emailTemplateId?: string;
+}
+
+/**
+ * Get a value from invoice data using a binding path
+ */
+function getBindingValue(
+  data: Record<string, InvoiceDataValue>,
+  binding: string
+): InvoiceDataValue | undefined {
+  const parts = binding.split(".");
+  let current: InvoiceDataValue = data;
+
+  for (const part of parts) {
+    if (current == null || typeof current !== "object" || Array.isArray(current) || !(part in current)) {
+      return undefined;
+    }
+    current = current[part];
+  }
+
+  return current;
+}
+
+/**
+ * Format a value for display in email
+ */
+function formatValueForEmail(value: InvoiceDataValue | undefined): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value.toString();
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item === "object" && item !== null) {
+        return JSON.stringify(item);
+      }
+      return String(item);
+    }).join(", ");
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+/**
+ * Replace placeholders in email template HTML with invoice values
+ */
+function replacePlaceholdersInTemplate(
+  html: string,
+  subject: string,
+  preheader: string | undefined,
+  mappings: Record<string, string>,
+  invoiceData: Record<string, InvoiceDataValue>
+): { html: string; subject: string; preheader: string } {
+  let processedHtml = html;
+  let processedSubject = subject;
+  let processedPreheader = preheader || "";
+
+  // Replace placeholders in HTML, subject, and preheader
+  for (const [placeholderKey, bindingPath] of Object.entries(mappings)) {
+    const placeholderPattern = new RegExp(`\\{\\{${placeholderKey}\\}\\}`, "g");
+    const value = formatValueForEmail(getBindingValue(invoiceData, bindingPath));
+    
+    processedHtml = processedHtml.replace(placeholderPattern, value);
+    processedSubject = processedSubject.replace(placeholderPattern, value);
+    processedPreheader = processedPreheader.replace(placeholderPattern, value);
+  }
+
+  return {
+    html: processedHtml,
+    subject: processedSubject,
+    preheader: processedPreheader,
+  };
 }
 
 /**
@@ -58,7 +165,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       //   throw new HttpsError("unauthenticated", "User must be authenticated");
       // }
 
-      const { invoiceId, toEmail } = request.data;
+      const { invoiceId, toEmail, emailTemplateId } = request.data;
 
       // Validation
       if (!invoiceId) {
@@ -175,37 +282,110 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       let html: string;
       let text: string;
 
-      if (brandingConfig) {
-        // Use branded email template
-        subject = `Invoice #${invoiceNumber} - Payment Due`;
-        html = generateInvoiceEmailHTML(
-          {
-            invoiceNumber,
-            customerName,
-            amount: formattedAmount,
-            dueDate: formattedDueDate,
-            description,
-            invoiceUrl,
-          },
-          brandingConfig
-        );
-        text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
-      } else {
-        // Fallback to non-branded template
-        subject = `Invoice #${invoiceNumber} - Payment Due`;
-        html = `
-          <h1>Invoice #${invoiceNumber}</h1>
-          <p>Hello ${customerName},</p>
-          <p>Your invoice is ready for payment.</p>
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>Invoice Details</h3>
-            <p><strong>Amount:</strong> ${formattedAmount}</p>
-            <p><strong>Due Date:</strong> ${formattedDueDate}</p>
-            ${description ? `<p><strong>Description:</strong> ${description}</p>` : ""}
-          </div>
-          ${invoiceUrl ? `<p><a href="${invoiceUrl}">View Invoice</a></p>` : ""}
-        `;
-        text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
+      // Check if custom email template is provided
+      if (emailTemplateId && invoice.templateId) {
+        try {
+          // Fetch email template from Realtime Database
+          const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
+            "emailTemplates",
+            emailTemplateId
+          );
+
+          if (emailTemplate) {
+            // Fetch email template mapping from Firestore
+            const databaseService = getDatabaseService();
+            const emailTemplateMappingRepository = getGenericRepository<EmailTemplateMapping, Omit<EmailTemplateMapping, "id">>(
+              () => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS,
+              databaseService
+            );
+
+            const mappings = await emailTemplateMappingRepository.getAll({
+              queryConstraints: [
+                { field: "orgId", operator: "==", value: invoice.orgId },
+                { field: "emailTemplateId", operator: "==", value: emailTemplateId },
+                { field: "entityTemplateId", operator: "==", value: invoice.templateId },
+                { field: "entityType", operator: "==", value: "invoice" },
+              ],
+            });
+
+            const mapping = Array.isArray(mappings) ? mappings[0] : null;
+
+            if (mapping && mapping.mappings) {
+              // Use custom email template with mappings
+              const templateHtml = emailTemplate.htmlContent || "";
+              const templateSubject = emailTemplate.subject || `Invoice #${invoiceNumber}`;
+              const templatePreheader = emailTemplate.preheader || "";
+
+              // Replace placeholders with invoice values
+              const processed = replacePlaceholdersInTemplate(
+                templateHtml,
+                templateSubject,
+                templatePreheader,
+                mapping.mappings,
+                invoiceData
+              );
+
+              subject = processed.subject;
+              html = processed.html;
+              text = processed.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
+            } else {
+              // Template exists but no mapping found, fall through to default
+              logger.warn("Email template found but no mapping configured", {
+                emailTemplateId,
+                invoiceId,
+                templateId: invoice.templateId,
+              });
+              throw new Error("Email template mapping not found");
+            }
+          } else {
+            // Template not found, fall through to default
+            logger.warn("Email template not found", { emailTemplateId });
+            throw new Error("Email template not found");
+          }
+        } catch (error) {
+          // Fall through to default template if custom template fails
+          logger.warn("Failed to use custom email template, using default", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            emailTemplateId,
+          });
+          // Continue to default template generation below
+        }
+      }
+
+      // Use default template if custom template not provided or failed
+      if (!html) {
+        if (brandingConfig) {
+          // Use branded email template
+          subject = `Invoice #${invoiceNumber} - Payment Due`;
+          html = generateInvoiceEmailHTML(
+            {
+              invoiceNumber,
+              customerName,
+              amount: formattedAmount,
+              dueDate: formattedDueDate,
+              description,
+              invoiceUrl,
+            },
+            brandingConfig
+          );
+          text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
+        } else {
+          // Fallback to non-branded template
+          subject = `Invoice #${invoiceNumber} - Payment Due`;
+          html = `
+            <h1>Invoice #${invoiceNumber}</h1>
+            <p>Hello ${customerName},</p>
+            <p>Your invoice is ready for payment.</p>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3>Invoice Details</h3>
+              <p><strong>Amount:</strong> ${formattedAmount}</p>
+              <p><strong>Due Date:</strong> ${formattedDueDate}</p>
+              ${description ? `<p><strong>Description:</strong> ${description}</p>` : ""}
+            </div>
+            ${invoiceUrl ? `<p><a href="${invoiceUrl}">View Invoice</a></p>` : ""}
+          `;
+          text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
+        }
       }
 
       // Always use verified Resend email address to avoid domain verification issues
