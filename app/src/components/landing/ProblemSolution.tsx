@@ -23,11 +23,6 @@ export function ProblemSolution(): React.ReactElement {
       title: t('landing.problemSolution.problems.compliance.title'),
       description: t('landing.problemSolution.problems.compliance.description'),
     },
-    {
-      icon: DollarSign,
-      title: t('landing.problemSolution.problems.cashFlow.title'),
-      description: t('landing.problemSolution.problems.cashFlow.description'),
-    },
   ];
 
   const solutions = [
