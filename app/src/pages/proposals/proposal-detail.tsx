@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2, MessageSquare, Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2, MessageSquare, Sparkles, Loader2, AlertTriangle, MapPin, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useProposal } from "@/hooks/repository-hooks/use-proposals";
 import { useLead } from "@/hooks/repository-hooks/use-leads";
+import { useContact } from "@/hooks/repository-hooks/use-contacts";
 import { PROPOSAL_STATUSES } from "@/core";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { getBindingValue, setBindingValue } from "@/core/entities/invoice";
 import { useUpdateProposal } from "@/hooks/repository-hooks/use-proposals";
+import { extractTemplateBindings } from "@/utils/invoice-compliance";
 
 export default function ProposalDetailPage() {
   const { t } = useTranslation();
@@ -33,6 +35,7 @@ export default function ProposalDetailPage() {
   const navigate = useNavigate();
   const { data: proposal, isLoading } = useProposal(id);
   const { data: lead, isLoading: isLeadLoading } = useLead(proposal?.leadId);
+  const { data: contact, isLoading: isContactLoading } = useContact(lead?.data?.contactId);
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
   const generateInvoice = useGenerateInvoiceFromProposal();
@@ -274,87 +277,261 @@ export default function ProposalDetailPage() {
                     {t('proposalDetail.sections.clientInfo')}
                   </CardTitle>
                   <CardDescription>
-                    {isLeadLoading ? t('proposalDetail.sections.loading') : lead ? t('proposalDetail.sections.linkedToLead') : t('proposalDetail.sections.leadNotFound')}
+                    {isLeadLoading ? t('proposalDetail.sections.loading') : lead ? (
+                      <span className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {t('proposalDetail.sections.originalLead')}
+                        </Badge>
+                        {lead.createdAt && (
+                          <span className="text-xs text-muted-foreground">
+                            {formatDateTable(lead.createdAt)}
+                          </span>
+                        )}
+                      </span>
+                    ) : t('proposalDetail.sections.leadNotFound')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLeadLoading ? (
+                  {isLeadLoading || isContactLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-full" />
                       <Skeleton className="h-4 w-3/4" />
                     </div>
                   ) : lead ? (
                     <div className="space-y-4">
-                      {/* Contact Name */}
-                      {(lead.data?.firstName || lead.data?.lastName) && (
+                      {(() => {
+                        // Extract data from formData if available
+                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
+                          ? lead.data.formData as Record<string, unknown>
+                          : {};
+                        
+                        // Get values from lead.data first, then formData, then contact
+                        const firstName = lead.data?.firstName || formData.firstName || contact?.data?.firstName;
+                        const lastName = lead.data?.lastName || formData.lastName || contact?.data?.lastName;
+                        const company = lead.data?.company || formData.company || contact?.data?.company;
+                        const jobTitle = lead.data?.jobTitle || formData.jobTitle || contact?.data?.jobTitle;
+                        
+                        return (
+                          <>
+                            {/* Contact Name */}
+                            {(firstName || lastName || contact?.data?.firstName || contact?.data?.lastName) && (
+                              <div className="flex items-start gap-3">
+                                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">
+                                    {contact?.data 
+                                      ? [contact.data.firstName, contact.data.lastName].filter(Boolean).join(" ") 
+                                      : [firstName, lastName].filter(Boolean).join(" ") || t('proposalDetail.labels.unknown')}
+                                  </p>
+                                  {jobTitle && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {String(jobTitle)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Company */}
+                            {company && (
+                              <div className="flex items-start gap-3">
+                                <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">
+                                    {String(company)}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                      
+                      {/* Address */}
+                      {(contact?.data?.address || (lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null)) && (
                         <div className="flex items-start gap-3">
-                          <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium">
-                              {[lead.data.firstName, lead.data.lastName].filter(Boolean).join(" ") || t('proposalDetail.labels.unknown')}
-                            </p>
-                            {lead.data.jobTitle && (
-                              <p className="text-xs text-muted-foreground">{lead.data.jobTitle}</p>
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div className="flex-1 space-y-1">
+                            {contact?.data?.address ? (
+                              <div className="text-sm">
+                                {contact.data.address.street && (
+                                  <p className="font-medium">{contact.data.address.street}</p>
+                                )}
+                                <p className="text-muted-foreground">
+                                  {[
+                                    contact.data.address.city,
+                                    contact.data.address.state,
+                                    contact.data.address.zipCode
+                                  ].filter(Boolean).join(", ")}
+                                </p>
+                                {contact.data.address.country && (
+                                  <p className="text-muted-foreground">{contact.data.address.country}</p>
+                                )}
+                              </div>
+                            ) : (
+                              // Try to extract address from formData
+                              (() => {
+                                const formData = lead.data.formData as Record<string, unknown>;
+                                const addressParts = [
+                                  formData.address,
+                                  formData.street,
+                                  formData.city,
+                                  formData.state,
+                                  formData.zipCode,
+                                  formData.country
+                                ].filter(Boolean);
+                                if (addressParts.length > 0) {
+                                  return (
+                                    <div className="text-sm text-muted-foreground">
+                                      {addressParts.map((part, idx) => (
+                                        <span key={idx}>
+                                          {String(part)}
+                                          {idx < addressParts.length - 1 && ", "}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()
                             )}
                           </div>
                         </div>
                       )}
                       
-                      {/* Company */}
-                      {lead.data?.company && (
-                        <div className="flex items-start gap-3">
-                          <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium">{lead.data.company}</p>
-                          </div>
-                        </div>
-                      )}
-                      
                       {/* Email */}
-                      {lead.data?.email && (
-                        <div className="flex items-start gap-3">
-                          <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div>
-                            <a 
-                              href={`mailto:${lead.data.email}`}
-                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {lead.data.email}
-                            </a>
+                      {(() => {
+                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
+                          ? lead.data.formData as Record<string, unknown>
+                          : {};
+                        const emailValue = lead.data?.email || formData.email || contact?.data?.email;
+                        return emailValue ? (
+                          <div className="flex items-start gap-3">
+                            <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="flex-1">
+                              <a 
+                                href={`mailto:${String(emailValue)}`}
+                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {String(emailValue)}
+                              </a>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : null;
+                      })()}
                       
                       {/* Phone */}
-                      {lead.data?.phone && (
+                      {(() => {
+                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
+                          ? lead.data.formData as Record<string, unknown>
+                          : {};
+                        const phoneValue = contact?.data?.phone || lead.data?.phone || formData.phone;
+                        const phoneStr = Array.isArray(phoneValue) ? phoneValue[0] : phoneValue ? String(phoneValue) : null;
+                        return phoneStr ? (
+                          <div className="flex items-start gap-3">
+                            <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="flex-1">
+                              <a 
+                                href={`tel:${phoneStr}`}
+                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {phoneStr}
+                              </a>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                      
+                      {/* Tags */}
+                      {(lead.data?.tags && lead.data.tags.length > 0) && (
                         <div className="flex items-start gap-3">
-                          <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div>
-                            <a 
-                              href={`tel:${lead.data.phone}`}
-                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {lead.data.phone}
-                            </a>
+                          <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div className="flex-1 flex flex-wrap gap-1">
+                            {lead.data.tags.map((tag, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
                           </div>
                         </div>
                       )}
                       
                       {/* Message */}
-                      {lead.data?.message && (
-                        <div className="flex items-start gap-3 pt-2 border-t">
-                          <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">{t('proposalDetail.sections.message')}</p>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                              {lead.data.message}
-                            </p>
+                      {(() => {
+                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
+                          ? lead.data.formData as Record<string, unknown>
+                          : {};
+                        const message = lead.data?.message || formData.message;
+                        return message ? (
+                          <div className="flex items-start gap-3 pt-2 border-t">
+                            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">{t('proposalDetail.sections.message')}</p>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {String(message)}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        ) : null;
+                      })()}
+                      
+                      {/* All Form Data - Show everything from formData */}
+                      {lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null && (
+                        (() => {
+                          const formData = lead.data.formData as Record<string, unknown>;
+                          // Show all formData fields that have values
+                          const allFields = Object.entries(formData).filter(([key, value]) => {
+                            // Exclude internal/system fields
+                            const excludedKeys = ['_id', 'id', 'createdAt', 'updatedAt'];
+                            return !excludedKeys.includes(key) && 
+                              value !== null && 
+                              value !== undefined && 
+                              value !== '' &&
+                              (typeof value !== 'object' || (Array.isArray(value) && value.length > 0));
+                          });
+                          
+                          if (allFields.length > 0) {
+                            return (
+                              <div className="pt-2 border-t space-y-2">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">{t('proposalDetail.sections.additionalInfo')}</p>
+                                {allFields.map(([key, value]) => {
+                                  // Skip if we already displayed this field above
+                                  const alreadyShown = ['firstName', 'lastName', 'email', 'phone', 'company', 'jobTitle', 'message'].includes(key.toLowerCase());
+                                  if (alreadyShown) return null;
+                                  
+                                  let displayValue: string;
+                                  if (typeof value === 'object' && value !== null) {
+                                    if (Array.isArray(value)) {
+                                      displayValue = value.length > 0 ? value.join(", ") : "";
+                                    } else {
+                                      displayValue = JSON.stringify(value);
+                                    }
+                                  } else {
+                                    displayValue = String(value);
+                                  }
+                                  
+                                  if (!displayValue) return null;
+                                  
+                                  return (
+                                    <div key={key} className="flex items-start justify-between gap-2">
+                                      <span className="text-xs text-muted-foreground capitalize min-w-[100px]">
+                                        {key.replace(/([A-Z])/g, " $1").trim()}:
+                                      </span>
+                                      <span className="text-xs font-medium text-right flex-1 break-all">
+                                        {displayValue}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()
                       )}
                       
-                      {/* Lead Status */}
-                      <div className="pt-2 border-t">
+                      {/* Lead Metadata */}
+                      <div className="pt-2 border-t space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.leadStatus')}</span>
                           <Badge variant="outline" className="text-xs capitalize">
@@ -362,12 +539,36 @@ export default function ProposalDetailPage() {
                           </Badge>
                         </div>
                         {lead.data?.widgetType && (
-                          <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.source')}</span>
                             <Badge variant="secondary" className="text-xs capitalize">
                               {t(`leads.widgetType.${lead.data.widgetType}`)}
                             </Badge>
                           </div>
+                        )}
+                        {lead.id && (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.leadId')}</span>
+                              <span className="text-xs font-mono">{lead.id}</span>
+                            </div>
+                            {/* Debug: Show all lead data */}
+                            {Object.keys(lead.data || {}).map((key) => {
+                              const value = (lead.data as Record<string, unknown>)[key];
+                              return (
+                                <div key={key} className="flex items-center justify-between mt-1">
+                                  <span className="text-xs text-muted-foreground capitalize">
+                                    {key.replace(/([A-Z])/g, " $1").trim()}:
+                                  </span>
+                                  <span className="text-xs font-medium text-right flex-1 break-all">
+                                    {typeof value === 'object' && value !== null 
+                                      ? JSON.stringify(value) 
+                                      : String(value || '')}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </>
                         )}
                       </div>
                     </div>
@@ -391,13 +592,13 @@ export default function ProposalDetailPage() {
                 {proposal.leadId && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t('proposalDetail.sections.leadId')}</span>
-                    <span className="font-medium font-mono text-xs">{proposal.leadId.slice(0, 8)}</span>
+                    <span className="font-medium font-mono text-xs">{proposal.leadId}</span>
                   </div>
                 )}
                 {proposal.invoiceId && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t('proposalDetail.sections.invoiceId')}</span>
-                    <span className="font-medium font-mono text-xs">{proposal.invoiceId.slice(0, 8)}</span>
+                    <span className="font-medium font-mono text-xs">{proposal.invoiceId}</span>
                   </div>
                 )}
               </CardContent>
@@ -557,45 +758,186 @@ export default function ProposalDetailPage() {
                 {/* Key Fields - Seller */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.sellerInfo')}</h3>
-                  {Object.entries(generatedInvoiceData.invoiceData).filter(([key]) => 
-                    key.startsWith("seller.") || key.startsWith("supplier.")
-                  ).map(([key, value]) => {
-                    const fieldName = key.split(".").pop() || key;
-                    const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
-                    const isAddress = fieldName === "address";
+                  {(() => {
+                    // Get the selected template
+                    const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
+                    if (!selectedTemplate) {
+                      return <p className="text-sm text-muted-foreground">Template not found</p>;
+                    }
                     
+                    // Extract all bindings from template
+                    const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
+                    
+                    // Filter seller/supplier bindings
+                    const sellerBindings = Array.from(allBindings).filter(binding => 
+                      binding.startsWith("seller.") || binding.startsWith("supplier.")
+                    );
+                    
+                    if (sellerBindings.length === 0) {
+                      return <p className="text-sm text-muted-foreground">No seller/supplier fields found in template</p>;
+                    }
+                    
+                    // Group bindings by base path (e.g., "seller.address.street" -> "seller.address")
+                    const fieldGroups = new Map<string, string[]>();
+                    const simpleFields: string[] = [];
+                    
+                    sellerBindings.forEach(binding => {
+                      const parts = binding.split(".");
+                      if (parts.length === 2) {
+                        // Simple field like "seller.name"
+                        simpleFields.push(binding);
+                      } else if (parts.length > 2) {
+                        // Nested field like "seller.address.street"
+                        const basePath = parts.slice(0, -1).join(".");
+                        const fieldName = parts[parts.length - 1];
+                        if (!fieldGroups.has(basePath)) {
+                          fieldGroups.set(basePath, []);
+                        }
+                        fieldGroups.get(basePath)!.push(fieldName);
+                      }
+                    });
+                    
+                    // Check for simple fields that are actually objects (e.g., "seller.address" as object)
+                    // and convert them to grouped fields
+                    simpleFields.forEach(binding => {
+                      const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                        // This is an object, treat it as a grouped field
+                        const obj = value as Record<string, unknown>;
+                        const fieldNames = Object.keys(obj);
+                        
+                        // Check if there are any nested bindings in the template that start with this binding
+                        const nestedBindings = sellerBindings.filter(b => 
+                          b.startsWith(`${binding}.`) && b.length > binding.length + 1
+                        );
+                        
+                        // Extract field names from nested bindings
+                        const nestedFieldNames = nestedBindings.map(b => b.split(".").pop() || "").filter(Boolean);
+                        
+                        // For address fields, include standard address fields even if not in data
+                        const isAddressField = binding.includes("address");
+                        const standardAddressFields = ["street", "city", "state", "zipCode", "country", "full"];
+                        
+                        // Combine: data fields, nested binding fields, and standard address fields if applicable
+                        let allFieldNames = Array.from(new Set([...fieldNames, ...nestedFieldNames]));
+                        if (isAddressField) {
+                          allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
+                        }
+                        
+                        if (allFieldNames.length > 0) {
+                          // Remove from simple fields
+                          const index = simpleFields.indexOf(binding);
+                          if (index > -1) {
+                            simpleFields.splice(index, 1);
+                          }
+                          // Merge with existing fieldGroups if it exists, otherwise create new
+                          if (fieldGroups.has(binding)) {
+                            const existingFields = fieldGroups.get(binding)!;
+                            // Merge arrays, keeping unique values
+                            const mergedFields = Array.from(new Set([...existingFields, ...allFieldNames]));
+                            fieldGroups.set(binding, mergedFields);
+                          } else {
+                            fieldGroups.set(binding, allFieldNames);
+                          }
+                        }
+                      }
+                    });
+                    
+                    // Also check for address fields that might not be in data but are in template
+                    // Look for bindings like "seller.address" that might not have nested bindings yet
+                    sellerBindings.forEach(binding => {
+                      const parts = binding.split(".");
+                      if (parts.length === 2 && parts[1] === "address") {
+                        // This is a simple "seller.address" binding
+                        // Check if it's not already in fieldGroups and ensure we show address fields
+                        if (!fieldGroups.has(binding)) {
+                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                          // If it's not an object (or doesn't exist), we should still show address fields
+                          // This ensures users can input address data even if AI didn't generate it
+                          if (!value || typeof value !== "object" || Array.isArray(value)) {
+                            fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
+                            // Remove from simpleFields if it's there
+                            const index = simpleFields.indexOf(binding);
+                            if (index > -1) {
+                              simpleFields.splice(index, 1);
+                            }
+                          }
+                        }
+                      }
+                    });
+                    
+                    // Render simple fields
                     return (
-                      <div key={key} className="space-y-2">
-                        <Label>{label}</Label>
-                        {isAddress && typeof value === "object" && value !== null ? (
-                          <div className="space-y-2">
-                            {Object.entries(value as Record<string, unknown>).map(([addrKey, addrValue]) => (
+                      <>
+                        {simpleFields.map((binding) => {
+                          const fieldName = binding.split(".").pop() || binding;
+                          const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                          
+                          // Skip if value is an object (should be handled as grouped field)
+                          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                            return null;
+                          }
+                          
+                          return (
+                            <div key={binding} className="space-y-2">
+                              <Label>{label}</Label>
                               <Input
-                                key={addrKey}
-                                value={String(addrValue || "")}
+                                value={String(value || "")}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                   const newData = { ...generatedInvoiceData.invoiceData };
-                                  const addr = (getBindingValue(newData, key) as Record<string, unknown>) || {};
-                                  setBindingValue(newData, key, { ...addr, [addrKey]: e.target.value } as InvoiceDataValue);
+                                  setBindingValue(newData, binding, e.target.value);
                                   setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                 }}
-                                placeholder={addrKey.charAt(0).toUpperCase() + addrKey.slice(1)}
+                                placeholder={`Enter ${label.toLowerCase()}`}
                               />
-                            ))}
-                          </div>
-                        ) : (
-                          <Input
-                            value={String(value || "")}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                              const newData = { ...generatedInvoiceData.invoiceData };
-                              setBindingValue(newData, key, e.target.value);
-                              setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
-                            }}
-                          />
-                        )}
-                      </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Render grouped fields (like address) */}
+                        {Array.from(fieldGroups.entries()).map(([basePath, fields]) => {
+                          const groupLabel = basePath.split(".").pop() || basePath;
+                          const displayLabel = groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1).replace(/([A-Z])/g, " $1");
+                          const groupValue = getBindingValue(generatedInvoiceData.invoiceData, basePath);
+                          const groupObj = (typeof groupValue === "object" && groupValue !== null 
+                            ? groupValue as Record<string, unknown> 
+                            : {}) || {};
+                          
+                          return (
+                            <div key={basePath} className="space-y-2">
+                              <Label>{displayLabel}</Label>
+                              <div className="space-y-2">
+                                {fields.map((fieldName) => {
+                                  const fullBinding = `${basePath}.${fieldName}`;
+                                  const fieldValue = groupObj[fieldName] || "";
+                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" 
+                                    : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                                  
+                                  return (
+                                    <Input
+                                      key={fullBinding}
+                                      value={String(fieldValue || "")}
+                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        const newData = { ...generatedInvoiceData.invoiceData };
+                                        const currentGroup = (getBindingValue(newData, basePath) as Record<string, unknown>) || {};
+                                        setBindingValue(newData, basePath, { 
+                                          ...currentGroup, 
+                                          [fieldName]: e.target.value 
+                                        } as InvoiceDataValue);
+                                        setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
+                                      }}
+                                      placeholder={`Enter ${fieldLabel.toLowerCase()}`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
 
                 <Separator />
@@ -603,45 +945,186 @@ export default function ProposalDetailPage() {
                 {/* Key Fields - Customer */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.customerInfo')}</h3>
-                  {Object.entries(generatedInvoiceData.invoiceData).filter(([key]) => 
-                    key.startsWith("customer.") || key.startsWith("buyer.")
-                  ).map(([key, value]) => {
-                    const fieldName = key.split(".").pop() || key;
-                    const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
-                    const isAddress = fieldName === "address";
+                  {(() => {
+                    // Get the selected template
+                    const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
+                    if (!selectedTemplate) {
+                      return <p className="text-sm text-muted-foreground">Template not found</p>;
+                    }
                     
+                    // Extract all bindings from template
+                    const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
+                    
+                    // Filter customer/buyer bindings
+                    const customerBindings = Array.from(allBindings).filter(binding => 
+                      binding.startsWith("customer.") || binding.startsWith("buyer.")
+                    );
+                    
+                    if (customerBindings.length === 0) {
+                      return <p className="text-sm text-muted-foreground">No customer/buyer fields found in template</p>;
+                    }
+                    
+                    // Group bindings by base path (e.g., "customer.address.street" -> "customer.address")
+                    const fieldGroups = new Map<string, string[]>();
+                    const simpleFields: string[] = [];
+                    
+                    customerBindings.forEach(binding => {
+                      const parts = binding.split(".");
+                      if (parts.length === 2) {
+                        // Simple field like "customer.name"
+                        simpleFields.push(binding);
+                      } else if (parts.length > 2) {
+                        // Nested field like "customer.address.street"
+                        const basePath = parts.slice(0, -1).join(".");
+                        const fieldName = parts[parts.length - 1];
+                        if (!fieldGroups.has(basePath)) {
+                          fieldGroups.set(basePath, []);
+                        }
+                        fieldGroups.get(basePath)!.push(fieldName);
+                      }
+                    });
+                    
+                    // Check for simple fields that are actually objects (e.g., "customer.address" as object)
+                    // and convert them to grouped fields
+                    simpleFields.forEach(binding => {
+                      const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                        // This is an object, treat it as a grouped field
+                        const obj = value as Record<string, unknown>;
+                        const fieldNames = Object.keys(obj);
+                        
+                        // Check if there are any nested bindings in the template that start with this binding
+                        const nestedBindings = customerBindings.filter(b => 
+                          b.startsWith(`${binding}.`) && b.length > binding.length + 1
+                        );
+                        
+                        // Extract field names from nested bindings
+                        const nestedFieldNames = nestedBindings.map(b => b.split(".").pop() || "").filter(Boolean);
+                        
+                        // For address fields, include standard address fields even if not in data
+                        const isAddressField = binding.includes("address");
+                        const standardAddressFields = ["street", "city", "state", "zipCode", "country", "full"];
+                        
+                        // Combine: data fields, nested binding fields, and standard address fields if applicable
+                        let allFieldNames = Array.from(new Set([...fieldNames, ...nestedFieldNames]));
+                        if (isAddressField) {
+                          allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
+                        }
+                        
+                        if (allFieldNames.length > 0) {
+                          // Remove from simple fields
+                          const index = simpleFields.indexOf(binding);
+                          if (index > -1) {
+                            simpleFields.splice(index, 1);
+                          }
+                          // Merge with existing fieldGroups if it exists, otherwise create new
+                          if (fieldGroups.has(binding)) {
+                            const existingFields = fieldGroups.get(binding)!;
+                            // Merge arrays, keeping unique values
+                            const mergedFields = Array.from(new Set([...existingFields, ...allFieldNames]));
+                            fieldGroups.set(binding, mergedFields);
+                          } else {
+                            fieldGroups.set(binding, allFieldNames);
+                          }
+                        }
+                      }
+                    });
+                    
+                    // Also check for address fields that might not be in data but are in template
+                    // Look for bindings like "customer.address" that might not have nested bindings yet
+                    customerBindings.forEach(binding => {
+                      const parts = binding.split(".");
+                      if (parts.length === 2 && parts[1] === "address") {
+                        // This is a simple "customer.address" binding
+                        // Check if it's not already in fieldGroups and ensure we show address fields
+                        if (!fieldGroups.has(binding)) {
+                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                          // If it's not an object (or doesn't exist), we should still show address fields
+                          // This ensures users can input address data even if AI didn't generate it
+                          if (!value || typeof value !== "object" || Array.isArray(value)) {
+                            fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
+                            // Remove from simpleFields if it's there
+                            const index = simpleFields.indexOf(binding);
+                            if (index > -1) {
+                              simpleFields.splice(index, 1);
+                            }
+                          }
+                        }
+                      }
+                    });
+                    
+                    // Render simple fields
                     return (
-                      <div key={key} className="space-y-2">
-                        <Label>{label}</Label>
-                        {isAddress && typeof value === "object" && value !== null ? (
-                          <div className="space-y-2">
-                            {Object.entries(value as Record<string, unknown>).map(([addrKey, addrValue]) => (
+                      <>
+                        {simpleFields.map((binding) => {
+                          const fieldName = binding.split(".").pop() || binding;
+                          const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                          
+                          // Skip if value is an object (should be handled as grouped field)
+                          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+                            return null;
+                          }
+                          
+                          return (
+                            <div key={binding} className="space-y-2">
+                              <Label>{label}</Label>
                               <Input
-                                key={addrKey}
-                                value={String(addrValue || "")}
+                                value={String(value || "")}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                   const newData = { ...generatedInvoiceData.invoiceData };
-                                  const addr = (getBindingValue(newData, key) as Record<string, unknown>) || {};
-                                  setBindingValue(newData, key, { ...addr, [addrKey]: e.target.value } as InvoiceDataValue);
+                                  setBindingValue(newData, binding, e.target.value);
                                   setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                 }}
-                                placeholder={addrKey.charAt(0).toUpperCase() + addrKey.slice(1)}
+                                placeholder={`Enter ${label.toLowerCase()}`}
                               />
-                            ))}
-                          </div>
-                        ) : (
-                          <Input
-                            value={String(value || "")}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                              const newData = { ...generatedInvoiceData.invoiceData };
-                              setBindingValue(newData, key, e.target.value);
-                              setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
-                            }}
-                          />
-                        )}
-                      </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Render grouped fields (like address) */}
+                        {Array.from(fieldGroups.entries()).map(([basePath, fields]) => {
+                          const groupLabel = basePath.split(".").pop() || basePath;
+                          const displayLabel = groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1).replace(/([A-Z])/g, " $1");
+                          const groupValue = getBindingValue(generatedInvoiceData.invoiceData, basePath);
+                          const groupObj = (typeof groupValue === "object" && groupValue !== null 
+                            ? groupValue as Record<string, unknown> 
+                            : {}) || {};
+                          
+                          return (
+                            <div key={basePath} className="space-y-2">
+                              <Label>{displayLabel}</Label>
+                              <div className="space-y-2">
+                                {fields.map((fieldName) => {
+                                  const fullBinding = `${basePath}.${fieldName}`;
+                                  const fieldValue = groupObj[fieldName] || "";
+                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" 
+                                    : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                                  
+                                  return (
+                                    <Input
+                                      key={fullBinding}
+                                      value={String(fieldValue || "")}
+                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        const newData = { ...generatedInvoiceData.invoiceData };
+                                        const currentGroup = (getBindingValue(newData, basePath) as Record<string, unknown>) || {};
+                                        setBindingValue(newData, basePath, { 
+                                          ...currentGroup, 
+                                          [fieldName]: e.target.value 
+                                        } as InvoiceDataValue);
+                                        setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
+                                      }}
+                                      placeholder={`Enter ${fieldLabel.toLowerCase()}`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
 
                 <Separator />

@@ -516,6 +516,7 @@
 			"tax": "Tax",
 			"total": "Total",
 			"clientInfo": "Client Information",
+			"originalLead": "Original Lead",
 			"linkedToLead": "Linked to lead",
 			"leadNotFound": "Lead not found",
 			"loading": "Loading...",

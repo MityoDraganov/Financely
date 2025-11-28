@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { setBindingValue } from "@/core/entities/invoice";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import type { Organization } from "@/core/entities/organization";
+import { generateInvoiceNumber } from "@/utils/invoice-helpers";
 
 interface AutoFillField {
 	binding: string;
@@ -68,7 +69,7 @@ export function useInvoiceAutoFill({
 				value =
 					currentOrganization?.settings?.defaultCurrency || "USD";
 			} else if (field.binding === "invoiceNumber") {
-				value = `INV-${Date.now()}`;
+				value = generateInvoiceNumber(currentOrganization);
 			}
 
 			if (value !== undefined) {

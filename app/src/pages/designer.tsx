@@ -100,13 +100,36 @@ export default function TemplateDesignerPage() {
 	
 	// Version history hooks
 	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
-	const { data: versions = [], error: versionsError, isLoading: isLoadingVersions } = useTemplateVersions(templateId);
-	console.log("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
+	const { data: versions = []} = useTemplateVersions(templateId);
+	//console.log("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
 	const saveVersion = useSaveTemplateVersion();
 	const restoreVersion = useRestoreTemplateVersion();
 	
 	// Determine current version (latest version number)
 	const currentVersion = versions.length > 0 ? versions[0].version : null;
+
+	// Refs to avoid stale closures and track pending saves
+	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const lastSavedElementsRef = useRef<string>("");
+	const currentTemplateIdRef = useRef<string | undefined>(undefined);
+	const templatesRef = useRef<Template[]>([]);
+		const selectedElementIdsRef = useRef<string[]>([]);
+		const pendingSaveRef = useRef<{ elements: TemplateElement[]; timestamp: number } | null>(null);
+		// Debounce timers per element ID for property panel changes
+		const elementSaveTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+	
+	// Keep refs in sync
+	useEffect(() => {
+		currentTemplateIdRef.current = templateId;
+	}, [templateId]);
+	
+	useEffect(() => {
+		templatesRef.current = templates;
+	}, [templates]);
+	
+	useEffect(() => {
+		selectedElementIdsRef.current = state.selectedElementIds || [];
+	}, [state.selectedElementIds]);
 
 	// Load brand assets for image picker
 	useEffect(() => {
@@ -136,40 +159,190 @@ export default function TemplateDesignerPage() {
 		};
 	}, [isMobile, mobilePanelOpen]);
 
-	// Cleanup version creation timer on unmount or template change
+	// Cleanup timers on unmount or template change
 	useEffect(() => {
+		const timersMap = elementSaveTimersRef.current;
 		return () => {
 			if (versionCreationTimerRef.current) {
 				clearTimeout(versionCreationTimerRef.current);
 			}
+			// Clear all element save timers and save any pending changes before clearing
+			timersMap.forEach((timer, elementId) => {
+				clearTimeout(timer);
+				// If there's a pending save, execute it immediately before clearing
+				const latestElements = draftRef.current;
+				if (latestElements && latestElements.length > 0) {
+					const element = latestElements.find((el) => el.id === elementId);
+					if (element) {
+						console.log(`[SAVE] Template changing, saving element ${elementId} immediately`);
+						saveMutation.mutate({ elements: latestElements });
+					}
+				}
+			});
+			timersMap.clear();
 		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [templateId]);
 
 	// Handler for creating a new template - now uses context
 	const handleCreateNewTemplate = contextHandleCreateNewTemplate;
 
-	console.log(
-		"templates",
-		templates,
-		"realtime subscribed:",
-		isSubscribed,
-		"orgId:",
-		orgId
-	);
+	// console.log(
+	// 	"templates",
+	// 	templates,
+	// 	"realtime subscribed:",
+	// 	isSubscribed,
+	// 	"orgId:",
+	// 	orgId
+	// );
 
 	const currentTemplate = useMemo(() => {
 		// Use context's currentTemplateId if available, otherwise fall back to state
 		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
 		const template = templates.find((t: Template) => t.id === templateId) ?? templates[0];
-		if (!template) return undefined;
+		if (!template) {
+			console.log("[TEMPLATE] currentTemplate useMemo: No template found");
+			return undefined;
+		}
+		
+		// Check if we have a pending save that should take precedence
+		const pendingSave = pendingSaveRef.current;
+		let elementsToUse = draftElements ?? template.elements ?? [];
+		
+		console.log("[TEMPLATE] currentTemplate useMemo", {
+			templateId,
+			hasPendingSave: !!pendingSave,
+			hasDraftElements: !!draftElements,
+			templateElementsCount: template.elements?.length ?? 0,
+			draftElementsCount: draftElements?.length ?? 0,
+			initialElementsToUseCount: elementsToUse.length,
+		});
+		
+		// If we have a pending save, check if the realtime update matches our save
+		if (pendingSave) {
+			// Use normalized comparison to handle floating point precision
+			const normalizeElements = (elements: TemplateElement[]) => {
+				return elements.map(el => ({
+					...el,
+					x: Math.round(el.x * 100) / 100,
+					y: Math.round(el.y * 100) / 100,
+					width: Math.round(el.width * 100) / 100,
+					height: Math.round(el.height * 100) / 100,
+				})).sort((a, b) => a.id.localeCompare(b.id));
+			};
+			
+			const normalizedTemplate = normalizeElements(template.elements ?? []);
+			const normalizedPending = normalizeElements(pendingSave.elements);
+			
+			const templateElementsStr = JSON.stringify(normalizedTemplate);
+			const pendingElementsStr = JSON.stringify(normalizedPending);
+			const matches = templateElementsStr === pendingElementsStr;
+			
+			console.log("[TEMPLATE] currentTemplate useMemo: Pending save check", {
+				matches,
+				templateElementsCount: normalizedTemplate.length,
+				pendingElementsCount: normalizedPending.length,
+			});
+			
+			// If template elements match our pending save, use template (realtime confirmed)
+			// Otherwise, use draftElements if available (still waiting for confirmation)
+			if (matches) {
+				// Realtime update confirmed our save - use template elements
+				elementsToUse = template.elements ?? [];
+				console.log("[TEMPLATE] Using template elements (realtime confirmed)");
+			} else if (draftElements) {
+				// Template hasn't been updated yet, but we have draftElements - use them
+				elementsToUse = draftElements;
+				console.log("[TEMPLATE] Using draftElements (waiting for realtime confirmation)");
+			} else {
+				// No draftElements and template doesn't match - use template (fallback)
+				elementsToUse = template.elements ?? [];
+				console.log("[TEMPLATE] Using template elements (fallback, no draftElements)");
+			}
+		}
 		
 		// Merge draft state for optimistic UI updates
-		return {
+		const result = {
 			...template,
-			elements: draftElements ?? template.elements ?? [],
+			elements: elementsToUse,
 			brand: draftBrand ?? template.brand,
 		} as Template;
+		
+		console.log("[TEMPLATE] currentTemplate useMemo: Final result", {
+			elementsCount: result.elements.length,
+			hasBrand: !!result.brand,
+		});
+		
+		return result;
 	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements, draftBrand]);
+
+	// Effect to clear draftElements when realtime update confirms our save
+	useEffect(() => {
+		const pendingSave = pendingSaveRef.current;
+		if (!pendingSave) {
+			console.log("[SAVE] useEffect: No pending save, skipping check");
+			return;
+		}
+		
+		// Get the raw template from realtime subscription (not the merged currentTemplate)
+		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
+		const rawTemplate = templates.find((t: Template) => t.id === templateId);
+		if (!rawTemplate) {
+			console.log("[SAVE] useEffect: No raw template found for templateId:", templateId);
+			return;
+		}
+		
+		console.log("[SAVE] useEffect: Checking realtime confirmation", {
+			templateId,
+			pendingSaveElementsCount: pendingSave.elements.length,
+			rawTemplateElementsCount: rawTemplate.elements?.length ?? 0,
+			hasDraftElements: !!draftElements,
+			pendingSaveTimestamp: new Date(pendingSave.timestamp).toISOString(),
+			timeSincePending: Date.now() - pendingSave.timestamp,
+		});
+		
+		// Compare raw template elements (from realtime) with pending save
+		// Use a normalized comparison that handles floating point precision
+		const normalizeElements = (elements: TemplateElement[]) => {
+			return elements.map(el => ({
+				...el,
+				x: Math.round(el.x * 100) / 100,
+				y: Math.round(el.y * 100) / 100,
+				width: Math.round(el.width * 100) / 100,
+				height: Math.round(el.height * 100) / 100,
+			})).sort((a, b) => a.id.localeCompare(b.id));
+		};
+		
+		const normalizedTemplate = normalizeElements(rawTemplate.elements ?? []);
+		const normalizedPending = normalizeElements(pendingSave.elements);
+		
+		const templateElementsStr = JSON.stringify(normalizedTemplate);
+		const pendingElementsStr = JSON.stringify(normalizedPending);
+		
+		console.log("[SAVE] useEffect: Comparison result", {
+			stringsMatch: templateElementsStr === pendingElementsStr,
+			templateElementsLength: templateElementsStr.length,
+			pendingElementsLength: pendingElementsStr.length,
+			first100CharsTemplate: templateElementsStr.substring(0, 100),
+			first100CharsPending: pendingElementsStr.substring(0, 100),
+		});
+		
+		// If template elements match our pending save, the realtime update confirmed our save
+		if (templateElementsStr === pendingElementsStr && draftElements) {
+			console.log("[SAVE] ✅ Realtime update confirmed save, clearing draftElements", {
+				elementsCount: pendingSave.elements.length,
+				timeSinceSave: Date.now() - pendingSave.timestamp,
+			});
+			// Realtime update confirmed our save - clear pending and draftElements
+			pendingSaveRef.current = null;
+			setDraftElements(null);
+		} else if (templateElementsStr !== pendingElementsStr && draftElements) {
+			console.log("[SAVE] ⏳ Realtime update doesn't match yet, keeping draftElements", {
+				rawTemplateElementIds: (rawTemplate.elements ?? []).map(el => el.id),
+				pendingSaveElementIds: pendingSave.elements.map(el => el.id),
+			});
+		}
+	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements]);
 
 	// Compliance validation for current template
 	const complianceStatus = useMemo(() => {
@@ -344,9 +517,10 @@ export default function TemplateDesignerPage() {
 				itemsBinding: binding,
 			};
 			const next = [...existingElements, tableElement];
+			draftRef.current = next;
 			setDraftElements(next);
 			setState((s) => ({ ...s, selectedElementIds: [tableElement.id] }));
-			saveMutation.mutate({ elements: next });
+			// Don't save automatically - user will save via properties panel
 		} else if (elementType === "input") {
 			// Add input element
 			const inputElement: TemplateElement = {
@@ -365,9 +539,10 @@ export default function TemplateDesignerPage() {
 				align: "left",
 			};
 			const next = [...existingElements, inputElement];
+			draftRef.current = next;
 			setDraftElements(next);
 			setState((s) => ({ ...s, selectedElementIds: [inputElement.id] }));
-			saveMutation.mutate({ elements: next });
+			// Don't save automatically - user will save via properties panel
 		} else if (elementType === "currency") {
 			// Add currency element
 			const currencyElement: TemplateElement = {
@@ -388,9 +563,10 @@ export default function TemplateDesignerPage() {
 				align: "right",
 			};
 			const next = [...existingElements, currencyElement];
+			draftRef.current = next;
 			setDraftElements(next);
 			setState((s) => ({ ...s, selectedElementIds: [currencyElement.id] }));
-			saveMutation.mutate({ elements: next });
+			// Don't save automatically - user will save via properties panel
 		} else {
 			// Add text element
 			const textElement: TemplateElement = {
@@ -425,13 +601,15 @@ export default function TemplateDesignerPage() {
 					: { kind: "none" },
 			};
 			const next = [...existingElements, textElement];
+			draftRef.current = next;
 			setDraftElements(next);
 			setState((s) => ({ ...s, selectedElementIds: [textElement.id] }));
-			saveMutation.mutate({ elements: next });
+			// Don't save automatically - user will save via properties panel
 		}
 	}
 
 	// Keep refs in sync for stable event handlers
+	// Use flushSync to ensure refs are updated synchronously before saves
 	useEffect(() => {
 		draftRef.current = draftElements;
 	}, [draftElements]);
@@ -508,32 +686,63 @@ export default function TemplateDesignerPage() {
 	}, [contextCurrentTemplateId, state.currentTemplateId]);
 
 
-	// Ref to track version creation debounce timer
-	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
-	const lastSavedElementsRef = useRef<string>("");
 
 	const saveMutation = useMutation({
 		mutationFn: async (partial: Partial<TemplateData>) => {
-			if (!currentTemplate) return;
+			console.log("[SAVE] 🔄 mutationFn called", {
+				hasElements: !!partial.elements,
+				elementsCount: partial.elements?.length ?? 0,
+				hasBrand: !!partial.brand,
+				otherFields: Object.keys(partial).filter(k => k !== 'elements' && k !== 'brand'),
+			});
+			
+			// Use refs to get latest values, avoiding stale closures
+			const templateId = currentTemplateIdRef.current;
+			if (!templateId) {
+				console.warn("[SAVE] ⚠️ mutationFn: No templateId in ref");
+				return;
+			}
+			
+			const templates = templatesRef.current;
+			const template = templates.find((t: Template) => t.id === templateId);
+			if (!template) {
+				console.warn("[SAVE] ⚠️ mutationFn: Template not found", { templateId, templatesCount: templates.length });
+				return;
+			}
+			
+			console.log("[SAVE] mutationFn: Calling templateService.updateDraft", {
+				templateId,
+				elementsCount: partial.elements?.length ?? 0,
+				existingElementsCount: template.elements?.length ?? 0,
+			});
+			
 			// For brand updates, we need to ensure we merge with existing brand data
 			// since Firebase Realtime Database update does shallow merge
-			if (partial.brand && currentTemplate.brand) {
+			if (partial.brand && template.brand) {
 				partial = {
 					...partial,
 					brand: {
-						...currentTemplate.brand,
+						...template.brand,
 						...partial.brand,
 						// Deep merge watermark if it exists in both
 						watermark: partial.brand.watermark
 							? {
-									...(currentTemplate.brand.watermark || {}),
+									...(template.brand.watermark || {}),
 									...partial.brand.watermark,
 								}
-							: currentTemplate.brand.watermark,
+							: template.brand.watermark,
 					},
 				};
 			}
-			await templateService.updateDraft(currentTemplate.id, partial);
+			
+			const startTime = Date.now();
+			await templateService.updateDraft(templateId, partial);
+			const duration = Date.now() - startTime;
+			console.log("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
+				templateId,
+				duration,
+				elementsCount: partial.elements?.length ?? 0,
+			});
 		},
 		onMutate: async (partial: Partial<TemplateData>) => {
 			// Optimistic update for brand changes
@@ -556,12 +765,79 @@ export default function TemplateDesignerPage() {
 			}
 		},
 		onSuccess: async (_, partial) => {
-			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
+			console.log("[SAVE] 🎉 saveMutation.onSuccess called", {
+				hasElements: !!partial.elements,
+				elementsCount: partial.elements?.length ?? 0,
+				hasBrand: !!partial.brand,
+				hasOtherFields: Object.keys(partial).filter(k => k !== 'elements' && k !== 'brand').length > 0,
+			});
+			
+			// Mark that we have a pending save - this prevents realtime updates from overwriting
+			if (partial.elements) {
+				const savedElements = partial.elements; // Store for timeout closure
+				const saveTimestamp = Date.now();
+				pendingSaveRef.current = {
+					elements: savedElements,
+					timestamp: saveTimestamp,
+				};
+				console.log("[SAVE] ✅ Mutation successful, set pendingSaveRef", {
+					elementsCount: savedElements.length,
+					elementIds: savedElements.map(el => el.id),
+					timestamp: new Date(saveTimestamp).toISOString(),
+				});
+				
+				// Fallback: clear draftElements after 2 seconds if realtime update doesn't arrive
+				// This prevents draftElements from staying forever if something goes wrong
+				setTimeout(() => {
+					const pending = pendingSaveRef.current;
+					if (pending) {
+						// Check if pending save is still there (realtime update didn't clear it)
+						const pendingStr = JSON.stringify(pending.elements);
+						const savedStr = JSON.stringify(savedElements);
+						const stillMatches = pendingStr === savedStr;
+						
+						console.log("[SAVE] ⏰ 2s timeout check", {
+							hasPending: !!pending,
+							stillMatches,
+							pendingElementsCount: pending.elements.length,
+							savedElementsCount: savedElements.length,
+							timeSinceSave: Date.now() - saveTimestamp,
+						});
+						
+						if (stillMatches) {
+							// Realtime update hasn't confirmed our save yet, but clear anyway to prevent stuck state
+							console.warn("[SAVE] ⚠️ Realtime update didn't confirm save within 2s, clearing draftElements", {
+								pendingElementsCount: pending.elements.length,
+								savedElementsCount: savedElements.length,
+								timeSinceSave: Date.now() - saveTimestamp,
+								pendingElementIds: pending.elements.map(el => el.id),
+								savedElementIds: savedElements.map(el => el.id),
+							});
+							pendingSaveRef.current = null;
+							setDraftElements(null);
+						} else {
+							// Pending save was updated (different elements), which means a new save happened
+							console.log("[SAVE] ℹ️ Pending save was updated during timeout (new save happened), keeping it", {
+								oldCount: savedElements.length,
+								newCount: pending.elements.length,
+							});
+						}
+					} else {
+						console.log("[SAVE] ✅ Pending save was already cleared (realtime confirmed)");
+					}
+				}, 2000);
+			}
+			
+			// Don't invalidate queries - let realtime subscription handle the update
+			// This prevents race conditions where invalidation triggers a refetch with stale data
+			// queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
+			
 			// Clear draft brand after successful save (real-time update will handle it)
 			setTimeout(() => setDraftBrand(null), 100);
 
 			// Auto-create version when elements are changed
-			if (partial.elements && currentTemplate && templateId && clerkUser?.id) {
+			const templateId = currentTemplateIdRef.current;
+			if (partial.elements && templateId && clerkUser?.id) {
 				const elementsStr = JSON.stringify(partial.elements);
 				
 				// Only create version if elements actually changed
@@ -1129,13 +1405,13 @@ export default function TemplateDesignerPage() {
 		const next = [...(currentTemplate?.elements ?? []), nextElement];
 		console.log("[ADD] next elements length", next.length);
 		// optimistic UI update so drop shows immediately
+		draftRef.current = next;
 		setDraftElements(next);
 		setState((s: DesignerState) => ({
 			...s,
 			selectedElementIds: [nextElement.id],
 		}));
-		console.log("[ADD] persisting draft via saveMutation.mutate");
-		saveMutation.mutate({ elements: next });
+		// Don't save automatically - user will save via properties panel
 	}
 
 	// Helper function to handle multi-select with Shift+click
@@ -1181,12 +1457,44 @@ export default function TemplateDesignerPage() {
 	};
 
 	function updateSelected(partial: Partial<TemplateElement>) {
-		if (!currentTemplate || !state.selectedElementIds || state.selectedElementIds.length === 0) return;
+		// Use ref to get latest selection state (avoids stale closures)
+		const selectedIds = selectedElementIdsRef.current.length > 0 
+			? selectedElementIdsRef.current 
+			: state.selectedElementIds || [];
+		
+		console.log("[SAVE] updateSelected called", {
+			selectedIds,
+			partial,
+			hasCurrentTemplate: !!currentTemplate,
+			hasDraftElements: !!draftElements,
+			draftElementsCount: draftElements?.length ?? 0,
+			currentTemplateElementsCount: currentTemplate?.elements?.length ?? 0,
+		});
+		
+		if (!currentTemplate) {
+			console.warn("[SAVE] updateSelected called but no currentTemplate");
+			return;
+		}
+		
+		if (selectedIds.length === 0) {
+			console.warn("[SAVE] updateSelected called but no elements selected", {
+				refIds: selectedElementIdsRef.current,
+				stateIds: state.selectedElementIds,
+			});
+			return;
+		}
+		
 		// Use draftElements if available, otherwise use currentTemplate.elements
 		const currentElements = draftElements ?? currentTemplate.elements ?? [];
+		console.log("[SAVE] Updating elements", {
+			usingDraftElements: !!draftElements,
+			currentElementsCount: currentElements.length,
+			selectedIds,
+		});
+		
 		const next = currentElements.map(
 			(el: TemplateElement) =>
-				state.selectedElementIds?.includes(el.id)
+				selectedIds.includes(el.id)
 					? ((): TemplateElement => {
 							const merged = {
 								...el,
@@ -1198,16 +1506,74 @@ export default function TemplateDesignerPage() {
 								merged.width,
 								merged.height
 							);
-							return {
+							const updated = {
 								...merged,
 								x: clamped.x,
 								y: clamped.y,
 							} as TemplateElement;
+							console.log(`[SAVE] Updated element ${el.id}`, {
+								before: { x: el.x, y: el.y, width: el.width, height: el.height },
+								after: { x: updated.x, y: updated.y, width: updated.width, height: updated.height },
+							});
+							return updated;
 						})()
 					: el
 		);
+		// Update ref synchronously
+		draftRef.current = next;
 		setDraftElements(next);
-		saveMutation.mutate({ elements: next });
+		console.log("[SAVE] Set draftElements", {
+			count: next.length,
+			elementIds: next.map(el => el.id),
+		});
+		
+		// Debounce saves per selected element - each input saves individually after 50ms of no changes
+		selectedIds.forEach((elementId) => {
+			// Clear existing timer for this element
+			const existingTimer = elementSaveTimersRef.current.get(elementId);
+			if (existingTimer) {
+				console.log(`[SAVE] Clearing existing timer for element ${elementId}`);
+				clearTimeout(existingTimer);
+			}
+			
+			// Set new timer for this element
+			const timer = setTimeout(() => {
+				// Get the latest elements at save time (in case multiple properties changed)
+				const latestElements = draftRef.current;
+				if (!latestElements || latestElements.length === 0) {
+					console.warn(`[SAVE] No elements to save for element ${elementId}`, {
+						draftRef: !!draftRef.current,
+						draftRefLength: draftRef.current?.length,
+					});
+					elementSaveTimersRef.current.delete(elementId);
+					return;
+				}
+				
+				// Verify the element still exists
+				const elementToSave = latestElements.find((el) => el.id === elementId);
+				if (!elementToSave) {
+					console.warn(`[SAVE] Element ${elementId} not found in latestElements`);
+					elementSaveTimersRef.current.delete(elementId);
+					return;
+				}
+				
+				console.log(`[SAVE] ⚡ Triggering saveMutation for element ${elementId}`, {
+					totalElements: latestElements.length,
+					elementToSave: {
+						id: elementToSave.id,
+						x: elementToSave.x,
+						y: elementToSave.y,
+						width: elementToSave.width,
+						height: elementToSave.height,
+					},
+				});
+				saveMutation.mutate({ elements: latestElements });
+				elementSaveTimersRef.current.delete(elementId);
+			}, 50); // 50ms debounce per input
+			
+			console.log(`[SAVE] Set 50ms debounce timer for element ${elementId}`);
+			elementSaveTimersRef.current.set(elementId, timer);
+		});
 	}
 
 	const handleOpenImagePicker = (elementId: string) => {
@@ -1285,7 +1651,9 @@ export default function TemplateDesignerPage() {
 		const next = (currentTemplate.elements ?? []).filter(
 			(e) => e.id !== id
 		);
-		saveMutation.mutate({ elements: next });
+		draftRef.current = next;
+		setDraftElements(next);
+		// Don't save automatically - user will save via properties panel
 		setState((s: DesignerState) => ({
 			...s,
 			selectedElementIds: [],
@@ -1314,7 +1682,9 @@ export default function TemplateDesignerPage() {
 		};
 
 		const next = [...(currentTemplate.elements ?? []), duplicated];
-		saveMutation.mutate({ elements: next });
+		draftRef.current = next;
+		setDraftElements(next);
+		// Don't save automatically - user will save via properties panel
 		setState((s: DesignerState) => ({
 			...s,
 			selectedElementIds: [duplicated.id],
@@ -1371,10 +1741,12 @@ export default function TemplateDesignerPage() {
 				);
 				if (!draggingElement) return base;
 
+				let updated: TemplateElement[];
+				
 				if (mode === "move") {
 					// Check if we have multiple selected elements to move together
 					const selectedPositions = selectedElementPositions;
-					const selectedIds = state.selectedElementIds || [];
+					const selectedIds = selectedElementIdsRef.current;
 					
 					if (selectedPositions && selectedIds.length > 1) {
 						// Move all selected elements together
@@ -1408,7 +1780,7 @@ export default function TemplateDesignerPage() {
 						const actualDy = primaryClamped.y - primaryInitialPos.y;
 						
 						// Apply the same delta to all selected elements
-						return base.map((item) => {
+						updated = base.map((item) => {
 							if (!selectedIds.includes(item.id)) return item;
 							
 							if (item.id === elementId) {
@@ -1428,7 +1800,7 @@ export default function TemplateDesignerPage() {
 						});
 					} else {
 						// Single element drag (original behavior)
-						return base.map((item) => {
+						updated = base.map((item) => {
 							if (item.id !== elementId) return item;
 							
 							const rawX = startX + dx;
@@ -1455,58 +1827,166 @@ export default function TemplateDesignerPage() {
 							return { ...item, x: clamped.x, y: clamped.y };
 						});
 					}
+				} else {
+					// resize logic - clear snap guides during resize
+					setSnapGuides([]);
+					updated = base.map((item) => {
+						if (item.id !== elementId) return item;
+						
+						let nextX = startX;
+						let nextY = startY;
+						let nextW = startWidth ?? item.width;
+						let nextH = startHeight ?? item.height;
+						if (edge?.includes("e"))
+							nextW = Math.max(1, (startWidth ?? item.width) + dx);
+						if (edge?.includes("s"))
+							nextH = Math.max(1, (startHeight ?? item.height) + dy);
+						if (edge?.includes("w")) {
+							nextX = startX + dx;
+							nextW = Math.max(1, (startWidth ?? item.width) - dx);
+						}
+						if (edge?.includes("n")) {
+							nextY = startY + dy;
+							nextH = Math.max(1, (startHeight ?? item.height) - dy);
+						}
+						const clamped = clampResize(nextX, nextY, nextW, nextH);
+						return {
+							...item,
+							x: clamped.x,
+							y: clamped.y,
+							width: clamped.width,
+							height: clamped.height,
+						};
+					});
 				}
 				
-				// resize logic - clear snap guides during resize
-				setSnapGuides([]);
-				return base.map((item) => {
-					if (item.id !== elementId) return item;
-					
-					let nextX = startX;
-					let nextY = startY;
-					let nextW = startWidth ?? item.width;
-					let nextH = startHeight ?? item.height;
-					if (edge?.includes("e"))
-						nextW = Math.max(1, (startWidth ?? item.width) + dx);
-					if (edge?.includes("s"))
-						nextH = Math.max(1, (startHeight ?? item.height) + dy);
-					if (edge?.includes("w")) {
-						nextX = startX + dx;
-						nextW = Math.max(1, (startWidth ?? item.width) - dx);
-					}
-					if (edge?.includes("n")) {
-						nextY = startY + dy;
-						nextH = Math.max(1, (startHeight ?? item.height) - dy);
-					}
-					const clamped = clampResize(nextX, nextY, nextW, nextH);
-					return {
-						...item,
-						x: clamped.x,
-						y: clamped.y,
-						width: clamped.width,
-						height: clamped.height,
-					};
-				});
+				// Update ref synchronously to ensure pointer up handler has latest value
+				draftRef.current = updated;
+				return updated;
 			});
 		}
 
 		function handlePointerUp() {
-			// If we never moved, it was just a click - don't save drag state
-			// The click handler will handle selection
-			if (hasMoved) {
-				const latestDraft = draftRef.current;
-				const tmpl = currentTemplateRef.current;
-				if (latestDraft && tmpl) {
-					saveMutation.mutate({ elements: latestDraft });
+			// Get the latest draft from ref (updated synchronously in pointer move)
+			const latestDraft = draftRef.current;
+			const tmpl = currentTemplateRef.current;
+			
+			// Check if element position actually changed (more reliable than hasMoved closure)
+			let positionChanged = false;
+			if (latestDraft && tmpl) {
+				const changedElement = latestDraft.find((el) => el.id === elementId);
+				const initialElement = (tmpl.elements ?? []).find((el) => el.id === elementId);
+				
+				if (changedElement && initialElement) {
+					// Check if position changed (for move) or size changed (for resize)
+					if (mode === "move") {
+						const dx = Math.abs(changedElement.x - startX);
+						const dy = Math.abs(changedElement.y - startY);
+						positionChanged = dx > 0.1 || dy > 0.1; // Use small threshold (0.1px) to account for rounding
+					} else if (mode === "resize") {
+						const dw = Math.abs((changedElement.width ?? 0) - (startWidth ?? initialElement.width ?? 0));
+						const dh = Math.abs((changedElement.height ?? 0) - (startHeight ?? initialElement.height ?? 0));
+						const dx = Math.abs(changedElement.x - startX);
+						const dy = Math.abs(changedElement.y - startY);
+						positionChanged = dw > 0.1 || dh > 0.1 || dx > 0.1 || dy > 0.1;
+					}
 				}
 			}
+			
+			// Save if drag started (movement detected) OR if position actually changed
+			const shouldSave = dragStartedRef.current || positionChanged;
+			
+			console.log("[CANVAS] handlePointerUp called", {
+				elementId,
+				mode,
+				hasMoved,
+				dragStarted: dragStartedRef.current,
+				positionChanged,
+				shouldSave,
+			});
+			
+			// If we never moved and position didn't change, it was just a click - don't save drag state
+			// The click handler will handle selection
+			if (shouldSave) {
+				console.log("[CANVAS] Pointer up after move", {
+					hasLatestDraft: !!latestDraft,
+					latestDraftCount: latestDraft?.length ?? 0,
+					hasTemplate: !!tmpl,
+				});
+				
+				if (latestDraft && tmpl) {
+					// Get the element that was dragged/resized
+					const changedElement = latestDraft.find((el) => el.id === elementId);
+					if (changedElement) {
+						// Ensure the dragged element is selected (it should be, but ensure it)
+						const currentSelectedIds = selectedElementIdsRef.current;
+						if (!currentSelectedIds.includes(elementId)) {
+							// If not selected, select it first and update ref synchronously
+							selectedElementIdsRef.current = [elementId];
+							setState((s) => ({
+								...s,
+								selectedElementIds: [elementId],
+							}));
+							console.log("[CANVAS] Element not selected, selecting it first:", elementId);
+						}
+						
+						// Use updateSelected to trigger the same debounced save mechanism as property panel
+						// This ensures canvas drags/resizes save with the same 50ms debounce
+						// Pass only the properties that could have changed (position for move, size for resize)
+						const changes: Partial<TemplateElement> = {
+							x: changedElement.x,
+							y: changedElement.y,
+						};
+						
+						// If it was a resize, also include width/height
+						if (mode === "resize") {
+							changes.width = changedElement.width;
+							changes.height = changedElement.height;
+						}
+						
+						console.log("[CANVAS] 🎯 Calling updateSelected from pointer up", {
+							elementId,
+							mode,
+							changes,
+							selectedIds: selectedElementIdsRef.current,
+							elementBefore: {
+								x: changedElement.x,
+								y: changedElement.y,
+								width: changedElement.width,
+								height: changedElement.height,
+							},
+						});
+						
+						// Call updateSelected directly - it will use selectedElementIdsRef which we just updated
+						updateSelected(changes);
+					} else {
+						console.warn("[CANVAS] ⚠️ Changed element not found in latestDraft", { 
+							elementId, 
+							latestDraftLength: latestDraft.length,
+							latestDraftIds: latestDraft.map(el => el.id),
+						});
+					}
+				} else {
+					console.warn("[CANVAS] ⚠️ Missing latestDraft or template", {
+						hasLatestDraft: !!latestDraft,
+						hasTemplate: !!tmpl,
+					});
+				}
+			} else {
+				console.log("[CANVAS] Pointer up without move (click only)", {
+					dragStarted: dragStartedRef.current,
+					positionChanged,
+				});
+			}
+			
 			// Reset drag started flag immediately - click handler will have already checked it
 			// We use requestAnimationFrame to ensure the click handler runs first
 			requestAnimationFrame(() => {
 				dragStartedRef.current = false;
 			});
 			setDrag(null);
-			setDraftElements(null);
+			// Don't clear draftElements immediately - keep them until realtime update confirms
+			// The currentTemplate useMemo will clear them when it detects the save is confirmed
 			setSnapGuides([]);
 		}
 
@@ -1516,6 +1996,7 @@ export default function TemplateDesignerPage() {
 			window.removeEventListener("pointermove", handlePointerMove);
 			window.removeEventListener("pointerup", handlePointerUp);
 		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [drag, state.zoom, saveMutation]);
 
 	const sidebarContent = (
@@ -1698,15 +2179,17 @@ export default function TemplateDesignerPage() {
 							{ id: "c2", header: t('designer.tableColumns.column2'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 						];
 						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
+						// Update draft elements but don't save - save will happen when user edits in properties panel
 						setDraftElements((prev) => {
 							const base = prev ?? currentTemplateRef.current?.elements ?? [];
-							return base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
+							const updated = base.map((it) => it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it);
+							// Update ref synchronously
+							draftRef.current = updated;
+							return updated;
 						});
-						saveMutation.mutate({
-							elements: (currentTemplateRef.current?.elements ?? []).map((it) =>
-								it.id === tableId ? ({ ...tbl, columns: next } as TemplateElement) : it
-							),
-						});
+						// Trigger updateSelected to use the debounced save mechanism
+						// This ensures table header changes are saved like other property changes
+						updateSelected({ ...tbl, columns: next } as Partial<TemplateElement>);
 					}}
 					currentTemplateRef={currentTemplateRef}
 					saveMutation={saveMutation}

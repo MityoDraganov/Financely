@@ -93,3 +93,35 @@ export function getInvoiceAmount(invoice: Invoice): number {
   return getInvoiceAmountAndCurrency(invoice).amount;
 }
 
+/**
+ * Generate an invoice number based on organization settings
+ * Format: {prefix}-{year}-{sequentialNumber}
+ * 
+ * @param organization - Organization with settings for invoice numbering
+ * @returns Generated invoice number (e.g., "INV-2025-0001")
+ */
+export function generateInvoiceNumber(organization?: {
+  settings?: {
+    invoicePrefix?: string;
+    invoiceNumberStart?: number;
+  };
+  usage?: {
+    invoiceCount?: number;
+  };
+}): string {
+  const prefix = organization?.settings?.invoicePrefix || "INV";
+  const startNumber = organization?.settings?.invoiceNumberStart || 1;
+  const currentCount = organization?.usage?.invoiceCount || 0;
+  
+  // Calculate next sequential number
+  const nextNumber = startNumber + currentCount;
+  
+  // Get current year
+  const year = new Date().getFullYear();
+  
+  // Format with zero-padding (4 digits)
+  const paddedNumber = String(nextNumber).padStart(4, "0");
+  
+  return `${prefix}-${year}-${paddedNumber}`;
+}
+
