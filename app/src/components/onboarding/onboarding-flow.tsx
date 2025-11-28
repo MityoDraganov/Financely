@@ -22,7 +22,8 @@ import {
   Bot,
   Workflow,
   FileText,
-  Target
+  Target,
+  Languages
 } from "lucide-react";
 import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useCreateUser, useUserByClerkId } from "@/hooks";
 import { useAcceptInvite, useInvites } from "@/hooks/use-invites";
@@ -34,6 +35,15 @@ import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { Badge } from "@/components/ui/badge";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
+import { ModeToggle } from "@/components/ui/mode-toggle";
+import { useTranslation } from "react-i18next";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface OrganizationFormData {
   name: string;
@@ -53,6 +63,7 @@ const STEPS = {
 };
 
 export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(STEPS.WELCOME);
   const [formData, setFormData] = useState<OrganizationFormData>({
     name: "",
@@ -120,7 +131,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
   const handleJoinOrganization = async () => {
     if (!inviteCode.trim()) {
-      toast.error("Please enter an invite code");
+      toast.error(t("onboarding.messages.enterInviteCode"));
       return;
     }
 
@@ -128,19 +139,19 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
       await acceptInvite.mutateAsync(inviteCode);
       setCurrentStep(STEPS.SUCCESS);
     } catch (error) {
-      toast.error("Failed to join organization. Please check your invite code.");
+      toast.error(t("onboarding.messages.joinFailed"));
       console.error("Error joining organization:", error);
     }
   };
 
   const handleCreateOrganization = async () => {
     if (!formData.name.trim()) {
-      toast.error("Please enter an organization name");
+      toast.error(t("onboarding.messages.enterOrgName"));
       return;
     }
 
     if (!clerkUser?.id) {
-      toast.error("User not authenticated");
+      toast.error(t("onboarding.messages.userNotAuthenticated"));
       return;
     }
 
@@ -230,10 +241,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
         role: "owner",
       });
 
-      toast.success("Organization created successfully!");
+      toast.success(t("onboarding.messages.orgCreated"));
       setCurrentStep(STEPS.BRANDING);
     } catch (error) {
-      toast.error("Failed to create organization. Please try again.");
+      toast.error(t("onboarding.messages.orgCreateFailed"));
       console.error("Error creating organization:", error);
     }
   };
@@ -266,10 +277,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           },
         },
       });
-      toast.success("Branding saved!");
+      toast.success(t("onboarding.messages.brandingSaved"));
       setCurrentStep(STEPS.INVITES);
     } catch {
-      toast.error("Failed to save branding. Continuing anyway...");
+      toast.error(t("onboarding.messages.brandingSaveFailed"));
       setCurrentStep(STEPS.INVITES);
     }
   };
@@ -294,9 +305,9 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           <Button
             onClick={handleNext}
             size="lg"
-            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
           >
-            Get Started
+            {t("onboarding.welcome.getStarted")}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
@@ -314,17 +325,17 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClick={handleBack}
             variant="outline"
             size="lg"
-            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
           >
             <ArrowLeft className="mr-2 w-5 h-5" />
-            Back
+            {t("onboarding.buttons.back")}
           </Button>
           <Button
             onClick={handleNext}
             size="lg"
-            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
           >
-            Create Your Workspace
+            {t("onboarding.benefits.createWorkspace")}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
@@ -339,26 +350,26 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClick={handleBack}
             variant="outline"
             size="lg"
-            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
             disabled={isLoading}
           >
             <ArrowLeft className="mr-2 w-5 h-5" />
-            Back
+            {t("onboarding.buttons.back")}
           </Button>
           <Button
             onClick={handleCreateOrganization}
             size="lg"
-            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
             disabled={isLoading || !formData.name.trim()}
           >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                Creating...
+                {t("onboarding.createOrg.creating")}
               </>
             ) : (
               <>
-                Create Organization
+                {t("onboarding.createOrg.createButton")}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </>
             )}
@@ -374,25 +385,25 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClick={handleBrandingSkip}
             variant="outline"
             size="lg"
-            className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
           >
             <SkipForward className="mr-2 w-5 h-5" />
-            Skip for Now
+            {t("onboarding.buttons.skip")}
           </Button>
           <Button
             onClick={handleBrandingSave}
             size="lg"
-            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
             disabled={updateOrganization.isPending}
           >
             {updateOrganization.isPending ? (
               <>
                 <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                Saving...
+                {t("onboarding.branding.saving")}
               </>
             ) : (
               <>
-                Save & Continue
+                {t("onboarding.branding.saveContinue")}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </>
             )}
@@ -409,19 +420,19 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
               onClick={handleInvitesSkip}
               variant="outline"
               size="lg"
-              className="rounded-xl w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+              className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
             >
               <SkipForward className="mr-2 w-5 h-5" />
-              Skip for Now
+              {t("onboarding.buttons.skip")}
             </Button>
           )}
           {hasAdditionalUsers && (
             <Button
               onClick={handleInvitesContinue}
               size="lg"
-              className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-8 rounded-xl w-full sm:w-auto"
+              className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
             >
-              Continue
+              {t("onboarding.buttons.continue")}
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           )}
@@ -437,24 +448,24 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             variant="outline"
             onClick={handleBack}
             disabled={isLoading}
-            className="flex items-center gap-2 w-full sm:w-auto bg-white border-gray-300 text-gray-700 hover:bg-gray-50 md:bg-transparent md:border-border"
+            className="flex items-center gap-2 w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {t("onboarding.buttons.back")}
           </Button>
           <Button
             onClick={handleJoinOrganization}
             disabled={isLoading || !inviteCode.trim()}
-            className="flex items-center gap-2 bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white w-full sm:w-auto"
+            className="flex items-center gap-2 bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground w-full sm:w-auto"
           >
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Joining...
+                {t("onboarding.joinOrg.joining")}
               </>
             ) : (
               <>
-                Join Organization
+                {t("onboarding.joinOrg.joinButton")}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
@@ -469,9 +480,9 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           <Button
             onClick={handleComplete}
             size="lg"
-            className="bg-white text-[#166534] hover:bg-gray-100 md:bg-[#166534] md:hover:bg-[#0e4424] md:text-white px-12 rounded-xl w-full sm:w-auto"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-12 rounded-xl w-full sm:w-auto"
           >
-            Go to Dashboard
+            {t("onboarding.success.goToDashboard")}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
@@ -482,7 +493,15 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 min-h-screen w-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex flex-col md:flex-row md:items-center md:justify-center overflow-hidden">
+    <div className="fixed inset-0 min-h-screen w-full bg-gradient-to-br from-[#166534] to-[#0e4424] flex flex-col md:flex-row md:items-center md:justify-center overflow-y-auto overflow-x-hidden">
+      {/* Language and Theme Selectors - Fixed in top-right corner */}
+      <div className="fixed top-4 right-4 z-30 flex items-center gap-2 md:top-4 md:right-4">
+        <div className="bg-card/95 backdrop-blur-sm rounded-lg border border-border/20 shadow-lg p-1.5 flex items-center gap-1.5">
+          <OnboardingLanguageSelector />
+          <ModeToggle />
+        </div>
+      </div>
+
       {/* Background decorations */}
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute -left-24 -bottom-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
@@ -494,9 +513,9 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
         </div>
       </div>
 
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto w-full md:overflow-visible md:flex-none">
-        <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-6">
+      {/* Content Area */}
+      <div className="flex-1 min-h-0 w-full flex items-start md:items-center md:py-8 overflow-x-hidden">
+        <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-6 pb-24 md:pb-6 overflow-x-hidden">
           {/* Progress bar for desktop */}
           <div className="hidden md:block mb-8">
           <Progress value={progress} className="h-2 bg-white/20" />
@@ -506,7 +525,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           {currentStep === STEPS.WELCOME && (
               <WelcomeStep 
                 key="welcome" 
-                userName={clerkUser?.firstName || "there"}
+                userName={clerkUser?.firstName || t("onboarding.welcome.title", { name: "" }).split(",")[0].replace("Welcome to Financely, ", "").trim() || "there"}
                 onNext={handleNext}
               />
           )}
@@ -582,10 +601,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
       {(() => {
         const buttons = renderButtons();
         return buttons && (
-          <div className="sticky bottom-0 z-20 bg-gradient-to-br from-[#166534] to-[#0e4424] backdrop-blur-sm pt-4 pb-4 px-4 border-t border-white/10 md:hidden">
+          <div className="sticky bottom-0 z-20 bg-gradient-to-br from-[#166534] to-[#0e4424] backdrop-blur-sm pt-4 pb-4 px-4 border-t border-white/10 md:hidden shadow-lg">
             <div className="w-full max-w-4xl mx-auto">
               {buttons}
-      </div>
+            </div>
           </div>
         );
       })()}
@@ -602,6 +621,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 }
 
 function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: () => void }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -609,19 +629,19 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
-            <Building2 className="h-8 w-8 text-[#166534]" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 shrink-0">
+            <Building2 className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words">
-            Choose Your Path
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4 break-words">
+            {t("onboarding.choosePath.title")}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 break-words">
-            How would you like to get started with Financely?
+          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words">
+            {t("onboarding.choosePath.description")}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 min-w-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Create Organization Option */}
             <motion.div
@@ -630,17 +650,17 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
               className="group cursor-pointer"
               onClick={onCreate}
             >
-              <Card className="border-2 border-transparent group-hover:border-[#166534]/20 transition-all duration-200 h-full">
+              <Card className="border-2 border-transparent group-hover:border-primary/20 transition-all duration-200 h-full">
                 <CardContent className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#166534]/10 group-hover:bg-[#166534]/20 transition-colors">
-                    <Building2 className="h-6 w-6 text-[#166534]" />
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Building2 className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Create Organization</h3>
-                  <p className="text-gray-600 mb-4">
-                    Start fresh with your own organization and invite team members
+                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.createOrg.title")}</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {t("onboarding.choosePath.createOrg.description")}
                   </p>
                   <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
-                    Create New Organization
+                    {t("onboarding.choosePath.createOrg.button")}
                   </Button>
                 </CardContent>
               </Card>
@@ -653,17 +673,17 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
               className="group cursor-pointer"
               onClick={onJoin}
             >
-              <Card className="border-2 border-transparent group-hover:border-[#166534]/20 transition-all duration-200 h-full">
+              <Card className="border-2 border-transparent group-hover:border-primary/20 transition-all duration-200 h-full">
                 <CardContent className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#166534]/10 group-hover:bg-[#166534]/20 transition-colors">
-                    <Users className="h-6 w-6 text-[#166534]" />
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Users className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Join Organization</h3>
-                  <p className="text-gray-600 mb-4">
-                    Join an existing organization using an invite code
+                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.joinOrg.title")}</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {t("onboarding.choosePath.joinOrg.description")}
                   </p>
                   <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
-                    Join with Code
+                    {t("onboarding.choosePath.joinOrg.button")}
                   </Button>
                 </CardContent>
               </Card>
@@ -688,6 +708,7 @@ function JoinOrgStep({
   onSubmit: () => void; 
   isLoading: boolean; 
 }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -695,28 +716,28 @@ function JoinOrgStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
-            <Users className="h-8 w-8 text-[#166534]" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 shrink-0">
+            <Users className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words">
-            Join Organization
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4 break-words">
+            {t("onboarding.joinOrg.title")}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
-            Enter the invite code you received to join an existing organization
+          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words px-2">
+            {t("onboarding.joinOrg.description")}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 min-w-0">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="inviteCode" className="text-sm font-medium text-gray-700">
-                Invite Code
+              <Label htmlFor="inviteCode" className="text-sm font-medium text-foreground">
+                {t("onboarding.joinOrg.inviteCode")}
               </Label>
               <Input
                 id="inviteCode"
                 type="text"
-                placeholder="Enter invite code (e.g., ABC123)"
+                placeholder={t("onboarding.joinOrg.inviteCodePlaceholder")}
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 className="mt-1"
@@ -732,7 +753,7 @@ function JoinOrgStep({
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              {t("onboarding.buttons.back")}
             </Button>
             <Button
               onClick={onSubmit}
@@ -742,11 +763,11 @@ function JoinOrgStep({
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Joining...
+                  {t("onboarding.joinOrg.joining")}
                 </>
               ) : (
                 <>
-                  Join Organization
+                  {t("onboarding.joinOrg.joinButton")}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -759,6 +780,7 @@ function JoinOrgStep({
 }
 
 function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => void }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -766,7 +788,7 @@ function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => voi
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center space-y-4 pb-8">
           <motion.div
             initial={{ scale: 0 }}
@@ -776,35 +798,35 @@ function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => voi
           >
             <Sparkles className="w-full h-full text-white p-3 lg:p-5" />
           </motion.div>
-          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 break-words px-2">
-            Welcome to Financely, {userName}! 🎉
+          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">
+            {t("onboarding.welcome.title", { name: userName })}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto break-words px-2">
-            We're thrilled to have you here! Let's take just 2 minutes to set up your workspace and get you started on automating your finance operations.
+          <CardDescription className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto break-words px-2">
+            {t("onboarding.welcome.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="text-center space-y-2 p-4 rounded-lg bg-gray-50">
-              <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-[#166534]" />
+            <div className="text-center space-y-2 p-4 rounded-lg bg-muted">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Zap className="w-6 h-6 text-primary" />
               </div>
-              <h3 className="font-semibold text-gray-900">Lightning Fast</h3>
-              <p className="text-sm text-gray-600">Create invoices in seconds, not hours</p>
+              <h3 className="font-semibold text-foreground">{t("onboarding.welcome.lightningFast")}</h3>
+              <p className="text-sm text-muted-foreground">{t("onboarding.welcome.lightningFastDesc")}</p>
             </div>
-            <div className="text-center space-y-2 p-4 rounded-lg bg-gray-50">
-              <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-[#166534]" />
+            <div className="text-center space-y-2 p-4 rounded-lg bg-muted">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-primary" />
               </div>
-              <h3 className="font-semibold text-gray-900">Secure & Compliant</h3>
-              <p className="text-sm text-gray-600">Bank-grade security for your data</p>
+              <h3 className="font-semibold text-foreground">{t("onboarding.welcome.secureCompliant")}</h3>
+              <p className="text-sm text-muted-foreground">{t("onboarding.welcome.secureCompliantDesc")}</p>
             </div>
-            <div className="text-center space-y-2 p-4 rounded-lg bg-gray-50">
-              <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Users className="w-6 h-6 text-[#166534]" />
+            <div className="text-center space-y-2 p-4 rounded-lg bg-muted">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="w-6 h-6 text-primary" />
               </div>
-              <h3 className="font-semibold text-gray-900">Team Collaboration</h3>
-              <p className="text-sm text-gray-600">Work together seamlessly</p>
+              <h3 className="font-semibold text-foreground">{t("onboarding.welcome.teamCollaboration")}</h3>
+              <p className="text-sm text-muted-foreground">{t("onboarding.welcome.teamCollaborationDesc")}</p>
             </div>
           </div>
 
@@ -814,7 +836,7 @@ function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => voi
               size="lg"
               className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
             >
-              Get Started
+              {t("onboarding.welcome.getStarted")}
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
@@ -825,30 +847,31 @@ function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => voi
 }
 
 function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const { t } = useTranslation();
   const benefits = [
     {
       icon: Bot,
-      title: "AI-Powered Automation",
-      description: "Generate proposals from leads, convert to invoices, and build websites—all with AI",
-      highlight: "80% time saved",
+      title: t("onboarding.benefits.aiAutomation.title"),
+      description: t("onboarding.benefits.aiAutomation.description"),
+      highlight: t("onboarding.benefits.aiAutomation.highlight"),
     },
     {
       icon: Target,
-      title: "End-to-End Revenue Cycle",
-      description: "Capture leads → Generate proposals → Create invoices → Get paid. All automated.",
-      highlight: "10x faster",
+      title: t("onboarding.benefits.revenueCycle.title"),
+      description: t("onboarding.benefits.revenueCycle.description"),
+      highlight: t("onboarding.benefits.revenueCycle.highlight"),
     },
     {
       icon: Workflow,
-      title: "Smart Workflows",
-      description: "Automated approvals, payment reminders, and renewals. Your business runs itself.",
-      highlight: "Zero manual work",
+      title: t("onboarding.benefits.workflows.title"),
+      description: t("onboarding.benefits.workflows.description"),
+      highlight: t("onboarding.benefits.workflows.highlight"),
     },
     {
       icon: FileText,
-      title: "Professional Invoices",
-      description: "Drag-and-drop designer creates beautiful, compliant invoices with instant PDFs",
-      highlight: "Get paid faster",
+      title: t("onboarding.benefits.invoices.title"),
+      description: t("onboarding.benefits.invoices.description"),
+      highlight: t("onboarding.benefits.invoices.highlight"),
     },
   ];
 
@@ -859,13 +882,13 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-5">
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 break-words px-2">
-            Everything you need to grow
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground break-words px-2">
+            {t("onboarding.benefits.title")}
           </CardTitle>
-          <CardDescription className="text-sm sm:text-base text-gray-600 break-words px-2 mt-2">
-            The complete platform that automates your revenue cycle from lead to payment
+          <CardDescription className="text-sm sm:text-base text-muted-foreground break-words px-2 mt-2">
+            {t("onboarding.benefits.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pb-6">
@@ -876,40 +899,40 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.08, duration: 0.2 }}
-                className="group p-4 rounded-lg border border-gray-200 bg-white hover:border-[#166534]/40 hover:shadow-md transition-all"
+                className="group p-4 rounded-lg border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#166534]/10 flex items-center justify-center shrink-0 group-hover:bg-[#166534]/20 transition-colors">
-                    <benefit.icon className="w-5 h-5 text-[#166534]" />
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                    <benefit.icon className="w-5 h-5 text-primary" />
                 </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <h3 className="font-semibold text-gray-900 text-sm leading-tight">{benefit.title}</h3>
+                      <h3 className="font-semibold text-foreground text-sm leading-tight">{benefit.title}</h3>
                       {benefit.highlight && (
-                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-[#166534]/10 text-[#166534] rounded-full whitespace-nowrap shrink-0">
+                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary rounded-full whitespace-nowrap shrink-0">
                           {benefit.highlight}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">{benefit.description}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{benefit.description}</p>
                   </div>
                 </div>
               </motion.div>
             ))}
           </div>
 
-          <div className="flex items-center justify-center gap-6 pt-3 border-t border-gray-200">
+          <div className="flex items-center justify-center gap-6 pt-3 border-t border-border">
             <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-[#166534]" />
-              <span className="text-xs text-gray-600 font-medium">Bank-grade security</span>
+              <Shield className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground font-medium">{t("onboarding.benefits.bankGrade")}</span>
               </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
-              <span className="text-xs text-gray-600 font-medium">GDPR compliant</span>
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground font-medium">{t("onboarding.benefits.gdprCompliant")}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#166534]" />
-              <span className="text-xs text-gray-600 font-medium">Team ready</span>
+              <Users className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground font-medium">{t("onboarding.benefits.teamReady")}</span>
             </div>
           </div>
 
@@ -921,14 +944,14 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
               className="rounded-xl"
             >
               <ArrowLeft className="mr-2 w-5 h-5" />
-              Back
+              {t("onboarding.buttons.back")}
             </Button>
             <Button
               onClick={onNext}
               size="lg"
               className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
             >
-              Create Your Workspace
+              {t("onboarding.benefits.createWorkspace")}
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
@@ -951,6 +974,7 @@ function CreateOrgStep({
   onSubmit: () => void;
   isLoading: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -958,32 +982,32 @@ function CreateOrgStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.1, type: "spring" }}
-            className="mx-auto w-16 h-16 rounded-full bg-[#166534] flex items-center justify-center mb-4"
+            className="mx-auto w-16 h-16 rounded-full bg-primary flex items-center justify-center mb-4"
           >
             <Building2 className="w-8 h-8 text-white" />
           </motion.div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 break-words px-2">
-            Create Your Organization
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground break-words px-2">
+            {t("onboarding.createOrg.title")}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
-            Tell us a bit about your company to personalize your experience
+          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words px-2">
+            {t("onboarding.createOrg.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4 max-w-xl mx-auto">
             <div className="space-y-2">
-              <Label htmlFor="orgName" className="text-sm font-medium text-gray-900">
-                Organization Name <span className="text-red-500">*</span>
+              <Label htmlFor="orgName" className="text-sm font-medium text-foreground">
+                {t("onboarding.createOrg.orgName")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="orgName"
-                placeholder="Acme Corporation"
+                placeholder={t("onboarding.createOrg.orgNamePlaceholder")}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="h-11"
@@ -992,12 +1016,12 @@ function CreateOrgStep({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="orgDescription" className="text-sm font-medium text-gray-900">
-                Description (Optional)
+              <Label htmlFor="orgDescription" className="text-sm font-medium text-foreground">
+                {t("onboarding.createOrg.descriptionLabel")}
               </Label>
               <Textarea
                 id="orgDescription"
-                placeholder="What does your organization do?"
+                placeholder={t("onboarding.createOrg.descriptionPlaceholder")}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
@@ -1005,13 +1029,13 @@ function CreateOrgStep({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="orgWebsite" className="text-sm font-medium text-gray-900">
-                Website (Optional)
+              <Label htmlFor="orgWebsite" className="text-sm font-medium text-foreground">
+                {t("onboarding.createOrg.website")}
               </Label>
               <Input
                 id="orgWebsite"
                 type="url"
-                placeholder="https://example.com"
+                placeholder={t("onboarding.createOrg.websitePlaceholder")}
                 value={formData.website}
                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 className="h-11"
@@ -1019,10 +1043,8 @@ function CreateOrgStep({
             </div>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-4 max-w-xl mx-auto">
-            <p className="text-sm text-blue-900">
-              💡 <strong>Pro tip:</strong> You can invite team members and customize your workspace later from settings.
-            </p>
+          <div className="bg-accent rounded-lg p-4 max-w-xl mx-auto">
+            <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.createOrg.proTip") }} />
           </div>
 
           <div className="flex justify-between pt-4 hidden md:flex">
@@ -1034,7 +1056,7 @@ function CreateOrgStep({
               disabled={isLoading}
             >
               <ArrowLeft className="mr-2 w-5 h-5" />
-              Back
+              {t("onboarding.buttons.back")}
             </Button>
             <Button
               onClick={onSubmit}
@@ -1045,11 +1067,11 @@ function CreateOrgStep({
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                  Creating...
+                  {t("onboarding.createOrg.creating")}
                 </>
               ) : (
                 <>
-                  Create Organization
+                  {t("onboarding.createOrg.createButton")}
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </>
               )}
@@ -1078,6 +1100,7 @@ function BrandingStep({
   onSave: () => void;
   isLoading: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1085,23 +1108,23 @@ function BrandingStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-visible">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
-            <Palette className="h-8 w-8 text-[#166534]" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Palette className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words px-2">
-            Customize Your Branding
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4 break-words px-2">
+            {t("onboarding.branding.title")}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
-            Set up your organization's colors and branding. You can always change this later.
+          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words px-2">
+            {t("onboarding.branding.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4 max-w-xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-900">Primary Color</Label>
+                <Label className="text-sm font-medium text-foreground">{t("onboarding.branding.primaryColor")}</Label>
                 <ColorPicker
                   label=""
                   value={brandingData.primaryColor}
@@ -1110,7 +1133,7 @@ function BrandingStep({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-900">Secondary Color</Label>
+                <Label className="text-sm font-medium text-foreground">{t("onboarding.branding.secondaryColor")}</Label>
                 <ColorPicker
                   label=""
                   value={brandingData.secondaryColor}
@@ -1119,7 +1142,7 @@ function BrandingStep({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-900">Accent Color</Label>
+                <Label className="text-sm font-medium text-foreground">{t("onboarding.branding.accentColor")}</Label>
                 <ColorPicker
                   label=""
                   value={brandingData.accentColor}
@@ -1128,10 +1151,8 @@ function BrandingStep({
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
-                💡 <strong>Tip:</strong> You can customize more branding options later in Settings.
-              </p>
+            <div className="bg-accent rounded-lg p-4">
+              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.branding.tip") }} />
             </div>
           </div>
 
@@ -1143,7 +1164,7 @@ function BrandingStep({
               className="rounded-xl"
             >
               <SkipForward className="mr-2 w-5 h-5" />
-              Skip for Now
+              {t("onboarding.buttons.skip")}
             </Button>
             <Button
               onClick={onSave}
@@ -1154,11 +1175,11 @@ function BrandingStep({
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                  Saving...
+                  {t("onboarding.branding.saving")}
                 </>
               ) : (
                 <>
-                  Save & Continue
+                  {t("onboarding.branding.saveContinue")}
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </>
               )}
@@ -1183,6 +1204,7 @@ function InviteStep({
   invites: Array<{ id: string; email: string; role: string; status: string }>;
   hasAdditionalUsers: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1190,28 +1212,28 @@ function InviteStep({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#166534]/10">
-            <Users className="h-8 w-8 text-[#166534]" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Users className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 break-words px-2">
-            Invite Your Team
+          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4 break-words px-2">
+            {t("onboarding.invites.title")}
           </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-gray-600 break-words px-2">
-            Invite team members to collaborate. You can always invite more people later.
+          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words px-2">
+            {t("onboarding.invites.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4 max-w-xl mx-auto">
             <div className="text-center space-y-4">
-              <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Ready to invite your team?
+              <div className="p-8 border-2 border-dashed border-border rounded-lg bg-muted">
+                <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  {t("onboarding.invites.readyToInvite")}
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Click the button below to send invitations to your team members via email.
+                <p className="text-sm text-muted-foreground mb-4">
+                  {t("onboarding.invites.inviteDescription")}
                 </p>
                 <Button
                   onClick={onInvite}
@@ -1219,32 +1241,32 @@ function InviteStep({
                   className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl mt-4"
                 >
                   <Users className="mr-2 w-5 h-5" />
-                  Invite Members
+                  {t("onboarding.invites.inviteButton")}
                 </Button>
               </div>
             </div>
 
             {invites.length > 0 && (
-              <div className="space-y-3 pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-900">Invited Members</h4>
-                <div className="space-y-2">
+              <div className="space-y-3 pt-4 border-t border-border">
+                <h4 className="text-sm font-semibold text-foreground">{t("onboarding.invites.invitedMembers")}</h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                   {invites.map((invite) => (
                     <div
                       key={invite.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#166534]/10 flex items-center justify-center">
-                          <Mail className="w-4 h-4 text-[#166534]" />
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Mail className="w-4 h-4 text-primary" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{invite.email}</p>
-                          <p className="text-xs text-gray-500">
-                            {invite.status === "sent" ? "Invitation sent" : "Pending"}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{invite.email}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {invite.status === "sent" ? t("onboarding.invites.invitationSent") : t("onboarding.invites.pending")}
                           </p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs shrink-0 ml-2">
                         {invite.role}
                       </Badge>
                     </div>
@@ -1253,10 +1275,8 @@ function InviteStep({
               </div>
             )}
 
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
-                💡 <strong>Tip:</strong> You can invite team members anytime from Settings → Team Members.
-              </p>
+            <div className="bg-accent rounded-lg p-4">
+              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.invites.tip") }} />
             </div>
           </div>
 
@@ -1269,7 +1289,7 @@ function InviteStep({
                 className="rounded-xl"
               >
                 <SkipForward className="mr-2 w-5 h-5" />
-                Skip for Now
+                {t("onboarding.buttons.skip")}
               </Button>
             )}
             {hasAdditionalUsers && (
@@ -1278,7 +1298,7 @@ function InviteStep({
                 size="lg"
                 className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
               >
-                Continue
+                {t("onboarding.buttons.continue")}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             )}
@@ -1290,13 +1310,14 @@ function InviteStep({
 }
 
 function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () => void }) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <Card className="border-white/20 bg-white/95 backdrop-blur-sm shadow-2xl overflow-hidden">
+      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
         <CardContent className="text-center space-y-6 py-12">
           <motion.div
             initial={{ scale: 0 }}
@@ -1308,32 +1329,30 @@ function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () 
           </motion.div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 break-words px-2">All Set! 🎉</h2>
-            <p className="text-base sm:text-lg text-gray-600 max-w-md mx-auto break-words px-2">
-              Your workspace <strong>{orgName}</strong> is ready to go. Let's start creating amazing invoices!
-            </p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">{t("onboarding.success.title")}</h2>
+            <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto break-words px-2" dangerouslySetInnerHTML={{ __html: t("onboarding.success.description", { orgName }) }} />
           </div>
 
           <div className="grid gap-3 max-w-md mx-auto text-left">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted">
+              <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Organization created</p>
-                <p className="text-sm text-gray-600">You're set as the owner</p>
+                <p className="font-medium text-foreground">{t("onboarding.success.orgCreated")}</p>
+                <p className="text-sm text-muted-foreground">{t("onboarding.success.orgCreatedDesc")}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted">
+              <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Ready to create invoices</p>
-                <p className="text-sm text-gray-600">Access our template designer</p>
+                <p className="font-medium text-foreground">{t("onboarding.success.readyToCreate")}</p>
+                <p className="text-sm text-muted-foreground">{t("onboarding.success.readyToCreateDesc")}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted">
+              <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Invite your team</p>
-                <p className="text-sm text-gray-600">Collaborate on projects together</p>
+                <p className="font-medium text-foreground">{t("onboarding.success.inviteTeam")}</p>
+                <p className="text-sm text-muted-foreground">{t("onboarding.success.inviteTeamDesc")}</p>
               </div>
             </div>
           </div>
@@ -1343,12 +1362,55 @@ function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () 
             size="lg"
             className="bg-[#166534] hover:bg-[#0e4424] text-white px-12 rounded-xl mt-4 hidden md:flex mx-auto"
           >
-            Go to Dashboard
+            {t("onboarding.success.goToDashboard")}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+// Simplified LanguageSelector for onboarding (without sidebar dependency)
+function OnboardingLanguageSelector() {
+  const { i18n } = useTranslation();
+
+  const languages = [
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'bg', name: 'Български', flag: '🇧🇬' },
+  ];
+
+  const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
+
+  const handleLanguageChange = (languageCode: string) => {
+    i18n.changeLanguage(languageCode);
+    localStorage.setItem('i18nextLng', languageCode);
+  };
+
+  return (
+    <Select value={i18n.language} onValueChange={handleLanguageChange}>
+      <SelectTrigger className="h-9 w-fit rounded-sm border-border/20 bg-background/50">
+        <div className="flex items-center gap-2">
+          <Languages className="h-4 w-4 shrink-0" />
+          <SelectValue>
+            <span className="flex items-center gap-1.5">
+              <span>{currentLanguage.flag}</span>
+              <span className="hidden sm:inline">{currentLanguage.name}</span>
+            </span>
+          </SelectValue>
+        </div>
+      </SelectTrigger>
+      <SelectContent>
+        {languages.map((lang) => (
+          <SelectItem key={lang.code} value={lang.code}>
+            <div className="flex items-center gap-2">
+              <span>{lang.flag}</span>
+              <span>{lang.name}</span>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

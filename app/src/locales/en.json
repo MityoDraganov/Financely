@@ -1449,7 +1449,12 @@
 				"addStep": "Add Step",
 				"noSteps": "No steps added yet. Click \"Add Step\" to get started.",
 				"step": "Step {{number}}",
-				"stepNamePlaceholder": "Step {{number}} name"
+				"stepNamePlaceholder": "Step {{number}} name",
+				"unnamedStep": "Unnamed Step {{number}}",
+				"visualView": "Visual View",
+				"listView": "List",
+				"noActions": "No actions",
+				"addFirstStep": "Add the first step"
 			},
 			"actions": {
 				"test": "Test Workflow",
@@ -2892,6 +2897,131 @@
 					"description": "Track revenue, overdue invoices, and cash flow with beautiful, actionable dashboards."
 				}
 			}
+		}
+	},
+	"onboarding": {
+		"welcome": {
+			"title": "Welcome to Financely! 🎉",
+			"description": "We're thrilled to have you here! Let's take just 2 minutes to set up your workspace and get you started on automating your finance operations.",
+			"lightningFast": "Lightning Fast",
+			"lightningFastDesc": "Create invoices in seconds, not hours",
+			"secureCompliant": "Secure & Compliant",
+			"secureCompliantDesc": "Bank-grade security for your data",
+			"teamCollaboration": "Team Collaboration",
+			"teamCollaborationDesc": "Work together seamlessly",
+			"getStarted": "Get Started"
+		},
+		"choosePath": {
+			"title": "Choose Your Path",
+			"description": "How would you like to get started with Financely?",
+			"createOrg": {
+				"title": "Create Organization",
+				"description": "Start fresh with your own organization and invite team members",
+				"button": "Create New Organization"
+			},
+			"joinOrg": {
+				"title": "Join Organization",
+				"description": "Join an existing organization using an invite code",
+				"button": "Join with Code"
+			}
+		},
+		"benefits": {
+			"title": "Everything you need to grow",
+			"description": "The complete platform that automates your revenue cycle from lead to payment",
+			"aiAutomation": {
+				"title": "AI-Powered Automation",
+				"description": "Generate proposals from leads, convert to invoices, and build websites—all with AI",
+				"highlight": "80% time saved"
+			},
+			"revenueCycle": {
+				"title": "End-to-End Revenue Cycle",
+				"description": "Capture leads → Generate proposals → Create invoices. All automated.",
+				"highlight": "10x faster"
+			},
+			"workflows": {
+				"title": "Smart Workflows",
+				"description": "Automated approvals, payment reminders, and renewals. Your business runs itself.",
+				"highlight": "Zero manual work"
+			},
+			"invoices": {
+				"title": "Professional Invoices",
+				"description": "Drag-and-drop designer creates beautiful, compliant invoices with instant PDFs",
+				"highlight": "Get paid faster"
+			},
+			"bankGrade": "Bank-grade security",
+			"gdprCompliant": "GDPR compliant",
+			"teamReady": "Team ready",
+			"createWorkspace": "Create Your Workspace"
+		},
+		"createOrg": {
+			"title": "Create Your Organization",
+			"description": "Tell us a bit about your company to personalize your experience",
+			"orgName": "Organization Name",
+			"orgNamePlaceholder": "Acme Corporation",
+			"descriptionLabel": "Description (Optional)",
+			"descriptionPlaceholder": "What does your organization do?",
+			"website": "Website (Optional)",
+			"websitePlaceholder": "https://example.com",
+			"proTip": "💡 <strong>Pro tip:</strong> You can invite team members and customize your workspace later from settings.",
+			"createButton": "Create Organization",
+			"creating": "Creating..."
+		},
+		"branding": {
+			"title": "Customize Your Branding",
+			"description": "Set up your organization's colors and branding. You can always change this later.",
+			"primaryColor": "Primary Color",
+			"secondaryColor": "Secondary Color",
+			"accentColor": "Accent Color",
+			"tip": "💡 <strong>Tip:</strong> You can customize more branding options later in Settings.",
+			"skip": "Skip for Now",
+			"saveContinue": "Save & Continue",
+			"saving": "Saving..."
+		},
+		"invites": {
+			"title": "Invite Your Team",
+			"description": "Invite team members to collaborate. You can always invite more people later.",
+			"readyToInvite": "Ready to invite your team?",
+			"inviteDescription": "Click the button below to send invitations to your team members via email.",
+			"inviteButton": "Invite Members",
+			"invitedMembers": "Invited Members",
+			"invitationSent": "Invitation sent",
+			"pending": "Pending",
+			"tip": "💡 <strong>Tip:</strong> You can invite team members anytime from Settings → Team Members.",
+			"continue": "Continue"
+		},
+		"joinOrg": {
+			"title": "Join Organization",
+			"description": "Enter the invite code you received to join an existing organization",
+			"inviteCode": "Invite Code",
+			"inviteCodePlaceholder": "Enter invite code (e.g., ABC123)",
+			"joinButton": "Join Organization",
+			"joining": "Joining..."
+		},
+		"success": {
+			"title": "All Set! 🎉",
+			"description": "Your workspace <strong>{{orgName}}</strong> is ready to go. Let's start creating amazing invoices!",
+			"orgCreated": "Organization created",
+			"orgCreatedDesc": "You're set as the owner",
+			"readyToCreate": "Ready to create invoices",
+			"readyToCreateDesc": "Access our template designer",
+			"inviteTeam": "Invite your team",
+			"inviteTeamDesc": "Collaborate on projects together",
+			"goToDashboard": "Go to Dashboard"
+		},
+		"buttons": {
+			"back": "Back",
+			"skip": "Skip for Now",
+			"continue": "Continue"
+		},
+		"messages": {
+			"enterInviteCode": "Please enter an invite code",
+			"joinFailed": "Failed to join organization. Please check your invite code.",
+			"enterOrgName": "Please enter an organization name",
+			"userNotAuthenticated": "User not authenticated",
+			"orgCreated": "Organization created successfully!",
+			"orgCreateFailed": "Failed to create organization. Please try again.",
+			"brandingSaved": "Branding saved!",
+			"brandingSaveFailed": "Failed to save branding. Continuing anyway..."
 		}
 	},
 	"layout": {

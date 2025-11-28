@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { EmailTemplateBlock } from "@/core";
-import { cn } from "@/lib/utils";
 import { Sparkles, CheckCircle2 } from "lucide-react";
 
 type AIProgressiveRendererProps = {

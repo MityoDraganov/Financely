@@ -49,8 +49,11 @@ export default function TextElement({ element, zoom }: TextElementProps) {
 				msUserSelect: "none",
 				...shadowStyle,
 			}}
-			onSelectStart={(e) => {
-				e.preventDefault();
+			onMouseDown={(e: React.MouseEvent) => {
+				// Prevent text selection
+				if (e.detail > 1) {
+					e.preventDefault();
+				}
 			}}
 		>
 			{t.text}

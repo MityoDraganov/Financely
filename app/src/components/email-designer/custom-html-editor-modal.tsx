@@ -10,7 +10,6 @@ interface CustomHtmlEditorModalProps {
 	onClose: () => void;
 	html: string;
 	onSave: (html: string) => void;
-	blockId: string;
 }
 
 export function CustomHtmlEditorModal({
@@ -18,7 +17,6 @@ export function CustomHtmlEditorModal({
 	onClose,
 	html: initialHtml,
 	onSave,
-	blockId,
 }: CustomHtmlEditorModalProps) {
 	const { t } = useTranslation();
 	const [html, setHtml] = useState(initialHtml);

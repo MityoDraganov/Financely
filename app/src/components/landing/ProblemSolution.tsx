@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { X, CheckCircle2, Clock, AlertCircle, FileX, DollarSign } from "lucide-react";
+import { X, CheckCircle2, Clock, AlertCircle, FileX } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 export function ProblemSolution(): React.ReactElement {

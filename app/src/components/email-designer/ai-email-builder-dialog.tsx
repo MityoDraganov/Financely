@@ -22,10 +22,8 @@ import { Sparkles, Loader2, Image as ImageIcon, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type { EmailTemplate, EmailTemplateData } from "@/core";
 import type { Organization } from "@/core/entities/organization";
-import { generateUniqueTemplateName } from "@/utils/template-naming";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { emailTemplateService } from "@/services/email-template-service";
-import { useFileUpload } from "@/hooks/use-file-upload";
 import { functionsService } from "@/services/functions/functions-service";
 import { cn } from "@/lib/utils";
 
@@ -76,13 +74,11 @@ export function AIEmailBuilderDialog({
 	open,
 	onOpenChange,
 	currentOrg,
-	currentTemplate,
 	templates,
 	generateTemplate,
 	onTemplateCreated,
 	products = [],
 	galleryImages = [],
-	onProgress,
 }: AIEmailBuilderDialogProps) {
 	const { t } = useTranslation();
 	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional">("modern");
@@ -93,7 +89,6 @@ export function AIEmailBuilderDialog({
 	const [selectedGalleryImages, setSelectedGalleryImages] = useState<string[]>([]);
 	const [selectedLogo, setSelectedLogo] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const fileUpload = useFileUpload();
 
 	// Initialize logo from organization settings
 	const organizationLogo = currentOrg?.settings?.branding?.customLogo || currentOrg?.logoUrl || null;
@@ -246,8 +241,18 @@ export function AIEmailBuilderDialog({
 			});
 
 			const baseName = generatedTemplate.name || t("emailDesigner.aiBuilder.defaultName");
-			const uniqueName = generateUniqueTemplateName(baseName, templates);
-			const templateWithUniqueName = {
+			// Generate unique name by checking existing email template names
+			const existingNames = new Set(templates.map((t) => t.name?.toLowerCase().trim() || ""));
+			let uniqueName = baseName;
+			if (existingNames.has(baseName.toLowerCase().trim())) {
+				let counter = 1;
+				do {
+					uniqueName = `${baseName} (${counter})`;
+					counter++;
+				} while (existingNames.has(uniqueName.toLowerCase().trim()));
+			}
+			
+			const templateWithUniqueName: EmailTemplateData = {
 				...generatedTemplate,
 				name: uniqueName,
 			};

@@ -251,8 +251,8 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       const [pdfBuffer] = await file.download();
 
       // Extract invoice data for email
-      const invoiceData = invoice.data as Record<string, unknown>;
-      const buyer = (invoiceData.buyer || invoiceData.customer) as Record<string, unknown> | undefined;
+      const invoiceData = invoice.data as Record<string, InvoiceDataValue>;
+      const buyer = (invoiceData.buyer || invoiceData.customer) as Record<string, InvoiceDataValue> | undefined;
       
       const invoiceNumber = invoiceData.invoiceNumber as string || invoice.id;
       const customerName = (buyer?.name as string) || "Customer";
@@ -278,9 +278,9 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       });
 
       // Generate email content
-      let subject: string;
-      let html: string;
-      let text: string;
+      let subject = `Invoice #${invoiceNumber} - Payment Due`;
+      let html = "";
+      let text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
 
       // Check if custom email template is provided
       if (emailTemplateId && invoice.templateId) {
@@ -353,7 +353,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       }
 
       // Use default template if custom template not provided or failed
-      if (!html) {
+      if (!html || html === "") {
         if (brandingConfig) {
           // Use branded email template
           subject = `Invoice #${invoiceNumber} - Payment Due`;

@@ -9,10 +9,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Settings } from "lucide-react";
-import { EmailTemplate, EmailTemplatePlaceholder } from "@/core";
+import { EmailTemplate } from "@/core";
 import { EmailTemplateMappingDialog } from "./email-template-mapping-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { getEmailTemplateRealtimeRepository } from "@/repositories/email-template-realtime-repository";
 import { getEmailTemplateMappingRepository } from "@/repositories/email-template-mapping-repository";
@@ -55,17 +54,17 @@ export function EmailTemplateSelector({
 			const result = await emailTemplateRepository.getAll({
 				queryConstraints: [{ field: "orgId", operator: "==", value: orgId }],
 			});
-			return Array.isArray(result) ? result : result?.data || [];
+			return Array.isArray(result) ? result : [];
 		},
 		enabled: !!orgId,
 	});
 
-	const templates = emailTemplates || [];
+	const templates: EmailTemplate[] = useMemo(() => emailTemplates || [], [emailTemplates]);
 
 	// Fetch selected template
 	const selectedTemplate = useMemo(() => {
 		if (!selectedTemplateId) return undefined;
-		return templates.find((t) => t.id === selectedTemplateId);
+		return templates.find((t: EmailTemplate) => t.id === selectedTemplateId);
 	}, [selectedTemplateId, templates]);
 
 	// Fetch existing mapping
@@ -153,7 +152,7 @@ export function EmailTemplateSelector({
 					<SelectValue placeholder={t("emailTemplateSelector.placeholder", "Select email template")} />
 				</SelectTrigger>
 				<SelectContent>
-					{templates.map((template) => (
+					{templates.map((template: EmailTemplate) => (
 						<SelectItem key={template.id} value={template.id}>
 							{template.name}
 						</SelectItem>

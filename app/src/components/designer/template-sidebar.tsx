@@ -268,7 +268,7 @@ export function TemplateSidebar({
 									<ContextMenuTrigger asChild>
 										<div
 											className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-lg cursor-pointer truncate transition-all duration-200 ${
-												state.selectedElementId === el.id
+												state.selectedElementIds?.includes(el.id)
 													? "bg-primary/10 dark:bg-primary/20 text-primary border-2 border-primary/30 dark:border-primary/50 shadow-md"
 													: "hover:bg-accent hover:shadow-sm border border-transparent hover:border-border"
 											} ${isRequiredField ? "ring-1 ring-amber-400/50 dark:ring-amber-500/50" : ""}`}

@@ -86,10 +86,10 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
     function renderElement(el: TemplateElement) {
         const commonStyle: React.CSSProperties = {
             position: "absolute",
-            left: el.x * zoom,
-            top: el.y * zoom,
-            width: el.width * zoom,
-            height: el.height * zoom,
+            left: el.x,
+            top: el.y,
+            width: el.width,
+            height: el.height,
             transform: `rotate(${el.rotation}deg)`,
             display: el.visible ? undefined : "none",
             zIndex: el.zIndex ?? 0,
@@ -109,7 +109,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                     <div
                         style={{
                             fontFamily: t.typography.fontFamily,
-                            fontSize: t.typography.fontSize * zoom,
+                            fontSize: t.typography.fontSize,
                             fontWeight: t.typography.fontWeight,
                             lineHeight: t.typography.lineHeight,
                             letterSpacing: t.typography.letterSpacing,
@@ -142,7 +142,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                     {imageSrc ? (
                         <img src={imageSrc} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: img.objectFit }} />
                     ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", color: "#6b7280", fontSize: 12 * zoom }}>
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", color: "#6b7280", fontSize: 12 }}>
                             No Image
                         </div>
                     )}
@@ -183,8 +183,8 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                             height: "100%",
                             border: "1px solid #d1d5db",
                             borderRadius: "4px",
-                            padding: `${4 * zoom}px ${8 * zoom}px`,
-                            fontSize: 12 * zoom,
+                            padding: `4px 8px`,
+                            fontSize: 12,
                             color: displayValue ? "#111827" : "#9ca3af",
                             backgroundColor: "#ffffff",
                             display: "flex",
@@ -232,19 +232,19 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                             height: "100%",
                             border: "1px solid #d1d5db",
                             borderRadius: "4px",
-                            padding: `${4 * zoom}px ${8 * zoom}px`,
-                            fontSize: 12 * zoom,
+                            padding: `4px 8px`,
+                            fontSize: 12,
                             color: displayValue ? "#111827" : "#9ca3af",
                             backgroundColor: "#ffffff",
                             display: "flex",
                             alignItems: "center",
-                            gap: `${4 * zoom}px`,
+                            gap: `4px`,
                             textAlign,
                             overflow: "hidden",
                             boxSizing: "border-box",
                         }}
                     >
-                        <span style={{ fontSize: 10 * zoom, color: "#6b7280", fontWeight: 500 }}>
+                        <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>
                             {curr.currency || "USD"}
                         </span>
                         <span style={{ flex: 1 }}>
@@ -259,25 +259,25 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             const tbl = el as Extract<TemplateElement, { type: "table" }>;
             const items = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];
             // Calculate dynamic table height based on actual content (no scrolling for PDF/print)
-            const headerHeight = tbl.headerHeight * zoom;
-            const minRowHeight = tbl.rowHeight * zoom;
+            const headerHeight = tbl.headerHeight;
+            const minRowHeight = tbl.rowHeight;
             const actualContentHeight = items.length * minRowHeight;
             // Table height should be header + content (no clamping for PDF/print compatibility)
             const totalTableHeight = headerHeight + actualContentHeight;
             
             return (
                 <div key={tbl.id} style={{ ...commonStyle, height: totalTableHeight }}>
-                    <div style={{ width: "100%", height: "100%", fontSize: 10 * zoom, color: "#374151", overflow: "visible", display: "flex", flexDirection: "column" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: "1px solid #e5e7eb", height: tbl.headerHeight * zoom }}>
+                    <div style={{ width: "100%", height: "100%", fontSize: 10, color: "#374151", overflow: "visible", display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width}px`).join(" ") : "1fr", borderBottom: "1px solid #e5e7eb", height: tbl.headerHeight }}>
                             {tbl.columns.map((c) => (
-                                <div key={c.id} style={{ display: "flex", alignItems: "center", padding: `${4 * zoom}px`, fontWeight: 600 }}>
+                                <div key={c.id} style={{ display: "flex", alignItems: "center", padding: `4px`, fontWeight: 600 }}>
                                     {c.header}
                                 </div>
                             ))}
                         </div>
                         <div style={{ flex: 1, minHeight: 0, overflow: "visible" }}>
                             {items.map((row, idx) => (
-                                <div key={idx} style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", borderBottom: tbl.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb", minHeight: tbl.rowHeight * zoom, padding: `${4 * zoom}px 0` }}>
+                                <div key={idx} style={{ display: "grid", gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width}px`).join(" ") : "1fr", borderBottom: tbl.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb", minHeight: tbl.rowHeight, padding: `4px 0` }}>
                                     {tbl.columns.map((c) => {
                                         const columnBinding = c.binding || c.id;
                                         const raw = getByPath<unknown>(row, columnBinding);
@@ -307,7 +307,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                         const justify = c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start";
                                         
                                         return (
-                                            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `${4 * zoom}px`, wordBreak: "break-word", overflowWrap: "break-word", minHeight: `${20 * zoom}px` }}>
+                                            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: justify, padding: `4px`, wordBreak: "break-word", overflowWrap: "break-word", minHeight: `20px` }}>
                                                 {text}
                                             </div>
                                         );
@@ -319,9 +319,9 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                             {tbl.columns.some((c) => c.showTotal) && (
                                 <div style={{ 
                                     display: "grid", 
-                                    gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr", 
+                                    gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width}px`).join(" ") : "1fr", 
                                     borderBottom: "1px solid #e5e7eb",
-                                    height: tbl.rowHeight * zoom,
+                                    height: tbl.rowHeight,
                                 }}>
                                     {tbl.columns.map((c) => {
                                         let text = "";
@@ -329,7 +329,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
-                                            padding: `${4 * zoom}px`,
+                                            padding: `4px`,
                                         };
                                         
                                         if (c.showTotal && (c.type === "number" || c.type === "currency")) {
@@ -364,7 +364,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                                                         cellStyle.fontWeight = c.totalStyle.fontWeight;
                                                     }
                                                     if (c.totalStyle.fontSize) {
-                                                        cellStyle.fontSize = c.totalStyle.fontSize * zoom;
+                                                        cellStyle.fontSize = c.totalStyle.fontSize;
                                                     }
                                                     if (c.totalStyle.borderTop) {
                                                         cellStyle.borderTop = c.totalStyle.borderTop;
@@ -411,8 +411,8 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         let positionStyle: React.CSSProperties = {};
         if (watermark.x !== undefined && watermark.y !== undefined) {
             positionStyle = {
-                left: watermark.x * zoom,
-                top: watermark.y * zoom,
+                left: watermark.x,
+                top: watermark.y,
                 transform: `translate(0, 0) rotate(${watermark.rotation}deg)`,
             };
         } else {
@@ -434,8 +434,8 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             positionStyle = positions[watermark.position] || positions.center;
         }
 
-        const width = (watermark.width || 200) * zoom;
-        const height = watermark.height ? watermark.height * zoom : undefined;
+        const width = watermark.width || 200;
+        const height = watermark.height;
         const opacity = watermark.opacity ?? 0.1;
         const repeat = watermark.repeat || "none";
 
@@ -508,7 +508,7 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                         opacity,
                         pointerEvents: "none",
                         zIndex: 0,
-                        fontSize: Math.max(24, width / 10) * zoom,
+                        fontSize: Math.max(24, width / 10),
                         fontWeight: "bold",
                         color: "#999999",
                         textAlign: "center",
@@ -525,7 +525,12 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         <div className="grid place-items-center">
             <div
                 className="bg-white dark:bg-neutral-900 shadow relative border border-border"
-                style={{ width: size.w * zoom, height: size.h * zoom }}
+                style={{
+                    width: size.w,
+                    height: size.h,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: "top left",
+                }}
             >
                 {watermarkElement}
                 {(template.elements ?? []).map((el) => renderElement(el))}

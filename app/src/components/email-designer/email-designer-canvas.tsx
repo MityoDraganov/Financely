@@ -130,7 +130,6 @@ export function EmailDesignerCanvas({
 					onClose={() => setEditingBlockId(null)}
 					html={(editingBlock as Extract<EmailTemplateBlock, { type: "rawHtml" }>).html || ""}
 					onSave={handleSaveCustomHtml}
-					blockId={editingBlock.id}
 				/>
 			)}
             <div

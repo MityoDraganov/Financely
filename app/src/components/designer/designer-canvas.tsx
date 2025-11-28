@@ -129,14 +129,6 @@ export function DesignerCanvas({
 				onDragOver={onDragOver}
 				onDrop={onDrop}
 				onMouseMove={onMouseMove}
-				onClick={(e) => {
-					// Deselect all when clicking on empty canvas (not on an element)
-					// Elements stop propagation, so if we reach here, it's empty space
-					onSelectElement("", e);
-					// Elements stop propagation, so if we reach here, it's empty space
-					// Just deselect - elements will have already handled their own clicks
-					onSelectElement("");
-				}}
 			>
 				{/* Grid */}
 				<div
@@ -217,13 +209,15 @@ export function DesignerCanvas({
 									onPointerDown={(e) => {
 										if (e.button !== 0) return;
 										// Don't prevent default here - we need click events to fire
-										// We'll prevent text selection via CSS and onSelectStart
+										// We'll prevent text selection via CSS
 										// Only start drag if there's actual movement (handled in pointer move)
 										onStartDrag(el, e);
 									}}
-									onSelectStart={(e) => {
+									onMouseDown={(e: React.MouseEvent) => {
 										// Prevent text selection
-										e.preventDefault();
+										if (e.detail > 1) {
+											e.preventDefault();
+										}
 									}}
 									onClick={(e) => {
 										e.stopPropagation(); // Prevent page onClick from firing
