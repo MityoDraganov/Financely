@@ -16,6 +16,7 @@ import { realtimeDatabaseService } from "../infrastructure/realtime-database-ser
 import { getGenericRepository } from "../repositories/generic-repository";
 import { DatabaseCollection } from "../repositories/config";
 import type { InvoiceDataValue } from "../core";
+import { processEmailTemplate } from "../utils/email-template-processor";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -49,86 +50,6 @@ interface SendInvoiceEmailPayload {
   emailTemplateId?: string;
 }
 
-/**
- * Get a value from invoice data using a binding path
- */
-function getBindingValue(
-  data: Record<string, InvoiceDataValue>,
-  binding: string
-): InvoiceDataValue | undefined {
-  const parts = binding.split(".");
-  let current: InvoiceDataValue = data;
-
-  for (const part of parts) {
-    if (current == null || typeof current !== "object" || Array.isArray(current) || !(part in current)) {
-      return undefined;
-    }
-    current = current[part];
-  }
-
-  return current;
-}
-
-/**
- * Format a value for display in email
- */
-function formatValueForEmail(value: InvoiceDataValue | undefined): string {
-  if (value === undefined || value === null) {
-    return "";
-  }
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number") {
-    return value.toString();
-  }
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => {
-      if (typeof item === "object" && item !== null) {
-        return JSON.stringify(item);
-      }
-      return String(item);
-    }).join(", ");
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
-/**
- * Replace placeholders in email template HTML with invoice values
- */
-function replacePlaceholdersInTemplate(
-  html: string,
-  subject: string,
-  preheader: string | undefined,
-  mappings: Record<string, string>,
-  invoiceData: Record<string, InvoiceDataValue>
-): { html: string; subject: string; preheader: string } {
-  let processedHtml = html;
-  let processedSubject = subject;
-  let processedPreheader = preheader || "";
-
-  // Replace placeholders in HTML, subject, and preheader
-  for (const [placeholderKey, bindingPath] of Object.entries(mappings)) {
-    const placeholderPattern = new RegExp(`\\{\\{${placeholderKey}\\}\\}`, "g");
-    const value = formatValueForEmail(getBindingValue(invoiceData, bindingPath));
-    
-    processedHtml = processedHtml.replace(placeholderPattern, value);
-    processedSubject = processedSubject.replace(placeholderPattern, value);
-    processedPreheader = processedPreheader.replace(placeholderPattern, value);
-  }
-
-  return {
-    html: processedHtml,
-    subject: processedSubject,
-    preheader: processedPreheader,
-  };
-}
 
 /**
  * Firebase Cloud Function for sending an invoice via email.
@@ -316,13 +237,19 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
               const templateSubject = emailTemplate.subject || `Invoice #${invoiceNumber}`;
               const templatePreheader = emailTemplate.preheader || "";
 
-              // Replace placeholders with invoice values
-              const processed = replacePlaceholdersInTemplate(
-                templateHtml,
-                templateSubject,
-                templatePreheader,
+              // Use centralized email template processor
+              const processed = processEmailTemplate(
+                {
+                  html: templateHtml,
+                  subject: templateSubject,
+                  preheader: templatePreheader,
+                },
                 mapping.mappings,
-                invoiceData
+                invoiceData as Record<string, unknown>,
+                {
+                  escapeHtml: true,
+                  enableLogging: true,
+                }
               );
 
               subject = processed.subject;

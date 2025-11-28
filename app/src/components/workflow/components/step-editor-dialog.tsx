@@ -349,9 +349,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    recipients: emails,
+                                  recipients: emails,
                                   },
                                 };
                               })
@@ -369,9 +369,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    subject: e.target.value,
+                                  subject: e.target.value,
                                   },
                                 };
                               })
@@ -389,9 +389,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    body: e.target.value,
+                                  body: e.target.value,
                                   },
                                 };
                               })
@@ -412,9 +412,9 @@ export function StepEditorDialog({
 
                                   return {
                                     ...currentAction,
-                                    config: {
+                                  config: {
                                       ...currentAction.config,
-                                      isHtml: e.target.checked,
+                                    isHtml: e.target.checked,
                                     },
                                   };
                                 })
@@ -441,9 +441,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    url: e.target.value,
+                                  url: e.target.value,
                                   },
                                 };
                               })
@@ -461,9 +461,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    method: value as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
+                                  method: value as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
                                   },
                                 };
                               })
@@ -498,9 +498,9 @@ export function StepEditorDialog({
 
                                 return {
                                   ...currentAction,
-                                  config: {
+                                config: {
                                     ...currentAction.config,
-                                    delaySeconds: parseInt(e.target.value, 10) || 0,
+                                  delaySeconds: parseInt(e.target.value, 10) || 0,
                                   },
                                 };
                               })

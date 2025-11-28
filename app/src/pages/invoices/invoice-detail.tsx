@@ -345,6 +345,7 @@ export default function InvoiceDetailPage() {
                                         entityType="invoice"
                                         availableBindings={availableBindings}
                                         selectedTemplateId={selectedEmailTemplateId}
+                                        entityData={invoice.data}
                                         onTemplateChange={setSelectedEmailTemplateId}
                                     />
                                 )}
