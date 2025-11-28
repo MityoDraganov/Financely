@@ -299,6 +299,15 @@ export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
 
 export type EmailTemplateBlock = z.infer<typeof emailTemplateBlockSchema>;
 
+export const emailTemplatePlaceholderSchema = z.object({
+  id: z.string().min(1),
+  key: z.string().min(1),
+  label: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export type EmailTemplatePlaceholder = z.infer<typeof emailTemplatePlaceholderSchema>;
+
 export const emailTemplateDesignTokensSchema = z.object({
   background: z.string().default("#ffffff"),
   surface: z.string().default("#f8fafc"),
@@ -328,6 +337,7 @@ export const emailTemplateDataSchema = z.object({
   // Blocks are derived from HTML for visual editing (not stored)
   blocks: z.array(emailTemplateBlockSchema).default([]),
   designTokens: emailTemplateDesignTokensSchema.default({}),
+  placeholders: z.array(emailTemplatePlaceholderSchema).default([]),
   // Sections structure - for organizing blocks
   sections: z.object({
     header: z.array(z.string()).default([]), // Array of block IDs

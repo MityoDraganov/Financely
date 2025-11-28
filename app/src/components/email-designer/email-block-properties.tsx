@@ -1,4 +1,6 @@
-import { EmailTemplateBlock } from "@/core";
+import { useRef, useMemo } from "react";
+import type { ReactNode } from "react";
+import { EmailTemplateBlock, EmailTemplatePlaceholder, EmailTypography, EmailBorder } from "@/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -8,10 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus } from "lucide-react";
+import { Plus, Braces } from "lucide-react";
 import { parseNumber } from "@/lib/field-formatting";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type EmailBlockPropertiesProps = {
   block?: EmailTemplateBlock;
@@ -19,6 +30,9 @@ type EmailBlockPropertiesProps = {
   onDelete: (blockId: string) => void;
   onAddNestedBlock?: (parentBlockId: string, blockType: EmailTemplateBlock["type"], columnId?: string) => void;
 	onOpenImagePicker?: (blockId: string) => void;
+	placeholders: EmailTemplatePlaceholder[];
+	invalidPlaceholders?: string[];
+	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
 };
 
 // Helper function to get default typography
@@ -52,7 +66,224 @@ const getDefaultBorder = () => ({
   borderRadius: 0,
 });
 
-export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock, onOpenImagePicker }: EmailBlockPropertiesProps) {
+const insertTokenAtCursor = (
+	field: HTMLInputElement | HTMLTextAreaElement | null,
+	currentValue: string,
+	onChange: (value: string) => void,
+	placeholderKey: string,
+) => {
+	if (!field) return;
+	const token = `{{${placeholderKey}}}`;
+	const selectionStart = field.selectionStart ?? currentValue.length;
+	const selectionEnd = field.selectionEnd ?? currentValue.length;
+	const nextValue =
+		currentValue.slice(0, selectionStart) + token + currentValue.slice(selectionEnd);
+	onChange(nextValue);
+	requestAnimationFrame(() => {
+		field.focus();
+		const cursorPosition = selectionStart + token.length;
+		field.selectionStart = cursorPosition;
+		field.selectionEnd = cursorPosition;
+	});
+};
+
+type PlaceholderInsertButtonProps = {
+	placeholders: EmailTemplatePlaceholder[];
+	onInsert: (key: string) => void;
+	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
+};
+
+const PlaceholderInsertButton = ({
+	placeholders,
+	onInsert,
+	onAddPlaceholder,
+}: PlaceholderInsertButtonProps) => {
+	const handleInsert = (key: string) => {
+		onInsert(key);
+	};
+
+	// Memoize menu items to ensure they update when placeholders change
+	const menuItems = useMemo(() => {
+		if (placeholders.length === 0) {
+			return (
+				<DropdownMenuItem disabled>
+					No placeholders yet
+				</DropdownMenuItem>
+			);
+		}
+		return placeholders.map((placeholder) => (
+			<DropdownMenuItem
+				key={placeholder.id}
+				onSelect={(event) => {
+					event.preventDefault();
+					handleInsert(placeholder.key);
+				}}
+			>
+				{placeholder.key}
+			</DropdownMenuItem>
+		));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [placeholders]);
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline" size="icon" title="Insert placeholder">
+					<Braces className="h-4 w-4" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-48">
+				{menuItems}
+				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					onSelect={(event) => {
+						event.preventDefault();
+						const created = onAddPlaceholder();
+						if (created) {
+							handleInsert(created.key);
+						}
+					}}
+				>
+					+ Create placeholder
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+};
+
+type PlaceholderTextareaFieldProps = {
+	label: ReactNode;
+	value: string;
+	onChange: (value: string) => void;
+	rows?: number;
+	placeholders: EmailTemplatePlaceholder[];
+	invalidPlaceholders?: string[];
+	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
+};
+
+const PlaceholderTextareaField = ({
+	label,
+	value,
+	onChange,
+	rows = 3,
+	placeholders,
+	invalidPlaceholders,
+	onAddPlaceholder,
+}: PlaceholderTextareaFieldProps) => {
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const handleInsert = (key: string) => {
+		insertTokenAtCursor(textareaRef.current, value, onChange, key);
+	};
+	return (
+		<div className="space-y-2">
+			{invalidPlaceholders && invalidPlaceholders.length > 0 && (
+				<Alert variant="destructive" className="text-xs">
+					<AlertCircle className="h-3.5 w-3.5" />
+					<AlertTitle className="text-xs font-semibold">Invalid placeholder patterns detected</AlertTitle>
+					<AlertDescription className="text-xs">
+						<p className="mb-1.5">The template contains empty placeholder patterns like <code className="rounded bg-background px-1 py-0.5 text-[10px]">{"{{}}"}</code> that must be fixed before saving.</p>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={() => {
+								const created = onAddPlaceholder();
+								if (created) {
+									handleInsert(created.key);
+								}
+							}}
+						>
+							<Plus className="h-3 w-3 mr-1" />
+							Add placeholder key
+						</Button>
+					</AlertDescription>
+				</Alert>
+			)}
+			<div className="flex items-center justify-between gap-2">
+				<Label>{label}</Label>
+				<PlaceholderInsertButton
+					placeholders={placeholders}
+					onAddPlaceholder={onAddPlaceholder}
+					onInsert={handleInsert}
+				/>
+			</div>
+			<Textarea
+				ref={textareaRef}
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+				rows={rows}
+			/>
+		</div>
+	);
+};
+
+type PlaceholderInputFieldProps = {
+	label: ReactNode;
+	value: string;
+	onChange: (value: string) => void;
+	type?: string;
+	placeholders: EmailTemplatePlaceholder[];
+	invalidPlaceholders?: string[];
+	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
+};
+
+const PlaceholderInputField = ({
+	label,
+	value,
+	onChange,
+	type = "text",
+	placeholders,
+	invalidPlaceholders,
+	onAddPlaceholder,
+}: PlaceholderInputFieldProps) => {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	const handleInsert = (key: string) => {
+		insertTokenAtCursor(inputRef.current, value, onChange, key);
+	};
+	return (
+		<div className="space-y-2">
+			{invalidPlaceholders && invalidPlaceholders.length > 0 && (
+				<Alert variant="destructive" className="text-xs">
+					<AlertCircle className="h-3.5 w-3.5" />
+					<AlertTitle className="text-xs font-semibold">Invalid placeholder patterns detected</AlertTitle>
+					<AlertDescription className="text-xs">
+						<p className="mb-1.5">The template contains empty placeholder patterns like <code className="rounded bg-background px-1 py-0.5 text-[10px]">{"{{}}"}</code> that must be fixed before saving.</p>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={() => {
+								const created = onAddPlaceholder();
+								if (created) {
+									handleInsert(created.key);
+								}
+							}}
+						>
+							<Plus className="h-3 w-3 mr-1" />
+							Add placeholder key
+						</Button>
+					</AlertDescription>
+				</Alert>
+			)}
+			<div className="flex items-center justify-between gap-2">
+				<Label>{label}</Label>
+				<PlaceholderInsertButton
+					placeholders={placeholders}
+					onAddPlaceholder={onAddPlaceholder}
+					onInsert={handleInsert}
+				/>
+			</div>
+			<Input
+				ref={inputRef}
+				type={type}
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+			/>
+		</div>
+	);
+};
+
+export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock, onOpenImagePicker, placeholders, invalidPlaceholders, onAddPlaceholder }: EmailBlockPropertiesProps) {
   const { t } = useTranslation();
 
   if (!block) {
@@ -74,7 +305,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
     if (!supportsTypography) return null;
     
     // Type guard to ensure typography exists
-    const blockWithTypography = block as Extract<EmailTemplateBlock, { typography?: any }>;
+    const blockWithTypography = block as Extract<EmailTemplateBlock, { typography?: EmailTypography }>;
     const typography = (blockWithTypography.typography || getDefaultTypography());
     
     if (!typography) return null;
@@ -401,7 +632,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
     if (!supportsBorder) return null;
     
     // Type guard to ensure border exists
-    const blockWithBorder = block as Extract<EmailTemplateBlock, { border?: any }>;
+    const blockWithBorder = block as Extract<EmailTemplateBlock, { border?: EmailBorder }>;
     const border = (blockWithBorder.border || getDefaultBorder());
     
     if (!border) return null;
@@ -438,8 +669,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                   value={border.borderRadius}
                   onChange={(e) => {
                     const parsed = parseNumber(e.target.value, false);
-                    const updated = { ...block, border: { ...border, borderRadius: parsed } };
-                    onChange(updated as EmailTemplateBlock);
+                    if (parsed !== undefined) {
+                      const updated = { ...block, border: { ...border, borderRadius: parsed } };
+                      onChange(updated as EmailTemplateBlock);
+                    }
                   }}
                   className="h-8"
                 />
@@ -536,14 +769,15 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
             {/* Content/Base Properties */}
             {(block.type === "subject" || block.type === "preheader") && (
               <>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.textContent")}</Label>
-                  <Textarea
-                    value={block.content}
-                    onChange={(e) => onChange({ ...block, content: e.target.value })}
-                    rows={3}
-                  />
-                </div>
+                <PlaceholderTextareaField
+									label={t("emailDesigner.properties.textContent")}
+									value={block.content}
+									onChange={(value) => onChange({ ...block, content: value })}
+									rows={3}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t("emailDesigner.properties.backgroundColor")}</Label>
                   <div className="flex gap-2">
@@ -571,14 +805,15 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
             )}
             {block.type === "text" && (
               <>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.textContent")}</Label>
-                  <Textarea
-                    value={block.content}
-                    onChange={(e) => onChange({ ...block, content: e.target.value })}
-                    rows={4}
-                  />
-                </div>
+                <PlaceholderTextareaField
+									label={t("emailDesigner.properties.textContent")}
+									value={block.content}
+									onChange={(value) => onChange({ ...block, content: value })}
+									rows={4}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.alignment")}</Label>
                   <Select
@@ -634,20 +869,22 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
 
             {block.type === "button" && (
               <>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.label")}</Label>
-                  <Input
-                    value={block.label}
-                    onChange={(e) => onChange({ ...block, label: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.url")}</Label>
-                  <Input
-                    value={block.url}
-                    onChange={(e) => onChange({ ...block, url: e.target.value })}
-                  />
-                </div>
+                <PlaceholderInputField
+									label={t("emailDesigner.properties.label")}
+									value={block.label}
+									onChange={(value) => onChange({ ...block, label: value })}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
+                <PlaceholderInputField
+									label={t("emailDesigner.properties.url")}
+									value={block.url}
+									onChange={(value) => onChange({ ...block, url: value })}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>{t("emailDesigner.properties.variant")}</Label>
@@ -713,7 +950,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       value={block.buttonHeight || 44}
                       onChange={(e) => {
                         const parsed = parseNumber(e.target.value, false);
-                        onChange({ ...block, buttonHeight: parsed });
+                        if (parsed !== undefined) {
+                          onChange({ ...block, buttonHeight: parsed });
+                        }
                       }}
                     />
                   </div>
@@ -889,7 +1128,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       value={block.width}
                       onChange={(e) => {
                         const parsed = parseNumber(e.target.value, false);
-                        onChange({ ...block, width: parsed });
+                        if (parsed !== undefined) {
+                          onChange({ ...block, width: parsed });
+                        }
                       }}
                     />
                   </div>
@@ -963,7 +1204,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     value={block.borderRadius || 0}
                     onChange={(e) => {
                       const parsed = parseNumber(e.target.value, false);
-                      onChange({ ...block, borderRadius: parsed });
+                      if (parsed !== undefined) {
+                        onChange({ ...block, borderRadius: parsed });
+                      }
                     }}
                   />
                 </div>
@@ -1098,7 +1341,9 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     value={(block as Extract<EmailTemplateBlock, { type: "logo" }>).borderRadius || 0}
                     onChange={(e) => {
                       const parsed = parseNumber(e.target.value, false);
-                      onChange({ ...block, borderRadius: parsed } as EmailTemplateBlock);
+                      if (parsed !== undefined) {
+                        onChange({ ...block, borderRadius: parsed } as EmailTemplateBlock);
+                      }
                     }}
                   />
                 </div>
@@ -1199,14 +1444,17 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
 
             {block.type === "footerText" && (
               <>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.textContent")}</Label>
-                  <Textarea
-                    value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).content}
-                    onChange={(e) => onChange({ ...block, content: e.target.value } as EmailTemplateBlock)}
-                    rows={4}
-                  />
-                </div>
+                <PlaceholderTextareaField
+									label={t("emailDesigner.properties.textContent")}
+									value={(block as Extract<EmailTemplateBlock, { type: "footerText" }>).content}
+									onChange={(value) =>
+										onChange({ ...block, content: value } as EmailTemplateBlock)
+									}
+									rows={4}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.alignment")}</Label>
                   <Select
@@ -1362,20 +1610,26 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
 
             {block.type === "unsubscribe" && (
               <>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.text")}</Label>
-                  <Input
-                    value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).text}
-                    onChange={(e) => onChange({ ...block, text: e.target.value } as EmailTemplateBlock)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.url")}</Label>
-                  <Input
-                    value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).url}
-                    onChange={(e) => onChange({ ...block, url: e.target.value } as EmailTemplateBlock)}
-                  />
-                </div>
+                <PlaceholderInputField
+									label={t("emailDesigner.properties.text")}
+									value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).text}
+									onChange={(value) =>
+										onChange({ ...block, text: value } as EmailTemplateBlock)
+									}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
+                <PlaceholderInputField
+									label={t("emailDesigner.properties.url")}
+									value={(block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>).url}
+									onChange={(value) =>
+										onChange({ ...block, url: value } as EmailTemplateBlock)
+									}
+									placeholders={placeholders}
+									invalidPlaceholders={invalidPlaceholders}
+									onAddPlaceholder={onAddPlaceholder}
+								/>
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.alignment")}</Label>
                   <Select

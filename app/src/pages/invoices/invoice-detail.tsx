@@ -1,18 +1,24 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useQuery } from "@tanstack/react-query";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { Link as LinkIcon, Send, Loader2, Copy, Check } from "lucide-react";
 import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink } from "@/hooks";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { toast } from "sonner";
+import { EmailTemplateSelector } from "@/components/email-template/email-template-selector";
+import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
+import type { TemplateElement } from "@/core";
 
 const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesReposity(databaseService);
+const templateRepository = getTemplateRealtimeRepository();
 
 export default function InvoiceDetailPage() {
     const { t } = useTranslation();
@@ -21,12 +27,117 @@ export default function InvoiceDetailPage() {
     const [email, setEmail] = useState<string>("");
     const [shareLink, setShareLink] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [selectedEmailTemplateId, setSelectedEmailTemplateId] = useState<string | undefined>(undefined);
+
+    const { data: currentOrg } = useCurrentOrganization();
 
     const { data: invoice } = useQuery({
         queryKey: ["invoices", id],
         queryFn: () => invoiceRepository.get({ id }),
         enabled: !!id,
     });
+
+    // Fetch invoice template
+    const { data: invoiceTemplate, error: invoiceTemplateError, isLoading: isLoadingTemplate } = useQuery({
+        queryKey: ["templates", invoice?.templateId],
+        queryFn: async () => {
+            if (!invoice?.templateId) {
+                console.log("[INVOICE-DETAIL] No templateId in invoice:", invoice);
+                return null;
+            }
+            console.log("[INVOICE-DETAIL] Fetching template with ID:", invoice.templateId);
+            try {
+                const template = await templateRepository.get({ id: invoice.templateId });
+                console.log("[INVOICE-DETAIL] Template fetched:", template);
+                return template;
+            } catch (error) {
+                console.error("[INVOICE-DETAIL] Error fetching template:", error);
+                throw error;
+            }
+        },
+        enabled: !!invoice?.templateId,
+    });
+
+    console.log("[INVOICE-DETAIL] Invoice:", invoice);
+    console.log("[INVOICE-DETAIL] Invoice templateId:", invoice?.templateId);
+    console.log("[INVOICE-DETAIL] Invoice template:", invoiceTemplate);
+    console.log("[INVOICE-DETAIL] Invoice template error:", invoiceTemplateError);
+    console.log("[INVOICE-DETAIL] Is loading template:", isLoadingTemplate);
+
+    // Extract bindings from invoice template
+    const availableBindings = useMemo(() => {
+        if (!invoiceTemplate?.elements) return [];
+
+        const fields = new Map<string, { path: string; label: string; type: "text" | "number" | "date" }>();
+        const elements = invoiceTemplate.elements;
+
+        for (const element of elements) {
+            let binding: string | undefined;
+            let type: "text" | "number" | "date" = "text";
+
+            if (element.type === "text") {
+                const textEl = element as Extract<TemplateElement, { type: "text" }>;
+                binding = textEl.binding;
+            } else if (element.type === "input") {
+                const inputEl = element as Extract<TemplateElement, { type: "input" }>;
+                binding = inputEl.binding;
+                type =
+                    inputEl.variant === "number"
+                        ? "number"
+                        : inputEl.variant === "date"
+                            ? "date"
+                            : "text";
+            } else if (element.type === "currency") {
+                const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
+                binding = currencyEl.binding;
+                type = "number";
+            } else if (element.type === "table") {
+                const tableEl = element as Extract<TemplateElement, { type: "table" }>;
+                if (tableEl.itemsBinding) {
+                    // Add the items binding
+                    if (!fields.has(tableEl.itemsBinding)) {
+                        fields.set(tableEl.itemsBinding, {
+                            path: tableEl.itemsBinding,
+                            label: tableEl.itemsBinding
+                                .split(".")
+                                .pop()!
+                                .replace(/([A-Z])/g, " $1")
+                                .replace(/^./, (c) => c.toUpperCase()),
+                            type: "text",
+                        });
+                    }
+                    // Add column bindings with full path
+                    tableEl.columns?.forEach((col) => {
+                        if (col.binding) {
+                            const fullPath = `${tableEl.itemsBinding}[*].${col.binding}`;
+                            if (!fields.has(fullPath)) {
+                                fields.set(fullPath, {
+                                    path: fullPath,
+                                    label: `${col.binding} (${tableEl.itemsBinding})`,
+                                    type: col.type === "number" ? "number" : "text",
+                                });
+                            }
+                        }
+                    });
+                }
+                continue;
+            }
+
+            if (binding && !fields.has(binding)) {
+                fields.set(binding, {
+                    path: binding,
+                    label: binding
+                        .split(".")
+                        .pop()!
+                        .replace(/([A-Z])/g, " $1")
+                        .replace(/^./, (c) => c.toUpperCase()),
+                    type,
+                });
+            }
+        }
+
+        return Array.from(fields.values());
+    }, [invoiceTemplate]);
 
     const renderPdf = useRenderInvoicePdf();
     const sendEmail = useSendInvoiceEmail();
@@ -96,6 +207,8 @@ export default function InvoiceDetailPage() {
         }
     };
 
+    console.log("[INVOICE-DETAIL] Invoice template:", invoiceTemplate);
+    console.log("[INVOICE-DETAIL] Current organization:", currentOrg);
 
     return (
         <div className="container mx-auto py-8">
@@ -198,20 +311,58 @@ export default function InvoiceDetailPage() {
                         <CardHeader>
                             <CardTitle>{t('invoiceDetail.email.title')}</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex items-center gap-2">
-                            <Input
-                                placeholder={t('invoiceDetail.email.placeholder')}
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                            <Button 
-                                className="btn-primary" 
-                                onClick={handleSendEmail} 
-                                disabled={!email || sendEmail.isPending}
-                            >
-                                <Send className="mr-2 h-4 w-4" /> 
-                                {sendEmail.isPending ? t('invoiceDetail.email.sending') : t('invoiceDetail.email.send')}
-                            </Button>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>{t('invoiceDetail.email.templateLabel', 'Email Template')}</Label>
+                                {!invoice ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        {t('invoiceDetail.email.loadingInvoice', 'Loading invoice...')}
+                                    </div>
+                                ) : !currentOrg ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        {t('invoiceDetail.email.loadingOrg', 'Loading organization...')}
+                                    </div>
+                                ) : isLoadingTemplate ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        {t('invoiceDetail.email.loadingTemplate', 'Loading template...')}
+                                    </div>
+                                ) : invoiceTemplateError ? (
+                                    <div className="text-sm text-destructive">
+                                        {t('invoiceDetail.email.templateError', 'Error loading template. Please refresh the page.')}
+                                    </div>
+                                ) : !invoiceTemplate ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        {t('invoiceDetail.email.noTemplate', 'Template not found')}
+                                    </div>
+                                ) : (
+                                    <EmailTemplateSelector
+                                        orgId={currentOrg.id}
+                                        entityTemplateId={invoice.templateId}
+                                        entityType="invoice"
+                                        availableBindings={availableBindings}
+                                        selectedTemplateId={selectedEmailTemplateId}
+                                        onTemplateChange={setSelectedEmailTemplateId}
+                                    />
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t('invoiceDetail.email.recipientLabel', 'Recipient Email')}</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        placeholder={t('invoiceDetail.email.placeholder')}
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                    <Button 
+                                        className="btn-primary" 
+                                        onClick={handleSendEmail} 
+                                        disabled={!email || sendEmail.isPending || !selectedEmailTemplateId}
+                                    >
+                                        <Send className="mr-2 h-4 w-4" /> 
+                                        {sendEmail.isPending ? t('invoiceDetail.email.sending') : t('invoiceDetail.email.send')}
+                                    </Button>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

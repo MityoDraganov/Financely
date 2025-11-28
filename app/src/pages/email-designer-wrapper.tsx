@@ -90,6 +90,7 @@ export default function EmailDesignerWrapper() {
 			htmlContent: "", // Empty HTML - blank template
 			blocks: [], // Empty blocks - no default content
 			designTokens: brandDesignTokens,
+			placeholders: [],
 		};
 		
 		try {

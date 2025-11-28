@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import {
 	EmailTemplateBlock,
 	EmailSection,
 	EmailTemplateDesignTokens,
+	EmailTemplatePlaceholder,
 } from "@/core";
 import { Pattern } from "@/core/patterns/email-patterns";
 import { emailTemplateService } from "@/services/email-template-service";
@@ -66,6 +67,7 @@ const defaultDesignTokens: EmailTemplateDesignTokens = {
 };
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
+const PLACEHOLDER_KEY_REGEX = /^[A-Za-z0-9_-]+$/;
 
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
@@ -123,10 +125,13 @@ export default function EmailDesignerPage() {
 			document.body.style.overflow = "";
 		};
 	}, [isMobile, mobilePanelOpen]);
-
+	
 	// Helper to load template: HTML is source of truth, parse to blocks for editing
 	const loadTemplateFromHtml = (template: EmailTemplate): EmailTemplate => {
 		const cloned = JSON.parse(JSON.stringify(template)) as EmailTemplate;
+		if (!Array.isArray(cloned.placeholders)) {
+			cloned.placeholders = [];
+		}
 		
 		// CRITICAL: If template has blocks already with proper sections structure, use them directly
 		// This is especially important for AI-generated templates that come with structured blocks
@@ -271,7 +276,7 @@ export default function EmailDesignerPage() {
 		
 		return cloned;
 	};
-
+	
 	const areOverridesSynced = (overrides: Partial<EmailTemplate>, base: EmailTemplate) => {
 		if (overrides.name !== undefined && overrides.name !== base.name) {
 			return false;
@@ -335,6 +340,7 @@ export default function EmailDesignerPage() {
 			...overrides,
 			blocks: overrides.blocks ?? normalizedBaseTemplate.blocks ?? [],
 			designTokens: overrides.designTokens ?? normalizedBaseTemplate.designTokens ?? defaultDesignTokens,
+			placeholders: overrides.placeholders ?? normalizedBaseTemplate.placeholders ?? [],
 			sections: overrides.sections ?? normalizedBaseTemplate.sections,
 			htmlContent: overrides.htmlContent ?? normalizedBaseTemplate.htmlContent ?? "",
 			name: overrides.name ?? normalizedBaseTemplate.name,
@@ -343,11 +349,14 @@ export default function EmailDesignerPage() {
 		};
 	}, [normalizedBaseTemplate, draftOverrides]);
 
+	// Track last processed content to avoid duplicate processing
+	const lastProcessedContentRef = useRef<string>("");
+
 	useEffect(() => {
 		if (!draftOverrides || !normalizedBaseTemplate) {
 			return;
 		}
-
+		
 		if (areOverridesSynced(draftOverrides, normalizedBaseTemplate)) {
 			setDraftOverrides(null);
 		}
@@ -356,6 +365,7 @@ export default function EmailDesignerPage() {
 	// Reset local overrides when template changes
 	useEffect(() => {
 		setDraftOverrides(null);
+		lastProcessedContentRef.current = "";
 	}, [baseTemplate?.id]);
 
 	const { activeUsers, updateSelection, updateCursor } = usePresence(baseTemplate?.id);
@@ -400,7 +410,7 @@ export default function EmailDesignerPage() {
 		setSelectedBlockId(undefined);
 		updateSelection(undefined);
 	}, [safeContextCurrentTemplateId, updateSelection]);
-
+		
 	// Update selection in presence when selectedBlockId changes
 	useEffect(() => {
 		if (baseTemplate?.id) {
@@ -456,7 +466,7 @@ export default function EmailDesignerPage() {
 
 	const hasChanges = useMemo(() => {
 		if (!draftOverrides) {
-			return false;
+		return false;
 		}
 
 		return Object.keys(draftOverrides).length > 0;
@@ -469,6 +479,18 @@ export default function EmailDesignerPage() {
 				return;
 			}
 
+			// Check for invalid placeholder patterns before saving
+			const invalid = detectInvalidPlaceholders(
+				template.blocks ?? [],
+				template.subject,
+				template.preheader
+			);
+			if (invalid.length > 0) {
+				const errorMessage = `Cannot save: Invalid placeholder patterns detected. Please fix empty placeholders like {{}} before saving.`;
+				console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
+				throw new Error(errorMessage);
+			}
+			
 			const timestamp = new Date().toISOString();
 			console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
 				timestamp,
@@ -476,7 +498,7 @@ export default function EmailDesignerPage() {
 				htmlLength: template.htmlContent?.length || 0,
 				blocksCount: template.blocks?.length ?? 0,
 			});
-
+			
 			// HTML is the source of truth - convert blocks to HTML if needed
 			let htmlContent = template.htmlContent || "";
 			if ((!htmlContent || !htmlContent.trim()) && template.blocks && template.blocks.length > 0) {
@@ -487,10 +509,10 @@ export default function EmailDesignerPage() {
 					template.preheader
 				);
 			}
-
+			
 			// Ensure blocks is always an array (even if empty)
 			const blocks = Array.isArray(template.blocks) ? template.blocks : [];
-
+			
 			// Remove undefined values recursively (Firebase Realtime Database doesn't allow undefined)
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const removeUndefined = (obj: any): any => {
@@ -512,7 +534,7 @@ export default function EmailDesignerPage() {
 				}
 				return obj;
 			};
-
+			
 			// Always save all fields to ensure all property changes are persisted
 			const savedData = removeUndefined({
 				name: template.name,
@@ -522,14 +544,15 @@ export default function EmailDesignerPage() {
 				blocks: blocks, // Always an array (can be empty if HTML can't be parsed)
 				designTokens: template.designTokens ?? defaultDesignTokens,
 				sections: template.sections,
+				placeholders: template.placeholders ?? [], // Save placeholders
 			});
-
+			
 			console.log("[EMAIL-DESIGNER] Saving HTML:", {
 				templateId: template.id,
 				htmlLength: htmlContent.length,
 				blocksCount: savedData.blocks.length,
 			});
-
+			
 			await emailTemplateService.updateDraft(template.id, savedData);
 			console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
 				timestamp: new Date().toISOString(),
@@ -555,6 +578,10 @@ export default function EmailDesignerPage() {
 				templateId: draftTemplate?.id,
 				timestamp: new Date().toISOString(),
 			});
+			// Skip toast for invalid placeholder errors - alerts are shown in UI
+			if (errorMessage.includes("Invalid placeholder patterns")) {
+				return;
+			}
 			// Show detailed error message to help debug
 			toast.error(`${t("emailDesigner.toast.saveFailed")}: ${errorMessage}`, {
 				duration: 5000,
@@ -618,12 +645,121 @@ export default function EmailDesignerPage() {
 		};
 	}, [draftTemplate, normalizedBaseTemplate, hasChanges, isSavePending, autoSaveMutate]);
 
-	const handleDraftChange = (updates: Partial<EmailTemplate>) => {
+	const handleDraftChange = useCallback((updates: Partial<EmailTemplate>) => {
 		setDraftOverrides((prev) => ({
 			...(prev ?? {}),
 			...updates,
 		}));
-	};
+	}, []);
+
+	// Extract placeholder keys from all text content in blocks
+	const extractPlaceholderKeysFromContent = useCallback((blocks: EmailTemplateBlock[], subject?: string, preheader?: string): Set<string> => {
+		const keys = new Set<string>();
+		const placeholderRegex = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
+
+		const extractFromText = (text: string) => {
+			if (!text) return;
+			let match;
+			while ((match = placeholderRegex.exec(text)) !== null) {
+				keys.add(match[1]);
+			}
+		};
+
+		const processBlock = (block: EmailTemplateBlock) => {
+			if (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "footerText") {
+				extractFromText((block as Extract<EmailTemplateBlock, { type: "subject" | "preheader" | "text" | "footerText" }>).content || "");
+			}
+			if (block.type === "button") {
+				const buttonBlock = block as Extract<EmailTemplateBlock, { type: "button" }>;
+				extractFromText(buttonBlock.label || "");
+				extractFromText(buttonBlock.url || "");
+			}
+			if (block.type === "unsubscribe") {
+				const unsubscribeBlock = block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>;
+				extractFromText(unsubscribeBlock.text || "");
+				extractFromText(unsubscribeBlock.url || "");
+			}
+			if (block.type === "navigation") {
+				const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+				navBlock.links?.forEach(link => {
+					extractFromText(link.label || "");
+					extractFromText(link.url || "");
+				});
+			}
+			if (block.type === "columns") {
+				const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+				colsBlock.columns?.forEach(col => {
+					col.blocks?.forEach(processBlock);
+				});
+			}
+			if (block.type === "container") {
+				const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+				containerBlock.blocks?.forEach(processBlock);
+			}
+		};
+
+		blocks.forEach(processBlock);
+		// Also check subject and preheader at template level
+		if (subject) extractFromText(subject);
+		if (preheader) extractFromText(preheader);
+
+		return keys;
+	}, []);
+
+	// Detect invalid placeholder patterns (like {{}})
+	const detectInvalidPlaceholders = useCallback((blocks: EmailTemplateBlock[], subject?: string, preheader?: string): string[] => {
+		const invalidPatterns: string[] = [];
+		// Match {{}} or {{ }} (empty or whitespace-only)
+		const invalidPlaceholderRegex = /\{\{\s*\}\}/g;
+
+		const checkText = (text: string, context: string) => {
+			if (!text) return;
+			let match;
+			while ((match = invalidPlaceholderRegex.exec(text)) !== null) {
+				invalidPatterns.push(`Invalid placeholder ${match[0]} found in ${context}`);
+			}
+		};
+
+		const processBlock = (block: EmailTemplateBlock) => {
+			if (block.type === "subject" || block.type === "preheader" || block.type === "text" || block.type === "footerText") {
+				const content = (block as Extract<EmailTemplateBlock, { type: "subject" | "preheader" | "text" | "footerText" }>).content || "";
+				checkText(content, `${block.type} block`);
+			}
+			if (block.type === "button") {
+				const buttonBlock = block as Extract<EmailTemplateBlock, { type: "button" }>;
+				checkText(buttonBlock.label || "", "button label");
+				checkText(buttonBlock.url || "", "button URL");
+			}
+			if (block.type === "unsubscribe") {
+				const unsubscribeBlock = block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>;
+				checkText(unsubscribeBlock.text || "", "unsubscribe text");
+				checkText(unsubscribeBlock.url || "", "unsubscribe URL");
+			}
+			if (block.type === "navigation") {
+				const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+				navBlock.links?.forEach((link, index) => {
+					checkText(link.label || "", `navigation link ${index + 1} label`);
+					checkText(link.url || "", `navigation link ${index + 1} URL`);
+				});
+			}
+			if (block.type === "columns") {
+				const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+				colsBlock.columns?.forEach(col => {
+					col.blocks?.forEach(processBlock);
+				});
+			}
+			if (block.type === "container") {
+				const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+				containerBlock.blocks?.forEach(processBlock);
+			}
+		};
+
+		blocks.forEach(processBlock);
+		if (subject) checkText(subject, "subject");
+		if (preheader) checkText(preheader, "preheader");
+
+		return invalidPatterns;
+	}, []);
 
 	const handleAddBlock = (type: EmailTemplateBlock["type"], section: EmailSection) => {
 		if (!draftTemplate) return;
@@ -889,6 +1025,75 @@ export default function EmailDesignerPage() {
 		handleDraftChange({ blocks });
 	};
 
+	// Auto-register placeholders found in content but not in registry
+	useEffect(() => {
+		if (!draftTemplate?.blocks) return;
+
+		// Create a content hash to track if we've already processed this content
+		const contentHash = JSON.stringify({
+			blocks: draftTemplate.blocks,
+			subject: draftTemplate.subject,
+			preheader: draftTemplate.preheader,
+		});
+
+		// Skip if we've already processed this exact content
+		if (lastProcessedContentRef.current === contentHash) {
+			return;
+		}
+
+		const placeholders = draftTemplate.placeholders ?? [];
+		const contentKeys = extractPlaceholderKeysFromContent(draftTemplate.blocks, draftTemplate.subject, draftTemplate.preheader);
+		const contentKeysSet = new Set(Array.from(contentKeys).map(k => k.toLowerCase()));
+		const registeredKeys = new Set(placeholders.map(p => p.key.toLowerCase()));
+		
+		// Find missing keys (in content but not registered)
+		const missingKeys = Array.from(contentKeys).filter(key => !registeredKeys.has(key.toLowerCase()));
+		
+		// Find unused keys (registered but not in content)
+		const unusedKeys = placeholders.filter(p => !contentKeysSet.has(p.key.toLowerCase()));
+
+		// Only update if there are changes
+		if (missingKeys.length > 0 || unusedKeys.length > 0) {
+			const newPlaceholders: EmailTemplatePlaceholder[] = missingKeys.map(key => ({
+				id: crypto.randomUUID(),
+				key,
+				label: undefined,
+				description: undefined,
+			}));
+
+			// Use functional update to ensure we merge with latest placeholders
+			setDraftOverrides((prev) => {
+				const currentPlaceholders = prev?.placeholders ?? normalizedBaseTemplate?.placeholders ?? [];
+				const existingKeys = new Set(currentPlaceholders.map(p => p.key.toLowerCase()));
+				const trulyMissing = newPlaceholders.filter(p => !existingKeys.has(p.key.toLowerCase()));
+				
+				// Remove placeholders that are no longer in content
+				const filteredPlaceholders = currentPlaceholders.filter(p => 
+					contentKeysSet.has(p.key.toLowerCase())
+				);
+				
+				// Add new placeholders
+				const updatedPlaceholders = [...filteredPlaceholders, ...trulyMissing];
+				
+				// Only update if there are actual changes
+				if (trulyMissing.length === 0 && filteredPlaceholders.length === currentPlaceholders.length) {
+					return prev;
+				}
+
+				return {
+					...(prev ?? {}),
+					placeholders: updatedPlaceholders,
+				};
+			});
+		}
+
+		// Update the ref to mark this content as processed
+		lastProcessedContentRef.current = contentHash;
+		// We intentionally exclude draftTemplate.placeholders from deps to avoid infinite loops
+		// since this effect updates placeholders. We read placeholders inside the effect.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [draftTemplate?.blocks, draftTemplate?.subject, draftTemplate?.preheader, extractPlaceholderKeysFromContent, normalizedBaseTemplate?.placeholders]);
+
 	if (isLoadingTemplates) {
 		return (
 			<div className="p-6 space-y-4">
@@ -953,6 +1158,67 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 	);
 }
 
+	const placeholders = draftTemplate.placeholders ?? [];
+
+	// Detect invalid placeholder patterns in content
+	const invalidPlaceholders = draftTemplate?.blocks
+		? detectInvalidPlaceholders(
+				draftTemplate.blocks,
+				draftTemplate.subject,
+				draftTemplate.preheader
+			)
+		: [];
+
+	const validatePlaceholderKey = (key: string, currentId?: string): string | null => {
+		const trimmed = key?.trim() || "";
+		if (!trimmed) {
+			return "Placeholders cannot be empty. Example: {{key_1}}.";
+		}
+		if (!PLACEHOLDER_KEY_REGEX.test(trimmed)) {
+			return "Use only English letters, numbers, underscores (_) or hyphens (-). No spaces allowed.";
+		}
+		const isDuplicate = placeholders.some(
+			(placeholder) =>
+				placeholder.key.toLowerCase() === trimmed.toLowerCase() &&
+				placeholder.id !== currentId,
+		);
+		if (isDuplicate) {
+			return "This key already exists in this template. Choose a unique name.";
+		}
+		return null;
+	};
+
+	const getNextPlaceholderKey = () => {
+		let index = placeholders.length + 1;
+		let candidate = `key_${index}`;
+		const existing = new Set(placeholders.map((p) => p.key.toLowerCase()));
+		while (existing.has(candidate.toLowerCase())) {
+			index += 1;
+			candidate = `key_${index}`;
+		}
+		return candidate;
+	};
+
+	const handleAddPlaceholder = (): EmailTemplatePlaceholder | null => {
+		const newKey = getNextPlaceholderKey();
+		const validationError = validatePlaceholderKey(newKey);
+		if (validationError) {
+			toast.error(validationError);
+			return null;
+		}
+
+		const newPlaceholder: EmailTemplatePlaceholder = {
+			id: crypto.randomUUID(),
+			key: newKey,
+			label: undefined,
+			description: undefined,
+		};
+		handleDraftChange({
+			placeholders: [...placeholders, newPlaceholder],
+		});
+		return newPlaceholder;
+	};
+
 	const handleNavigateToField = (blockId: string, field: string) => {
 		// Select the block first (this will automatically switch section via handleSelectBlock)
 		handleSelectBlock(blockId);
@@ -1011,6 +1277,9 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 				onDelete={handleDeleteBlock}
 				onAddNestedBlock={handleAddNestedBlock}
 				onOpenImagePicker={handleOpenImagePicker}
+				placeholders={placeholders}
+				invalidPlaceholders={invalidPlaceholders}
+				onAddPlaceholder={handleAddPlaceholder}
 			/>
 			) : (
 					<EmailTemplateSettings

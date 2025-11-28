@@ -2,7 +2,6 @@ import { EmailTemplateDesignTokens } from "@/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "react-i18next";
 
 type EmailTemplateSettingsProps = {
@@ -95,11 +94,6 @@ export function EmailTemplateSettings({
               })
             }
           />
-        </div>
-        <Separator />
-        <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
-          <p className="font-medium mb-1">{t("emailDesigner.settings.subject")} & {t("emailDesigner.settings.preheader")}</p>
-          <p className="text-xs">Add Subject and Preheader blocks from the blocks palette to edit them.</p>
         </div>
       </CardContent>
     </Card>

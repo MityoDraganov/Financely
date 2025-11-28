@@ -29,6 +29,12 @@ export interface EmailTemplateData {
     fontFamily: string;
     borderRadius: number;
   };
+  placeholders?: Array<{
+    id: string;
+    key: string;
+    label?: string;
+    description?: string;
+  }>;
   sections?: {
     header: string[];
     body: string[];
@@ -194,6 +200,7 @@ export class EmailTemplateGenerationService {
           fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
           borderRadius: 12,
         },
+        placeholders: [],
         status: "draft",
         version: 1,
         isSystemDefault: false,
