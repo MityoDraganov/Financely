@@ -670,33 +670,6 @@ export default function AnalyticsPage() {
 												)}
 											</div>
 										</div>
-										<div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
-											<div className="text-3xl font-bold mb-1">
-												{metrics.bounceRate > 0
-													? `${metrics.bounceRate.toFixed(1)}%`
-													: "—"}
-											</div>
-											<div className="text-sm font-medium text-muted-foreground">
-												{t(
-													"analytics.metrics.bounceRate"
-												)}
-											</div>
-											<div className="text-xs text-muted-foreground mt-2">
-												{metrics.avgSessionDuration > 0
-													? t(
-															"analytics.metrics.avgSession",
-															{
-																seconds:
-																	Math.round(
-																		metrics.avgSessionDuration
-																	),
-															}
-														)
-													: t(
-															"analytics.metrics.sessionDataUnavailable"
-														)}
-											</div>
-										</div>
 									</div>
 
 									{/* Top Pages */}

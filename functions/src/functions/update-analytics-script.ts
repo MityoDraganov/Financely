@@ -444,6 +444,6 @@ function generateAnalyticsScript(
     attributes.push(`data-consent-banner-styling="${encodeURIComponent(JSON.stringify(styling))}"`);
   }
 
-  return `<script src="https://financely.app/analytics-loader.js" ${attributes.join(" ")}></script>`;
+  return `<script src="/analytics-loader.js" ${attributes.join(" ")}></script>`;
 }
 

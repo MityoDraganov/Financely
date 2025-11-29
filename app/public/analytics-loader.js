@@ -52,11 +52,12 @@
     
     // Construct API URL from firebaseProjectId if provided, otherwise use data-api-url
     if (firebaseProjectId) {
-      config.apiUrl = `https://us-central1-${firebaseProjectId}.cloudfunctions.net`;
+      config.apiUrl = 'https://us-central1-' + firebaseProjectId + '.cloudfunctions.net';
       config.firebaseProjectId = firebaseProjectId;
-      config.functionUrl = functionUrl || `https://us-central1-${firebaseProjectId}.cloudfunctions.net/storeAnalyticsEvent`;
+      config.functionUrl = functionUrl || ('https://us-central1-' + firebaseProjectId + '.cloudfunctions.net/storeAnalyticsEvent');
     } else {
-      config.apiUrl = currentScript.getAttribute('data-api-url') || 
+      config.apiUrl =
+        currentScript.getAttribute('data-api-url') ||
         currentScript.getAttribute('data-api-base-url') ||
         'https://us-central1-YOUR_PROJECT.cloudfunctions.net';
     }
@@ -70,20 +71,20 @@
   // Load analytics configuration from API
   async function loadConfig() {
     try {
-      const response = await fetch(`${config.apiUrl}/getAnalyticsConfig?organizationId=${config.orgId}`);
+      const response = await fetch(config.apiUrl + '/getAnalyticsConfig?organizationId=' + encodeURIComponent(config.orgId));
       if (!response.ok) {
-        throw new Error(`Failed to load analytics config: ${response.status}`);
+        throw new Error('Failed to load analytics config: ' + response.status);
       }
       const data = await response.json();
       
       // Merge API response into config
       config.siteId = data.siteId || config.siteId || null;
       config.brandName = data.brandName || null;
-      config.enabled = data.enabled ?? false;
-      config.enableGA4 = data.enableGA4 ?? false;
-      config.enablePlausible = data.enablePlausible ?? false;
-      config.enableUmami = data.enableUmami ?? false;
-      config.enableClarity = data.enableClarity ?? false;
+      config.enabled = data.enabled != null ? data.enabled : false;
+      config.enableGA4 = data.enableGA4 != null ? data.enableGA4 : false;
+      config.enablePlausible = data.enablePlausible != null ? data.enablePlausible : false;
+      config.enableUmami = data.enableUmami != null ? data.enableUmami : false;
+      config.enableClarity = data.enableClarity != null ? data.enableClarity : false;
       config.ga4MeasurementId = data.ga4MeasurementId || null;
       config.clarityProjectId = data.clarityProjectId || null;
       config.plausibleDomain = data.plausibleDomain || null;
@@ -98,15 +99,15 @@
       if (data.firebaseProjectId && !config.firebaseProjectId) {
         config.firebaseProjectId = data.firebaseProjectId;
         // Update API URL if we got firebaseProjectId from API
-        if (!config.apiUrl || config.apiUrl.includes('YOUR_PROJECT')) {
-          config.apiUrl = `https://us-central1-${data.firebaseProjectId}.cloudfunctions.net`;
+        if (!config.apiUrl || config.apiUrl.indexOf('YOUR_PROJECT') !== -1) {
+          config.apiUrl = 'https://us-central1-' + data.firebaseProjectId + '.cloudfunctions.net';
         }
       }
       if (data.functionUrl && !config.functionUrl) {
         config.functionUrl = data.functionUrl;
       } else if (config.firebaseProjectId && !config.functionUrl) {
         // Construct functionUrl from firebaseProjectId if not provided
-        config.functionUrl = `https://us-central1-${config.firebaseProjectId}.cloudfunctions.net/storeAnalyticsEvent`;
+        config.functionUrl = 'https://us-central1-' + config.firebaseProjectId + '.cloudfunctions.net/storeAnalyticsEvent';
       }
       
       // Migrate legacy strategy to new enable flags if new flags are not set
@@ -162,961 +163,985 @@
 
     // Initialize GA4 Consent Mode (must be called before loading GA4/GTM)
     function initConsentMode() {
-    // Ensure dataLayer exists
-    window.dataLayer = window.dataLayer || [];
-    
-    // Define gtag function if not already defined (needed for consent mode)
-    if (typeof window.gtag === 'undefined') {
-      window.gtag = function() {
-        window.dataLayer.push(arguments);
-      };
-    }
+      // Ensure dataLayer exists
+      window.dataLayer = window.dataLayer || [];
+      
+      // Define gtag function if not already defined (needed for consent mode)
+      if (typeof window.gtag === 'undefined') {
+        window.gtag = function() {
+          window.dataLayer.push(arguments);
+        };
+      }
 
-    // Set default consent state (must be set before GA4/GTM loads)
-    window.gtag('consent', 'default', {
-      ad_storage: config.consentDefault === 'granted' ? 'granted' : 'denied',
-      ad_user_data: config.consentDefault === 'granted' ? 'granted' : 'denied',
-      ad_personalization: config.consentDefault === 'granted' ? 'granted' : 'denied',
-      analytics_storage: config.consentDefault === 'granted' ? 'granted' : 'denied',
-    });
-  }
-
-  // Update consent (called when user accepts/rejects)
-    window.updateAnalyticsConsent = function(granted) {
-    const consentKey = 'financely_analytics_consent_' + config.orgId;
-    localStorage.setItem(consentKey, granted ? 'granted' : 'denied');
-    
-    if (typeof window.gtag === 'function') {
-      window.gtag('consent', 'update', {
-        ad_storage: granted ? 'granted' : 'denied',
-        ad_user_data: granted ? 'granted' : 'denied',
-        ad_personalization: granted ? 'granted' : 'denied',
-        analytics_storage: granted ? 'granted' : 'denied',
+      // Set default consent state (must be set before GA4/GTM loads)
+      window.gtag('consent', 'default', {
+        ad_storage: config.consentDefault === 'granted' ? 'granted' : 'denied',
+        ad_user_data: config.consentDefault === 'granted' ? 'granted' : 'denied',
+        ad_personalization: config.consentDefault === 'granted' ? 'granted' : 'denied',
+        analytics_storage: config.consentDefault === 'granted' ? 'granted' : 'denied',
       });
     }
-    
-    // Track consent event
-    window.dataLayer.push({
-      event: 'consent_update',
-      consent_granted: granted,
-      org_id: config.orgId,
-      site_id: config.siteId,
-    });
 
-    // If consent was granted and analytics weren't loaded yet, reload the page to initialize
-    if (granted && !window.financelyAnalyticsLoaded) {
-      window.location.reload();
-    }
-  };
-
-  // Show consent banner
-    function showConsentBanner() {
-    const styling = config.consentBannerStyling || {
-      backgroundColor: '#ffffff',
-      textColor: '#000000',
-      buttonBackgroundColor: '#166534',
-      buttonTextColor: '#ffffff',
-      linkColor: '#166534',
-      borderColor: '#e5e7eb',
-      borderRadius: '8px',
-      padding: '16px',
-      fontSize: '14px',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontWeight: '400',
-      shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-      position: 'bottom',
-      maxWidth: '600px',
-      acceptButtonText: 'Accept',
-      rejectButtonText: 'Reject',
-      message: 'We use cookies to enhance your browsing experience and analyze site traffic.',
-      showRejectButton: true,
-    };
-
-    // Function to actually create and append the banner
-    function createAndAppendBanner() {
-      // Check if banner already exists
-      if (document.getElementById('financely-consent-banner')) {
-        return;
-      }
-
-    // Create banner element
-    const banner = document.createElement('div');
-    banner.id = 'financely-consent-banner';
-    banner.style.cssText = `
-      position: fixed;
-      ${styling.position === 'top' ? 'top: 0;' : styling.position === 'center' ? 'top: 50%; transform: translateY(-50%);' : 'bottom: 0;'}
-      left: 0;
-      right: 0;
-      background-color: ${styling.backgroundColor};
-      color: ${styling.textColor};
-      padding: ${styling.padding};
-      border-top: ${styling.position === 'top' ? 'none' : '1px solid ' + styling.borderColor};
-      border-bottom: ${styling.position === 'bottom' ? 'none' : '1px solid ' + styling.borderColor};
-      box-shadow: ${styling.shadow};
-        z-index: 999999;
-      font-family: ${styling.fontFamily};
-      font-size: ${styling.fontSize};
-      font-weight: ${styling.fontWeight};
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    `;
-
-    const container = document.createElement('div');
-    container.style.cssText = `
-      max-width: ${styling.maxWidth};
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    `;
-
-    const message = document.createElement('div');
-    message.textContent = styling.message;
-    message.style.cssText = `
-      flex: 1;
-      min-width: 200px;
-    `;
-
-    const buttons = document.createElement('div');
-    buttons.style.cssText = `
-      display: flex;
-      gap: 8px;
-      flex-shrink: 0;
-    `;
-
-    const acceptButton = document.createElement('button');
-    acceptButton.textContent = styling.acceptButtonText;
-    acceptButton.style.cssText = `
-      background-color: ${styling.buttonBackgroundColor};
-      color: ${styling.buttonTextColor};
-      border: none;
-      padding: 8px 16px;
-      border-radius: ${styling.borderRadius};
-      cursor: pointer;
-      font-family: ${styling.fontFamily};
-      font-size: ${styling.fontSize};
-      font-weight: ${styling.fontWeight};
-      transition: opacity 0.2s;
-    `;
-    acceptButton.onmouseover = function() { this.style.opacity = '0.9'; };
-    acceptButton.onmouseout = function() { this.style.opacity = '1'; };
-    acceptButton.onclick = function() {
-      window.updateAnalyticsConsent(true);
-      banner.remove();
-    };
-
-    buttons.appendChild(acceptButton);
-
-    if (styling.showRejectButton) {
-      const rejectButton = document.createElement('button');
-      rejectButton.textContent = styling.rejectButtonText;
-      rejectButton.style.cssText = `
-        background-color: transparent;
-        color: ${styling.textColor};
-        border: 1px solid ${styling.borderColor};
-        padding: 8px 16px;
-        border-radius: ${styling.borderRadius};
-        cursor: pointer;
-        font-family: ${styling.fontFamily};
-        font-size: ${styling.fontSize};
-        font-weight: ${styling.fontWeight};
-        transition: opacity 0.2s;
-      `;
-      rejectButton.onmouseover = function() { this.style.opacity = '0.7'; };
-      rejectButton.onmouseout = function() { this.style.opacity = '1'; };
-      rejectButton.onclick = function() {
-        window.updateAnalyticsConsent(false);
-        banner.remove();
-      };
-      buttons.appendChild(rejectButton);
-    }
-
-    container.appendChild(message);
-    container.appendChild(buttons);
-    banner.appendChild(container);
+    // Update consent (called when user accepts/rejects)
+    window.updateAnalyticsConsent = function(granted) {
+      const consentKey = 'financely_analytics_consent_' + config.orgId;
+      localStorage.setItem(consentKey, granted ? 'granted' : 'denied');
       
-      // Append to body when available
-      if (document.body) {
-    document.body.appendChild(banner);
-      } else {
-        // Wait for body to be available
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function() {
-            if (document.body && !document.getElementById('financely-consent-banner')) {
-              document.body.appendChild(banner);
-            }
-          });
-        } else {
-          // DOM already loaded, try to append after a short delay
-          setTimeout(function() {
-            if (document.body && !document.getElementById('financely-consent-banner')) {
-              document.body.appendChild(banner);
-            }
-          }, 0);
-        }
+      if (typeof window.gtag === 'function') {
+        window.gtag('consent', 'update', {
+          ad_storage: granted ? 'granted' : 'denied',
+          ad_user_data: granted ? 'granted' : 'denied',
+          ad_personalization: granted ? 'granted' : 'denied',
+          analytics_storage: granted ? 'granted' : 'denied',
+        });
       }
+      
+      // Track consent event
+      window.dataLayer.push({
+        event: 'consent_update',
+        consent_granted: granted,
+        org_id: config.orgId,
+        site_id: config.siteId,
+      });
 
-    // Mark that banner was shown
-    window.financelyConsentBannerShown = true;
-    }
-
-    // Call the function to create and append the banner
-    createAndAppendBanner();
-  }
-
-  // Track page view
-    function trackPageView() {
-    const pagePath = window.location.pathname + window.location.search;
-    const pageTitle = document.title;
-
-    const pageViewData = {
-      event: 'page_view',
-      page_path: pagePath,
-      page_title: pageTitle,
-      org_id: config.orgId,
-      site_id: config.siteId,
-      brand_name: config.brandName,
+      // If consent was granted and analytics weren't loaded yet, reload the page to initialize
+      if (granted && !window.financelyAnalyticsLoaded) {
+        window.location.reload();
+      }
     };
 
-    window.dataLayer.push(pageViewData);
+    // Show consent banner
+    function showConsentBanner() {
+      const styling = config.consentBannerStyling || {
+        backgroundColor: '#ffffff',
+        textColor: '#000000',
+        buttonBackgroundColor: '#166534',
+        buttonTextColor: '#ffffff',
+        linkColor: '#166534',
+        borderColor: '#e5e7eb',
+        borderRadius: '8px',
+        padding: '16px',
+        fontSize: '14px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontWeight: '400',
+        shadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        position: 'bottom',
+        maxWidth: '600px',
+        acceptButtonText: 'Accept',
+        rejectButtonText: 'Reject',
+        message: 'We use cookies to enhance your browsing experience and analyze site traffic.',
+        showRejectButton: true,
+      };
 
-    // Also send to gtag if using gtag_only strategy (not GTM, which handles it via dataLayer)
-    if (config.strategy === 'gtag_only' && typeof window.gtag === 'function' && config.ga4MeasurementId) {
-      window.gtag('event', 'page_view', {
+      // Function to actually create and append the banner
+      function createAndAppendBanner() {
+        // Check if banner already exists
+        if (document.getElementById('financely-consent-banner')) {
+          return;
+        }
+
+        // Create banner element
+        const banner = document.createElement('div');
+        banner.id = 'financely-consent-banner';
+        banner.style.cssText =
+          'position: fixed;' +
+          (styling.position === 'top'
+            ? 'top: 0;'
+            : styling.position === 'center'
+            ? 'top: 50%; transform: translateY(-50%);'
+            : 'bottom: 0;') +
+          'left: 0;' +
+          'right: 0;' +
+          'background-color: ' + styling.backgroundColor + ';' +
+          'color: ' + styling.textColor + ';' +
+          'padding: ' + styling.padding + ';' +
+          (styling.position === 'top'
+            ? 'border-top: none;'
+            : 'border-top: 1px solid ' + styling.borderColor + ';') +
+          (styling.position === 'bottom'
+            ? 'border-bottom: none;'
+            : 'border-bottom: 1px solid ' + styling.borderColor + ';') +
+          'box-shadow: ' + styling.shadow + ';' +
+          'z-index: 999999;' +
+          'font-family: ' + styling.fontFamily + ';' +
+          'font-size: ' + styling.fontSize + ';' +
+          'font-weight: ' + styling.fontWeight + ';' +
+          'display: flex;' +
+          'align-items: center;' +
+          'justify-content: center;';
+
+        const container = document.createElement('div');
+        container.style.cssText =
+          'max-width: ' + styling.maxWidth + ';' +
+          'width: 100%;' +
+          'display: flex;' +
+          'align-items: center;' +
+          'gap: 16px;' +
+          'flex-wrap: wrap;';
+
+        const message = document.createElement('div');
+        message.textContent = styling.message;
+        message.style.cssText = 'flex: 1; min-width: 200px;';
+
+        const buttons = document.createElement('div');
+        buttons.style.cssText =
+          'display: flex;' +
+          'gap: 8px;' +
+          'flex-shrink: 0;';
+
+        const acceptButton = document.createElement('button');
+        acceptButton.textContent = styling.acceptButtonText;
+        acceptButton.style.cssText =
+          'background-color: ' + styling.buttonBackgroundColor + ';' +
+          'color: ' + styling.buttonTextColor + ';' +
+          'border: none;' +
+          'padding: 8px 16px;' +
+          'border-radius: ' + styling.borderRadius + ';' +
+          'cursor: pointer;' +
+          'font-family: ' + styling.fontFamily + ';' +
+          'font-size: ' + styling.fontSize + ';' +
+          'font-weight: ' + styling.fontWeight + ';' +
+          'transition: opacity 0.2s;';
+        acceptButton.onmouseover = function() { this.style.opacity = '0.9'; };
+        acceptButton.onmouseout = function() { this.style.opacity = '1'; };
+        acceptButton.onclick = function() {
+          window.updateAnalyticsConsent(true);
+          banner.remove();
+        };
+
+        buttons.appendChild(acceptButton);
+
+        if (styling.showRejectButton) {
+          const rejectButton = document.createElement('button');
+          rejectButton.textContent = styling.rejectButtonText;
+          rejectButton.style.cssText =
+            'background-color: transparent;' +
+            'color: ' + styling.textColor + ';' +
+            'border: 1px solid ' + styling.borderColor + ';' +
+            'padding: 8px 16px;' +
+            'border-radius: ' + styling.borderRadius + ';' +
+            'cursor: pointer;' +
+            'font-family: ' + styling.fontFamily + ';' +
+            'font-size: ' + styling.fontSize + ';' +
+            'font-weight: ' + styling.fontWeight + ';' +
+            'transition: opacity 0.2s;';
+          rejectButton.onmouseover = function() { this.style.opacity = '0.7'; };
+          rejectButton.onmouseout = function() { this.style.opacity = '1'; };
+          rejectButton.onclick = function() {
+            window.updateAnalyticsConsent(false);
+            banner.remove();
+          };
+          buttons.appendChild(rejectButton);
+        }
+
+        container.appendChild(message);
+        container.appendChild(buttons);
+        banner.appendChild(container);
+        
+        // Append to body when available
+        if (document.body) {
+          document.body.appendChild(banner);
+        } else {
+          // Wait for body to be available
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+              if (document.body && !document.getElementById('financely-consent-banner')) {
+                document.body.appendChild(banner);
+              }
+            });
+          } else {
+            // DOM already loaded, try to append after a short delay
+            setTimeout(function() {
+              if (document.body && !document.getElementById('financely-consent-banner')) {
+                document.body.appendChild(banner);
+              }
+            }, 0);
+          }
+        }
+
+        // Mark that banner was shown
+        window.financelyConsentBannerShown = true;
+      }
+
+      // Call the function to create and append the banner
+      createAndAppendBanner();
+    }
+
+    // Track page view
+    function trackPageView() {
+      const pagePath = window.location.pathname + window.location.search;
+      const pageTitle = document.title;
+
+      const pageViewData = {
+        event: 'page_view',
         page_path: pagePath,
         page_title: pageTitle,
         org_id: config.orgId,
         site_id: config.siteId,
-      });
-    }
-
-    // Push to Clarity if enabled
-    // Note: Clarity automatically tracks page views, but we can set custom metadata
-    if (config.enableClarity && config.clarityProjectId) {
-      try {
-        // Wait a bit for Clarity to initialize, then set metadata
-        // Clarity automatically tracks page views, so we just set custom data
-        if (typeof window.clarity === 'function') {
-          window.clarity('set', 'page_path', pagePath);
-          window.clarity('set', 'page_title', pageTitle);
-        } else {
-          // Queue the calls if Clarity isn't ready yet
-          (window.clarity = window.clarity || function() {
-            (window.clarity.q = window.clarity.q || []).push(arguments);
-          })('set', 'page_path', pagePath);
-          window.clarity('set', 'page_title', pageTitle);
-        }
-      } catch (error) {
-        console.warn('Financely Analytics: Failed to push to Clarity', error);
-      }
-    }
-
-    // Store page view event for real-time analytics
-    storeEvent('page_view', {
-      page_path: pagePath,
-      page_title: pageTitle,
-    });
-  }
-
-  // Store event in Firestore for real-time analytics
-    async function storeEvent(eventName, eventParams) {
-    if (!config.orgId) return;
-
-    try {
-      // Use function URL from config if available, otherwise construct it
-      let url = config.functionUrl;
-      
-      if (!url) {
-        // Get Firebase project ID from config or infer from domain
-        let projectId = config.firebaseProjectId;
-        if (!projectId) {
-          const hostname = window.location.hostname;
-          if (hostname.includes('.web.app') || hostname.includes('.firebaseapp.com')) {
-            projectId = hostname.split('.')[0];
-          } else {
-            // Can't determine project ID, skip storage
-            return;
-          }
-        }
-        
-        // Try legacy URL format first (for v1 functions or if v2 supports it)
-        url = `https://us-central1-${projectId}.cloudfunctions.net/storeAnalyticsEvent`;
-      }
-      
-      // Try the URL, and if it fails with 404, try Cloud Run format
-      // Note: Cloud Run URL format is https://{functionName}-{hash}-{region}.a.run.app
-      // But we can't predict the hash, so we'll just try the legacy format
-
-      const eventData = {
-        orgId: config.orgId,
-        event: eventName,
-        siteId: config.siteId,
-        brandName: config.brandName,
-        pagePath: window.location.pathname + window.location.search,
-        pageTitle: document.title,
-        referrer: document.referrer || '',
-        clientId: getClientId(),
-        userAgent: navigator.userAgent,
-        ...eventParams,
+        brand_name: config.brandName,
       };
 
-      // Store via Firebase Functions endpoint
-      // Use the same pattern as widget-loader.js - simple fetch with CORS handled by Firebase
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(eventData),
-      });
+      window.dataLayer.push(pageViewData);
 
-      if (!response.ok) {
-        // Log error details for debugging (but don't break the page)
-        console.warn('Financely Analytics: Event storage failed', {
-          status: response.status,
-          statusText: response.statusText,
-          url: url,
-          event: eventName,
-          orgId: config.orgId,
-          siteId: config.siteId,
+      // Also send to gtag if using gtag_only strategy (not GTM, which handles it via dataLayer)
+      if (config.strategy === 'gtag_only' && typeof window.gtag === 'function' && config.ga4MeasurementId) {
+        window.gtag('event', 'page_view', {
+          page_path: pagePath,
+          page_title: pageTitle,
+          org_id: config.orgId,
+          site_id: config.siteId,
         });
-      } else {
-        // Success - log in verbose mode only (use debug level)
-        console.debug('Financely Analytics: Event stored successfully', eventName);
       }
-    } catch (error) {
-      // Log error but don't break the page
-      console.warn('Financely Analytics: Failed to store event', {
-        error: error instanceof Error ? error.message : String(error),
-        event: eventName,
-        orgId: config.orgId,
-        projectId: config.firebaseProjectId || 'inferred',
+
+      // Push to Clarity if enabled
+      // Note: Clarity automatically tracks page views, but we can set custom metadata
+      if (config.enableClarity && config.clarityProjectId) {
+        try {
+          // Wait a bit for Clarity to initialize, then set metadata
+          // Clarity automatically tracks page views, so we just set custom data
+          if (typeof window.clarity === 'function') {
+            window.clarity('set', 'page_path', pagePath);
+            window.clarity('set', 'page_title', pageTitle);
+          } else {
+            // Queue the calls if Clarity isn't ready yet
+            window.clarity = window.clarity || function() {
+              (window.clarity.q = window.clarity.q || []).push(arguments);
+            };
+            window.clarity('set', 'page_path', pagePath);
+            window.clarity('set', 'page_title', pageTitle);
+          }
+        } catch (error) {
+          console.warn('Financely Analytics: Failed to push to Clarity', error);
+        }
+      }
+
+      // Store page view event for real-time analytics
+      storeEvent('page_view', {
+        page_path: pagePath,
+        page_title: pageTitle,
       });
     }
-  }
 
-  // Get or create client ID (for visitor tracking)
-    function getClientId() {
-    let clientId = localStorage.getItem('analytics_client_id');
-    if (!clientId) {
-      clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('analytics_client_id', clientId);
-    }
-    return clientId;
-  }
+    // Store event in Firestore for real-time analytics
+    async function storeEvent(eventName, eventParams) {
+      if (!config.orgId) return;
 
-  // Track custom event
-    window.trackAnalyticsEvent = function(eventName, eventParams) {
-    const eventData = {
-      event: eventName,
-      org_id: config.orgId,
-      site_id: config.siteId,
-      brand_name: config.brandName,
-      ...eventParams,
-    };
-
-    window.dataLayer.push(eventData);
-
-    // Also send to gtag if using gtag_only strategy (not GTM, which handles it via dataLayer)
-    if (config.strategy === 'gtag_only' && typeof window.gtag === 'function' && config.ga4MeasurementId) {
-      window.gtag('event', eventName, eventParams);
-    }
-
-    // Push to Clarity if enabled
-    if (config.enableClarity && config.clarityProjectId) {
       try {
-        // Push custom event to Clarity
-        if (typeof window.clarity === 'function') {
-          window.clarity('event', eventName);
-          // Also set event parameters as metadata
-          if (eventParams && typeof eventParams === 'object') {
-            Object.keys(eventParams).forEach(key => {
-              if (eventParams[key] !== null && eventParams[key] !== undefined) {
-                window.clarity('set', `event_${key}`, String(eventParams[key]));
-              }
-            });
-          }
-        } else {
-          // Queue the calls if Clarity isn't ready yet
-          (window.clarity = window.clarity || function() {
-            (window.clarity.q = window.clarity.q || []).push(arguments);
-          })('event', eventName);
-          if (eventParams && typeof eventParams === 'object') {
-            Object.keys(eventParams).forEach(key => {
-              if (eventParams[key] !== null && eventParams[key] !== undefined) {
-                window.clarity('set', `event_${key}`, String(eventParams[key]));
-              }
-            });
-          }
-        }
-      } catch (error) {
-        console.warn('Financely Analytics: Failed to push event to Clarity', error);
-      }
-    }
-
-    // Store event for real-time analytics
-    storeEvent(eventName, eventParams);
-  };
-
-  // Load Google Tag Manager
-    function loadGTM() {
-    if (!config.gtmContainerId) {
-      console.warn('Financely Analytics: GTM Container ID not provided');
-      return;
-    }
-
-    console.log('Financely Analytics: Loading GTM container', config.gtmContainerId);
-
-    // GTM script
-    const gtmScript = document.createElement('script');
-    gtmScript.async = true;
-    gtmScript.src = `https://www.googletagmanager.com/gtm.js?id=${config.gtmContainerId}`;
-    gtmScript.onerror = function() {
-      console.error('Financely Analytics: Failed to load GTM script', config.gtmContainerId);
-    };
-    gtmScript.onload = function() {
-      console.log('Financely Analytics: GTM script loaded successfully', config.gtmContainerId);
-      // Verify GTM is actually initialized
-      setTimeout(function() {
-        if (window.google_tag_manager && window.google_tag_manager[config.gtmContainerId]) {
-          console.log('Financely Analytics: GTM container initialized', config.gtmContainerId);
-        } else {
-          console.warn('Financely Analytics: GTM script loaded but container not initialized yet', config.gtmContainerId);
-        }
-      }, 1000);
-    };
-    document.head.appendChild(gtmScript);
-
-    // GTM noscript - wait for body to be available
-    const gtmNoscript = document.createElement('noscript');
-    gtmNoscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${config.gtmContainerId}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
-    
-    // Insert noscript into body when available
-    if (document.body) {
-      // Use insertBefore if firstChild exists, otherwise use appendChild
-      if (document.body.firstChild) {
-        document.body.insertBefore(gtmNoscript, document.body.firstChild);
-      } else {
-        document.body.appendChild(gtmNoscript);
-      }
-    } else {
-      // Wait for DOMContentLoaded or use document ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-          if (document.body) {
-            if (document.body.firstChild) {
-              document.body.insertBefore(gtmNoscript, document.body.firstChild);
+        // Use function URL from config if available, otherwise construct it
+        let url = config.functionUrl;
+        
+        if (!url) {
+          // Get Firebase project ID from config or infer from domain
+          let projectId = config.firebaseProjectId;
+          if (!projectId) {
+            const hostname = window.location.hostname;
+            if (hostname.indexOf('.web.app') !== -1 || hostname.indexOf('.firebaseapp.com') !== -1) {
+              projectId = hostname.split('.')[0];
             } else {
-              document.body.appendChild(gtmNoscript);
+              // Can't determine project ID, skip storage
+              return;
             }
           }
+          
+          // Try legacy URL format first (for v1 functions or if v2 supports it)
+          url = 'https://us-central1-' + projectId + '.cloudfunctions.net/storeAnalyticsEvent';
+        }
+
+        const baseData = {
+          orgId: config.orgId,
+          event: eventName,
+          siteId: config.siteId,
+          brandName: config.brandName,
+          pagePath: window.location.pathname + window.location.search,
+          pageTitle: document.title,
+          referrer: document.referrer || '',
+          clientId: getClientId(),
+          userAgent: navigator.userAgent,
+        };
+
+        const payload = Object.assign({}, baseData, eventParams || {});
+
+        // Store via Firebase Functions endpoint
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
         });
-      } else {
-        // DOM already loaded, try to append to documentElement as fallback
-        if (document.documentElement) {
-          if (document.documentElement.firstChild) {
-            document.documentElement.insertBefore(gtmNoscript, document.documentElement.firstChild);
+
+        if (!response.ok) {
+          // Log error details for debugging (but don't break the page)
+          console.warn('Financely Analytics: Event storage failed', {
+            status: response.status,
+            statusText: response.statusText,
+            url: url,
+            event: eventName,
+            orgId: config.orgId,
+            siteId: config.siteId,
+          });
+        } else {
+          // Success - log in verbose mode only (use debug level)
+          if (console && typeof console.debug === 'function') {
+            console.debug('Financely Analytics: Event stored successfully', eventName);
+          }
+        }
+      } catch (error) {
+        // Log error but don't break the page
+        console.warn('Financely Analytics: Failed to store event', {
+          error: error instanceof Error ? error.message : String(error),
+          event: eventName,
+          orgId: config.orgId,
+          projectId: config.firebaseProjectId || 'inferred',
+        });
+      }
+    }
+
+    // Get or create client ID (for visitor tracking)
+    function getClientId() {
+      let clientId = localStorage.getItem('analytics_client_id');
+      if (!clientId) {
+        clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('analytics_client_id', clientId);
+      }
+      return clientId;
+    }
+
+    // Track custom event
+    window.trackAnalyticsEvent = function(eventName, eventParams) {
+      const eventData = Object.assign(
+        {
+          event: eventName,
+          org_id: config.orgId,
+          site_id: config.siteId,
+          brand_name: config.brandName,
+        },
+        eventParams || {}
+      );
+
+      window.dataLayer.push(eventData);
+
+      // Also send to gtag if using gtag_only strategy (not GTM, which handles it via dataLayer)
+      if (config.strategy === 'gtag_only' && typeof window.gtag === 'function' && config.ga4MeasurementId) {
+        window.gtag('event', eventName, eventParams || {});
+      }
+
+      // Push to Clarity if enabled
+      if (config.enableClarity && config.clarityProjectId) {
+        try {
+          // Push custom event to Clarity
+          if (typeof window.clarity === 'function') {
+            window.clarity('event', eventName);
+            // Also set event parameters as metadata
+            if (eventParams && typeof eventParams === 'object') {
+              for (var key in eventParams) {
+                if (Object.prototype.hasOwnProperty.call(eventParams, key)) {
+                  if (eventParams[key] !== null && eventParams[key] !== undefined) {
+                    window.clarity('set', 'event_' + key, String(eventParams[key]));
+                  }
+                }
+              }
+            }
           } else {
-            document.documentElement.appendChild(gtmNoscript);
+            // Queue the calls if Clarity isn't ready yet
+            window.clarity = window.clarity || function() {
+              (window.clarity.q = window.clarity.q || []).push(arguments);
+            };
+            window.clarity('event', eventName);
+            if (eventParams && typeof eventParams === 'object') {
+              for (var key2 in eventParams) {
+                if (Object.prototype.hasOwnProperty.call(eventParams, key2)) {
+                  if (eventParams[key2] !== null && eventParams[key2] !== undefined) {
+                    window.clarity('set', 'event_' + key2, String(eventParams[key2]));
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Financely Analytics: Failed to push event to Clarity', error);
+        }
+      }
+
+      // Store event for real-time analytics
+      storeEvent(eventName, eventParams || {});
+    };
+
+    // Load Google Tag Manager
+    function loadGTM() {
+      if (!config.gtmContainerId) {
+        console.warn('Financely Analytics: GTM Container ID not provided');
+        return;
+      }
+
+      console.log('Financely Analytics: Loading GTM container', config.gtmContainerId);
+
+      // GTM script
+      const gtmScript = document.createElement('script');
+      gtmScript.async = true;
+      gtmScript.src = 'https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(config.gtmContainerId);
+      gtmScript.onerror = function() {
+        console.error('Financely Analytics: Failed to load GTM script', config.gtmContainerId);
+      };
+      gtmScript.onload = function() {
+        console.log('Financely Analytics: GTM script loaded successfully', config.gtmContainerId);
+        // Verify GTM is actually initialized
+        setTimeout(function() {
+          if (window.google_tag_manager && window.google_tag_manager[config.gtmContainerId]) {
+            console.log('Financely Analytics: GTM container initialized', config.gtmContainerId);
+          } else {
+            console.warn('Financely Analytics: GTM script loaded but container not initialized yet', config.gtmContainerId);
+          }
+        }, 1000);
+      };
+      document.head.appendChild(gtmScript);
+
+      // GTM noscript - wait for body to be available
+      const gtmNoscript = document.createElement('noscript');
+      gtmNoscript.innerHTML =
+        '<iframe src="https://www.googletagmanager.com/ns.html?id=' +
+        encodeURIComponent(config.gtmContainerId) +
+        '" height="0" width="0" style="display:none;visibility:hidden"></iframe>';
+      
+      // Insert noscript into body when available
+      if (document.body) {
+        if (document.body.firstChild) {
+          document.body.insertBefore(gtmNoscript, document.body.firstChild);
+        } else {
+          document.body.appendChild(gtmNoscript);
+        }
+      } else {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            if (document.body) {
+              if (document.body.firstChild) {
+                document.body.insertBefore(gtmNoscript, document.body.firstChild);
+              } else {
+                document.body.appendChild(gtmNoscript);
+              }
+            }
+          });
+        } else {
+          if (document.documentElement) {
+            if (document.documentElement.firstChild) {
+              document.documentElement.insertBefore(gtmNoscript, document.documentElement.firstChild);
+            } else {
+              document.documentElement.appendChild(gtmNoscript);
+            }
           }
         }
       }
     }
-  }
 
-  // Load GA4 (gtag)
-  // Official pattern: https://developers.google.com/analytics/devguides/collection/ga4
+    // Load GA4 (gtag)
+    // Official pattern: https://developers.google.com/analytics/devguides/collection/ga4
     function loadGA4() {
-    if (!config.ga4MeasurementId) {
-      console.warn('Financely Analytics: GA4 Measurement ID not provided');
-      return;
-    }
-
-    // Ensure dataLayer and gtag are set up (consent mode should have done this, but ensure it)
-    window.dataLayer = window.dataLayer || [];
-    if (typeof window.gtag === 'undefined') {
-      window.gtag = function() {
-        window.dataLayer.push(arguments);
-      };
-    }
-
-    // Initialize GA4 immediately (official pattern - gtag function queues commands in dataLayer)
-    // The actual gtag.js library will process these when it loads
-    window.gtag('js', new Date());
-    window.gtag('config', config.ga4MeasurementId, {
-      anonymize_ip: true,
-      send_page_view: false, // We'll track manually for SPA support
-    });
-
-    // Load gtag.js script (async)
-    const gtagScript = document.createElement('script');
-    gtagScript.async = true;
-    gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${config.ga4MeasurementId}`;
-    
-    gtagScript.onerror = function() {
-      console.error('Financely Analytics: Failed to load GA4 script', config.ga4MeasurementId);
-    };
-    
-    gtagScript.onload = function() {
-      console.log('Financely Analytics: GA4 script loaded successfully', config.ga4MeasurementId);
-      // Verify gtag is now the real function (not just our queue)
-      if (typeof window.gtag === 'function') {
-        // Re-initialize to ensure config is applied after script loads
-    window.gtag('config', config.ga4MeasurementId, {
-      anonymize_ip: true,
-          send_page_view: false,
-    });
+      if (!config.ga4MeasurementId) {
+        console.warn('Financely Analytics: GA4 Measurement ID not provided');
+        return;
       }
-    };
-    
-    document.head.appendChild(gtagScript);
-    
-    console.log('Financely Analytics: GA4 initialized (config queued)', config.ga4MeasurementId);
-  }
 
-  // Load Microsoft Clarity
-  // Official pattern: https://learn.microsoft.com/en-us/clarity/setup-and-installation/install-clarity
-    function loadClarity() {
-    if (!config.enableClarity || !config.clarityProjectId) {
-      if (config.enableClarity && !config.clarityProjectId) {
-        console.warn('Financely Analytics: Clarity enabled but Project ID not provided');
+      // Ensure dataLayer and gtag are set up (consent mode should have done this, but ensure it)
+      window.dataLayer = window.dataLayer || [];
+      if (typeof window.gtag === 'undefined') {
+        window.gtag = function() {
+          window.dataLayer.push(arguments);
+        };
       }
-      return;
-    }
 
-    // Use official Microsoft Clarity implementation pattern
-    // This initializes window.clarity inside the IIFE
-    (function(c, l, a, r, i, t, y) {
-      c[a] = c[a] || function() { (c[a].q = c[a].q || []).push(arguments) };
-      t = l.createElement(r);
-      t.async = 1;
-      t.src = "https://www.clarity.ms/tag/" + i;
-      t.onerror = function() {
-        console.error('Financely Analytics: Failed to load Clarity script', i);
+      // Initialize GA4 immediately
+      window.gtag('js', new Date());
+      window.gtag('config', config.ga4MeasurementId, {
+        anonymize_ip: true,
+        send_page_view: false, // We'll track manually for SPA support
+      });
+
+      // Load gtag.js script (async)
+      const gtagScript = document.createElement('script');
+      gtagScript.async = true;
+      gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=' +
+        encodeURIComponent(config.ga4MeasurementId);
+      
+      gtagScript.onerror = function() {
+        console.error('Financely Analytics: Failed to load GA4 script', config.ga4MeasurementId);
       };
-      t.onload = function() {
-        console.log('Financely Analytics: Clarity script loaded successfully', i);
-        // Verify Clarity is working
-        if (typeof window.clarity === 'function') {
-          console.log('Financely Analytics: Clarity is ready and tracking', i);
+      
+      gtagScript.onload = function() {
+        console.log('Financely Analytics: GA4 script loaded successfully', config.ga4MeasurementId);
+        if (typeof window.gtag === 'function') {
+          window.gtag('config', config.ga4MeasurementId, {
+            anonymize_ip: true,
+            send_page_view: false,
+          });
         }
       };
-      y = l.getElementsByTagName(r)[0];
-      if (y && y.parentNode) {
-        y.parentNode.insertBefore(t, y);
-      } else {
-        // Fallback: append to head if no script tag found
-        // Clarity should be in <head> for best results
-        l.head.appendChild(t);
+      
+      document.head.appendChild(gtagScript);
+      
+      console.log('Financely Analytics: GA4 initialized (config queued)', config.ga4MeasurementId);
+    }
+
+    // Load Microsoft Clarity
+    // Official pattern: https://learn.microsoft.com/en-us/clarity/setup-and-installation/install-clarity
+    function loadClarity() {
+      if (!config.enableClarity || !config.clarityProjectId) {
+        if (config.enableClarity && !config.clarityProjectId) {
+          console.warn('Financely Analytics: Clarity enabled but Project ID not provided');
+        }
+        return;
       }
-      console.log('Financely Analytics: Clarity initialized', i);
-    })(window, document, "clarity", "script", config.clarityProjectId);
-  }
 
-  // Load Plausible
+      (function(c, l, a, r, i, t, y) {
+        c[a] = c[a] || function() { (c[a].q = c[a].q || []).push(arguments); };
+        t = l.createElement(r);
+        t.async = 1;
+        t.src = 'https://www.clarity.ms/tag/' + i;
+        t.onerror = function() {
+          console.error('Financely Analytics: Failed to load Clarity script', i);
+        };
+        t.onload = function() {
+          console.log('Financely Analytics: Clarity script loaded successfully', i);
+          if (typeof window.clarity === 'function') {
+            console.log('Financely Analytics: Clarity is ready and tracking', i);
+          }
+        };
+        y = l.getElementsByTagName(r)[0];
+        if (y && y.parentNode) {
+          y.parentNode.insertBefore(t, y);
+        } else if (l.head) {
+          l.head.appendChild(t);
+        }
+        console.log('Financely Analytics: Clarity initialized', i);
+      })(window, document, 'clarity', 'script', config.clarityProjectId);
+    }
+
+    // Load Plausible
     function loadPlausible() {
-    if (!config.plausibleDomain) {
-      console.warn('Financely Analytics: Plausible domain not provided');
-      return;
+      if (!config.plausibleDomain) {
+        console.warn('Financely Analytics: Plausible domain not provided');
+        return;
+      }
+
+      const plausibleScript = document.createElement('script');
+      plausibleScript.defer = true;
+      plausibleScript.setAttribute('data-domain', config.plausibleDomain);
+      plausibleScript.src = 'https://plausible.io/js/script.js';
+      plausibleScript.onerror = function() {
+        console.error('Financely Analytics: Failed to load Plausible script', config.plausibleDomain);
+      };
+      plausibleScript.onload = function() {
+        console.log('Financely Analytics: Plausible loaded', config.plausibleDomain);
+      };
+      document.head.appendChild(plausibleScript);
     }
 
-    const plausibleScript = document.createElement('script');
-    plausibleScript.defer = true;
-    plausibleScript.setAttribute('data-domain', config.plausibleDomain);
-    plausibleScript.src = 'https://plausible.io/js/script.js';
-    plausibleScript.onerror = function() {
-      console.error('Financely Analytics: Failed to load Plausible script', config.plausibleDomain);
-    };
-    plausibleScript.onload = function() {
-      console.log('Financely Analytics: Plausible loaded', config.plausibleDomain);
-    };
-    document.head.appendChild(plausibleScript);
-  }
-
-  // Load Umami
+    // Load Umami
     function loadUmami() {
-    if (!config.umamiScriptUrl) {
-      console.warn('Financely Analytics: Umami script URL not provided');
+      if (!config.umamiScriptUrl) {
+        console.warn('Financely Analytics: Umami script URL not provided');
+        return;
+      }
+
+      if (!config.umamiWebsiteId) {
+        console.warn('Financely Analytics: Umami website ID not provided');
+        return;
+      }
+
+      const umamiScript = document.createElement('script');
+      umamiScript.async = true;
+      umamiScript.defer = true;
+      umamiScript.src = config.umamiScriptUrl;
+      umamiScript.setAttribute('data-website-id', config.umamiWebsiteId);
+      umamiScript.onerror = function() {
+        console.error('Financely Analytics: Failed to load Umami script', config.umamiScriptUrl);
+      };
+      umamiScript.onload = function() {
+        console.log('Financely Analytics: Umami loaded', {
+          scriptUrl: config.umamiScriptUrl,
+          websiteId: config.umamiWebsiteId,
+        });
+      };
+      document.head.appendChild(umamiScript);
+    }
+
+    // Log initialization start
+    console.log('Financely Analytics: Initializing analytics loader...', {
+      strategy: config.strategy,
+      orgId: config.orgId,
+      siteId: config.siteId,
+      enabled: config.enabled,
+    });
+
+    // Check if user has already given consent
+    const consentKey = 'financely_analytics_consent_' + config.orgId;
+    const storedConsent = localStorage.getItem(consentKey);
+    let userConsent = null;
+    if (storedConsent === 'granted') {
+      userConsent = 'granted';
+    } else if (storedConsent === 'denied') {
+      userConsent = 'denied';
+    }
+
+    // Show consent banner if consent is denied by default and user hasn't made a choice
+    if (config.consentDefault === 'denied' && config.bannerProvider === 'custom' && userConsent === null) {
+      showConsentBanner();
+      // Don't load analytics until consent is given
       return;
     }
 
-    if (!config.umamiWebsiteId) {
-      console.warn('Financely Analytics: Umami website ID not provided');
+    // If user explicitly denied, don't load analytics
+    if (userConsent === 'denied') {
+      console.log('Financely Analytics: User denied consent, analytics not loaded');
       return;
     }
 
-    const umamiScript = document.createElement('script');
-    umamiScript.async = true;
-    umamiScript.defer = true;
-    umamiScript.src = config.umamiScriptUrl;
-    // Use the website ID from config (set in Umami dashboard)
-    umamiScript.setAttribute('data-website-id', config.umamiWebsiteId);
-    umamiScript.onerror = function() {
-      console.error('Financely Analytics: Failed to load Umami script', config.umamiScriptUrl);
-    };
-    umamiScript.onload = function() {
-      console.log('Financely Analytics: Umami loaded', {
+    // Initialize consent mode first (must be before any GA4/GTM scripts)
+    initConsentMode();
+    console.log('Financely Analytics: Consent mode initialized', {
+      default: config.consentDefault,
+      userConsent: userConsent || 'default',
+    });
+
+    // Load all enabled analytics providers (can use multiple simultaneously)
+    if (config.enableGA4 && config.ga4MeasurementId) {
+      console.log('Financely Analytics: Loading Google Analytics 4', {
+        measurementId: config.ga4MeasurementId,
+      });
+      loadGA4();
+    }
+
+    if (config.enablePlausible && config.plausibleDomain) {
+      console.log('Financely Analytics: Loading Plausible Analytics', {
+        domain: config.plausibleDomain,
+      });
+      loadPlausible();
+    }
+
+    if (config.enableUmami && config.umamiScriptUrl && config.umamiWebsiteId) {
+      console.log('Financely Analytics: Loading Umami Analytics', {
         scriptUrl: config.umamiScriptUrl,
         websiteId: config.umamiWebsiteId,
       });
-    };
-    document.head.appendChild(umamiScript);
-  }
-
-  // Log initialization start
-    console.log('Financely Analytics: Initializing analytics loader...', {
-    strategy: config.strategy,
-    orgId: config.orgId,
-    siteId: config.siteId,
-    enabled: config.enabled,
-  });
-
-  // Check if user has already given consent
-    const consentKey = 'financely_analytics_consent_' + config.orgId;
-    const storedConsent = localStorage.getItem(consentKey);
-    let userConsent = storedConsent === 'granted' ? 'granted' : (storedConsent === 'denied' ? 'denied' : null);
-
-  // Show consent banner if consent is denied by default and user hasn't made a choice
-    if (config.consentDefault === 'denied' && config.bannerProvider === 'custom' && userConsent === null) {
-    showConsentBanner();
-    // Don't load analytics until consent is given
-    return;
-  }
-
-  // If user explicitly denied, don't load analytics
-    if (userConsent === 'denied') {
-    console.log('Financely Analytics: User denied consent, analytics not loaded');
-    return;
-  }
-
-  // Initialize consent mode first (must be before any GA4/GTM scripts)
-    initConsentMode();
-    console.log('Financely Analytics: Consent mode initialized', {
-    default: config.consentDefault,
-    userConsent: userConsent || 'default',
-  });
-
-  // Load all enabled analytics providers (can use multiple simultaneously)
-    if (config.enableGA4 && config.ga4MeasurementId) {
-    console.log('Financely Analytics: Loading Google Analytics 4', {
-      measurementId: config.ga4MeasurementId,
-    });
-    loadGA4();
-  }
-
-    if (config.enablePlausible && config.plausibleDomain) {
-    console.log('Financely Analytics: Loading Plausible Analytics', {
-      domain: config.plausibleDomain,
-    });
-    loadPlausible();
-  }
-
-    if (config.enableUmami && config.umamiScriptUrl && config.umamiWebsiteId) {
-    console.log('Financely Analytics: Loading Umami Analytics', {
-      scriptUrl: config.umamiScriptUrl,
-      websiteId: config.umamiWebsiteId,
-    });
-    loadUmami();
-  }
+      loadUmami();
+    }
 
     if (config.enableClarity && config.clarityProjectId) {
-    console.log('Financely Analytics: Loading Microsoft Clarity', {
-      projectId: config.clarityProjectId,
-    });
-    loadClarity();
-  }
+      console.log('Financely Analytics: Loading Microsoft Clarity', {
+        projectId: config.clarityProjectId,
+      });
+      loadClarity();
+    }
 
-  // Mark analytics as loaded
+    // Mark analytics as loaded
     window.financelyAnalyticsLoaded = true;
 
-  // Track initial page view
+    // Track initial page view
     trackPageView();
-  
     console.log('Financely Analytics: Initial page view tracked');
 
-  // Track page views on navigation (for SPAs)
+    // Track page views on navigation (for SPAs)
     let lastPath = window.location.pathname;
     const observer = new MutationObserver(function() {
-    if (window.location.pathname !== lastPath) {
-      lastPath = window.location.pathname;
-      trackPageView();
-    }
-  });
+      if (window.location.pathname !== lastPath) {
+        lastPath = window.location.pathname;
+        trackPageView();
+      }
+    });
 
-  // Observe URL changes (for SPAs using History API)
+    // We don't need to attach observer to anything specific yet, but we could if needed
+    // For now, main SPA tracking is via History API overrides below.
+
+    // Observe URL changes (for SPAs using History API)
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
     history.pushState = function() {
-    originalPushState.apply(history, arguments);
-    setTimeout(trackPageView, 0);
-  };
+      originalPushState.apply(history, arguments);
+      setTimeout(trackPageView, 0);
+    };
 
     history.replaceState = function() {
-    originalReplaceState.apply(history, arguments);
-    setTimeout(trackPageView, 0);
-  };
+      originalReplaceState.apply(history, arguments);
+      setTimeout(trackPageView, 0);
+    };
 
     window.addEventListener('popstate', trackPageView);
 
-  // Analytics Debug Helper (available in console)
+    // Analytics Debug Helper (available in console)
     window.checkAnalytics = function() {
-    const results = {
-      analyticsLoader: {
-        found: !!document.querySelector('script[data-analytics-org-id]'),
-        script: document.querySelector('script[data-analytics-org-id]'),
-      },
-      dataLayer: {
-        exists: !!window.dataLayer,
-        length: window.dataLayer?.length || 0,
-        events: window.dataLayer || [],
-      },
-      gtag: {
-        type: typeof window.gtag,
-        isFunction: typeof window.gtag === 'function',
-      },
-      ga4: {
-        script: !!document.querySelector('script[src*="googletagmanager.com/gtag/js"]'),
-        scriptElement: document.querySelector('script[src*="googletagmanager.com/gtag/js"]'),
-        defined: typeof window.gtag !== 'undefined',
-        measurementId: (() => {
-          const script = document.querySelector('script[src*="googletagmanager.com/gtag/js"]');
-          if (script) {
-            const match = script.src.match(/id=([^&]+)/);
-            return match ? match[1] : null;
-          }
-          return null;
-        })(),
-      },
-      gtm: {
-        script: !!document.querySelector('script[src*="googletagmanager.com/gtm.js"]'),
-        scriptElement: document.querySelector('script[src*="googletagmanager.com/gtm.js"]'),
-        noscript: !!document.querySelector('noscript iframe[src*="googletagmanager.com/ns.html"]'),
-        noscriptElement: document.querySelector('noscript iframe[src*="googletagmanager.com/ns.html"]'),
-        global: !!window.google_tag_manager,
-        containerId: (() => {
-          const script = document.querySelector('script[src*="googletagmanager.com/gtm.js"]');
-          if (script) {
-            const match = script.src.match(/id=([^&]+)/);
-            return match ? match[1] : null;
-          }
-          return null;
-        })(),
-      },
-      clarity: {
-        script: !!document.querySelector('script[src*="clarity.ms/tag/"]'),
-        scriptElement: document.querySelector('script[src*="clarity.ms/tag/"]'),
-        global: typeof window.clarity !== 'undefined',
-        projectId: (() => {
-          const script = document.querySelector('script[src*="clarity.ms/tag/"]');
-          if (script) {
-            const match = script.src.match(/tag\/([^\/]+)/);
-            return match ? match[1] : null;
-          }
-          return null;
-        })(),
-      },
-      plausible: {
-        script: !!document.querySelector('script[data-domain]'),
-        scriptElement: document.querySelector('script[data-domain]'),
-        domain: document.querySelector('script[data-domain]')?.getAttribute('data-domain') || null,
-      },
-      umami: {
-        script: !!document.querySelector('script[data-website-id]'),
-        scriptElement: document.querySelector('script[data-website-id]'),
-        global: typeof window.umami !== 'undefined',
-        websiteId: document.querySelector('script[data-website-id]')?.getAttribute('data-website-id') || null,
-        scriptUrl: document.querySelector('script[data-website-id]')?.src || null,
-      },
-      config: (() => {
-        const script = document.querySelector('script[data-analytics-org-id]');
-        if (!script) return null;
+      const analyticsScript = document.querySelector('script[data-analytics-org-id]');
+      const dataLayerExists = !!window.dataLayer;
+      const dataLayerLength = dataLayerExists && window.dataLayer && window.dataLayer.length ? window.dataLayer.length : 0;
+
+      const ga4ScriptEl = document.querySelector('script[src*="googletagmanager.com/gtag/js"]');
+      const ga4MeasurementId = (function() {
+        if (!ga4ScriptEl) return null;
+        const match = ga4ScriptEl.src.match(/id=([^&]+)/);
+        return match ? match[1] : null;
+      })();
+
+      const gtmScriptEl = document.querySelector('script[src*="googletagmanager.com/gtm.js"]');
+      const gtmContainerId = (function() {
+        if (!gtmScriptEl) return null;
+        const match = gtmScriptEl.src.match(/id=([^&]+)/);
+        return match ? match[1] : null;
+      })();
+
+      const clarityScriptEl = document.querySelector('script[src*="clarity.ms/tag/"]');
+      const clarityProjectId = (function() {
+        if (!clarityScriptEl) return null;
+        const match = clarityScriptEl.src.match(/tag\/([^\/]+)/);
+        return match ? match[1] : null;
+      })();
+
+      const plausibleScriptEl = document.querySelector('script[data-domain]');
+      const plausibleDomainFromScript = plausibleScriptEl
+        ? plausibleScriptEl.getAttribute('data-domain') || null
+        : null;
+
+      const umamiScriptEl = document.querySelector('script[data-website-id]');
+      const umamiWebsiteIdFromScript = umamiScriptEl
+        ? umamiScriptEl.getAttribute('data-website-id') || null
+        : null;
+      const umamiScriptUrlFromScript = umamiScriptEl ? umamiScriptEl.src || null : null;
+
+      const configFromScript = (function() {
+        if (!analyticsScript) return null;
         return {
-          orgId: script.getAttribute('data-analytics-org-id'),
-          siteId: script.getAttribute('data-analytics-site-id'),
-          brandName: script.getAttribute('data-analytics-brand-name'),
-          enabled: script.getAttribute('data-analytics-enabled'),
-          strategy: script.getAttribute('data-analytics-strategy'),
-          gtmContainerId: script.getAttribute('data-analytics-gtm-id'),
-          ga4MeasurementId: script.getAttribute('data-analytics-ga4-id'),
-          clarityProjectId: script.getAttribute('data-analytics-clarity-id'),
-          plausibleDomain: script.getAttribute('data-analytics-plausible-domain'),
-          umamiScriptUrl: script.getAttribute('data-analytics-umami-url'),
-          umamiWebsiteId: script.getAttribute('data-analytics-umami-website-id'),
-          enableClarity: script.getAttribute('data-analytics-enable-clarity'),
-          consentDefault: script.getAttribute('data-analytics-consent-default'),
-          bannerProvider: script.getAttribute('data-analytics-banner-provider'),
-          firebaseProject: script.getAttribute('data-firebase-project'),
-          functionUrl: script.getAttribute('data-analytics-function-url'),
+          orgId: analyticsScript.getAttribute('data-analytics-org-id'),
+          siteId: analyticsScript.getAttribute('data-analytics-site-id'),
+          brandName: analyticsScript.getAttribute('data-analytics-brand-name'),
+          enabled: analyticsScript.getAttribute('data-analytics-enabled'),
+          strategy: analyticsScript.getAttribute('data-analytics-strategy'),
+          gtmContainerId: analyticsScript.getAttribute('data-analytics-gtm-id'),
+          ga4MeasurementId: analyticsScript.getAttribute('data-analytics-ga4-id'),
+          clarityProjectId: analyticsScript.getAttribute('data-analytics-clarity-id'),
+          plausibleDomain: analyticsScript.getAttribute('data-analytics-plausible-domain'),
+          umamiScriptUrl: analyticsScript.getAttribute('data-analytics-umami-url'),
+          umamiWebsiteId: analyticsScript.getAttribute('data-analytics-umami-website-id'),
+          enableClarity: analyticsScript.getAttribute('data-analytics-enable-clarity'),
+          consentDefault: analyticsScript.getAttribute('data-analytics-consent-default'),
+          bannerProvider: analyticsScript.getAttribute('data-analytics-banner-provider'),
+          firebaseProject: analyticsScript.getAttribute('data-firebase-project'),
+          functionUrl: analyticsScript.getAttribute('data-analytics-function-url'),
         };
-      })(),
+      })();
+
+      const results = {
+        analyticsLoader: {
+          found: !!analyticsScript,
+          script: analyticsScript,
+        },
+        dataLayer: {
+          exists: dataLayerExists,
+          length: dataLayerLength,
+          events: window.dataLayer || [],
+        },
+        gtag: {
+          type: typeof window.gtag,
+          isFunction: typeof window.gtag === 'function',
+        },
+        ga4: {
+          script: !!ga4ScriptEl,
+          scriptElement: ga4ScriptEl,
+          defined: typeof window.gtag !== 'undefined',
+          measurementId: ga4MeasurementId,
+        },
+        gtm: {
+          script: !!gtmScriptEl,
+          scriptElement: gtmScriptEl,
+          noscript: !!document.querySelector('noscript iframe[src*="googletagmanager.com/ns.html"]'),
+          noscriptElement: document.querySelector('noscript iframe[src*="googletagmanager.com/ns.html"]'),
+          global: !!window.google_tag_manager,
+          containerId: gtmContainerId,
+        },
+        clarity: {
+          script: !!clarityScriptEl,
+          scriptElement: clarityScriptEl,
+          global: typeof window.clarity !== 'undefined',
+          projectId: clarityProjectId,
+        },
+        plausible: {
+          script: !!plausibleScriptEl,
+          scriptElement: plausibleScriptEl,
+          domain: plausibleDomainFromScript,
+        },
+        umami: {
+          script: !!umamiScriptEl,
+          scriptElement: umamiScriptEl,
+          global: typeof window.umami !== 'undefined',
+          websiteId: umamiWebsiteIdFromScript,
+          scriptUrl: umamiScriptUrlFromScript,
+        },
+        config: configFromScript,
+      };
+
+      // Print formatted report
+      console.log('%c=== ANALYTICS DEBUG REPORT ===', 'font-size: 16px; font-weight: bold; color: #2563eb;');
+      
+      // Analytics Loader
+      console.group('%cAnalytics Loader', 'font-weight: bold;');
+      if (results.analyticsLoader.found) {
+        console.log('✅ Analytics Loader script found');
+        console.log('Config:', results.config);
+      } else {
+        console.log('❌ Analytics Loader script NOT found');
+      }
+      console.groupEnd();
+
+      // DataLayer
+      console.group('%cDataLayer', 'font-weight: bold;');
+      if (results.dataLayer.exists) {
+        console.log('✅ DataLayer exists (' + results.dataLayer.length + ' events)');
+        console.log('Recent events:', results.dataLayer.events.slice(-5));
+        console.log('All events:', results.dataLayer.events);
+      } else {
+        console.log('❌ DataLayer NOT found');
+      }
+      console.groupEnd();
+
+      // GA4
+      console.group('%cGoogle Analytics 4 (GA4)', 'font-weight: bold;');
+      if (results.ga4.script) {
+        console.log('✅ GA4 script loaded');
+        console.log('   Measurement ID:', results.ga4.measurementId);
+        console.log('   Script element:', results.ga4.scriptElement);
+      } else {
+        console.log('❌ GA4 script NOT found');
+        if (results.config && results.config.ga4MeasurementId) {
+          console.log('   ⚠️  GA4 Measurement ID is configured but script not loaded');
+          if (results.config.strategy === 'gtm') {
+            console.log('   💡 Using GTM strategy - GA4 should be configured INSIDE GTM');
+            console.log('   📝 Go to GTM → Tags → New → Google Analytics: GA4 Configuration');
+            console.log('   📝 Enter Measurement ID:', results.config.ga4MeasurementId);
+          }
+        }
+      }
+      if (results.gtag.isFunction) {
+        console.log('✅ gtag function is defined');
+      } else {
+        console.log('❌ gtag function NOT defined');
+      }
+      console.groupEnd();
+
+      // GTM
+      console.group('%cGoogle Tag Manager (GTM)', 'font-weight: bold;');
+      if (results.gtm.script) {
+        console.log('✅ GTM script loaded');
+        console.log('   Container ID:', results.gtm.containerId);
+        console.log('   Script element:', results.gtm.scriptElement);
+      } else {
+        console.log('❌ GTM script NOT found');
+        if (results.config && results.config.gtmContainerId) {
+          console.log('   ⚠️  GTM Container ID is configured but script not loaded');
+        }
+      }
+      if (results.gtm.noscript) {
+        console.log('✅ GTM noscript iframe found');
+        console.log('   Noscript element:', results.gtm.noscriptElement);
+      } else {
+        console.log('❌ GTM noscript iframe NOT found');
+      }
+      if (results.gtm.global) {
+        console.log('✅ GTM global object exists');
+        console.log('   google_tag_manager:', window.google_tag_manager);
+      } else {
+        console.log('❌ GTM global object NOT found');
+      }
+      console.groupEnd();
+
+      // Clarity
+      console.group('%cMicrosoft Clarity', 'font-weight: bold;');
+      if (results.clarity.script) {
+        console.log('✅ Clarity script loaded');
+        console.log('   Project ID:', results.clarity.projectId);
+        console.log('   Script element:', results.clarity.scriptElement);
+      } else {
+        console.log('❌ Clarity script NOT found');
+        if (results.config && results.config.enableClarity === 'true' && results.config.clarityProjectId) {
+          console.log('   ⚠️  Clarity is enabled but script not loaded');
+        }
+      }
+      if (results.clarity.global) {
+        console.log('✅ Clarity global object exists');
+        if (typeof window.clarity === 'function') {
+          try {
+            const clarityState = window.clarity;
+            console.log('   Clarity function:', clarityState);
+            console.log('   Clarity queue:', window.clarity.q || 'No queue (script loaded)');
+            console.log('   💡 Clarity automatically tracks sessions once loaded');
+            console.log('   💡 Recordings may take 2-5 minutes to appear in dashboard');
+          } catch (e) {
+            console.log('   (Could not inspect Clarity state)');
+          }
+        }
+      } else {
+        console.log('❌ Clarity global object NOT found');
+        console.log('   ⚠️  Clarity may not be initialized correctly');
+      }
+      console.groupEnd();
+
+      // Plausible
+      if (results.config && results.config.plausibleDomain) {
+        console.group('%cPlausible Analytics', 'font-weight: bold;');
+        if (results.plausible.script) {
+          console.log('✅ Plausible script loaded');
+          console.log('   Domain:', results.plausible.domain);
+        } else {
+          console.log('❌ Plausible script NOT found');
+        }
+        console.groupEnd();
+      }
+
+      // Umami
+      if (results.config && results.config.umamiScriptUrl) {
+        console.group('%cUmami Analytics', 'font-weight: bold;');
+        if (results.umami.script) {
+          console.log('✅ Umami script loaded');
+          console.log('   Website ID:', results.umami.websiteId);
+          console.log('   Script URL:', results.umami.scriptUrl);
+        } else {
+          console.log('❌ Umami script NOT found');
+        }
+        if (results.umami.global) {
+          console.log('✅ Umami global object exists');
+        } else {
+          console.log('❌ Umami global object NOT found');
+        }
+        console.groupEnd();
+      }
+
+      // Recommendations
+      console.group('%cRecommendations', 'font-weight: bold; color: #f59e0b;');
+      if (
+        results.config &&
+        results.config.strategy === 'gtm' &&
+        results.config.ga4MeasurementId &&
+        !results.ga4.script
+      ) {
+        console.log('💡 You have GTM strategy with GA4 Measurement ID configured.');
+        console.log('   GA4 should be configured INSIDE GTM (not loaded separately).');
+        console.log('   Steps:');
+        console.log('   1. Go to Google Tag Manager');
+        console.log('   2. Create a new Tag → Google Analytics: GA4 Configuration');
+        console.log('   3. Enter Measurement ID:', results.config.ga4MeasurementId);
+        console.log('   4. Set trigger to "All Pages"');
+        console.log('   5. Publish the container');
+      }
+      if (results.config && results.config.strategy === 'gtm' && !results.gtm.script) {
+        console.log('⚠️  GTM strategy selected but GTM script not loaded.');
+        console.log('   Check if analytics-loader.js is properly injected.');
+      }
+      if (results.config && results.config.enableClarity === 'true' && !results.clarity.script) {
+        console.log('⚠️  Clarity is enabled but script not loaded.');
+        console.log('   Check if clarityProjectId is correctly configured.');
+      }
+      console.groupEnd();
+
+      console.log('%c=== END REPORT ===', 'font-size: 16px; font-weight: bold; color: #2563eb;');
+      
+      return results;
     };
-
-    // Print formatted report
-    console.log('%c=== ANALYTICS DEBUG REPORT ===', 'font-size: 16px; font-weight: bold; color: #2563eb;');
-    
-    // Analytics Loader
-    console.group('%cAnalytics Loader', 'font-weight: bold;');
-    if (results.analyticsLoader.found) {
-      console.log('✅ Analytics Loader script found');
-      console.log('Config:', results.config);
-    } else {
-      console.log('❌ Analytics Loader script NOT found');
-    }
-    console.groupEnd();
-
-    // DataLayer
-    console.group('%cDataLayer', 'font-weight: bold;');
-    if (results.dataLayer.exists) {
-      console.log(`✅ DataLayer exists (${results.dataLayer.length} events)`);
-      console.log('Recent events:', results.dataLayer.events.slice(-5));
-      console.log('All events:', results.dataLayer.events);
-    } else {
-      console.log('❌ DataLayer NOT found');
-    }
-    console.groupEnd();
-
-    // GA4
-    console.group('%cGoogle Analytics 4 (GA4)', 'font-weight: bold;');
-    if (results.ga4.script) {
-      console.log('✅ GA4 script loaded');
-      console.log('   Measurement ID:', results.ga4.measurementId);
-      console.log('   Script element:', results.ga4.scriptElement);
-    } else {
-      console.log('❌ GA4 script NOT found');
-      if (results.config?.ga4MeasurementId) {
-        console.log('   ⚠️  GA4 Measurement ID is configured but script not loaded');
-        if (results.config?.strategy === 'gtm') {
-          console.log('   💡 Using GTM strategy - GA4 should be configured INSIDE GTM');
-          console.log('   📝 Go to GTM → Tags → New → Google Analytics: GA4 Configuration');
-          console.log('   📝 Enter Measurement ID:', results.config.ga4MeasurementId);
-        }
-      }
-    }
-    if (results.gtag.isFunction) {
-      console.log('✅ gtag function is defined');
-    } else {
-      console.log('❌ gtag function NOT defined');
-    }
-    console.groupEnd();
-
-    // GTM
-    console.group('%cGoogle Tag Manager (GTM)', 'font-weight: bold;');
-    if (results.gtm.script) {
-      console.log('✅ GTM script loaded');
-      console.log('   Container ID:', results.gtm.containerId);
-      console.log('   Script element:', results.gtm.scriptElement);
-    } else {
-      console.log('❌ GTM script NOT found');
-      if (results.config?.gtmContainerId) {
-        console.log('   ⚠️  GTM Container ID is configured but script not loaded');
-      }
-    }
-    if (results.gtm.noscript) {
-      console.log('✅ GTM noscript iframe found');
-      console.log('   Noscript element:', results.gtm.noscriptElement);
-    } else {
-      console.log('❌ GTM noscript iframe NOT found');
-    }
-    if (results.gtm.global) {
-      console.log('✅ GTM global object exists');
-      console.log('   google_tag_manager:', window.google_tag_manager);
-    } else {
-      console.log('❌ GTM global object NOT found');
-    }
-    console.groupEnd();
-
-    // Clarity
-    console.group('%cMicrosoft Clarity', 'font-weight: bold;');
-    if (results.clarity.script) {
-      console.log('✅ Clarity script loaded');
-      console.log('   Project ID:', results.clarity.projectId);
-      console.log('   Script element:', results.clarity.scriptElement);
-    } else {
-      console.log('❌ Clarity script NOT found');
-      if (results.config?.enableClarity === 'true' && results.config?.clarityProjectId) {
-        console.log('   ⚠️  Clarity is enabled but script not loaded');
-      }
-    }
-    if (results.clarity.global) {
-      console.log('✅ Clarity global object exists');
-      // Check if Clarity is actively tracking
-      if (typeof window.clarity === 'function') {
-        try {
-          // Try to check Clarity's internal state (if available)
-          const clarityState = window.clarity;
-          console.log('   Clarity function:', clarityState);
-          console.log('   Clarity queue:', window.clarity.q || 'No queue (script loaded)');
-          console.log('   💡 Clarity automatically tracks sessions once loaded');
-          console.log('   💡 Recordings may take 2-5 minutes to appear in dashboard');
-        } catch (e) {
-          console.log('   (Could not inspect Clarity state)');
-        }
-      }
-    } else {
-      console.log('❌ Clarity global object NOT found');
-      console.log('   ⚠️  Clarity may not be initialized correctly');
-    }
-    console.groupEnd();
-
-    // Plausible
-    if (results.config?.plausibleDomain) {
-      console.group('%cPlausible Analytics', 'font-weight: bold;');
-      if (results.plausible.script) {
-        console.log('✅ Plausible script loaded');
-        console.log('   Domain:', results.plausible.domain);
-      } else {
-        console.log('❌ Plausible script NOT found');
-      }
-      console.groupEnd();
-    }
-
-    // Umami
-    if (results.config?.umamiScriptUrl) {
-      console.group('%cUmami Analytics', 'font-weight: bold;');
-      if (results.umami.script) {
-        console.log('✅ Umami script loaded');
-        console.log('   Website ID:', results.umami.websiteId);
-        console.log('   Script URL:', results.umami.scriptUrl);
-      } else {
-        console.log('❌ Umami script NOT found');
-      }
-      if (results.umami.global) {
-        console.log('✅ Umami global object exists');
-      } else {
-        console.log('❌ Umami global object NOT found');
-      }
-      console.groupEnd();
-    }
-
-    // Recommendations
-    console.group('%cRecommendations', 'font-weight: bold; color: #f59e0b;');
-    if (results.config?.strategy === 'gtm' && results.config?.ga4MeasurementId && !results.ga4.script) {
-      console.log('💡 You have GTM strategy with GA4 Measurement ID configured.');
-      console.log('   GA4 should be configured INSIDE GTM (not loaded separately).');
-      console.log('   Steps:');
-      console.log('   1. Go to Google Tag Manager');
-      console.log('   2. Create a new Tag → Google Analytics: GA4 Configuration');
-      console.log('   3. Enter Measurement ID:', results.config.ga4MeasurementId);
-      console.log('   4. Set trigger to "All Pages"');
-      console.log('   5. Publish the container');
-    }
-    if (results.config?.strategy === 'gtm' && !results.gtm.script) {
-      console.log('⚠️  GTM strategy selected but GTM script not loaded.');
-      console.log('   Check if analytics-loader.js is properly injected.');
-    }
-    if (results.config?.enableClarity === 'true' && !results.clarity.script) {
-      console.log('⚠️  Clarity is enabled but script not loaded.');
-      console.log('   Check if clarityProjectId is correctly configured.');
-    }
-    console.groupEnd();
-
-    console.log('%c=== END REPORT ===', 'font-size: 16px; font-weight: bold; color: #2563eb;');
-    
-    return results;
-  };
 
     // Final initialization log
     console.log('%c✅ Financely Analytics Loader initialized', 'color: #10b981; font-weight: bold; font-size: 14px;');
@@ -1137,21 +1162,20 @@
   // Track common events
   document.addEventListener('click', function(e) {
     const target = e.target;
-    if (target.tagName === 'A' || target.closest('a')) {
-      const link = target.tagName === 'A' ? target : target.closest('a');
-      if (link && link.href) {
-        window.trackAnalyticsEvent('link_click', {
-          link_url: link.href,
-          link_text: link.textContent?.trim() || '',
-        });
-      }
+    const link = target.tagName === 'A' ? target : target.closest && target.closest('a');
+    if (link && link.href) {
+      var linkText = link.textContent ? link.textContent.trim() : '';
+      window.trackAnalyticsEvent('link_click', {
+        link_url: link.href,
+        link_text: linkText,
+      });
     }
   });
 
   // Track form submissions
   document.addEventListener('submit', function(e) {
     const form = e.target;
-    if (form.tagName === 'FORM') {
+    if (form && form.tagName === 'FORM') {
       window.trackAnalyticsEvent('form_submit', {
         form_id: form.id || '',
         form_action: form.action || '',
@@ -1159,4 +1183,3 @@
     }
   });
 })();
-
