@@ -33,6 +33,7 @@ import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
 import { ColorPicker } from "@/components/ui/color-picker";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 import { Badge } from "@/components/ui/badge";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
 import { ModeToggle } from "@/components/ui/mode-toggle";
@@ -238,7 +239,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
       await updateUserRole.mutateAsync({
         userId: userId,
         organizationId: orgId,
-        role: "owner",
+        role: ORGANIZATION_ROLES.OWNER,
       });
 
       toast.success(t("onboarding.messages.orgCreated"));

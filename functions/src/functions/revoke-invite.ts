@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { Invite } from "../core/entities/invite";
+import { isAdminOrOwner, isValidRole } from "../core/roles";
 
 interface RevokeInvitePayload {
   inviteId: string;
@@ -55,8 +56,11 @@ export const revokeInvite = onCall<RevokeInvitePayload, Promise<RevokeInviteResp
       }
 
       // Check if user has permission to revoke this invite
-      const userRole = userData.organizationRoles?.[inviteData.organizationId];
-      if (userRole !== "owner" && userRole !== "admin") {
+      const userRoleValue = userData.organizationRoles?.[inviteData.organizationId];
+      if (!userRoleValue || !isValidRole(userRoleValue)) {
+        throw new HttpsError("permission-denied", "User does not have a valid role in this organization");
+      }
+      if (!isAdminOrOwner(userRoleValue)) {
         throw new HttpsError("permission-denied", "User does not have permission to revoke invites");
       }
 

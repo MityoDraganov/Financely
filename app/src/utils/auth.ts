@@ -1,23 +1,53 @@
-import { User, UserRole } from "@/core";
+import { User } from "@/core";
+import { OrganizationRole, hasMinimumRole, isValidRole } from "@/core/roles";
 
-export function hasRole(user: User, organizationId: string, role: UserRole): boolean {
-    const userRole = user.organizationRoles[organizationId];
-    if (!userRole) return false;
-    
-    const roleHierarchy: UserRole[] = ["viewer", "member", "admin", "owner"];
-    const userRoleIndex = roleHierarchy.indexOf(userRole);
-    const requiredRoleIndex = roleHierarchy.indexOf(role);
-    
-    return userRoleIndex >= requiredRoleIndex;
+/**
+ * Check if user has at least the required role in the organization
+ * Uses centralized role system for type safety
+ */
+export function hasRole(
+  user: User,
+  organizationId: string,
+  role: OrganizationRole
+): boolean {
+  const userRole = user.organizationRoles[organizationId];
+  if (!userRole) return false;
+  
+  // Validate role is valid
+  if (!isValidRole(userRole)) {
+    return false;
   }
-  export function isMemberOf(user: User, organizationId: string): boolean {
-    return organizationId in user.organizationRoles;
+  
+  // Use centralized role checking
+  return hasMinimumRole(userRole, role);
+}
+
+/**
+ * Check if user is a member of the organization
+ */
+export function isMemberOf(user: User, organizationId: string): boolean {
+  return organizationId in user.organizationRoles;
+}
+/**
+ * Get all organization IDs the user belongs to
+ */
+export function getUserOrganizations(user: User): string[] {
+  return Object.keys(user.organizationRoles);
+}
+
+/**
+ * Get user's role in a specific organization
+ * Uses centralized role system for type safety
+ */
+export function getRoleInOrganization(
+  user: User,
+  organizationId: string
+): OrganizationRole | undefined {
+  const role = user.organizationRoles[organizationId];
+  if (!role || !isValidRole(role)) {
+    return undefined;
   }
-  export function getUserOrganizations(user: User): string[] {
-    return Object.keys(user.organizationRoles);
-  }
-  export function getRoleInOrganization(user: User, organizationId: string): UserRole | undefined {
-    return user.organizationRoles[organizationId];
-  }
+  return role;
+}
   
   

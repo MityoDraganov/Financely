@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/clerk-react";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { auditLogService } from "@/services/audit-log/audit-log-service";
 import {
   CreateAuditLogInput,

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useSendInvite } from "@/hooks/use-invites";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { ORGANIZATION_ROLES, type OrganizationRole } from "@/core/roles";
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -28,7 +29,7 @@ interface InviteUserDialogProps {
 
 export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "member" | "viewer">("member");
+  const [role, setRole] = useState<OrganizationRole>(ORGANIZATION_ROLES.MEMBER);
   const { data: organization } = useCurrentOrganization();
   const sendInvite = useSendInvite();
 
@@ -48,7 +49,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
       
       // Reset form and close dialog
       setEmail("");
-      setRole("member");
+      setRole(ORGANIZATION_ROLES.MEMBER);
       onOpenChange(false);
     } catch {
       // Error is handled by the mutation
@@ -57,7 +58,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
 
   const handleCancel = () => {
     setEmail("");
-    setRole("member");
+    setRole(ORGANIZATION_ROLES.MEMBER);
     onOpenChange(false);
   };
 
@@ -93,12 +94,12 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
           
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
-            <Select value={role} onValueChange={(value: "admin" | "member" | "viewer") => setRole(value)}>
+            <Select value={role} onValueChange={(value) => setRole(value as OrganizationRole)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">
+                <SelectItem value={ORGANIZATION_ROLES.ADMIN}>
                   <div className="flex flex-col">
                     <span className="font-medium">Admin</span>
                     <span className="text-xs text-muted-foreground">
@@ -106,7 +107,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
                     </span>
                   </div>
                 </SelectItem>
-                <SelectItem value="member">
+                <SelectItem value={ORGANIZATION_ROLES.MEMBER}>
                   <div className="flex flex-col">
                     <span className="font-medium">Member</span>
                     <span className="text-xs text-muted-foreground">
@@ -114,7 +115,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
                     </span>
                   </div>
                 </SelectItem>
-                <SelectItem value="viewer">
+                <SelectItem value={ORGANIZATION_ROLES.VIEWER}>
                   <div className="flex flex-col">
                     <span className="font-medium">Viewer</span>
                     <span className="text-xs text-muted-foreground">

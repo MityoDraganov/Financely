@@ -10,7 +10,7 @@ import { Tabs, TabsContent} from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWorkflowsByOrg, useActivateWorkflow, usePauseWorkflow, useArchiveWorkflow, useCreateWorkflowFunction, useDeleteWorkflow } from "@/hooks";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import WorkflowBuilderWrapper from "@/components/workflow/workflow-builder-wrapper";
 import WorkflowExecutionHistory from "@/components/workflow/workflow-execution-history";
 import WorkflowPreview from "@/components/workflow/workflow-preview";

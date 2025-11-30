@@ -6,6 +6,8 @@ import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { handleRenderInvoicePdf } from "../app/handle-render-invoice-pdf";
+import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
+import { ORGANIZATION_ROLES } from "../core/roles";
 import {
   getEmailBrandingConfig,
   generateInvoiceEmailHTML,
@@ -81,11 +83,6 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
   },
   async (request) => {
     try {
-      // TODO: Add authentication check when Clerk is integrated
-      // if (!request.auth) {
-      //   throw new HttpsError("unauthenticated", "User must be authenticated");
-      // }
-
       const { invoiceId, toEmail, emailTemplateId } = request.data;
 
       // Validation
@@ -109,6 +106,15 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       if (!invoice) {
         throw new HttpsError("not-found", `Invoice not found: ${invoiceId}`);
       }
+
+      // Verify authentication and organization membership
+      // Members can send invoice emails (owner/admin/member roles)
+      if (!invoice.orgId) {
+        throw new HttpsError("invalid-argument", "Invoice does not have an organization ID");
+      }
+      await verifyAuthAndOrgMembership(request, invoice.orgId, {
+        requiredRole: ORGANIZATION_ROLES.MEMBER,
+      });
 
       // Fetch organization for branding
       let organization = null;

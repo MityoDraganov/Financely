@@ -1,8 +1,18 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { VALID_ROLES, type OrganizationRole } from "../roles";
 
-export const userRoleSchema = z.enum(["owner", "admin", "member", "viewer"]);
-export type UserRole = z.infer<typeof userRoleSchema>;
+/**
+ * User role schema - uses centralized role definitions
+ * @deprecated Use OrganizationRole from ../roles instead
+ */
+export const userRoleSchema = z.enum(VALID_ROLES as [OrganizationRole, ...OrganizationRole[]]);
+
+/**
+ * User role type - uses centralized role definitions
+ * @deprecated Use OrganizationRole from ../roles instead
+ */
+export type UserRole = OrganizationRole;
 
 export const userDataSchema = z.object({
   clerkId: z.string(),

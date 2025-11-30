@@ -1,6 +1,6 @@
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "./repository-hooks/use-users";
-import { useUserOrganizations, useOrganizationsByIds } from "./repository-hooks/use-organizations";
+import { useOrganizationsByIds } from "./repository-hooks/use-organizations";
 
 /**
  * Hook to determine if user needs onboarding
@@ -10,29 +10,22 @@ export function useOnboardingStatus() {
   const { user, isLoaded: isClerkLoaded } = useUser();
   const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(user?.id);
   
-  // Try to get organizations by memberIds first
-  const { 
-    data: organizationsByMemberIds = [], 
-    isLoading: isOrganizationsByMemberIdsLoading 
-  } = useUserOrganizations(dbUser?.id);
-  
-  // If no organizations found by memberIds, try to get them by organizationRoles
+  // Get organizations by organizationRoles (memberIds query doesn't work with Firestore rules)
   const organizationIds = dbUser?.organizationRoles ? Object.keys(dbUser.organizationRoles) : [];
   const { 
     data: organizationsByIds = [], 
     isLoading: isOrganizationsByIdsLoading 
   } = useOrganizationsByIds(
-    organizationsByMemberIds.length === 0 ? organizationIds : undefined
+    organizationIds.length > 0 ? organizationIds : undefined
   );
   
-  // Use organizations from memberIds if available, otherwise use organizations by IDs
-  const organizations = organizationsByMemberIds.length > 0 ? organizationsByMemberIds : organizationsByIds;
+  // Use organizations from organizationRoles
+  const organizations = organizationsByIds;
 
   // Calculate loading state - include all loading states
   const isLoading = 
     !isClerkLoaded || 
     isUserLoading || 
-    isOrganizationsByMemberIdsLoading || 
     (organizationIds.length > 0 && isOrganizationsByIdsLoading);
 
   // Determine if onboarding is needed

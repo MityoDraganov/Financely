@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useUsers } from "./repository-hooks/use-users";
 import { useCurrentOrganization } from "./use-current-organization";
+import { OrganizationRole, ORGANIZATION_ROLES, isValidRole, ROLE_HIERARCHY } from "@/core/roles";
 
 interface OrganizationMember {
   id: string;
   name: string;
   email: string;
   avatarUrl?: string;
-  role: "owner" | "admin" | "member" | "viewer";
+  role: OrganizationRole;
   status: "active" | "suspended" | "deleted";
   createdAt: string;
   lastLoginAt?: string;
@@ -33,14 +34,17 @@ export function useOrganizationMembers(organizationId?: string) {
         const user = allUsers.find(u => u.id === memberId);
         if (user) {
           // Get user's role in this organization
-          const role = user.organizationRoles?.[organizationId || ""] || "member";
+          const roleValue = user.organizationRoles?.[organizationId || ""];
+          const role: OrganizationRole = (roleValue && isValidRole(roleValue))
+            ? roleValue
+            : ORGANIZATION_ROLES.MEMBER;
           
           members.push({
             id: user.id,
             name: user.name,
             email: user.email,
             avatarUrl: user.avatarUrl,
-            role: role as "owner" | "admin" | "member" | "viewer",
+            role,
             status: user.status,
             createdAt: user.createdAt || new Date().toISOString(),
             lastLoginAt: undefined, // User entity doesn't have lastLoginAt field yet
@@ -48,9 +52,8 @@ export function useOrganizationMembers(organizationId?: string) {
         }
       });
 
-      // Sort members by role (owners first, then admins, then members, then viewers)
-      const roleOrder = { owner: 0, admin: 1, member: 2, viewer: 3 };
-      members.sort((a, b) => roleOrder[a.role] - roleOrder[b.role]);
+      // Sort members by role hierarchy (owners first, then admins, then members, then viewers)
+      members.sort((a, b) => ROLE_HIERARCHY[b.role] - ROLE_HIERARCHY[a.role]);
 
       return members;
     },

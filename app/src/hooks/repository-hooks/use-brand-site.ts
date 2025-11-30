@@ -3,6 +3,7 @@ import { getFirestore, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { firebase } from "@/infrastructure/firebase";
 import { useEffect, useState } from "react";
 import { serviceHost } from "@/services";
+import { useAuthReady } from "@/hooks/use-auth-ready";
 
 interface BrandSite {
   id: string;
@@ -87,6 +88,8 @@ interface BrandSite {
  * Hook to fetch a brand site by ID with real-time updates
  */
 export const useBrandSite = (brandSiteId: string | null) => {
+  const { isAuthReady } = useAuthReady();
+  
   return useQuery({
     queryKey: ["brandSite", brandSiteId],
     queryFn: async () => {
@@ -105,7 +108,7 @@ export const useBrandSite = (brandSiteId: string | null) => {
         ...docSnap.data(),
       } as BrandSite;
     },
-    enabled: !!brandSiteId,
+    enabled: !!brandSiteId && isAuthReady,
     refetchInterval: (query) => {
       // Poll more frequently if status is pending/generating/deploying (for streaming updates)
       const data = query.state.data as BrandSite | null;
@@ -181,6 +184,8 @@ export const useBrandSiteRealtime = (brandSiteId: string | null) => {
  * Hook to fetch brand sites for an organization
  */
 export const useBrandSitesByOrganization = (organizationId: string | null | undefined) => {
+  const { isAuthReady } = useAuthReady();
+  
   return useQuery({
     queryKey: ["brandSites", organizationId],
     queryFn: async () => {
@@ -257,7 +262,7 @@ export const useBrandSitesByOrganization = (organizationId: string | null | unde
         throw error;
       }
     },
-    enabled: !!organizationId,
+    enabled: !!organizationId && isAuthReady,
   });
 };
 

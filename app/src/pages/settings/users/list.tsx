@@ -23,6 +23,7 @@ import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { functionsService } from "@/services/functions/functions-service";
 import { toast } from "sonner";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +53,7 @@ export default function UsersListPage() {
   const currentUserRole = organization?.id && dbUser?.organizationRoles
     ? dbUser.organizationRoles[organization.id]
     : undefined;
-  const isOwner = currentUserRole === "owner";
+  const isOwner = currentUserRole === ORGANIZATION_ROLES.OWNER;
 
   // Revoke member mutation
   const revokeMemberMutation = useMutation({
@@ -86,7 +87,7 @@ export default function UsersListPage() {
   });
 
   const handleRevokeClick = (member: { id: string; name: string; role: string }) => {
-    if (member.role === "owner") {
+    if (member.role === ORGANIZATION_ROLES.OWNER) {
       toast.error(t('settings.users.allUsers.cannotRevokeOwner', { defaultValue: "Cannot revoke another owner" }));
       return;
     }
@@ -111,13 +112,13 @@ export default function UsersListPage() {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case "owner":
+      case ORGANIZATION_ROLES.OWNER:
         return "default";
-      case "admin":
+      case ORGANIZATION_ROLES.ADMIN:
         return "secondary";
-      case "member":
+      case ORGANIZATION_ROLES.MEMBER:
         return "outline";
-      case "viewer":
+      case ORGANIZATION_ROLES.VIEWER:
         return "outline";
       default:
         return "outline";
@@ -283,7 +284,7 @@ export default function UsersListPage() {
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-blue-600 shrink-0" />
               <div className="min-w-0">
-                <p className="text-base font-bold leading-tight">{members.filter(m => m.role === "admin" || m.role === "owner").length}</p>
+                <p className="text-base font-bold leading-tight">{members.filter(m => m.role === ORGANIZATION_ROLES.ADMIN || m.role === ORGANIZATION_ROLES.OWNER).length}</p>
                 <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.admins')}</p>
               </div>
             </div>

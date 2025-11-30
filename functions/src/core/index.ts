@@ -1,3 +1,6 @@
+// Roles - centralized role management system
+export * from "./roles";
+
 // Entities
 export * from "./entities/base";
 export * from "./entities/clerk-user";

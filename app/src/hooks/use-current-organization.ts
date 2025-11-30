@@ -1,4 +1,6 @@
-import { useCurrentOrganization as useCurrentOrganizationFromContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "./use-organization-context";
+
 export function useCurrentOrganization() {
-  return useCurrentOrganizationFromContext();
+  const { currentOrganization, isLoading } = useOrganizationContext();
+  return { data: currentOrganization, isLoading };
 }

@@ -96,11 +96,11 @@ import {
       const collectionRef = collection(firebase.firestore, collectionName);
       const docRef = doc(collectionRef, id);
       const documentSnapshot = await getDoc(docRef);
-  
+
       if (documentSnapshot.exists()) {
         return snapshotToData<T>(documentSnapshot);
       }
-  
+
       return null;
     },
   
@@ -119,21 +119,21 @@ import {
       queryConstraints: CoreQueryConstraint[],
     ): Promise<T | null> {
       const collectionRef = collection(firebase.firestore, collectionName);
-  
+
       const constraints: QueryConstraint[] = queryConstraints.map((x) =>
         where(x.field, x.operator, x.value),
       );
-  
+
       constraints.push(limit(1));
-  
+
       const q = query(collectionRef, ...constraints);
-  
+
       const snapshots = await getDocs(q);
-  
+
       if (snapshots.empty) {
         return null;
       }
-  
+
       return snapshotToData<T>(snapshots.docs[0]);
     },
   
@@ -161,33 +161,33 @@ import {
       },
     ): Promise<T[]> {
       const collectionRef = collection(firebase.firestore, collectionName);
-  
+
       const constraints: QueryConstraint[] = [];
-  
+
       for (const x of queryConstraints) {
         constraints.push(where(x.field, x.operator, x.value));
       }
-  
+
       if (orderByOptions) {
         constraints.push(orderBy(orderByOptions.field, orderByOptions.direction));
       }
-  
+
       if (paginationOptions.limit) {
         constraints.push(limit(paginationOptions.limit));
       }
-  
+
       if (paginationOptions.cursor) {
         const docRef = await getDoc(doc(collectionRef, paginationOptions.cursor));
         constraints.push(startAfter(docRef));
       }
-  
+
       const q = query(collectionRef, ...constraints);
       const documentsSnapshots = await getDocs(q);
-  
+
       if (documentsSnapshots.empty) {
         return [];
       }
-  
+
       return documentsSnapshots.docs
         .filter((x) => x !== null)
         .map((doc) => snapshotToData<T>(doc)) as T[];
@@ -211,12 +211,18 @@ import {
     ): UnsubscribeFn {
       const collectionRef = collection(firebase.firestore, collectionName);
       const docRef = doc(collectionRef, id);
-  
+
+      // Set up subscription - Firestore will handle auth state
+      // If not authenticated, the rules will reject and callback(null) will be called
       return onSnapshot(docRef, (snapshot) => {
         if (snapshot.exists()) {
           return callback(snapshotToData<T>(snapshot));
         }
-  
+
+        callback(null);
+      }, (error) => {
+        // On permission error, call callback with null
+        console.error("Subscription error:", error);
         callback(null);
       });
     },
@@ -238,7 +244,7 @@ import {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-  
+
       return documentReference.id;
     },
   
@@ -255,7 +261,7 @@ import {
      */
     async set<T>(collectionName: string, id: string, data: T): Promise<void> {
       const documentRef = doc(firebase.firestore, collectionName, id);
-  
+
       await setDoc(documentRef, {
         ...data,
         createdAt: serverTimestamp(),
@@ -276,7 +282,7 @@ import {
      */
     async update<T>(collectionName: string, id: string, data: T): Promise<void> {
       const documentRef = doc(firebase.firestore, collectionName, id);
-  
+
       await updateDoc(documentRef, {
         ...data,
         updatedAt: serverTimestamp(),
@@ -302,7 +308,7 @@ import {
       value: T,
     ): Promise<void> {
       const documentRef = doc(firebase.firestore, collectionName, id);
-  
+
       await updateDoc(documentRef, {
         [field]: arrayUnion(value),
         updatedAt: serverTimestamp(),
@@ -328,7 +334,7 @@ import {
       value: T,
     ): Promise<void> {
       const documentRef = doc(firebase.firestore, collectionName, id);
-  
+
       await updateDoc(documentRef, {
         [field]: arrayRemove(value),
         updatedAt: serverTimestamp(),
@@ -345,7 +351,7 @@ import {
      */
     async delete(collectionName: string, id: string): Promise<void> {
       const documentRef = doc(firebase.firestore, collectionName, id);
-  
+
       await deleteDoc(documentRef);
     },
   };

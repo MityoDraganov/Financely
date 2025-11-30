@@ -2,6 +2,10 @@ import { Organization, QueryConstraint } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthReady } from "@/hooks/use-auth-ready";
+import { useUser } from "@clerk/clerk-react";
+import { useUserByClerkId } from "./use-users";
+import { firebase } from "@/infrastructure";
 
 const databaseService = serviceHost.getDatabaseService();
 const organizationRepository = repositoryHost.getOrganizationsRepository(databaseService);
@@ -34,26 +38,54 @@ export const useOrganization = (organizationId: string | undefined) => {
  * Hook to fetch organizations where a specific user is a member
  */
 export const useUserOrganizations = (userId: string | undefined) => {
+  const { isAuthReady } = useAuthReady();
+  const { user: clerkUser, isSignedIn } = useUser();
+  const { data: dbUser } = useUserByClerkId(clerkUser?.id);
+  
+  // Only enable query if:
+  // 1. User is signed in
+  // 2. Auth is ready
+  // 3. User document is loaded (or user doesn't exist yet)
+  // 4. userId is provided
+  const isReady = isSignedIn && isAuthReady && (!!dbUser || !clerkUser?.id);
+  
   return useQuery({
     queryKey: ["organizations", "user", userId],
     queryFn: async () => {
       if (!userId) return Promise.resolve([]);
       
       try {
-        console.log('useUserOrganizations: Querying for userId:', userId);
+        const currentUser = firebase.auth.currentUser;
+        console.log('[QUERY DEBUG] useUserOrganizations: Starting query', {
+          userId,
+          firebaseAuthUid: currentUser?.uid,
+          isAuthenticated: currentUser !== null,
+        });
+        
         const result = await organizationRepository.getAll({
           queryConstraints: [
             { field: "memberIds", operator: "array-contains", value: userId },
           ],
         });
-        console.log('useUserOrganizations: Query result:', result);
+        
+        console.log('[QUERY DEBUG] useUserOrganizations: ✅ Success', {
+          resultCount: result.length,
+        });
         return result;
       } catch (error) {
-        console.error(error);
+        const currentUser = firebase.auth.currentUser;
+        console.error('[QUERY DEBUG] useUserOrganizations: ❌ Error', {
+          error,
+          userId,
+          firebaseAuthUid: currentUser?.uid,
+          isAuthenticated: currentUser !== null,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorCode: error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined,
+        });
         throw error;
       }
     },
-    enabled: !!userId,
+    enabled: !!userId && isReady,
   });
 };
 
@@ -61,28 +93,54 @@ export const useUserOrganizations = (userId: string | undefined) => {
  * Hook to fetch organizations by their IDs (fallback for when memberIds query fails)
  */
 export const useOrganizationsByIds = (organizationIds: string[] | undefined) => {
+  const { isAuthReady } = useAuthReady();
+  const { isSignedIn } = useUser();
+  
+  // Only enable query if user is signed in and auth is ready
+  const isReady = isSignedIn && isAuthReady;
+  
   return useQuery({
     queryKey: ["organizations", "by-ids", organizationIds],
     queryFn: async () => {
       if (!organizationIds || organizationIds.length === 0) return Promise.resolve([]);
       
       try {
-        console.log('useOrganizationsByIds: Fetching organizations by IDs:', organizationIds);
+        const currentUser = firebase.auth.currentUser;
+        console.log('[QUERY DEBUG] useOrganizationsByIds: Starting query', {
+          organizationIds,
+          firebaseAuthUid: currentUser?.uid,
+          isAuthenticated: currentUser !== null,
+        });
+        
         const organizations = await Promise.all(
           organizationIds.map(id => organizationRepository.get({ id }))
         );
         
         // Filter out null results (organizations that don't exist)
         const validOrganizations = organizations.filter(org => org !== null) as Organization[];
-        console.log('useOrganizationsByIds: Found organizations:', validOrganizations);
+        
+        console.log('[QUERY DEBUG] useOrganizationsByIds: ✅ Success', {
+          requested: organizationIds.length,
+          found: validOrganizations.length,
+        });
         
         return validOrganizations;
       } catch (error) {
-        console.error('useOrganizationsByIds: Error fetching organizations by IDs:', error);
+        const currentUser = firebase.auth.currentUser;
+        console.error('[QUERY DEBUG] useOrganizationsByIds: ❌ Error', {
+          error,
+          organizationIds,
+          firebaseAuthUid: currentUser?.uid,
+          isAuthenticated: currentUser !== null,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorCode: error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined,
+        });
         throw error;
       }
     },
-    enabled: !!organizationIds && organizationIds.length > 0,
+    enabled: !!organizationIds && organizationIds.length > 0 && isReady,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 };
 

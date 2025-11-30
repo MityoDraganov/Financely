@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import { defineSecret } from "firebase-functions/params";
+import { ORGANIZATION_ROLES } from "../core/roles";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -72,7 +73,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       const html = `
         <h1>You're Invited!</h1>
         <p><strong>${inviterData?.name || "A team member"}</strong> has invited you to join <strong>${orgData.name}</strong>.</p>
-        <p>As a ${inviteData.role || "member"}, you'll have access to:</p>
+        <p>As a ${inviteData.role || ORGANIZATION_ROLES.MEMBER}, you'll have access to:</p>
         <ul>
           <li>Organization dashboard and tools</li>
           <li>Collaborative features</li>

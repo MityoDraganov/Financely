@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/clerk-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { useCurrentOrganization } from "@/contexts/organization-context";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useAuthReady } from "@/hooks/use-auth-ready";
 import { toast } from "sonner";
 
 interface Invite {
@@ -29,6 +30,7 @@ interface RevokeInviteParams {
 
 export function useInvites() {
   const { getToken } = useAuth();
+  const { isAuthReady } = useAuthReady();
   const queryClient = useQueryClient();
   const functions = getFunctions();
   const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
@@ -70,7 +72,7 @@ export function useInvites() {
         invite.status === "active" || invite.status === "sent"
       );
     },
-    enabled: !!currentOrganization?.id && !isOrgLoading,
+    enabled: !!currentOrganization?.id && !isOrgLoading && isAuthReady,
   });
 
   // Mutation for creating invites

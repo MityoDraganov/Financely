@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 
 interface UserSelectorProps {
   value?: string; // User ID
@@ -136,10 +137,10 @@ export function UserSelector({
                           <span className="font-medium truncate">{user.name}</span>
                           <span className={cn(
                             "text-xs px-1.5 py-0.5 rounded",
-                            user.role === "owner" && "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-                            user.role === "admin" && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-                            user.role === "member" && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-                            user.role === "viewer" && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                            user.role === ORGANIZATION_ROLES.OWNER && "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                            user.role === ORGANIZATION_ROLES.ADMIN && "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                            user.role === ORGANIZATION_ROLES.MEMBER && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+                            user.role === ORGANIZATION_ROLES.VIEWER && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                           )}>
                             {user.role}
                           </span>

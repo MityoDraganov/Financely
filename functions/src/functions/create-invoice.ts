@@ -6,6 +6,8 @@ import { getDatabaseService } from "../services/database-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getAuditLogRepository } from "../repositories/audit-log-repository";
 import { getAuditLogService } from "../services/audit-log-service";
+import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
+import { ORGANIZATION_ROLES } from "../core/roles";
 
 /**
  * Firebase Cloud Function for creating an invoice.
@@ -70,11 +72,6 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
   },
   async (request) => {
     try {
-      // TODO: Add authentication check when Clerk is integrated
-      // if (!request.auth) {
-      //   throw new HttpsError("unauthenticated", "User must be authenticated");
-      // }
-
       const payload = request.data;
 
       // Basic validation
@@ -91,6 +88,12 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
           "Organization ID (orgId) is required"
         );
       }
+
+      // Verify authentication and organization membership
+      // Members can create invoices (owner/admin/member roles)
+      await verifyAuthAndOrgMembership(request, payload.orgId, {
+        requiredRole: ORGANIZATION_ROLES.MEMBER,
+      });
 
       if (!payload.templateId) {
         throw new HttpsError(

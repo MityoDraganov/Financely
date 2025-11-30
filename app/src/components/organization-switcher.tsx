@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useUserByClerkId } from "@/hooks";
 import { useUser } from "@clerk/clerk-react";
 import { toast } from "sonner";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 import {
   Building2,
   ChevronDown,
@@ -110,7 +111,7 @@ export function OrganizationSwitcher() {
       await updateUserRole.mutateAsync({
         userId: dbUser.id,
         organizationId: orgId,
-        role: "owner",
+        role: ORGANIZATION_ROLES.OWNER,
       });
 
       toast.success("Organization created successfully!");

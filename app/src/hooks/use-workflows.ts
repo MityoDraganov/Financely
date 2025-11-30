@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { workflowService } from "@/services/workflow/workflow-service";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { CreateWorkflowInput, UpdateWorkflowInput } from "@/core";
 
 export function useWorkflows() {

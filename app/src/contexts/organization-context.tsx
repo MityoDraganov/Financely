@@ -1,20 +1,10 @@
-import { createContext, useContext, ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
-import { useUserOrganizations, useOrganizationsByIds } from "@/hooks/repository-hooks/use-organizations";
-import { Organization } from "@/core";
+import { useOrganizationsByIds } from "@/hooks/repository-hooks/use-organizations";
+import { OrganizationContext, OrganizationContextType } from "./organization-context-types";
 
 const CURRENT_ORG_STORAGE_KEY = "financely_current_organization_id";
-
-interface OrganizationContextType {
-  currentOrganization: Organization | null;
-  organizations: Organization[];
-  isLoading: boolean;
-  error: Error | null;
-  switchOrganization: (organizationId: string) => void;
-}
-
-const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 interface OrganizationProviderProps {
   children: ReactNode;
@@ -24,19 +14,16 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   const { user, isLoaded: isClerkLoaded } = useUser();
   const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(user?.id);
   
-  // Try to get organizations by memberIds first
-  const { data: organizationsByMemberIds = [], isLoading: isOrganizationsLoading, error: orgsError } = useUserOrganizations(dbUser?.id);
-  
-  // If no organizations found by memberIds, try to get them by organizationRoles
+  // Get organizations by organizationRoles (memberIds query doesn't work with Firestore rules)
   const organizationIds = dbUser?.organizationRoles ? Object.keys(dbUser.organizationRoles) : [];
-  const { data: organizationsByIds = [], isLoading: isOrganizationsByIdsLoading } = useOrganizationsByIds(
-    organizationsByMemberIds.length === 0 ? organizationIds : undefined
+  const { data: organizationsByIds = [], isLoading: isOrganizationsByIdsLoading, error: orgsError } = useOrganizationsByIds(
+    organizationIds.length > 0 ? organizationIds : undefined
   );
   
-  // Use organizations from memberIds if available, otherwise use organizations by IDs
-  const organizations = organizationsByMemberIds.length > 0 ? organizationsByMemberIds : organizationsByIds;
+  // Use organizations from organizationRoles
+  const organizations = organizationsByIds;
   
-  const isLoading = !isClerkLoaded || isUserLoading || isOrganizationsLoading || isOrganizationsByIdsLoading;
+  const isLoading = !isClerkLoaded || isUserLoading || isOrganizationsByIdsLoading;
   const error = userError || orgsError;
 
   // Get stored organization ID or use first available
@@ -142,18 +129,4 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       {children}
     </OrganizationContext.Provider>
   );
-}
-
-export function useOrganizationContext() {
-  const context = useContext(OrganizationContext);
-  if (context === undefined) {
-    throw new Error("useOrganizationContext must be used within an OrganizationProvider");
-  }
-  return context;
-}
-
-// Convenience hook for getting current organization
-export function useCurrentOrganization() {
-  const { currentOrganization, isLoading } = useOrganizationContext();
-  return { data: currentOrganization, isLoading };
 }

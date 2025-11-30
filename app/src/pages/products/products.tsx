@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useProductsByOrg, useDeleteProduct, useUpdateProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { CreateProductInput } from "@/core";
 import { toast } from "sonner";
 import { CURRENCIES, formatCurrency as formatCurrencyUtil } from "@/utils/currencies";

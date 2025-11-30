@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
+import { isOwner, isValidRole } from "../core/roles";
 
 interface RevokeMemberPayload {
   organizationId: string;
@@ -63,8 +64,14 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
         }
 
         // Check if requesting user is the owner
-        const requestingUserRole = requestingUserData.organizationRoles?.[organizationId];
-        if (requestingUserRole !== "owner") {
+        const requestingUserRoleValue = requestingUserData.organizationRoles?.[organizationId];
+        if (!requestingUserRoleValue || !isValidRole(requestingUserRoleValue)) {
+          throw new HttpsError(
+            "permission-denied",
+            "User does not have a valid role in this organization"
+          );
+        }
+        if (!isOwner(requestingUserRoleValue)) {
           throw new HttpsError(
             "permission-denied",
             "Only organization owners can revoke members"
@@ -104,8 +111,8 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
         }
 
         // Check if trying to revoke another owner (prevent this)
-        const memberRole = memberUserData.organizationRoles?.[organizationId];
-        if (memberRole === "owner") {
+        const memberRoleValue = memberUserData.organizationRoles?.[organizationId];
+        if (memberRoleValue && isValidRole(memberRoleValue) && isOwner(memberRoleValue)) {
           throw new HttpsError(
             "failed-precondition",
             "Cannot revoke another owner. Transfer ownership first."
@@ -131,7 +138,7 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
           organizationId,
           memberId,
           revokedBy: auth.uid,
-          memberRole,
+          memberRole: memberRoleValue,
         });
 
         return {

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Invite } from "@/core/entities/invite";
 import { useRevokeInvite, useResendInvite } from "@/hooks/use-invites";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 
 interface PendingInvitesProps {
   invites: Invite[];
@@ -24,11 +25,11 @@ export function PendingInvites({ invites }: PendingInvitesProps) {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case "admin":
+      case ORGANIZATION_ROLES.ADMIN:
         return "default";
-      case "member":
+      case ORGANIZATION_ROLES.MEMBER:
         return "secondary";
-      case "viewer":
+      case ORGANIZATION_ROLES.VIEWER:
         return "outline";
       default:
         return "outline";

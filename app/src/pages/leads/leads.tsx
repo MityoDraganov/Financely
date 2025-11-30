@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLeadsByOrg, useUpdateLead } from "@/hooks/repository-hooks/use-leads";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { Lead, ProposalData, ProposalItem } from "@/core";
 import { ProposalSuggestionDialog } from "@/components/proposal-suggestion-dialog";

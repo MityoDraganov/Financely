@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from "sonner";
 import "./i18n/config";
+import "./utils/debug-auth"; // Initialize debug utilities
 
 import CreateInvoiceWrapper from "./pages/create-invoice-wrapper";
 import DesignerWrapper from "./pages/designer-wrapper";
@@ -103,6 +105,7 @@ function App() {
 				}}
 			>
 				<QueryClientProvider client={queryClient}>
+					<ReactQueryDevtools initialIsOpen={false} />
 					<ClerkAuthProvider>
 						<ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
 					<SidebarProvider>

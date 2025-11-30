@@ -1,5 +1,6 @@
 import { useUser } from "@clerk/clerk-react";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 
 /**
  * Helper to enrich function call payloads with user context for audit logging
@@ -15,9 +16,9 @@ export function useFunctionCallHelper() {
       return payload;
     }
 
-    // Get user role in organization
+    // Get user role in organization (simplified - actual role should come from user document)
     const userRole = currentOrganization.memberIds?.includes(user.id)
-      ? "member"
+      ? ORGANIZATION_ROLES.MEMBER
       : undefined;
 
     return {

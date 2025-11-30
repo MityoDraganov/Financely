@@ -6,6 +6,7 @@ import { getDatabaseService } from "../services/database-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getAuditLogRepository } from "../repositories/audit-log-repository";
 import { getAuditLogService } from "../services/audit-log-service";
+import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 
 /**
  * Firebase Cloud Function for creating a product.
@@ -64,11 +65,6 @@ export const createProduct = onCall<CreateProductInput, Promise<{ id: string }>>
   },
   async (request) => {
     try {
-      // TODO: Add authentication check when Clerk is integrated
-      // if (!request.auth) {
-      //   throw new HttpsError("unauthenticated", "User must be authenticated");
-      // }
-
       const payload = request.data;
 
       // Basic validation
@@ -85,6 +81,12 @@ export const createProduct = onCall<CreateProductInput, Promise<{ id: string }>>
           "Organization ID (organizationId) is required"
         );
       }
+
+      // Verify authentication and organization membership
+      // Only owner/admin can create products
+      await verifyAuthAndOrgMembership(request, payload.organizationId, {
+        requireOwnerOrAdmin: true,
+      });
 
       if (!payload.name) {
         throw new HttpsError(

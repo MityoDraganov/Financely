@@ -5,6 +5,7 @@ import { User } from "@/core/entities/user";
 import { DatabaseCollection } from "@/repositories/config";
 import { databaseService } from "@/services/database/database-service";
 import { functionsService } from "@/services/functions/functions-service";
+import { ORGANIZATION_ROLES } from "@/core/roles";
 
 export interface InviteService {
   sendInvite: (inviteData: Omit<InviteData, "code" | "expiresAt" | "status">) => Promise<string>;
@@ -32,7 +33,7 @@ export const inviteService: InviteService = {
       code,
       expiresAt,
       status: "active",
-      role: inviteData.role || "member",
+      role: inviteData.role || ORGANIZATION_ROLES.MEMBER,
     };
 
     // Save the invite to Firebase

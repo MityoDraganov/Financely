@@ -1,7 +1,10 @@
-import { User, QueryConstraint, UserRole } from "@/core";
+import { User, QueryConstraint } from "@/core";
+import { OrganizationRole } from "@/core/roles";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/clerk-react";
+import { useAuthReady } from "@/hooks/use-auth-ready";
 
 const databaseService = serviceHost.getDatabaseService();
 const userRepository = repositoryHost.getUsersRepository(databaseService);
@@ -34,6 +37,13 @@ export const useUser = (userId: string | undefined) => {
  * Hook to fetch a user by Clerk ID
  */
 export const useUserByClerkId = (clerkId: string | undefined) => {
+  const { isSignedIn } = useAuth();
+  const { isAuthReady } = useAuthReady();
+  
+  // Only enable query if user is signed in and auth is ready
+  // This prevents queries on public pages like landing page
+  const isReady = isSignedIn && isAuthReady;
+  
   return useQuery({
     queryKey: ["users", "clerkId", clerkId],
     queryFn: async () => {
@@ -74,7 +84,7 @@ export const useUserByClerkId = (clerkId: string | undefined) => {
         throw error;
       }
     },
-    enabled: !!clerkId,
+    enabled: !!clerkId && isReady,
     retry: 1, // Only retry once
     retryDelay: 1000, // Wait 1 second before retry
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -154,7 +164,7 @@ export const useUpdateUserRole = () => {
     }: {
       userId: string;
       organizationId: string;
-      role: UserRole;
+      role: OrganizationRole;
     }) => {
       // Fetch current user to update organizationRoles
       const user = await userRepository.get({ id: userId });

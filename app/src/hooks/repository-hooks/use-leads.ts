@@ -2,6 +2,7 @@ import { LeadData, QueryConstraint } from "@/core";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthReady } from "@/hooks/use-auth-ready";
 
 const databaseService = serviceHost.getDatabaseService();
 const leadRepository = repositoryHost.getLeadsRepository(databaseService);
@@ -10,9 +11,12 @@ const leadRepository = repositoryHost.getLeadsRepository(databaseService);
  * Hook to fetch all leads (optionally filtered by constraints)
  */
 export const useLeads = (queryConstraints?: QueryConstraint[]) => {
+  const { isAuthReady } = useAuthReady();
+  
   return useQuery({
     queryKey: ["leads", "all", queryConstraints],
     queryFn: () => leadRepository.getAll({ queryConstraints: queryConstraints || [] }),
+    enabled: isAuthReady,
   });
 };
 
@@ -20,6 +24,8 @@ export const useLeads = (queryConstraints?: QueryConstraint[]) => {
  * Hook to fetch leads by organization ID
  */
 export const useLeadsByOrg = (orgId: string | undefined) => {
+  const { isAuthReady } = useAuthReady();
+  
   return useQuery({
     queryKey: ["leads", "org", orgId],
     queryFn: async () => {
@@ -32,7 +38,7 @@ export const useLeadsByOrg = (orgId: string | undefined) => {
         orderBy: { field: "createdAt", direction: "desc" },
       });
     },
-    enabled: !!orgId,
+    enabled: !!orgId && isAuthReady,
   });
 };
 
@@ -40,13 +46,15 @@ export const useLeadsByOrg = (orgId: string | undefined) => {
  * Hook to fetch a single lead by ID
  */
 export const useLead = (leadId: string | undefined) => {
+  const { isAuthReady } = useAuthReady();
+  
   return useQuery({
     queryKey: ["leads", leadId],
     queryFn: async () => {
       if (!leadId) return null;
       return leadRepository.get({ id: leadId });
     },
-    enabled: !!leadId,
+    enabled: !!leadId && isAuthReady,
   });
 };
 

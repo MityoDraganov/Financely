@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { defineSecret } from "firebase-functions/params";
 import { ResendEmailService } from "../services/resend-email-service";
+import { ORGANIZATION_ROLES } from "../core/roles";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
@@ -172,7 +173,7 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
 
         // Update user's organization roles
         const currentRoles = userData.organizationRoles || {};
-        const role = inviteData.role || "member";
+        const role = inviteData.role || ORGANIZATION_ROLES.MEMBER;
         transaction.update(userRef, {
           organizationRoles: {
             ...currentRoles,

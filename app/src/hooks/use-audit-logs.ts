@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { auditLogService } from "@/services/audit-log/audit-log-service";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import {
   AuditLogQueryFilters,
 } from "@/core";

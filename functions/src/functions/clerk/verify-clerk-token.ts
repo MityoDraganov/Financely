@@ -10,6 +10,7 @@ const clerkApiSecret = defineSecret("CLERK_API_SECRET");
 export const verifyClerkToken = onCall(
   {
     secrets: [clerkApiSecret],
+    cors: true,
   },
   async (request) => {
     try {

@@ -2,6 +2,7 @@ import { InviteRepository } from "../core/ports/repositories/invite-repository";
 import { Invite, CreateInviteInput, InviteData } from "../core/entities/invite";
 import { DatabaseService } from "../core/ports/services/database-service";
 import { DatabaseCollection } from "./config";
+import { ORGANIZATION_ROLES } from "../core/roles";
 
 export function getInviteRepository(databaseService: DatabaseService): InviteRepository {
   return {
@@ -16,7 +17,7 @@ export function getInviteRepository(databaseService: DatabaseService): InviteRep
         organizationId: input.organizationId,
         invitedBy: input.invitedBy,
         email: input.email,
-        role: input.role || "member",
+        role: input.role || ORGANIZATION_ROLES.MEMBER,
         status: "active",
         expiresAt,
       };

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useCurrentOrganization } from "@/contexts/organization-context";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { 
   applyBrandColors, 
   getOrganizationName,

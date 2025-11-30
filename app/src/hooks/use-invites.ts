@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { inviteService } from "@/services/invite/invite-service";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { toast } from "sonner";
+import { OrganizationRole } from "@/core/roles";
 
 export function useInvites(organizationId?: string) {
   return useQuery({
@@ -18,7 +19,7 @@ export function useSendInvite() {
   return useMutation({
     mutationFn: async (inviteData: {
       email: string;
-      role: "admin" | "member" | "viewer";
+      role: OrganizationRole;
       organizationId: string;
     }) => {
       if (!authUser) {

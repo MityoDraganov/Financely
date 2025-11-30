@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { handleCreateWorkflow } from "../app/handle-create-workflow";
 import { CreateWorkflowInput } from "../core/entities/workflow";
 import { loggerService } from "../services/logger-service";
+import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 
 /**
  * Firebase Cloud Function for creating a workflow.
@@ -108,11 +109,6 @@ export const createWorkflow = onCall<CreateWorkflowInput, Promise<{ id: string }
   },
   async (request) => {
     try {
-      // TODO: Add authentication check when Clerk is integrated
-      // if (!request.auth) {
-      //   throw new HttpsError("unauthenticated", "User must be authenticated");
-      // }
-
       const payload = request.data;
 
       // Basic validation
@@ -129,6 +125,12 @@ export const createWorkflow = onCall<CreateWorkflowInput, Promise<{ id: string }
           "Organization ID (orgId) is required"
         );
       }
+
+      // Verify authentication and organization membership
+      // Only owner/admin can create workflows
+      await verifyAuthAndOrgMembership(request, payload.orgId, {
+        requireOwnerOrAdmin: true,
+      });
 
       if (!payload.name || payload.name.trim().length === 0) {
         throw new HttpsError(

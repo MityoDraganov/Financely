@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { CreateWorkflowInput, WorkflowActionType, WorkflowData } from "@/core";
 import { useCreateWorkflow, useUpdateWorkflow } from "@/hooks/repository-hooks/use-workflows";
-import { useOrganizationContext } from "@/contexts/organization-context";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { toast } from "sonner";
 import { WorkflowBuilderProps, WorkflowStep } from "./types";
 import { WorkflowHeader } from "./components/workflow-header";
