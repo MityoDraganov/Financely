@@ -21,6 +21,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 import {
   Trash2,
   Settings,
@@ -31,6 +33,7 @@ import {
 import { WorkflowStep, WorkflowActionType, WorkflowAction } from "@/core";
 import { ConditionalBranchEditor } from "./conditional-branch-editor";
 import { EmailRecipientsInput } from "./email-recipients-input";
+import { validateUrlForSSRF } from "@/utils/url-validation";
 
 interface StepEditorDialogProps {
   step: WorkflowStep | null;
@@ -419,7 +422,8 @@ export function StepEditorDialog({
                           <Label>{t('workflows.builder.stepEditor.actions.webhook.url')}</Label>
                           <Input
                             value={action.config.url || ""}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const url = e.target.value;
                               handleUpdateAction(index, (currentAction) => {
                                 if (currentAction.type !== "call.webhook") {
                                   return currentAction;
@@ -428,14 +432,55 @@ export function StepEditorDialog({
                                 return {
                                   ...currentAction,
                                 config: {
-                                    ...currentAction.config,
-                                  url: e.target.value,
+                                  ...currentAction.config,
+                                  url,
                                   },
                                 };
-                              })
-                            }
+                              });
+                            }}
                             placeholder={t('workflows.builder.stepEditor.actions.webhook.urlPlaceholder')}
+                            className={
+                              (() => {
+                                const validation = validateUrlForSSRF(action.config.url || "");
+                                if (validation.errors.length > 0) return "border-red-500";
+                                if (validation.warnings.length > 0) return "border-yellow-500";
+                                return "";
+                              })()
+                            }
                           />
+                          {(() => {
+                            const validation = validateUrlForSSRF(action.config.url || "");
+                            if (validation.errors.length > 0) {
+                              return (
+                                <Alert variant="destructive" className="py-2">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <AlertDescription className="text-sm">
+                                    {validation.errors.map((error, idx) => (
+                                      <div key={idx}>{error}</div>
+                                    ))}
+                                  </AlertDescription>
+                                </Alert>
+                              );
+                            }
+                            if (validation.warnings.length > 0) {
+                              return (
+                                <Alert variant="default" className="py-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+                                  <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                                  <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
+                                    {validation.warnings.map((warning, idx) => (
+                                      <div key={idx}>{warning}</div>
+                                    ))}
+                                    <div className="mt-1 text-xs">
+                                      {t('workflows.builder.stepEditor.actions.webhook.urlSecurityNote', { 
+                                        defaultValue: "This URL will be blocked when the workflow runs." 
+                                      })}
+                                    </div>
+                                  </AlertDescription>
+                                </Alert>
+                              );
+                            }
+                            return null;
+                          })()}
                           <Label>{t('workflows.builder.stepEditor.actions.webhook.method')}</Label>
                           <Select
                             value={action.config.method || "POST"}

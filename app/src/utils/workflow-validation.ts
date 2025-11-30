@@ -1,4 +1,4 @@
-import { WorkflowStep, WorkflowAction, WorkflowData, WorkflowTriggerType } from "@/core";
+import { WorkflowStep, WorkflowAction, WorkflowData, WorkflowTriggerType, WorkflowCondition } from "@/core";
 
 export interface ValidationError {
   field: string;
@@ -18,7 +18,7 @@ export interface WorkflowValidationResult {
 /**
  * Validate a single workflow action
  */
-export function validateAction(action: WorkflowAction, _stepId: string): string[] {
+export function validateAction(action: WorkflowAction): string[] {
   const errors: string[] = [];
 
   if (!action.type) {
@@ -98,7 +98,7 @@ export function validateStep(step: WorkflowStep, index: number): string[] {
         errors.push("Action steps must have at least one action");
       } else {
         step.actions.forEach((action: WorkflowAction, actionIndex: number) => {
-          const actionErrors = validateAction(action, step.id);
+          const actionErrors = validateAction(action);
           if (actionErrors.length > 0) {
             errors.push(`Action ${actionIndex + 1}: ${actionErrors.join(", ")}`);
           }
@@ -110,7 +110,7 @@ export function validateStep(step: WorkflowStep, index: number): string[] {
       if (!step.conditions || step.conditions.length === 0) {
         errors.push("Conditional steps must have at least one condition");
       } else {
-        step.conditions.forEach((condition: any, conditionIndex: number) => {
+        step.conditions.forEach((condition: WorkflowCondition, conditionIndex: number) => {
           if (!condition.field || condition.field.trim() === "") {
             errors.push(`Condition ${conditionIndex + 1}: Field is required`);
           }

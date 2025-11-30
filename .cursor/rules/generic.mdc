@@ -5,3 +5,5 @@ alwaysApply: true
 Always use early returns;
 
 Always clear up arthefacts or unused code snipperts/functions/components
+
+Dont use class syntax. Use functions one instead

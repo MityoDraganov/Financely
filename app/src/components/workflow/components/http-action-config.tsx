@@ -13,6 +13,11 @@ interface HttpActionConfigProps {
 export function HttpActionConfig({ action, onUpdateConfig }: HttpActionConfigProps) {
   const { t } = useTranslation();
   const config = action.config as any;
+  const [urlValidation, setUrlValidation] = useState(validateUrlForSSRF(config.url || ""));
+
+  useEffect(() => {
+    setUrlValidation(validateUrlForSSRF(config.url || ""));
+  }, [config.url]);
 
   const updateConfig = (updates: any) => {
     onUpdateConfig({ ...config, ...updates });
@@ -21,13 +26,37 @@ export function HttpActionConfig({ action, onUpdateConfig }: HttpActionConfigPro
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-2">
           <Label>{t('workflows.httpAction.url')}</Label>
           <Input
             placeholder={t('workflows.httpAction.urlPlaceholder')}
             value={config.url || ""}
             onChange={(e) => updateConfig({ url: e.target.value })}
+            className={urlValidation.errors.length > 0 ? "border-red-500" : urlValidation.warnings.length > 0 ? "border-yellow-500" : ""}
           />
+          {urlValidation.errors.length > 0 && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                {urlValidation.errors.map((error, idx) => (
+                  <div key={idx}>{error}</div>
+                ))}
+              </AlertDescription>
+            </Alert>
+          )}
+          {urlValidation.warnings.length > 0 && urlValidation.errors.length === 0 && (
+            <Alert variant="default" className="py-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+              <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
+                {urlValidation.warnings.map((warning, idx) => (
+                  <div key={idx}>{warning}</div>
+                ))}
+                <div className="mt-1 text-xs">
+                  {t('workflows.httpAction.urlSecurityNote', { defaultValue: "This URL will be blocked when the workflow runs." })}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
         <div>
           <Label>{t('workflows.httpAction.method')}</Label>

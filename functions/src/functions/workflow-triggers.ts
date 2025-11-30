@@ -31,7 +31,7 @@ function getExecutionEngine(): WorkflowExecutionEngine {
   const executionEngine = new WorkflowExecutionEngine();
   
   // HTTP and Email executors
-  const httpExecutor = new HttpRequestExecutor();
+  const httpExecutor = HttpRequestExecutor;
   const emailExecutor = new EmailExecutor({
     resendApiKey: resendApiKey.value(),
     resendFromEmail: resendFromEmail.value(),

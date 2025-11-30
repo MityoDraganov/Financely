@@ -33,7 +33,7 @@ const resendFromName = defineSecret("RESEND_FROM_NAME");
 function getExecutionEngine(): WorkflowExecutionEngine {
   const executionEngine = new WorkflowExecutionEngine();
   
-  const httpExecutor = new HttpRequestExecutor();
+  const httpExecutor = HttpRequestExecutor;
   const emailExecutor = new EmailExecutor({
     resendApiKey: resendApiKey.value(),
     resendFromEmail: resendFromEmail.value(),
