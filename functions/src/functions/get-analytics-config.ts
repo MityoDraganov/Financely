@@ -2,6 +2,13 @@ import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getAnalyticsConfigRepository } from "../repositories/analytics-config-repository";
+import {
+	getRateLimiter,
+	checkRequestSize,
+	extractIpFromRequest,
+	normalizeOrganizationId,
+} from "../middleware";
+import { getConfigCache } from "../middleware/config-cache";
 
 /**
  * Public API endpoint to fetch analytics configuration for an organization.
@@ -40,13 +47,76 @@ export const getAnalyticsConfig = onRequest(
     ingressSettings: "ALLOW_ALL",
   },
   async (request, response) => {
-    try {
-      const organizationId = request.query.organizationId as string;
+    const FUNCTION_NAME = "get-analytics-config";
+    const ipAddress = extractIpFromRequest(request);
 
-      if (!organizationId || typeof organizationId !== "string") {
+    try {
+      // Only allow GET
+      if (request.method !== "GET") {
+        response.status(405).json({ error: "Method not allowed" });
+        return;
+      }
+
+      // Request size check (for query params)
+      const sizeCheck = checkRequestSize(request, FUNCTION_NAME);
+      if (!sizeCheck.isValid) {
         response.status(400).json({
-          error: "organizationId query parameter is required",
+          error: sizeCheck.error || "Request too large",
         });
+        return;
+      }
+
+      // Validate and normalize organizationId
+      const rawOrgId = request.query.organizationId;
+      const organizationId = normalizeOrganizationId(
+        typeof rawOrgId === "string" ? rawOrgId : undefined
+      );
+
+      if (!organizationId) {
+        response.status(400).json({
+          error: "organizationId query parameter is required and must be a valid identifier",
+        });
+        return;
+      }
+
+      // Rate limiting check
+      const rateLimiter = getRateLimiter();
+      const rateLimitResult = await rateLimiter.checkLimit(
+        FUNCTION_NAME,
+        ipAddress,
+        organizationId
+      );
+
+      rateLimiter.logRateLimitEvent(
+        FUNCTION_NAME,
+        rateLimitResult,
+        ipAddress,
+        organizationId
+      );
+
+      if (!rateLimitResult.allowed) {
+        response.status(429).json({
+          error: "Rate limit exceeded",
+          retryAfter: rateLimitResult.resetIn,
+        });
+        return;
+      }
+
+      // Check cache first
+      const cache = getConfigCache();
+      const cacheKey = `analytics-config:${organizationId}`;
+      const cached = cache.get<{
+        organizationId: string;
+        enabled: boolean;
+        [key: string]: unknown;
+      }>(cacheKey);
+
+      if (cached) {
+        logger.debug("Analytics config served from cache", { organizationId });
+        // Set cache headers
+        response.setHeader("Cache-Control", "public, max-age=300"); // 5 minutes
+        response.setHeader("X-Cache", "HIT");
+        response.status(200).json(cached);
         return;
       }
 
@@ -73,6 +143,7 @@ export const getAnalyticsConfig = onRequest(
         : null;
 
       // Build response with analytics configuration
+      // Note: Do not expose publicWriteToken in the response
       const config = {
         organizationId: analyticsConfig.orgId,
         enabled: analyticsConfig.enabled ?? false,
@@ -95,8 +166,14 @@ export const getAnalyticsConfig = onRequest(
         functionUrl,
       };
 
+      // Cache the config (5 minutes TTL)
+      cache.set(cacheKey, config, 300);
+
       logger.info("Analytics config fetched successfully", { organizationId });
 
+      // Set cache headers
+      response.setHeader("Cache-Control", "public, max-age=300"); // 5 minutes
+      response.setHeader("X-Cache", "MISS");
       response.status(200).json(config);
     } catch (error) {
       logger.error("Error fetching analytics config", {

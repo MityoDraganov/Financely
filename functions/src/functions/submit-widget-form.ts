@@ -6,6 +6,22 @@ import { getContactRepository } from "../repositories/contact-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { ContactData } from "../core/entities/contact";
 import { LeadData } from "../core/entities/lead";
+import {
+	getRateLimiter,
+	checkRequestSize,
+	extractIpFromRequest,
+	normalizeOrganizationId,
+	normalizeEmail,
+	normalizeName,
+	normalizePhone,
+	normalizeFormData,
+	MAX_LENGTHS,
+} from "../middleware";
+import {
+	checkHoneypot,
+	checkDuplicateSubmission,
+	hashPayload,
+} from "../middleware/abuse-protection";
 
 function buildSubmissionNote(
 	widgetType: string,
@@ -70,17 +86,61 @@ export const submitWidgetForm = onRequest(
 		ingressSettings: "ALLOW_ALL",
 	},
 	async (request, response) => {
+		const FUNCTION_NAME = "submit-widget-form";
+		const ipAddress = extractIpFromRequest(request);
+
 		try {
+			// Method check
 			if (request.method !== "POST") {
 				response.status(405).json({ error: "Method not allowed" });
 				return;
 			}
 
-			const { organizationId, widgetType, data } = request.body;
-
-			if (!organizationId || typeof organizationId !== "string") {
+			// Request size check (early, before processing)
+			const sizeCheck = checkRequestSize(request, FUNCTION_NAME);
+			if (!sizeCheck.isValid) {
 				response.status(400).json({
-					error: "organizationId is required",
+					error: sizeCheck.error || "Request too large",
+				});
+				return;
+			}
+
+			// Rate limiting check
+			const rateLimiter = getRateLimiter();
+			const orgIdFromBody = request.body?.organizationId;
+			const normalizedOrgId = orgIdFromBody
+				? normalizeOrganizationId(orgIdFromBody)
+				: null;
+
+			const rateLimitResult = await rateLimiter.checkLimit(
+				FUNCTION_NAME,
+				ipAddress,
+				normalizedOrgId || undefined
+			);
+
+			rateLimiter.logRateLimitEvent(
+				FUNCTION_NAME,
+				rateLimitResult,
+				ipAddress,
+				normalizedOrgId || undefined
+			);
+
+			if (!rateLimitResult.allowed) {
+				response.status(429).json({
+					error: "Rate limit exceeded",
+					retryAfter: rateLimitResult.resetIn,
+				});
+				return;
+			}
+
+			// Input validation
+			const { organizationId: rawOrgId, widgetType, data: rawData } =
+				request.body;
+
+			const organizationId = normalizeOrganizationId(rawOrgId);
+			if (!organizationId) {
+				response.status(400).json({
+					error: "organizationId is required and must be a valid identifier",
 				});
 				return;
 			}
@@ -97,9 +157,68 @@ export const submitWidgetForm = onRequest(
 				return;
 			}
 
-			if (!data || typeof data !== "object") {
+			if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
 				response.status(400).json({
 					error: "data is required and must be an object",
+				});
+				return;
+			}
+
+			// Normalize and validate form data
+			const allowedFields = new Set([
+				"name",
+				"firstName",
+				"lastName",
+				"email",
+				"phone",
+				"tel",
+				"company",
+				"jobTitle",
+				"message",
+				"notes",
+				"_hp", // Honeypot field
+			]);
+			const data = normalizeFormData(rawData, allowedFields);
+
+			// Abuse protection: Honeypot check
+			if (checkHoneypot(data)) {
+				// Silently reject spam submissions
+				logger.warn("Spam submission detected (honeypot)", {
+					organizationId,
+					widgetType,
+					ipHash: ipAddress ? "present" : undefined,
+				});
+				// Return success to avoid revealing honeypot
+				response.status(200).json({
+					success: true,
+					message: "Form submitted successfully",
+				});
+				return;
+			}
+
+			// Abuse protection: Duplicate submission check
+			const payloadHash = hashPayload({
+				organizationId,
+				widgetType,
+				...data,
+			});
+			const isDuplicate = await checkDuplicateSubmission(
+				organizationId,
+				ipAddress,
+				payloadHash,
+				60 // 60 second window
+			);
+
+			if (isDuplicate) {
+				// Silently reject duplicate submissions
+				logger.info("Duplicate submission rejected", {
+					organizationId,
+					widgetType,
+					ipHash: ipAddress ? "present" : undefined,
+				});
+				response.status(200).json({
+					success: true,
+					message: "Form submitted successfully",
 				});
 				return;
 			}
@@ -151,25 +270,42 @@ export const submitWidgetForm = onRequest(
 				return;
 			}
 
-			// Extract contact information from form data
-			const email = ((data.email as string) || "").trim().toLowerCase();
-			const phone = (
-				(data.phone as string) ||
-				(data.tel as string) ||
-				""
-			).trim();
-			const firstName =
-				(data.name as string)?.split(" ")[0] ||
+			// Extract and normalize contact information from form data
+			const emailRaw = (data.email as string) || "";
+			const email = emailRaw ? normalizeEmail(emailRaw) : null;
+
+			const phoneRaw =
+				(data.phone as string) || (data.tel as string) || "";
+			const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
+
+			// Extract name - prefer firstName/lastName, fallback to name split
+			const nameRaw = (data.name as string) || "";
+			const firstNameRaw =
 				(data.firstName as string) ||
-				"";
-			const lastName =
-				(data.name as string)?.split(" ").slice(1).join(" ") ||
+				(nameRaw.split(" ")[0] || "");
+			const lastNameRaw =
 				(data.lastName as string) ||
+				nameRaw.split(" ").slice(1).join(" ") ||
 				"";
-			const company = (data.company as string) || undefined;
-			const jobTitle = (data.jobTitle as string) || undefined;
-			const message =
-				(data.message as string) || (data.notes as string) || undefined;
+
+			const firstName = normalizeName(firstNameRaw, MAX_LENGTHS.firstName);
+			const lastName = normalizeName(lastNameRaw, MAX_LENGTHS.lastName);
+
+			const companyRaw = (data.company as string) || "";
+			const company = companyRaw
+				? normalizeName(companyRaw, MAX_LENGTHS.company)
+				: undefined;
+
+			const jobTitleRaw = (data.jobTitle as string) || "";
+			const jobTitle = jobTitleRaw
+				? normalizeName(jobTitleRaw, MAX_LENGTHS.jobTitle)
+				: undefined;
+
+			const messageRaw =
+				(data.message as string) || (data.notes as string) || "";
+			const message = messageRaw
+				? normalizeName(messageRaw, MAX_LENGTHS.message)
+				: undefined;
 
 			const contactRepository = getContactRepository(databaseService);
 			const leadRepository = getLeadRepository(databaseService);
@@ -197,15 +333,14 @@ export const submitWidgetForm = onRequest(
 			// Email is the primary identifier - if email matches, we update the contact
 			// We do NOT create duplicates based on email
 			if (email) {
-				const emailNormalized = email.trim().toLowerCase();
 				for (const contact of allContacts) {
 					const contactData = getContactData(contact);
-					const contactEmail = (contactData.email || "")
-						.trim()
-						.toLowerCase();
-					
+					const contactEmail = contactData.email
+						? normalizeEmail(contactData.email)
+						: null;
+
 					// Match by email (case-insensitive, normalized) - PRIMARY MATCH
-					if (contactEmail === emailNormalized) {
+					if (contactEmail && contactEmail === email) {
 						existingContact = contact;
 						break;
 					}
@@ -283,12 +418,20 @@ export const submitWidgetForm = onRequest(
 					phone: phone || "no phone",
 				});
 			} else {
+				// Require at least email or phone for new contacts
+				if (!email && !phone) {
+					response.status(400).json({
+						error: "Either email or phone is required",
+					});
+					return;
+				}
+
 				const contactData: ContactData = {
 					organizationId,
 					firstName: firstName || "",
 					lastName: lastName || "",
 					email: email || "",
-					phone: phone?.trim() ? [phone.trim()] : [],
+					phone: phone ? [phone] : [],
 					company,
 					jobTitle,
 					notes: buildSubmissionNote(widgetType, data, message),

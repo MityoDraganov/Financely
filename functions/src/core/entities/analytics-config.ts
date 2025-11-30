@@ -55,6 +55,8 @@ export const analyticsConfigDataSchema = z.object({
   siteId: z.string().optional(),
   brandName: z.string().optional(),
   enableBigQueryServerLogs: z.boolean().default(false),
+  // Public write token for analytics events (not secret, but allows rotation/disable)
+  publicWriteToken: z.string().optional(),
 });
 
 export const analyticsConfigSchema = baseEntitySchema.merge(
