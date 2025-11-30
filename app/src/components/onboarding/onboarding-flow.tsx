@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { sanitizeTranslationHtml } from "@/utils/html-sanitizer";
 
 interface OrganizationFormData {
   name: string;
@@ -1045,7 +1046,8 @@ function CreateOrgStep({
           </div>
 
           <div className="bg-accent rounded-lg p-4 max-w-xl mx-auto">
-            <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.createOrg.proTip") }} />
+            {/* HTML is sanitized before rendering to prevent XSS */}
+            <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.createOrg.proTip")) }} />
           </div>
 
           <div className="flex justify-between pt-4 hidden md:flex">
@@ -1153,7 +1155,8 @@ function BrandingStep({
             </div>
 
             <div className="bg-accent rounded-lg p-4">
-              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.branding.tip") }} />
+              {/* HTML is sanitized before rendering to prevent XSS */}
+              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.branding.tip")) }} />
             </div>
           </div>
 
@@ -1277,7 +1280,8 @@ function InviteStep({
             )}
 
             <div className="bg-accent rounded-lg p-4">
-              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: t("onboarding.invites.tip") }} />
+              {/* HTML is sanitized before rendering to prevent XSS */}
+              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.invites.tip")) }} />
             </div>
           </div>
 
@@ -1331,7 +1335,8 @@ function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () 
 
           <div className="space-y-2">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">{t("onboarding.success.title")}</h2>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto break-words px-2" dangerouslySetInnerHTML={{ __html: t("onboarding.success.description", { orgName }) }} />
+            {/* HTML is sanitized before rendering to prevent XSS */}
+            <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto break-words px-2" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.success.description", { orgName })) }} />
           </div>
 
           <div className="grid gap-3 max-w-md mx-auto text-left">

@@ -1,0 +1,11 @@
+{
+  "name": "financely",
+  "private": true,
+  "scripts": {
+    "test": "npm test --prefix functions; npm test --prefix app",
+    "test:watch": "npm run test:watch --prefix functions & npm run test:watch --prefix app",
+    "test:functions": "npm test --prefix functions",
+    "test:app": "npm test --prefix app"
+  }
+}
+

@@ -14,6 +14,7 @@ import { useBrandSite, useUpdateBrandSite } from "@/hooks/repository-hooks/use-b
 import { StreamingText } from "./streaming-text";
 import { ProcessingStepAnimation, type ProcessingStep } from "./processing-step-animation";
 import { HtmlPreviewDrawer } from "./html-preview-drawer";
+import { sanitizeTranslationHtml } from "@/utils/html-sanitizer";
 
 interface ChatMessage {
   id: string;
@@ -959,16 +960,16 @@ export function AIChatBuilder({
         {selectedPageSlug === "all" ? (
           <p 
             className="text-xs text-muted-foreground mt-1"
-            dangerouslySetInnerHTML={{ __html: t("siteBuilder.aiChatBuilder.editingEntireSite") }}
+            dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("siteBuilder.aiChatBuilder.editingEntireSite")) }}
           />
         ) : currentPage && (
           <p 
             className="text-xs text-muted-foreground mt-1"
             dangerouslySetInnerHTML={{ 
-              __html: t("siteBuilder.aiChatBuilder.editingPage", {
+              __html: sanitizeTranslationHtml(t("siteBuilder.aiChatBuilder.editingPage", {
                 title: currentPage.title,
                 slug: currentPage.slug !== "index" ? ` (/${currentPage.slug})` : "",
-              })
+              }))
             }}
           />
         )}

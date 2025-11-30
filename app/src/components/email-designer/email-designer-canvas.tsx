@@ -14,6 +14,7 @@ import { CustomHtmlEditorModal } from "./custom-html-editor-modal";
 import { Button } from "@/components/ui/button";
 import { Code2, Edit } from "lucide-react";
 import { LiveCursor } from "@/components/designer/live-cursor";
+import { sanitizeEmailHtml } from "@/utils/html-sanitizer";
 
 // Helper function to calculate aspect ratio CSS value
 function getAspectRatioStyle(
@@ -1152,7 +1153,7 @@ function BlockPreview({
 							: undefined,
           }}
           {...(footerBlock.content && /<[a-z][\s\S]*>/i.test(footerBlock.content)
-            ? { dangerouslySetInnerHTML: { __html: footerBlock.content } }
+            ? { dangerouslySetInnerHTML: { __html: sanitizeEmailHtml(footerBlock.content) } }
             : { children: footerBlock.content || "Footer text" }
           )}
         />
@@ -1541,11 +1542,11 @@ function BlockPreview({
 							: undefined,
 					}}
 				>
-					{/* Render raw HTML - use dangerouslySetInnerHTML for preview */}
+					{/* Render raw HTML - sanitized before rendering to prevent XSS */}
 					<div
 						className="min-h-[60px] border border-dashed rounded p-4"
 						dangerouslySetInnerHTML={{
-							__html: rawHtmlBlock.html || "",
+							__html: sanitizeEmailHtml(rawHtmlBlock.html),
 						}}
 					/>
 					{/* Show indicator and edit button */}

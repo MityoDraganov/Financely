@@ -1,20 +1,8 @@
-/**
- * Manual test suite for URL validator
- * 
- * Run with: npx ts-node src/utils/url-validator.test.ts
- * Or compile and run: npm run build && node lib/utils/url-validator.test.js
- * 
- * Note: These tests require actual DNS resolution and network access.
- * For unit tests with mocks, consider setting up Jest or another test framework.
- */
-
 import { test } from "node:test";
 import assert from "node:assert";
 import { validateAndNormalizeUrl, isUrlValidationError } from "./url-validator";
 
 const originalEnv = process.env.ALLOWED_HTTP_DOMAINS;
-
-// Test helper
 async function assertThrows(
   fn: () => Promise<unknown>,
   expectedError: string | RegExp
@@ -50,8 +38,6 @@ test("URL format validation - should reject invalid URLs", async () => {
 });
 
 test("URL format validation - should accept valid public URLs", async () => {
-  // This test requires actual DNS resolution
-  // Using a well-known public domain
   const result = await validateAndNormalizeUrl("https://www.google.com");
   assert.ok(result.startsWith("https://www.google.com"));
 });
@@ -178,29 +164,23 @@ test("Domain allowlist - should block domains not in the allowlist", async () =>
 
 test("Domain allowlist - should handle allowlist with whitespace", async () => {
   process.env.ALLOWED_HTTP_DOMAINS = " www.google.com , api.example.com ";
-
   const result = await validateAndNormalizeUrl("https://www.google.com");
   assert.ok(result.startsWith("https://www.google.com"));
 });
-
 test("Domain allowlist - should handle case-insensitive domain matching", async () => {
   process.env.ALLOWED_HTTP_DOMAINS = "WWW.GOOGLE.COM";
 
   const result = await validateAndNormalizeUrl("https://www.google.com");
   assert.ok(result.startsWith("https://www.google.com"));
 });
-
 test("URL normalization - should preserve paths", async () => {
   delete process.env.ALLOWED_HTTP_DOMAINS;
-
   const result = await validateAndNormalizeUrl(
     "https://www.google.com/search?q=test"
   );
   assert.ok(result.includes("/search"));
   assert.ok(result.includes("q=test"));
 });
-
-// Restore original environment
 if (originalEnv !== undefined) {
   process.env.ALLOWED_HTTP_DOMAINS = originalEnv;
 } else {
