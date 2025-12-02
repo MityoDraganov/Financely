@@ -19,6 +19,7 @@ import { getGenericRepository } from "../repositories/generic-repository";
 import { DatabaseCollection } from "../repositories/config";
 import type { InvoiceDataValue } from "../core";
 import { processEmailTemplate } from "../utils/email-template-processor";
+import { extractUserContextFromRequest } from "../utils/request-context";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -349,6 +350,28 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         messageId: result.messageId,
         success: result.success,
       });
+
+      // Record usage event
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId: invoice.orgId!,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.INVOICE_SEND_EMAIL,
+          metadata: {
+            entityId: invoiceId,
+            context: "api",
+          },
+        });
+      } catch (usageError) {
+        // Don't fail the operation if usage tracking fails
+        logger.warn("Failed to record usage event for invoice email", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
 
       return {
         sent: result.success,

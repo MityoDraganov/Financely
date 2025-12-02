@@ -185,6 +185,10 @@ async function executeHttpRequest(
       headers["Content-Type"] = "application/json";
     }
 
+    // Record start time for duration tracking
+    const startTime = Date.now();
+    context._httpRequestStartTime = startTime;
+    
     // Make the HTTP request using the validated URL
     const response = await fetch(validatedUrl, requestOptions);
     
@@ -217,6 +221,33 @@ async function executeHttpRequest(
       stepId: step.id, 
       status: response.status 
     });
+
+    // Record usage event
+    try {
+      const orgId = context.orgId as string || context.tenantId as string;
+      if (orgId) {
+        const startTime = context._httpRequestStartTime as number;
+        const durationMs = startTime ? Date.now() - startTime : undefined;
+        
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId,
+          userId: null, // Workflow actions are system-triggered
+          featureId: USAGE_FEATURES.WORKFLOW_ACTION_HTTP_REQUEST,
+          metadata: {
+            context: "automation",
+            durationMs,
+            sizeBytes: typeof responseData === "string" ? responseData.length : undefined,
+          },
+        });
+      }
+    } catch (usageError) {
+      logger.warn("Failed to record usage event for HTTP request", {
+        error: usageError instanceof Error ? usageError.message : String(usageError),
+      });
+    }
 
     return result;
 

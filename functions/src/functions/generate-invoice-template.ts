@@ -109,6 +109,29 @@ export const generateInvoiceTemplate = onCall<GenerateInvoiceTemplatePayload>(
         options
       );
 
+      // Record usage event
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        const { extractUserContextFromRequest } = await import("../utils/request-context");
+        
+        const userContext = await extractUserContextFromRequest(request);
+        
+        await recordUsageEvent({
+          orgId: organizationId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.AI_INVOICE_TEMPLATE_GENERATE,
+          metadata: {
+            context: "api",
+            payloadType: "invoice_template",
+          },
+        });
+      } catch (usageError) {
+        logger.warn("Failed to record usage event for invoice template generation", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       logger.info("Invoice template generated successfully", {
         organizationId,
         region: complianceRegion,

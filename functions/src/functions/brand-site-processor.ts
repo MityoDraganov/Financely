@@ -116,6 +116,27 @@ export const onBrandSiteCreated = onDocumentCreated(
       logger.info("Brand site generation completed successfully", {
         brandSiteId,
       });
+
+      // Record usage event
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId: brandSiteData.organizationId,
+          userId: null, // System-triggered
+          featureId: USAGE_FEATURES.AI_SITE_BUILDER_GENERATE,
+          metadata: {
+            entityId: brandSiteId,
+            context: "automation",
+            payloadType: "site",
+          },
+        });
+      } catch (usageError) {
+        logger.warn("Failed to record usage event for site generation", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       logger.error("Failed to process brand site generation", {
@@ -430,6 +451,27 @@ export const onBrandSiteUpdated = onDocumentUpdated(
           updated: result.updated,
           requiresClarification: result.requiresClarification,
         });
+
+        // Record usage event for chat-based site generation
+        try {
+          const { recordUsageEvent } = await import("../usage");
+          const { USAGE_FEATURES } = await import("../usage/usage-features");
+          
+          await recordUsageEvent({
+            orgId: afterData.organizationId,
+            userId: null, // System-triggered
+            featureId: USAGE_FEATURES.AI_SITE_BUILDER_CHAT,
+            metadata: {
+              entityId: brandSiteId,
+              context: "automation",
+              payloadType: "site",
+            },
+          });
+        } catch (usageError) {
+          logger.warn("Failed to record usage event for chat site generation", {
+            error: usageError instanceof Error ? usageError.message : String(usageError),
+          });
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         logger.error("Failed to process chat request", {

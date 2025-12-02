@@ -81,6 +81,31 @@ export const generateSite = onCall<GenerateSitePayload>(
         status: result.status,
       });
 
+      // Record usage event for site generation initiation
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        const { extractUserContextFromRequest } = await import("../utils/request-context");
+        
+        const userContext = await extractUserContextFromRequest(request);
+        
+        await recordUsageEvent({
+          orgId: organizationId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.AI_SITE_BUILDER_GENERATE,
+          metadata: {
+            entityId: result.id,
+            context: "api",
+            payloadType: "site",
+          },
+        });
+      } catch (usageError) {
+        // Don't fail the operation if usage tracking fails
+        logger.warn("Failed to record usage event for site generation initiation", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       return result;
     } catch (error) {
       logger.error("Error initiating site generation", {

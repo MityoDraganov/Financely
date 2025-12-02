@@ -502,6 +502,26 @@ export const submitWidgetForm = onRequest(
 				});
 			}
 
+			// Record usage event
+			try {
+				const { recordUsageEvent } = await import("../usage");
+				const { USAGE_FEATURES } = await import("../usage/usage-features");
+				
+				await recordUsageEvent({
+					orgId: organizationId,
+					userId: null, // Widget submissions are from external users
+					featureId: USAGE_FEATURES.WIDGET_FORM_SUBMIT,
+					metadata: {
+						context: "widget",
+						payloadType: widgetType,
+					},
+				});
+			} catch (usageError) {
+				logger.warn("Failed to record usage event for widget form submission", {
+					error: usageError instanceof Error ? usageError.message : String(usageError),
+				});
+			}
+
 			response.status(200).json({
 				success: true,
 				message: "Form submitted successfully",

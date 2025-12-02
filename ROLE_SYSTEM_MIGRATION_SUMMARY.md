@@ -138,3 +138,4 @@ const hasAccess = isMemberOrHigher(role);
 3. ⚠️ Update any tests to use centralized role system
 4. ⚠️ Document role permissions in user-facing documentation
 
+

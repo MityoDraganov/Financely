@@ -62,6 +62,35 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
 
       loggerService.info("PDF rendered successfully", { invoiceId, url });
 
+      // Record usage event
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        const { getDatabaseService } = await import("../services/database-service");
+        const { getInvoiceRepository } = await import("../repositories/invoice-repository");
+        
+        const databaseService = getDatabaseService();
+        const invoiceRepository = getInvoiceRepository(databaseService);
+        const invoice = await invoiceRepository.get({ id: invoiceId });
+        
+        if (invoice?.orgId) {
+          await recordUsageEvent({
+            orgId: invoice.orgId,
+            userId: null, // PDF rendering may be triggered by public links
+            featureId: USAGE_FEATURES.INVOICE_RENDER_PDF,
+            metadata: {
+              entityId: invoiceId,
+              context: "api",
+            },
+          });
+        }
+      } catch (usageError) {
+        // Don't fail the operation if usage tracking fails
+        loggerService.warn("Failed to record usage event for PDF rendering", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       return { url };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";

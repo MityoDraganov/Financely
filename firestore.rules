@@ -246,6 +246,26 @@ service cloud.firestore {
                        isOwnerOrAdmin(orgId);
       allow delete: if false;
     }
+    // Usage tracking collections - write-only from backend (Cloud Functions)
+    // These collections are used for billing/limits and must not be writable by clients
+    match /usage_events/{eventId} {
+      allow read: if false; // No client reads for now (backend-only analytics)
+      allow create: if false; // Only backend can create usage events
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /usage_aggregates_daily/{docId} {
+      allow read: if false; // No client reads for now (backend-only analytics)
+      allow create: if false; // Only backend can create/update aggregates
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /usage_aggregates_monthly/{docId} {
+      allow read: if false; // No client reads for now (backend-only analytics)
+      allow create: if false; // Only backend can create/update aggregates
+      allow update: if false;
+      allow delete: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -217,6 +217,38 @@ export class WorkflowExecutionEngine {
 
     logger.info("Workflow run created successfully", { runId, workflowId: workflow.id });
 
+    // Record usage events
+    try {
+      const { recordUsageEvent } = await import("../usage");
+      const { USAGE_FEATURES } = await import("../usage/usage-features");
+      
+      // Track workflow trigger
+      await recordUsageEvent({
+        orgId: workflow.orgId,
+        userId: null, // Workflow triggers are system events
+        featureId: USAGE_FEATURES.WORKFLOW_TRIGGER,
+        metadata: {
+          entityId: workflow.id,
+          context: "automation",
+        },
+      });
+      
+      // Track workflow run
+      await recordUsageEvent({
+        orgId: workflow.orgId,
+        userId: null,
+        featureId: USAGE_FEATURES.WORKFLOW_RUN,
+        metadata: {
+          entityId: runId,
+          context: "automation",
+        },
+      });
+    } catch (usageError) {
+      logger.warn("Failed to record usage events for workflow run", {
+        error: usageError instanceof Error ? usageError.message : String(usageError),
+      });
+    }
+
     // Create initial step executions
     await this.createInitialStepExecutions(runId, workflow);
 

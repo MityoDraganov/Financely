@@ -122,6 +122,28 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
 
       loggerService.info("Invoice created successfully", { invoiceId });
 
+      // Record usage event
+      try {
+        const userContext = await extractUserContextFromRequest(request);
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId: payload.orgId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.INVOICE_CREATE,
+          metadata: {
+            entityId: invoiceId,
+            context: "api",
+          },
+        });
+      } catch (usageError) {
+        // Don't fail the operation if usage tracking fails
+        loggerService.warn("Failed to record usage event for invoice creation", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       // Automatically create audit log entry
       try {
         const userContext = await extractUserContextFromRequest(request);

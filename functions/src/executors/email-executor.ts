@@ -148,6 +148,28 @@ export class EmailExecutor implements ActionExecutor {
         messageId: emailResult.messageId 
       });
 
+      // Record usage event
+      try {
+        const orgId = context.orgId as string || context.tenantId as string;
+        if (orgId) {
+          const { recordUsageEvent } = await import("../usage");
+          const { USAGE_FEATURES } = await import("../usage/usage-features");
+          
+          await recordUsageEvent({
+            orgId,
+            userId: null, // Workflow actions are system-triggered
+            featureId: USAGE_FEATURES.WORKFLOW_ACTION_EMAIL,
+            metadata: {
+              context: "automation",
+            },
+          });
+        }
+      } catch (usageError) {
+        logger.warn("Failed to record usage event for email action", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       const result: Record<string, unknown> = {
         success: emailResult.success,
         messageId: emailResult.messageId,

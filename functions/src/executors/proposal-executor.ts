@@ -141,6 +141,26 @@ export class ProposalExecutor implements ActionExecutor {
       proposalId 
     });
 
+    // Record usage event
+    try {
+      const { recordUsageEvent } = await import("../usage");
+      const { USAGE_FEATURES } = await import("../usage/usage-features");
+      
+      await recordUsageEvent({
+        orgId,
+        userId: null, // Workflow actions are system-triggered
+        featureId: USAGE_FEATURES.PROPOSAL_CREATE,
+        metadata: {
+          entityId: proposalId,
+          context: "automation",
+        },
+      });
+    } catch (usageError) {
+      logger.warn("Failed to record usage event for proposal creation", {
+        error: usageError instanceof Error ? usageError.message : String(usageError),
+      });
+    }
+
     return {
       success: true,
       proposalId,
@@ -187,6 +207,7 @@ export class ProposalExecutor implements ActionExecutor {
       },
       subject: resolvedSubject,
       html: `<p>${resolvedMessage}</p><p>Proposal: ${proposal.title || 'Proposal'}</p>`,
+      text: `${resolvedMessage}\n\nProposal: ${proposal.title || 'Proposal'}`,
     };
 
     const emailResult = await this.emailService.sendEmail(emailOptions);
@@ -197,6 +218,29 @@ export class ProposalExecutor implements ActionExecutor {
       proposalId: resolvedProposalId,
       recipient: resolvedEmail
     });
+
+    // Record usage event
+    try {
+      const orgId = (context.orgId as string) || (context.tenantId as string);
+      if (orgId) {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId,
+          userId: null, // Workflow actions are system-triggered
+          featureId: USAGE_FEATURES.PROPOSAL_SEND,
+          metadata: {
+            entityId: resolvedProposalId,
+            context: "automation",
+          },
+        });
+      }
+    } catch (usageError) {
+      logger.warn("Failed to record usage event for proposal send", {
+        error: usageError instanceof Error ? usageError.message : String(usageError),
+      });
+    }
 
     return {
       success: emailResult.success,

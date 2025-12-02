@@ -134,6 +134,29 @@ export const generateEmailTemplate = onCall<GenerateEmailTemplatePayload>(
         htmlLength: template.htmlContent.length,
       });
 
+      // Record usage event
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        const { extractUserContextFromRequest } = await import("../utils/request-context");
+        
+        const userContext = await extractUserContextFromRequest(request);
+        
+        await recordUsageEvent({
+          orgId: organizationId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.AI_EMAIL_TEMPLATE_GENERATE,
+          metadata: {
+            context: "api",
+            payloadType: "email_template",
+          },
+        });
+      } catch (usageError) {
+        logger.warn("Failed to record usage event for email template generation", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       return template;
     } catch (error) {
       logger.error("Error generating email template", {

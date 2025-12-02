@@ -191,6 +191,26 @@ export const storeAnalyticsEvent = onRequest(
         siteId,
       });
 
+      // Record usage event
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        
+        await recordUsageEvent({
+          orgId,
+          userId: null, // Analytics events are from external users
+          featureId: USAGE_FEATURES.WIDGET_ANALYTICS_EVENT,
+          metadata: {
+            context: "widget",
+            ...(siteId && { entityId: siteId }),
+          },
+        });
+      } catch (usageError) {
+        logger.warn("Failed to record usage event for analytics event", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       res.status(200).json({ success: true });
     } catch (error) {
       logger.error("Error storing analytics event", {

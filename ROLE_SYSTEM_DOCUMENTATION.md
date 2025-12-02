@@ -203,3 +203,4 @@ To add a new role:
 5. **Documented**: Permissions are clearly defined for each role
 6. **Testable**: Role checking functions are pure and easy to test
 
+

@@ -191,6 +191,43 @@ export const convertProposalToInvoice = onCall<
         invoiceId,
       });
 
+      // Record usage events
+      try {
+        const { recordUsageEvent } = await import("../usage");
+        const { USAGE_FEATURES } = await import("../usage/usage-features");
+        const { extractUserContextFromRequest } = await import("../utils/request-context");
+        
+        const userContext = await extractUserContextFromRequest(request);
+        
+        // Track proposal conversion
+        await recordUsageEvent({
+          orgId: organizationId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.PROPOSAL_CONVERT_TO_INVOICE,
+          metadata: {
+            entityId: proposalId,
+            context: "api",
+          },
+        });
+        
+        // Track invoice creation from proposal
+        await recordUsageEvent({
+          orgId: organizationId,
+          userId: userContext?.userId || null,
+          featureId: USAGE_FEATURES.INVOICE_CREATE,
+          metadata: {
+            entityId: invoiceId,
+            context: "api",
+            payloadType: "invoice_from_proposal",
+          },
+        });
+      } catch (usageError) {
+        // Don't fail the operation if usage tracking fails
+        loggerService.warn("Failed to record usage events for proposal conversion", {
+          error: usageError instanceof Error ? usageError.message : String(usageError),
+        });
+      }
+
       return {
         invoiceId,
         invoiceNumber: conversionResult.invoiceNumber,
