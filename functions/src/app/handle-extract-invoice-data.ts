@@ -3,6 +3,7 @@ import { getExtractionJobRepository } from "../repositories/extraction-job-repos
 import { ExtractionJob } from "../core/entities/invoice-extraction-job";
 import { getGoogleVisionOCRService } from "../services/invoice-extraction/google-vision-ocr-service";
 import { getAIService } from "../services/ai/ai-service";
+import type { JSONSchema } from "../services/ai/ai-service";
 import { loggerService } from "../services/logger-service";
 
 /**
@@ -67,14 +68,38 @@ export async function handleExtractInvoiceData(
       textLength: ocrResult.fullText.length,
       textBlockCount: ocrResult.textBlocks.length,
       confidence: ocrResult.confidence,
+      fileType: job.fileType,
+      hasText: ocrResult.fullText.trim().length > 0,
     });
 
-    // Use AI to structure the extracted data
-    const aiService = getAIService();
-    const structuredData = await extractStructuredData(
-      ocrResult.fullText,
-      aiService
-    );
+    // Check if OCR returned empty text
+    if (!ocrResult.fullText || ocrResult.fullText.trim().length === 0) {
+      loggerService.warn("OCR extraction returned empty text", {
+        jobId,
+        fileType: job.fileType,
+        confidence: ocrResult.confidence,
+        textBlockCount: ocrResult.textBlocks.length,
+      });
+    }
+
+    // Use AI to structure the extracted data (only if we have OCR text)
+    let structuredData: Record<string, unknown> | null = null;
+    
+    if (ocrResult.fullText && ocrResult.fullText.trim().length > 0) {
+      const aiService = getAIService();
+      structuredData = await extractStructuredData(
+        ocrResult.fullText,
+        aiService
+      );
+      
+      loggerService.info("AI structured data extraction completed", {
+        jobId,
+        extractedFieldCount: structuredData ? Object.keys(structuredData).length : 0,
+        hasData: !!structuredData,
+      });
+    } else {
+      loggerService.warn("Skipping AI extraction - OCR text is empty", { jobId });
+    }
 
     // Calculate confidence scores from OCR results
     const confidenceScores: Record<string, number> = {};
@@ -157,74 +182,46 @@ async function extractStructuredData(
   aiService: ReturnType<typeof getAIService>
 ): Promise<Record<string, unknown> | null> {
   try {
-    const prompt = `Extract structured invoice data from the following OCR text. Return a JSON object with common invoice fields.
+    // Check if OCR text is empty
+    if (!ocrText || ocrText.trim().length === 0) {
+      loggerService.warn("OCR text is empty, cannot extract structured data");
+      return null;
+    }
+
+    const prompt = `Extract ALL structured data from the following invoice OCR text. The text may be in any language (English, Bulgarian, German, French, Spanish, Italian, etc.). 
 
 OCR Text:
 ${ocrText}
 
-Extract the following fields if present:
-- invoiceNumber (or invoice number, invoice #, etc.)
-- issueDate (or date, invoice date, etc.)
-- dueDate (or due date, payment due, etc.)
-- seller.name (or vendor name, from, supplier, etc.)
-- seller.address (or vendor address, supplier address, etc.)
-- seller.taxIdVat (or VAT ID, tax ID, EIN, etc.)
-- buyer.name (or customer name, bill to, client, etc.)
-- buyer.address (or customer address, bill to address, etc.)
-- buyer.taxIdVat (or customer VAT ID, etc.)
-- subtotal (or subtotal, net amount, etc.)
-- vatTotal (or VAT total, tax total, etc.)
-- total (or total amount, grand total, amount due, etc.)
-- items (array of line items with: description, quantity/qty, unitPrice/price, total/lineTotal)
+Instructions:
+1. Extract ALL fields and information you find in the invoice - be comprehensive and dynamic
+2. Recognize field labels in multiple languages (English, Bulgarian, German, French, Spanish, Italian, etc.)
+3. Use appropriate field names based on what you find (e.g., "invoiceNumber", "invoiceNo", "factura", "номер", etc.)
+4. For dates, parse and convert to YYYY-MM-DD format regardless of source format
+5. For amounts, extract numbers (remove currency symbols, handle decimal separators correctly)
+6. For Bulgarian invoices: recognize Cyrillic text and common Bulgarian invoice terms
+7. Extract nested objects where appropriate (e.g., seller: {name, address, taxId}, buyer: {name, address, taxId})
+8. Extract line items as arrays with all available fields (description, quantity, unitPrice, total, etc.)
+9. Include any additional fields you find (payment terms, notes, references, etc.)
+10. Return a valid JSON object with all extracted data
+11. Use null only for truly missing values, otherwise extract what you can find
+12. Preserve the structure and relationships in the data
 
-Return only valid JSON. Use null for missing fields. For dates, use YYYY-MM-DD format. For amounts, use numbers (not strings).`;
+Return a comprehensive JSON object with all invoice data you can extract. Be dynamic - extract whatever fields are present, don't limit yourself to a predefined set.`;
 
-    const schema = {
-      type: "object" as const,
-      properties: {
-        invoiceNumber: { type: "string" as const },
-        issueDate: { type: "string" as const },
-        dueDate: { type: "string" as const },
-        seller: {
-          type: "object" as const,
-          properties: {
-            name: { type: "string" as const },
-            address: { type: "string" as const },
-            taxIdVat: { type: "string" as const },
-          },
-        },
-        buyer: {
-          type: "object" as const,
-          properties: {
-            name: { type: "string" as const },
-            address: { type: "string" as const },
-            taxIdVat: { type: "string" as const },
-          },
-        },
-        subtotal: { type: "number" as const },
-        vatTotal: { type: "number" as const },
-        total: { type: "number" as const },
-        items: {
-          type: "array" as const,
-          items: {
-            type: "object" as const,
-            properties: {
-              description: { type: "string" as const },
-              quantity: { type: "number" as const },
-              unitPrice: { type: "number" as const },
-              total: { type: "number" as const },
-            },
-          },
-        },
-      },
+    // Use a minimal schema that allows any structure - fully dynamic extraction
+    // Just specify it's an object, and the AI will extract whatever fields it finds
+    const schema: JSONSchema = {
+      type: "object",
+      // No properties defined - allows AI to extract any fields dynamically
     };
 
     const result = await aiService.generateJSON<Record<string, unknown>>(
       prompt,
       schema,
       {
-        temperature: 0.3, // Lower temperature for more consistent extraction
-        maxTokens: 2000,
+        temperature: 0.2, // Lower temperature for more consistent extraction
+        maxTokens: 4000, // Increased for more comprehensive extraction
       }
     );
 

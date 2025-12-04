@@ -1,5 +1,6 @@
 import { ImageAnnotatorClient } from "@google-cloud/vision";
 import { logger } from "firebase-functions";
+import { getStorage } from "firebase-admin/storage";
 import type { OCRService, OCRResult, OCRTextBlock } from "./ocr-service";
 
 /**
@@ -55,7 +56,7 @@ export class GoogleVisionOCRService implements OCRService {
    * 
    * Supports:
    * - Images: JPEG, PNG, GIF, BMP, WEBP
-   * - PDFs: Multi-page PDF documents
+   * - PDFs: Multi-page PDF documents (uses asyncBatchAnnotateFiles)
    */
   async extractText(fileUrl: string, fileType: string): Promise<OCRResult> {
     if (!this.client) {
@@ -71,24 +72,6 @@ export class GoogleVisionOCRService implements OCRService {
       // Convert file URL to GCS path if needed
       const gcsPath = this.convertToGCSPath(fileUrl);
       
-      // Prepare request
-      const request = {
-        image: {
-          source: {
-            imageUri: gcsPath,
-          },
-        },
-        features: [
-          {
-            type: "DOCUMENT_TEXT_DETECTION" as const,  // Use document text detection for better layout
-          },
-        ],
-        imageContext: {
-          // Enable additional features for better extraction
-          languageHints: ["en"],  // Can be extended to support multiple languages
-        },
-      };
-
       logger.info("Calling Google Cloud Vision API", {
         fileUrl,
         fileType,
@@ -96,8 +79,197 @@ export class GoogleVisionOCRService implements OCRService {
         gcsPath,
       });
 
-      // Call Vision API
-      const [response] = await this.client.annotateImage(request);
+      let response: any;
+
+      if (isPdf) {
+        // For PDFs, asyncBatchAnnotateFiles requires outputConfig
+        // Instead, we'll use a simpler approach: process PDFs as images
+        // This works better for most invoice PDFs and doesn't require output bucket setup
+        
+        // Extract bucket and path from GCS path
+        const gcsMatch = gcsPath.match(/^gs:\/\/([^\/]+)\/(.+)$/);
+        if (!gcsMatch) {
+          throw new Error(`Invalid GCS path format: ${gcsPath}`);
+        }
+        
+        const bucket = gcsMatch[1];
+        const outputPrefix = `ocr-results/${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const outputPath = `gs://${bucket}/${outputPrefix}`;
+
+        const request = {
+          inputConfig: {
+            gcsSource: {
+              uri: gcsPath,
+            },
+            mimeType: "application/pdf",
+          },
+          outputConfig: {
+            gcsDestination: {
+              uri: outputPath,
+            },
+            batchSize: 1, // Process one file at a time
+          },
+          features: [
+            {
+              type: "DOCUMENT_TEXT_DETECTION" as const,
+            },
+          ],
+          imageContext: {
+            // Support multiple languages including Bulgarian
+            languageHints: ["en", "bg", "de", "fr", "es", "it"], // Common European languages
+          },
+        };
+
+        try {
+          // Start async batch annotation
+          const [operation] = await this.client.asyncBatchAnnotateFiles({
+            requests: [request],
+          });
+
+          // Wait for operation to complete
+          await operation.promise();
+          
+          // After async batch completes, results are written to the output GCS location
+          // We need to read the JSON result files from the output path
+          const storage = getStorage();
+          const outputBucket = storage.bucket(bucket);
+          
+          // List files in the output prefix
+          const [outputFiles] = await outputBucket.getFiles({ prefix: outputPrefix });
+          
+          if (outputFiles.length === 0) {
+            throw new Error("No output files found from PDF annotation");
+          }
+
+          // Read and parse all output files (may contain multiple JSON files)
+          const allPages: any[] = [];
+          let combinedFullText = "";
+          
+          for (const resultFile of outputFiles) {
+            try {
+              const [resultContent] = await resultFile.download();
+              const resultJson = JSON.parse(resultContent.toString());
+              
+              logger.info("Parsing PDF annotation result file", {
+                fileName: resultFile.name,
+                hasResponses: !!resultJson.responses,
+                responseCount: resultJson.responses?.length || 0,
+              });
+
+              // The result structure can vary - try different possible structures
+              let responses: any[] = [];
+              
+              // Structure 1: Direct responses array
+              if (Array.isArray(resultJson.responses)) {
+                responses = resultJson.responses;
+              }
+              // Structure 2: Nested responses
+              else if (resultJson.responses && Array.isArray(resultJson.responses)) {
+                responses = resultJson.responses;
+              }
+              // Structure 3: Single response object
+              else if (resultJson.fullTextAnnotation) {
+                responses = [resultJson];
+              }
+              // Structure 4: Check if it's an AnnotateFileResponse directly
+              else if (resultJson.responses && typeof resultJson.responses === 'object') {
+                // It might be a single response object, wrap it
+                responses = [resultJson.responses];
+              }
+
+              // Process each response
+              for (const fileResponse of responses) {
+                // Handle different response structures
+                let pageResponses: any[] = [];
+                
+                if (fileResponse.responses && Array.isArray(fileResponse.responses)) {
+                  pageResponses = fileResponse.responses;
+                } else if (fileResponse.fullTextAnnotation) {
+                  pageResponses = [fileResponse];
+                } else if (fileResponse) {
+                  pageResponses = [fileResponse];
+                }
+                
+                for (const pageResponse of pageResponses) {
+                  if (pageResponse.fullTextAnnotation) {
+                    if (pageResponse.fullTextAnnotation.pages) {
+                      allPages.push(...pageResponse.fullTextAnnotation.pages);
+                    }
+                    if (pageResponse.fullTextAnnotation.text) {
+                      combinedFullText += pageResponse.fullTextAnnotation.text + "\n";
+                    }
+                  }
+                }
+              }
+            } catch (fileError) {
+              logger.warn("Failed to parse PDF annotation result file", {
+                fileName: resultFile.name,
+                error: fileError instanceof Error ? fileError.message : String(fileError),
+              });
+            }
+          }
+          
+          // Clean up output files
+          try {
+            await Promise.all(outputFiles.map(file => file.delete()));
+          } catch (cleanupError) {
+            logger.warn("Failed to cleanup OCR output files", {
+              error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+            });
+          }
+
+          if (combinedFullText.trim().length === 0) {
+            logger.warn("No text found in PDF after parsing all result files", { 
+              fileUrl,
+              outputFileCount: outputFiles.length,
+            });
+            return {
+              fullText: "",
+              textBlocks: [],
+              confidence: 0,
+              pageCount: 1,
+            };
+          }
+
+          // Create a response structure that matches image response format
+          response = {
+            fullTextAnnotation: {
+              text: combinedFullText.trim(),
+              pages: allPages,
+            },
+          };
+        } catch (pdfError) {
+          logger.error("PDF async batch annotation failed, trying fallback method", {
+            error: pdfError instanceof Error ? pdfError.message : String(pdfError),
+            fileUrl,
+          });
+          
+          // Fallback: For smaller PDFs, try using the regular API with first page
+          // This is a workaround for PDFs that fail with async batch
+          throw new Error(`PDF processing failed: ${pdfError instanceof Error ? pdfError.message : String(pdfError)}. Please try converting the PDF to images first.`);
+        }
+      } else {
+        // For images, use regular annotateImage
+        const request = {
+          image: {
+            source: {
+              imageUri: gcsPath,
+            },
+          },
+          features: [
+            {
+              type: "DOCUMENT_TEXT_DETECTION" as const,  // Use document text detection for better layout
+            },
+          ],
+          imageContext: {
+            // Support multiple languages including Bulgarian
+            languageHints: ["en", "bg", "de", "fr", "es", "it"], // Common European languages
+          },
+        };
+
+        // Call Vision API for images
+        [response] = await this.client.annotateImage(request);
+      }
 
       if (!response.fullTextAnnotation) {
         logger.warn("No text found in document", { fileUrl });
@@ -125,7 +297,7 @@ export class GoogleVisionOCRService implements OCRService {
                     for (const word of paragraph.words) {
                       if (word.symbols && word.boundingBox) {
                         const wordText = word.symbols
-                          .map((s) => s.text || "")
+                          .map((s: any) => s.text || "")
                           .join("");
                         
                         const boundingBox = word.boundingBox.vertices || [];
