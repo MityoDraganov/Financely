@@ -114,7 +114,7 @@ export function InvoiceFileUpload({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+              "border-2 border-dashed rounded-md p-8 text-center transition-colors",
               isDragging
                 ? "border-primary bg-primary/5"
                 : "border-muted bg-muted/50",

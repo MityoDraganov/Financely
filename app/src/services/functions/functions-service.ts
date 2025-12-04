@@ -547,4 +547,13 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "extractInvoiceData")(payload);
     return result.data;
   },
+
+  async generateTemplateFromExtraction(payload) {
+    type GenerateTemplateFromExtractionPayload = Parameters<FunctionsService["generateTemplateFromExtraction"]>[0];
+    const result = await httpsCallable<
+      GenerateTemplateFromExtractionPayload,
+      Awaited<ReturnType<FunctionsService["generateTemplateFromExtraction"]>>
+    >(firebase.functions, "generateTemplateFromExtraction")(payload);
+    return result.data;
+  },
 };

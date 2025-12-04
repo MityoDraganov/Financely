@@ -78,7 +78,7 @@ export default function InvoicesPage() {
 
   const handleCreate = () => navigate("/create-invoice");
   
-  const handleUploadInvoice = () => navigate("/invoices/upload");
+  const handleUploadInvoice = () => navigate("/invoice-upload-flow", { state: { flowType: "invoice", returnTo: "/invoices" } });
 
   const handleGeneratePdf = (invoiceId: string, e: React.MouseEvent) => {
     e.stopPropagation();

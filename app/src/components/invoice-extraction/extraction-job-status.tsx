@@ -135,7 +135,7 @@ export function ExtractionJobStatus({ jobId, showDetails = true }: ExtractionJob
               </div>
             )}
             {job.errorMessage && (
-              <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-sm">
                 <p className="text-sm text-destructive font-medium">Error:</p>
                 <p className="text-sm text-destructive/80 mt-1">
                   {job.errorMessage}

@@ -17,6 +17,7 @@ import { SidebarProvider } from "./components/ui/sidebar";
 import InvoicesPage from "./pages/invoices/invoices";
 import InvoiceDetailPage from "./pages/invoices/invoice-detail";
 import UploadInvoicePage from "./pages/invoices/upload-invoice";
+import InvoiceUploadFlowPage from "./pages/invoice-upload-flow";
 import ContactsPage from "./pages/contacts/contacts";
 import LeadsPage from "./pages/leads/leads";
 import ProposalsPage from "./pages/proposals/proposals";
@@ -159,6 +160,14 @@ function App() {
 										element={
 											<ProtectedRoute>
 												<UploadInvoicePage />
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/invoice-upload-flow"
+										element={
+											<ProtectedRoute>
+												<InvoiceUploadFlowPage />
 											</ProtectedRoute>
 										}
 									/>

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail } from "lucide-react";
+import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail, Upload, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,6 +96,10 @@ export default function TemplatesPage() {
 
   const handleCreateEmailTemplate = () => {
     navigate("/email-designer", { state: { action: "create" } });
+  };
+
+  const handleUploadInvoice = () => {
+    navigate("/invoice-upload-flow", { state: { flowType: "template", returnTo: "/templates" } });
   };
 
   const handleOpenEmailTemplate = (templateId: string) => {
@@ -280,6 +284,11 @@ export default function TemplatesPage() {
             <Plus className="h-4 w-4 mr-2" />
             {t('templates.actions.createInvoice')}
           </Button>
+          <Button variant="outline" onClick={handleUploadInvoice}>
+            <Upload className="h-4 w-4 mr-2" />
+            <Sparkles className="h-3 w-3 mr-1" />
+            Generate from Invoice
+          </Button>
           <Button variant="secondary" onClick={handleCreateEmailTemplate}>
             <Mail className="h-4 w-4 mr-2" />
             {t('templates.actions.createEmail')}
@@ -323,21 +332,77 @@ export default function TemplatesPage() {
 
       {/* Templates Grid */}
       {!templates || templates.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2 text-foreground">{t('templates.empty.title')}</h3>
-            <p className="text-muted-foreground mb-6 text-center max-w-md">
-              {t('templates.empty.description')}
-            </p>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+          <Card className="border-2 border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2 text-foreground">{t('templates.empty.title')}</h3>
+              <p className="text-muted-foreground mb-6 text-center max-w-md">
+                {t('templates.empty.description')}
+              </p>
               <Button onClick={handleCreateInvoiceTemplate}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('templates.empty.createFirst')}
-            </Button>
-          </CardContent>
-        </Card>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('templates.empty.createFirst')}
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Generate from Invoice
+              </CardTitle>
+              <CardDescription>
+                Upload an invoice PDF or image and automatically generate a template
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Upload invoice PDF or image</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>AI extracts all invoice data automatically</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Template generated with matching bindings</span>
+                </li>
+              </ul>
+              <Button onClick={handleUploadInvoice} className="w-full">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Invoice
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
-        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
+        <>
+          {/* Promotional card for existing templates */}
+          <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10 mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm mb-1">Generate Template from Invoice</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Upload an invoice PDF or image. We'll extract the data and create a matching template automatically.
+                    </p>
+                  </div>
+                </div>
+                <Button onClick={handleUploadInvoice} size="sm" variant="default">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Invoice
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
           {templates.map((template) => {
             const isSelected = selectedTemplateIds.has(template.id);
             return (
@@ -446,7 +511,8 @@ export default function TemplatesPage() {
               </Card>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
       </section>
       <section className="space-y-3">

@@ -522,14 +522,14 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
     }
 
     return (
-        <div className="grid place-items-center">
+        <div className="flex items-center justify-center w-full h-full">
             <div
-                className="bg-white dark:bg-neutral-900 shadow relative border border-border"
+                className="bg-white dark:bg-neutral-900 shadow relative border border-border overflow-hidden"
                 style={{
                     width: size.w,
                     height: size.h,
                     transform: `scale(${zoom})`,
-                    transformOrigin: "top left",
+                    transformOrigin: "center",
                 }}
             >
                 {watermarkElement}

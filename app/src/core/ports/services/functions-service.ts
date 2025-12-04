@@ -401,6 +401,40 @@ export interface FunctionsService {
   }>;
 
   /**
+   * Generate an invoice template from extracted invoice data
+   * Analyzes the extracted data structure and creates a matching template
+   */
+  generateTemplateFromExtraction(payload: {
+    jobId: string;
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional";
+      templateName?: string;
+    };
+  }): Promise<{
+    template: {
+      orgId: string;
+      name: string;
+      description?: string;
+      pageSize: "A4" | "Letter";
+      brand: {
+        fonts: string[];
+        colors: { primary: string; secondary: string; accent: string };
+        margins: { top: number; right: number; bottom: number; left: number };
+      };
+      elements: Array<any>;
+      status: "draft" | "published";
+      compliance?: {
+        region?: "US" | "EU" | "CA" | "AU" | "UK";
+        requiredFields?: string[];
+        autoFooter?: boolean;
+        customFooter?: string;
+        complianceValidated?: boolean;
+        complianceValidatedAt?: string;
+      };
+    };
+  }>;
+
+  /**
    * Generate an email template using AI
    * Creates a beautiful, functional email template with progressive block rendering
    * Supports images (reference or use-in-template), organization context, and custom HTML blocks

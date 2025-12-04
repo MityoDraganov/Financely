@@ -65,6 +65,7 @@ export const USAGE_FEATURES = {
   INVOICE_EXTRACTION_CREATE_INVOICE: "invoice.extraction.create_invoice",
   INVOICE_EXTRACTION_CREATE_PATTERN: "invoice.extraction.create_pattern",
   INVOICE_EXTRACTION_BULK_PROCESS: "invoice.extraction.bulk_process",
+  TEMPLATE_GENERATE_FROM_EXTRACTION: "template.generate_from_extraction",
 } as const;
 
 /**

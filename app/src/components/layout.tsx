@@ -49,99 +49,126 @@ import { useTranslation } from "react-i18next";
 // Navigation items will be created with translations inside the component
 
 // Memoized navigation item component to prevent unnecessary re-renders
-const NavItem = memo(({ item, isMobile, toggleSidebar, title }: { item: { href: string; icon: React.ComponentType }; isMobile: boolean; toggleSidebar: () => void; title: string }) => {
-	const handleClick = useCallback(() => {
-		if (isMobile) {
-			toggleSidebar();
-		}
-	}, [isMobile, toggleSidebar]);
+const NavItem = memo(
+	({
+		item,
+		isMobile,
+		toggleSidebar,
+		title,
+	}: {
+		item: { href: string; icon: React.ComponentType };
+		isMobile: boolean;
+		toggleSidebar: () => void;
+		title: string;
+	}) => {
+		const handleClick = useCallback(() => {
+			if (isMobile) {
+				toggleSidebar();
+			}
+		}, [isMobile, toggleSidebar]);
 
-	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton asChild tooltip={title}>
-				<Link to={item.href} onClick={handleClick}>
-					<item.icon />
-					<span>{title}</span>
-				</Link>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
-	);
-});
+		return (
+			<SidebarMenuItem>
+				<SidebarMenuButton asChild tooltip={title}>
+					<Link to={item.href} onClick={handleClick}>
+						<item.icon />
+						<span>{title}</span>
+					</Link>
+				</SidebarMenuButton>
+			</SidebarMenuItem>
+		);
+	}
+);
 
 NavItem.displayName = "NavItem";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const { t } = useTranslation();
 	const { organizationName } = useOrganizationBranding();
-	const displayName = useMemo(() => organizationName || "Financely", [organizationName]);
+	const displayName = useMemo(
+		() => organizationName || "Financely",
+		[organizationName]
+	);
 	const isMobile = useMediaQuery("(max-width: 768px)");
 	const { toggleSidebar, state } = useSidebar();
 	const location = useLocation();
-	const isCreateInvoicePage = useMemo(() => location.pathname === "/create-invoice", [location.pathname]);
-	const isDesignerPage = useMemo(() => location.pathname.startsWith("/designer"), [location.pathname]);
-	const isEmailDesignerPage = useMemo(() => location.pathname.startsWith("/email-designer"), [location.pathname]);
+	const isCreateInvoicePage = useMemo(
+		() => location.pathname === "/create-invoice",
+		[location.pathname]
+	);
+	const isDesignerPage = useMemo(
+		() => location.pathname.startsWith("/designer"),
+		[location.pathname]
+	);
+	const isEmailDesignerPage = useMemo(
+		() => location.pathname.startsWith("/email-designer"),
+		[location.pathname]
+	);
 	const invoiceTemplate = useInvoiceTemplate();
 	const designerTemplate = useDesignerTemplate();
 	const emailDesignerTemplate = useEmailDesignerTemplate();
 
 	// Navigation items with translations
-	const navItems = useMemo(() => [
-		{
-			title: t("layout.navigation.dashboard"),
-			href: "/dashboard",
-			icon: LayoutDashboard,
-		},
-		{
-			title: t("layout.navigation.products"),
-			href: "/products",
-			icon: Package,
-		},
-		{
-			title: t("layout.navigation.invoices"),
-			href: "/invoices",
-			icon: FileText,
-		},
-		{
-			title: t("layout.navigation.contacts"),
-			href: "/contacts",
-			icon: Users,
-		},
-		{
-			title: t("layout.navigation.leads"),
-			href: "/leads",
-			icon: MessageSquare,
-		},
-		{
-			title: t("layout.navigation.proposals"),
-			href: "/proposals",
-			icon: FileText,
-		},
-		{
-			title: t("layout.navigation.templates"),
-			href: "/templates",
-			icon: Brush,
-		},
-		{
-			title: t("layout.navigation.workflows"),
-			href: "/workflows",
-			icon: Zap,
-		},
-		{
-			title: t("layout.navigation.siteBuilder"),
-			href: "/site-builder",
-			icon: Sparkles,
-		},
-		{
-			title: t("layout.navigation.analytics"),
-			href: "/analytics",
-			icon: BarChart3,
-		},
-		{
-			title: t("layout.navigation.settings"),
-			href: "/settings/organization/general",
-			icon: Settings,
-		},
-	], [t]);
+	const navItems = useMemo(
+		() => [
+			{
+				title: t("layout.navigation.dashboard"),
+				href: "/dashboard",
+				icon: LayoutDashboard,
+			},
+			{
+				title: t("layout.navigation.products"),
+				href: "/products",
+				icon: Package,
+			},
+			{
+				title: t("layout.navigation.invoices"),
+				href: "/invoices",
+				icon: FileText,
+			},
+			{
+				title: t("layout.navigation.contacts"),
+				href: "/contacts",
+				icon: Users,
+			},
+			{
+				title: t("layout.navigation.leads"),
+				href: "/leads",
+				icon: MessageSquare,
+			},
+			{
+				title: t("layout.navigation.proposals"),
+				href: "/proposals",
+				icon: FileText,
+			},
+			{
+				title: t("layout.navigation.templates"),
+				href: "/templates",
+				icon: Brush,
+			},
+			{
+				title: t("layout.navigation.workflows"),
+				href: "/workflows",
+				icon: Zap,
+			},
+			{
+				title: t("layout.navigation.siteBuilder"),
+				href: "/site-builder",
+				icon: Sparkles,
+			},
+			{
+				title: t("layout.navigation.analytics"),
+				href: "/analytics",
+				icon: BarChart3,
+			},
+			{
+				title: t("layout.navigation.settings"),
+				href: "/settings/organization/general",
+				icon: Settings,
+			},
+		],
+		[t]
+	);
 
 	return (
 		<div className="flex flex-1 overflow-x-hidden min-w-0">
@@ -155,7 +182,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						onClick={toggleSidebar}
 					>
 						<Menu className="h-5 w-5" />
-						<span className="sr-only">{t("layout.mobile.toggleMenu")}</span>
+						<span className="sr-only">
+							{t("layout.mobile.toggleMenu")}
+						</span>
 					</Button>
 					{isCreateInvoicePage && invoiceTemplate && (
 						<>
@@ -166,9 +195,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 										invoiceTemplate.setSelectedTemplateId
 									}
 								>
-								<SelectTrigger className="h-9 w-full">
-									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
-								</SelectTrigger>
+									<SelectTrigger className="h-9 w-full">
+										<SelectValue
+											placeholder={t(
+												"layout.templateSelector.placeholder"
+											)}
+										/>
+									</SelectTrigger>
 									<SelectContent>
 										{invoiceTemplate.templates.map((t) => (
 											<SelectItem key={t.id} value={t.id}>
@@ -206,7 +239,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 								}
 							>
 								<SelectTrigger className="h-9 w-full">
-									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
+									<SelectValue
+										placeholder={t(
+											"layout.templateSelector.placeholder"
+										)}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{designerTemplate.templates.map((t) => (
@@ -215,7 +252,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 										</SelectItem>
 									))}
 									<SelectItem value="new">
-										<Plus className="h-4 w-4 mr-1" /> {t("layout.templateSelector.newTemplate")}
+										<Plus className="h-4 w-4 mr-1" />{" "}
+										{t(
+											"layout.templateSelector.newTemplate"
+										)}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -225,23 +265,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						<div className="flex-1 min-w-0">
 							<Select
 								value={
-									emailDesignerTemplate.currentTemplate?.id ?? ""
+									emailDesignerTemplate.currentTemplate?.id ??
+									""
 								}
 								onValueChange={
 									emailDesignerTemplate.onTemplateChange
 								}
 							>
 								<SelectTrigger className="h-9 w-full">
-									<SelectValue placeholder={t("layout.templateSelector.placeholder")} />
+									<SelectValue
+										placeholder={t(
+											"layout.templateSelector.placeholder"
+										)}
+									/>
 								</SelectTrigger>
 								<SelectContent>
-									{emailDesignerTemplate.templates.map((t) => (
-										<SelectItem key={t.id} value={t.id}>
-											{t.name}
-										</SelectItem>
-									))}
+									{emailDesignerTemplate.templates.map(
+										(t) => (
+											<SelectItem key={t.id} value={t.id}>
+												{t.name}
+											</SelectItem>
+										)
+									)}
 									<SelectItem value="new">
-										<Plus className="h-4 w-4 mr-1" /> {t("layout.templateSelector.newTemplate")}
+										<Plus className="h-4 w-4 mr-1" />{" "}
+										{t(
+											"layout.templateSelector.newTemplate"
+										)}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -258,13 +308,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				<SidebarHeader className="flex flex-col gap-3 p-4 border-b min-w-0 overflow-x-hidden">
 					<div className="flex items-center justify-between w-full min-w-0 group-data-[collapsible=icon]:justify-center">
 						<div className="flex items-center gap-2 flex-1">
-							<img
-								src={"/financely-logo.svg"}
-								alt={displayName}
-								className="-ml-2.5 h-7 w-auto object-contain transition-opacity duration-200 hover:opacity-80 group-data-[collapsible=icon]:hidden"
-								loading="eager"
-								decoding="async"
-							/>
+							<Link to="/dashboard">
+								<img
+									src={"/financely-logo.svg"}
+									alt={displayName}
+									className="-ml-2.5 h-7 w-auto object-contain transition-opacity duration-200 hover:opacity-80 group-data-[collapsible=icon]:hidden"
+									loading="eager"
+									decoding="async"
+								/>
+							</Link>
 						</div>
 						{!isMobile && <SidebarTrigger className="shrink-0" />}
 					</div>
@@ -290,16 +342,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 					<div>
 						<SidebarSeparator />
-						<SidebarGroup className={`flex flex-col justify-between gap-2 ${state === "collapsed" ? "gap-1" : ""}`}>
-							<div className={`flex items-center justify-between gap-2 ${state === "collapsed" ? "flex-col gap-1" : ""}`}>
+						<SidebarGroup
+							className={`flex flex-col justify-between gap-2 ${state === "collapsed" ? "gap-1" : ""}`}
+						>
+							<div
+								className={`flex items-center justify-between gap-2 ${state === "collapsed" ? "flex-col gap-1" : ""}`}
+							>
 								<LanguageSelector />
 								<ModeToggle />
 							</div>
 							{/* UserButton only on desktop - on mobile it's in the header */}
 							{!isMobile && (
-							<SidebarMenuItem className="flex justify-center items-center w-full">
-									<UserButton showName={state === "expanded"} />
-							</SidebarMenuItem>
+								<SidebarMenuItem className="flex justify-center items-center w-full">
+									<UserButton
+										showName={state === "expanded"}
+									/>
+								</SidebarMenuItem>
 							)}
 						</SidebarGroup>
 					</div>
