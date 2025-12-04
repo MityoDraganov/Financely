@@ -15,6 +15,7 @@ import { getContactRepository } from "./contact-repository";
 import { getLeadRepository } from "./lead-repository";
 import { getProductRepository } from "./product-repository";
 import { getAnalyticsConfigRepository } from "./analytics-config-repository";
+import { getExtractionJobRepository } from "./extraction-job-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>
@@ -45,4 +46,6 @@ export const repositoryHost: RepositoryHost = {
       getProductRepository(databaseService),
     getAnalyticsConfigRepository: (databaseService: DatabaseService) =>
       getAnalyticsConfigRepository(databaseService),
+    getExtractionJobRepository: (databaseService: DatabaseService) =>
+      getExtractionJobRepository(databaseService),
   }

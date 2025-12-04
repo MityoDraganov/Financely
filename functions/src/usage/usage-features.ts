@@ -58,11 +58,21 @@ export const USAGE_FEATURES = {
   AUTH_LOGIN: "auth.login",
   ORG_MEMBER_INVITE: "org.member.invite",
   ORG_MEMBER_REMOVE: "org.member.remove",
+  
+  // Invoice extraction features
+  INVOICE_EXTRACTION_UPLOAD: "invoice.extraction.upload",
+  INVOICE_EXTRACTION_PROCESS: "invoice.extraction.process",
+  INVOICE_EXTRACTION_CREATE_INVOICE: "invoice.extraction.create_invoice",
+  INVOICE_EXTRACTION_CREATE_PATTERN: "invoice.extraction.create_pattern",
+  INVOICE_EXTRACTION_BULK_PROCESS: "invoice.extraction.bulk_process",
 } as const;
 
 /**
  * Type for feature IDs
  */
 export type UsageFeatureId = typeof USAGE_FEATURES[keyof typeof USAGE_FEATURES];
+
+
+
 
 

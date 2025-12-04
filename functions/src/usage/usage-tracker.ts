@@ -184,7 +184,13 @@ export async function recordUsageEvent(
       .doc(monthlyDocId);
     
     // Use a transaction to ensure consistency
+    // IMPORTANT: Firestore transactions require all reads before all writes
     await firestore.runTransaction(async (transaction) => {
+      // Read all documents first (required by Firestore transaction rules)
+      const dailyDoc = await transaction.get(dailyRef);
+      const monthlyDoc = await transaction.get(monthlyRef);
+      
+      // Now perform all writes
       // Write the raw event
       transaction.set(
         firestore.collection(COLLECTIONS.EVENTS).doc(eventId),
@@ -192,8 +198,6 @@ export async function recordUsageEvent(
       );
       
       // Update or create daily aggregate
-      const dailyDoc = await transaction.get(dailyRef);
-      
       if (dailyDoc.exists) {
         // Increment existing aggregate
         transaction.update(dailyRef, {
@@ -217,8 +221,6 @@ export async function recordUsageEvent(
       }
       
       // Update or create monthly aggregate
-      const monthlyDoc = await transaction.get(monthlyRef);
-      
       if (monthlyDoc.exists) {
         // Increment existing aggregate
         transaction.update(monthlyRef, {

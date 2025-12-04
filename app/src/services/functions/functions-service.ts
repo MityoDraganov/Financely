@@ -529,4 +529,22 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async uploadInvoiceFile(payload) {
+    type UploadInvoiceFilePayload = Parameters<FunctionsService["uploadInvoiceFile"]>[0];
+    const result = await httpsCallable<UploadInvoiceFilePayload, { jobId: string }>(
+      firebase.functions,
+      "uploadInvoiceFile",
+    )(payload);
+    return result.data;
+  },
+
+  async extractInvoiceData(payload) {
+    type ExtractInvoiceDataPayload = Parameters<FunctionsService["extractInvoiceData"]>[0];
+    const result = await httpsCallable<
+      ExtractInvoiceDataPayload,
+      Awaited<ReturnType<FunctionsService["extractInvoiceData"]>>
+    >(firebase.functions, "extractInvoiceData")(payload);
+    return result.data;
+  },
 };

@@ -61,9 +61,25 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         throw new HttpsError("invalid-argument", "contentType is required");
       }
 
-      // Validate file type (only images allowed for now)
-      if (!contentType.startsWith("image/")) {
-        throw new HttpsError("invalid-argument", "Only image files are allowed");
+      // Validate file type (images and PDFs allowed)
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "image/webp",
+        "image/gif",
+        "application/pdf",
+      ];
+      
+      const isAllowedType = allowedTypes.includes(contentType) || 
+        contentType.startsWith("image/") ||
+        fileName.toLowerCase().endsWith(".pdf");
+      
+      if (!isAllowedType) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Only image files (JPEG, PNG, WebP, GIF) and PDF files are allowed"
+        );
       }
 
       // Decode base64 file data
@@ -78,10 +94,14 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         throw new HttpsError("invalid-argument", "Invalid base64 file data");
       }
 
-      // Validate file size (10MB max)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      // Validate file size (20MB max for PDFs, 10MB for images)
+      const isPdf = contentType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+      const maxSize = isPdf ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for PDFs, 10MB for images
       if (fileBuffer.length > maxSize) {
-        throw new HttpsError("invalid-argument", "File size must be less than 10MB");
+        throw new HttpsError(
+          "invalid-argument",
+          `File size must be less than ${isPdf ? "20MB" : "10MB"}`
+        );
       }
 
       // Determine storage path

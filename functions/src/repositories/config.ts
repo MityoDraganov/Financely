@@ -10,4 +10,6 @@ export enum DatabaseCollection {
   LEADS = "leads",
   PRODUCTS = "products",
   EMAIL_TEMPLATE_MAPPINGS = "emailTemplateMappings",
+  EXTRACTION_JOBS = "extractionJobs",
+  TEMPLATE_PATTERNS = "templatePatterns",
 }

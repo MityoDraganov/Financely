@@ -209,6 +209,36 @@ service cloud.firestore {
                        belongsToOrg(resource.data.orgId) &&
                        isOwnerOrAdmin(resource.data.orgId);
     }
+    match /extractionJobs/{jobId} {
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.orgId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.orgId != null &&
+                       isOrgMember(request.resource.data.orgId) &&
+                       hasRole(request.resource.data.orgId, 'member');
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.orgId) &&
+                       request.resource.data.orgId == resource.data.orgId &&
+                       hasRole(resource.data.orgId, 'member');
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.orgId) &&
+                       isOwnerOrAdmin(resource.data.orgId);
+    }
+    match /templatePatterns/{patternId} {
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.orgId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.orgId != null &&
+                       isOrgMember(request.resource.data.orgId) &&
+                       isOwnerOrAdmin(request.resource.data.orgId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.orgId) &&
+                       request.resource.data.orgId == resource.data.orgId &&
+                       isOwnerOrAdmin(resource.data.orgId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.orgId) &&
+                       isOwnerOrAdmin(resource.data.orgId);
+    }
     match /workflowRuns/{runId} {
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);

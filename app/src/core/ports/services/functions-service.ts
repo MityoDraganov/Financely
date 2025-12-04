@@ -741,4 +741,60 @@ export interface FunctionsService {
     brandSiteId: string;
     customDomain: string;
   }): Promise<{ success: boolean; message?: string }>;
+
+  /**
+   * Upload an invoice file and create an extraction job
+   * 
+   * @param payload - The upload payload
+   * @param payload.orgId - Organization ID
+   * @param payload.fileUrl - Firebase Storage URL of the uploaded file
+   * @param payload.fileName - Original file name
+   * @param payload.fileType - File type (pdf, image/jpeg, image/png, etc.)
+   * @param payload.fileSizeBytes - File size in bytes
+   * @returns Promise with the extraction job ID
+   */
+  uploadInvoiceFile(payload: {
+    orgId: string;
+    fileUrl: string;
+    fileName: string;
+    fileType: "pdf" | "image/jpeg" | "image/png" | "image/jpg" | "image/webp";
+    fileSizeBytes: number;
+  }): Promise<{ jobId: string }>;
+
+  /**
+   * Extract invoice data from an uploaded file using OCR and AI
+   * 
+   * @param payload - The extraction payload
+   * @param payload.jobId - Extraction job ID
+   * @returns Promise with the updated extraction job
+   */
+  extractInvoiceData(payload: {
+    jobId: string;
+  }): Promise<{
+    job: {
+      id: string;
+      orgId: string;
+      fileUrl: string;
+      fileName: string;
+      fileType: string;
+      status: "pending" | "processing" | "extracted" | "validated" | "completed" | "failed" | "cancelled";
+      extractedData?: Record<string, unknown>;
+      confidenceScores?: Record<string, number>;
+      matchedTemplateId?: string;
+      matchConfidence?: number;
+      fieldMappings?: Array<{
+        extractedField: string;
+        templateBinding: string;
+        confidence: number;
+        userVerified: boolean;
+      }>;
+      correctedData?: Record<string, unknown>;
+      createdInvoiceId?: string;
+      createdTemplateId?: string;
+      errorMessage?: string;
+      processingDurationMs?: number;
+      vendorName?: string;
+      documentType?: "invoice" | "receipt" | "utility_bill" | "unknown";
+    };
+  }>;
 }

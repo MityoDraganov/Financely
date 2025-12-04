@@ -16,6 +16,7 @@ import AppLayout from "./components/layout";
 import { SidebarProvider } from "./components/ui/sidebar";
 import InvoicesPage from "./pages/invoices/invoices";
 import InvoiceDetailPage from "./pages/invoices/invoice-detail";
+import UploadInvoicePage from "./pages/invoices/upload-invoice";
 import ContactsPage from "./pages/contacts/contacts";
 import LeadsPage from "./pages/leads/leads";
 import ProposalsPage from "./pages/proposals/proposals";
@@ -150,6 +151,14 @@ function App() {
 												<AppLayout>
 													<InvoicesPage />
 												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/invoices/upload"
+										element={
+											<ProtectedRoute>
+												<UploadInvoicePage />
 											</ProtectedRoute>
 										}
 									/>

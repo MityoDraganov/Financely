@@ -12,6 +12,7 @@ import { ContactRepository } from "./contact-repository";
 import { LeadRepository } from "./lead-repository";
 import { ProductRepository } from "./product-repository";
 import { AnalyticsConfigRepository } from "./analytics-config-repository";
+import type { ExtractionJobRepository } from "@/repositories/extraction-job-repository";
 
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
@@ -28,4 +29,5 @@ export interface RepositoryHost {
     getLeadsRepository(databaseService: DatabaseService): LeadRepository;
     getProductsRepository(databaseService: DatabaseService): ProductRepository;
     getAnalyticsConfigRepository(databaseService: DatabaseService): AnalyticsConfigRepository;
+    getExtractionJobRepository(databaseService: DatabaseService): ExtractionJobRepository;
 }

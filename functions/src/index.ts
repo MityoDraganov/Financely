@@ -14,6 +14,10 @@ export { mapProductToInvoiceFields } from "./functions/map-product-to-invoice-fi
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
 export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 
+// Invoice extraction functions
+export { uploadInvoiceFile } from "./functions/upload-invoice-file";
+export { extractInvoiceData } from "./functions/extract-invoice-data";
+
 // Workflow functions
 export { createWorkflow } from "./functions/create-workflow";
 

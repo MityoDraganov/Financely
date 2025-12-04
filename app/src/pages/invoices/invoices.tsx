@@ -19,7 +19,8 @@ import {
   DollarSign,
   User,
   MoreHorizontal,
-  Eye
+  Eye,
+  Upload
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -76,6 +77,8 @@ export default function InvoicesPage() {
   const renderPdf = useRenderInvoicePdf();
 
   const handleCreate = () => navigate("/create-invoice");
+  
+  const handleUploadInvoice = () => navigate("/invoices/upload");
 
   const handleGeneratePdf = (invoiceId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -124,10 +127,16 @@ export default function InvoicesPage() {
                 {t('invoices.subtitle')}
               </p>
             </div>
-            <Button onClick={handleCreate} className="shadow-sm w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              {t('invoices.createInvoice')}
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button onClick={handleUploadInvoice} variant="outline" className="shadow-sm flex-1 sm:flex-none">
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Invoice
+              </Button>
+              <Button onClick={handleCreate} className="shadow-sm flex-1 sm:flex-none">
+                <Plus className="mr-2 h-4 w-4" />
+                {t('invoices.createInvoice')}
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
