@@ -84,15 +84,31 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
     const size = PAGE_SIZES[template.pageSize] ?? PAGE_SIZES.A4;
 
     function renderElement(el: TemplateElement) {
+        // Clamp element position and size to canvas boundaries to prevent overflow
+        // Use Math.max to ensure values are never negative
+        const clampedX = Math.max(0, Math.min(el.x, size.w - 1));
+        const clampedY = Math.max(0, Math.min(el.y, size.h - 1));
+        
+        // Calculate maximum allowed dimensions based on clamped position
+        const maxWidth = Math.max(0, size.w - clampedX);
+        const maxHeight = Math.max(0, size.h - clampedY);
+        
+        // Clamp width and height to ensure element stays within canvas
+        const clampedWidth = Math.max(0, Math.min(el.width, maxWidth));
+        const clampedHeight = Math.max(0, Math.min(el.height, maxHeight));
+        
         const commonStyle: React.CSSProperties = {
             position: "absolute",
-            left: el.x,
-            top: el.y,
-            width: el.width,
-            height: el.height,
+            left: clampedX,
+            top: clampedY,
+            width: clampedWidth,
+            height: clampedHeight,
             transform: `rotate(${el.rotation}deg)`,
             display: el.visible ? undefined : "none",
             zIndex: el.zIndex ?? 0,
+            // Prevent any overflow beyond element bounds
+            overflow: "hidden",
+            boxSizing: "border-box",
         };
 
         if (el.type === "text") {
@@ -117,6 +133,12 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
                             textAlign: t.typography.align,
                             textTransform: t.typography.uppercase ? "uppercase" : t.typography.lowercase ? "lowercase" : undefined,
                             whiteSpace: "pre-wrap",
+                            width: "100%",
+                            height: "100%",
+                            overflow: "hidden",
+                            wordWrap: "break-word",
+                            overflowWrap: "break-word",
+                            boxSizing: "border-box",
                         }}
                     >
                         {display}
@@ -140,9 +162,31 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
             return (
                 <div key={img.id} style={commonStyle}>
                     {imageSrc ? (
-                        <img src={imageSrc} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: img.objectFit }} />
+                        <img 
+                            src={imageSrc} 
+                            alt={img.alt || ""} 
+                            style={{ 
+                                width: "100%", 
+                                height: "100%", 
+                                objectFit: img.objectFit,
+                                display: "block",
+                                maxWidth: "100%",
+                                maxHeight: "100%",
+                            }} 
+                        />
                     ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6", color: "#6b7280", fontSize: 12 }}>
+                        <div style={{ 
+                            width: "100%", 
+                            height: "100%", 
+                            display: "flex", 
+                            alignItems: "center", 
+                            justifyContent: "center", 
+                            background: "#f3f4f6", 
+                            color: "#6b7280", 
+                            fontSize: 12,
+                            overflow: "hidden",
+                            boxSizing: "border-box",
+                        }}>
                             No Image
                         </div>
                     )}
@@ -521,19 +565,55 @@ export function TemplatePreview({ template, context, zoom = 0.75 }: { template: 
         }
     }
 
+    // Calculate the visual dimensions after scaling for container sizing
+    const scaledWidth = size.w * zoom;
+    const scaledHeight = size.h * zoom;
+    
     return (
-        <div className="flex items-center justify-center w-full h-full">
+        <div 
+            className="flex items-center justify-center w-full h-full"
+            style={{
+                minWidth: 0,
+                minHeight: 0,
+                overflow: 'hidden',
+                position: 'relative',
+            }}
+        >
+            {/* Container that constrains the scaled canvas to its visual size */}
             <div
-                className="bg-white dark:bg-neutral-900 shadow relative border border-border overflow-hidden"
                 style={{
-                    width: size.w,
-                    height: size.h,
-                    transform: `scale(${zoom})`,
-                    transformOrigin: "center",
+                    // Size container to the visual (scaled) dimensions
+                    width: scaledWidth,
+                    height: scaledHeight,
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
                 }}
             >
-                {watermarkElement}
-                {(template.elements ?? []).map((el) => renderElement(el))}
+                {/* Canvas at original size, scaled visually via transform */}
+                <div
+                    className="bg-white dark:bg-neutral-900 shadow relative border border-border"
+                    style={{
+                        // Original dimensions (layout box)
+                        width: size.w,
+                        height: size.h,
+                        // Scale transform (visual size)
+                        transform: `scale(${zoom})`,
+                        transformOrigin: "center center",
+                        // Prevent any content overflow
+                        overflow: "hidden",
+                        // Ensure proper rendering and performance
+                        willChange: "transform",
+                        backfaceVisibility: "hidden",
+                    }}
+                >
+                    {watermarkElement}
+                    {(template.elements ?? []).map((el) => renderElement(el))}
+                </div>
             </div>
         </div>
     );

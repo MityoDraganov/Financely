@@ -44,6 +44,8 @@ export default function InvoiceUploadFlowPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [generatedTemplate, setGeneratedTemplate] = useState<TemplateData | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [updatedExtractedData, setUpdatedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
+  const [editedExtractedData, setEditedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
 
   const extractMutation = useExtractInvoiceData();
   const generateTemplate = useGenerateTemplateFromExtraction();
@@ -84,8 +86,13 @@ export default function InvoiceUploadFlowPage() {
     }
   }, [job, templates, flowType, step]);
 
-  const handleGenerateTemplate = async () => {
+  const handleGenerateTemplate = async (editedData?: Record<string, unknown>) => {
     if (!jobId) return;
+
+    // Store edited data if provided
+    if (editedData) {
+      setEditedExtractedData(editedData as Record<string, InvoiceDataValue>);
+    }
 
     try {
       const result = await generateTemplate.mutateAsync({
@@ -104,10 +111,15 @@ export default function InvoiceUploadFlowPage() {
     }
   };
 
-  const handleAcceptTemplate = async () => {
+  const handleAcceptTemplate = async (updatedData?: Record<string, InvoiceDataValue>) => {
     if (!generatedTemplate || !currentOrganization) return;
 
     try {
+      // Store updated data if provided
+      if (updatedData) {
+        setUpdatedExtractedData(updatedData);
+      }
+
       // Create template
       const templateId = await templateService.createDraft(generatedTemplate);
       
@@ -116,7 +128,7 @@ export default function InvoiceUploadFlowPage() {
       if (flowType === "invoice") {
         // Create invoice using the new template
         setStep("complete");
-        await handleCreateInvoiceFromExtraction(templateId);
+        await handleCreateInvoiceFromExtraction(templateId, updatedData);
       } else {
         // Template flow - just navigate back
         toast.success("Template created successfully");
@@ -143,14 +155,15 @@ export default function InvoiceUploadFlowPage() {
     });
   };
 
-  const handleCreateInvoiceFromExtraction = async (templateId: string) => {
-    if (!job?.extractedData || !currentOrganization) return;
+  const handleCreateInvoiceFromExtraction = async (templateId: string, data?: Record<string, InvoiceDataValue>) => {
+    const invoiceData = data || updatedExtractedData || job?.extractedData;
+    if (!invoiceData || !currentOrganization) return;
 
     try {
       const result = await createInvoice.mutateAsync({
         orgId: currentOrganization.id,
         templateId,
-        data: job.extractedData,
+        data: invoiceData,
         status: "draft",
       });
 
@@ -384,7 +397,8 @@ export default function InvoiceUploadFlowPage() {
                 open={showPreview}
                 onOpenChange={setShowPreview}
                 template={generatedTemplate}
-                extractedData={job.extractedData as Record<string, InvoiceDataValue>}
+                extractedData={(editedExtractedData || job.extractedData) as Record<string, InvoiceDataValue>}
+                flowType={flowType}
                 onAccept={handleAcceptTemplate}
                 onEdit={handleEditTemplate}
               />

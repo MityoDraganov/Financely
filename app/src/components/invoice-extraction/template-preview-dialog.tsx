@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, X, Edit } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { CheckCircle2, X, Edit, Trash2, Plus } from "lucide-react";
 import type { TemplateData, Template } from "@/core";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +10,15 @@ import { TemplatePreview } from "@/components/templates/template-preview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRef, useEffect, useState } from "react";
 
+type FlowType = "template" | "invoice";
+
 interface TemplatePreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: TemplateData;
   extractedData?: Record<string, InvoiceDataValue>;
-  onAccept: () => void;
+  flowType?: FlowType;
+  onAccept: (updatedData?: Record<string, InvoiceDataValue>) => void;
   onEdit: () => void;
 }
 
@@ -43,15 +47,95 @@ export function TemplatePreviewDialog({
   onOpenChange,
   template,
   extractedData,
+  flowType = "template",
   onAccept,
   onEdit,
 }: TemplatePreviewDialogProps) {
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(0.8);
+  
+  // State for editable extracted data
+  const [editableData, setEditableData] = useState<Record<string, InvoiceDataValue>>(
+    extractedData || {}
+  );
+  // Temporary state for keys being edited (to avoid conflicts during typing)
+  const [editingKeys, setEditingKeys] = useState<Record<string, string>>({});
 
-  // Calculate zoom to fit both width and height
+  // Update editable data when extractedData prop changes
   useEffect(() => {
-    if (!template || !previewContainerRef.current || !extractedData) return;
+    if (extractedData) {
+      setEditableData(extractedData);
+      setEditingKeys({});
+    }
+  }, [extractedData]);
+
+  // Handle key change (on blur to commit the change)
+  const handleKeyBlur = (oldKey: string, newKey: string) => {
+    // Remove from editing state
+    setEditingKeys((prev) => {
+      const next = { ...prev };
+      delete next[oldKey];
+      return next;
+    });
+
+    // Validate and apply change
+    if (newKey === oldKey || !newKey.trim()) return;
+    
+    // Check for duplicate keys
+    if (editableData[newKey] !== undefined && newKey !== oldKey) {
+      // Key already exists, don't change
+      return;
+    }
+    
+    const newData = { ...editableData };
+    const value = newData[oldKey];
+    delete newData[oldKey];
+    newData[newKey] = value;
+    setEditableData(newData);
+  };
+
+  // Handle key input change (temporary state while typing)
+  const handleKeyInputChange = (oldKey: string, newKey: string) => {
+    setEditingKeys((prev) => ({
+      ...prev,
+      [oldKey]: newKey,
+    }));
+  };
+
+  // Handle value change (only for invoice flow)
+  const handleValueChange = (key: string, value: string) => {
+    if (flowType !== "invoice") return;
+    
+    setEditableData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  // Handle remove key-value pair
+  const handleRemove = (key: string) => {
+    const newData = { ...editableData };
+    delete newData[key];
+    setEditableData(newData);
+  };
+
+  // Handle add new key-value pair
+  const handleAdd = () => {
+    const newKey = `newField_${Date.now()}`;
+    setEditableData((prev) => ({
+      ...prev,
+      [newKey]: "",
+    }));
+  };
+
+  // Handle accept with updated data
+  const handleAccept = () => {
+    onAccept(editableData);
+  };
+
+  // Calculate zoom to fit both width and height with proper overflow handling
+  useEffect(() => {
+    if (!template || !previewContainerRef.current || !editableData) return;
 
     const PAGE_SIZES: Record<TemplateData["pageSize"], { w: number; h: number }> = {
       A4: { w: 794, h: 1123 },
@@ -62,38 +146,57 @@ export function TemplatePreviewDialog({
     const updateZoom = () => {
       if (!previewContainerRef.current) return;
       const container = previewContainerRef.current;
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
       
-      // Account for padding: p-6 (24px all sides)
-      const padding = 48; // 24px * 2 (left + right or top + bottom)
-      const availableWidth = Math.max(0, containerWidth - padding);
-      const availableHeight = Math.max(0, containerHeight - padding);
+      // Get actual container dimensions (accounting for any borders)
+      const containerRect = container.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      const containerHeight = containerRect.height;
       
-      // Calculate zoom based on both width and height, use the smaller one to ensure it fits
-      // When scaling from center, we need to account for the fact that the scaled element
-      // will extend beyond its original bounds by (scale - 1) / 2 on each side
+      // Account for padding: p-6 = 24px on all sides
+      const paddingX = 48; // 24px * 2 (left + right)
+      const paddingY = 48; // 24px * 2 (top + bottom)
+      
+      // Calculate available space for the scaled canvas
+      const availableWidth = Math.max(1, containerWidth - paddingX);
+      const availableHeight = Math.max(1, containerHeight - paddingY);
+      
+      // Calculate zoom ratios for both dimensions
       const widthZoom = availableWidth / size.w;
       const heightZoom = availableHeight / size.h;
+      
+      // Use the smaller ratio to ensure the canvas fits in both dimensions
+      // This ensures the entire canvas is visible without overflow
       const calculatedZoom = Math.min(widthZoom, heightZoom);
       
-      // Clamp zoom between 0.1 and 1.0 for reasonable scaling
-      // Use a slightly smaller zoom to ensure no overflow
-      setZoom(Math.max(0.1, Math.min(0.98, calculatedZoom * 0.98)));
+      // Apply a small safety margin (2%) to prevent any edge case overflow
+      // Clamp between reasonable bounds (0.05 minimum, 1.0 maximum)
+      const safeZoom = Math.max(0.05, Math.min(1.0, calculatedZoom * 0.98));
+      
+      setZoom(safeZoom);
     };
 
+    // Initial calculation
     updateZoom();
-    const resizeObserver = new ResizeObserver(updateZoom);
+    
+    // Observe container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(updateZoom);
+    });
     resizeObserver.observe(previewContainerRef.current);
+
+    // Also listen to window resize as a fallback
+    window.addEventListener('resize', updateZoom);
 
     return () => {
       resizeObserver.disconnect();
+      window.removeEventListener('resize', updateZoom);
     };
-  }, [template, extractedData]);
+  }, [template, editableData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-none! lg:max-w-[80dvw]! w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0">
         <div className="px-6 pt-6 pb-4 shrink-0 border-b">
           <DialogTitle>Template Preview</DialogTitle>
           <DialogDescription className="mt-2">
@@ -105,26 +208,44 @@ export function TemplatePreviewDialog({
           <div className="px-6 pt-4 shrink-0">
             <TabsList className="w-full rounded-sm">
               <TabsTrigger value="preview" className="rounded">Invoice Preview</TabsTrigger>
+              <TabsTrigger value="data" className="rounded">Data Editor</TabsTrigger>
               <TabsTrigger value="details" className="rounded">Template Details</TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="preview" className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4 px-6 pb-6">
-            {extractedData ? (
+            {editableData && Object.keys(editableData).length > 0 ? (
               <div 
                 ref={previewContainerRef}
-                className="flex-1 flex items-center justify-center overflow-hidden bg-muted/30 rounded-md border p-6"
+                className="flex-1 flex items-center justify-center bg-muted/30 rounded-md border p-6 overflow-hidden"
+                style={{
+                  // Ensure container properly constrains content
+                  minWidth: 0,
+                  minHeight: 0,
+                  position: 'relative',
+                }}
               >
-                <TemplatePreview
-                  template={{
-                    ...template,
-                    id: "preview-template",
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  } as Template}
-                  context={extractedData}
-                  zoom={zoom}
-                />
+                {/* Wrapper to properly constrain scaled canvas */}
+                <div 
+                  className="flex items-center justify-center w-full h-full"
+                  style={{
+                    overflow: 'hidden',
+                    position: 'relative',
+                    minWidth: 0,
+                    minHeight: 0,
+                  }}
+                >
+                  <TemplatePreview
+                    template={{
+                      ...template,
+                      id: "preview-template",
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    } as Template}
+                    context={editableData}
+                    zoom={zoom}
+                  />
+                </div>
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center">
@@ -135,6 +256,67 @@ export function TemplatePreviewDialog({
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="data" className="flex-1 overflow-y-auto mt-4 px-6 pb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  {flowType === "template" ? "Template Bindings" : "Invoice Data"}
+                </CardTitle>
+                <CardDescription>
+                  {flowType === "template"
+                    ? "Edit the binding keys. Values are read-only and come from the extracted data."
+                    : "Edit both keys and values for the invoice data."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-3">
+                  {Object.entries(editableData).map(([key, value]) => {
+                    const editingKey = editingKeys[key] ?? key;
+                    const isDuplicate = editingKey !== key && editableData[editingKey] !== undefined;
+                    
+                    return (
+                      <div key={key} className="flex items-center gap-2">
+                        <div className="flex-1 flex items-center gap-2">
+                          <Input
+                            value={editingKey}
+                            onChange={(e) => handleKeyInputChange(key, e.target.value)}
+                            onBlur={(e) => handleKeyBlur(key, e.target.value)}
+                            className={`flex-1 ${isDuplicate ? "border-destructive" : ""}`}
+                            placeholder="Key"
+                            title={isDuplicate ? "This key already exists" : ""}
+                          />
+                          <Input
+                            value={formatBindingValue(value)}
+                            onChange={(e) => handleValueChange(key, e.target.value)}
+                            readOnly={flowType === "template"}
+                            className={`flex-1 ${flowType === "template" ? "bg-muted cursor-not-allowed" : ""}`}
+                            placeholder="Value"
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemove(key)}
+                          className="shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleAdd}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Key-Value Pair
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="details" className="flex-1 overflow-y-auto mt-4 space-y-4 px-6 pb-6">
@@ -177,8 +359,8 @@ export function TemplatePreviewDialog({
                       if (binding) {
                         bindingDisplay = binding;
                         // If we have extracted data, show the value
-                        if (extractedData) {
-                          const value = getBindingValue(extractedData, binding);
+                        if (editableData) {
+                          const value = getBindingValue(editableData, binding);
                           if (value !== null && value !== undefined) {
                             bindingDisplay += ` = ${formatBindingValue(value)}`;
                           }
@@ -251,7 +433,7 @@ export function TemplatePreviewDialog({
               <Edit className="h-4 w-4 mr-2" />
               Edit in Designer
             </Button>
-            <Button onClick={onAccept}>
+            <Button onClick={handleAccept}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Accept Template
             </Button>
