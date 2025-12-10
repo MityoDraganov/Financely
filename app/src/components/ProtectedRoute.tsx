@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
-  const { needsOnboarding, isLoading, organizations } = useOnboardingStatus();
+  const { needsOnboarding, isLoading } = useOnboardingStatus();
   const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
@@ -35,19 +35,16 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     const isOnOnboardingPage = location.pathname === "/onboarding";
     
-    // Only redirect if we're certain - not loading AND confirmed no organizations
-    // This prevents redirecting while organizations are still being fetched
-    if (
-      isSignedIn && 
-      !isOnOnboardingPage && 
-      !isLoading && 
-      needsOnboarding && 
-      organizations.length === 0
-    ) {
+    // Only redirect to onboarding if:
+    // 1. User is signed in
+    // 2. Not already on onboarding page
+    // 3. Not loading (all data loaded)
+    // 4. needsOnboarding is true (hook guarantees this means user has no orgs)
+    if (isSignedIn && !isOnOnboardingPage && !isLoading && needsOnboarding) {
       hasRedirectedRef.current = true;
       navigate("/onboarding", { replace: true });
     }
-  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, organizations.length, navigate, location.pathname]);
+  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, navigate, location.pathname]);
 
   // Show loading state while checking authentication and onboarding status
   if (!isLoaded || isLoading) {

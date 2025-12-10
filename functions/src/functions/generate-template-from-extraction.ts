@@ -101,7 +101,7 @@ export const generateTemplateFromExtraction = onCall<
         aiService.setDefaultProvider("gemini");
       }
 
-      loggerService.info("Generating template from extraction", {
+      loggerService.info("Starting template generation from extraction", {
         jobId,
         orgId: job.orgId,
         style: options?.style,
@@ -110,11 +110,7 @@ export const generateTemplateFromExtraction = onCall<
       // Generate template
       const template = await handleGenerateTemplateFromExtraction(jobId, options);
 
-      loggerService.info("Template generated from extraction successfully", {
-        jobId,
-        templateName: template.name,
-        elementCount: template.elements.length,
-      });
+      // Note: Success log is already in the service layer, no need to duplicate
 
       try {
         const userContext = await extractUserContextFromRequest(request);

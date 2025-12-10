@@ -321,9 +321,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						{!isMobile && <SidebarTrigger className="shrink-0" />}
 					</div>
 					<div className="w-full min-w-0 overflow-x-hidden group-data-[collapsible=icon]:hidden">
-						<div className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-							{t("layout.organization")}
-						</div>
 						<OrganizationSwitcher />
 					</div>
 				</SidebarHeader>

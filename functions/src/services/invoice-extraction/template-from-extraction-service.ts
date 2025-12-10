@@ -8,6 +8,7 @@ import { invoiceComplianceService } from "../invoice-compliance-service";
 import { COMPLIANCE_SCHEMAS } from "../../core/entities/invoice-compliance";
 import { validateTemplateCompliance } from "../../utils/invoice-compliance";
 import type { JSONSchema } from "../ai/ai-service";
+import { getOCRToTemplateService } from "./ocr-to-template-service";
 
 /**
  * Service for generating invoice templates from extracted invoice data
@@ -22,6 +23,10 @@ export class TemplateFromExtractionService {
 
   /**
    * Generate an invoice template from extracted invoice data
+   * 
+   * Uses optimized OCR-to-template conversion when OCR layout data is available,
+   * otherwise falls back to AI generation.
+   * 
    * Analyzes the data structure and creates a template with matching bindings
    */
   async generateTemplateFromExtraction(
@@ -35,6 +40,89 @@ export class TemplateFromExtractionService {
     if (!extractionJob.extractedData || Object.keys(extractionJob.extractedData).length === 0) {
       throw new Error("Extraction job has no extracted data to generate template from");
     }
+
+    // Try to recover OCR blocks from ocrRawResults if ocrTextBlocks is not available
+    // This handles cases where jobs were extracted before ocrTextBlocks field was added
+    let ocrTextBlocks = extractionJob.ocrTextBlocks;
+    
+    if ((!ocrTextBlocks || ocrTextBlocks.length === 0) && extractionJob.ocrRawResults) {
+      // Try to extract textBlocks from ocrRawResults
+      const rawResults = extractionJob.ocrRawResults as any;
+      
+      logger.info("Attempting to recover OCR blocks from ocrRawResults", {
+        extractionJobId: extractionJob.id,
+        hasRawResults: !!rawResults,
+        rawResultsKeys: rawResults ? Object.keys(rawResults) : [],
+        hasTextBlocks: !!(rawResults?.textBlocks),
+        textBlocksType: typeof rawResults?.textBlocks,
+        textBlocksIsArray: Array.isArray(rawResults?.textBlocks),
+        textBlocksLength: rawResults?.textBlocks?.length || 0,
+      });
+      
+      if (rawResults?.textBlocks && Array.isArray(rawResults.textBlocks) && rawResults.textBlocks.length > 0) {
+        logger.info("Recovering OCR text blocks from ocrRawResults", {
+          extractionJobId: extractionJob.id,
+          recoveredBlockCount: rawResults.textBlocks.length,
+        });
+        ocrTextBlocks = rawResults.textBlocks;
+      } else {
+        logger.warn("Could not recover OCR blocks from ocrRawResults", {
+          extractionJobId: extractionJob.id,
+          rawResultsStructure: rawResults ? JSON.stringify(Object.keys(rawResults)).substring(0, 200) : "null",
+        });
+      }
+    }
+
+    logger.info("Checking OCR text blocks availability", {
+      extractionJobId: extractionJob.id,
+      hasOcrTextBlocks: !!ocrTextBlocks,
+      ocrTextBlocksType: typeof ocrTextBlocks,
+      ocrTextBlocksIsArray: Array.isArray(ocrTextBlocks),
+      ocrBlockCount: ocrTextBlocks ? ocrTextBlocks.length : 0,
+      extractedFieldCount: Object.keys(extractionJob.extractedData || {}).length,
+      hasOcrRawResults: !!extractionJob.ocrRawResults,
+    });
+
+    if (ocrTextBlocks && ocrTextBlocks.length > 0) {
+      // Temporarily set ocrTextBlocks on extractionJob for the OCR service
+      const jobWithOcrBlocks = { ...extractionJob, ocrTextBlocks };
+      logger.info("Using OCR-to-template conversion (optimized path)", {
+        extractionJobId: extractionJob.id,
+        ocrBlockCount: ocrTextBlocks.length,
+        extractedFieldCount: Object.keys(extractionJob.extractedData || {}).length,
+      });
+
+      try {
+        const ocrToTemplateService = getOCRToTemplateService();
+        const template = ocrToTemplateService.convertOCRToTemplate(jobWithOcrBlocks, organization, options);
+        
+        // Validate that template has elements
+        if (template.elements && template.elements.length > 0) {
+          logger.info("OCR-to-template conversion succeeded", {
+            extractionJobId: extractionJob.id,
+            elementCount: template.elements.length,
+          });
+          return template;
+        } else {
+          logger.warn("OCR-to-template conversion produced template with no elements, falling back to AI", {
+            extractionJobId: extractionJob.id,
+          });
+          // Fall through to AI generation
+        }
+      } catch (error) {
+        logger.warn("OCR-to-template conversion failed, falling back to AI generation", {
+          extractionJobId: extractionJob.id,
+          error: error instanceof Error ? error.message : "Unknown error",
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+        // Fall through to AI generation
+      }
+    }
+
+    // FALLBACK PATH: AI generation (slower, but works when OCR layout is not available)
+    logger.info("Using AI template generation (fallback path)", {
+      extractionJobId: extractionJob.id,
+    });
 
     // Detect compliance region
     const region = invoiceComplianceService.detectRegion(organization);
@@ -64,16 +152,19 @@ export class TemplateFromExtractionService {
     // Note: JSONSchema doesn't support enum, so we'll validate in the prompt
     const schema: JSONSchema = {
       type: "object",
+      required: ["name", "pageSize", "brand", "elements"], // Make elements required
       properties: {
         name: { type: "string" },
         description: { type: "string" },
         pageSize: { type: "string" },
         brand: {
           type: "object",
+          required: ["fonts", "colors", "margins"],
           properties: {
             fonts: { type: "array", items: { type: "string" } },
             colors: {
               type: "object",
+              required: ["primary", "secondary", "accent"],
               properties: {
                 primary: { type: "string" },
                 secondary: { type: "string" },
@@ -82,6 +173,7 @@ export class TemplateFromExtractionService {
             },
             margins: {
               type: "object",
+              required: ["top", "right", "bottom", "left"],
               properties: {
                 top: { type: "number" },
                 right: { type: "number" },
@@ -95,6 +187,7 @@ export class TemplateFromExtractionService {
           type: "array",
           items: {
             type: "object",
+            required: ["id", "type", "x", "y", "width", "height"],
             properties: {
               id: { type: "string" },
               type: { type: "string" },
@@ -151,6 +244,30 @@ export class TemplateFromExtractionService {
         maxTokens: 16384,
       });
 
+      // Log AI response for debugging
+      logger.info("AI generated template response", {
+        extractionJobId: extractionJob.id,
+        hasElements: !!result.elements,
+        elementCount: result.elements?.length || 0,
+        hasName: !!result.name,
+        hasBrand: !!result.brand,
+        dataFieldCount: Object.keys(extractionJob.extractedData || {}).length,
+      });
+
+      // Validate that elements were generated
+      if (!result.elements || result.elements.length === 0) {
+        logger.error("AI generated template with no elements - this should not happen", {
+          extractionJobId: extractionJob.id,
+          resultKeys: Object.keys(result),
+          resultPreview: JSON.stringify(result).substring(0, 1000),
+          dataStructureFields: dataStructure.fields.length,
+          dataStructureArrays: dataStructure.arrays.length,
+        });
+        
+        // Throw error to prevent creating template without elements
+        throw new Error("AI failed to generate template elements. The response did not include any elements.");
+      }
+
       // Determine currency
       const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
         US: "USD",
@@ -160,6 +277,27 @@ export class TemplateFromExtractionService {
         UK: "GBP",
       };
       const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
+
+      // Enrich elements
+      const enrichedElements = this.enrichElements(result.elements, dataStructure, region, currency);
+      
+      // Validate enriched elements
+      if (enrichedElements.length === 0) {
+        logger.error("All elements were filtered out during enrichment", {
+          extractionJobId: extractionJob.id,
+          rawElementCount: result.elements.length,
+          dataStructureFields: dataStructure.fields.length,
+          rawElements: result.elements.map(el => ({
+            id: el.id,
+            type: el.type,
+            x: el.x,
+            y: el.y,
+            width: el.width,
+            height: el.height,
+          })),
+        });
+        throw new Error("All template elements were invalid and filtered out. Cannot create template without elements.");
+      }
 
       // Build template data
       const template: TemplateData = {
@@ -176,7 +314,7 @@ export class TemplateFromExtractionService {
           },
           margins: result.brand?.margins || { top: 40, right: 40, bottom: 40, left: 40 },
         },
-        elements: this.enrichElements(result.elements, dataStructure, region, currency),
+        elements: enrichedElements,
         status: "draft",
         compliance: {
           region,
@@ -195,11 +333,13 @@ export class TemplateFromExtractionService {
         });
       }
 
+      // Log final template info (this is the main log, others are for debugging)
       logger.info("Template generated from extraction successfully", {
         extractionJobId: extractionJob.id,
         organizationId: organization.id,
         elementCount: template.elements.length,
         dataFieldCount: Object.keys(extractionJob.extractedData || {}).length,
+        rawElementCount: result.elements?.length || 0,
       });
 
       return template;
@@ -446,6 +586,12 @@ export class TemplateFromExtractionService {
 
     return `You are an expert invoice template designer. Generate a professional invoice template that matches the structure of the extracted invoice data.
 
+🚨 CRITICAL RULE - READ THIS FIRST:
+**ALL fields with bindings (data fields from extracted data) MUST be Input elements, NOT Text elements.**
+- Input elements = editable fields that users fill in (invoiceNumber, invoiceDate, seller.name, etc.)
+- Text elements = static labels only (like "Invoice Number:", "Date:" labels) - these have NO bindings
+- If a field has a binding, it MUST be an Input element (or Currency element for money)
+
 CONTEXT:
 ${context}
 
@@ -458,11 +604,13 @@ TEMPLATE REQUIREMENTS:
    - Ensure ALL fields from extracted data have corresponding template elements
 
 2. **Field Type Mapping**:
-   - String fields → Text elements (with binding)
+   - **IMPORTANT**: Fields with bindings (data fields that users can edit) should be Input elements, NOT Text elements
+   - String fields with bindings → Input elements (with binding, variant="text")
    - Number fields that look like currency → Currency elements (with binding and currency code)
-   - Date fields → Input elements with variant="date" or Text elements with date formatting
+   - Date fields → Input elements (with binding, variant="date")
    - Array fields → Table elements (with itemsBinding and columns matching array item structure)
-   - Nested objects → Text elements with dot-notation bindings (e.g., "seller.name")
+   - Nested object fields with bindings → Input elements (with dot-notation bindings like "seller.name")
+   - Static labels/text (no binding) → Text elements (for labels like "Invoice Number:", "Total:", etc.)
 
 3. **Table Elements for Arrays**:
    - For each array field found, create a table element
@@ -501,12 +649,35 @@ CRITICAL CANVAS BOUNDARIES:
 - EVERY element MUST satisfy: x + width <= 794 AND y + height <= 1123
 - Validate each element position before including it
 
+CRITICAL: You MUST generate a complete template with elements. The elements array is REQUIRED and must contain at least one element.
+
+CRITICAL ELEMENT TYPE RULES:
+- **ALL fields with bindings (data fields) MUST be Input elements**, NOT Text elements
+- Input elements are for editable data fields (invoiceNumber, invoiceDate, seller.name, customer.address, etc.)
+- Text elements are ONLY for static labels (like "Invoice Number:", "Date:", "Total:" labels) that don't have bindings
+- Currency fields → Currency elements (with binding)
+- Date fields → Input elements (with binding, variant="date")
+- String/number fields → Input elements (with binding, variant="text" or variant="number")
+
 Generate a complete template JSON with:
 - name: "${options?.templateName || "Template from Extracted Invoice"}"
 - description: Brief description mentioning it was generated from extracted data
 - pageSize: "A4"
 - brand: Use organization colors if available, otherwise professional defaults
-- elements: Array of all template elements with proper bindings matching extracted data structure
+- elements: **REQUIRED** - Array of template elements with proper bindings matching extracted data structure. MUST include:
+  * Header section: Static labels (Text elements without bindings) + data fields (Input elements with bindings)
+  * Seller/Buyer sections: Static labels (Text) + data fields (Input elements with bindings like "seller.name", "buyer.address")
+  * Items table element (with itemsBinding matching the array field name from extracted data)
+  * Totals section: Static labels (Text) + currency elements (Currency elements with bindings)
+  * Footer elements: Static labels (Text) + data fields (Input elements with bindings)
+
+IMPORTANT: 
+- The elements array MUST NOT be empty
+- Create elements for ALL major fields in the extracted data
+- **ALL data fields (fields with bindings) MUST be Input elements**, not Text elements
+- Text elements are ONLY for static labels that don't change (no bindings)
+- Each element must have valid x, y, width, height within canvas bounds (794x1123)
+- Use proper bindings that match the extracted data field paths exactly
 
 Ensure the template can display ALL fields from the extracted data.`;
   }
@@ -553,8 +724,13 @@ Ensure the template can display ALL fields from the extracted data.`;
     const CANVAS_WIDTH = 794;
     const CANVAS_HEIGHT = 1123;
     const enriched: TemplateElement[] = [];
+    let filteredCount = 0;
 
     for (const el of elements) {
+      // Normalize element type to lowercase (AI might return "Text" instead of "text")
+      const normalizedType = el.type.toLowerCase() as typeof el.type;
+      el.type = normalizedType;
+
       // Clamp to canvas
       el.x = Math.max(0, Math.min(el.x, CANVAS_WIDTH - 20));
       el.y = Math.max(0, Math.min(el.y, CANVAS_HEIGHT - 20));
@@ -567,7 +743,24 @@ Ensure the template can display ALL fields from the extracted data.`;
       const normalized = this.normalizeElement(el, region, currency);
       if (normalized) {
         enriched.push(normalized);
+      } else {
+        filteredCount++;
+        logger.warn("Element filtered out during normalization", {
+          elementId: el.id,
+          elementType: el.type,
+          originalType: elements.find(e => e.id === el.id)?.type,
+          elementX: el.x,
+          elementY: el.y,
+        });
       }
+    }
+
+    if (filteredCount > 0) {
+      logger.warn("Some elements were filtered out during enrichment", {
+        totalElements: elements.length,
+        enrichedCount: enriched.length,
+        filteredCount,
+      });
     }
 
     return enriched;
@@ -598,6 +791,9 @@ Ensure the template can display ALL fields from the extracted data.`;
     region: "US" | "EU" | "CA" | "AU" | "UK",
     currency: string
   ): TemplateElement | null {
+    // Normalize type to lowercase (AI might return "Text" instead of "text")
+    const elementType = el.type.toLowerCase() as typeof el.type;
+    
     const base = {
       id: el.id,
       x: el.x,
@@ -609,7 +805,7 @@ Ensure the template can display ALL fields from the extracted data.`;
       visible: true,
     };
 
-    switch (el.type) {
+    switch (elementType) {
       case "text":
         return {
           ...base,
@@ -688,7 +884,27 @@ Ensure the template can display ALL fields from the extracted data.`;
           strokeWidth: 1,
         };
 
+      case "image":
+        // Image elements are supported but not fully implemented in normalizeElement
+        // For now, convert to a box placeholder
+        logger.warn("Image element type not fully supported, converting to box", {
+          elementId: el.id,
+        });
+        return {
+          ...base,
+          type: "box",
+          fill: "#ffffff00",
+          stroke: "#e5e7eb",
+          strokeWidth: 1,
+          radius: 0,
+          opacity: 1,
+        };
+
       default:
+        logger.warn("Unknown element type, filtering out", {
+          elementId: el.id,
+          elementType: el.type,
+        });
         return null;
     }
   }

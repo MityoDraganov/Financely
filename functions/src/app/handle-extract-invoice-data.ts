@@ -123,7 +123,11 @@ export async function handleExtractInvoiceData(
           fullText: ocrResult.fullText,
           textBlockCount: ocrResult.textBlocks.length,
           overallConfidence: ocrResult.confidence,
+          // Store textBlocks here as backup (in case ocrTextBlocks field isn't available)
+          textBlocks: ocrResult.textBlocks,
         },
+        // Store OCR text blocks for template generation from layout
+        ocrTextBlocks: ocrResult.textBlocks,
         processingDurationMs,
       },
     });

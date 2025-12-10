@@ -9,8 +9,11 @@ import type { ExtractionJob } from "@/repositories/extraction-job-repository";
 import { cn } from "@/lib/utils";
 import { useGenerateTemplateFromExtraction } from "@/hooks/service-hooks/use-generate-template-from-extraction";
 
+type FlowType = "template" | "invoice";
+
 interface ExtractionResultsPanelProps {
 	job: ExtractionJob;
+	flowType?: FlowType; // Determines if we're creating template-only (keys editable, values read-only) or invoice (both editable)
 	onFieldChange?: (field: string, value: unknown) => void;
 	onSave?: (data: Record<string, unknown>) => void;
 	onGenerateTemplate?: (editedData?: Record<string, unknown>) => void;
@@ -19,11 +22,13 @@ interface ExtractionResultsPanelProps {
 
 export function ExtractionResultsPanel({
 	job,
+	flowType = "invoice", // Default to invoice flow for backward compatibility
 	onFieldChange,
 	onSave,
 	onGenerateTemplate,
 	isGenerating = false,
 }: ExtractionResultsPanelProps) {
+	const isTemplateOnly = flowType === "template";
 	const [editedData, setEditedData] = useState<Record<string, unknown>>(
 		job.correctedData || job.extractedData || {}
 	);
@@ -211,22 +216,6 @@ export function ExtractionResultsPanel({
 			const editingKey = editingKeys[fullPath] ?? key;
 			const formattedEditingKey = editingKey.replace(/([A-Z])/g, " $1").trim();
 			const isDuplicate = editingKey !== key && (fullPath ? getNestedValue(editedData, fullPath.replace(new RegExp(`\\.${key}$`), `.${editingKey}`)) !== undefined : editedData[editingKey] !== undefined);
-
-			// Format the nested object value for display
-			const formatValueForDisplay = (val: unknown): string => {
-				if (val === null || val === undefined) return "";
-				if (typeof val === "string") return val;
-				if (typeof val === "number") return val.toLocaleString();
-				if (typeof val === "boolean") return val ? "Yes" : "No";
-				if (Array.isArray(val)) return `Array(${val.length})`;
-				if (typeof val === "object") {
-					const keys = Object.keys(val);
-					return keys.length > 0 ? `{${keys.join(", ")}}` : "{}";
-				}
-				return String(val);
-			};
-
-			const objectDisplayValue = formatValueForDisplay(nestedObj);
 
 			return (
 				<div key={fullPath} className="space-y-3">
@@ -531,11 +520,14 @@ export function ExtractionResultsPanel({
 											<Input
 												value={String(currentItem ?? "")}
 												onChange={(e) => {
+													if (isTemplateOnly) return; // Read-only for template-only flow
 													const updated = [...arrayValue];
 													updated[index] = e.target.value;
 													handleFieldChange(fullPath, updated);
 												}}
-												className="flex-1"
+												disabled={isTemplateOnly}
+												readOnly={isTemplateOnly}
+												className={cn("flex-1", isTemplateOnly && "cursor-not-allowed opacity-60")}
 											/>
 										</div>
 									)}
@@ -728,6 +720,8 @@ export function ExtractionResultsPanel({
 								id={fullPath}
 								value={displayFormattedValue}
 								onChange={(e) => {
+									if (isTemplateOnly) return; // Read-only for template-only flow
+									
 									console.log("[ExtractionResultsPanel] renderField - input onChange:", {
 										fullPath,
 										newValue: e.target.value,
@@ -744,14 +738,23 @@ export function ExtractionResultsPanel({
 									}
 									handleFieldChange(fullPath, typedValue);
 								}}
+								disabled={isTemplateOnly}
+								readOnly={isTemplateOnly}
 								className={cn(
 									"flex-1 min-w-0 bg-background",
+									isTemplateOnly && "cursor-not-allowed opacity-60",
 									job.confidenceScores?.[fullPath] !== undefined &&
 										job.confidenceScores[fullPath] < 0.5 &&
 										"border-destructive"
 								)}
-								placeholder={`Enter ${key.replace(/([A-Z])/g, " $1").trim().toLowerCase()}`}
-								title="Edit field value (formatted as it will appear in template)"
+								placeholder={isTemplateOnly 
+									? "Value will be set when creating invoice" 
+									: `Enter ${key.replace(/([A-Z])/g, " $1").trim().toLowerCase()}`
+								}
+								title={isTemplateOnly 
+									? "Template field - value will be set when creating invoice from this template" 
+									: "Edit field value (formatted as it will appear in template)"
+								}
 							/>
 						</div>
 						
@@ -810,46 +813,6 @@ export function ExtractionResultsPanel({
 		}
 	};
 
-	// Handle key change (on blur to commit the change)
-	const handleKeyBlur = (oldKey: string, newKey: string) => {
-		// Remove from editing state
-		setEditingKeys((prev) => {
-			const next = { ...prev };
-			delete next[oldKey];
-			return next;
-		});
-
-		// Validate and apply change
-		if (newKey === oldKey || !newKey.trim()) return;
-		
-		// Check for duplicate keys
-		if (editedData[newKey] !== undefined && newKey !== oldKey) {
-			// Key already exists, don't change
-			return;
-		}
-		
-		const newData = { ...editedData };
-		const value = newData[oldKey];
-		delete newData[oldKey];
-		newData[newKey] = value;
-		setEditedData(newData);
-		onFieldChange?.(newKey, value);
-	};
-
-	// Handle key input change (temporary state while typing)
-	const handleKeyInputChange = (oldKey: string, newKey: string) => {
-		setEditingKeys((prev) => ({
-			...prev,
-			[oldKey]: newKey,
-		}));
-	};
-
-	// Handle remove key-value pair
-	const handleRemove = (key: string) => {
-		const newData = { ...editedData };
-		delete newData[key];
-		setEditedData(newData);
-	};
 
 	// Handle add new key-value pair
 	const handleAdd = () => {
@@ -860,30 +823,30 @@ export function ExtractionResultsPanel({
 	};
 
 	// Format value for display
-	const formatValue = (value: unknown): string => {
-		if (value === null || value === undefined) return "";
-		if (typeof value === "string") return value;
-		if (typeof value === "number" || typeof value === "boolean") return String(value);
-		if (Array.isArray(value)) return `Array(${value.length})`;
-		if (typeof value === "object") {
-			const keys = Object.keys(value);
-			if (keys.length === 0) return "{}";
-			if (keys.length <= 3) {
-				return `{${keys.join(", ")}}`;
-			}
-			return `{${keys.slice(0, 3).join(", ")}, ...}`;
-		}
-		return String(value);
-	};
-
 	console.log("[ExtractionResultsPanel] Rendering with editedData:", {
 		editedData,
 		entries: Object.entries(editedData),
 		entryCount: Object.keys(editedData).length,
 	});
 
+	// Calculate overall confidence score (average of all field confidence scores)
+	const overallConfidence = job.confidenceScores && Object.keys(job.confidenceScores).length > 0
+		? Object.values(job.confidenceScores).reduce((sum, score) => sum + score, 0) / Object.keys(job.confidenceScores).length
+		: undefined;
+
 	return (
 		<div className="space-y-4">
+			{/* Overall confidence badge - shown once at the top */}
+			{overallConfidence !== undefined && (
+				<div className="flex items-center justify-end px-1">
+					{getConfidenceBadge("overall")}
+				</div>
+			)}
+			{isTemplateOnly && (
+				<div className="rounded-md bg-muted/50 border border-border p-3 text-sm text-muted-foreground">
+					<strong className="text-foreground">Template Mode:</strong> Field names are editable. Values shown are examples and will be set when creating invoices from this template.
+				</div>
+			)}
 			<div className="space-y-4">
 				{Object.entries(editedData).map(([key, value]) => {
 					console.log("[ExtractionResultsPanel] Rendering entry:", {
@@ -909,7 +872,7 @@ export function ExtractionResultsPanel({
 				className="w-full"
 			>
 				<Plus className="h-4 w-4 mr-2" />
-				Add Key-Value Pair
+				{isTemplateOnly ? "Add Field" : "Add Key-Value Pair"}
 			</Button>
 
 			<div className="flex justify-between items-center gap-2 pt-4 mt-4 border-t border-border/50">
@@ -927,12 +890,12 @@ export function ExtractionResultsPanel({
 					) : (
 						<>
 							<Sparkles className="h-4 w-4 mr-2" />
-							Generate Template
+							{isTemplateOnly ? "Generate Template" : "Generate Template & Invoice"}
 						</>
 					)}
 				</Button>
 
-				{onSave && (
+				{onSave && !isTemplateOnly && (
 					<Button onClick={handleSave} variant="outline">
 						Save Changes
 					</Button>

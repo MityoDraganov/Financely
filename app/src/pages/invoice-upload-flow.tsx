@@ -111,7 +111,7 @@ export default function InvoiceUploadFlowPage() {
     }
   };
 
-  const handleAcceptTemplate = async (updatedData?: Record<string, InvoiceDataValue>) => {
+  const handleAcceptTemplate = async (updatedData?: Record<string, InvoiceDataValue>, updatedTemplate?: TemplateData) => {
     if (!generatedTemplate || !currentOrganization) return;
 
     try {
@@ -120,8 +120,11 @@ export default function InvoiceUploadFlowPage() {
         setUpdatedExtractedData(updatedData);
       }
 
+      // Use updated template if provided, otherwise use generated template
+      const templateToCreate = updatedTemplate || generatedTemplate;
+
       // Create template
-      const templateId = await templateService.createDraft(generatedTemplate);
+      const templateId = await templateService.createDraft(templateToCreate);
       
       setShowPreview(false);
 
@@ -141,11 +144,14 @@ export default function InvoiceUploadFlowPage() {
     }
   };
 
-  const handleEditTemplate = () => {
+  const handleEditTemplate = (updatedTemplate?: TemplateData) => {
     if (!generatedTemplate || !currentOrganization) return;
 
+    // Use updated template if provided, otherwise use generated template
+    const templateToCreate = updatedTemplate || generatedTemplate;
+
     // Create template first, then navigate to designer
-    templateService.createDraft(generatedTemplate).then((templateId) => {
+    templateService.createDraft(templateToCreate).then((templateId) => {
       setShowPreview(false);
       navigate(`/designer/${templateId}`);
     }).catch((error) => {
@@ -374,13 +380,17 @@ export default function InvoiceUploadFlowPage() {
               <CardHeader>
                 <CardTitle>Extracted Data</CardTitle>
                 <CardDescription>
-                  Review the extracted data and generate a template
+                  {flowType === "template" 
+                    ? "Review and configure the template structure. Field values will be set when creating invoices from this template."
+                    : "Review the extracted data and generate a template. You can edit both field names and values."
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {job.extractedData ? (
                   <ExtractionResultsPanel 
                     job={job}
+                    flowType={flowType}
                     onGenerateTemplate={handleGenerateTemplate}
                     isGenerating={generateTemplate.isPending}
                   />

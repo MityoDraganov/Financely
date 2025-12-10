@@ -34,6 +34,15 @@ export async function handleGenerateTemplateFromExtraction(
     throw new Error(`Extraction job ${jobId} has no extracted data. Please extract data first.`);
   }
 
+  // Log OCR blocks availability for debugging
+  loggerService.info("Extraction job retrieved for template generation", {
+    jobId,
+    hasOcrTextBlocks: !!job.ocrTextBlocks,
+    ocrTextBlocksCount: job.ocrTextBlocks?.length || 0,
+    hasExtractedData: !!job.extractedData,
+    extractedDataKeys: Object.keys(job.extractedData || {}),
+  });
+
   // Get the organization
   const organization = await organizationRepository.get({ id: job.orgId });
   if (!organization) {
@@ -55,11 +64,7 @@ export async function handleGenerateTemplateFromExtraction(
     options
   );
 
-  loggerService.info("Template generated from extraction successfully", {
-    jobId,
-    templateName: template.name,
-    elementCount: template.elements.length,
-  });
+  // Note: Success log is already in the service, no need to duplicate
 
   return template;
 }

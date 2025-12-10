@@ -72,8 +72,20 @@ export const extractionJobDataSchema = z.object({
   vendorName: z.string().optional(),  // Detected vendor name
   documentType: z.enum(["invoice", "receipt", "utility_bill", "unknown"]).optional(),
   
-  // OCR raw results (for debugging/reprocessing)
+  // OCR raw results (for debugging/reprocessing and template generation)
   ocrRawResults: z.record(z.string(), z.unknown()).optional(),
+  
+  // OCR text blocks with layout information (for template generation from layout)
+  ocrTextBlocks: z.array(z.object({
+    text: z.string(),
+    confidence: z.number(),
+    boundingBox: z.object({
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+    }),
+  })).optional(),
 });
 
 export type ExtractionJobData = z.infer<typeof extractionJobDataSchema>;
