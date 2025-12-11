@@ -1,0 +1,247 @@
+import z from "zod";
+import { baseEntitySchema } from "./base";
+import { validateInvoiceCompliance } from "@/utils/invoice-compliance";
+
+/**
+ * Dynamic invoice data schema.
+ * 
+ * Invoices are based on templates and can have completely different structures.
+ * The `data` field stores dynamic key-value pairs that correspond to template bindings.
+ * 
+ * Examples of bindings in templates:
+ * - "seller.name" -> data.seller.name
+ * - "invoiceNumber" -> data.invoiceNumber
+ * - "items" (table) -> data.items = [{...}, {...}]
+ * 
+ * Tables are stored as arrays of objects where each object represents a row.
+ */
+
+// Generic data value that can be a primitive, object, or array (for tables)
+// Using z.lazy to handle recursive schema
+const invoiceDataValueSchema: z.ZodType<InvoiceDataValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.record(z.string(), invoiceDataValueSchema),
+    z.array(z.record(z.string(), invoiceDataValueSchema)),
+  ])
+);
+
+// Type for invoice data values
+export type InvoiceDataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: InvoiceDataValue }
+  | Array<{ [key: string]: InvoiceDataValue }>;
+
+export const invoiceDataSchema = z.object({
+  // Organization ID for multi-tenancy
+  orgId: z.string().min(1),
+  
+  // Reference to the template this invoice is based on
+  templateId: z.string().min(1),
+  
+  // Optional reference to a specific template version
+  templateVersionId: z.string().optional(),
+  
+  // Dynamic data that matches template bindings
+  // Structure depends entirely on the template's element bindings
+  // Example structure:
+  // {
+  //   seller: { name: "...", address: "...", taxIdVat: "..." },
+  //   buyer: { name: "...", address: "...", taxIdVat: "..." },
+  //   invoiceNumber: "INV-001",
+  //   issueDate: "2025-01-01",
+  //   dueDate: "2025-01-31",
+  //   items: [
+  //     { description: "Item 1", qty: 1, unitPrice: 100 },
+  //     { description: "Item 2", qty: 2, unitPrice: 50 }
+  //   ],
+  //   subtotal: 200,
+  //   vatTotal: 40,
+  //   total: 240,
+  //   customField: "Custom value",
+  //   ...
+  // }
+  data: z.record(z.string(), invoiceDataValueSchema),
+  
+  // Invoice status
+  status: z.enum(["draft", "sent", "paid", "cancelled"]).default("draft"),
+  
+  // Optional metadata
+  notes: z.string().optional(),
+  pdfUrl: z.string().optional(),
+});
+
+export type InvoiceData = z.infer<typeof invoiceDataSchema>;
+
+export const invoiceSchema = baseEntitySchema.merge(invoiceDataSchema);
+export type Invoice = z.infer<typeof invoiceSchema>;
+
+/**
+ * Helper type for creating invoices with partial data.
+ * Omits server-managed fields like id, createdAt, updatedAt.
+ */
+export type CreateInvoiceInput = Omit<InvoiceData, "status" | "pdfUrl"> & {
+  status?: InvoiceData["status"];
+};
+
+/**
+ * Helper function to validate that invoice data matches expected template bindings.
+ * This can be used to ensure data integrity before saving.
+ * 
+ * @param data - The invoice data to validate
+ * @param requiredBindings - Array of required binding paths (e.g., ["seller.name", "invoiceNumber"])
+ * @returns true if all required bindings exist in data
+ */
+export function validateInvoiceBindings(
+  data: Record<string, InvoiceDataValue>,
+  requiredBindings: string[]
+): { valid: boolean; missing: string[] } {
+  const missing: string[] = [];
+  
+  for (const binding of requiredBindings) {
+    const parts = binding.split(".");
+    let current: InvoiceDataValue = data;
+    
+    for (const part of parts) {
+      if (current == null || typeof current !== "object" || Array.isArray(current) || !(part in current)) {
+        missing.push(binding);
+        break;
+      }
+      current = current[part];
+    }
+  }
+  
+  return {
+    valid: missing.length === 0,
+    missing,
+  };
+}
+
+/**
+ * Helper function to get a value from invoice data using a binding path.
+ * Supports array indices in paths (e.g., "items[0].lineTotalBGN").
+ * 
+ * @param data - The invoice data
+ * @param binding - Dot-notation path (e.g., "seller.name", "items", "items[0].lineTotalBGN")
+ * @returns The value at the binding path, or undefined if not found
+ */
+export function getBindingValue(
+  data: Record<string, InvoiceDataValue>,
+  binding: string
+): InvoiceDataValue | undefined {
+  // Handle array indices in path (e.g., "items[0].lineTotalBGN")
+  const arrayIndexMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+  if (arrayIndexMatch) {
+    const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
+    const index = parseInt(indexStr, 10);
+    
+    // Get the array
+    const arrayValue = getBindingValue(data, arrayPath);
+    if (!Array.isArray(arrayValue) || !arrayValue[index]) {
+      return undefined;
+    }
+    
+    // Get the field from the array item
+    const arrayItem = arrayValue[index];
+    if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
+      return undefined;
+    }
+    
+    return getBindingValue(arrayItem as Record<string, InvoiceDataValue>, fieldPath);
+  }
+  
+  // Handle simple dot notation path (e.g., "seller.name")
+  const parts = binding.split(".");
+  let current: InvoiceDataValue = data;
+  
+  for (const part of parts) {
+    if (current == null || typeof current !== "object" || Array.isArray(current) || !(part in current)) {
+      return undefined;
+    }
+    current = current[part];
+  }
+  
+  return current;
+}
+
+/**
+ * Helper function to set a value in invoice data using a binding path.
+ * Creates nested objects as needed.
+ * Supports array indices in paths (e.g., "items[0].lineTotalBGN").
+ * 
+ * @param data - The invoice data (will be mutated)
+ * @param binding - Dot-notation path (e.g., "seller.name", "items[0].lineTotalBGN")
+ * @param value - The value to set
+ */
+export function setBindingValue(
+  data: Record<string, InvoiceDataValue>,
+  binding: string,
+  value: InvoiceDataValue
+): void {
+  // Handle array indices in path (e.g., "items[0].lineTotalBGN")
+  const arrayIndexMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+  if (arrayIndexMatch) {
+    const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
+    const index = parseInt(indexStr, 10);
+    
+    // Get the array
+    const arrayValue = getBindingValue(data, arrayPath);
+    if (!Array.isArray(arrayValue)) {
+      // Array doesn't exist or is not an array, can't set value
+      return;
+    }
+    
+    // Ensure the array has enough elements
+    while (arrayValue.length <= index) {
+      arrayValue.push({});
+    }
+    
+    // Get the array item
+    const arrayItem = arrayValue[index];
+    if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
+      arrayValue[index] = {};
+    }
+    
+    // Set the field in the array item
+    setBindingValue(arrayItem as Record<string, InvoiceDataValue>, fieldPath, value);
+    return;
+  }
+  
+  // Handle simple dot notation path (e.g., "seller.name")
+  const parts = binding.split(".");
+  let current: Record<string, InvoiceDataValue> = data;
+  
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    const next = current[part];
+    
+    if (next == null || typeof next !== "object" || Array.isArray(next)) {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, InvoiceDataValue>;
+  }
+  
+  current[parts[parts.length - 1]] = value;
+}
+
+/**
+ * Helper function to check if invoice data is compliant with a region's requirements.
+ * This is a convenience wrapper around the compliance validation utilities.
+ * 
+ * @param data - The invoice data to check
+ * @param region - The compliance region (e.g., "US", "EU")
+ * @returns true if compliant, false otherwise
+ */
+export function isInvoiceCompliant(
+  data: Record<string, InvoiceDataValue>,
+  region: "US" | "EU" | "CA" | "AU" | "UK"
+): boolean {
+  const result = validateInvoiceCompliance(data, region);
+  return result.valid;
+}

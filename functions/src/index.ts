@@ -69,6 +69,7 @@ export { onClerkWebhookEvent } from "./functions/clerk/on-clerk-event-webhook";
 
 // Clerk authentication functions
 export { verifyClerkToken } from "./functions/clerk/verify-clerk-token";
+export { verifyAdminClerkToken } from "./functions/clerk/verify-admin-clerk-token";
 
 // Email service functions
 export { 
@@ -98,6 +99,10 @@ export { getWidgetConfig } from "./functions/get-widget-config";
 export { submitWidgetForm } from "./functions/submit-widget-form";
 export { deployManualSite } from "./functions/deploy-manual-site";
 export { restoreWidgetVersion } from "./functions/restore-widget-version";
+
+// Admin functions
+export { getAdminDashboardStats } from "./functions/admin/get-admin-dashboard-stats";
+export { adminGetOrganizations } from "./functions/admin/admin-get-organizations";
 export { saveWidgetVersion } from "./functions/save-widget-version";
 export { translateWidgetText } from "./functions/translate-widget-text";
 

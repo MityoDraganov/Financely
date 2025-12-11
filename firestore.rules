@@ -1,6 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Admin bypass - admins have complete global access
+    // Checks Firebase Auth custom claims first, then falls back to Firestore user document
+    function isAdmin() {
+      return request.auth != null && (
+        // Check Firebase Auth custom claims (synced from Clerk via webhook)
+        (request.auth.token.adminRole != null && 
+         request.auth.token.adminRole in ['superadmin', 'billing_admin', 'support_admin', 'read_only_admin']) ||
+        // Fallback: Check Firestore user document
+        (getUser() != null && 
+         getUser().data.adminRole != null && 
+         getUser().data.adminRole in ['superadmin', 'billing_admin', 'support_admin', 'read_only_admin'])
+      );
+    }
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -41,12 +55,14 @@ service cloud.firestore {
              resource.data.organizationId == orgId;
     }
     match /users/{userId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && request.auth.uid == userId;
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if false; 
     }
     match /organizations/{orgId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
                        request.resource.data.memberIds != null &&
@@ -60,6 +76,7 @@ service cloud.firestore {
       allow delete: if false; 
     }
     match /invoices/{invoiceId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -75,6 +92,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /templates/{templateId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -90,6 +108,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /workflows/{workflowId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -105,6 +124,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /products/{productId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.organizationId);
       allow create: if isAuthenticated() && 
@@ -120,6 +140,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.organizationId);
     }
     match /proposals/{proposalId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -135,6 +156,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /leads/{leadId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -150,6 +172,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /contacts/{contactId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -165,6 +188,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /brandSites/{siteId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.organizationId);
       allow create: if isAuthenticated() && 
@@ -180,6 +204,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.organizationId);
     }
     match /invites/{inviteId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.organizationId);
       allow create: if isAuthenticated() && 
@@ -195,6 +220,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.organizationId);
     }
     match /emailTemplateMappings/{mappingId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -210,6 +236,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /extractionJobs/{jobId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -225,6 +252,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /templatePatterns/{patternId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if isAuthenticated() && 
@@ -240,6 +268,7 @@ service cloud.firestore {
                        isOwnerOrAdmin(resource.data.orgId);
     }
     match /workflowRuns/{runId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      isOrgMember(resource.data.orgId);
       allow create: if false; 
@@ -247,6 +276,7 @@ service cloud.firestore {
       allow delete: if false; 
     }
     match /workflowVersions/{versionId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      resource.data.orgId != null &&
                      isOrgMember(resource.data.orgId);
@@ -255,18 +285,21 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /organizations/{orgId}/auditLogs/{logId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && isOrgMember(orgId);
       allow create: if false; 
       allow update: if false;
       allow delete: if false;
     }
     match /organizations/{orgId}/analyticsEvents/{eventId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && isOrgMember(orgId);
       allow create: if false; 
       allow update: if false;
       allow delete: if false;
     }
     match /organizations/{orgId}/analyticsConfig/{configId} {
+      allow read, write: if isAdmin();
       allow read: if isAuthenticated() && isOrgMember(orgId);
       allow create: if isAuthenticated() && 
                        isOrgMember(orgId) &&
@@ -296,7 +329,9 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+    // Admin global bypass - catch all for any other collections
     match /{document=**} {
+      allow read, write: if isAdmin();
       allow read, write: if false;
     }
   }

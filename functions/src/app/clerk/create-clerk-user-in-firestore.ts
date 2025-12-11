@@ -1,4 +1,6 @@
 import { ClerkUser, LoggerService, UserRepository } from "../../core";
+import { getAuth } from "firebase-admin/auth";
+import { isValidAdminRole } from "../../core/admin/admin-roles";
 
 interface Payload {
   clerkUser: ClerkUser;
@@ -64,6 +66,24 @@ export async function createClerkUserInFirestore(
       id: clerkUser.id,
       data: userData,
     });
+
+    // Sync admin role from Clerk publicMetadata to Firebase Auth custom claims
+    const adminRole = clerkUser.public_metadata?.adminRole;
+    if (adminRole && typeof adminRole === 'string' && isValidAdminRole(adminRole)) {
+      try {
+        const auth = getAuth();
+        await auth.setCustomUserClaims(clerkUser.id, {
+          adminRole: adminRole,
+        });
+        loggerService.info("Admin role synced to Firebase Auth custom claims:", {
+          userId: clerkUser.id,
+          adminRole,
+        });
+      } catch (error) {
+        loggerService.error("Failed to set admin role in Firebase Auth custom claims:", error);
+        // Don't throw - user creation succeeded, just custom claims failed
+      }
+    }
 
     loggerService.info("User created in Firestore successfully:", clerkUser.id);
   } catch (error) {

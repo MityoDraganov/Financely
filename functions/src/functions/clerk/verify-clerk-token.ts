@@ -40,14 +40,18 @@ export const verifyClerkToken = onCall(
       const name = payload.name as string;
       const picture = payload.picture as string;
 
+      // Note: Admin role is NOT included here - this is for main app Clerk
+      // Admin panel uses verifyAdminClerkToken which uses separate admin Clerk secret
       // Create Firebase custom token with verified Clerk user data
-      const firebaseToken = await getAuth().createCustomToken(clerkUserId, {
+      const customClaims: Record<string, any> = {
         clerkId: clerkUserId,
         email: email,
         email_verified: emailVerified,
         name: name,
         picture: picture,
-      });
+      };
+
+      const firebaseToken = await getAuth().createCustomToken(clerkUserId, customClaims);
 
       loggerService.info("Firebase custom token created for user:", clerkUserId);
 
