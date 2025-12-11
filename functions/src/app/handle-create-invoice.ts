@@ -144,6 +144,11 @@ async function deductProductQuantitiesForItems(
         data: { stockQuantity: newStockQuantity },
       });
 
+      // Invalidate brand context cache (product stock changed)
+      const { getBrandContextCache } = await import("../services/brand-context-cache");
+      const cache = getBrandContextCache();
+      cache.invalidate(product.organizationId);
+
       loggerService.info("Product quantity deducted successfully", {
         productId,
         productName: product.name,

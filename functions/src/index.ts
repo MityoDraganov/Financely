@@ -134,3 +134,10 @@ export { queryAuditLogs } from "./functions/query-audit-logs";
 
 // Firestore audit triggers (automatic document change logging)
 export { auditDocumentChanges } from "./functions/firestore-audit-triggers";
+
+// Brand context cache invalidation triggers
+export { onOrganizationUpdated } from "./functions/on-organization-updated";
+export { onProductWritten } from "./functions/on-product-updated";
+
+// Billing and usage functions
+export { getUsageHistory } from "./functions/get-usage-history";

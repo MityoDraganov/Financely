@@ -3,10 +3,10 @@ import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getProductRepository } from "../repositories/product-repository";
+import { getBrandContextService } from "../services/brand-context-service";
 import { GeminiService } from "../services/gemini-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { injectNavigation, applyIntegrations } from "./handle-generate-site";
-import { listOrganizationImages, filterValidProductImages } from "../utils/list-organization-images";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -242,6 +242,12 @@ export async function handleChatGenerateSite(
     const brandSiteRepository = getBrandSiteRepository(databaseService);
     const organizationRepository = getOrganizationRepository(databaseService);
     const productRepository = getProductRepository(databaseService);
+    const firebaseProjectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+    const brandContextService = getBrandContextService(
+      organizationRepository,
+      productRepository,
+      firebaseProjectId,
+    );
 
     // Get brand site
     const brandSite = await brandSiteRepository.get({ id: input.brandSiteId });
@@ -257,31 +263,12 @@ export async function handleChatGenerateSite(
       throw new Error("Organization not found");
     }
 
-    // Get all available images from organization's storage
-    // We need firebaseProjectId - get it from environment or config
-    const firebaseProjectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
-    const allAvailableImages = await listOrganizationImages(
+    // Get brand context (includes products and images)
+    const brandContext = await brandContextService.getBrandContext(
       brandSite.organizationId,
-      firebaseProjectId,
+      { includeImages: true, includeProducts: true },
     );
-
-    // Get products for context
-    const products = await productRepository.getAll({
-      queryConstraints: [
-        { field: "organizationId", operator: "==", value: brandSite.organizationId },
-      ],
-    });
-
-    // Filter product images to only include those that exist in storage
-    const productsWithValidImages = products.map((p) => {
-      const validImages = p.images
-        ? filterValidProductImages(p.images, allAvailableImages)
-        : [];
-      return {
-        ...p,
-        images: validImages, // Only include images that actually exist
-      };
-    });
+    const allAvailableImages = brandContext.brandImages;
 
     // Build conversation context
     const conversationContext = buildConversationContext(
@@ -290,7 +277,7 @@ export async function handleChatGenerateSite(
       input.attachments,
       brandSite,
       organization,
-      products,
+      brandContext.products,
     );
 
     // Ensure conversationId exists - create one if not provided
@@ -639,29 +626,26 @@ export async function handleChatGenerateSite(
       ];
 
       // Generate HTML for the new page
+      // Get brand context for AI with page-specific context
+      const pageBrandContextForAI = await brandContextService.getBrandContextForAI(
+        brandSite.organizationId,
+        {
+          context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Each page needs a unique hero section featuring a relevant background (image or color), a clear page title, a subheadline, and primary/secondary call-to-action buttons. Center hero content within a max-width container and avoid placing extra logos inside the hero. Use a different layout structure, different hero style, and page-specific content that focuses on "${detectedPageTitle}". DO NOT repeat the same structure as other pages. Ensure the page is accessible at its correct URL path and has a clear visual identity.`,
+          contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages,
+          pageTitle: detectedPageTitle!,
+          pagePurpose: input.message,
+          pageSlug: finalSlug,
+          pageType: detectedPageType,
+          availablePages,
+        },
+      );
+
       updatedHtml = await geminiService.generateSiteHtml({
+        ...pageBrandContextForAI,
         brandName: brandSite.brandName,
         colors: brandColors,
         logoUrl: brandSite.logoUrl,
         tone: brandSite.tone || "professional",
-        description: brandSite.context,
-        brandImages: allAvailableImages, // Use all available images from storage
-        context: `${brandSite.context || ""}\n\n🚨 CRITICAL: This is a NEW page being created. The user wants: ${input.message}\n\nMake this page visually DISTINCT and UNIQUE from other pages on the site. Each page needs a unique hero section featuring a relevant background (image or color), a clear page title, a subheadline, and primary/secondary call-to-action buttons. Center hero content within a max-width container and avoid placing extra logos inside the hero. Use a different layout structure, different hero style, and page-specific content that focuses on "${detectedPageTitle}". DO NOT repeat the same structure as other pages. Ensure the page is accessible at its correct URL path and has a clear visual identity.`,
-        contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages, // Combine with all available images
-        products: productsWithValidImages.map((p) => ({
-          name: p.name,
-          description: p.description,
-          price: p.price,
-          currency: p.currency,
-          category: p.category,
-          images: p.images,
-        })),
-        widgets: (brandSite as any).widgets,
-        pageTitle: detectedPageTitle!,
-        pagePurpose: input.message,
-        pageSlug: finalSlug,
-        pageType: detectedPageType,
-        availablePages,
       });
 
       // Stream response about page creation
@@ -800,24 +784,21 @@ export async function handleChatGenerateSite(
         accent: "#10b981",
       };
 
+      // Get brand context for AI
+      const fullBrandContextForAI = await brandContextService.getBrandContextForAI(
+        brandSite.organizationId,
+        {
+          context: `${brandSite.context || ""}\n\nUser request: ${input.message}`,
+          contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages,
+        },
+      );
+
       updatedHtml = await geminiService.generateSiteHtml({
+        ...fullBrandContextForAI,
         brandName: brandSite.brandName,
         colors: brandColors,
         logoUrl: brandSite.logoUrl,
         tone: brandSite.tone || "professional",
-        description: brandSite.context,
-        brandImages: allAvailableImages, // Use all available images from storage
-        context: `${brandSite.context || ""}\n\nUser request: ${input.message}`,
-        contextImages: input.attachments.length > 0 ? [...input.attachments, ...allAvailableImages] : allAvailableImages, // Combine with all available images
-        products: productsWithValidImages.map((p) => ({
-          name: p.name,
-          description: p.description,
-          price: p.price,
-          currency: p.currency,
-          category: p.category,
-          images: p.images,
-        })),
-        widgets: (brandSite as any).widgets,
       });
 
       // Stream response about website generation

@@ -10,6 +10,7 @@ import {
   UserCheck,
   FileText,
   UserPlus,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,12 @@ export default function SettingsLayout() {
           href: "/settings/organization/ai",
           description: t('settings.organization.aiSettings.description'),
           icon: Settings,
+        },
+        {
+          title: t('settings.organization.billing.title'),
+          href: "/settings/organization/billing",
+          description: t('settings.organization.billing.description'),
+          icon: CreditCard,
         },
       ],
     },

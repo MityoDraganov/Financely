@@ -97,6 +97,24 @@ export const organizationDataSchema = z.object({
           autoProposalSuggestions: false,
         }),
       
+      // Billing and subscription settings
+      billing: z
+        .object({
+          autoRenew: z.boolean().default(true),
+          usageAlerts: z.boolean().default(true),
+          usageAlertThresholds: z
+            .object({
+              warning: z.number().int().min(0).max(100).default(75),
+              critical: z.number().int().min(0).max(100).default(90),
+            })
+            .default({
+              warning: 75,
+              critical: 90,
+            }),
+          billingEmail: z.string().email().optional(),
+        })
+        .optional(),
+      
       // Widget configuration for embeddable widgets
       widgets: z
         .object({

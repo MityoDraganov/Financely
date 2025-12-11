@@ -170,10 +170,10 @@ export interface FunctionsService {
     description?: string;
     trigger: {
       type: "invoice.created" | "invoice.sent" | "invoice.paid" | "invoice.overdue" | "proposal.created" | "proposal.approved" | "proposal.rejected" | "contract.expiring" | "contract.expired" | "user.joined" | "schedule.cron" | "webhook.external" | "manual.trigger";
-      config?: Record<string, any>;
+      config?: Record<string, unknown>;
       cronExpression?: string;
       webhookUrl?: string;
-      eventFilters?: Record<string, any>;
+      eventFilters?: Record<string, unknown>;
     };
     steps: Array<{
       id: string;
@@ -181,7 +181,7 @@ export interface FunctionsService {
       type: "action" | "condition" | "delay" | "parallel";
       actions: Array<{
         type: "send.email" | "send.slack" | "create.invoice" | "update.invoice.status" | "create.task" | "assign.task" | "generate.pdf" | "call.webhook" | "create.stripe.invoice" | "wait.delay" | "notify.user" | "archive.record" | "update.field";
-        config: Record<string, any>;
+        config: Record<string, unknown>;
         conditions?: Array<{
           field: string;
           operator: "equals" | "not_equals" | "greater_than" | "less_than" | "contains" | "not_contains" | "is_empty" | "is_not_empty";
@@ -388,7 +388,7 @@ export interface FunctionsService {
       colors: { primary: string; secondary: string; accent: string };
       margins: { top: number; right: number; bottom: number; left: number };
     };
-    elements: Array<any>;
+    elements: Array<Record<string, unknown>>;
     status: "draft" | "published";
     compliance?: {
       region?: "US" | "EU" | "CA" | "AU" | "UK";
@@ -421,7 +421,7 @@ export interface FunctionsService {
         colors: { primary: string; secondary: string; accent: string };
         margins: { top: number; right: number; bottom: number; left: number };
       };
-      elements: Array<any>;
+      elements: Array<Record<string, unknown>>;
       status: "draft" | "published";
       compliance?: {
         region?: "US" | "EU" | "CA" | "AU" | "UK";
@@ -465,7 +465,7 @@ export interface FunctionsService {
     subject: string;
     preheader?: string;
     htmlContent: string;
-    blocks: Array<any>;
+    blocks: Array<Record<string, unknown>>;
     designTokens: {
       background: string;
       surface: string;
@@ -829,6 +829,40 @@ export interface FunctionsService {
       processingDurationMs?: number;
       vendorName?: string;
       documentType?: "invoice" | "receipt" | "utility_bill" | "unknown";
+    };
+  }>;
+
+  /**
+   * Get usage history for billing dashboard grouped by billing periods
+   * 
+   * @param payload - The usage history payload
+   * @param payload.organizationId - Organization ID
+   * @param payload.periodType - "current" (default), "previous", or "custom"
+   * @param payload.startDate - ISO date string for custom period start
+   * @param payload.endDate - ISO date string for custom period end
+   * @returns Promise with usage history data grouped by billing periods
+   */
+  getUsageHistory(payload: {
+    organizationId: string;
+    periodType?: "current" | "previous" | "custom";
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    periods: Array<{
+      periodStart: string;
+      periodEnd: string;
+      periodLabel: string;
+      invoices: number;
+      templates: number;
+      members: number;
+      storageBytes: number;
+      storageMB: number;
+    }>;
+    currentPeriod: {
+      invoices: number;
+      templates: number;
+      members: number;
+      storageBytes: number;
     };
   }>;
 }

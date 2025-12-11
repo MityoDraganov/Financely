@@ -1,10 +1,13 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo, useRef } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { useOrganizationsByIds } from "@/hooks/repository-hooks/use-organizations";
 import { OrganizationContext, OrganizationContextType } from "./organization-context-types";
 
-const CURRENT_ORG_STORAGE_KEY = "financely_current_organization_id";
+const getStorageKey = (userId: string | null | undefined): string => {
+  if (!userId) return "financely_current_organization_id";
+  return `financely_current_organization_id_${userId}`;
+};
 
 interface OrganizationProviderProps {
   children: ReactNode;
@@ -26,81 +29,95 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   const isLoading = !isClerkLoaded || isUserLoading || isOrganizationsByIdsLoading;
   const error = userError || orgsError;
 
-  // Get stored organization ID or use first available
-  const [currentOrgId, setCurrentOrgId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(CURRENT_ORG_STORAGE_KEY);
+  // Get user-specific storage key
+  const storageKey = useMemo(() => getStorageKey(user?.id), [user?.id]);
+
+  // Track if we've processed organizations for this user
+  const processedRef = useRef<string | null>(null);
+  
+  // Initialize state - will be set from localStorage once user is loaded
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
+  const [lastUserId, setLastUserId] = useState<string | null | undefined>(user?.id);
+
+  // Reset state when user changes (logout/login)
+  useEffect(() => {
+    if (user?.id !== lastUserId) {
+      setCurrentOrgId(null);
+      processedRef.current = null;
+      setLastUserId(user?.id);
     }
-    return null;
-  });
+  }, [user?.id, lastUserId]);
 
   // Update current organization based on stored ID or first available
   // Also handle revoked access by removing revoked organizations
   useEffect(() => {
+    // Wait for user and organizations to load
+    if (!isClerkLoaded || !user?.id || isLoading) return;
+    
+    // If no organizations, clear state
     if (organizations.length === 0) {
       setCurrentOrgId(null);
       if (typeof window !== "undefined") {
-        localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
+        localStorage.removeItem(storageKey);
       }
+      processedRef.current = null;
       return;
     }
 
-    // If we have a stored ID, check if it still exists in organizations
-    if (currentOrgId) {
-      const org = organizations.find(o => o.id === currentOrgId);
+    // Skip if we've already processed these organizations for this user
+    const orgIdsKey = organizations.map(o => o.id).sort().join(",");
+    if (processedRef.current === orgIdsKey) {
+      return;
+    }
+
+    // Get stored organization ID from localStorage
+    let storedOrgId: string | null = null;
+    if (typeof window !== "undefined") {
+      storedOrgId = localStorage.getItem(storageKey);
+    }
+
+    // If we have a stored ID, validate it
+    if (storedOrgId) {
+      const org = organizations.find(o => o.id === storedOrgId);
       if (org) {
-        // Also verify user is still a member (check memberIds and organizationRoles)
+        // Verify user is still a member
         const isMember = org.memberIds?.includes(dbUser?.id || "") ?? false;
-        const hasRole = dbUser?.organizationRoles?.[currentOrgId] !== undefined;
+        const hasRole = dbUser?.organizationRoles?.[storedOrgId] !== undefined;
         
-        // If user is not a member and has no role, they've been revoked
-        if (!isMember && !hasRole && dbUser) {
-          // Remove from localStorage and switch to another org
-          if (typeof window !== "undefined") {
-            localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
-          }
-          const otherOrg = organizations.find(o => o.id !== currentOrgId);
-          if (otherOrg) {
-            setCurrentOrgId(otherOrg.id);
-            if (typeof window !== "undefined") {
-              localStorage.setItem(CURRENT_ORG_STORAGE_KEY, otherOrg.id);
-            }
-          } else {
-            setCurrentOrgId(null);
-          }
+        if (isMember || hasRole) {
+          // Valid organization - use it
+          setCurrentOrgId(storedOrgId);
+          processedRef.current = orgIdsKey;
           return;
         }
         
-        // Organization exists and user is still a member
-        return;
-      } else {
-        // Stored org ID doesn't exist in organizations list - user was revoked
-        // Switch to first available org or clear
-        const firstOrg = organizations[0];
-        if (firstOrg) {
-          setCurrentOrgId(firstOrg.id);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(CURRENT_ORG_STORAGE_KEY, firstOrg.id);
-          }
-        } else {
-          setCurrentOrgId(null);
-          if (typeof window !== "undefined") {
-            localStorage.removeItem(CURRENT_ORG_STORAGE_KEY);
-          }
+        // User was revoked from this org - remove from storage
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(storageKey);
         }
-        return;
+        storedOrgId = null;
+      } else {
+        // Stored org doesn't exist - remove from storage
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(storageKey);
+        }
+        storedOrgId = null;
       }
     }
 
-    // Otherwise, use first organization and store it
-    const firstOrg = organizations[0];
-    if (firstOrg) {
-      setCurrentOrgId(firstOrg.id);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(CURRENT_ORG_STORAGE_KEY, firstOrg.id);
+    // No valid stored ID - use first organization
+    if (!storedOrgId) {
+      const firstOrg = organizations[0];
+      if (firstOrg) {
+        setCurrentOrgId(firstOrg.id);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, firstOrg.id);
+        }
       }
     }
-  }, [organizations, currentOrgId, dbUser]);
+
+    processedRef.current = orgIdsKey;
+  }, [organizations, isClerkLoaded, user?.id, isLoading, storageKey, dbUser]);
 
   const currentOrganization = currentOrgId 
     ? organizations.find(o => o.id === currentOrgId) || organizations[0] || null
@@ -111,8 +128,10 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     if (org) {
       setCurrentOrgId(organizationId);
       if (typeof window !== "undefined") {
-        localStorage.setItem(CURRENT_ORG_STORAGE_KEY, organizationId);
+        localStorage.setItem(storageKey, organizationId);
       }
+      // Reset processed ref so effect can run again if needed
+      processedRef.current = null;
     }
   };
 
@@ -130,3 +149,4 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     </OrganizationContext.Provider>
   );
 }
+

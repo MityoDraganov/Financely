@@ -6,11 +6,11 @@ import { GeminiService } from "../services/gemini-service";
 import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
+import { getBrandContextService } from "../services/brand-context-service";
 import { logger } from "firebase-functions";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { firestore } from "firebase-admin";
-import { listOrganizationImages, filterValidProductImages } from "../utils/list-organization-images";
 
 interface GenerateSiteInput {
   organizationId: string;
@@ -583,6 +583,11 @@ export async function handleGenerateSite(
   const organizationRepository = getOrganizationRepository(databaseService);
   const brandSiteRepository = getBrandSiteRepository(databaseService);
   const productRepository = getProductRepository(databaseService);
+  const brandContextService = getBrandContextService(
+    organizationRepository,
+    productRepository,
+    config.firebaseProjectId,
+  );
 
     logger.debug("Step 2: Fetching organization", {
       organizationId: input.organizationId,
@@ -609,27 +614,26 @@ export async function handleGenerateSite(
     organizationName: organization.name,
   });
 
-    logger.debug("Step 3: Extracting brand configuration", {
+    logger.debug("Step 3: Getting brand context", {
       organizationId: input.organizationId,
       hasBrandName: !!input.brandName,
       hasTone: !!input.tone,
     });
     errorContext.stage = "brand_config";
-  const brandName = input.brandName || organization.name;
-  const tone = input.tone || "professional";
-  const brandColors = organization.settings?.brandColors || {
-    primary: "#2563eb",
-    secondary: "#6b7280",
-    accent: "#10b981",
-  };
-  const logoUrl = organization.settings?.branding?.customLogo || organization.logoUrl;
-    const description = organization.settings?.branding?.description;
-    // Get all available images from organization's storage
-    const allAvailableImages = await listOrganizationImages(
+    const brandContextStart = Date.now();
+    const brandContext = await brandContextService.getBrandContext(
       input.organizationId,
-      config.firebaseProjectId,
+      { includeImages: true, includeProducts: true },
     );
-    const customFavicon = organization.settings?.branding?.customFavicon;
+    markTiming("brand_context_fetch", brandContextStart);
+    
+    const brandName = input.brandName || brandContext.brandName;
+    const tone = input.tone || brandContext.tone;
+    const brandColors = brandContext.brandColors;
+    const logoUrl = brandContext.logoUrl;
+    const description = brandContext.description;
+    const allAvailableImages = brandContext.brandImages;
+    const customFavicon = brandContext.customFavicon;
 
     logger.debug("Step 4: Finding existing brand site", {
       organizationId: input.organizationId,
@@ -728,75 +732,32 @@ export async function handleGenerateSite(
         model: "gemini-2.5-flash",
       });
 
-      // Get products for the organization
-      const products = await productRepository.getAll({
-        queryConstraints: [
-          { field: "organizationId", operator: "==", value: input.organizationId },
-          { field: "status", operator: "==", value: "active" },
-        ],
-      });
-
-      const productsForContext = products.map((p) => ({
-        name: p.name,
-        description: p.description,
-        price: p.price,
-        currency: p.currency,
-        category: p.category,
-        images: p.images,
-      }));
-
-      // Prepare widget configuration for section regeneration
-      const widgets = organization.settings?.widgets;
-      const widgetContext = widgets?.enabled ? {
-        enabled: true,
-        contactForm: widgets.contactForm?.enabled ? {
-          enabled: true,
-          title: widgets.contactForm.title || "Contact Us",
-          description: widgets.contactForm.description || "",
-          position: widgets.contactForm.position || "bottom-right",
-          displayMode: widgets.contactForm.displayMode || "floating",
-          submitButtonText: widgets.contactForm.submitButtonText || "Send Message",
-          successMessage: widgets.contactForm.successMessage || "Thank you! We'll get back to you soon.",
-        } : undefined,
-        invoiceRequest: widgets.invoiceRequest?.enabled ? {
-          enabled: true,
-          title: widgets.invoiceRequest.title || "Request Invoice",
-          description: widgets.invoiceRequest.description || "",
-          position: widgets.invoiceRequest.position || "bottom-right",
-          displayMode: "floating", // Invoice request widgets are always floating
-          submitButtonText: widgets.invoiceRequest.submitButtonText || "Request Invoice",
-          successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
-        } : undefined,
-        quoteRequest: widgets.quoteRequest?.enabled ? {
-          enabled: true,
-          title: widgets.quoteRequest.title || "Request Quote",
-          description: widgets.quoteRequest.description || "",
-          position: widgets.quoteRequest.position || "bottom-right",
-          displayMode: "floating", // Quote request widgets are always floating
-          submitButtonText: widgets.quoteRequest.submitButtonText || "Request Quote",
-          successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
-        } : undefined,
-      } : undefined;
+      // Get brand context for AI (includes products and widgets)
+      const brandContextForAI = await brandContextService.getBrandContextForAI(
+        input.organizationId,
+        {
+          context: brandSite.context,
+          contextImages: brandSite.contextImages || [],
+        },
+      );
 
       html = await geminiService.regenerateSection(
         {
+          ...brandContextForAI,
           brandName,
           colors: brandColors,
           logoUrl,
           tone,
-            description,
-            brandImages: allAvailableImages, // Use all available images from storage
-            context: brandSite.context,
-            contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
-            products: productsForContext,
-            widgets: widgetContext,
+          description,
+          brandImages: allAvailableImages,
+          contextImages: [...(brandSite.contextImages || []), ...allAvailableImages],
         },
         sectionType,
         brandSite.html,
       );
 
       // Inject widget script if widgets are enabled (for section regeneration)
-      if (widgets?.enabled) {
+      if (brandContext.widgets?.enabled) {
         const widgetScript = generateWidgetScript(organization.id, config.firebaseProjectId || "");
         // Inject before closing </body> tag
         if (html.includes("</body>")) {
@@ -853,63 +814,6 @@ export async function handleGenerateSite(
         brandName,
         model: "gemini-2.5-flash",
       });
-
-      // Get products for the organization
-      const products = await productRepository.getAll({
-        queryConstraints: [
-          { field: "organizationId", operator: "==", value: input.organizationId },
-          { field: "status", operator: "==", value: "active" },
-        ],
-      });
-
-      // Filter product images to only include those that exist in storage
-      const productsForContext = products.map((p) => {
-        const validImages = p.images
-          ? filterValidProductImages(p.images, allAvailableImages)
-          : [];
-        return {
-          name: p.name,
-          description: p.description,
-          price: p.price,
-          currency: p.currency,
-          category: p.category,
-          images: validImages, // Only include images that actually exist
-        };
-      });
-
-      // Prepare widget configuration for AI context
-      // Include complete widget information so AI knows what widgets are available
-      const widgets = organization.settings?.widgets;
-      const widgetContext = widgets?.enabled ? {
-        enabled: true,
-        contactForm: widgets.contactForm?.enabled ? {
-          enabled: true,
-          title: widgets.contactForm.title || "Contact Us",
-          description: widgets.contactForm.description || "",
-          position: widgets.contactForm.position || "bottom-right",
-          displayMode: widgets.contactForm.displayMode || "floating",
-          submitButtonText: widgets.contactForm.submitButtonText || "Send Message",
-          successMessage: widgets.contactForm.successMessage || "Thank you! We'll get back to you soon.",
-        } : undefined,
-        invoiceRequest: widgets.invoiceRequest?.enabled ? {
-          enabled: true,
-          title: widgets.invoiceRequest.title || "Request Invoice",
-          description: widgets.invoiceRequest.description || "",
-          position: widgets.invoiceRequest.position || "bottom-right",
-          displayMode: "floating", // Invoice request widgets are always floating
-          submitButtonText: widgets.invoiceRequest.submitButtonText || "Request Invoice",
-          successMessage: widgets.invoiceRequest.successMessage || "Invoice request submitted successfully!",
-        } : undefined,
-        quoteRequest: widgets.quoteRequest?.enabled ? {
-          enabled: true,
-          title: widgets.quoteRequest.title || "Request Quote",
-          description: widgets.quoteRequest.description || "",
-          position: widgets.quoteRequest.position || "bottom-right",
-          displayMode: "floating", // Quote request widgets are always floating
-          submitButtonText: widgets.quoteRequest.submitButtonText || "Request Quote",
-          successMessage: widgets.quoteRequest.successMessage || "Quote request submitted successfully!",
-        } : undefined,
-      } : undefined;
 
       const generatedPageFiles: Record<string, string> = {};
       const existingFiles = (brandSite.files as Record<string, string>) || {};
@@ -989,7 +893,7 @@ export async function handleGenerateSite(
               href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
             }));
             preservedHtml = applyIntegrations(preservedHtml, {
-              widgets,
+              widgets: brandContext.widgets,
               organizationId: organization.id,
               analyticsConfig,
               brandSiteId,
@@ -1061,23 +965,28 @@ export async function handleGenerateSite(
           href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
         }));
 
+        // Get brand context for this specific page
+        const pageBrandContextForAI = await brandContextService.getBrandContextForAI(
+          input.organizationId,
+          {
+            context: pageContext || brandSite.context,
+            contextImages: [...(brandSite.contextImages || []), ...allAvailableImages],
+            pageTitle: page.title,
+            pagePurpose: pagePurpose || page.description || description || "",
+            pageSlug: page.slug,
+            pageType: page.type,
+            pageContentEntries: page.contentEntries,
+            availablePages,
+          },
+        );
+
         const pageContextForPrompt = {
+          ...pageBrandContextForAI,
           brandName,
           colors: brandColors,
           logoUrl,
           tone,
           description,
-          brandImages: allAvailableImages, // Use all available images from storage
-          context: pageContext || brandSite.context,
-          contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
-          products: productsForContext,
-          widgets: widgetContext,
-          pageTitle: page.title,
-          pagePurpose: pagePurpose || page.description || description || "",
-          pageSlug: page.slug,
-          pageType: page.type,
-          pageContentEntries: page.contentEntries,
-          availablePages, // List of pages that exist and can be linked to
         };
 
         // Throttle Firestore updates to avoid excessive writes (max 1 update per 500ms)
@@ -1150,23 +1059,28 @@ export async function handleGenerateSite(
             href: p.slug === "index" || p.slug === "home" ? "/" : `/${p.slug}`,
           }));
 
+          // Get brand context for fallback (reuse same context as streaming)
+          const fallbackBrandContextForAI = await brandContextService.getBrandContextForAI(
+            input.organizationId,
+            {
+              context: pageContext || brandSite.context,
+              contextImages: [...(brandSite.contextImages || []), ...allAvailableImages],
+              pageTitle: page.title,
+              pagePurpose: pagePurpose || page.description || description || "",
+              pageSlug: page.slug,
+              pageType: page.type,
+              pageContentEntries: page.contentEntries,
+              availablePages: availablePagesForFallback,
+            },
+          );
+
           pageHtml = await geminiService.generateSiteHtml({
+            ...fallbackBrandContextForAI,
             brandName,
             colors: brandColors,
             logoUrl,
             tone,
             description,
-            brandImages: allAvailableImages, // Use all available images from storage
-            context: pageContext || brandSite.context,
-            contextImages: [...(brandSite.contextImages || []), ...allAvailableImages], // Combine with all available images
-            products: productsForContext,
-            widgets: widgetContext,
-            pageTitle: page.title,
-            pagePurpose: pagePurpose || page.description || description || "",
-            pageSlug: page.slug,
-            pageType: page.type,
-            pageContentEntries: page.contentEntries,
-            availablePages: availablePagesForFallback,
           });
         }
 
@@ -1179,7 +1093,7 @@ export async function handleGenerateSite(
         );
 
         pageHtml = applyIntegrations(pageHtml, {
-          widgets,
+          widgets: brandContext.widgets,
           organizationId: organization.id,
           analyticsConfig,
           brandSiteId,
@@ -1467,8 +1381,7 @@ export async function handleGenerateSite(
     });
 
     // Add widget-loader.js if widgets are enabled
-    const widgets = organization.settings?.widgets;
-    if (widgets?.enabled) {
+    if (brandContext.widgets?.enabled) {
       try {
         let widgetLoaderPath: string | null = null;
         const possiblePaths = [

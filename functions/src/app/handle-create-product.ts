@@ -1,6 +1,7 @@
 import { CreateProductInput, productDataSchema } from "../core/entities/product";
 import { getDatabaseService } from "../services/database-service";
 import { getProductRepository } from "../repositories/product-repository";
+import { getBrandContextCache } from "../services/brand-context-cache";
 import { ZodError } from "zod";
 
 /**
@@ -9,7 +10,8 @@ import { ZodError } from "zod";
  * This handler:
  * 1. Validates the incoming payload against the product schema
  * 2. Creates the product in the database
- * 3. Returns the created product ID
+ * 3. Invalidates brand context cache for the organization
+ * 4. Returns the created product ID
  *
  * @param {CreateProductInput} payload - The product creation payload
  * @return {Promise<string>} The created product ID
@@ -33,6 +35,10 @@ export async function handleCreateProduct(
     if (!productId) {
       throw new Error("Failed to create product: No ID returned");
     }
+
+    // Invalidate brand context cache for this organization
+    const cache = getBrandContextCache();
+    cache.invalidate(validatedData.organizationId);
 
     return productId;
   } catch (error) {

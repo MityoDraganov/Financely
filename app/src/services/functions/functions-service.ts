@@ -556,4 +556,14 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "generateTemplateFromExtraction")(payload);
     return result.data;
   },
+
+  async getUsageHistory(payload) {
+    type GetUsageHistoryPayload = Parameters<FunctionsService["getUsageHistory"]>[0];
+    type GetUsageHistoryResponse = Awaited<ReturnType<FunctionsService["getUsageHistory"]>>;
+    const result = await httpsCallable<
+      GetUsageHistoryPayload,
+      GetUsageHistoryResponse
+    >(firebase.functions, "getUsageHistory")(payload);
+    return result.data;
+  },
 };

@@ -116,6 +116,11 @@ export const restoreWidgetVersion = onCall<RestoreWidgetVersionPayload>(
         },
       });
 
+      // Invalidate brand context cache (widgets changed)
+      const { getBrandContextCache } = await import("../services/brand-context-cache");
+      const cache = getBrandContextCache();
+      cache.invalidate(organizationId);
+
       logger.info("Widget version restored successfully", {
         organizationId,
         version: versionToRestore.version,
