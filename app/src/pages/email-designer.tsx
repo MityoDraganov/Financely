@@ -1760,6 +1760,61 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			blocks: [],
 		};
 	}
+	if (type === "table") {
+		return {
+			id: crypto.randomUUID(),
+			type: "table",
+			section: section,
+			dataSource: "", // e.g., "invoice.items", "products"
+			columns: [
+				{
+					id: crypto.randomUUID(),
+					header: "Description",
+					binding: "description",
+					type: "text",
+					align: "left",
+					priority: "high",
+					format: "none",
+				},
+				{
+					id: crypto.randomUUID(),
+					header: "Quantity",
+					binding: "quantity",
+					type: "number",
+					align: "center",
+					priority: "medium",
+					format: "number",
+				},
+				{
+					id: crypto.randomUUID(),
+					header: "Price",
+					binding: "price",
+					type: "currency",
+					align: "right",
+					priority: "high",
+					format: "currency",
+					currency: "USD",
+				},
+			],
+			rows: [],
+			style: {
+				borderStyle: "light",
+				headerBackground: "",
+				headerTextColor: "",
+				alternatingRows: false,
+				alternatingRowBackground: "",
+				paddingDensity: "comfortable",
+				showBorders: true,
+				borderColor: "#e5e7eb",
+			},
+			responsive: {
+				stackOnMobile: true,
+				hideLowPriorityColumns: true,
+				mobileLabelPosition: "above",
+			},
+			emptyMessage: "No data available",
+		};
+	}
 	// Fallback
 	return {
 		id: crypto.randomUUID(),

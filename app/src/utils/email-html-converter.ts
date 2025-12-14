@@ -211,6 +211,98 @@ function blockToHTML(
 			const rawHtmlBlock = block as Extract<EmailTemplateBlock, { type: "rawHtml" }>;
 			return `${indentStr}${rawHtmlBlock.html || ""}\n`;
 		}
+		case "table": {
+			const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+			const columns = tableBlock.columns || [];
+			const style = tableBlock.style || {};
+			const spacing = tableBlock.spacing;
+			
+			// Padding map
+			const paddingMap = {
+				compact: 8,
+				comfortable: 12,
+				spacious: 16,
+			};
+			const cellPadding = paddingMap[style.paddingDensity || "comfortable"];
+			
+			// Border styles
+			const borderWidth = style.borderStyle === "strong" ? 2 : style.borderStyle === "light" ? 1 : 0;
+			const borderColor = style.borderColor || "#e5e7eb";
+			const showBorders = style.showBorders !== false;
+			
+			// Build table HTML - email-safe using table elements
+			let html = `${indentStr}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%; border-collapse:collapse;`;
+			if (tableBlock.backgroundColor) {
+				html += ` background-color:${tableBlock.backgroundColor};`;
+			}
+			if (spacing?.marginTop) html += ` margin-top:${spacing.marginTop}px;`;
+			if (spacing?.marginBottom) html += ` margin-bottom:${spacing.marginBottom}px;`;
+			if (spacing?.paddingTop) html += ` padding-top:${spacing.paddingTop}px;`;
+			if (spacing?.paddingBottom) html += ` padding-bottom:${spacing.paddingBottom}px;`;
+			html += `">\n`;
+			
+			// Header row
+			if (columns.length > 0) {
+				html += `${indentStr}  <thead>\n`;
+				html += `${indentStr}    <tr>\n`;
+				for (const col of columns) {
+					const headerStyles: string[] = [
+						`padding:${cellPadding}px`,
+						`text-align:${col.align}`,
+						`font-weight:600`,
+						`color:${style.headerTextColor || designTokens.text || "#0f172a"}`,
+					];
+					if (style.headerBackground) {
+						headerStyles.push(`background-color:${style.headerBackground}`);
+					}
+					if (showBorders && borderWidth > 0) {
+						headerStyles.push(`border-bottom:${borderWidth}px solid ${borderColor}`);
+					}
+					if (col.width) {
+						headerStyles.push(`width:${col.width}%`);
+					}
+					html += `${indentStr}      <th style="${headerStyles.join("; ")}">${col.header || ""}</th>\n`;
+				}
+				html += `${indentStr}    </tr>\n`;
+				html += `${indentStr}  </thead>\n`;
+			}
+			
+			// Body - data rows will be populated at render time from dataSource
+			// For now, show empty state or placeholder
+			html += `${indentStr}  <tbody>\n`;
+			if (columns.length === 0) {
+				html += `${indentStr}    <tr>\n`;
+				html += `${indentStr}      <td colspan="1" style="padding:${cellPadding}px; text-align:center; color:#9ca3af; font-style:italic;">${tableBlock.emptyMessage || "No columns defined"}</td>\n`;
+				html += `${indentStr}    </tr>\n`;
+			} else {
+				// Placeholder row - actual data will be inserted during email processing
+				// Use a special comment to mark this as a table that needs data expansion
+				html += `${indentStr}    <!-- TABLE_DATA_SOURCE:${tableBlock.dataSource || ""} -->\n`;
+				html += `${indentStr}    <tr>\n`;
+				for (const col of columns) {
+					const cellStyles: string[] = [
+						`padding:${cellPadding}px`,
+						`text-align:${col.align}`,
+					];
+					if (showBorders && borderWidth > 0) {
+						cellStyles.push(`border-bottom:1px solid ${borderColor}`);
+					}
+					if (style.alternatingRows) {
+						cellStyles.push(`background-color:${style.alternatingRowBackground || "#f9fafb"}`);
+					}
+					html += `${indentStr}      <td style="${cellStyles.join("; ")}">`;
+					// Show placeholder based on column binding
+					const binding = col.binding || "value";
+					html += `{{${binding}}}`;
+					html += `</td>\n`;
+				}
+				html += `${indentStr}    </tr>\n`;
+			}
+			html += `${indentStr}  </tbody>\n`;
+			html += `${indentStr}</table>\n`;
+			
+			return html;
+		}
 		default:
 			return `${indentStr}<!-- Unknown block type: ${block.type} -->\n`;
 	}

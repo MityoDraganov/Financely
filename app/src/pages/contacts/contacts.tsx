@@ -60,8 +60,6 @@ export default function ContactsPage() {
   // Queries
   const { data: contacts = [], isLoading: isLoadingContacts, error } = useContactsByOrg(currentOrganization?.id);
   const { data: searchResults = [] } = useSearchContacts(currentOrganization?.id, searchTerm);
-
-  console.log(error);
   
   // Mutations
   const createContactMutation = useCreateContact();

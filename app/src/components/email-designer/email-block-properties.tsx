@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Braces } from "lucide-react";
+import { Plus, Braces, Trash2, Table } from "lucide-react";
 import { parseNumber } from "@/lib/field-formatting";
 import {
 	DropdownMenu,
@@ -1889,6 +1889,354 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                       </div>
                     )}
                   </div>
+                </div>
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "table" && (
+              <>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.dataSource")}</Label>
+                  <PlaceholderInputField
+                    label=""
+                    value={(block as Extract<EmailTemplateBlock, { type: "table" }>).dataSource || ""}
+                    onChange={(value) =>
+                      onChange({ ...block, dataSource: value } as EmailTemplateBlock)
+                    }
+                    placeholders={placeholders}
+                    invalidPlaceholders={invalidPlaceholders}
+                    onAddPlaceholder={onAddPlaceholder}
+                    placeholder="e.g., invoice.items, products"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("emailDesigner.properties.dataSourceHint")}
+                  </p>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">{t("emailDesigner.properties.columns")}</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        const newColumn = {
+                          id: crypto.randomUUID(),
+                          header: "New Column",
+                          binding: "",
+                          type: "text" as const,
+                          align: "left" as const,
+                          priority: "medium" as const,
+                          format: "none" as const,
+                        };
+                        onChange({
+                          ...block,
+                          columns: [...(tableBlock.columns || []), newColumn],
+                        } as EmailTemplateBlock);
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      {t("emailDesigner.properties.addColumn")}
+                    </Button>
+                  </div>
+                  {(block as Extract<EmailTemplateBlock, { type: "table" }>).columns?.map((column, colIdx) => (
+                    <div key={column.id} className="p-3 border rounded-md space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold">
+                          {t("emailDesigner.properties.column")} {colIdx + 1}
+                        </Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                            onChange({
+                              ...block,
+                              columns: tableBlock.columns?.filter((c) => c.id !== column.id) || [],
+                            } as EmailTemplateBlock);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs">{t("emailDesigner.properties.header")}</Label>
+                          <Input
+                            value={column.header}
+                            onChange={(e) => {
+                              const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                              onChange({
+                                ...block,
+                                columns: tableBlock.columns?.map((c) =>
+                                  c.id === column.id ? { ...c, header: e.target.value } : c
+                                ) || [],
+                              } as EmailTemplateBlock);
+                            }}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">{t("emailDesigner.properties.binding")}</Label>
+                          <Input
+                            value={column.binding || ""}
+                            onChange={(e) => {
+                              const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                              onChange({
+                                ...block,
+                                columns: tableBlock.columns?.map((c) =>
+                                  c.id === column.id ? { ...c, binding: e.target.value } : c
+                                ) || [],
+                              } as EmailTemplateBlock);
+                            }}
+                            placeholder="e.g., description, price"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">{t("emailDesigner.properties.type")}</Label>
+                            <Select
+                              value={column.type}
+                              onValueChange={(value: "text" | "number" | "currency" | "badge") => {
+                                const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                                onChange({
+                                  ...block,
+                                  columns: tableBlock.columns?.map((c) =>
+                                    c.id === column.id ? { ...c, type: value } : c
+                                  ) || [],
+                                } as EmailTemplateBlock);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="text">Text</SelectItem>
+                                <SelectItem value="number">Number</SelectItem>
+                                <SelectItem value="currency">Currency</SelectItem>
+                                <SelectItem value="badge">Badge</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">{t("emailDesigner.properties.alignment")}</Label>
+                            <Select
+                              value={column.align}
+                              onValueChange={(value: "left" | "center" | "right") => {
+                                const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                                onChange({
+                                  ...block,
+                                  columns: tableBlock.columns?.map((c) =>
+                                    c.id === column.id ? { ...c, align: value } : c
+                                  ) || [],
+                                } as EmailTemplateBlock);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+                                <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+                                <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {column.type === "currency" && (
+                          <div>
+                            <Label className="text-xs">{t("emailDesigner.properties.currency")}</Label>
+                            <Input
+                              value={column.currency || "USD"}
+                              onChange={(e) => {
+                                const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                                onChange({
+                                  ...block,
+                                  columns: tableBlock.columns?.map((c) =>
+                                    c.id === column.id ? { ...c, currency: e.target.value.toUpperCase().slice(0, 3) } : c
+                                  ) || [],
+                                } as EmailTemplateBlock);
+                              }}
+                              placeholder="USD"
+                              className="h-8 text-xs"
+                              maxLength={3}
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <Label className="text-xs">{t("emailDesigner.properties.priority")}</Label>
+                          <Select
+                            value={column.priority}
+                            onValueChange={(value: "high" | "medium" | "low") => {
+                              const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                              onChange({
+                                ...block,
+                                columns: tableBlock.columns?.map((c) =>
+                                  c.id === column.id ? { ...c, priority: value } : c
+                                ) || [],
+                              } as EmailTemplateBlock);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">{t("emailDesigner.properties.high")}</SelectItem>
+                              <SelectItem value="medium">{t("emailDesigner.properties.medium")}</SelectItem>
+                              <SelectItem value="low">{t("emailDesigner.properties.low")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )) || (
+                    <div className="p-3 border border-dashed rounded-md text-center text-sm text-muted-foreground">
+                      {t("emailDesigner.properties.noColumns")}
+                    </div>
+                  )}
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">{t("emailDesigner.properties.styling")}</Label>
+                  <div className="space-y-2">
+                    <Label className="text-xs">{t("emailDesigner.properties.borderStyle")}</Label>
+                    <Select
+                      value={(block as Extract<EmailTemplateBlock, { type: "table" }>).style?.borderStyle || "light"}
+                      onValueChange={(value: "none" | "light" | "strong") => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          style: {
+                            ...tableBlock.style,
+                            borderStyle: value,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t("emailDesigner.properties.none")}</SelectItem>
+                        <SelectItem value="light">{t("emailDesigner.properties.light")}</SelectItem>
+                        <SelectItem value="strong">{t("emailDesigner.properties.strong")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">{t("emailDesigner.properties.paddingDensity")}</Label>
+                    <Select
+                      value={(block as Extract<EmailTemplateBlock, { type: "table" }>).style?.paddingDensity || "comfortable"}
+                      onValueChange={(value: "compact" | "comfortable" | "spacious") => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          style: {
+                            ...tableBlock.style,
+                            paddingDensity: value,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compact">{t("emailDesigner.properties.compact")}</SelectItem>
+                        <SelectItem value="comfortable">{t("emailDesigner.properties.comfortable")}</SelectItem>
+                        <SelectItem value="spacious">{t("emailDesigner.properties.spacious")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("emailDesigner.properties.alternatingRows")}</Label>
+                    <Switch
+                      checked={(block as Extract<EmailTemplateBlock, { type: "table" }>).style?.alternatingRows || false}
+                      onCheckedChange={(checked) => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          style: {
+                            ...tableBlock.style,
+                            alternatingRows: checked,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("emailDesigner.properties.showBorders")}</Label>
+                    <Switch
+                      checked={(block as Extract<EmailTemplateBlock, { type: "table" }>).style?.showBorders !== false}
+                      onCheckedChange={(checked) => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          style: {
+                            ...tableBlock.style,
+                            showBorders: checked,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    />
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">{t("emailDesigner.properties.responsive")}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("emailDesigner.properties.stackOnMobile")}</Label>
+                    <Switch
+                      checked={(block as Extract<EmailTemplateBlock, { type: "table" }>).responsive?.stackOnMobile !== false}
+                      onCheckedChange={(checked) => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          responsive: {
+                            ...tableBlock.responsive,
+                            stackOnMobile: checked,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("emailDesigner.properties.hideLowPriorityColumns")}</Label>
+                    <Switch
+                      checked={(block as Extract<EmailTemplateBlock, { type: "table" }>).responsive?.hideLowPriorityColumns !== false}
+                      onCheckedChange={(checked) => {
+                        const tableBlock = block as Extract<EmailTemplateBlock, { type: "table" }>;
+                        onChange({
+                          ...block,
+                          responsive: {
+                            ...tableBlock.responsive,
+                            hideLowPriorityColumns: checked,
+                          },
+                        } as EmailTemplateBlock);
+                      }}
+                    />
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.properties.emptyMessage")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "table" }>).emptyMessage || "No data available"}
+                    onChange={(e) =>
+                      onChange({ ...block, emptyMessage: e.target.value } as EmailTemplateBlock)
+                    }
+                    className="h-8 text-xs"
+                  />
                 </div>
                 <Separator />
                 {renderBackgroundColorControls()}

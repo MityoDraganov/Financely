@@ -1573,6 +1573,184 @@ function BlockPreview({
 				</div>
 			);
 		}
+		case "table": {
+			const tableBlock = block as Extract<
+				EmailTemplateBlock,
+				{ type: "table" }
+			>;
+			const spacing = (tableBlock.spacing || {}) as EmailSpacing;
+			const border = (tableBlock.border || {}) as EmailBorder;
+			const style = tableBlock.style || {};
+			const columns = tableBlock.columns || [];
+			const paddingMap = {
+				compact: 8,
+				comfortable: 12,
+				spacious: 16,
+			};
+			const padding = paddingMap[style.paddingDensity || "comfortable"];
+
+			return (
+				<div
+					className="relative"
+					style={{
+						paddingTop: spacing.paddingTop
+							? `${spacing.paddingTop}px`
+							: undefined,
+						paddingRight: spacing.paddingRight
+							? `${spacing.paddingRight}px`
+							: undefined,
+						paddingBottom: spacing.paddingBottom
+							? `${spacing.paddingBottom}px`
+							: undefined,
+						paddingLeft: spacing.paddingLeft
+							? `${spacing.paddingLeft}px`
+							: undefined,
+						marginTop: spacing.marginTop
+							? `${spacing.marginTop}px`
+							: undefined,
+						marginRight: spacing.marginRight
+							? `${spacing.marginRight}px`
+							: undefined,
+						marginBottom: spacing.marginBottom
+							? `${spacing.marginBottom}px`
+							: undefined,
+						marginLeft: spacing.marginLeft
+							? `${spacing.marginLeft}px`
+							: undefined,
+						backgroundColor:
+							tableBlock.backgroundColor || "transparent",
+						borderWidth: border.borderWidth
+							? `${border.borderWidth}px`
+							: undefined,
+						borderColor: border.borderColor || "transparent",
+						borderStyle: border.borderStyle || "solid",
+						borderRadius: border.borderRadius
+							? `${border.borderRadius}px`
+							: undefined,
+					}}
+				>
+					{/* Table Preview */}
+					<div className="border border-dashed rounded overflow-hidden">
+						<table
+							style={{
+								width: "100%",
+								borderCollapse: "collapse",
+								fontSize: "14px",
+								fontFamily: designTokens.fontFamily,
+							}}
+						>
+							{/* Header */}
+							{columns.length > 0 && (
+								<thead>
+									<tr
+										style={{
+											backgroundColor:
+												style.headerBackground ||
+												"#f8fafc",
+											color:
+												style.headerTextColor ||
+												designTokens.text,
+										}}
+									>
+										{columns.map((col) => (
+											<th
+												key={col.id}
+												style={{
+													padding: `${padding}px`,
+													textAlign: col.align,
+													borderBottom:
+														style.showBorders &&
+														style.borderStyle !== "none"
+															? `${
+																	style.borderStyle ===
+																	"strong"
+																		? 2
+																		: 1
+																}px solid ${
+																	style.borderColor ||
+																	"#e5e7eb"
+																}`
+															: "none",
+													fontWeight: "600",
+												}}
+											>
+												{col.header || "Column"}
+											</th>
+										))}
+									</tr>
+								</thead>
+							)}
+							{/* Body - Show sample data or empty state */}
+							<tbody>
+								{columns.length === 0 ? (
+									<tr>
+										<td
+											colSpan={1}
+											style={{
+												padding: `${padding}px`,
+												textAlign: "center",
+												color: "#9ca3af",
+												fontStyle: "italic",
+											}}
+										>
+											No columns defined
+										</td>
+									</tr>
+								) : (
+									// Show 2 sample rows
+									[1, 2].map((rowIdx) => (
+										<tr
+											key={rowIdx}
+											style={{
+												backgroundColor:
+													style.alternatingRows &&
+													rowIdx % 2 === 0
+														? style.alternatingRowBackground ||
+															"#f9fafb"
+														: "transparent",
+											}}
+										>
+											{columns.map((col) => (
+												<td
+													key={col.id}
+													style={{
+														padding: `${padding}px`,
+														textAlign: col.align,
+														borderBottom:
+															style.showBorders &&
+															style.borderStyle !==
+																"none"
+																? `1px solid ${
+																		style.borderColor ||
+																		"#e5e7eb"
+																	}`
+																: "none",
+													}}
+												>
+													{col.type === "currency"
+														? `$${(
+																10.99 * rowIdx
+															).toFixed(2)}`
+														: col.type === "number"
+															? `${rowIdx}`
+															: `Sample ${col.header || "data"}`}
+												</td>
+											))}
+										</tr>
+									))
+								)}
+							</tbody>
+						</table>
+						{/* Data source indicator */}
+						{tableBlock.dataSource && (
+							<div className="px-2 py-1 bg-muted/50 text-xs text-muted-foreground border-t">
+								Data: {tableBlock.dataSource}
+							</div>
+						)}
+					</div>
+				</div>
+			);
+		}
     default:
       return null;
   }

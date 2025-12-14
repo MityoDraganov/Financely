@@ -37,11 +37,8 @@ export default function LeadsPage() {
   const [widgetTypeFilter, setWidgetTypeFilter] = useState<string>("all");
 
   // Queries
-  const { data: leads = [], isLoading: isLoadingLeads, error } = useLeadsByOrg(currentOrganization?.id);
+  const { data: leads = [], isLoading: isLoadingLeads } = useLeadsByOrg(currentOrganization?.id);
   const updateLeadMutation = useUpdateLead();
-  
-  console.log('leads error', error);
-  console.log('leads', leads);
 
   // Filter leads
   const filteredLeads = leads.filter((lead) => {

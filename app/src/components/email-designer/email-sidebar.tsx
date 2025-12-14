@@ -28,6 +28,7 @@ import {
 	Trash2,
 	Code2,
 	Sparkles,
+	Table,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Separator } from "@/components/ui/separator";
@@ -70,6 +71,7 @@ const getBlocksForSection = (section: EmailSection): { type: BlockType; icon: Re
 		{ type: "divider" as const, icon: Minus, label: "Divider", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "spacer" as const, icon: ScanLine, label: "Spacer", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "image" as const, icon: ImageIcon, label: "Image", sections: ["header", "body", "footer"] as EmailSection[] },
+		{ type: "table" as const, icon: Table, label: "Table", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "rawHtml" as const, icon: Code2, label: "Custom HTML", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "footerText" as const, icon: AlignLeft, label: "Footer Text", sections: ["footer"] as EmailSection[] },
 		{ type: "socialLinks" as const, icon: Share2, label: "Social Links", sections: ["footer"] as EmailSection[] },
@@ -115,6 +117,8 @@ const getBlockIcon = (type: EmailTemplateBlock["type"]) => {
 			return Columns3;
 		case "container":
 			return Container;
+		case "table":
+			return Table;
 		default:
 			return Text;
 	}

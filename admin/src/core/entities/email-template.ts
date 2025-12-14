@@ -93,6 +93,7 @@ const emailBlockBaseSchema = z.object({
     "unsubscribe",
     "columns",
     "container",
+    "table", // Data-aware email table element
     "rawHtml" // For preserving HTML that can't be parsed into visual blocks
   ]),
   section: z.enum(["header", "body", "footer"]).default("body"),
@@ -279,6 +280,71 @@ export const emailRawHtmlBlockSchema = emailBlockBaseSchema.extend({
   border: emailBorderSchema.optional(),
 });
 
+// Email Table Block Schema - Data-aware, email-safe table element
+export const emailTableColumnSchema = z.object({
+  id: z.string().min(1),
+  header: z.string().default(""),
+  binding: z.string().optional(), // Data binding path (e.g., "description", "price")
+  type: z.enum(["text", "number", "currency", "badge"]).default("text"),
+  align: z.enum(["left", "center", "right"]).default("left"),
+  width: z.number().min(0).max(100).optional(), // Percentage width (0-100)
+  priority: z.enum(["high", "medium", "low"]).default("medium"), // For responsive stacking
+  format: z.enum(["none", "currency", "percentage", "number"]).default("none"),
+  currency: z.string().length(3).optional(), // ISO currency code (e.g., "USD")
+  badgeVariant: z.enum(["default", "success", "warning", "error", "info"]).optional(), // For badge type
+});
+
+export type EmailTableColumn = z.infer<typeof emailTableColumnSchema>;
+
+export const emailTableRowSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(["header", "data", "summary", "conditional"]).default("data"),
+  cells: z.array(z.object({
+    columnId: z.string(),
+    value: z.union([z.string(), z.number()]).optional(),
+    binding: z.string().optional(), // Override column binding for this cell
+  })).default([]),
+  condition: z.string().optional(), // For conditional rows (e.g., "tax > 0")
+  formula: z.string().optional(), // For computed rows (e.g., "subtotal + tax")
+  showIf: z.string().optional(), // Conditional display logic
+});
+
+export type EmailTableRow = z.infer<typeof emailTableRowSchema>;
+
+export const emailTableBlockSchema = emailBlockBaseSchema.extend({
+  type: z.literal("table"),
+  // Data source binding (e.g., "invoice.items", "products", "usage")
+  dataSource: z.string().optional(), // Path to array data (e.g., "invoice.items")
+  // Column definitions
+  columns: z.array(emailTableColumnSchema).default([]),
+  // Row definitions (for static/header/summary rows)
+  rows: z.array(emailTableRowSchema).default([]),
+  // Styling
+  style: z.object({
+    borderStyle: z.enum(["none", "light", "strong"]).default("light"),
+    headerBackground: z.string().optional(),
+    headerTextColor: z.string().optional(),
+    alternatingRows: z.boolean().default(false),
+    alternatingRowBackground: z.string().optional(),
+    paddingDensity: z.enum(["compact", "comfortable", "spacious"]).default("comfortable"),
+    showBorders: z.boolean().default(true),
+    borderColor: z.string().default("#e5e7eb"),
+  }).default({}),
+  // Responsive behavior
+  responsive: z.object({
+    stackOnMobile: z.boolean().default(true),
+    hideLowPriorityColumns: z.boolean().default(true),
+    mobileLabelPosition: z.enum(["above", "inline"]).default("above"),
+  }).default({}),
+  // Empty state
+  emptyMessage: z.string().default("No data available"),
+  spacing: emailSpacingSchema.optional(),
+  backgroundColor: z.string().optional(),
+  border: emailBorderSchema.optional(),
+});
+
+export type EmailTableBlock = z.infer<typeof emailTableBlockSchema>;
+
 export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
   emailSubjectBlockSchema,
   emailPreheaderBlockSchema,
@@ -295,6 +361,7 @@ export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
   emailColumnsBlockSchema,
   emailContainerBlockSchema,
   emailRawHtmlBlockSchema,
+  emailTableBlockSchema,
 ]);
 
 export type EmailTemplateBlock = z.infer<typeof emailTemplateBlockSchema>;

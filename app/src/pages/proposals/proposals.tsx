@@ -21,10 +21,7 @@ export default function ProposalsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const { data: proposals = [], isLoading, error } = useProposalsByOrg(currentOrganization?.id);
-
-  console.log('proposals error', error);
-  console.log('proposals', proposals);
+  const { data: proposals = [], isLoading } = useProposalsByOrg(currentOrganization?.id);
 
   // Filter proposals
   const filteredProposals = proposals.filter((proposal) => {
