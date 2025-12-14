@@ -1912,7 +1912,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                     placeholders={placeholders}
                     invalidPlaceholders={invalidPlaceholders}
                     onAddPlaceholder={onAddPlaceholder}
-                    placeholder="e.g., invoice.items, products"
+                    placeholder={t("emailDesigner.properties.dataSourcePlaceholder")}
                   />
                   <p className="text-xs text-muted-foreground">
                     {t("emailDesigner.properties.dataSourceHint")}
@@ -1998,7 +1998,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                                 ) || [],
                               } as EmailTemplateBlock);
                             }}
-                            placeholder="e.g., description, price"
+                            placeholder={t("emailDesigner.properties.bindingPlaceholder")}
                             className="h-8 text-xs"
                           />
                         </div>
@@ -2021,10 +2021,10 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="text">Text</SelectItem>
-                                <SelectItem value="number">Number</SelectItem>
-                                <SelectItem value="currency">Currency</SelectItem>
-                                <SelectItem value="badge">Badge</SelectItem>
+                                <SelectItem value="text">{t("emailDesigner.properties.columnTypeText")}</SelectItem>
+                                <SelectItem value="number">{t("emailDesigner.properties.columnTypeNumber")}</SelectItem>
+                                <SelectItem value="currency">{t("emailDesigner.properties.columnTypeCurrency")}</SelectItem>
+                                <SelectItem value="badge">{t("emailDesigner.properties.columnTypeBadge")}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2067,7 +2067,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                                   ) || [],
                                 } as EmailTemplateBlock);
                               }}
-                              placeholder="USD"
+                              placeholder={t("emailDesigner.properties.currencyPlaceholder")}
                               className="h-8 text-xs"
                               maxLength={3}
                             />
@@ -2231,7 +2231,7 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                 <div className="space-y-2">
                   <Label>{t("emailDesigner.properties.emptyMessage")}</Label>
                   <Input
-                    value={(block as Extract<EmailTemplateBlock, { type: "table" }>).emptyMessage || "No data available"}
+                    value={(block as Extract<EmailTemplateBlock, { type: "table" }>).emptyMessage || t("emailDesigner.properties.emptyMessageDefault")}
                     onChange={(e) =>
                       onChange({ ...block, emptyMessage: e.target.value } as EmailTemplateBlock)
                     }

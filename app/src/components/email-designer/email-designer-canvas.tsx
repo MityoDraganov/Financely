@@ -1682,20 +1682,20 @@ function BlockPreview({
 							)}
 							{/* Body - Show sample data or empty state */}
 							<tbody>
-								{columns.length === 0 ? (
-									<tr>
-										<td
-											colSpan={1}
-											style={{
-												padding: `${padding}px`,
-												textAlign: "center",
-												color: "#9ca3af",
-												fontStyle: "italic",
-											}}
-										>
-											No columns defined
-										</td>
-									</tr>
+							{columns.length === 0 ? (
+								<tr>
+									<td
+										colSpan={1}
+										style={{
+											padding: `${padding}px`,
+											textAlign: "center",
+											color: "#9ca3af",
+											fontStyle: "italic",
+										}}
+									>
+										{t("emailDesigner.properties.noColumns")}
+									</td>
+								</tr>
 								) : (
 									// Show 2 sample rows
 									[1, 2].map((rowIdx) => (
@@ -1733,7 +1733,7 @@ function BlockPreview({
 															).toFixed(2)}`
 														: col.type === "number"
 															? `${rowIdx}`
-															: `Sample ${col.header || "data"}`}
+															: col.header || t("emailDesigner.properties.sampleData")}
 												</td>
 											))}
 										</tr>

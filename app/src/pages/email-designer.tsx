@@ -278,6 +278,8 @@ export default function EmailDesignerPage() {
 	};
 	
 	const areOverridesSynced = (overrides: Partial<EmailTemplate>, base: EmailTemplate) => {
+		// Don't compare htmlContent - it's regenerated from blocks, so slight differences are expected
+		// Only compare the actual user-editable fields
 		if (overrides.name !== undefined && overrides.name !== base.name) {
 			return false;
 		}
@@ -287,9 +289,6 @@ export default function EmailDesignerPage() {
 		if (overrides.preheader !== undefined && overrides.preheader !== base.preheader) {
 			return false;
 		}
-		if (overrides.htmlContent !== undefined && overrides.htmlContent !== base.htmlContent) {
-			return false;
-		}
 		if (overrides.blocks && JSON.stringify(overrides.blocks) !== JSON.stringify(base.blocks ?? [])) {
 			return false;
 		}
@@ -297,6 +296,9 @@ export default function EmailDesignerPage() {
 			return false;
 		}
 		if (overrides.designTokens && JSON.stringify(overrides.designTokens) !== JSON.stringify(base.designTokens ?? defaultDesignTokens)) {
+			return false;
+		}
+		if (overrides.placeholders && JSON.stringify(overrides.placeholders) !== JSON.stringify(base.placeholders ?? [])) {
 			return false;
 		}
 		return true;
@@ -366,6 +368,8 @@ export default function EmailDesignerPage() {
 	useEffect(() => {
 		setDraftOverrides(null);
 		lastProcessedContentRef.current = "";
+		lastSavedHtmlRef.current = ""; // Reset saved HTML when template changes
+		isSavingRef.current = false; // Reset saving flag
 	}, [baseTemplate?.id]);
 
 	const { activeUsers, updateSelection, updateCursor } = usePresence(baseTemplate?.id);
@@ -462,15 +466,25 @@ export default function EmailDesignerPage() {
 	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess]);
 
 	const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
+	// Track if we're currently processing a save to prevent feedback loops
+	const isSavingRef = useRef<boolean>(false);
+	// Track the last saved HTML content to prevent unnecessary saves
+	const lastSavedHtmlRef = useRef<string>("");
 
 	const hasChanges = useMemo(() => {
 		if (!draftOverrides) {
-		return false;
+			return false;
 		}
 
-		return Object.keys(draftOverrides).length > 0;
-	}, [draftOverrides]);
+		// Only consider it a change if there are actual overrides
+		// and they differ from the base template
+		if (!normalizedBaseTemplate) {
+			return Object.keys(draftOverrides).length > 0;
+		}
+
+		// Use areOverridesSynced to check if there are real differences
+		return !areOverridesSynced(draftOverrides, normalizedBaseTemplate);
+	}, [draftOverrides, normalizedBaseTemplate]);
 
 	const saveMutation = useMutation({
 		mutationFn: async (template: EmailTemplate) => {
@@ -479,24 +493,40 @@ export default function EmailDesignerPage() {
 				return;
 			}
 
-			// Check for invalid placeholder patterns before saving
-			const invalid = detectInvalidPlaceholders(
-				template.blocks ?? [],
-				template.subject,
-				template.preheader
-			);
-			if (invalid.length > 0) {
-				const errorMessage = `Cannot save: Invalid placeholder patterns detected. Please fix empty placeholders like {{}} before saving.`;
-				console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
-				throw new Error(errorMessage);
+			// Prevent save if we're already saving (avoid feedback loops)
+			if (isSavingRef.current) {
+				console.log("[EMAIL-DESIGNER] Save skipped - already saving");
+				return;
 			}
-			
-			const timestamp = new Date().toISOString();
-			console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
-				timestamp,
-				templateId: template.id,
-				htmlLength: template.htmlContent?.length || 0,
-				blocksCount: template.blocks?.length ?? 0,
+
+			// Check if HTML content actually changed to avoid unnecessary saves
+			const currentHtml = template.htmlContent || "";
+			if (lastSavedHtmlRef.current === currentHtml && lastSavedHtmlRef.current !== "") {
+				console.log("[EMAIL-DESIGNER] Save skipped - HTML unchanged");
+				return;
+			}
+
+			isSavingRef.current = true;
+
+			try {
+				// Check for invalid placeholder patterns before saving
+				const invalid = detectInvalidPlaceholders(
+					template.blocks ?? [],
+					template.subject,
+					template.preheader
+				);
+				if (invalid.length > 0) {
+					const errorMessage = `Cannot save: Invalid placeholder patterns detected. Please fix empty placeholders like {{}} before saving.`;
+					console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
+					throw new Error(errorMessage);
+				}
+				
+				const timestamp = new Date().toISOString();
+				console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
+					timestamp,
+					templateId: template.id,
+					htmlLength: template.htmlContent?.length || 0,
+					blocksCount: template.blocks?.length ?? 0,
 			});
 			
 			// HTML is the source of truth - convert blocks to HTML if needed
@@ -553,11 +583,21 @@ export default function EmailDesignerPage() {
 				blocksCount: savedData.blocks.length,
 			});
 			
-			await emailTemplateService.updateDraft(template.id, savedData);
-			console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
-				timestamp: new Date().toISOString(),
-				templateId: template.id,
-			});
+				await emailTemplateService.updateDraft(template.id, savedData);
+				
+				// Update last saved HTML to prevent duplicate saves
+				lastSavedHtmlRef.current = htmlContent;
+				
+				console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
+					timestamp: new Date().toISOString(),
+					templateId: template.id,
+				});
+			} finally {
+				// Reset saving flag after a short delay to allow realtime updates to process
+				setTimeout(() => {
+					isSavingRef.current = false;
+				}, 1000);
+			}
 		},
 		onSuccess: async () => {
 			const timestamp = new Date().toISOString();
@@ -609,11 +649,16 @@ export default function EmailDesignerPage() {
 		}
 
 		// Avoid scheduling another auto-save if one is in progress
-		if (isSavePending) {
+		if (isSavePending || isSavingRef.current) {
 			return;
 		}
 
 		autoSaveTimerRef.current = setTimeout(() => {
+			// Double-check we're not already saving (race condition protection)
+			if (isSavingRef.current || isSavePending) {
+				return;
+			}
+
 			// Always regenerate HTML from blocks to ensure it's in sync
 			// This ensures that any property changes (design tokens, name, etc.) are reflected in HTML
 			const htmlContent = convertBlocksToHtml(
@@ -629,6 +674,12 @@ export default function EmailDesignerPage() {
 				draftTemplate.subject,
 				draftTemplate.preheader
 			);
+			
+			// Only save if HTML actually changed
+			if (lastSavedHtmlRef.current === htmlContent && lastSavedHtmlRef.current !== "") {
+				console.log("[EMAIL-DESIGNER] Auto-save skipped - HTML unchanged");
+				return;
+			}
 			
 			// Save all fields including the regenerated HTML
 			autoSaveMutate({
