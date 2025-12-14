@@ -14,6 +14,7 @@ import { getLeadRepository } from "./lead-repository";
 import { getProductRepository } from "./product-repository";
 import { getAnalyticsConfigRepository } from "./analytics-config-repository";
 import { getExtractionJobRepository } from "./extraction-job-repository";
+import { getAuditLogRepository } from "./audit-log-repository";
 
 /**
  * Repository host - follows the same pattern as app/src/repositories/index.ts
@@ -50,4 +51,6 @@ export const repositoryHost: RepositoryHost = {
     getAnalyticsConfigRepository(databaseService),
   getExtractionJobRepository: (databaseService: DatabaseService) =>
     getExtractionJobRepository(databaseService),
+  getAuditLogRepository: (databaseService: DatabaseService) =>
+    getAuditLogRepository(databaseService),
 };

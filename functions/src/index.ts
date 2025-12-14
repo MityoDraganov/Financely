@@ -103,6 +103,10 @@ export { restoreWidgetVersion } from "./functions/restore-widget-version";
 // Admin functions
 export { getAdminDashboardStats } from "./functions/admin/get-admin-dashboard-stats";
 export { adminGetOrganizations } from "./functions/admin/admin-get-organizations";
+export { adminUpdateOrganization } from "./functions/admin/admin-update-organization";
+export { adminUpdateUser } from "./functions/admin/admin-update-user";
+export { adminUpdateSystemSettings, adminGetSystemSettings } from "./functions/admin/admin-update-system-settings";
+export { adminOverrideUsage } from "./functions/admin/admin-override-usage";
 export { saveWidgetVersion } from "./functions/save-widget-version";
 export { translateWidgetText } from "./functions/translate-widget-text";
 

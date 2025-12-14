@@ -9,6 +9,13 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AdminDashboardPage } from "@/pages/admin/dashboard";
 import { AdminOrganizationsPage } from "@/pages/admin/organizations";
+import { AdminOrganizationDetailPage } from "@/pages/admin/organization-detail";
+import { AdminUsersPage } from "@/pages/admin/users";
+import { AdminBillingPage } from "@/pages/admin/billing";
+import { AdminUsagePage } from "@/pages/admin/usage";
+import { AdminSettingsPage } from "@/pages/admin/settings";
+import { AdminLogsPage } from "@/pages/admin/logs";
+import { AdminUserDetailPage } from "@/pages/admin/user-detail";
 import { AdminSignInPage } from "@/pages/sign-in";
 import { AdminAuthProvider } from "@/components/AdminAuthProvider";
 
@@ -68,6 +75,76 @@ function App() {
                     <AdminProtectedRoute>
                       <AdminLayout>
                         <AdminOrganizationsPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/organizations/:id"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminOrganizationDetailPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminUsersPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/billing"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminBillingPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/usage"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminUsagePage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminSettingsPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/logs"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminLogsPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/users/:id"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminUserDetailPage />
                       </AdminLayout>
                     </AdminProtectedRoute>
                   }
