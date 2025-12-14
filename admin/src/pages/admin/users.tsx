@@ -12,15 +12,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Users as UsersIcon, Mail, Building2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Search, Users as UsersIcon, Mail, Building2, ArrowUpDown } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAdminUsers } from "@/hooks/admin/use-admin-users";
 import { useAdminOrganizations } from "@/hooks/admin/use-admin-organizations";
 import { Link } from "react-router-dom";
 import { User } from "@/core";
+import { ExportButton } from "@/components/admin/ExportButton";
+
+const ITEMS_PER_PAGE = 20;
+
+type SortField = "name" | "email" | "createdAt" | "status";
+type SortDirection = "asc" | "desc";
 
 export function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
   const { data: users, isLoading, error } = useAdminUsers();
   const { data: organizations } = useAdminOrganizations();
 
@@ -34,21 +60,86 @@ export function AdminUsersPage() {
     return map;
   }, [organizations]);
 
-  // Filter users by search query
-  const filteredUsers = useMemo(() => {
-    if (!users || !searchQuery) {
-      return users || [];
+  // Filter and sort users
+  const filteredAndSortedUsers = useMemo(() => {
+    if (!users) {
+      return [];
     }
 
-    const searchLower = searchQuery.toLowerCase();
-    return users.filter(
-      (user) =>
-        user.name?.toLowerCase().includes(searchLower) ||
-        user.email?.toLowerCase().includes(searchLower) ||
-        user.id.toLowerCase().includes(searchLower) ||
-        user.clerkId?.toLowerCase().includes(searchLower)
-    );
-  }, [users, searchQuery]);
+    // Apply search filter
+    let filtered = users;
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (user) =>
+          user.name?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower) ||
+          user.id.toLowerCase().includes(searchLower) ||
+          user.clerkId?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((user) => user.status === statusFilter);
+    }
+
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortField) {
+        case "name":
+          aValue = a.name || "";
+          bValue = b.name || "";
+          break;
+        case "email":
+          aValue = a.email || "";
+          bValue = b.email || "";
+          break;
+        case "createdAt":
+          aValue = a.createdAt
+            ? typeof a.createdAt === "string"
+              ? new Date(a.createdAt).getTime()
+              : a.createdAt instanceof Date
+              ? a.createdAt.getTime()
+              : 0
+            : 0;
+          bValue = b.createdAt
+            ? typeof b.createdAt === "string"
+              ? new Date(b.createdAt).getTime()
+              : b.createdAt instanceof Date
+              ? b.createdAt.getTime()
+              : 0
+            : 0;
+          break;
+        case "status":
+          aValue = a.status || "";
+          bValue = b.status || "";
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [users, searchQuery, statusFilter, sortField, sortDirection]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedUsers.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedUsers = filteredAndSortedUsers.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, sortField, sortDirection]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -108,19 +199,81 @@ export function AdminUsersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">Manage all users on the platform</p>
         </div>
+        <div className="flex gap-2">
+          <ExportButton
+            data={filteredAndSortedUsers}
+            filename="users"
+            exportFormat="csv"
+            transform={(user) => ({
+              id: user.id,
+              clerkId: user.clerkId || "",
+              name: user.name || "",
+              email: user.email || "",
+              status: user.status || "active",
+              organizationCount: Object.keys(user.organizationRoles || {}).length,
+              createdAt: user.createdAt
+                ? typeof user.createdAt === "string"
+                  ? user.createdAt
+                  : user.createdAt instanceof Date
+                  ? user.createdAt.toISOString()
+                  : String(user.createdAt)
+                : "",
+            })}
+          />
+          <ExportButton
+            data={filteredAndSortedUsers}
+            filename="users"
+            exportFormat="json"
+          />
+        </div>
       </div>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users by name, email, or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-            />
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users by name, email, or ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="deleted">Deleted</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={`${sortField}-${sortDirection}`}
+              onValueChange={(value) => {
+                const [field, direction] = value.split("-") as [SortField, SortDirection];
+                setSortField(field);
+                setSortDirection(direction);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="createdAt-desc">Newest First</SelectItem>
+                <SelectItem value="createdAt-asc">Oldest First</SelectItem>
+                <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                <SelectItem value="email-asc">Email (A-Z)</SelectItem>
+                <SelectItem value="email-desc">Email (Z-A)</SelectItem>
+                <SelectItem value="status-asc">Status (A-Z)</SelectItem>
+                <SelectItem value="status-desc">Status (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -170,8 +323,9 @@ export function AdminUsersPage() {
         <CardHeader>
           <CardTitle>All Users</CardTitle>
           <CardDescription>
-            {stats.total} user{stats.total !== 1 ? "s" : ""} found
-            {searchQuery && ` (${filteredUsers.length} filtered)`}
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredAndSortedUsers.length)} of{" "}
+            {filteredAndSortedUsers.length} user{filteredAndSortedUsers.length !== 1 ? "s" : ""}
+            {(searchQuery || statusFilter !== "all") && " (filtered)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,14 +348,14 @@ export function AdminUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.length === 0 ? (
+                {paginatedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      No users found
+                      {filteredUsers.length === 0 ? "No users found" : "No users on this page"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user) => {
+                  paginatedUsers.map((user) => {
                     const userOrgs = getUserOrganizations(user);
                     const createdAt = user.createdAt
                       ? typeof user.createdAt === "string"
@@ -291,6 +445,65 @@ export function AdminUsersPage() {
                 )}
               </TableBody>
             </Table>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage(currentPage - 1);
+                      }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage(page);
+                            }}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                      }}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>

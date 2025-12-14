@@ -177,7 +177,7 @@ export function AdminOrganizationDetailPage() {
 
         <TabsContent value="usage" className="space-y-4">
           <OrganizationUsageTab 
-            organizationId={id!} 
+            organizationId={id} 
             usage={usage} 
           />
         </TabsContent>

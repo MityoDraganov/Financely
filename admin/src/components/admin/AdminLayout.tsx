@@ -24,6 +24,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAdminRole } from "@/utils/admin-utils";
 import { Badge } from "@/components/ui/badge";
 import { ModeToggle } from "@/components/ui/mode-toggle";
+import { NotificationBell } from "./NotificationBell";
 
 const adminNavItems = [
   {
@@ -113,8 +114,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <div>
             <SidebarSeparator />
             <SidebarGroup className="flex flex-col justify-between gap-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 px-2">
                 <ModeToggle />
+                <NotificationBell />
               </div>
               <SidebarMenuItem className="flex justify-center items-center w-full">
                 <UserButton showName />

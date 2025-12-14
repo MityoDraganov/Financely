@@ -47,7 +47,9 @@ export function OrganizationUsageTab({ organizationId, usage }: OrganizationUsag
   };
 
   const handleOverrideUsage = () => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      return;
+    }
 
     const usageOverrides: {
       templateCount?: number;

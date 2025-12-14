@@ -32,34 +32,37 @@ interface AdminDashboardStats {
  */
 export function useAdminDashboardStats() {
   // Fetch all data in parallel
-  const { data: organizations, isLoading: orgsLoading } = useQuery({
+  const { data: organizations, isLoading: orgsLoading, refetch: refetchOrgs } = useQuery({
     queryKey: ["admin", "stats", "organizations"],
     queryFn: () =>
       organizationRepository.getAll({
         queryConstraints: [],
         pagination: { limit: 10000 },
       }),
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
   });
 
-  const { data: invoices, isLoading: invoicesLoading } = useQuery({
+  const { data: invoices, isLoading: invoicesLoading, refetch: refetchInvoices } = useQuery({
     queryKey: ["admin", "stats", "invoices"],
     queryFn: () =>
       invoiceRepository.getAll({
         queryConstraints: [],
         pagination: { limit: 1 }, // We only need count
       }),
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
   });
 
-  const { data: templates, isLoading: templatesLoading } = useQuery({
+  const { data: templates, isLoading: templatesLoading, refetch: refetchTemplates } = useQuery({
     queryKey: ["admin", "stats", "templates"],
     queryFn: () =>
       templateRepository.getAll({
         queryConstraints: [],
         pagination: { limit: 1 }, // We only need count
       }),
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
   });
 
   const isLoading = orgsLoading || invoicesLoading || templatesLoading;
@@ -109,9 +112,16 @@ export function useAdminDashboardStats() {
     };
   }, [organizations, invoices, templates]);
 
+  const refetch = () => {
+    refetchOrgs();
+    refetchInvoices();
+    refetchTemplates();
+  };
+
   return {
     data: stats,
     isLoading,
+    refetch,
   };
 }
 

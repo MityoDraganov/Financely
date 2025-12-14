@@ -8,65 +8,158 @@ import { DollarSign, ToggleLeft, BarChart3, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAdminSystemSettings, useAdminUpdateSystemSettings } from "@/hooks/admin/use-admin-system-settings";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+
+// Default settings values
+const DEFAULT_PRICING = {
+  starter: { monthly: 29, yearly: 290 },
+  professional: { monthly: 99, yearly: 990 },
+  enterprise: { monthly: 299, yearly: 2990 },
+};
+
+const DEFAULT_FEATURE_TOGGLES = {
+  allowSignups: true,
+  maintenanceMode: false,
+  apiAccess: true,
+  customTemplates: true,
+  emailSending: true,
+  pdfGeneration: true,
+};
+
+const DEFAULT_GLOBAL_LIMITS = {
+  maxOrganizations: 10000,
+  maxUsersPerOrg: 100,
+  maxInvoicesPerOrg: 10000,
+  maxTemplatesPerOrg: 1000,
+  maxStoragePerOrgMB: 10000,
+};
 
 export function AdminSettingsPage() {
-  const { data: settings, isLoading } = useAdminSystemSettings();
+  const { data: settings, isLoading, error } = useAdminSystemSettings();
   const updateSettings = useAdminUpdateSystemSettings();
 
-  const [pricing, setPricing] = useState({
-    starter: { monthly: 29, yearly: 290 },
-    professional: { monthly: 99, yearly: 990 },
-    enterprise: { monthly: 299, yearly: 2990 },
-  });
-
-  const [featureToggles, setFeatureToggles] = useState({
-    allowSignups: true,
-    maintenanceMode: false,
-    apiAccess: true,
-    customTemplates: true,
-    emailSending: true,
-    pdfGeneration: true,
-  });
-
-  const [globalLimits, setGlobalLimits] = useState({
-    maxOrganizations: 10000,
-    maxUsersPerOrg: 100,
-    maxInvoicesPerOrg: 10000,
-    maxTemplatesPerOrg: 1000,
-    maxStoragePerOrgMB: 10000,
-  });
+  const [pricing, setPricing] = useState(DEFAULT_PRICING);
+  const [featureToggles, setFeatureToggles] = useState(DEFAULT_FEATURE_TOGGLES);
+  const [globalLimits, setGlobalLimits] = useState(DEFAULT_GLOBAL_LIMITS);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Load settings from backend
   useEffect(() => {
-    if (settings) {
-      if (settings.pricing) setPricing(settings.pricing);
-      if (settings.featureToggles) setFeatureToggles(settings.featureToggles);
-      if (settings.globalLimits) setGlobalLimits(settings.globalLimits);
+    if (!isLoading) {
+      if (settings) {
+        setPricing(settings.pricing || DEFAULT_PRICING);
+        setFeatureToggles(settings.featureToggles || DEFAULT_FEATURE_TOGGLES);
+        setGlobalLimits(settings.globalLimits || DEFAULT_GLOBAL_LIMITS);
+        setHasChanges(false);
+      } else {
+        // Settings don't exist yet, use defaults
+        setPricing(DEFAULT_PRICING);
+        setFeatureToggles(DEFAULT_FEATURE_TOGGLES);
+        setGlobalLimits(DEFAULT_GLOBAL_LIMITS);
+        setHasChanges(false);
+      }
     }
-  }, [settings]);
+  }, [settings, isLoading]);
 
   const handlePricingChange = (plan: string, period: "monthly" | "yearly", value: number) => {
-    setPricing((prev) => ({
-      ...prev,
-      [plan]: {
-        ...prev[plan as keyof typeof prev],
-        [period]: value,
-      },
-    }));
+    if (isNaN(value) || value < 0) {
+      return;
+    }
+    setPricing((prev) => {
+      const newPricing = {
+        ...prev,
+        [plan]: {
+          ...prev[plan as keyof typeof prev],
+          [period]: value,
+        },
+      };
+      // Check if pricing has changed from saved settings
+      const hasChanged = !settings || JSON.stringify(newPricing) !== JSON.stringify(settings.pricing);
+      setHasChanges(hasChanged);
+      return newPricing;
+    });
   };
 
   const handleFeatureToggle = (feature: string, enabled: boolean) => {
-    setFeatureToggles((prev) => ({
-      ...prev,
-      [feature]: enabled,
-    }));
+    setFeatureToggles((prev) => {
+      const newToggles = {
+        ...prev,
+        [feature]: enabled,
+      };
+      // Check if toggles have changed from saved settings
+      const hasChanged = !settings || JSON.stringify(newToggles) !== JSON.stringify(settings.featureToggles);
+      setHasChanges(hasChanged);
+      return newToggles;
+    });
   };
 
   const handleLimitChange = (limit: string, value: number) => {
-    setGlobalLimits((prev) => ({
-      ...prev,
-      [limit]: value,
-    }));
+    if (isNaN(value) || value < 0) {
+      return;
+    }
+    setGlobalLimits((prev) => {
+      const newLimits = {
+        ...prev,
+        [limit]: value,
+      };
+      // Check if limits have changed from saved settings
+      const hasChanged = !settings || JSON.stringify(newLimits) !== JSON.stringify(settings.globalLimits);
+      setHasChanges(hasChanged);
+      return newLimits;
+    });
+  };
+
+  const handleSavePricing = () => {
+    // Validate pricing values
+    const hasInvalidPricing = Object.values(pricing).some(
+      (plan) => plan.monthly < 0 || plan.yearly < 0 || isNaN(plan.monthly) || isNaN(plan.yearly)
+    );
+
+    if (hasInvalidPricing) {
+      toast.error("Please enter valid pricing values (must be positive numbers)");
+      return;
+    }
+
+    updateSettings.mutate(
+      { pricing },
+      {
+        onSuccess: () => {
+          setHasChanges(false);
+        },
+      }
+    );
+  };
+
+  const handleSaveFeatureToggles = () => {
+    updateSettings.mutate(
+      { featureToggles },
+      {
+        onSuccess: () => {
+          setHasChanges(false);
+        },
+      }
+    );
+  };
+
+  const handleSaveGlobalLimits = () => {
+    // Validate limits
+    const hasInvalidLimits = Object.values(globalLimits).some(
+      (limit) => limit < 0 || isNaN(limit)
+    );
+
+    if (hasInvalidLimits) {
+      toast.error("Please enter valid limit values (must be positive numbers)");
+      return;
+    }
+
+    updateSettings.mutate(
+      { globalLimits },
+      {
+        onSuccess: () => {
+          setHasChanges(false);
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -74,6 +167,29 @@ export function AdminSettingsPage() {
       <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+          <p className="text-muted-foreground">Configure platform-wide settings and limits</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center text-muted-foreground">
+              Error loading settings. Please try again.
+              {error && (
+                <div className="mt-2 text-sm text-destructive">
+                  {error instanceof Error ? error.message : String(error)}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -231,14 +347,19 @@ export function AdminSettingsPage() {
 
               <div className="flex gap-2">
                 <Button
-                  onClick={() => updateSettings.mutate({ pricing })}
-                  disabled={updateSettings.isPending}
+                  onClick={handleSavePricing}
+                  disabled={updateSettings.isPending || !hasChanges}
                 >
                   {updateSettings.isPending ? "Saving..." : "Save Pricing"}
                 </Button>
                 <Button variant="outline" disabled>
                   Sync with Stripe
                 </Button>
+                {hasChanges && (
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    Unsaved changes
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -334,11 +455,16 @@ export function AdminSettingsPage() {
 
               <div className="flex gap-2 pt-4">
                 <Button
-                  onClick={() => updateSettings.mutate({ featureToggles })}
-                  disabled={updateSettings.isPending}
+                  onClick={handleSaveFeatureToggles}
+                  disabled={updateSettings.isPending || !hasChanges}
                 >
                   {updateSettings.isPending ? "Saving..." : "Save Feature Toggles"}
                 </Button>
+                {hasChanges && (
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    Unsaved changes
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -414,11 +540,16 @@ export function AdminSettingsPage() {
 
               <div className="flex gap-2 pt-4">
                 <Button
-                  onClick={() => updateSettings.mutate({ globalLimits })}
-                  disabled={updateSettings.isPending}
+                  onClick={handleSaveGlobalLimits}
+                  disabled={updateSettings.isPending || !hasChanges}
                 >
                   {updateSettings.isPending ? "Saving..." : "Save Global Limits"}
                 </Button>
+                {hasChanges && (
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    Unsaved changes
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>

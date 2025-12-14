@@ -1,10 +1,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, CreditCard, TrendingUp, AlertCircle, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Building2, CreditCard, TrendingUp, AlertCircle, Activity, RefreshCw } from "lucide-react";
 import { useAdminDashboardStats } from "@/hooks/admin/use-admin-dashboard-stats";
+import { useState } from "react";
 
 export function AdminDashboardPage() {
-  const { data: stats, isLoading } = useAdminDashboardStats();
+  const { data: stats, isLoading, refetch } = useAdminDashboardStats();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -51,11 +63,22 @@ export function AdminDashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-        <p className="text-muted-foreground">
-          Platform overview and system health
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+          <p className="text-muted-foreground">
+            Platform overview and system health
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing || isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* KPI Cards */}

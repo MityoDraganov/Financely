@@ -18,6 +18,7 @@ import { AdminLogsPage } from "@/pages/admin/logs";
 import { AdminUserDetailPage } from "@/pages/admin/user-detail";
 import { AdminSignInPage } from "@/pages/sign-in";
 import { AdminAuthProvider } from "@/components/AdminAuthProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -53,8 +54,9 @@ function App() {
           <ReactQueryDevtools initialIsOpen={false} />
           <ThemeProvider defaultTheme="system" storageKey="admin-ui-theme">
             <SidebarProvider>
-              <Router>
-              <Routes>
+              <ErrorBoundary>
+                <Router>
+                <Routes>
                 {/* Public sign-in route */}
                 <Route path="/sign-in" element={<AdminSignInPage />} />
                 
@@ -153,6 +155,7 @@ function App() {
               </Routes>
                 <Toaster />
               </Router>
+              </ErrorBoundary>
             </SidebarProvider>
           </ThemeProvider>
         </QueryClientProvider>

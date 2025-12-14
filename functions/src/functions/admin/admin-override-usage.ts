@@ -84,7 +84,7 @@ export const adminOverrideUsage = onCall<
 
       await auditLogService.logSuccess(
         organizationId,
-        "organization.usage.overridden",
+        "organization.updated",
         {
           userId: adminAuth.userId,
           clerkId: adminAuth.userId,
@@ -102,9 +102,11 @@ export const adminOverrideUsage = onCall<
           beforeSnapshot: { usage: currentUsage },
           afterSnapshot: { usage: updatedUsage },
           metadata: {
-            source: "admin",
-            adminRole: adminAuth.adminRole,
-            action: "usage_override",
+            source: "system",
+            customFields: {
+              adminRole: adminAuth.adminRole,
+              action: "usage_override",
+            },
           },
         }
       );

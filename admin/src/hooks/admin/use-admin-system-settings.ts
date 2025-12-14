@@ -33,7 +33,7 @@ export function useAdminSystemSettings() {
   return useQuery<SystemSettings | null>({
     queryKey: ["admin", "system-settings"],
     queryFn: async () => {
-      const functions = getFunctions(firebase.app);
+      const functions = getFunctions(firebase.app, "us-central1");
       const getSettings = httpsCallable<{}, SystemSettings | null>(
         functions,
         "adminGetSystemSettings"
@@ -53,7 +53,7 @@ export function useAdminUpdateSystemSettings() {
 
   return useMutation({
     mutationFn: async (settings: Partial<SystemSettings>) => {
-      const functions = getFunctions(firebase.app);
+      const functions = getFunctions(firebase.app, "us-central1");
       const updateSettings = httpsCallable<
         { settings: Partial<SystemSettings> },
         { success: boolean }

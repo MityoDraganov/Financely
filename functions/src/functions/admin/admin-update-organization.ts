@@ -5,7 +5,6 @@ import { loggerService } from "../../services/logger-service";
 import { getDatabaseService } from "../../services/database-service";
 import { getAuditLogRepository } from "../../repositories/audit-log-repository";
 import { AuditLogService } from "../../services/audit-log-service";
-import { getOrganizationRepository } from "../../repositories/organization-repository";
 
 interface AdminUpdateOrganizationRequest {
   organizationId: string;
@@ -109,8 +108,10 @@ export const adminUpdateOrganization = onCall<
           beforeSnapshot: beforeData as Record<string, unknown>,
           afterSnapshot: afterData as Record<string, unknown>,
           metadata: {
-            source: "admin",
-            adminRole: adminAuth.adminRole,
+            source: "system",
+            customFields: {
+              adminRole: adminAuth.adminRole,
+            },
           },
         }
       );

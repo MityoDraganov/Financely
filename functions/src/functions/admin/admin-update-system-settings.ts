@@ -113,8 +113,10 @@ export const adminUpdateSystemSettings = onCall<
           beforeSnapshot: beforeData as Record<string, unknown>,
           afterSnapshot: afterData as Record<string, unknown>,
           metadata: {
-            source: "admin",
-            adminRole: adminAuth.adminRole,
+            source: "system",
+            customFields: {
+              adminRole: adminAuth.adminRole,
+            },
           },
         }
       );

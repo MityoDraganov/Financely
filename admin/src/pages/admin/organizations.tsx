@@ -13,7 +13,17 @@ import {
 } from "@/components/ui/table";
 import { Search, Building2, Users, CreditCard } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { useAdminOrganizations } from "@/hooks/admin/use-admin-organizations";
 import { useQuery } from "@tanstack/react-query";
 import { repositoryHost } from "@/repositories";
@@ -23,8 +33,11 @@ const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesRepository(databaseService);
 const templateRepository = repositoryHost.getTemplatesReposity(databaseService);
 
+const ITEMS_PER_PAGE = 20;
+
 export function AdminOrganizationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const { data: organizations, isLoading, error } = useAdminOrganizations();
 
   if (error) {
@@ -33,8 +46,12 @@ export function AdminOrganizationsPage() {
 
   // Filter by search query client-side
   const filteredOrganizations = useMemo(() => {
-    if (!organizations || !searchQuery) {
-      return organizations || [];
+    if (!organizations) {
+      return [];
+    }
+
+    if (!searchQuery) {
+      return organizations;
     }
 
     const searchLower = searchQuery.toLowerCase();
@@ -44,6 +61,19 @@ export function AdminOrganizationsPage() {
         org.id.toLowerCase().includes(searchLower)
     );
   }, [organizations, searchQuery]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredOrganizations.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedOrganizations = filteredOrganizations.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    if (searchQuery) {
+      setCurrentPage(1);
+    }
+  }, [searchQuery]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -135,6 +165,40 @@ export function AdminOrganizationsPage() {
             Manage all organizations on the platform
           </p>
         </div>
+        <div className="flex gap-2">
+          <ExportButton
+            data={filteredOrganizations}
+            filename="organizations"
+            exportFormat="csv"
+            transform={(org) => {
+              let createdAtStr = "";
+              const createdAt = org.createdAt;
+              if (createdAt) {
+                if (typeof createdAt === "string") {
+                  createdAtStr = createdAt;
+                } else if (createdAt && typeof createdAt === "object" && "getTime" in createdAt) {
+                  createdAtStr = (createdAt as Date).toISOString();
+                } else {
+                  createdAtStr = String(createdAt);
+                }
+              }
+              return {
+                id: org.id,
+                name: org.name || "",
+                status: org.status || "active",
+                memberCount: org.memberIds?.length || 0,
+                subscriptionPlan: org.subscription?.plan || "free",
+                subscriptionStatus: org.subscription?.status || "none",
+                createdAt: createdAtStr,
+              };
+            }}
+          />
+          <ExportButton
+            data={filteredOrganizations}
+            filename="organizations"
+            exportFormat="json"
+          />
+        </div>
       </div>
 
       {/* Search */}
@@ -188,7 +252,10 @@ export function AdminOrganizationsPage() {
         <CardHeader>
           <CardTitle>All Organizations</CardTitle>
           <CardDescription>
-            {stats.total} organization{stats.total !== 1 ? "s" : ""} found
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredOrganizations.length)} of{" "}
+            {filteredOrganizations.length} organization
+            {filteredOrganizations.length !== 1 ? "s" : ""}
+            {searchQuery && " (filtered)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -212,14 +279,16 @@ export function AdminOrganizationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrganizations.length === 0 ? (
+                {paginatedOrganizations.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      No organizations found
+                      {filteredOrganizations.length === 0
+                        ? "No organizations found"
+                        : "No organizations on this page"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredOrganizations.map((org) => {
+                  paginatedOrganizations.map((org) => {
                     const usage = usageData?.[org.id] || { invoices: 0, templates: 0 };
                     const memberCount = org.memberIds?.length || 0;
                     const createdAt = org.createdAt 
@@ -273,6 +342,68 @@ export function AdminOrganizationsPage() {
                 )}
               </TableBody>
             </Table>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage(currentPage - 1);
+                      }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            href="#"
+                            size="icon"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage(page);
+                            }}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                      }}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -104,18 +104,71 @@ export async function verifyAdminAuth(
 
   const userId = request.auth.uid;
   const db = getFirestore();
+  const auth = getAuth();
 
-  // Get user document to verify it exists
-  const userDoc = await db.collection("users").doc(userId).get();
-  
-  if (!userDoc.exists) {
+  // First, check Firebase Auth to get user info and custom claims
+  let firebaseAuthUser;
+  try {
+    firebaseAuthUser = await auth.getUser(userId);
+  } catch (error) {
     throw new HttpsError(
-      "not-found",
-      "User not found"
+      "unauthenticated",
+      "User not found in Firebase Auth"
     );
   }
 
-  const userData = userDoc.data();
+  // Get admin role from Firebase Auth custom claims first (fastest)
+  let adminRole: AdminRole | null = null;
+  const adminRoleFromClaims = firebaseAuthUser.customClaims?.adminRole;
+  if (typeof adminRoleFromClaims === "string" && isValidAdminRole(adminRoleFromClaims)) {
+    adminRole = adminRoleFromClaims;
+  }
+
+  // If not in custom claims, check Clerk/Firestore
+  if (!adminRole) {
+    adminRole = await getAdminRoleFromClerk(userId);
+  }
+
+  // For admin users, if they have an admin role but no Firestore document,
+  // we can still allow them (they're authenticated via Firebase Auth)
+  // However, we should create a minimal user document for consistency
+  let userDoc = await db.collection("users").doc(userId).get();
+  let userData = userDoc.exists ? userDoc.data() : null;
+  
+  if (!userDoc.exists) {
+    // If user has admin role, create a minimal user document
+    if (adminRole) {
+      loggerService.info("Creating Firestore user document for admin user", { userId });
+      await db.collection("users").doc(userId).set({
+        id: userId,
+        clerkId: firebaseAuthUser.customClaims?.clerkId || userId,
+        email: firebaseAuthUser.email || request.auth?.token.email || "",
+        name: firebaseAuthUser.customClaims?.name || request.auth?.token.name || "",
+        status: "active",
+        adminRole: adminRole,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      
+      // Re-fetch the document
+      userDoc = await db.collection("users").doc(userId).get();
+      userData = userDoc.data();
+      
+      if (!userData) {
+        throw new HttpsError(
+          "internal",
+          "Failed to create user document"
+        );
+      }
+    } else {
+      // No admin role and no user document - reject
+      throw new HttpsError(
+        "not-found",
+        "User not found"
+      );
+    }
+  }
+  
   if (!userData) {
     throw new HttpsError(
       "not-found",
@@ -123,16 +176,21 @@ export async function verifyAdminAuth(
     );
   }
 
-  // Check user status
-  if (userData.status !== "active") {
+  // Check user status (only if status is set and not active)
+  if (userData.status && userData.status !== "active") {
     throw new HttpsError(
       "permission-denied",
       "User account is not active"
     );
   }
 
-  // Get admin role from Clerk metadata
-  const adminRole = await getAdminRoleFromClerk(userId);
+  // If we still don't have admin role, try one more time from Firestore
+  if (!adminRole) {
+    const adminRoleFromFirestore = userData.adminRole;
+    if (typeof adminRoleFromFirestore === "string" && isValidAdminRole(adminRoleFromFirestore)) {
+      adminRole = adminRoleFromFirestore;
+    }
+  }
 
   if (!adminRole) {
     throw new HttpsError(

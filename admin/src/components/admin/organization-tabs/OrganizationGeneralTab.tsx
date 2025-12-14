@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Organization } from "@/core";
 import { useAdminUpdateOrganization } from "@/hooks/admin/use-admin-update-organization";
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,12 @@ interface OrganizationGeneralTabProps {
 export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabProps) {
   const updateOrganization = useAdminUpdateOrganization();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<{
+    name?: string;
+    description?: string;
+    status?: "active" | "suspended" | "deleted";
+  } | null>(null);
   const [editData, setEditData] = useState({
     name: organization.name || "",
     description: organization.description || "",
@@ -62,6 +69,15 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
     if (editData.status !== organization.status) updates.status = editData.status;
 
     if (Object.keys(updates).length === 0) {
+      setIsEditDialogOpen(false);
+      return;
+    }
+
+    // Check if status change requires confirmation
+    if (updates.status && updates.status !== organization.status) {
+      setPendingUpdates(updates);
+      setIsConfirmDialogOpen(true);
+      setIsEditDialogOpen(false);
       return;
     }
 
@@ -69,6 +85,18 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
       organizationId: organization.id,
       updates,
     });
+    setIsEditDialogOpen(false);
+  };
+
+  const handleConfirmUpdate = () => {
+    if (!pendingUpdates) return;
+
+    updateOrganization.mutate({
+      organizationId: organization.id,
+      updates: pendingUpdates,
+    });
+    setIsConfirmDialogOpen(false);
+    setPendingUpdates(null);
   };
 
   return (
@@ -274,6 +302,23 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Status Changes */}
+      <ConfirmDialog
+        open={isConfirmDialogOpen}
+        onOpenChange={setIsConfirmDialogOpen}
+        onConfirm={handleConfirmUpdate}
+        title="Confirm Status Change"
+        description={
+          pendingUpdates?.status
+            ? `Are you sure you want to change the organization status to "${pendingUpdates.status}"? This action will be logged in the audit trail.`
+            : "Are you sure you want to proceed with these changes?"
+        }
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={pendingUpdates?.status === "deleted" || pendingUpdates?.status === "suspended" ? "destructive" : "default"}
+        loading={updateOrganization.isPending}
+      />
     </div>
   );
 }

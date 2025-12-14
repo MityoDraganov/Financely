@@ -18,14 +18,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, FileText, AlertCircle, Info, AlertTriangle, XCircle } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { useAdminAuditLogs } from "@/hooks/admin/use-admin-audit-logs";
 import { Link } from "react-router-dom";
+import { ExportButton } from "@/components/admin/ExportButton";
+
+const ITEMS_PER_PAGE = 50;
 
 export function AdminLogsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: logs, isLoading, error } = useAdminAuditLogs({
     severity: severityFilter !== "all" ? (severityFilter as any) : undefined,
@@ -34,8 +47,12 @@ export function AdminLogsPage() {
 
   // Filter logs by search query
   const filteredLogs = useMemo(() => {
-    if (!logs || !searchQuery) {
-      return logs || [];
+    if (!logs) {
+      return [];
+    }
+
+    if (!searchQuery) {
+      return logs;
     }
 
     const searchLower = searchQuery.toLowerCase();
@@ -48,6 +65,17 @@ export function AdminLogsPage() {
         log.organizationId?.toLowerCase().includes(searchLower)
     );
   }, [logs, searchQuery]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, severityFilter, actionFilter]);
 
   const getSeverityIcon = (severity?: string) => {
     switch (severity) {
@@ -117,6 +145,32 @@ export function AdminLogsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Logs & Monitoring</h1>
           <p className="text-muted-foreground">System audit logs and activity monitoring</p>
+        </div>
+        <div className="flex gap-2">
+          <ExportButton
+            data={filteredLogs}
+            filename="audit-logs"
+            exportFormat="csv"
+            transform={(log) => ({
+              id: log.id,
+              timestamp: log.timestamp || log.createdAt || "",
+              action: log.action || "",
+              severity: log.severity || "info",
+              userId: log.user?.userId || "",
+              userEmail: log.user?.email || "",
+              userName: log.user?.name || "",
+              resourceType: log.resource?.type || "",
+              resourceId: log.resource?.id || "",
+              organizationId: log.organizationId || "",
+              outcomeStatus: log.outcome?.status || "",
+              outcomeMessage: log.outcome?.message || "",
+            })}
+          />
+          <ExportButton
+            data={filteredLogs}
+            filename="audit-logs"
+            exportFormat="json"
+          />
         </div>
       </div>
 
@@ -206,8 +260,9 @@ export function AdminLogsPage() {
         <CardHeader>
           <CardTitle>Audit Logs</CardTitle>
           <CardDescription>
-            {filteredLogs.length} log{filteredLogs.length !== 1 ? "s" : ""} found
-            {searchQuery && ` (filtered from ${stats.total} total)`}
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)} of{" "}
+            {filteredLogs.length} log{filteredLogs.length !== 1 ? "s" : ""}
+            {searchQuery && " (filtered)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -231,14 +286,14 @@ export function AdminLogsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.length === 0 ? (
+                {paginatedLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      No logs found
+                      {filteredLogs.length === 0 ? "No logs found" : "No logs on this page"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLogs.slice(0, 100).map((log) => {
+                  paginatedLogs.map((log) => {
                     const timestamp = log.timestamp || log.createdAt;
                     const date = timestamp
                       ? typeof timestamp === "string"
@@ -308,6 +363,65 @@ export function AdminLogsPage() {
                 )}
               </TableBody>
             </Table>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage(currentPage - 1);
+                      }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage(page);
+                            }}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                      }}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>
