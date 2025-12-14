@@ -13,7 +13,6 @@ import { useCreateInvoice } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
-import { TemplateElement } from "@/core";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { FileText, Loader2, Plus } from "lucide-react";
@@ -25,26 +24,23 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
-import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
-import type { CurrencyFieldLink } from "@/core/entities/currency-field";
-import { FormulaService } from "@/services/formula-service";
-import { functionsService } from "@/services/functions/functions-service";
+import type { TemplateElement } from "@/core/entities/template";
+import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { InvoicePreview } from "@/components/invoice/invoice-preview";
 import { InvoiceTemplateSelector } from "@/components/invoice/invoice-template-selector";
 import { InvoiceFormFields } from "@/components/invoice/invoice-form-fields";
 import { InvoiceTable } from "@/components/invoice/invoice-table";
 import { useInvoiceAutoFill } from "@/hooks/use-invoice-auto-fill";
 import { useInvoiceTemplate } from "@/contexts/invoice-template-context";
-
-type BindingField = {
-	path: string;
-	label: string;
-	type: "text" | "number" | "date";
-	isLinkedCurrency?: boolean; // True if this is a currency field with links
-	hasFormula?: boolean; // True if this field has a formula
-	elementId?: string; // ID of the template element
-};
+import {
+	mapProductToTableRow,
+	getDefaultProductTableConfig,
+} from "@/utils/product-table-mapping";
+import { useInvoiceTemplateConfig } from "@/hooks/use-invoice-template-config";
+import { useInvoiceFormulaEvaluation } from "@/hooks/use-invoice-formula-evaluation";
+import { useInvoiceCurrencyConversion } from "@/hooks/use-invoice-currency-conversion";
+import { useInvoiceComplianceValidation } from "@/hooks/use-invoice-compliance-validation";
 
 type TableColumn = {
 	id: string;
@@ -68,39 +64,6 @@ function roundCurrency(value: InvoiceDataValue): InvoiceDataValue {
 		return Math.round(value * 100) / 100;
 	}
 	return value;
-}
-
-/**
- * Check if a field is a currency field based on its binding path and template elements
- */
-function isCurrencyField(
-	binding: string,
-	selectedTemplate: { elements?: TemplateElement[] } | undefined,
-	tableConfigs: TableConfig[]
-): boolean {
-	if (!selectedTemplate) return false;
-
-	// Check if it's a currency element
-	const currencyElement = selectedTemplate.elements?.find(
-		(e) => e.type === "currency" && e.binding === binding
-	);
-	if (currencyElement) return true;
-
-	// Check if it's a currency column in a table
-	for (const tableConfig of tableConfigs) {
-		const column = tableConfig.columns.find((c) => {
-			// Check if binding matches this column (could be items[0].unitPriceBGN)
-			const rowBindingMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
-			if (rowBindingMatch) {
-				const [, basePath, , fieldName] = rowBindingMatch;
-				return basePath === tableConfig.itemsPath && c.binding === fieldName;
-			}
-			return false;
-		});
-		if (column && column.type === "currency") return true;
-	}
-
-	return false;
 }
 
 export default function CreateInvoicePage() {
@@ -133,314 +96,46 @@ export default function CreateInvoicePage() {
 	const [mappingProducts, setMappingProducts] = useState<Set<string>>(
 		new Set()
 	);
-	const [complianceValidation, setComplianceValidation] = useState<{
-		valid: boolean;
-		region: string;
-		missingFields: Array<{
-			binding: string;
-			label: string;
-			description?: string;
-		}>;
-		warnings?: string[];
-		errors?: string[];
-	} | null>(null);
 	const [hasAutoFilled, setHasAutoFilled] = useState(false);
 
-	// Debounce timers for currency conversions
-	const currencyConversionTimer = useRef<NodeJS.Timeout | null>(null);
-	const tableConversionTimers = useRef<Map<string, NodeJS.Timeout>>(
-		new Map()
-	);
+	// Get default currency from organization settings
+	const defaultCurrency = useMemo(() => {
+		return currentOrganization?.settings?.defaultCurrency || "USD";
+	}, [currentOrganization?.settings?.defaultCurrency]);
 
-	// Get selected template - now comes from context
+	// Extract template configuration using custom hook
+	const {
+		tableConfigs,
+		currencyFieldLinks,
+		tableColumnCurrencyLinks,
+		bindings,
+	} = useInvoiceTemplateConfig({ selectedTemplate });
 
-	// Extract table configuration first (supports multiple tables)
-	const tableConfigs = useMemo((): TableConfig[] => {
-		if (!selectedTemplate) return [];
+	// Currency conversion hook
+	const {
+		computeLinkedCurrencyValue,
+		updateLinkedCurrencyFields,
+		currencyConversionTimer,
+		tableConversionTimers,
+	} = useInvoiceCurrencyConversion({
+		selectedTemplate,
+		currencyFieldLinks,
+		tableColumnCurrencyLinks,
+		defaultCurrency,
+	});
 
-		const tableElements = (selectedTemplate.elements ?? []).filter(
-			(e) => e.type === "table"
-		) as Extract<TemplateElement, { type: "table" }>[];
+	// Formula evaluation hook
+	const { evaluateFormulas } = useInvoiceFormulaEvaluation({
+		selectedTemplate,
+		tableConfigs,
+	});
 
-		return tableElements
-			.filter((tableEl) => tableEl.itemsBinding) // Only include tables with bindings
-			.map((tableEl) => ({
-				itemsPath: tableEl.itemsBinding,
-				columns: (tableEl.columns ?? []).map(
-					(col): TableColumn => ({
-						id: col.id,
-						header: col.header || "Column",
-						binding: col.binding || col.id,
-						type: col.type || "text",
-					})
-				),
-			}));
-	}, [selectedTemplate]);
-
-	// Map of currency field links: target binding -> { source binding, link config, element }
-	const currencyFieldLinks = useMemo(() => {
-		const links = new Map<
-			string,
-			{
-				sourceBinding: string;
-				link: CurrencyFieldLink;
-				element: Extract<TemplateElement, { type: "currency" }>;
-			}
-		>();
-
-		if (!selectedTemplate) return links;
-
-		const elements = selectedTemplate.elements ?? [];
-
-		for (const element of elements) {
-			if (element.type === "currency") {
-				const currencyEl = element as Extract<
-					TemplateElement,
-					{ type: "currency" }
-				>;
-				if (
-					currencyEl.binding &&
-					currencyEl.mode === "linked" &&
-					currencyEl.currencyLinks &&
-					currencyEl.currencyLinks.length > 0
-				) {
-					// Get the first link (support multiple links later if needed)
-					const link = currencyEl.currencyLinks[0];
-					if (link.type === "FX_PAIR" && link.sourceFieldId) {
-						// Find the source field element
-						const sourceElement = elements.find(
-							(e) => e.id === link.sourceFieldId
-						);
-						if (
-							sourceElement &&
-							sourceElement.type === "currency" &&
-							sourceElement.binding
-						) {
-							links.set(currencyEl.binding, {
-								sourceBinding: sourceElement.binding,
-								link,
-								element: currencyEl,
-							});
-						}
-					} else if (
-						link.type === "FIXED_MULTIPLIER" &&
-						link.multiplier !== undefined
-					) {
-						// For fixed multiplier, we still need a source field
-						// This will be handled differently - for now, skip
-					}
-				}
-			}
-		}
-
-		return links;
-	}, [selectedTemplate]);
-
-	// Map of table column currency links: table path -> column binding -> { source column binding, link config }
-	const tableColumnCurrencyLinks = useMemo(() => {
-		const links = new Map<
-			string,
-			Map<
-				string,
-				{
-					sourceColumnBinding: string;
-					link: CurrencyFieldLink;
-					column: { id: string; binding: string; currency?: string };
-				}
-			>
-		>();
-
-		if (!selectedTemplate) return links;
-
-		const elements = selectedTemplate.elements ?? [];
-
-		for (const element of elements) {
-			if (element.type === "table") {
-				const tableEl = element as Extract<
-					TemplateElement,
-					{ type: "table" }
-				>;
-				if (tableEl.itemsBinding && tableEl.columns) {
-					const tableLinks = new Map<
-						string,
-						{
-							sourceColumnBinding: string;
-							link: CurrencyFieldLink;
-							column: {
-								id: string;
-								binding: string;
-								currency?: string;
-							};
-						}
-					>();
-
-					for (const col of tableEl.columns) {
-						if (
-							col.type === "currency" &&
-							col.binding &&
-							col.mode === "linked" &&
-							col.currencyLinks &&
-							col.currencyLinks.length > 0
-						) {
-							const link = col.currencyLinks[0];
-							if (link.type === "FX_PAIR" && link.sourceFieldId) {
-								// Find the source column in the same table
-								const sourceCol = tableEl.columns.find(
-									(c) => c.id === link.sourceFieldId
-								);
-								if (sourceCol && sourceCol.binding) {
-									tableLinks.set(col.binding, {
-										sourceColumnBinding: sourceCol.binding,
-										link,
-										column: {
-											id: col.id,
-											binding: col.binding,
-											currency: col.currency,
-										},
-									});
-								}
-							} else if (
-								link.type === "FIXED_MULTIPLIER" &&
-								link.multiplier !== undefined
-							) {
-								// For fixed multiplier, we need a source - skip for now
-							}
-						}
-					}
-
-					if (tableLinks.size > 0) {
-						links.set(tableEl.itemsBinding, tableLinks);
-					}
-				}
-			}
-		}
-
-		return links;
-	}, [selectedTemplate]);
-
-	// Extract bindings from template elements (depends on tableConfigs)
-	const bindings = useMemo((): BindingField[] => {
-		if (!selectedTemplate) return [];
-
-		const fields = new Map<string, BindingField>();
-		const elements = selectedTemplate.elements ?? [];
-
-		for (const element of elements) {
-			let binding: string | undefined;
-			let type: "text" | "number" | "date" = "text";
-
-			if (element.type === "text") {
-				const textEl = element as Extract<
-					TemplateElement,
-					{ type: "text" }
-				>;
-				binding = textEl.binding;
-			} else if (element.type === "input") {
-				const inputEl = element as Extract<
-					TemplateElement,
-					{ type: "input" }
-				>;
-				binding = inputEl.binding;
-				type =
-					inputEl.variant === "number"
-						? "number"
-						: inputEl.variant === "date"
-							? "date"
-							: "text";
-
-				// Check if this input has a formula (for number variant)
-				const hasFormula =
-					inputEl.variant === "number" && !!inputEl.formula;
-
-				if (binding) {
-					const existingField = fields.get(binding);
-					if (existingField) {
-						existingField.hasFormula = hasFormula;
-						existingField.elementId = element.id;
-					} else {
-						fields.set(binding, {
-							path: binding,
-							label: binding
-								.split(".")
-								.pop()!
-								.replace(/([A-Z])/g, " $1")
-								.replace(/^./, (c) => c.toUpperCase()),
-							type,
-							hasFormula,
-							elementId: element.id,
-						});
-					}
-					continue;
-				}
-			} else if (element.type === "currency") {
-				const currencyEl = element as Extract<
-					TemplateElement,
-					{ type: "currency" }
-				>;
-				binding = currencyEl.binding;
-				type = "number"; // Currency fields are numeric
-
-				// Check if this currency field is linked (has currencyLinks) or has formula
-				const isLinked =
-					currencyEl.mode === "linked" &&
-					currencyEl.currencyLinks &&
-					currencyEl.currencyLinks.length > 0;
-				const hasFormula =
-					currencyEl.mode === "formula" && !!currencyEl.formula;
-
-				if (binding) {
-					const existingField = fields.get(binding);
-					if (existingField) {
-						// Update existing field to mark it as linked or formula if it is
-						existingField.isLinkedCurrency = isLinked;
-						existingField.hasFormula = hasFormula;
-						existingField.elementId = element.id;
-					} else {
-						// Add new field with linked/formula status
-						fields.set(binding, {
-							path: binding,
-							label: binding
-								.split(".")
-								.pop()!
-								.replace(/([A-Z])/g, " $1")
-								.replace(/^./, (c) => c.toUpperCase()),
-							type,
-							isLinkedCurrency: isLinked,
-							hasFormula,
-							elementId: element.id,
-						});
-					}
-					continue; // Skip the duplicate addition below
-				}
-			} else if (element.type === "image") {
-				const imageEl = element as Extract<
-					TemplateElement,
-					{ type: "image" }
-				>;
-				binding = imageEl.binding;
-				type = "text"; // Image URLs are text
-			}
-
-			if (binding) {
-				// Skip bindings that are table paths (these are handled separately)
-				const isTableBinding = tableConfigs.some((tc) =>
-					binding.startsWith(tc.itemsPath)
-				);
-				if (isTableBinding) continue;
-				const label = binding
-					.split(".")
-					.pop()!
-					.replace(/([A-Z])/g, " $1")
-					.replace(/^./, (c) => c.toUpperCase());
-
-				if (!fields.has(binding)) {
-					fields.set(binding, { path: binding, label, type });
-				}
-			}
-		}
-
-		return Array.from(fields.values());
-	}, [selectedTemplate, tableConfigs]);
+	// Compliance validation hook
+	const { complianceValidation } = useInvoiceComplianceValidation({
+		selectedTemplate,
+		currentOrganization,
+		formData,
+	});
 
 	// Auto-fill organization data when template is selected
 	useEffect(() => {
@@ -532,387 +227,34 @@ export default function CreateInvoicePage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selectedTemplate, currentOrganization, bindings, hasAutoFilled]); // formData intentionally excluded to prevent infinite loop
 
-	// Function to evaluate formulas for given form data
-	const evaluateFormulas = useCallback(
-		(dataToEvaluate: Record<string, InvoiceDataValue>): { data: Record<string, InvoiceDataValue>; updatedFields: Array<{ binding: string; value: number }> } => {
-			console.log("evaluateFormulas: Called with data:", dataToEvaluate);
-			if (!selectedTemplate || !dataToEvaluate) {
-				console.log("evaluateFormulas: Early return - no template or data");
-				return { data: dataToEvaluate, updatedFields: [] };
-			}
+	// Helper to check if a field is a currency field
+	const isCurrencyField = useCallback((
+		binding: string,
+		template: { elements?: Array<{ type: string; binding?: string }> } | undefined,
+		configs: TableConfig[]
+	): boolean => {
+		if (!template) return false;
 
-			const elements = selectedTemplate.elements ?? [];
-			const formulaElements: Array<{
-				element: TemplateElement;
-				binding: string;
-				formula: string;
-				tableContext?: {
-					itemsBinding: string;
-					rowIndex: number;
-					columns: Array<{
-						id: string;
-						binding?: string;
-						type?: string;
-					}>;
-				};
-			}> = [];
+		const currencyElement = template.elements?.find(
+			(e) => e.type === "currency" && e.binding === binding
+		);
+		if (currencyElement) return true;
 
-			// Helper to get value from data (handles array indices like items[0].unitPrice)
-			const getValueFromData = (path: string): InvoiceDataValue => {
-				// Handle array indices in path (e.g., "items[0].unitPrice")
-				const arrayIndexMatch = path.match(/^(.+)\[(\d+)\]\.(.+)$/);
-				if (arrayIndexMatch) {
-					const [, arrayPath, indexStr, fieldPath] = arrayIndexMatch;
-					const index = parseInt(indexStr, 10);
-					
-					// Get the array
-					const arrayValue = getBindingValue(dataToEvaluate, arrayPath);
-					if (!Array.isArray(arrayValue) || !arrayValue[index]) {
-						return "";
-					}
-					
-					// Get the field from the array item
-					const arrayItem = arrayValue[index];
-					if (typeof arrayItem !== "object" || Array.isArray(arrayItem)) {
-						return "";
-					}
-					
-					return (arrayItem as Record<string, InvoiceDataValue>)[fieldPath] ?? "";
+		for (const tableConfig of configs) {
+			const column = tableConfig.columns.find((c) => {
+				const rowBindingMatch = binding.match(/^(.+)\[(\d+)\]\.(.+)$/);
+				if (rowBindingMatch) {
+					const [, basePath, , fieldName] = rowBindingMatch;
+					return basePath === tableConfig.itemsPath && c.binding === fieldName;
 				}
-				
-				// Handle simple dot notation
-				return getBindingValue(dataToEvaluate, path) ?? "";
-			};
-
-			// Collect all elements with formulas
-			for (const element of elements) {
-				if (element.type === "input") {
-					const inputEl = element as Extract<
-						TemplateElement,
-						{ type: "input" }
-					>;
-					if (
-						inputEl.variant === "number" &&
-						inputEl.formula &&
-						inputEl.binding
-					) {
-						formulaElements.push({
-							element,
-							binding: inputEl.binding,
-							formula: inputEl.formula,
-						});
-					}
-				} else if (element.type === "currency") {
-					const currencyEl = element as Extract<
-						TemplateElement,
-						{ type: "currency" }
-					>;
-					if (
-						currencyEl.mode === "formula" &&
-						currencyEl.formula &&
-						currencyEl.binding
-					) {
-						formulaElements.push({
-							element,
-							binding: currencyEl.binding,
-							formula: currencyEl.formula,
-						});
-					}
-				}
-			}
-
-			// Also check table columns with formulas
-			for (const element of elements) {
-				if (element.type === "table") {
-					const tableEl = element as Extract<
-						TemplateElement,
-						{ type: "table" }
-					>;
-					if (!tableEl.itemsBinding) continue;
-
-					const items = getValueFromData(tableEl.itemsBinding);
-					const itemsArray = Array.isArray(items) ? items : [];
-
-					for (const col of tableEl.columns ?? []) {
-						if (
-							(col.type === "number" || col.type === "currency") &&
-							col.calc
-						) {
-							// Evaluate formula for each row
-							for (
-								let rowIndex = 0;
-								rowIndex < itemsArray.length;
-								rowIndex++
-							) {
-								const rowBinding = `${tableEl.itemsBinding}[${rowIndex}].${col.binding || col.id}`;
-								formulaElements.push({
-									element: tableEl,
-									binding: rowBinding,
-									formula: col.calc,
-									// Add table context for resolving column references
-									tableContext: {
-										itemsBinding: tableEl.itemsBinding,
-										rowIndex,
-										columns: tableEl.columns ?? [],
-									},
-								});
-							}
-						}
-					}
-				}
-			}
-
-			console.log("evaluateFormulas: Found", formulaElements.length, "formula elements");
-			if (formulaElements.length === 0) {
-				console.log("evaluateFormulas: No formulas to evaluate, returning original data");
-				return { data: dataToEvaluate, updatedFields: [] };
-			}
-
-			// Create a map of element IDs to their current values for formula evaluation
-			const elementValues = new Map<string, number>();
-			for (const el of elements) {
-				if (
-					(el.type === "input" && el.variant === "number") ||
-					el.type === "currency"
-				) {
-					if (el.binding) {
-						const value = getValueFromData(el.binding);
-						if (typeof value === "number") {
-							elementValues.set(el.id, value);
-						}
-					}
-				}
-			}
-
-			// Evaluate all formulas
-			// Create a deep copy to avoid mutating the original
-			const updatedData = JSON.parse(JSON.stringify(dataToEvaluate));
-			console.log("evaluateFormulas: Starting evaluation with data:", updatedData);
-
-			// Track which fields were updated by formulas (for currency linking)
-			const updatedFields: Array<{ binding: string; value: number }> = [];
-
-			for (const { element, binding, formula, tableContext } of formulaElements) {
-				try {
-					console.log("evaluateFormulas: Evaluating formula", formula, "for binding", binding, "with tableContext", tableContext);
-					
-					// If this is a table column formula, resolve column references to full binding paths
-					let processedFormula = formula;
-					if (tableContext) {
-						// Replace column references (e.g., "quantity", "unitPriceBGN") with full paths (e.g., "items[0].quantity", "items[0].unitPriceBGN")
-						for (const col of tableContext.columns) {
-							const colBinding = col.binding || col.id;
-							// Create the full binding path for this row
-							const fullPath = `${tableContext.itemsBinding}[${tableContext.rowIndex}].${colBinding}`;
-							// Replace column references in the formula (using word boundaries to avoid partial matches)
-							// Match: word boundary + column binding + word boundary (but not if it's already part of a path like items[0].quantity)
-							const regex = new RegExp(`\\b${colBinding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\[\\]])`, 'g');
-							processedFormula = processedFormula.replace(regex, fullPath);
-						}
-						console.log("evaluateFormulas: Processed formula", processedFormula, "from original", formula);
-					}
-					
-					// FormulaService.evaluate uses resolveReference which reads from formData
-					// Make sure it can access the updated values
-					const result = FormulaService.evaluate(
-						processedFormula,
-						updatedData,
-						elements,
-						elementValues
-					);
-
-					console.log("evaluateFormulas: Formula result:", result, "for binding", binding);
-
-					// Update the value if it changed
-					const currentValue = getBindingValue(updatedData, binding);
-					console.log("evaluateFormulas: Current value:", currentValue, "New result:", result);
-					
-					// Round currency values to 2 decimal places
-					const roundedResult = isCurrencyField(binding, selectedTemplate, tableConfigs)
-						? roundCurrency(result)
-						: result;
-					
-					if (currentValue !== roundedResult) {
-						setBindingValue(updatedData, binding, roundedResult);
-						// Update elementValues for subsequent formula evaluations that might reference this
-						if (typeof roundedResult === "number") {
-							elementValues.set(element.id, roundedResult);
-						}
-						// Track this update for currency linking
-						if (typeof roundedResult === "number") {
-							updatedFields.push({ binding, value: roundedResult });
-						}
-						console.log("evaluateFormulas: Updated binding", binding, "to", roundedResult);
-					} else {
-						console.log("evaluateFormulas: Value unchanged for binding", binding);
-					}
-				} catch (error) {
-					console.error("Formula evaluation error:", error, {
-						element,
-						binding,
-						formula,
-						data: updatedData,
-					});
-				}
-			}
-
-			console.log("evaluateFormulas: Final data:", updatedData);
-			// Return both the updated data and the list of updated fields
-			return { data: updatedData, updatedFields };
-		},
-		[selectedTemplate, tableConfigs]
-	);
-
-	// Get default currency from organization settings (fallback only)
-	const defaultCurrency = useMemo(() => {
-		return currentOrganization?.settings?.defaultCurrency || "USD";
-	}, [currentOrganization?.settings?.defaultCurrency]);
-
-	// Compute linked currency field value
-	const computeLinkedCurrencyValue = useCallback(async (
-		sourceValue: number,
-		sourceCurrency: string,
-		link: CurrencyFieldLink,
-		targetCurrency: string
-	): Promise<number> => {
-		try {
-			if (link.type === "FX_PAIR") {
-				// Import getExchangeRate directly to ensure we get the correct rate
-				const { getExchangeRate } = await import("@/utils/currencies");
-
-				// Fetch rate directly from API with sourceCurrency as base
-				// This ensures we get: 1 sourceCurrency = X targetCurrency
-				const rate = await getExchangeRate(
-					sourceCurrency,
-					targetCurrency
-				);
-
-				// Calculate: sourceValue * rate = targetValue
-				// Example: 10 BGN * 0.511 = 5.11 EUR
-				// Round currency values to 2 decimal places
-				const result = Math.round((sourceValue * rate) * 100) / 100;
-
-				console.log(
-					`Currency conversion: ${sourceValue} ${sourceCurrency} * ${rate} = ${result} ${targetCurrency}`
-				);
-				return result;
-			} else if (
-				link.type === "FIXED_MULTIPLIER" &&
-				link.multiplier !== undefined
-			) {
-				return sourceValue * link.multiplier;
-			}
-			return sourceValue;
-		} catch (error) {
-			console.error("Error computing linked currency value:", error, {
-				sourceValue,
-				sourceCurrency,
-				targetCurrency,
-				linkType: link.type,
+				return false;
 			});
-			return sourceValue;
+			if (column && column.type === "currency") return true;
 		}
+
+		return false;
 	}, []);
 
-	// Function to update linked currency fields after a source field changes
-	const updateLinkedCurrencyFields = useCallback(async (
-		data: Record<string, InvoiceDataValue>,
-		updatedBinding: string,
-		updatedValue: number
-	): Promise<Record<string, InvoiceDataValue>> => {
-		const updatedData = JSON.parse(JSON.stringify(data)); // Deep copy
-		const updates: Array<{ binding: string; value: number }> = [];
-
-		// Check regular currency field links
-		for (const [targetBinding, linkInfo] of currencyFieldLinks.entries()) {
-			if (linkInfo.sourceBinding === updatedBinding) {
-				// This field is a source for targetBinding
-				const sourceElement = selectedTemplate?.elements?.find(
-					(e) => e.type === "currency" && e.binding === updatedBinding
-				) as Extract<TemplateElement, { type: "currency" }> | undefined;
-
-				const sourceCurrency = sourceElement?.currency || defaultCurrency;
-				const targetCurrency = linkInfo.element.currency || defaultCurrency;
-
-				try {
-					// Ensure updatedValue is a number
-					if (typeof updatedValue !== "number") {
-						continue;
-					}
-					const linkedValue = await computeLinkedCurrencyValue(
-						updatedValue,
-						sourceCurrency,
-						linkInfo.link,
-						targetCurrency
-					);
-					// Round currency values to 2 decimal places
-					const roundedLinkedValue = roundCurrency(linkedValue);
-					if (typeof roundedLinkedValue === "number") {
-						updates.push({ binding: targetBinding, value: roundedLinkedValue });
-					}
-				} catch (error) {
-					console.error("Error computing linked currency value:", error);
-				}
-			}
-		}
-
-		// Check table column currency links
-		for (const [tablePath, tableLinks] of tableColumnCurrencyLinks.entries()) {
-			// Check if the updated binding is in this table
-			const tableMatch = updatedBinding.match(/^(.+)\[(\d+)\]\.(.+)$/);
-			if (tableMatch) {
-				const [, arrayPath, indexStr, fieldPath] = tableMatch;
-				if (arrayPath === tablePath) {
-					// The updated field is in this table
-					for (const [targetColumnBinding, linkInfo] of tableLinks.entries()) {
-						if (linkInfo.sourceColumnBinding === fieldPath) {
-							// This column is a source for targetColumnBinding
-							const targetBinding = `${tablePath}[${indexStr}].${targetColumnBinding}`;
-							
-							// Find source and target currency elements
-							const tableEl = selectedTemplate?.elements?.find(
-								(e) => e.type === "table" && (e as Extract<TemplateElement, { type: "table" }>).itemsBinding === tablePath
-							) as Extract<TemplateElement, { type: "table" }> | undefined;
-
-							const sourceCol = tableEl?.columns?.find(
-								(c) => c.binding === linkInfo.sourceColumnBinding
-							);
-							const targetCol = tableEl?.columns?.find(
-								(c) => c.binding === targetColumnBinding
-							);
-
-							const sourceCurrency = sourceCol?.currency || defaultCurrency;
-							const targetCurrency = targetCol?.currency || defaultCurrency;
-
-							try {
-								const linkedValue = await computeLinkedCurrencyValue(
-									updatedValue,
-									sourceCurrency,
-									linkInfo.link,
-									targetCurrency
-								);
-								// Round currency values to 2 decimal places
-					const roundedLinkedValue = roundCurrency(linkedValue);
-					if (typeof roundedLinkedValue === "number") {
-						updates.push({ binding: targetBinding, value: roundedLinkedValue });
-					}
-							} catch (error) {
-								console.error("Error computing linked currency value for table column:", error);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// Apply all updates
-		for (const { binding, value } of updates) {
-			setBindingValue(updatedData, binding, value);
-			console.log("updateLinkedCurrencyFields: Updated", binding, "to", value);
-		}
-
-		return updatedData;
-	}, [selectedTemplate, tableColumnCurrencyLinks, currencyFieldLinks, defaultCurrency, computeLinkedCurrencyValue]);
 
 	// Formula evaluation: debounced to avoid blocking typing
 	// Use a ref to track the debounce timer
@@ -963,40 +305,6 @@ export default function CreateInvoicePage() {
 		};
 	}, [formData, selectedTemplate, evaluateFormulas, updateLinkedCurrencyFields]);
 
-	// Real-time compliance validation
-	useEffect(() => {
-		if (
-			!selectedTemplate ||
-			!currentOrganization ||
-			Object.keys(formData).length === 0
-		) {
-			setComplianceValidation(null);
-			return;
-		}
-
-		// Use template's stored region if available, otherwise detect from organization
-		// This ensures templates created for specific regions (e.g., EU) use the correct validation
-		const region = selectedTemplate.compliance?.region || 
-			invoiceComplianceService.detectRegion(currentOrganization);
-		const invoiceData = {
-			orgId: currentOrganization.id,
-			templateId: selectedTemplate.id,
-			data: formData,
-			status: "draft" as const,
-		};
-
-		const validation = invoiceComplianceService.validateInvoice(
-			invoiceData,
-			region
-		);
-		setComplianceValidation({
-			valid: validation.valid,
-			region: validation.region,
-			missingFields: validation.missingFields,
-			warnings: validation.warnings,
-			errors: validation.errors,
-		});
-	}, [formData, selectedTemplate, currentOrganization]);
 
 	// Get value from nested path
 	const getValue = useCallback(
@@ -1308,20 +616,39 @@ export default function CreateInvoicePage() {
 
 			setMappingProducts((prev) => new Set(prev).add(rowKey));
 			try {
-				// Call backend AI function to map product to invoice fields
-				const mappingResult =
-					await functionsService.mapProductToInvoiceFields({
-						productId,
-						templateId: selectedTemplate.id,
-						organizationId: currentOrganization.id,
-						currentFormData: formData,
-					});
+				const product = products.find((p) => p.id === productId);
+				if (!product) {
+					throw new Error("Product not found");
+				}
 
-				console.log("Mapping result:", mappingResult);
+				// Get product table config from template, or use default
+				let config = selectedTemplate.productTableConfig;
+				
+				// If config doesn't exist or doesn't match this table, try to get default
+				if (!config || config.itemsBinding !== itemsPath) {
+					const defaultConfig = getDefaultProductTableConfig(selectedTemplate);
+					if (defaultConfig && defaultConfig.itemsBinding === itemsPath) {
+						config = defaultConfig;
+					} else {
+						// No config available - show warning and skip mapping
+						toast.warning(
+							"Product table configuration not found. Please configure product mapping in the template designer."
+						);
+						setMappingProducts((prev) => {
+							const next = new Set(prev);
+							next.delete(rowKey);
+							return next;
+						});
+						return;
+					}
+				}
 
-				// Update form data with mapped values for this specific row
-				const newData = { ...formData };
-				const lockedFields = new Set<string>();
+				// Map product to table row using the config
+				const { rowData, lockedFields: configLockedFields } = await mapProductToTableRow(
+					product,
+					config,
+					rowIndex
+				);
 
 				// Helper function to set array item value directly
 				const setArrayItemValue = (
@@ -1335,9 +662,7 @@ export default function CreateInvoicePage() {
 					const arrayValue = getBindingValue(data, arrayPath);
 					if (!Array.isArray(arrayValue)) {
 						// Array doesn't exist, create it
-						const newArray: Array<
-							Record<string, InvoiceDataValue>
-						> = [];
+						const newArray: Array<Record<string, InvoiceDataValue>> = [];
 						while (newArray.length <= index) {
 							newArray.push({});
 						}
@@ -1362,10 +687,7 @@ export default function CreateInvoicePage() {
 					) {
 						// Create a copy of the object to avoid mutation
 						arrayCopy[index] = {
-							...(arrayCopy[index] as Record<
-								string,
-								InvoiceDataValue
-							>),
+							...(arrayCopy[index] as Record<string, InvoiceDataValue>),
 							[fieldName]: value,
 						};
 					} else {
@@ -1376,171 +698,22 @@ export default function CreateInvoicePage() {
 					setBindingValue(data, arrayPath, arrayCopy);
 				};
 
-				// Apply mapped field values to the specific row
-				for (const [binding, value] of Object.entries(
-					mappingResult.mappedFields
-				)) {
-					// Check if this binding is for a table row (e.g., "items[0].description")
-					const rowBindingMatch = binding.match(
-						/^(.+)\[(\d+)\]\.(.+)$/
-					);
-					if (rowBindingMatch) {
-						const [, basePath, indexStr, fieldName] =
-							rowBindingMatch;
-						const index = parseInt(indexStr, 10);
+				// Update form data with mapped values
+				const newData = { ...formData };
+				const lockedFields = new Set<string>();
 
-						// Skip quantity fields - user should set these manually
-						if (fieldName === "quantity" || fieldName === "qty") {
-							continue;
-						}
-
-						// Only apply if it matches our row
-						if (basePath === itemsPath && index === rowIndex) {
-							setArrayItemValue(
-								newData,
-								itemsPath,
-								rowIndex,
-								fieldName,
-								value as InvoiceDataValue
-							);
-							lockedFields.add(fieldName); // Store just the field name for this row
-						}
-					} else {
-						// For non-table bindings, check if they should apply to this row
-						// This handles cases where AI maps to top-level fields
-						// We'll skip these for row-specific mapping
-					}
+				// Apply row data from template mapping
+				for (const [fieldName, value] of Object.entries(rowData)) {
+					setArrayItemValue(newData, itemsPath, rowIndex, fieldName, value);
 				}
 
-				// Also try to map common product fields directly to row fields
-				const product = products.find((p) => p.id === productId);
-				if (product) {
-					// Find the table config for this itemsPath to get actual column bindings
-					const tableConfig = tableConfigs.find((tc) => tc.itemsPath === itemsPath);
-					const columns = tableConfig?.columns ?? [];
-
-					// Map product data to common row fields - always overwrite existing values
-					const rowData: Record<string, InvoiceDataValue> = {};
-
-					// Find description column (description, name, itemDescription, etc.)
-					const descriptionCol = columns.find(
-						(col) =>
-							col.binding.toLowerCase().includes("description") ||
-							col.binding.toLowerCase().includes("name") ||
-							col.binding.toLowerCase() === "itemdescription"
-					);
-					if (descriptionCol) {
-						// Prefer product description over name if both exist
-						rowData[descriptionCol.binding] = product.description || product.name;
-						lockedFields.add(descriptionCol.binding);
-					} else {
-						// Fallback to common field names
-						rowData.description = product.description || product.name;
-						lockedFields.add("description");
-					}
-
-					// Find price column (unitPrice, price, amount, unitPriceBGN, etc.)
-					const priceCol = columns.find(
-						(col) =>
-							(col.type === "currency" || col.type === "number") &&
-							(col.binding.toLowerCase().includes("price") ||
-								col.binding.toLowerCase().includes("amount") ||
-								col.binding.toLowerCase() === "price")
-					);
-					if (priceCol && product.price !== undefined) {
-						// Get the template column to check its currency
-						const tableEl = selectedTemplate?.elements?.find(
-							(e) => e.type === "table" && 
-							(e as Extract<TemplateElement, { type: "table" }>).itemsBinding === itemsPath
-						) as Extract<TemplateElement, { type: "table" }> | undefined;
-						
-						const templatePriceCol = tableEl?.columns?.find((c) => c.id === priceCol.id);
-						const columnCurrency = templatePriceCol?.currency || 
-							(templatePriceCol?.type === "currency" && templatePriceCol.format?.currency) ||
-							defaultCurrency;
-						
-						// Convert currency if product currency differs from column currency
-						let finalPrice = product.price;
-						if (product.currency && product.currency !== columnCurrency) {
-							try {
-								// Import getExchangeRate for currency conversion
-								const { getExchangeRate } = await import("@/utils/currencies");
-								const rate = await getExchangeRate(product.currency, columnCurrency);
-								const convertedPrice = product.price * rate;
-								finalPrice = typeof convertedPrice === "number" ? roundCurrency(convertedPrice) as number : product.price;
-								console.log(
-									`Currency conversion: ${product.price} ${product.currency} * ${rate} = ${finalPrice} ${columnCurrency}`
-								);
-							} catch (error) {
-								console.error("Failed to convert currency, using original price:", error);
-								// Fallback to original price if conversion fails
-								finalPrice = product.price;
-							}
-						}
-						
-						// Round currency values to 2 decimal places
-						rowData[priceCol.binding] = roundCurrency(finalPrice);
-						lockedFields.add(priceCol.binding);
-					} else {
-						// Fallback to common field names
-						if (product.price !== undefined) {
-							rowData.unitPrice = product.price;
-							lockedFields.add("unitPrice");
-						}
-					}
-
-					// Find currency column (only if it's a separate field, not part of price column)
-					const currencyCol = columns.find(
-						(col) =>
-							col.binding.toLowerCase() === "currency" &&
-							col.type === "text"
-					);
-					if (currencyCol && product.currency) {
-						rowData[currencyCol.binding] = product.currency as InvoiceDataValue;
-						lockedFields.add(currencyCol.binding);
-					} else if (product.currency) {
-						// Fallback to common field name
-						rowData.currency = product.currency as InvoiceDataValue;
-						lockedFields.add("currency");
-					}
-
-					// Find SKU column (sku, reference, itemNumber, etc.)
-					const skuCol = columns.find(
-						(col) =>
-							col.binding.toLowerCase().includes("sku") ||
-							col.binding.toLowerCase().includes("reference") ||
-							col.binding.toLowerCase() === "itemnumber"
-					);
-					if (skuCol && product.sku) {
-						rowData[skuCol.binding] = product.sku;
-						lockedFields.add(skuCol.binding);
-					} else if (product.sku) {
-						// Fallback to common field name
-						rowData.sku = product.sku;
-						lockedFields.add("sku");
-					}
-
-					// Don't set quantity automatically - user should set it manually
-					// Stock validation will be handled in the UI
-
-					// Apply row data
-					for (const [fieldName, value] of Object.entries(rowData)) {
-						setArrayItemValue(
-							newData,
-							itemsPath,
-							rowIndex,
-							fieldName,
-							value
-						);
-					}
-				}
+				// Add locked fields from config
+				configLockedFields.forEach((field) => lockedFields.add(field));
 
 				// Evaluate formulas after updating form data with product mapping
-				// Make sure the data structure is correct before evaluating
-				// The newData should already have all the product values set correctly
 				const { data: dataWithFormulas, updatedFields } = evaluateFormulas(newData);
 				setFormData(dataWithFormulas);
-				
+
 				// Update linked currency fields for all fields that were updated by formulas
 				if (updatedFields.length > 0) {
 					(async () => {
@@ -1554,6 +727,7 @@ export default function CreateInvoicePage() {
 						}
 					})();
 				}
+
 				setProductLockedFields((prev) => {
 					const next = new Map(prev);
 					next.set(rowKey, lockedFields);
@@ -1567,8 +741,7 @@ export default function CreateInvoicePage() {
 
 				toast.success("Product data mapped to invoice item");
 			} catch (error) {
-				const message =
-					error instanceof Error ? error.message : "Unknown error";
+				const message = error instanceof Error ? error.message : "Unknown error";
 				toast.error(`Failed to map product data: ${message}`);
 				setSelectedProducts((prev) => {
 					const next = new Map(prev);
@@ -1588,7 +761,14 @@ export default function CreateInvoicePage() {
 				});
 			}
 		},
-		[selectedTemplate, currentOrganization, formData, products, tableConfigs, evaluateFormulas, updateLinkedCurrencyFields, defaultCurrency]
+		[
+			selectedTemplate,
+			currentOrganization,
+			products,
+			formData,
+			evaluateFormulas,
+			updateLinkedCurrencyFields,
+		]
 	);
 
 	// Clear product selection for a specific row

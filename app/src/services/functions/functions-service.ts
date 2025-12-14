@@ -33,6 +33,18 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async generateProductTableConfig(payload) {
+    type GenerateProductTableConfigPayload = Parameters<FunctionsService["generateProductTableConfig"]>[0];
+    const result = await httpsCallable<
+      GenerateProductTableConfigPayload,
+      { productTableConfig: import("@/core/entities/template").ProductTableConfig }
+    >(
+      firebase.functions,
+      "generateProductTableConfig",
+    )(payload);
+    return result.data;
+  },
+
   async renderInvoicePdf(payload) {
     const result = await httpsCallable<typeof payload, { url: string }>(
       firebase.functions,

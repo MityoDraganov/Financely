@@ -15,6 +15,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import { ComplianceStatus } from "./compliance-status";
 import { WatermarkConfig } from "./watermark-config";
 import { TemplateVersionHistory } from "./template-version-history";
+import { ProductTableConfigPanel } from "./product-table-config-panel";
 import {
 	TextProperties,
 	ImageProperties,
@@ -252,6 +253,20 @@ export function PropertiesPanel({
 							onRestoreVersion={onRestoreVersion}
 							isRestoring={isRestoringVersion ?? false}
 							currentUserId={currentUserId}
+						/>
+					</div>
+				)}
+				
+				{/* Product Table Configuration - Only show when a table is selected */}
+				{selectedElement?.type === "table" && selectedElement.itemsBinding && (
+					<div className={separators.sectionDivider}>
+						<ProductTableConfigPanel
+							template={template}
+							selectedTable={selectedElement}
+							onSave={(config) => {
+								saveMutation.mutate({ productTableConfig: config });
+							}}
+							isSaving={saveMutation.isPending}
 						/>
 					</div>
 				)}

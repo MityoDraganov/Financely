@@ -5,6 +5,7 @@ import { TemplateData, TemplateElement } from "../../core/entities/template";
 import { Organization } from "../../core/entities/organization";
 import { COMPLIANCE_SCHEMAS } from "../../core/entities/invoice-compliance";
 import { validateTemplateCompliance } from "../../utils/invoice-compliance";
+import { formatProductFieldsForAI } from "../../utils/product-fields";
 
 /**
  * Service for generating invoice templates using AI
@@ -46,8 +47,11 @@ export class InvoiceTemplateGenerationService {
     // Create prompt for AI
     const prompt = this.buildTemplatePrompt(context, requiredFields, region, organization, options);
     
-    // Define the expected JSON schema for template data
-    const schema = {
+      // Import Product type to ensure we use correct fields
+      // Product entity fields: name, description, price, currency, sku, barcode, category, taxRate, cost
+      
+      // Define the expected JSON schema for template data
+      const schema = {
       type: "object" as const,
       properties: {
         name: { type: "string" as const, description: "Template name" },
@@ -102,11 +106,44 @@ export class InvoiceTemplateGenerationService {
             },
           },
         },
+        productTableConfig: {
+          type: "object" as const,
+          properties: {
+            itemsBinding: { type: "string" as const, description: "The items binding path for the table (e.g., 'items')" },
+            columnMappings: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                properties: {
+                  columnBinding: { type: "string" as const, description: "The table column binding (e.g., 'description', 'unitPrice')" },
+                  productField: {
+                    type: "string" as const,
+                    enum: ["name", "description", "price", "currency", "sku", "barcode", "category", "taxRate", "cost"],
+                    description: "The product entity field to map from"
+                  },
+                  transform: {
+                    type: "string" as const,
+                    enum: ["none", "currency_convert", "format_number"],
+                    description: "Transformation to apply (none, currency_convert, format_number)"
+                  },
+                  targetCurrency: { type: "string" as const, description: "Target currency for conversion (3-letter code, optional)" },
+                  lockOnProductSelect: { type: "boolean" as const, description: "Whether to lock this field when product is selected" },
+                },
+                required: ["columnBinding", "productField"],
+              },
+            },
+            autoQuantity: { type: "boolean" as const, description: "Whether to auto-populate quantity" },
+            defaultQuantity: { type: "number" as const, description: "Default quantity if autoQuantity is true" },
+            autoConvertCurrency: { type: "boolean" as const, description: "Whether to auto-convert currency" },
+            defaultCurrency: { type: "string" as const, description: "Default currency code (3 letters)" },
+          },
+          required: ["itemsBinding", "columnMappings"],
+        },
       },
       required: ["name", "pageSize", "brand", "elements"],
     };
     
-    try {
+      try {
       const result = await this.aiService.generateJSON<{
         name: string;
         description?: string;
@@ -130,12 +167,115 @@ export class InvoiceTemplateGenerationService {
           itemsBinding?: string;
           columns?: any[];
         }>;
+        productTableConfig?: {
+          itemsBinding: string;
+          columnMappings: Array<{
+            columnBinding: string;
+            productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost";
+            transform?: "none" | "currency_convert" | "format_number";
+            targetCurrency?: string;
+            lockOnProductSelect?: boolean;
+          }>;
+          autoQuantity?: boolean;
+          defaultQuantity?: number;
+          autoConvertCurrency?: boolean;
+          defaultCurrency?: string;
+        };
       }>(prompt, schema, {
         temperature: 0.7,
         maxTokens: 16384, // Large token limit for complex template structures
       });
       
       // Validate and enrich the generated template
+      const enrichedElements = this.enrichElements(result.elements, requiredFields, region, organization);
+      
+      // Generate productTableConfig if AI provided it, or create a default one
+      let productTableConfig: TemplateData["productTableConfig"] = undefined;
+      if (result.productTableConfig) {
+        // Use AI-generated config
+        productTableConfig = {
+          itemsBinding: result.productTableConfig.itemsBinding,
+          columnMappings: result.productTableConfig.columnMappings.map(m => ({
+            columnBinding: m.columnBinding,
+            productField: m.productField,
+            transform: m.transform || "none",
+            targetCurrency: m.targetCurrency,
+            lockOnProductSelect: m.lockOnProductSelect !== false, // Default to true
+          })),
+          autoQuantity: result.productTableConfig.autoQuantity || false,
+          defaultQuantity: result.productTableConfig.defaultQuantity || 1,
+          autoConvertCurrency: result.productTableConfig.autoConvertCurrency !== false, // Default to true
+          defaultCurrency: result.productTableConfig.defaultCurrency || organization.settings?.defaultCurrency || "USD",
+        };
+      } else {
+        // Generate default productTableConfig based on the table elements
+        const itemsTable = enrichedElements.find(
+          (el): el is Extract<typeof el, { type: "table" }> =>
+            el.type === "table" && !!(el as Extract<typeof el, { type: "table" }>).itemsBinding
+        );
+        
+        if (itemsTable && itemsTable.itemsBinding && itemsTable.columns && itemsTable.columns.length > 0) {
+          const columnMappings: Array<{
+            columnBinding: string;
+            productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost";
+            transform: "none" | "currency_convert" | "format_number";
+            targetCurrency?: string;
+            lockOnProductSelect: boolean;
+          }> = [];
+          
+          for (const col of itemsTable.columns) {
+            if (!col.binding) continue;
+            
+            const bindingLower = col.binding.toLowerCase();
+            let productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost" | null = null;
+            let transform: "none" | "currency_convert" | "format_number" = "none";
+            let targetCurrency: string | undefined = undefined;
+            
+            // Map common column bindings to product fields
+            if (bindingLower.includes("description") || bindingLower.includes("name") || bindingLower === "itemdescription") {
+              productField = "description";
+            } else if (bindingLower.includes("price") || bindingLower.includes("amount") || bindingLower === "unitprice") {
+              productField = "price";
+              transform = col.type === "currency" ? "currency_convert" : "format_number";
+              if (col.type === "currency" && "currency" in col && col.currency) {
+                targetCurrency = col.currency;
+              }
+            } else if (bindingLower === "currency" && col.type === "text") {
+              productField = "currency";
+            } else if (bindingLower.includes("sku") || bindingLower.includes("reference") || bindingLower === "itemnumber") {
+              productField = "sku";
+            } else if (bindingLower.includes("category")) {
+              productField = "category";
+            } else if (bindingLower.includes("tax") && bindingLower.includes("rate")) {
+              productField = "taxRate";
+            } else if (bindingLower.includes("cost")) {
+              productField = "cost";
+            }
+            
+            if (productField) {
+              columnMappings.push({
+                columnBinding: col.binding,
+                productField,
+                transform,
+                targetCurrency,
+                lockOnProductSelect: true,
+              });
+            }
+          }
+          
+          if (columnMappings.length > 0) {
+            productTableConfig = {
+              itemsBinding: itemsTable.itemsBinding,
+              columnMappings,
+              autoQuantity: false,
+              defaultQuantity: 1,
+              autoConvertCurrency: true,
+              defaultCurrency: organization.settings?.defaultCurrency || "USD",
+            };
+          }
+        }
+      }
+      
       const template: TemplateData = {
         orgId: organization.id,
         name: result.name || `${region} Invoice Template`,
@@ -150,7 +290,7 @@ export class InvoiceTemplateGenerationService {
           },
           margins: result.brand?.margins || { top: 40, right: 40, bottom: 40, left: 40 },
         },
-        elements: this.enrichElements(result.elements, requiredFields, region, organization),
+        elements: enrichedElements,
         status: "draft",
         compliance: {
           region,
@@ -158,6 +298,7 @@ export class InvoiceTemplateGenerationService {
           autoFooter: true,
           complianceValidated: false,
         },
+        ...(productTableConfig && { productTableConfig }),
       };
       
       // Validate template compliance (using validateTemplateCompliance directly with elements)
@@ -493,7 +634,59 @@ FINAL VALIDATION BEFORE OUTPUT:
 
 Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. For calculated currency fields, generate formulas using the ACTUAL binding names you create in the template. Use only real data from the organization context provided.
 
-REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position. Formulas must use YOUR actual binding names, not hardcoded field names.`;
+REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position. Formulas must use YOUR actual binding names, not hardcoded field names.
+
+📦 PRODUCT TABLE MAPPING CONFIGURATION (MANDATORY):
+After generating the template elements, you MUST also generate a productTableConfig that maps product entity fields to invoice table columns.
+
+Product Entity Fields Available (from Product interface):
+${formatProductFieldsForAI()}
+
+Product Table Configuration Rules:
+1. Find the table element with itemsBinding="items" (or your table's itemsBinding)
+2. For each column in that table, create a mapping from a product field to the column binding
+3. Common mappings:
+   - description column → product.description or product.name
+   - unitPrice/price column → product.price (with currency_convert transform if needed)
+   - currency column → product.currency
+   - sku/reference column → product.sku
+   - category column → product.category
+4. Set lockOnProductSelect: true for fields that should be locked when product is selected
+5. Use currency_convert transform for price columns if product currency differs from table currency
+6. Set autoQuantity: false (users set quantity manually)
+7. Set defaultCurrency to the organization's default currency (${currency})
+
+Example productTableConfig:
+{
+  "itemsBinding": "items",
+  "columnMappings": [
+    {
+      "columnBinding": "description",
+      "productField": "description",
+      "transform": "none",
+      "lockOnProductSelect": true
+    },
+    {
+      "columnBinding": "unitPrice",
+      "productField": "price",
+      "transform": "currency_convert",
+      "targetCurrency": "${currency}",
+      "lockOnProductSelect": true
+    },
+    {
+      "columnBinding": "sku",
+      "productField": "sku",
+      "transform": "none",
+      "lockOnProductSelect": true
+    }
+  ],
+  "autoQuantity": false,
+  "defaultQuantity": 1,
+  "autoConvertCurrency": true,
+  "defaultCurrency": "${currency}"
+}
+
+CRITICAL: Generate productTableConfig based on the ACTUAL table columns you create. Use the exact column bindings from your table element.`;
   }
 
   private getStyleDescription(style: string): string {

@@ -52,7 +52,7 @@ export const templateService: TemplateService = {
 
     const nextVersionNumber = versions.length > 0 ? versions[0].version + 1 : 1;
 
-    const { orgId, name, description, pageSize, brand, elements, status } = template;
+    const { orgId, name, description, pageSize, brand, elements, status, compliance, productTableConfig } = template;
     const templateDataOnly: TemplateData = {
       orgId,
       name,
@@ -61,6 +61,8 @@ export const templateService: TemplateService = {
       brand,
       elements,
       status,
+      compliance,
+      ...(productTableConfig !== undefined && { productTableConfig }),
     };
 
     const versionData: TemplateVersionData = {
@@ -129,7 +131,7 @@ export const templateService: TemplateService = {
     const nextVersionNumber = versions.length > 0 ? versions[0].version + 1 : 1;
 
     // Extract template data
-    const { orgId, name, description: templateDescription, pageSize, brand, elements, status, compliance } = template;
+    const { orgId, name, description: templateDescription, pageSize, brand, elements, status, compliance, productTableConfig } = template;
     const templateDataOnly: TemplateData = {
       orgId,
       name,
@@ -139,6 +141,7 @@ export const templateService: TemplateService = {
       elements,
       status,
       compliance,
+      ...(productTableConfig !== undefined && { productTableConfig }),
     };
 
     const versionData: TemplateVersionData = {
@@ -186,7 +189,7 @@ export const templateService: TemplateService = {
 
     // Only save current state if it's different from the version we're restoring
     if (currentVersionNumber !== version) {
-      const { orgId, name, description, pageSize, brand, elements, status, compliance } = template;
+      const { orgId, name, description, pageSize, brand, elements, status, compliance, productTableConfig } = template;
       const currentTemplateData: TemplateData = {
         orgId,
         name,
@@ -196,6 +199,7 @@ export const templateService: TemplateService = {
         elements,
         status,
         compliance,
+        ...(productTableConfig !== undefined && { productTableConfig }),
       };
 
       // Check if current state is different from the version being restored

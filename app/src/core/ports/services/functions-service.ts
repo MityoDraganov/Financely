@@ -1,4 +1,4 @@
-
+import type { ProductTableConfig } from "@/core/entities/template";
 
 export interface DeleteResponse {
   deleted: boolean;
@@ -82,6 +82,19 @@ export interface FunctionsService {
     organizationId: string;
     currentFormData: Record<string, unknown>;
   }): Promise<{ mappedFields: Record<string, unknown> }>;
+
+  /**
+   * Generate product table configuration using AI
+   * @param payload.templateId - Template ID
+   * @param payload.organizationId - Organization ID
+   * @param payload.itemsBinding - Table items binding (e.g., "items")
+   * @returns Promise with product table config
+   */
+  generateProductTableConfig(payload: {
+    templateId: string;
+    organizationId: string;
+    itemsBinding: string;
+  }): Promise<{ productTableConfig: ProductTableConfig }>;
 
   renderInvoicePdf(payload: {
     invoiceId: string;

@@ -11,6 +11,7 @@ if (!getApps().length) {
 export { createInvoice } from "./functions/create-invoice";
 export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 export { mapProductToInvoiceFields } from "./functions/map-product-to-invoice-fields";
+export { generateProductTableConfig } from "./functions/generate-product-table-config";
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
 export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 

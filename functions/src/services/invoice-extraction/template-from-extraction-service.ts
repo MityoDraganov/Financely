@@ -299,6 +299,75 @@ export class TemplateFromExtractionService {
         throw new Error("All template elements were invalid and filtered out. Cannot create template without elements.");
       }
 
+      // Generate productTableConfig based on the table elements
+      // Product entity fields: name, description, price, currency, sku, barcode, category, taxRate, cost
+      let productTableConfig: TemplateData["productTableConfig"] = undefined;
+      const itemsTable = enrichedElements.find(
+        (el): el is Extract<typeof el, { type: "table" }> =>
+          el.type === "table" && !!(el as Extract<typeof el, { type: "table" }>).itemsBinding
+      );
+      
+      if (itemsTable && itemsTable.itemsBinding && itemsTable.columns && itemsTable.columns.length > 0) {
+        const columnMappings: Array<{
+          columnBinding: string;
+          productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost";
+          transform: "none" | "currency_convert" | "format_number";
+          targetCurrency?: string;
+          lockOnProductSelect: boolean;
+        }> = [];
+        
+        for (const col of itemsTable.columns) {
+          if (!col.binding) continue;
+          
+          const bindingLower = col.binding.toLowerCase();
+          let productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost" | null = null;
+          let transform: "none" | "currency_convert" | "format_number" = "none";
+          let targetCurrency: string | undefined = undefined;
+          
+          // Map common column bindings to product fields
+          if (bindingLower.includes("description") || bindingLower.includes("name") || bindingLower === "itemdescription") {
+            productField = "description";
+          } else if (bindingLower.includes("price") || bindingLower.includes("amount") || bindingLower === "unitprice") {
+            productField = "price";
+            transform = col.type === "currency" ? "currency_convert" : "format_number";
+            if (col.type === "currency" && "currency" in col && col.currency) {
+              targetCurrency = col.currency;
+            }
+          } else if (bindingLower === "currency" && col.type === "text") {
+            productField = "currency";
+          } else if (bindingLower.includes("sku") || bindingLower.includes("reference") || bindingLower === "itemnumber") {
+            productField = "sku";
+          } else if (bindingLower.includes("category")) {
+            productField = "category";
+          } else if (bindingLower.includes("tax") && bindingLower.includes("rate")) {
+            productField = "taxRate";
+          } else if (bindingLower.includes("cost")) {
+            productField = "cost";
+          }
+          
+          if (productField) {
+            columnMappings.push({
+              columnBinding: col.binding,
+              productField,
+              transform,
+              targetCurrency,
+              lockOnProductSelect: true,
+            });
+          }
+        }
+        
+        if (columnMappings.length > 0) {
+          productTableConfig = {
+            itemsBinding: itemsTable.itemsBinding,
+            columnMappings,
+            autoQuantity: false,
+            defaultQuantity: 1,
+            autoConvertCurrency: true,
+            defaultCurrency: currency,
+          };
+        }
+      }
+
       // Build template data
       const template: TemplateData = {
         orgId: organization.id,
@@ -322,6 +391,7 @@ export class TemplateFromExtractionService {
           autoFooter: true,
           complianceValidated: false,
         },
+        ...(productTableConfig && { productTableConfig }),
       };
 
       // Validate template compliance

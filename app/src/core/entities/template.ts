@@ -216,6 +216,55 @@ export const templateComplianceMetadataSchema = z.object({
   complianceValidatedAt: z.string().optional(),
 });
 
+/**
+ * Product table column mapping configuration
+ * Defines how product entity fields map to invoice table columns
+ */
+export const productTableColumnMappingSchema = z.object({
+  // The table column binding (e.g., "description", "unitPrice", "quantity")
+  columnBinding: z.string().min(1),
+  // The product field to map from (e.g., "name", "description", "price", "sku")
+  productField: z.enum([
+    "name",
+    "description",
+    "price",
+    "currency",
+    "sku",
+    "barcode",
+    "category",
+    "taxRate",
+    "cost",
+  ]),
+  // Optional transformation function
+  transform: z.enum(["none", "currency_convert", "format_number"]).default("none"),
+  // For currency conversion: target currency (if different from product currency)
+  targetCurrency: z.string().length(3).optional(),
+  // Whether this field should be locked when product is selected
+  lockOnProductSelect: z.boolean().default(true),
+});
+
+/**
+ * Product table configuration for invoice templates
+ * Pre-defines how products map to invoice table rows
+ */
+export const productTableConfigSchema = z.object({
+  // The items binding path for the table (e.g., "items", "lineItems")
+  itemsBinding: z.string().min(1),
+  // Column mappings: product fields -> table columns
+  columnMappings: z.array(productTableColumnMappingSchema).default([]),
+  // Whether to auto-populate quantity (default: false, user sets manually)
+  autoQuantity: z.boolean().default(false),
+  // Default quantity if autoQuantity is true
+  defaultQuantity: z.number().min(0).default(1),
+  // Whether to convert currency automatically if product currency differs from table currency
+  autoConvertCurrency: z.boolean().default(true),
+  // Default currency for the table (used if column doesn't specify)
+  defaultCurrency: z.string().length(3).default("USD"),
+});
+
+export type ProductTableColumnMapping = z.infer<typeof productTableColumnMappingSchema>;
+export type ProductTableConfig = z.infer<typeof productTableConfigSchema>;
+
 export const templateDataSchema = z.object({
   orgId: z.string().min(1),
   name: z.string().min(1),
@@ -226,6 +275,8 @@ export const templateDataSchema = z.object({
   status: z.enum(["draft", "published"]).default("draft"),
   // Compliance metadata for invoice templates
   compliance: templateComplianceMetadataSchema.optional(),
+  // Product table configuration for pre-mapping products to invoice tables
+  productTableConfig: productTableConfigSchema.optional(),
 });
 
 export type TemplateData = z.infer<typeof templateDataSchema>;
