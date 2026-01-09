@@ -198,7 +198,7 @@ export default function WorkflowsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+    <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

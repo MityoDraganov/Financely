@@ -77,7 +77,7 @@ export default function ProposalDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="py-6 pr-6 space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -86,7 +86,7 @@ export default function ProposalDetailPage() {
 
   if (!proposal) {
     return (
-      <div className="p-6">
+      <div className="py-6 pr-6">
         <div className="text-center py-12">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
           <h3 className="mt-2 text-sm font-semibold text-gray-900">{t('proposalDetail.notFound.title')}</h3>
@@ -102,7 +102,7 @@ export default function ProposalDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="py-6 pr-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">

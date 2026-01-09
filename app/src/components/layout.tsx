@@ -61,6 +61,24 @@ const NavItem = memo(
 		toggleSidebar: () => void;
 		title: string;
 	}) => {
+		const location = useLocation();
+		const isActive = useMemo(() => {
+			const pathname = location.pathname;
+			// Exact match
+			if (pathname === item.href) {
+				return true;
+			}
+			// For settings, check if pathname starts with /settings
+			if (item.href.startsWith("/settings") && pathname.startsWith("/settings")) {
+				return true;
+			}
+			// For other routes, check if pathname starts with the href (but not just a prefix)
+			if (pathname.startsWith(item.href) && item.href !== "/") {
+				return true;
+			}
+			return false;
+		}, [location.pathname, item.href]);
+
 		const handleClick = useCallback(() => {
 			if (isMobile) {
 				toggleSidebar();
@@ -69,7 +87,7 @@ const NavItem = memo(
 
 		return (
 			<SidebarMenuItem>
-				<SidebarMenuButton asChild tooltip={title}>
+				<SidebarMenuButton asChild tooltip={title} isActive={isActive}>
 					<Link to={item.href} onClick={handleClick}>
 						<item.icon />
 						<span>{title}</span>
@@ -304,15 +322,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				</div>
 			)}
 
-			<Sidebar collapsible="icon">
-				<SidebarHeader className="flex flex-col gap-3 p-4 border-b min-w-0 overflow-x-hidden">
+			<Sidebar collapsible="icon" className="max-w-fit">
+				<SidebarHeader className="flex flex-col gap-2 p-3 border-b min-w-0 overflow-x-hidden">
 					<div className="flex items-center justify-between w-full min-w-0 group-data-[collapsible=icon]:justify-center">
-						<div className="flex items-center gap-2 flex-1">
+						<div className="flex items-center gap-1.5 flex-1 max-w-fit">
 							<Link to="/dashboard">
 								<img
 									src={"/financely-logo.svg"}
 									alt={displayName}
-									className="-ml-2.5 h-7 w-auto object-contain transition-opacity duration-200 hover:opacity-80 group-data-[collapsible=icon]:hidden"
+									className="-ml-1.5 h-6 w-auto object-contain transition-opacity duration-200 hover:opacity-80 group-data-[collapsible=icon]:hidden"
 									loading="eager"
 									decoding="async"
 								/>
@@ -324,7 +342,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						<OrganizationSwitcher />
 					</div>
 				</SidebarHeader>
-				<SidebarContent className="flex flex-col justify-between">
+				<SidebarContent className="justify-between">
 					<SidebarGroup>
 						{navItems.map((item) => (
 							<NavItem
@@ -340,10 +358,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					<div>
 						<SidebarSeparator />
 						<SidebarGroup
-							className={`flex flex-col justify-between gap-2 ${state === "collapsed" ? "gap-1" : ""}`}
+							className={`flex flex-col justify-between gap-3 ${state === "collapsed" ? "gap-1" : ""}`}
 						>
 							<div
-								className={`flex items-center justify-between gap-2 ${state === "collapsed" ? "flex-col gap-1" : ""}`}
+								className={`flex items-center justify-between gap-1.5 ${state === "collapsed" ? "flex-col gap-1" : ""}`}
 							>
 								<LanguageSelector />
 								<ModeToggle />

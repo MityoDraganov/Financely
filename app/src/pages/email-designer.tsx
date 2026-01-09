@@ -1147,7 +1147,7 @@ export default function EmailDesignerPage() {
 
 	if (isLoadingTemplates) {
 		return (
-			<div className="p-6 space-y-4">
+			<div className="py-6 pr-6 space-y-4">
 				<Skeleton className="h-10 w-64" />
 				<Skeleton className="h-[600px] w-full" />
 			</div>
@@ -1157,7 +1157,7 @@ export default function EmailDesignerPage() {
 	if (!emailDesignerContext) {
 		console.error("EmailDesignerContext is null - this should not happen if wrapper is correct");
 		return (
-			<div className="p-6 space-y-4">
+			<div className="py-6 pr-6 space-y-4">
 				<div className="text-destructive">
 					<h2 className="text-xl font-bold">Context Error</h2>
 					<p className="text-sm">Email designer context is not available. Please refresh the page.</p>
@@ -1202,7 +1202,7 @@ export default function EmailDesignerPage() {
 
 if (!draftTemplate || !normalizedBaseTemplate) {
 	return (
-		<div className="p-6 space-y-4">
+		<div className="py-6 pr-6 space-y-4">
 			<Skeleton className="h-10 w-64" />
 			<Skeleton className="h-[600px] w-full" />
 		</div>

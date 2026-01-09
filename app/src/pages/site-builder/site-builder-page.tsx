@@ -1204,7 +1204,7 @@ export default function SiteBuilderPage() {
 
 	if (isLoading) {
 		return (
-			<div className="p-6 space-y-6">
+			<div className="py-6 pr-6 space-y-6">
 				<div className="h-8 bg-gray-200 rounded animate-pulse" />
 				<div className="h-64 bg-gray-200 rounded animate-pulse" />
 			</div>

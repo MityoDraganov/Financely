@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCard } from "@/components/metric-card";
 import { 
   FileText, 
   Plus, 
@@ -76,7 +77,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-4 min-w-0 overflow-x-hidden w-full">
+    <div className="py-6 pr-6 space-y-4 min-w-0 overflow-x-hidden w-full">
       {/* Header */}
       <div className="space-y-2 min-w-0">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -112,115 +113,83 @@ export default function DashboardPage() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 min-w-0">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('dashboard.metrics.totalInvoices')}</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : totalInvoices}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {t('dashboard.metrics.paidUnpaid', { paid: paidInvoices.length, unpaid: unpaidInvoices.length })}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 min-w-0">
+        <MetricCard
+          title={t('dashboard.metrics.totalInvoices')}
+          value={totalInvoices}
+          description={t('dashboard.metrics.paidUnpaid', { paid: paidInvoices.length, unpaid: unpaidInvoices.length })}
+          icon={FileText}
+          isLoading={isInvoicesLoading}
+        />
 
         {paidInvoices.length > 0 || unpaidInvoices.length > 0 ? (
           <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.metrics.paidRevenue')}</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${paidRevenue.toLocaleString()}`}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {paidInvoices.length === 1 
-                    ? t('dashboard.metrics.paidInvoice', { count: paidInvoices.length })
-                    : t('dashboard.metrics.paidInvoices', { count: paidInvoices.length })}
-                </p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              title={t('dashboard.metrics.paidRevenue')}
+              value={`$${paidRevenue.toLocaleString()}`}
+              description={
+                paidInvoices.length === 1 
+                  ? t('dashboard.metrics.paidInvoice', { count: paidInvoices.length })
+                  : t('dashboard.metrics.paidInvoices', { count: paidInvoices.length })
+              }
+              icon={DollarSign}
+              isLoading={isInvoicesLoading}
+            />
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.metrics.outstanding')}</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${outstandingAmount.toLocaleString()}`}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {unpaidInvoices.length === 1
-                    ? t('dashboard.metrics.unpaidInvoice', { count: unpaidInvoices.length })
-                    : t('dashboard.metrics.unpaidInvoices', { count: unpaidInvoices.length })}
-                </p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              title={t('dashboard.metrics.outstanding')}
+              value={`$${outstandingAmount.toLocaleString()}`}
+              description={
+                unpaidInvoices.length === 1
+                  ? t('dashboard.metrics.unpaidInvoice', { count: unpaidInvoices.length })
+                  : t('dashboard.metrics.unpaidInvoices', { count: unpaidInvoices.length })
+              }
+              icon={DollarSign}
+              isLoading={isInvoicesLoading}
+            />
           </>
         ) : (
           <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.metrics.draftInvoices')}</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {isInvoicesLoading ? <Skeleton className="h-8 w-16" /> : draftInvoices.length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {draftAmount > 0 
-                    ? t('dashboard.metrics.draftAmount', { amount: draftAmount.toLocaleString() })
-                    : t('dashboard.metrics.noDrafts')}
-                </p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              title={t('dashboard.metrics.draftInvoices')}
+              value={draftInvoices.length}
+              description={
+                draftAmount > 0 
+                  ? t('dashboard.metrics.draftAmount', { amount: draftAmount.toLocaleString() })
+                  : t('dashboard.metrics.noDrafts')
+              }
+              icon={FileText}
+              isLoading={isInvoicesLoading}
+            />
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.metrics.totalAmount')}</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {isInvoicesLoading ? <Skeleton className="h-8 w-20" /> : `$${(paidRevenue + outstandingAmount + draftAmount).toLocaleString()}`}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t('dashboard.metrics.acrossAllInvoices')}
-                </p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              title={t('dashboard.metrics.totalAmount')}
+              value={`$${(paidRevenue + outstandingAmount + draftAmount).toLocaleString()}`}
+              description={t('dashboard.metrics.acrossAllInvoices')}
+              icon={DollarSign}
+              isLoading={isInvoicesLoading}
+            />
           </>
         )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('dashboard.metrics.templates')}</CardTitle>
-            <Brush className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {isTemplatesLoading ? <Skeleton className="h-8 w-16" /> : totalTemplates}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {totalTemplates > 0 ? t('dashboard.metrics.readyToUse') : t('dashboard.metrics.createFirstTemplate')}
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title={t('dashboard.metrics.templates')}
+          value={totalTemplates}
+          description={
+            totalTemplates > 0 
+              ? t('dashboard.metrics.readyToUse') 
+              : t('dashboard.metrics.createFirstTemplate')
+          }
+          icon={Brush}
+          isLoading={isTemplatesLoading}
+        />
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 min-w-0">
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 min-w-0">
         {/* Recent Invoices */}
-        <Card className="col-span-1 md:col-span-2 min-w-0 overflow-hidden">
-          <CardHeader>
+        <Card className="col-span-1 md:col-span-2 min-w-0 overflow-hidden rounded-sm">
+          <CardHeader className="p-3 pb-2">
             <div className="flex items-center justify-between gap-2 min-w-0">
               <div className="min-w-0">
                 <CardTitle>{t('dashboard.recentInvoices.title')}</CardTitle>
@@ -236,13 +205,13 @@ export default function DashboardPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="min-w-0">
+          <CardContent className="p-3 pt-0 min-w-0">
             {isInvoicesLoading ? (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center space-x-4">
-                    <Skeleton className="h-12 w-12 rounded" />
-                    <div className="space-y-2">
+                  <div key={i} className="flex items-center space-x-3">
+                    <Skeleton className="h-10 w-10 rounded-sm" />
+                    <div className="space-y-1.5 flex-1">
                       <Skeleton className="h-4 w-[200px]" />
                       <Skeleton className="h-4 w-[100px]" />
                     </div>
@@ -250,14 +219,14 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : recentInvoices.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 {recentInvoices.map((invoice) => (
-                  <div key={invoice.id} className="flex items-center space-x-4 min-w-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                      <FileText className="h-6 w-6 text-primary" />
+                  <div key={invoice.id} className="flex items-center space-x-3 min-w-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10 shrink-0">
+                      <FileText className="h-5 w-5 text-primary" />
                     </div>
-                    <div className="flex-1 space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex-1 space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <p className="text-sm font-medium leading-none truncate">
                           {String(invoice.data?.invoiceNumber || t('dashboard.recentInvoices.invoiceNumber', { number: invoice.id.slice(-6) }))}
                         </p>
@@ -293,13 +262,13 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <div className="text-center py-4">
+                <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
                 <h3 className="mt-2 text-sm font-semibold">{t('dashboard.recentInvoices.noInvoices')}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {t('dashboard.recentInvoices.getStarted')}
                 </p>
-                <div className="mt-6">
+                <div className="mt-4">
                   <Button asChild>
                     <Link to="/create-invoice">
                       <Plus className="mr-2 h-4 w-4" />
@@ -313,10 +282,10 @@ export default function DashboardPage() {
         </Card>
 
         {/* Templates & Invoice Status */}
-        <div className="col-span-1 md:col-span-2 space-y-4 min-w-0">
+        <div className="col-span-1 md:col-span-2 space-y-3 min-w-0">
           {/* Templates */}
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
+          <Card className="min-w-0 overflow-hidden rounded-sm">
+            <CardHeader className="p-3 pb-2">
               <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="min-w-0">
                   <CardTitle>{t('dashboard.templates.title')}</CardTitle>
@@ -332,36 +301,36 @@ export default function DashboardPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="min-w-0">
+            <CardContent className="p-3 pt-0 min-w-0">
               {isTemplatesLoading ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {Array.from({ length: 2 }).map((_, i) => (
-                    <Skeleton key={i} className="h-16" />
+                    <Skeleton key={i} className="h-14 rounded-sm" />
                   ))}
                 </div>
               ) : recentTemplates.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {recentTemplates.map((template) => (
-                    <div key={template.id} className="flex items-center space-x-3 p-3 rounded-lg border">
-                      <div className="flex h-10 w-10 items-center justify-center rounded bg-primary/10">
-                        <Brush className="h-5 w-5 text-primary" />
+                    <div key={template.id} className="flex items-center space-x-2.5 p-2 rounded-sm border">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary/10 shrink-0">
+                        <Brush className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">
                           {template.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground truncate">
                           {template.description || t('dashboard.templates.noDescription')}
                         </p>
                       </div>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs shrink-0">
                         {template.status || t('dashboard.templates.active')}
                       </Badge>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4">
+                <div className="text-center py-3">
                   <Brush className="mx-auto h-8 w-8 text-muted-foreground" />
                   <h3 className="mt-2 text-sm font-semibold">{t('dashboard.templates.noTemplates')}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -373,25 +342,25 @@ export default function DashboardPage() {
           </Card>
 
           {/* Invoice Status Summary */}
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
+          <Card className="min-w-0 overflow-hidden rounded-sm">
+            <CardHeader className="p-3 pb-2">
               <CardTitle>{t('dashboard.invoiceStatus.title')}</CardTitle>
               <CardDescription>
                 {t('dashboard.invoiceStatus.description')}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 min-w-0">
+            <CardContent className="p-3 pt-0 space-y-2 min-w-0">
               {isInvoicesLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-7 w-full rounded-sm" />
+                  <Skeleton className="h-7 w-full rounded-sm" />
+                  <Skeleton className="h-7 w-full rounded-sm" />
                 </div>
               ) : totalInvoices > 0 ? (
                 <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <div className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
                       <span className="text-sm">{t('dashboard.invoiceStatus.paid')}</span>
                     </div>
                     <div className="text-right">
@@ -404,9 +373,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500" />
+                  <div className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
                       <span className="text-sm">{t('dashboard.invoiceStatus.sent')}</span>
                     </div>
                     <div className="text-right">
@@ -419,9 +388,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+                  <div className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
                       <span className="text-sm">{t('dashboard.invoiceStatus.draft')}</span>
                     </div>
                     <div className="text-right">
@@ -435,9 +404,9 @@ export default function DashboardPage() {
                   </div>
 
                   {invoices && invoices.some(inv => inv.status === 'cancelled') && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-red-500" />
+                    <div className="flex items-center justify-between py-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                         <span className="text-sm">{t('dashboard.invoiceStatus.cancelled')}</span>
                       </div>
                       <div className="text-right">
@@ -449,7 +418,7 @@ export default function DashboardPage() {
                   )}
                 </>
               ) : (
-                <div className="text-center py-4">
+                <div className="text-center py-3">
                   <FileText className="mx-auto h-8 w-8 text-muted-foreground" />
                   <p className="mt-2 text-sm text-muted-foreground">
                     {t('dashboard.invoiceStatus.noInvoices')}

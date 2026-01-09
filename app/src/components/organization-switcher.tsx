@@ -128,9 +128,9 @@ export function OrganizationSwitcher() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm text-muted-foreground">Loading...</span>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted max-w-fit w-fit">
+        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+        <span className="text-sm text-muted-foreground whitespace-nowrap">Loading...</span>
       </div>
     );
   }
@@ -139,13 +139,13 @@ export function OrganizationSwitcher() {
   const orgName = currentOrganization?.name || "Organization";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             className={cn(
-              "w-full justify-start gap-2 px-3 h-auto py-2",
+              "w-full justify-between gap-1.5 px-2.5 h-auto py-1.5",
               "hover:bg-muted/50"
             )}
           >
@@ -160,9 +160,9 @@ export function OrganizationSwitcher() {
                 <Building2 className="h-4 w-4 text-primary" />
               </div>
             )}
-            <div className="flex-1 text-left min-w-0">
+            <div className="text-left min-w-0 flex-1">
               <div className="text-sm font-medium truncate">{orgName}</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground truncate">
                 {organizations.length} {organizations.length === 1 ? "organization" : "organizations"}
               </div>
             </div>

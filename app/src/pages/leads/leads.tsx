@@ -125,7 +125,7 @@ export default function LeadsPage() {
 
   if (isLoadingLeads) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="py-6 pr-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('leads.title')}</h1>
@@ -140,7 +140,7 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="py-6 pr-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
