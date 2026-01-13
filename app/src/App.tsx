@@ -31,6 +31,7 @@ import OrganizationAISettingsPage from "./pages/settings/organization/ai-setting
 import UsersListPage from "./pages/settings/users/list";
 import InvitesPage from "./pages/settings/invites";
 import AuditLogPage from "./pages/settings/security/audit-log";
+import DataSourcesPage from "./pages/data-sources";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
 import WorkflowsPage from "./pages/workflows/workflows-page";
@@ -311,6 +312,16 @@ function App() {
 											<ProtectedRoute>
 												<AppLayout>
 													<AnalyticsPage />
+												</AppLayout>
+											</ProtectedRoute>
+										}
+									/>
+									<Route
+										path="/data-sources"
+										element={
+											<ProtectedRoute>
+												<AppLayout>
+													<DataSourcesPage />
 												</AppLayout>
 											</ProtectedRoute>
 										}

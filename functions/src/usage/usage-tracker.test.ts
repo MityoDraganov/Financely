@@ -38,11 +38,11 @@ async function cleanupTestData(orgId: string, featureId: string, eventId?: strin
   try {
     // Delete test events
     if (eventId) {
-      await firestore.collection(TEST_COLLECTIONS.EVENTS).doc(eventId).delete().catch(() => {});
+      await firestore().collection(TEST_COLLECTIONS.EVENTS).doc(eventId).delete().catch(() => {});
     }
     
     // Delete test aggregates (find by orgId and featureId)
-    const dailySnapshot = await firestore
+    const dailySnapshot = await firestore()
       .collection(TEST_COLLECTIONS.AGGREGATES_DAILY)
       .where("orgId", "==", orgId)
       .where("featureId", "==", featureId)
@@ -52,7 +52,7 @@ async function cleanupTestData(orgId: string, featureId: string, eventId?: strin
       await doc.ref.delete().catch(() => {});
     }
     
-    const monthlySnapshot = await firestore
+    const monthlySnapshot = await firestore()
       .collection(TEST_COLLECTIONS.AGGREGATES_MONTHLY)
       .where("orgId", "==", orgId)
       .where("featureId", "==", featureId)
@@ -87,7 +87,7 @@ test("Record usage event - creates event and aggregates", async () => {
     });
     
     // Verify event was created
-    const eventDoc = await firestore.collection(TEST_COLLECTIONS.EVENTS).doc(eventId).get();
+    const eventDoc = await firestore().collection(TEST_COLLECTIONS.EVENTS).doc(eventId).get();
     assert.ok(eventDoc.exists, "Event document should exist");
     
     const eventData = eventDoc.data();
@@ -107,7 +107,7 @@ test("Record usage event - creates event and aggregates", async () => {
     const monthStr = `${year}-${month}`;
     
     const dailyDocId = `${orgId}_${dateStr}_${featureId}_${userId}`;
-    const dailyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
+    const dailyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
     assert.ok(dailyDoc.exists, "Daily aggregate should exist");
     
     const dailyData = dailyDoc.data();
@@ -119,7 +119,7 @@ test("Record usage event - creates event and aggregates", async () => {
     
     // Verify monthly aggregate was created
     const monthlyDocId = `${orgId}_${monthStr}_${featureId}`;
-    const monthlyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_MONTHLY).doc(monthlyDocId).get();
+    const monthlyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_MONTHLY).doc(monthlyDocId).get();
     assert.ok(monthlyDoc.exists, "Monthly aggregate should exist");
     
     const monthlyData = monthlyDoc.data();
@@ -166,12 +166,12 @@ test("Record usage event - increments existing aggregates", async () => {
     const monthStr = `${year}-${month}`;
     
     const dailyDocId = `${orgId}_${dateStr}_${featureId}_${userId}`;
-    const dailyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
+    const dailyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
     const dailyData = dailyDoc.data();
     assert.strictEqual(dailyData?.totalCount, 2, "Daily aggregate should be incremented");
     
     const monthlyDocId = `${orgId}_${monthStr}_${featureId}`;
-    const monthlyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_MONTHLY).doc(monthlyDocId).get();
+    const monthlyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_MONTHLY).doc(monthlyDocId).get();
     const monthlyData = monthlyDoc.data();
     assert.strictEqual(monthlyData?.totalCount, 2, "Monthly aggregate should be incremented");
   } finally {
@@ -211,7 +211,7 @@ test("Record usage event - idempotency prevents double-counting", async () => {
     const dateStr = `${year}-${month}-${day}`;
     
     const dailyDocId = `${orgId}_${dateStr}_${featureId}_${userId}`;
-    const dailyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
+    const dailyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
     const dailyData = dailyDoc.data();
     assert.strictEqual(dailyData?.totalCount, 1, "Idempotent call should not increment count");
   } finally {
@@ -260,7 +260,7 @@ test("Record usage event - aggregates metadata correctly", async () => {
     const dateStr = `${year}-${month}-${day}`;
     
     const dailyDocId = `${orgId}_${dateStr}_${featureId}_${userId}`;
-    const dailyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
+    const dailyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
     const dailyData = dailyDoc.data();
     assert.strictEqual(dailyData?.summedSizeBytes, 3000, "Should sum sizeBytes");
     assert.strictEqual(dailyData?.summedDurationMs, 800, "Should sum durationMs");
@@ -283,7 +283,7 @@ test("Record usage event - handles null userId (system events)", async () => {
     });
     
     // Verify event was created with null userId
-    const eventDoc = await firestore.collection(TEST_COLLECTIONS.EVENTS).doc(eventId).get();
+    const eventDoc = await firestore().collection(TEST_COLLECTIONS.EVENTS).doc(eventId).get();
     const eventData = eventDoc.data();
     assert.strictEqual(eventData?.userId, null);
     
@@ -296,7 +296,7 @@ test("Record usage event - handles null userId (system events)", async () => {
     const dateStr = `${year}-${month}-${day}`;
     
     const dailyDocId = `${orgId}_${dateStr}_${featureId}_ALL`;
-    const dailyDoc = await firestore.collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
+    const dailyDoc = await firestore().collection(TEST_COLLECTIONS.AGGREGATES_DAILY).doc(dailyDocId).get();
     assert.ok(dailyDoc.exists, "Daily aggregate with ALL sentinel should exist");
   } finally {
     await cleanupTestData(orgId, featureId, eventId);

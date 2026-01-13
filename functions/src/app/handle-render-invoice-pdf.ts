@@ -7,6 +7,10 @@ import { Template, TemplateElement } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
 import puppeteer from "puppeteer";
 import chromium from "@sparticuz/chromium";
+import { buildDataContext } from "../services/data-context-builder";
+import { resolveBinding } from "../utils/binding-resolver";
+import { DataContext } from "../core/entities/data-context";
+import { paginateTemplate, type RenderPage } from "../utils/template-pagination";
 
 /**
  * Generates HTML from template and invoice data with organization branding
@@ -16,7 +20,12 @@ import chromium from "@sparticuz/chromium";
  * @param {Organization | null} organization - Organization for branding
  * @return {string} The generated HTML
  */
-function generateInvoiceHTML(template: Template, invoice: Invoice, organization: { settings?: { brandColors?: { primary?: string; secondary?: string; accent?: string }; branding?: { customLogo?: string } } } | null): string {
+function generateInvoiceHTML(
+  template: Template,
+  invoice: Invoice,
+  organization: { settings?: { brandColors?: { primary?: string; secondary?: string; accent?: string }; branding?: { customLogo?: string } } } | null,
+  dataContext?: DataContext
+): string {
   const { pageSize, brand, elements } = template;
 
   // Override template brand colors with organization branding if available
@@ -51,6 +60,23 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
    * @param {string} path - The dot-notation path
    * @return {unknown} The value at the path, or null if not found
    */
+  function getValueFromContextOrData(
+    binding: string,
+    dataContext?: DataContext,
+    fallbackData?: Record<string, unknown>
+  ): unknown {
+    if (dataContext) {
+      const resolved = resolveBinding(dataContext, binding);
+      if (resolved !== null) {
+        return resolved;
+      }
+    }
+    if (fallbackData) {
+      return getByPath(fallbackData, binding);
+    }
+    return undefined;
+  }
+
   function getByPath(obj: unknown, path: string): unknown {
     if (!obj || !path) return null;
     const parts = path.split(".");
@@ -154,30 +180,103 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     return String(value);
   }
 
-  // Render elements as HTML
-  const elementsHTML = elements.map((el) => {
-    if (!el.visible) return "";
+  // Get margins from template
+  const margins = template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+  
+  // Paginate template into multiple pages
+  const pages = paginateTemplate(template, invoice.data, { w: size.width, h: size.height });
+  
+  // Helper to calculate element position on a page (accounting for page offset and margins)
+  const calculateElementPosition = (
+    el: TemplateElement,
+    pageIndex: number,
+    adjustedY: number
+  ): { x: number; y: number } => {
+    const usableHeight = size.height - margins.top - margins.bottom;
+    const pageStartY = pageIndex * usableHeight;
+    const yInUsableArea = adjustedY - pageStartY;
+    const yOnPage = margins.top + yInUsableArea;
+    
+    return {
+      x: el.x,
+      y: yOnPage,
+    };
+  };
 
-    const commonStyle = `
-      position: absolute;
-      left: ${el.x}px;
-      top: ${el.y}px;
-      width: ${el.width}px;
-      height: ${el.height}px;
-      transform: rotate(${el.rotation}deg);
-      z-index: ${el.zIndex || 0};
-    `;
+  // Helper to calculate adjusted Y position accounting for table expansion
+  const calculateAdjustedY = (el: TemplateElement): number => {
+    let adjustedY = el.y;
+    
+    // Adjust for tables that came before and expanded
+    for (const prevEl of elements) {
+      if (prevEl.id === el.id) break;
+      
+      if (prevEl.type === "table" && prevEl.y < el.y) {
+        const prevTbl = prevEl;
+        const allItems = (getValueFromContextOrData(prevTbl.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
+        const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
+        const prevActualHeight = prevTbl.headerHeight + (allItems.length * prevTbl.rowHeight) + (prevTbl.columns.some((c) => c.showTotal) ? prevTbl.rowHeight : 0);
+        const prevTableBottom = prevEl.y + prevOriginalHeight;
+        
+        if (el.y >= prevTableBottom) {
+          adjustedY += (prevActualHeight - prevOriginalHeight);
+        }
+      }
+    }
+    
+    return adjustedY;
+  };
+
+  // Render a single page's elements
+  const renderPageElements = (page: RenderPage): string => {
+    return page.elements.map((el) => {
+      if (!el.visible) return "";
+
+      // Calculate adjusted Y position
+      let adjustedY = calculateAdjustedY(el);
+      
+      // For tables, use the table's adjusted position from pagination
+      if (el.type === "table") {
+        // Find the table's adjusted position by checking previous elements
+        adjustedY = el.y;
+        for (const prevEl of elements) {
+          if (prevEl.id === el.id) break;
+          if (prevEl.type === "table" && prevEl.y < el.y) {
+            const prevTbl = prevEl;
+            const allItems = (getValueFromContextOrData(prevTbl.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
+            const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
+            const prevActualHeight = prevTbl.headerHeight + (allItems.length * prevTbl.rowHeight) + (prevTbl.columns.some((c) => c.showTotal) ? prevTbl.rowHeight : 0);
+            const prevTableBottom = prevEl.y + prevOriginalHeight;
+            if (el.y >= prevTableBottom) {
+              adjustedY += (prevActualHeight - prevOriginalHeight);
+            }
+          }
+        }
+      }
+      
+      const pos = calculateElementPosition(el, page.pageIndex, adjustedY);
+      
+      const commonStyle = `
+        position: absolute;
+        left: ${pos.x}px;
+        top: ${pos.y}px;
+        width: ${el.width}px;
+        height: ${el.height}px;
+        transform: rotate(${el.rotation}deg);
+        z-index: ${el.zIndex || 0};
+      `;
 
     if (el.type === "text") {
       let display = el.text || "";
       if (el.binding) {
-        const bound = getByPath(invoice.data, el.binding);
+        let bound: unknown = undefined;
+        bound = getValueFromContextOrData(el.binding, dataContext, invoice.data);
         if (bound != null && bound !== undefined) {
           display = el.format ?
             formatValue(bound, el.format) :
-            formatValue(bound); // Use formatValue to handle objects properly
+            formatValue(bound);
         } else {
-          display = ""; // Don't show "undefined" or "null"
+          display = "";
         }
       }
 
@@ -227,7 +326,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
 
     if (el.type === "input") {
       const inp = el as Extract<TemplateElement, { type: "input" }>;
-      const boundValue = inp.binding ? getByPath(invoice.data, inp.binding) : undefined;
+      const boundValue = inp.binding ? getValueFromContextOrData(inp.binding, dataContext, invoice.data) : undefined;
       const displayValue = boundValue != null ? String(boundValue) : "";
       
       return `
@@ -253,7 +352,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
 
     if (el.type === "currency") {
       const curr = el as Extract<TemplateElement, { type: "currency" }>;
-      const boundValue = curr.binding ? getByPath(invoice.data, curr.binding) : undefined;
+      const boundValue = curr.binding ? getValueFromContextOrData(curr.binding, dataContext, invoice.data) : undefined;
       
       // Format as currency
       let displayValue = "";
@@ -300,14 +399,20 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
       `;
     }
 
-    if (el.type === "table") {
-      const items = getByPath(invoice.data, el.itemsBinding) as Array<Record<string, unknown>> || [];
+      if (el.type === "table") {
+        const allItems = (getValueFromContextOrData(el.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
+        
+        // Get table slice for this page
+        const slice = page.tableSlices[el.id];
+        const items = slice ? allItems.slice(slice.start, slice.end) : allItems;
+        const showTotals = slice ? slice.isLastSlice : true;
 
-      const columnsHTML = el.columns.map((col) => `
-        <div style="padding: 4px; font-weight: 600;">${col.header}</div>
-      `).join("");
+        const columnsHTML = el.columns.map((col) => `
+          <div style="padding: 4px; font-weight: 600;">${col.header}</div>
+        `).join("");
 
-      const rowsHTML = items.map((row, idx) => {
+        const rowsHTML = items.map((row, idx) => {
+          const actualIdx = slice ? slice.start + idx : idx;
         const cellsHTML = el.columns.map((col) => {
           const binding = col.binding || col.id;
           const raw = getByPath(row, binding);
@@ -350,7 +455,7 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
           `;
         }).join("");
 
-        const borderStyle = el.stripe && idx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb";
+          const borderStyle = el.stripe && actualIdx % 2 === 1 ? "1px solid #f3f4f6" : "1px solid #e5e7eb";
 
         return `
           <div style="
@@ -365,23 +470,23 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }).join("");
 
-      // Totaling Row HTML - per column
-      let totalsHTML = "";
-      if (el.columns.some((c) => c.showTotal)) {
-        const totalsCellsHTML = el.columns.map((col) => {
-          let text = "";
-          let cellStyle: Record<string, string> = {
-            padding: "4px",
-            display: "flex",
-            "align-items": "center",
-            "justify-content": col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start",
-          };
-          
-          if (col.showTotal && (col.type === "number" || col.type === "currency")) {
-            try {
-              // Sum all values in the column
-              const columnBinding = col.binding || col.id;
-              const columnValues = items
+        // Totaling Row HTML - per column (only show on last slice)
+        let totalsHTML = "";
+        if (showTotals && el.columns.some((c) => c.showTotal)) {
+          const totalsCellsHTML = el.columns.map((col) => {
+            let text = "";
+            let cellStyle: Record<string, string> = {
+              padding: "4px",
+              display: "flex",
+              "align-items": "center",
+              "justify-content": col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start",
+            };
+            
+            if (col.showTotal && (col.type === "number" || col.type === "currency")) {
+              try {
+                // Sum all values in the column (from all items, not just this slice)
+                const columnBinding = col.binding || col.id;
+                const columnValues = allItems
                 .map((row) => {
                   const val = getByPath(row, columnBinding);
                   if (val != null) {
@@ -462,35 +567,36 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
         `;
       }
 
-      // Calculate actual table height based on content (no scrolling for PDF/print)
-      const headerHeight = el.headerHeight || 28;
-      const rowHeight = el.rowHeight || 28;
-      const actualContentHeight = items.length * rowHeight;
-      const totalsHeight = totalsHTML ? rowHeight : 0;
-      const totalTableHeight = headerHeight + actualContentHeight + totalsHeight;
-      
-      return `
-        <div style="${commonStyle}; height: ${totalTableHeight}px;">
-          <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: visible;">
-            <div style="
-              display: grid;
-              grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
-              border-bottom: 1px solid #e5e7eb;
-              height: ${el.headerHeight}px;
-            ">
-              ${columnsHTML}
-            </div>
-            <div style="overflow: visible;">
-              ${rowsHTML}
-              ${totalsHTML}
+      // Calculate actual table height for this slice
+        const headerHeight = el.headerHeight || 28;
+        const rowHeight = el.rowHeight || 28;
+        const actualContentHeight = items.length * rowHeight;
+        const totalsHeight = totalsHTML ? rowHeight : 0;
+        const totalTableHeight = headerHeight + actualContentHeight + totalsHeight;
+        
+        return `
+          <div style="${commonStyle}; height: ${totalTableHeight}px;">
+            <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: visible;">
+              <div style="
+                display: grid;
+                grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
+                border-bottom: 1px solid #e5e7eb;
+                height: ${el.headerHeight}px;
+              ">
+                ${columnsHTML}
+              </div>
+              <div style="overflow: visible;">
+                ${rowsHTML}
+                ${totalsHTML}
+              </div>
             </div>
           </div>
-        </div>
-      `;
-    }
+        `;
+      }
 
-    return "";
-  }).join("");
+      return "";
+    }).join("");
+  };
 
   // Generate watermark HTML if enabled AND has valid imageUrl or text
   // This prevents rendering empty watermarks or old/incomplete configurations
@@ -604,7 +710,26 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
     }
   }
 
-  // Complete HTML document
+  // Render all pages
+  const pagesHTML = pages.map((page, pageIndex) => {
+    const pageBreak = pageIndex > 0 ? "page-break-before: always;" : "";
+    return `
+      <div class="page" style="
+        position: relative;
+        width: ${size.width}px;
+        height: ${size.height}px;
+        background: white;
+        ${finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
+        background-size: cover;
+        ${pageBreak}
+      ">
+        ${watermarkHTML}
+        ${renderPageElements(page)}
+      </div>
+    `;
+  }).join("");
+
+  // Complete HTML document with multiple pages
   return `
     <!DOCTYPE html>
     <html>
@@ -616,24 +741,22 @@ function generateInvoiceHTML(template: Template, invoice: Invoice, organization:
             margin: 0; 
             padding: 0; 
             width: ${size.width}px;
-            height: ${size.height}px;
             overflow: hidden;
           }
-          @page { margin: 0; size: ${size.widthMm}mm ${size.heightMm}mm; }
+          @page { 
+            margin: 0; 
+            size: ${size.widthMm}mm ${size.heightMm}mm; 
+          }
+          .page {
+            page-break-after: always;
+          }
+          .page:last-child {
+            page-break-after: auto;
+          }
         </style>
       </head>
       <body>
-        <div style="
-          position: relative;
-          width: ${size.width}px;
-          height: ${size.height}px;
-          background: white;
-          ${finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
-          background-size: cover;
-        ">
-          ${watermarkHTML}
-          ${elementsHTML}
-        </div>
+        ${pagesHTML}
       </body>
     </html>
   `;
@@ -678,8 +801,18 @@ export async function handleRenderInvoicePdf(
     organization = await organizationRepository.get({ id: invoice.orgId });
   }
 
+  // Build DataContext for template rendering
+  const dataContext = await buildDataContext(
+    {
+      include: ["invoice", "organization"],
+      invoiceId: invoice.id,
+      organizationId: invoice.orgId,
+    },
+    databaseService
+  );
+
   // Generate HTML with organization branding
-  const html = generateInvoiceHTML(template, invoice, organization);
+  const html = generateInvoiceHTML(template, invoice, organization, dataContext);
 
   // Convert HTML to PDF using puppeteer with serverless Chromium
   // Using @sparticuz/chromium for Firebase Cloud Functions compatibility

@@ -193,13 +193,15 @@ export function DesignerCanvas({
 					return (
 						<ContextMenu key={el.id}>
 							<ContextMenuTrigger asChild>
-								<div
+									<div
 									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
 										width: el.width * state.zoom,
-										height: el.height * state.zoom,
+										height: el.type === "table" 
+											? (el.headerHeight + el.rowHeight) * state.zoom // Preview: header + one row
+											: el.height * state.zoom,
 										transform: `rotate(${el.rotation}deg)`,
 										touchAction: "none",
 										userSelect: "none",
@@ -249,18 +251,28 @@ export function DesignerCanvas({
 										</div>
 									)}
 									{/* Resize handles - only show for single selection */}
+									{/* For tables, only show width resize handles (e, w) - height is calculated dynamically */}
 									{state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && (
 										<>
-											{[
-												{ edge: "nw" as const, cx: 0, cy: 0, cursor: "nwse-resize" },
-												{ edge: "n" as const, cx: 0.5, cy: 0, cursor: "ns-resize" },
-												{ edge: "ne" as const, cx: 1, cy: 0, cursor: "nesw-resize" },
-												{ edge: "e" as const, cx: 1, cy: 0.5, cursor: "ew-resize" },
-												{ edge: "se" as const, cx: 1, cy: 1, cursor: "nwse-resize" },
-												{ edge: "s" as const, cx: 0.5, cy: 1, cursor: "ns-resize" },
-												{ edge: "sw" as const, cx: 0, cy: 1, cursor: "nesw-resize" },
-												{ edge: "w" as const, cx: 0, cy: 0.5, cursor: "ew-resize" },
-											].map((h) => (
+											{(
+												el.type === "table"
+													? [
+															// Only width resize for tables
+															{ edge: "e" as const, cx: 1, cy: 0.5, cursor: "ew-resize" },
+															{ edge: "w" as const, cx: 0, cy: 0.5, cursor: "ew-resize" },
+														]
+													: [
+															// All resize handles for other elements
+															{ edge: "nw" as const, cx: 0, cy: 0, cursor: "nwse-resize" },
+															{ edge: "n" as const, cx: 0.5, cy: 0, cursor: "ns-resize" },
+															{ edge: "ne" as const, cx: 1, cy: 0, cursor: "nesw-resize" },
+															{ edge: "e" as const, cx: 1, cy: 0.5, cursor: "ew-resize" },
+															{ edge: "se" as const, cx: 1, cy: 1, cursor: "nwse-resize" },
+															{ edge: "s" as const, cx: 0.5, cy: 1, cursor: "ns-resize" },
+															{ edge: "sw" as const, cx: 0, cy: 1, cursor: "nesw-resize" },
+															{ edge: "w" as const, cx: 0, cy: 0.5, cursor: "ew-resize" },
+														]
+											).map((h) => (
 												<div
 													key={h.edge}
 													className="absolute"

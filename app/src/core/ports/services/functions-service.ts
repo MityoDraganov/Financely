@@ -878,4 +878,113 @@ export interface FunctionsService {
       storageBytes: number;
     };
   }>;
+
+  createExternalSource(payload: {
+    organizationId: string;
+    data: {
+      name: string;
+      type: "rest-api" | "graphql" | "webhook";
+      endpoint: string;
+      authConfig: {
+        type: "api-key" | "basic" | "bearer" | "oauth2";
+        apiKeyHeader?: string;
+        apiKeyValue?: string;
+        username?: string;
+        password?: string;
+        token?: string;
+        clientId?: string;
+        clientSecret?: string;
+        tokenUrl?: string;
+        scope?: string;
+      };
+      refreshStrategy?: "on-demand" | "scheduled" | "event-driven";
+      schemaMapping?: Record<string, { path: string; transform?: string }>;
+      cacheConfig?: { ttl?: number; invalidationStrategy?: "time-based" | "event-based" };
+      enabled?: boolean;
+      schedule?: string;
+      query?: string;
+      headers?: Record<string, string>;
+    };
+  }): Promise<{ id: string }>;
+
+  updateExternalSource(payload: {
+    organizationId: string;
+    sourceId: string;
+    data: Partial<{
+      name: string;
+      type: "rest-api" | "graphql" | "webhook";
+      endpoint: string;
+      authConfig: {
+        type: "api-key" | "basic" | "bearer" | "oauth2";
+        apiKeyHeader?: string;
+        apiKeyValue?: string;
+        username?: string;
+        password?: string;
+        token?: string;
+        clientId?: string;
+        clientSecret?: string;
+        tokenUrl?: string;
+        scope?: string;
+      };
+      refreshStrategy: "on-demand" | "scheduled" | "event-driven";
+      schemaMapping: Record<string, { path: string; transform?: string }>;
+      cacheConfig: { ttl: number; invalidationStrategy: "time-based" | "event-based" };
+      status: "active" | "inactive" | "error";
+      enabled: boolean;
+      schedule?: string;
+      query?: string;
+      headers?: Record<string, string>;
+    }>;
+  }): Promise<{ success: boolean }>;
+
+  deleteExternalSource(payload: {
+    organizationId: string;
+    sourceId: string;
+  }): Promise<{ success: boolean }>;
+
+  listExternalSources(payload: {
+    organizationId: string;
+  }): Promise<{ sources: Array<{
+    id: string;
+    data: {
+      orgId: string;
+      name: string;
+      type: "rest-api" | "graphql" | "webhook";
+      endpoint: string;
+      status: "active" | "inactive" | "error";
+      refreshStrategy: "on-demand" | "scheduled" | "event-driven";
+      enabled: boolean;
+      lastSync?: string;
+      errorLog: Array<{ timestamp: string; error: string }>;
+    };
+  }> }>;
+
+  testExternalSourceConnection(payload: {
+    organizationId: string;
+    sourceId?: string;
+    data?: {
+      name: string;
+      type: "rest-api" | "graphql" | "webhook";
+      endpoint: string;
+      authConfig: {
+        type: "api-key" | "basic" | "bearer" | "oauth2";
+        apiKeyHeader?: string;
+        apiKeyValue?: string;
+        username?: string;
+        password?: string;
+        token?: string;
+        clientId?: string;
+        clientSecret?: string;
+        tokenUrl?: string;
+        scope?: string;
+      };
+      query?: string;
+      headers?: Record<string, string>;
+    };
+  }): Promise<{ success: boolean; error?: string; data?: unknown }>;
+
+  refreshExternalSource(payload: {
+    organizationId: string;
+    sourceId: string;
+  }): Promise<{ success: boolean; error?: string }>;
 }

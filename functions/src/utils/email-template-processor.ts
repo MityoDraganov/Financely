@@ -1,4 +1,6 @@
 import { logger } from "firebase-functions";
+import { DataContext } from "../core/entities/data-context";
+import { resolveBinding } from "./binding-resolver";
 
 /**
  * Centralized email template processing utility
@@ -98,12 +100,13 @@ export function escapeHtml(unsafe: string): string {
  *   - "customer.name" -> data.customer.name
  *   - "items[0].description" -> data.items[0].description
  *   - "items[0]" -> data.items[0]
+ * 
+ * @deprecated Use resolveBinding with DataContext instead
  */
 export function getBindingValue(
   data: Record<string, TemplateDataValue | unknown>,
   binding: string
 ): TemplateDataValue | undefined {
-  // Split by dots, but preserve array indexing like [0]
   const parts: string[] = [];
   let currentPart = "";
   let inBrackets = false;
@@ -142,7 +145,6 @@ export function getBindingValue(
       return undefined;
     }
     
-    // Handle array indexing like [0]
     if (part.startsWith("[") && part.endsWith("]")) {
       if (!Array.isArray(current)) {
         return undefined;
@@ -153,7 +155,6 @@ export function getBindingValue(
       }
       current = current[index];
     } else {
-      // Handle object property access
       if (Array.isArray(current) || !(part in current)) {
         return undefined;
       }
@@ -161,7 +162,6 @@ export function getBindingValue(
     }
   }
 
-  // Type guard to ensure we return TemplateDataValue
   if (
     typeof current === "string" ||
     typeof current === "number" ||
@@ -175,6 +175,17 @@ export function getBindingValue(
   }
 
   return undefined;
+}
+
+/**
+ * Get a value from DataContext using a binding path
+ */
+export function getBindingValueFromContext(
+  context: DataContext,
+  binding: string
+): TemplateDataValue | undefined {
+  const value = resolveBinding(context, binding);
+  return value === null ? undefined : value;
 }
 
 /**
@@ -256,6 +267,65 @@ export function formatValueForEmail(
 }
 
 /**
+ * Process an email template by replacing placeholders with data values from DataContext
+ * 
+ * @param template - The email template with placeholders
+ * @param mappings - Map of placeholder keys to data binding paths
+ * @param context - The DataContext to extract values from
+ * @param config - Optional configuration
+ * @returns Processed template with all placeholders replaced
+ */
+export function processEmailTemplateFromContext(
+  template: {
+    html: string;
+    subject: string;
+    preheader?: string;
+  },
+  mappings: Record<string, string>,
+  context: DataContext,
+  config: EmailTemplateProcessorConfig = {}
+): ProcessedEmailTemplate {
+  const {
+    escapeHtml: shouldEscapeHtml = true,
+    enableLogging = false,
+  } = config;
+
+  let processedHtml = template.html;
+  let processedSubject = template.subject;
+  let processedPreheader = template.preheader || "";
+
+  if (enableLogging) {
+    logger.info("Processing email template from DataContext", {
+      htmlLength: template.html.length,
+      mappingsCount: Object.keys(mappings).length,
+      mappings: Object.keys(mappings),
+    });
+  }
+
+  for (const [placeholderKey, bindingPath] of Object.entries(mappings)) {
+    const placeholderPattern = new RegExp(`\\{\\{${escapeRegex(placeholderKey)}\\}\\}`, "g");
+    
+    let resolvedBindingPath = bindingPath;
+    if (bindingPath.includes("[*]")) {
+      resolvedBindingPath = bindingPath.replace("[*]", "[0]");
+    }
+    
+    const rawValue = getBindingValueFromContext(context, resolvedBindingPath);
+    const value = formatValueForEmail(rawValue, shouldEscapeHtml);
+    
+    processedHtml = processedHtml.replace(placeholderPattern, value);
+    processedSubject = processedSubject.replace(placeholderPattern, value);
+    processedPreheader = processedPreheader.replace(placeholderPattern, value);
+  }
+
+  return {
+    html: processedHtml,
+    subject: processedSubject,
+    preheader: processedPreheader,
+  };
+}
+
+/**
  * Process an email template by replacing placeholders with data values
  * 
  * @param template - The email template with placeholders
@@ -263,6 +333,8 @@ export function formatValueForEmail(
  * @param data - The data object to extract values from
  * @param config - Optional configuration
  * @returns Processed template with all placeholders replaced
+ * 
+ * @deprecated Use processEmailTemplateFromContext with DataContext instead
  */
 export function processEmailTemplate(
   template: {

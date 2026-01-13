@@ -8,7 +8,7 @@ import { PaginationOptions, OrderByOptions, QueryConstraint } from "../core";
  */
 export const databaseService = {
   async get<T>(collection: string, id: string): Promise<T | null> {
-    const doc = await firestore.collection(collection).doc(id).get();
+    const doc = await firestore().collection(collection).doc(id).get();
     if (!doc.exists) {
       return null;
     }
@@ -20,7 +20,7 @@ export const databaseService = {
     paginationOptions?: PaginationOptions, 
     orderByOptions?: OrderByOptions
   ): Promise<T[]> {
-    let query: any = firestore.collection(collection);
+    let query: any = firestore().collection(collection);
     
     // Apply pagination
     if (paginationOptions?.limit) {
@@ -42,7 +42,7 @@ export const databaseService = {
     paginationOptions: PaginationOptions,
     orderByOptions?: OrderByOptions
   ): Promise<T[]> {
-    let query: any = firestore.collection(collection);
+    let query: any = firestore().collection(collection);
     
     // Apply query constraints
     for (const constraint of queryConstraints) {
@@ -74,26 +74,26 @@ export const databaseService = {
   },
 
   async create<T>(collection: string, data: T): Promise<string> {
-    const docRef = await firestore.collection(collection).add(data as any);
+    const docRef = await firestore().collection(collection).add(data as any);
     return docRef.id;
   },
 
   async set<T>(collection: string, id: string, data: T): Promise<void> {
-    await firestore.collection(collection).doc(id).set(data as any);
+    await firestore().collection(collection).doc(id).set(data as any);
   },
 
   async batchSet<T>(collection: string, id: string, data: T) {
     return (batch: any) => {
-      batch.set(firestore.collection(collection).doc(id), data);
+      batch.set(firestore().collection(collection).doc(id), data);
     };
   },
 
   async update<T>(collection: string, id: string, data: Partial<T>): Promise<void> {
-    await firestore.collection(collection).doc(id).update(data);
+    await firestore().collection(collection).doc(id).update(data);
   },
 
   async increment(collection: string, id: string, field: string, value: number): Promise<void> {
-    await firestore.collection(collection).doc(id).update({
+    await firestore().collection(collection).doc(id).update({
       [field]: FieldValue.increment(value)
     });
   },
@@ -103,21 +103,21 @@ export const databaseService = {
     for (const field of fields) {
       updates[field.name] = FieldValue.increment(field.value);
     }
-    await firestore.collection(collection).doc(id).update(updates);
+    await firestore().collection(collection).doc(id).update(updates);
   },
 
   async decrement(collection: string, id: string, field: string, value: number): Promise<void> {
-    await firestore.collection(collection).doc(id).update({
+    await firestore().collection(collection).doc(id).update({
       [field]: FieldValue.increment(-value)
     });
   },
 
   async delete(collection: string, id: string): Promise<void> {
-    await firestore.collection(collection).doc(id).delete();
+    await firestore().collection(collection).doc(id).delete();
   },
 
   async executeBatchOperations(operations: any[], batchSize?: number): Promise<void> {
-    const batch = firestore.batch();
+    const batch = firestore().batch();
     for (const operation of operations) {
       operation(batch);
     }
@@ -125,13 +125,13 @@ export const databaseService = {
   },
 
   async addToSet<T>(collection: string, id: string, fieldName: keyof T, value: T[keyof T]): Promise<void> {
-    await firestore.collection(collection).doc(id).update({
+    await firestore().collection(collection).doc(id).update({
       [fieldName as string]: FieldValue.arrayUnion(value)
     });
   },
 
   async removeFromSet<T>(collection: string, id: string, fieldName: keyof T, value: T[keyof T]): Promise<void> {
-    await firestore.collection(collection).doc(id).update({
+    await firestore().collection(collection).doc(id).update({
       [fieldName as string]: FieldValue.arrayRemove(value)
     });
   },

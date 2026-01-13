@@ -452,24 +452,33 @@ export default function TemplateDesignerPage() {
 		// Determine position - stack them vertically
 		const existingElements = currentTemplate.elements ?? [];
 		const maxY = existingElements.length > 0 
-			? Math.max(...existingElements.map(el => el.y + el.height))
+			? Math.max(...existingElements.map(el => {
+				// For tables, use preview height (headerHeight + rowHeight)
+				if (el.type === "table") {
+					return el.y + el.headerHeight + el.rowHeight;
+				}
+				return el.y + el.height;
+			}))
 			: 80;
 		const yPosition = maxY + 20;
 		
 		if (elementType === "table") {
 			// Add table for items
+			// Height is preview height: headerHeight (28) + rowHeight (28) for one preview row
+			const headerHeight = 28;
+			const rowHeight = 28;
 			const tableElement: TemplateElement = {
 				id: crypto.randomUUID(),
 				type: "table",
 				x: 60,
 				y: yPosition,
 				width: 500,
-				height: 200,
+				height: headerHeight + rowHeight, // Preview height
 				rotation: 0,
 				zIndex: 1,
 				visible: true,
-				rowHeight: 28,
-				headerHeight: 28,
+				rowHeight,
+				headerHeight,
 				stripe: true,
 				columns: [
 					{
@@ -1293,7 +1302,7 @@ export default function TemplateDesignerPage() {
 								x: at?.x ?? 60,
 								y: at?.y ?? 160,
 								width: 420,
-								height: 200,
+								height: 56, // Preview height: headerHeight (28) + rowHeight (28) for one preview row
 								rotation: 0,
 								zIndex: 1,
 								visible: true,
@@ -1833,6 +1842,28 @@ export default function TemplateDesignerPage() {
 					updated = base.map((item) => {
 						if (item.id !== elementId) return item;
 						
+						// For tables, only allow width resizing (height is calculated dynamically)
+						if (item.type === "table") {
+							let nextX = startX;
+							let nextW = startWidth ?? item.width;
+							if (edge?.includes("e"))
+								nextW = Math.max(1, (startWidth ?? item.width) + dx);
+							if (edge?.includes("w")) {
+								nextX = startX + dx;
+								nextW = Math.max(1, (startWidth ?? item.width) - dx);
+							}
+							const clamped = clampResize(nextX, startY, nextW, item.height);
+							return {
+								...item,
+								x: clamped.x,
+								y: clamped.y,
+								width: clamped.width,
+								// Keep original height for tables (it's just preview height)
+								height: item.height,
+							};
+						}
+						
+						// For other elements, allow full resize
 						let nextX = startX;
 						let nextY = startY;
 						let nextW = startWidth ?? item.width;

@@ -46,8 +46,12 @@ export default function TableElement({
 	const { t } = useTranslation();
 	const tbl = element;
 	
+	// Calculate preview height: header + one row for preview
+	const previewHeight = tbl.headerHeight + tbl.rowHeight;
+	
 	return (
 		<div className="w-full h-full border border-border bg-background">
+			{/* Header */}
 			<div
 				style={{
 					display: "grid",
@@ -72,6 +76,34 @@ export default function TableElement({
 							textAlign: c.align,
 						}}
 					/>
+				))}
+			</div>
+			{/* Preview row - show first row for design preview */}
+			<div
+				style={{
+					display: "grid",
+					gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr 1fr",
+					height: tbl.rowHeight * zoom,
+					borderBottom: "1px solid hsl(var(--border))",
+				}}
+			>
+				{(tbl.columns.length > 0
+					? tbl.columns
+					: [
+						{ id: "c1", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+						{ id: "c2", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+					]
+				).map((c) => (
+					<div
+						key={c.id}
+						className="border-r last:border-r-0 px-2 text-[10px] text-muted-foreground flex items-center"
+						style={{
+							textAlign: c.align,
+							justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
+						}}
+					>
+						{c.type === "currency" ? "$0.00" : c.type === "number" ? "0" : c.type === "date" ? "2024-01-01" : "Sample"}
+					</div>
 				))}
 			</div>
 			<div className="text-[10px] text-muted-foreground p-2">{t('designer.elementProperties.table.editHeadersHint')}</div>
@@ -169,15 +201,13 @@ export function TableProperties({
 						className={components.inputHeight}
 				/>
 			</div>
+				{/* Height is calculated dynamically: headerHeight + rowHeight * items.length */}
 				<div className={components.field}>
 					<Label className={typography.fieldLabel}>{t('designer.elementProperties.common.height')}</Label>
-				<Input
-					type="number"
-					value={element.height}
-					onChange={(e) => onChange({ height: Number(e.target.value) })}
-						className={components.inputHeight}
-				/>
-			</div>
+					<div className={`${components.inputHeight} flex items-center text-muted-foreground text-xs`}>
+						{t('designer.elementProperties.table.heightCalculated')} ({element.headerHeight} + {element.rowHeight} × items)
+					</div>
+				</div>
 		</div>
 		</section>
 	);

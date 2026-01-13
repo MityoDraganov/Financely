@@ -7,7 +7,7 @@ import { WorkflowExecutionEngine } from "../services/workflow-execution-engine";
 import { WorkflowEvent } from "../core/entities/workflow-execution";
 import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
-import { firestore as db } from "../infrastructure/firebase";
+import { firestore } from "../infrastructure/firebase";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -596,7 +596,7 @@ export const checkCronWorkflows = onSchedule({
     const executionEngine = getExecutionEngine();
     
     // Find all active workflows with schedule.cron trigger
-    const workflowsSnapshot = await db
+    const workflowsSnapshot = await firestore()
       .collection("workflows")
       .where("status", "==", "active")
       .where("trigger.type", "==", "schedule.cron")
@@ -687,7 +687,7 @@ export const checkOverdueInvoices = onSchedule({
 
     // Find all invoices that are not paid and have a due date in the past
     // Note: This is a simplified query - you may need to adjust based on your invoice structure
-    const invoicesSnapshot = await db
+    const invoicesSnapshot = await firestore()
       .collection("invoices")
       .where("status", "in", ["draft", "sent"])
       .get();
@@ -748,7 +748,7 @@ export const checkContractExpiry = onSchedule({
 
     // Find contracts collection (adjust collection name if different)
     // Note: This assumes contracts have an expirationDate field
-    const contractsSnapshot = await db
+    const contractsSnapshot = await firestore()
       .collection("contracts")
       .where("status", "==", "active")
       .get();

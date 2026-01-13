@@ -139,7 +139,7 @@ export const getUsageHistory = onCall<GetUsageHistoryPayload, Promise<GetUsageHi
       const { USAGE_FEATURES } = await import("../usage/usage-features");
 
       // Fetch monthly aggregates for invoices
-      const invoiceAggregates = await firestore
+      const invoiceAggregates = await firestore()
         .collection("usage_aggregates_monthly")
         .where("orgId", "==", organizationId)
         .where("featureId", "==", USAGE_FEATURES.INVOICE_CREATE)
@@ -163,7 +163,7 @@ export const getUsageHistory = onCall<GetUsageHistoryPayload, Promise<GetUsageHi
       }>();
 
       // Process invoice aggregates
-      invoiceAggregates.docs.forEach((doc) => {
+      invoiceAggregates.docs.forEach((doc: any) => {
         const data = doc.data();
         const month = data.month as string;
         const current = usageMap.get(month) || { invoices: 0, templates: 0, storageBytes: 0 };

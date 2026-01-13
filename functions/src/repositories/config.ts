@@ -12,4 +12,6 @@ export enum DatabaseCollection {
   EMAIL_TEMPLATE_MAPPINGS = "emailTemplateMappings",
   EXTRACTION_JOBS = "extractionJobs",
   TEMPLATE_PATTERNS = "templatePatterns",
+  EXTERNAL_SOURCE_CONFIGS = "externalSourceConfigs",
+  EXTERNAL_SOURCE_CACHE = "externalSourceCache",
 }

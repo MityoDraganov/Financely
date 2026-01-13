@@ -578,4 +578,64 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "getUsageHistory")(payload);
     return result.data;
   },
+
+  async createExternalSource(payload) {
+    type CreateExternalSourcePayload = Parameters<FunctionsService["createExternalSource"]>[0];
+    type CreateExternalSourceResponse = Awaited<ReturnType<FunctionsService["createExternalSource"]>>;
+    const result = await httpsCallable<
+      CreateExternalSourcePayload,
+      CreateExternalSourceResponse
+    >(firebase.functions, "createExternalSource")(payload);
+    return result.data;
+  },
+
+  async updateExternalSource(payload) {
+    type UpdateExternalSourcePayload = Parameters<FunctionsService["updateExternalSource"]>[0];
+    type UpdateExternalSourceResponse = Awaited<ReturnType<FunctionsService["updateExternalSource"]>>;
+    const result = await httpsCallable<
+      UpdateExternalSourcePayload,
+      UpdateExternalSourceResponse
+    >(firebase.functions, "updateExternalSource")(payload);
+    return result.data;
+  },
+
+  async deleteExternalSource(payload) {
+    type DeleteExternalSourcePayload = Parameters<FunctionsService["deleteExternalSource"]>[0];
+    type DeleteExternalSourceResponse = Awaited<ReturnType<FunctionsService["deleteExternalSource"]>>;
+    const result = await httpsCallable<
+      DeleteExternalSourcePayload,
+      DeleteExternalSourceResponse
+    >(firebase.functions, "deleteExternalSource")(payload);
+    return result.data;
+  },
+
+  async listExternalSources(payload) {
+    type ListExternalSourcesPayload = Parameters<FunctionsService["listExternalSources"]>[0];
+    type ListExternalSourcesResponse = Awaited<ReturnType<FunctionsService["listExternalSources"]>>;
+    const result = await httpsCallable<
+      ListExternalSourcesPayload,
+      ListExternalSourcesResponse
+    >(firebase.functions, "listExternalSources")(payload);
+    return result.data;
+  },
+
+  async testExternalSourceConnection(payload) {
+    type TestConnectionPayload = Parameters<FunctionsService["testExternalSourceConnection"]>[0];
+    type TestConnectionResponse = Awaited<ReturnType<FunctionsService["testExternalSourceConnection"]>>;
+    const result = await httpsCallable<
+      TestConnectionPayload,
+      TestConnectionResponse
+    >(firebase.functions, "testExternalSourceConnection")(payload);
+    return result.data;
+  },
+
+  async refreshExternalSource(payload) {
+    type RefreshSourcePayload = Parameters<FunctionsService["refreshExternalSource"]>[0];
+    type RefreshSourceResponse = Awaited<ReturnType<FunctionsService["refreshExternalSource"]>>;
+    const result = await httpsCallable<
+      RefreshSourcePayload,
+      RefreshSourceResponse
+    >(firebase.functions, "refreshExternalSource")(payload);
+    return result.data;
+  },
 };

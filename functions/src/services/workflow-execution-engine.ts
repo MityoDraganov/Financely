@@ -1,13 +1,17 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
-import { firestore as db } from "../infrastructure/firebase";
+import { firestore } from "../infrastructure/firebase";
 import {
   WorkflowRun,
   StepExecution,
   WorkflowEvent,
   StepDefinition,
 } from "../core/entities/workflow-execution";
+import { buildDataContext } from "./data-context-builder";
+import { getDatabaseService } from "./database-service";
+import { resolveBinding } from "../utils/binding-resolver";
+import { DataContext } from "../core/entities/data-context";
 
 /**
  * Remove undefined values from an object recursively
@@ -115,7 +119,7 @@ export class WorkflowExecutionEngine {
     });
 
     // First, let's check what workflows exist for this org (for debugging)
-    const allWorkflowsSnapshot = await db
+    const allWorkflowsSnapshot = await firestore()
       .collection("workflows")
       .where("orgId", "==", tenantId)
       .get();
@@ -123,7 +127,7 @@ export class WorkflowExecutionEngine {
     logger.info("All workflows for organization", {
       tenantId,
       totalWorkflows: allWorkflowsSnapshot.size,
-      workflows: allWorkflowsSnapshot.docs.map(doc => ({
+      workflows: allWorkflowsSnapshot.docs.map((doc: any) => ({
         id: doc.id,
         name: doc.data().name,
         status: doc.data().status,
@@ -133,7 +137,7 @@ export class WorkflowExecutionEngine {
     });
 
     // Use the new workflow structure - look for workflows with matching trigger type
-    const workflowsSnapshot = await db
+    const workflowsSnapshot = await firestore()
       .collection("workflows")
       .where("orgId", "==", tenantId)
       .where("status", "==", "active")
@@ -201,7 +205,37 @@ export class WorkflowExecutionEngine {
       eventType: event.type,
     });
 
-    // Create the workflow execution in the format expected by frontend
+    const databaseService = getDatabaseService();
+    const include: string[] = ["organization"];
+    
+    if (event.payload?.invoiceId) {
+      include.push("invoice");
+    }
+    if (event.payload?.customerId || event.payload?.contactId) {
+      include.push("customer");
+    }
+    if (event.payload?.invoiceId) {
+      include.push("payment");
+    }
+
+    let dataContext: DataContext | undefined;
+    try {
+      dataContext = await buildDataContext(
+        {
+          include,
+          invoiceId: event.payload?.invoiceId as string | undefined,
+          customerId: (event.payload?.customerId || event.payload?.contactId) as string | undefined,
+          organizationId: workflow.orgId,
+        },
+        databaseService
+      );
+    } catch (error) {
+      logger.warn("Failed to build DataContext for workflow", {
+        runId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const execution = {
       id: runId,
       workflowId: workflow.id,
@@ -210,10 +244,10 @@ export class WorkflowExecutionEngine {
       triggerData: event.payload,
       startedAt: new Date().toISOString(),
       logs: [],
-      context: { ...event.payload }, // Start with event payload as context
+      context: { ...event.payload, _dataContext: dataContext }, // Include DataContext for condition evaluation
     };
 
-    await db.collection("workflowRuns").doc(runId).set(execution);
+    await firestore().collection("workflowRuns").doc(runId).set(execution);
 
     logger.info("Workflow run created successfully", { runId, workflowId: workflow.id });
 
@@ -260,7 +294,7 @@ export class WorkflowExecutionEngine {
    * Create initial step executions for the workflow run
    */
   private async createInitialStepExecutions(runId: string, workflow: any): Promise<void> {
-    const batch = db.batch();
+    const batch = firestore().batch();
 
     // Find the first step (entry point) - in the new structure, steps are in workflow.steps array
     const firstStep = workflow.steps && workflow.steps.length > 0 ? workflow.steps[0] : null;
@@ -278,7 +312,7 @@ export class WorkflowExecutionEngine {
       };
 
       batch.set(
-        db.collection("workflowRuns").doc(runId).collection("steps").doc(firstStep.id),
+        firestore().collection("workflowRuns").doc(runId).collection("steps").doc(firstStep.id),
         stepExecution
       );
     }
@@ -307,7 +341,7 @@ export class WorkflowExecutionEngine {
    */
   private async startWorkflowExecution(runId: string): Promise<void> {
     // Update workflow execution status
-    await db.collection("workflowRuns").doc(runId).update({
+    await firestore().collection("workflowRuns").doc(runId).update({
       status: "running",
     });
 
@@ -321,7 +355,7 @@ export class WorkflowExecutionEngine {
   async processNextStep(runId: string): Promise<void> {
     try {
       // Find the next queued step
-      const stepsSnapshot = await db
+      const stepsSnapshot = await firestore()
         .collection("workflowRuns")
         .doc(runId)
         .collection("steps")
@@ -339,10 +373,10 @@ export class WorkflowExecutionEngine {
       const stepExecution = stepDoc.data() as StepExecution;
 
       // Get workflow run and workflow definition
-      const runDoc = await db.collection("workflowRuns").doc(runId).get();
+      const runDoc = await firestore().collection("workflowRuns").doc(runId).get();
       const run = runDoc.data() as WorkflowRun;
 
-      const workflowDoc = await db.collection("workflows").doc(run.workflowId).get();
+      const workflowDoc = await firestore().collection("workflows").doc(run.workflowId).get();
       const workflow = workflowDoc.data();
 
       if (!workflow) {
@@ -365,7 +399,7 @@ export class WorkflowExecutionEngine {
       });
       
       // Mark workflow as failed
-      await db.collection("workflowRuns").doc(runId).update({
+      await firestore().collection("workflowRuns").doc(runId).update({
         status: "failed",
         endedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -391,7 +425,7 @@ export class WorkflowExecutionEngine {
       logger.info("Executing step", { runId, stepId, type: stepDefinition.type });
 
       // Update step status to running
-      await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
+      await firestore().collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
         status: "running",
         startedAt: FieldValue.serverTimestamp(),
         rev: FieldValue.increment(1),
@@ -432,7 +466,7 @@ export class WorkflowExecutionEngine {
         }
 
         // Mark condition step as completed
-        await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
+        await firestore().collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
           status: "completed",
           endedAt: FieldValue.serverTimestamp(),
           result: { conditionMet, branchExecuted: conditionMet ? "true" : "false" },
@@ -521,7 +555,7 @@ export class WorkflowExecutionEngine {
       const cleanedResults = removeUndefinedValues(results);
 
       // Update step status to completed
-      await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
+      await firestore().collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
         status: "completed",
         endedAt: FieldValue.serverTimestamp(),
         result: cleanedResults,
@@ -539,7 +573,7 @@ export class WorkflowExecutionEngine {
       };
 
       // Update workflow execution with log and context
-      await db.collection("workflowRuns").doc(runId).update({
+      await firestore().collection("workflowRuns").doc(runId).update({
         context: {
           ...context,
           [stepId]: cleanedResults,
@@ -563,7 +597,7 @@ export class WorkflowExecutionEngine {
       });
 
       // Update step status to failed
-      await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
+      await firestore().collection("workflowRuns").doc(runId).collection("steps").doc(stepId).update({
         status: "failed",
         endedAt: FieldValue.serverTimestamp(),
         error: {
@@ -583,7 +617,7 @@ export class WorkflowExecutionEngine {
       };
 
       // Mark workflow as failed with error log
-      await db.collection("workflowRuns").doc(runId).update({
+      await firestore().collection("workflowRuns").doc(runId).update({
         status: "failed",
         completedAt: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Unknown error",
@@ -597,12 +631,20 @@ export class WorkflowExecutionEngine {
    */
   private evaluateConditions(conditions: any[], context: Record<string, unknown>): boolean {
     if (!conditions || conditions.length === 0) {
-      return true; // No conditions means always true
+      return true;
     }
 
-    // All conditions must be met (AND logic)
+    const dataContext = (context._dataContext as DataContext | undefined);
+
     for (const condition of conditions) {
-      const fieldValue = this.getFieldValue(condition.field, context);
+      let fieldValue: unknown;
+      
+      if (dataContext) {
+        const resolved = resolveBinding(dataContext, condition.field);
+        fieldValue = resolved === null ? undefined : resolved;
+      } else {
+        fieldValue = this.getFieldValue(condition.field, context);
+      }
       
       logger.info("Evaluating condition", {
         field: condition.field,
@@ -610,7 +652,7 @@ export class WorkflowExecutionEngine {
         expectedValue: condition.value,
         actualValue: fieldValue,
         fieldValueType: typeof fieldValue,
-        contextKeys: Object.keys(context)
+        usingDataContext: !!dataContext,
       });
       
       if (!this.evaluateCondition(condition, fieldValue)) {
@@ -802,10 +844,10 @@ export class WorkflowExecutionEngine {
    */
   private async createStepExecution(runId: string, stepId: string, previousStepType: string): Promise<void> {
     // Get workflow run and workflow definition
-    const runDoc = await db.collection("workflowRuns").doc(runId).get();
+    const runDoc = await firestore().collection("workflowRuns").doc(runId).get();
     const run = runDoc.data() as WorkflowRun;
 
-    const workflowDoc = await db.collection("workflows").doc(run.workflowId).get();
+    const workflowDoc = await firestore().collection("workflows").doc(run.workflowId).get();
     const workflow = workflowDoc.data();
 
     if (!workflow) {
@@ -831,7 +873,7 @@ export class WorkflowExecutionEngine {
       updatedAt: FieldValue.serverTimestamp() as any,
     };
 
-    await db.collection("workflowRuns").doc(runId).collection("steps").doc(stepId).set(stepExecution);
+    await firestore().collection("workflowRuns").doc(runId).collection("steps").doc(stepId).set(stepExecution);
   }
 
   /**
@@ -839,27 +881,27 @@ export class WorkflowExecutionEngine {
    */
   private async checkWorkflowCompletion(runId: string): Promise<void> {
     // Check if all steps are completed
-    const stepsSnapshot = await db
+    const stepsSnapshot = await firestore()
       .collection("workflowRuns")
       .doc(runId)
       .collection("steps")
       .get();
 
-    const allStepsCompleted = stepsSnapshot.docs.every(doc => {
+    const allStepsCompleted = stepsSnapshot.docs.every((doc: any) => {
       const step = doc.data() as StepExecution;
       return step.status === "completed" || step.status === "failed";
     });
 
     if (allStepsCompleted) {
       // Check if any steps failed
-      const hasFailures = stepsSnapshot.docs.some(doc => {
+      const hasFailures = stepsSnapshot.docs.some((doc: any) => {
         const step = doc.data() as StepExecution;
         return step.status === "failed";
       });
 
       const finalStatus = hasFailures ? "failed" : "completed";
 
-      await db.collection("workflowRuns").doc(runId).update({
+      await firestore().collection("workflowRuns").doc(runId).update({
         status: finalStatus,
         completedAt: new Date().toISOString(),
       });

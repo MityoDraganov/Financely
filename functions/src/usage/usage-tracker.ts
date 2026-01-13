@@ -141,7 +141,7 @@ export async function recordUsageEvent(
     
     // Check idempotency if eventId is provided
     if (input.eventId) {
-      const existingEventRef = firestore
+      const existingEventRef = firestore()
         .collection(COLLECTIONS.EVENTS)
         .doc(eventId);
       
@@ -175,17 +175,17 @@ export async function recordUsageEvent(
     const dailyDocId = getDailyAggregateDocId(orgId, date, featureId, userId);
     const monthlyDocId = getMonthlyAggregateDocId(orgId, month, featureId);
     
-    const dailyRef = firestore
+    const dailyRef = firestore()
       .collection(COLLECTIONS.AGGREGATES_DAILY)
       .doc(dailyDocId);
     
-    const monthlyRef = firestore
+    const monthlyRef = firestore()
       .collection(COLLECTIONS.AGGREGATES_MONTHLY)
       .doc(monthlyDocId);
     
     // Use a transaction to ensure consistency
     // IMPORTANT: Firestore transactions require all reads before all writes
-    await firestore.runTransaction(async (transaction) => {
+    await firestore().runTransaction(async (transaction: any) => {
       // Read all documents first (required by Firestore transaction rules)
       const dailyDoc = await transaction.get(dailyRef);
       const monthlyDoc = await transaction.get(monthlyRef);
@@ -193,7 +193,7 @@ export async function recordUsageEvent(
       // Now perform all writes
       // Write the raw event
       transaction.set(
-        firestore.collection(COLLECTIONS.EVENTS).doc(eventId),
+        firestore().collection(COLLECTIONS.EVENTS).doc(eventId),
         usageEvent
       );
       

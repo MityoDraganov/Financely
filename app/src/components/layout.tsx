@@ -23,6 +23,7 @@ import {
 	Package,
 	BarChart3,
 	Menu,
+	Database,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -178,6 +179,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				title: t("layout.navigation.analytics"),
 				href: "/analytics",
 				icon: BarChart3,
+			},
+			{
+				title: "Data Sources",
+				href: "/data-sources",
+				icon: Database,
 			},
 			{
 				title: t("layout.navigation.settings"),

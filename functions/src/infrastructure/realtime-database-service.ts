@@ -1,10 +1,17 @@
-import { getDatabase, Reference, Query } from "firebase-admin/database";
+import { getDatabase, Reference, Query, Database } from "firebase-admin/database";
 
 /**
  * Firebase Realtime Database service for backend functions
  * Provides access to Realtime Database from Cloud Functions
  */
-const database = getDatabase();
+let _database: Database | null = null;
+
+const database = (): Database => {
+  if (!_database) {
+    _database = getDatabase();
+  }
+  return _database;
+};
 
 export interface RealtimeDatabaseService {
   get<T>(path: string, id: string): Promise<T | null>;
@@ -20,7 +27,7 @@ export const realtimeDatabaseService: RealtimeDatabaseService = {
    * Get a single record from Realtime Database
    */
   async get<T>(path: string, id: string): Promise<T | null> {
-    const ref = database.ref(`${path}/${id}`);
+    const ref = database().ref(`${path}/${id}`);
     const snapshot = await ref.once("value");
     
     if (!snapshot.exists()) {
@@ -42,7 +49,7 @@ export const realtimeDatabaseService: RealtimeDatabaseService = {
     equalTo?: string;
     limitToFirst?: number;
   }): Promise<T[]> {
-    let query: Reference | Query = database.ref(path);
+    let query: Reference | Query = database().ref(path);
     
     if (options?.orderBy && options?.equalTo !== undefined) {
       query = query.orderByChild(options.orderBy).equalTo(options.equalTo);

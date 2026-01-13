@@ -874,6 +874,7 @@
 				"stripeRows": "Stripe Rows",
 				"itemsBinding": "Items Binding",
 				"itemsBindingPlaceholder": "e.g., items",
+				"heightCalculated": "Calculated dynamically",
 				"columns": "Columns",
 				"column": {
 					"header": "Header",
