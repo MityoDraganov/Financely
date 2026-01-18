@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail, Upload, Sparkles } from "lucide-react";
+import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail, Upload, Sparkles, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 
 export default function TemplatesPage() {
   const { t } = useTranslation();
@@ -50,6 +51,7 @@ export default function TemplatesPage() {
   const [deleteEmailDialogOpen, setDeleteEmailDialogOpen] = useState(false);
   const [emailTemplateToDelete, setEmailTemplateToDelete] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteEmailDialogOpen, setBulkDeleteEmailDialogOpen] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const handleDelete = (template: { id: string; name: string }) => {
     setTemplateToDelete(template);
@@ -244,6 +246,10 @@ export default function TemplatesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
           {selectedTemplateIds.size > 0 && (
             <>
               <Button
@@ -830,6 +836,12 @@ export default function TemplatesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["templates"]}
+      />
     </div>
   );
 }

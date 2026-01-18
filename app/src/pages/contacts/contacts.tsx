@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Edit, Trash2, Mail, Phone, Building, MoreHorizontal, User, Users } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Mail, Phone, Building, MoreHorizontal, User, Users, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { ContactData, Contact } from "@/core";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 
 interface ContactFormData {
   firstName: string;
@@ -56,6 +57,7 @@ export default function ContactsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Queries
   const { data: contacts = [], isLoading: isLoadingContacts, error } = useContactsByOrg(currentOrganization?.id);
@@ -317,13 +319,18 @@ export default function ContactsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
           <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t('contacts.addContact')}
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                {t('contacts.addContact')}
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t('contacts.createTitle')}</DialogTitle>
@@ -423,6 +430,7 @@ export default function ContactsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Search and Stats */}
@@ -773,6 +781,12 @@ export default function ContactsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["contacts"]}
+      />
     </div>
   );
 }

@@ -1,22 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { Globe, Mail, Phone } from "lucide-react";
+import { useUser } from "@clerk/clerk-react";
+import { Globe, Mail, Phone, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
+import { DuplicateOrganizationDialog } from "@/components/organization/duplicate-organization-dialog";
+import { isAdminOrOwner } from "@/core/roles";
 
 type OrganizationGeneralForm = z.infer<ReturnType<typeof getOrganizationGeneralSchema>>;
 
-function getOrganizationGeneralSchema(_t: (key: string) => string) {
+function getOrganizationGeneralSchema() {
   return z.object({
     name: z.string().min(1, "Organization name is required"),
     description: z.string().optional(),
@@ -33,11 +38,22 @@ function getOrganizationGeneralSchema(_t: (key: string) => string) {
 
 export default function OrganizationGeneralPage() {
   const { t } = useTranslation();
+  const { user: clerkUser } = useUser();
+  const { data: dbUser } = useUserByClerkId(clerkUser?.id);
   const { data: organization, isLoading } = useCurrentOrganization();
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   
-  const organizationGeneralSchema = getOrganizationGeneralSchema(t);
+  const organizationGeneralSchema = getOrganizationGeneralSchema();
+
+  // Check if user is owner or admin
+  const isOwnerOrAdmin = useMemo(() => {
+    if (!dbUser || !organization) return false;
+    const userRole = dbUser.organizationRoles?.[organization.id];
+    if (!userRole) return false;
+    return isAdminOrOwner(userRole);
+  }, [dbUser, organization]);
 
   const {
     register,
@@ -301,6 +317,35 @@ export default function OrganizationGeneralPage() {
           </CardContent>
         </Card>
 
+        {/* Duplicate Organization */}
+        {isOwnerOrAdmin && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Duplicate Organization</CardTitle>
+              <CardDescription className="text-sm">
+                Create a full copy of this organization with all templates, workflows, email templates, products, and other entities.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Alert>
+                <AlertDescription>
+                  This will create a new organization with copies of all your templates, workflows, email templates, products, and other entities. 
+                  All identity-bound data (users, clients, invoices) will be excluded.
+                </AlertDescription>
+              </Alert>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDuplicateDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicate Organization
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Save Button */}
         {hasUnsavedChanges && (
           <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t p-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 sm:mt-6">
@@ -335,6 +380,15 @@ export default function OrganizationGeneralPage() {
           </div>
         )}
       </form>
+
+      {/* Duplicate Organization Dialog */}
+      <DuplicateOrganizationDialog
+        open={isDuplicateDialogOpen}
+        onOpenChange={setIsDuplicateDialogOpen}
+        onSuccess={() => {
+          toast.success("Organization duplicated successfully!");
+        }}
+      />
     </div>
   );
 }

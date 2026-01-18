@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useNavigate } from "react-router-dom";
-import { Search, FileText, Calendar, DollarSign, Eye, Plus, Sparkles } from "lucide-react";
+import { Search, FileText, Calendar, DollarSign, Eye, Plus, Sparkles, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useProposalsByOrg } from "@/hooks/repository-hooks/use-proposals";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { PROPOSAL_STATUSES } from "@/core";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 
 export default function ProposalsPage() {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export default function ProposalsPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const { data: proposals = [], isLoading } = useProposalsByOrg(currentOrganization?.id);
 
@@ -90,10 +92,16 @@ export default function ProposalsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('proposals.title')}</h1>
           <p className="text-muted-foreground">{t('proposals.subtitle')}</p>
         </div>
-        <Button onClick={() => navigate("/proposals/new")}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('proposals.newProposal')}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button onClick={() => navigate("/proposals/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('proposals.newProposal')}
+          </Button>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -223,6 +231,12 @@ export default function ProposalsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["proposals"]}
+      />
     </div>
   );
 }

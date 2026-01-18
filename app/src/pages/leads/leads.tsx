@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye, Sparkles, FileText, Plus, Trash2 } from "lucide-react";
+import { Search, Mail, Phone, Building, MessageSquare, Calendar, Eye, Sparkles, FileText, Plus, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes } from "@/utils/currencies";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 
 export default function LeadsPage() {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ export default function LeadsPage() {
   const [leadForManualProposal, setLeadForManualProposal] = useState<Lead | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [widgetTypeFilter, setWidgetTypeFilter] = useState<string>("all");
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Queries
   const { data: leads = [], isLoading: isLoadingLeads } = useLeadsByOrg(currentOrganization?.id);
@@ -147,6 +149,10 @@ export default function LeadsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('leads.title')}</h1>
           <p className="text-muted-foreground">{t('leads.subtitle')}</p>
         </div>
+        <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+          <Download className="mr-2 h-4 w-4" />
+          Export
+        </Button>
       </div>
 
       {/* Filters and Search */}
@@ -568,6 +574,12 @@ export default function LeadsPage() {
           organization={organization}
         />
       )}
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["leads"]}
+      />
     </div>
   );
 }

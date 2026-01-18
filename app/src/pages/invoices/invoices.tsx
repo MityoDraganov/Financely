@@ -9,10 +9,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Plus, 
+import {
+  Plus,
+  Download,
   FileText, 
-  Download, 
   Search, 
   Filter,
   Calendar,
@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { Invoice } from "@/core/entities/invoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 import { getInvoiceValue, formatInvoiceAmount, getInvoiceAmountAndCurrency } from "@/utils/invoice-helpers";
 
 // Helper to format invoice display number
@@ -74,6 +75,7 @@ export default function InvoicesPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const renderPdf = useRenderInvoicePdf();
 
   const handleCreate = () => navigate("/create-invoice");
@@ -128,6 +130,10 @@ export default function InvoicesPage() {
               </p>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => setShowExportDialog(true)} className="shadow-sm flex-1 sm:flex-none">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
               <Button onClick={handleUploadInvoice} variant="outline" className="shadow-sm flex-1 sm:flex-none">
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Invoice
@@ -383,6 +389,12 @@ export default function InvoicesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["invoices"]}
+      />
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { getApps, initializeApp } from "firebase-admin/app";
-import { initializeDataSources } from "./services/data-context-builder";
 
 /**
  * Initialize Firebase app
@@ -7,11 +6,6 @@ import { initializeDataSources } from "./services/data-context-builder";
 if (!getApps().length) {
   initializeApp();
 }
-
-/**
- * Initialize data sources registry
- */
-initializeDataSources();
 
 // Invoice functions
 export { createInvoice } from "./functions/create-invoice";
@@ -158,12 +152,5 @@ export { onProductWritten } from "./functions/on-product-updated";
 // Billing and usage functions
 export { getUsageHistory } from "./functions/get-usage-history";
 
-// External source management functions
-export {
-  createExternalSource,
-  updateExternalSource,
-  deleteExternalSource,
-  listExternalSources,
-  testExternalSourceConnection,
-  refreshExternalSource,
-} from "./functions/external-source-management";
+// Organization duplication functions
+export { duplicateOrganization } from "./functions/duplicate-organization";

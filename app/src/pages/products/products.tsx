@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star } from "lucide-react";
+import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { CreateProductInput } from "@/core";
 import { toast } from "sonner";
 import { CURRENCIES, formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { ExportDialog } from "@/components/export-import/export-dialog";
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -28,6 +29,7 @@ export default function ProductsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string } | null>(null);
   const [editingProduct, setEditingProduct] = useState<{ id: string } | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const { data: products = [], isLoading, error } = useProductsByOrg(currentOrganization?.id);
   console.log(error);
@@ -320,13 +322,18 @@ export default function ProductsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
           <p className="text-sm sm:text-base text-muted-foreground">{t('products.subtitle')}</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('products.newProduct')}
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('products.newProduct')}
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
             <DialogHeader>
               <DialogTitle>{t('products.createTitle')}</DialogTitle>
@@ -800,6 +807,7 @@ export default function ProductsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -1284,6 +1292,12 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        defaultEntityTypes={["products"]}
+      />
     </div>
   );
 }

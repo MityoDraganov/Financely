@@ -11,6 +11,7 @@ import {
   FileText,
   UserPlus,
   CreditCard,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,12 @@ export default function SettingsLayout() {
           href: "/settings/organization/billing",
           description: t('settings.organization.billing.description'),
           icon: CreditCard,
+        },
+        {
+          title: "Data Management",
+          href: "/settings/organization/data-management",
+          description: "Export and import your organization data",
+          icon: Database,
         },
       ],
     },
