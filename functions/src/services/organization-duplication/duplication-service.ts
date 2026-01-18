@@ -15,13 +15,12 @@ import { OrganizationDuplicator } from "./entity-duplicators/organization-duplic
 import { IdMappingTable } from "./entity-duplicators/base-duplicator";
 import { DependencyGraphBuilder } from "./dependency-graph-builder";
 import { getOrganizationRepository } from "../../repositories/organization-repository";
-import { getTemplateRepository } from "../../repositories/template-repository";
 import { getWorkflowRepository } from "../../repositories/workflow-repository";
-import { getEmailTemplateRepository } from "../../repositories/email-template-repository";
 import { getEmailTemplateMappingRepository } from "../../repositories/email-template-mapping-repository";
 import { getProductRepository } from "../../repositories/product-repository";
 import { getUserRepository } from "../../repositories/user-repository";
 import { ORGANIZATION_ROLES } from "../../core/roles";
+import { realtimeDatabaseService } from "../../infrastructure/realtime-database-service";
 
 export interface DuplicationResult {
   targetOrgId: string;
@@ -31,6 +30,10 @@ export interface DuplicationResult {
   conflictsResolved: number;
   errors: Array<{ entityType: string; entityId?: string; error: string }>;
 }
+
+// Templates and email templates are stored in Realtime Database
+const TEMPLATES_PATH = "templates";
+const EMAIL_TEMPLATES_PATH = "emailTemplates";
 
 export class OrganizationDuplicationService {
   private dependencyGraphBuilder: DependencyGraphBuilder;
@@ -61,9 +64,7 @@ export class OrganizationDuplicationService {
 
     // Get repositories
     const orgRepo = getOrganizationRepository(this.databaseService);
-    const templateRepo = getTemplateRepository(this.databaseService);
     const workflowRepo = getWorkflowRepository(this.databaseService);
-    const emailTemplateRepo = getEmailTemplateRepository(this.databaseService);
     const emailTemplateMappingRepo = getEmailTemplateMappingRepository(this.databaseService);
     const productRepo = getProductRepository(this.databaseService);
 
@@ -114,19 +115,27 @@ export class OrganizationDuplicationService {
     idMapping.addMapping(sourceOrgId, targetOrgId, "organization");
 
     // ALWAYS fetch ALL entities (no selection logic)
+    // Templates and email templates are in Realtime Database, others are in Firestore
     const [templates, workflows, emailTemplates, emailTemplateMappings, products] = await Promise.all([
-      templateRepo.getAll({
-        queryConstraints: [{ field: "orgId", operator: "==", value: sourceOrgId }],
+      // Templates from Realtime Database
+      realtimeDatabaseService.getAll<Template>(TEMPLATES_PATH, {
+        orderBy: "orgId",
+        equalTo: sourceOrgId,
       }),
+      // Workflows from Firestore
       workflowRepo.getAll({
         queryConstraints: [{ field: "orgId", operator: "==", value: sourceOrgId }],
       }),
-      emailTemplateRepo.getAll({
-        queryConstraints: [{ field: "orgId", operator: "==", value: sourceOrgId }],
+      // Email templates from Realtime Database
+      realtimeDatabaseService.getAll<EmailTemplate>(EMAIL_TEMPLATES_PATH, {
+        orderBy: "orgId",
+        equalTo: sourceOrgId,
       }),
+      // Email template mappings from Firestore
       emailTemplateMappingRepo.getAll({
         queryConstraints: [{ field: "orgId", operator: "==", value: sourceOrgId }],
       }),
+      // Products from Firestore
       productRepo.getAll({
         queryConstraints: [{ field: "organizationId", operator: "==", value: sourceOrgId }],
       }),
@@ -139,6 +148,18 @@ export class OrganizationDuplicationService {
       emailTemplateMappings: emailTemplateMappings.length,
       products: products.length,
     });
+
+    // Debug: Log template IDs if any were found
+    if (templates.length > 0) {
+      console.log("Templates found:", templates.map(t => ({ id: t.id, name: t.name })));
+    } else {
+      console.log("No templates found for orgId:", sourceOrgId);
+    }
+
+    // Debug: Log email template IDs if any were found
+    if (emailTemplates.length > 0) {
+      console.log("Email templates found:", emailTemplates.map(et => ({ id: et.id, name: et.name })));
+    }
 
     // Build dependency graph
     const graph = this.dependencyGraphBuilder.buildGraph({
@@ -188,9 +209,18 @@ export class OrganizationDuplicationService {
     emailTemplateMappings.forEach((m) => entityMap.set(m.id, { type: "emailTemplateMapping", entity: m }));
     products.forEach((p) => entityMap.set(p.id, { type: "product", entity: p }));
 
+    // Filter order to only include entities that exist in the map
+    // This handles cases where dependencies reference entities that don't exist
+    const validOrder = order.filter((entityId) => entityMap.has(entityId));
+    
+    if (validOrder.length !== order.length) {
+      const missingIds = order.filter((id) => !entityMap.has(id));
+      console.warn("Filtered out missing entity IDs from order:", missingIds);
+    }
+
     // Process entities in order
-    console.log("Starting entity duplication, order length:", order.length);
-    for (const entityId of order) {
+    console.log("Starting entity duplication, order length:", validOrder.length);
+    for (const entityId of validOrder) {
       const entityInfo = entityMap.get(entityId);
       if (!entityInfo) {
         console.warn("Entity not found in map:", entityId);
@@ -211,7 +241,9 @@ export class OrganizationDuplicationService {
               idMapping,
               options,
             );
-            newId = await templateRepo.create({ data: removeUndefinedValues(templateResult.entity) });
+            // Templates are stored in Realtime Database
+            const cleanedData = removeUndefinedValues(templateResult.entity);
+            newId = await realtimeDatabaseService.create(TEMPLATES_PATH, cleanedData);
             idMapping.addMapping(entityId, newId, "template");
             break;
           }
@@ -225,7 +257,7 @@ export class OrganizationDuplicationService {
               idMapping,
               options,
             );
-            newId = await workflowRepo.create(workflowResult.entity);
+            newId = await workflowRepo.create(removeUndefinedValues(workflowResult.entity));
             idMapping.addMapping(entityId, newId, "workflow");
             break;
           }
@@ -239,7 +271,9 @@ export class OrganizationDuplicationService {
               idMapping,
               options,
             );
-            newId = await emailTemplateRepo.create({ data: removeUndefinedValues(emailTemplateResult.entity) });
+            // Email templates are stored in Realtime Database
+            const cleanedData = removeUndefinedValues(emailTemplateResult.entity);
+            newId = await realtimeDatabaseService.create(EMAIL_TEMPLATES_PATH, cleanedData);
             idMapping.addMapping(entityId, newId, "emailTemplate");
             break;
           }

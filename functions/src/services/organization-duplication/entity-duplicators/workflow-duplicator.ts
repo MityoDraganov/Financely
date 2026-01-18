@@ -27,12 +27,9 @@ export class WorkflowDuplicator extends BaseDuplicator<Workflow, WorkflowData> {
 
     let data = this.resetIdentityFields(entityData, targetOrgId, createdBy);
     
-    if (options.resetWebhooks) {
-      data.trigger = {
-        ...data.trigger,
-        webhookUrl: undefined,
-      };
-    }
+    // Webhook URL is already removed in resetIdentityFields, no need to do it again
+    // But if resetWebhooks is false, we might want to keep it - but for safety, we always remove it
+    // since webhooks are identity-bound
 
     data = this.resolveReferences(data, idMapping);
 
@@ -44,6 +41,9 @@ export class WorkflowDuplicator extends BaseDuplicator<Workflow, WorkflowData> {
     targetOrgId: string,
     createdBy: string,
   ): WorkflowData {
+    // Remove webhookUrl instead of setting to undefined
+    const { webhookUrl, ...triggerWithoutWebhook } = data.trigger;
+    
     return {
       ...data,
       orgId: targetOrgId,
@@ -51,10 +51,7 @@ export class WorkflowDuplicator extends BaseDuplicator<Workflow, WorkflowData> {
       version: 1,
       n8nWorkflowId: undefined,
       n8nEnabled: false,
-      trigger: {
-        ...data.trigger,
-        webhookUrl: undefined,
-      },
+      trigger: triggerWithoutWebhook,
     };
   }
 
