@@ -154,3 +154,12 @@ export { getUsageHistory } from "./functions/get-usage-history";
 
 // Organization duplication functions
 export { duplicateOrganization } from "./functions/duplicate-organization";
+
+// Marketplace functions
+export { listMarketplaceTemplates } from "./functions/list-marketplace-templates";
+export { getMarketplaceTemplate } from "./functions/get-marketplace-template";
+export { addMarketplaceTemplate } from "./functions/add-marketplace-template";
+export { submitMarketplaceTemplate } from "./functions/submit-marketplace-template";
+export { featureMarketplaceTemplate, unfeatureMarketplaceTemplate } from "./functions/moderate-marketplace-template";
+export { submitMarketplaceReview, getMarketplaceReviews } from "./functions/marketplace-reviews";
+export { registerAsContributor, getContributorStatus } from "./functions/manage-contributor";

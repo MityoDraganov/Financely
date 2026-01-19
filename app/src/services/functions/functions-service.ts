@@ -638,4 +638,85 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "refreshExternalSource")(payload);
     return result.data;
   },
+
+  // Marketplace functions
+  async listMarketplaceTemplates(payload) {
+    type ListTemplatesPayload = Parameters<FunctionsService["listMarketplaceTemplates"]>[0];
+    type ListTemplatesResponse = Awaited<ReturnType<FunctionsService["listMarketplaceTemplates"]>>;
+    const result = await httpsCallable<
+      ListTemplatesPayload,
+      ListTemplatesResponse
+    >(firebase.functions, "listMarketplaceTemplates")(payload);
+    return result.data;
+  },
+
+  async getMarketplaceTemplate(payload) {
+    type GetTemplatePayload = Parameters<FunctionsService["getMarketplaceTemplate"]>[0];
+    type GetTemplateResponse = Awaited<ReturnType<FunctionsService["getMarketplaceTemplate"]>>;
+    const result = await httpsCallable<
+      GetTemplatePayload,
+      GetTemplateResponse
+    >(firebase.functions, "getMarketplaceTemplate")(payload);
+    return result.data;
+  },
+
+  async addMarketplaceTemplate(payload) {
+    type AddTemplatePayload = Parameters<FunctionsService["addMarketplaceTemplate"]>[0];
+    type AddTemplateResponse = Awaited<ReturnType<FunctionsService["addMarketplaceTemplate"]>>;
+    const result = await httpsCallable<
+      AddTemplatePayload,
+      AddTemplateResponse
+    >(firebase.functions, "addMarketplaceTemplate")(payload);
+    return result.data;
+  },
+
+  async submitMarketplaceTemplate(payload) {
+    type SubmitTemplatePayload = Parameters<FunctionsService["submitMarketplaceTemplate"]>[0];
+    type SubmitTemplateResponse = Awaited<ReturnType<FunctionsService["submitMarketplaceTemplate"]>>;
+    const result = await httpsCallable<
+      SubmitTemplatePayload,
+      SubmitTemplateResponse
+    >(firebase.functions, "submitMarketplaceTemplate")(payload);
+    return result.data;
+  },
+
+  async submitMarketplaceReview(payload) {
+    type SubmitReviewPayload = Parameters<FunctionsService["submitMarketplaceReview"]>[0];
+    type SubmitReviewResponse = Awaited<ReturnType<FunctionsService["submitMarketplaceReview"]>>;
+    const result = await httpsCallable<
+      SubmitReviewPayload,
+      SubmitReviewResponse
+    >(firebase.functions, "submitMarketplaceReview")(payload);
+    return result.data;
+  },
+
+  async getMarketplaceReviews(payload) {
+    type GetReviewsPayload = Parameters<FunctionsService["getMarketplaceReviews"]>[0];
+    type GetReviewsResponse = Awaited<ReturnType<FunctionsService["getMarketplaceReviews"]>>;
+    const result = await httpsCallable<
+      GetReviewsPayload,
+      GetReviewsResponse
+    >(firebase.functions, "getMarketplaceReviews")(payload);
+    return result.data;
+  },
+
+  async registerAsContributor(payload) {
+    type RegisterContributorPayload = Parameters<FunctionsService["registerAsContributor"]>[0];
+    type RegisterContributorResponse = Awaited<ReturnType<FunctionsService["registerAsContributor"]>>;
+    const result = await httpsCallable<
+      RegisterContributorPayload,
+      RegisterContributorResponse
+    >(firebase.functions, "registerAsContributor")(payload);
+    return result.data;
+  },
+
+  async getContributorStatus(payload) {
+    type GetContributorStatusPayload = Parameters<FunctionsService["getContributorStatus"]>[0];
+    type GetContributorStatusResponse = Awaited<ReturnType<FunctionsService["getContributorStatus"]>>;
+    const result = await httpsCallable<
+      GetContributorStatusPayload,
+      GetContributorStatusResponse
+    >(firebase.functions, "getContributorStatus")(payload);
+    return result.data;
+  },
 };

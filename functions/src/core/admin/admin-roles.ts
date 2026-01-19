@@ -59,6 +59,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
     "settings.write",
     "logs.read",
     "impersonation",
+    "marketplace.moderate",
   ],
   [ADMIN_ROLES.BILLING_ADMIN]: [
     "organizations.read",
@@ -75,6 +76,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
     "users.write",
     "usage.read",
     "logs.read",
+    "marketplace.moderate",
   ],
   [ADMIN_ROLES.READ_ONLY_ADMIN]: [
     "organizations.read",

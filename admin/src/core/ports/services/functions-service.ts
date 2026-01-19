@@ -430,9 +430,24 @@ export interface FunctionsService {
         customFooter?: string;
         complianceValidated?: boolean;
         complianceValidatedAt?: string;
-      };
     };
-  }>;
+  };
+
+  /**
+   * Feature a marketplace template (admin only)
+   * Featured templates appear first in marketplace listings
+   */
+  featureMarketplaceTemplate(payload: {
+    templateId: string;
+  }): Promise<{ success: boolean; message: string }>;
+
+  /**
+   * Unfeature a marketplace template (admin only)
+   */
+  unfeatureMarketplaceTemplate(payload: {
+    templateId: string;
+  }): Promise<{ success: boolean; message: string }>;
+}>;
 
   /**
    * Generate an email template using AI

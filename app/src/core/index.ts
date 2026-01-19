@@ -23,6 +23,8 @@ export * from "./entities/contact";
 export * from "./entities/lead";
 export * from "./entities/analytics-config";
 export * from "./entities/audit-log";
+export * from "./entities/marketplace-template";
+export * from "./entities/marketplace-review";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

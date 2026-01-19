@@ -13,6 +13,8 @@ import { LeadRepository } from "./lead-repository";
 import { ProductRepository } from "./product-repository";
 import { AnalyticsConfigRepository } from "./analytics-config-repository";
 import type { ExtractionJobRepository } from "@/repositories/extraction-job-repository";
+import type { GenericRepository } from "./generic-repository";
+import type { MarketplaceTemplate, MarketplaceTemplateData, MarketplaceReview, MarketplaceReviewData } from "@/core";
 
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
@@ -30,4 +32,6 @@ export interface RepositoryHost {
     getProductsRepository(databaseService: DatabaseService): ProductRepository;
     getAnalyticsConfigRepository(databaseService: DatabaseService): AnalyticsConfigRepository;
     getExtractionJobRepository(databaseService: DatabaseService): ExtractionJobRepository;
+    getMarketplaceTemplatesRepository(databaseService: DatabaseService): GenericRepository<MarketplaceTemplate, MarketplaceTemplateData>;
+    getMarketplaceReviewsRepository(databaseService: DatabaseService): GenericRepository<MarketplaceReview, MarketplaceReviewData>;
 }

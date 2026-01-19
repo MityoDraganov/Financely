@@ -1,8 +1,10 @@
 import { DatabaseService } from "@/core";
 import { databaseService } from "./database/database-service";
+import { functionsService } from "./functions/functions-service";
 
 export type ServiceHost = {
   getDatabaseService: () => DatabaseService;
+  getFunctionsService: () => typeof functionsService;
 };
 
 /**
@@ -12,6 +14,9 @@ export type ServiceHost = {
 export const serviceHost: ServiceHost = {
   getDatabaseService() {
     return databaseService;
+  },
+  getFunctionsService() {
+    return functionsService;
   },
 };
 

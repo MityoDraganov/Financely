@@ -987,4 +987,138 @@ export interface FunctionsService {
     organizationId: string;
     sourceId: string;
   }): Promise<{ success: boolean; error?: string }>;
+
+  // Marketplace functions
+  listMarketplaceTemplates(payload: {
+    type?: "invoice" | "email";
+    search?: string;
+    category?: string;
+    language?: string;
+    sort?: "popular" | "newest" | "rating";
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    templates: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      shortDescription?: string;
+      type: "invoice" | "email";
+      authorName: string;
+      isOfficial: boolean;
+      previewImages: string[];
+      tags: string[];
+      category?: string;
+      language?: string;
+      ratingAverage: number;
+      ratingCount: number;
+      downloadCount: number;
+      publishedAt?: string;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+  }>;
+
+  getMarketplaceTemplate(payload: {
+    templateId: string;
+  }): Promise<{
+    id: string;
+    title: string;
+    description?: string;
+    shortDescription?: string;
+    type: "invoice" | "email";
+    authorId: string;
+    authorName: string;
+    isOfficial: boolean;
+    previewImages: string[];
+    tags: string[];
+    category?: string;
+    language?: string;
+    country?: string;
+    ratingAverage: number;
+    ratingCount: number;
+    downloadCount: number;
+    version: number;
+    publishedAt?: string;
+    templateContentPreview?: {
+      type: "invoice" | "email";
+      name: string;
+      description?: string;
+    };
+  }>;
+
+  addMarketplaceTemplate(payload: {
+    templateId: string;
+    orgId: string;
+  }): Promise<{
+    success: boolean;
+    templateId: string;
+    name: string;
+    renamed: boolean;
+    message: string;
+  }>;
+
+  submitMarketplaceTemplate(payload: {
+    sourceTemplateId: string;
+    sourceTemplateType: "invoice" | "email";
+    orgId: string;
+    title: string;
+    description?: string;
+    shortDescription?: string;
+    category?: string;
+    tags?: string[];
+    language?: string;
+    country?: string;
+    previewImages?: string[];
+  }): Promise<{
+    submissionId: string;
+    status: "pending";
+    message: string;
+  }>;
+
+  submitMarketplaceReview(payload: {
+    templateId: string;
+    rating: number;
+    comment?: string;
+  }): Promise<{
+    reviewId: string;
+    message: string;
+  }>;
+
+  getMarketplaceReviews(payload: {
+    templateId: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    reviews: Array<{
+      id: string;
+      userId: string;
+      userName: string;
+      rating: number;
+      comment?: string;
+      createdAt?: string;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+  }>;
+
+  registerAsContributor(payload: {
+    termsAccepted: boolean;
+  }): Promise<{
+    success: boolean;
+    message: string;
+  }>;
+
+  getContributorStatus(payload: {}): Promise<{
+    isContributor: boolean;
+    submissions: Array<{
+      id: string;
+      title: string;
+      status: string;
+      createdAt?: string;
+      publishedAt?: string;
+    }>;
+  }>;
 }

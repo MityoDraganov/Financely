@@ -3216,6 +3216,7 @@
 			"leads": "Leads",
 			"proposals": "Proposals",
 			"templates": "Templates",
+			"marketplace": "Marketplace",
 			"workflows": "Workflows",
 			"siteBuilder": "Site Builder",
 			"analytics": "Analytics",
@@ -3230,6 +3231,30 @@
 			"newTemplate": "New template"
 		},
 		"preview": "Preview"
+	},
+	"marketplace": {
+		"title": "Template Marketplace",
+		"subtitle": "Discover and download professional templates",
+		"shareTemplate": "Share Your Template",
+		"filters": {
+			"all": "All",
+			"invoice": "Invoice Templates",
+			"email": "Email Templates"
+		},
+		"sort": {
+			"popular": "Most Popular",
+			"newest": "Newest",
+			"rating": "Highest Rated"
+		},
+		"searchPlaceholder": "Search templates...",
+		"noTemplates": "No templates found",
+		"contributor": {
+			"title": "Contributor Portal",
+			"subtitle": "Share your templates with the community"
+		}
+	},
+	"templates": {
+		"browseMarketplace": "Browse Marketplace"
 	},
 	"common": {
 		"cancel": "Cancel",

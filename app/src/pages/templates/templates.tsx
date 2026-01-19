@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail, Upload, Sparkles, Download } from "lucide-react";
+import { Plus, Trash2, Edit, FileText, Calendar, Loader2, Mail, Upload, Sparkles, Download, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -246,6 +246,10 @@ export default function TemplatesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("/marketplace")}>
+            <Store className="mr-2 h-4 w-4" />
+            {t("templates.browseMarketplace") || "Browse Marketplace"}
+          </Button>
           <Button variant="outline" onClick={() => setShowExportDialog(true)}>
             <Download className="mr-2 h-4 w-4" />
             Export

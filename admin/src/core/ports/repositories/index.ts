@@ -14,6 +14,7 @@ import { ProductRepository } from "./product-repository";
 import { AnalyticsConfigRepository } from "./analytics-config-repository";
 import type { ExtractionJobRepository } from "@/repositories/extraction-job-repository";
 import type { AuditLogRepository } from "./audit-log-repository";
+import { MarketplaceTemplateRepository } from "./marketplace-template-repository";
 
 export interface RepositoryHost {
     getTemplatesReposity(databaseService: DatabaseService): TemplateRepository;
@@ -32,4 +33,5 @@ export interface RepositoryHost {
     getAnalyticsConfigRepository(databaseService: DatabaseService): AnalyticsConfigRepository;
     getExtractionJobRepository(databaseService: DatabaseService): ExtractionJobRepository;
     getAuditLogRepository(databaseService: DatabaseService): AuditLogRepository;
+    getMarketplaceTemplateRepository(databaseService: DatabaseService): MarketplaceTemplateRepository;
 }

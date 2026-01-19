@@ -358,6 +358,47 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+    // Marketplace templates - public read, contributor/admin write
+    match /marketplaceTemplates/{templateId} {
+      allow read, write: if isAdmin();
+      
+      // Allow reading published templates (for marketplace browsing)
+      allow get: if isAuthenticated() && 
+                   resource.data.status == 'published';
+      
+      // Allow reading templates where user is the author (for their submissions)
+      allow get: if isAuthenticated() && 
+                   resource.data.authorId == request.auth.uid;
+      
+      // Allow listing published templates (for marketplace queries)
+      allow list: if isAuthenticated();
+      
+      // Only approved contributors or admins can create
+      allow create: if isAuthenticated() && 
+                       (getUser() != null && 
+                        (getUser().data.isMarketplaceContributor == true || isAdmin()));
+      
+      // Template author or admins can update
+      allow update: if isAuthenticated() && 
+                       (resource.data.authorId == request.auth.uid || isAdmin());
+      
+      // Template author or admins can delete
+      allow delete: if isAuthenticated() && 
+                       (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    // Marketplace reviews - public read, authenticated users can create/update their own
+    match /marketplaceReviews/{reviewId} {
+      allow read, write: if isAdmin();
+      // All authenticated users can read approved reviews
+      allow read: if isAuthenticated();
+      // All authenticated users can create reviews
+      allow create: if isAuthenticated();
+      // Review author can update their own review
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
     // Admin global bypass - catch all for any other collections
     match /{document=**} {
       allow read, write: if isAdmin();

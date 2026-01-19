@@ -16,4 +16,6 @@ export enum DatabaseCollection {
   DUPLICATION_JOBS = "duplicationJobs",
   EXTERNAL_SOURCE_CONFIGS = "externalSourceConfigs",
   EXTERNAL_SOURCE_CACHE = "externalSourceCache",
+  MARKETPLACE_TEMPLATES = "marketplaceTemplates",
+  MARKETPLACE_REVIEWS = "marketplaceReviews",
 }

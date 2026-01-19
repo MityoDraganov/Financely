@@ -3,4 +3,6 @@ export * from "./use-templates";
 export * from "./use-create-template";
 export * from "./use-organizations";
 export * from "./use-users";
+export * from "./use-marketplace-templates";
+export * from "./use-marketplace-reviews";
 

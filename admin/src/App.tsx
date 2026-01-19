@@ -16,6 +16,7 @@ import { AdminUsagePage } from "@/pages/admin/usage";
 import { AdminSettingsPage } from "@/pages/admin/settings";
 import { AdminLogsPage } from "@/pages/admin/logs";
 import { AdminUserDetailPage } from "@/pages/admin/user-detail";
+import { AdminMarketplacePage } from "@/pages/admin/marketplace";
 import { AdminSignInPage } from "@/pages/sign-in";
 import { AdminAuthProvider } from "@/components/AdminAuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -147,6 +148,16 @@ function App() {
                     <AdminProtectedRoute>
                       <AdminLayout>
                         <AdminUserDetailPage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/marketplace"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminMarketplacePage />
                       </AdminLayout>
                     </AdminProtectedRoute>
                   }

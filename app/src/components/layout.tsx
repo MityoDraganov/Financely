@@ -24,6 +24,7 @@ import {
 	BarChart3,
 	Menu,
 	Database,
+	Store,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -164,6 +165,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				title: t("layout.navigation.templates"),
 				href: "/templates",
 				icon: Brush,
+			},
+			{
+				title: t("layout.navigation.marketplace") || "Marketplace",
+				href: "/marketplace",
+				icon: Store,
 			},
 			{
 				title: t("layout.navigation.workflows"),

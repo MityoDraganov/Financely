@@ -16,6 +16,8 @@ import { getLeadRepository } from "./lead-repository";
 import { getProductRepository } from "./product-repository";
 import { getAnalyticsConfigRepository } from "./analytics-config-repository";
 import { getExtractionJobRepository } from "./extraction-job-repository";
+import { getMarketplaceTemplateRepository } from "./marketplace-template-repository";
+import { getMarketplaceReviewRepository } from "./marketplace-review-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>
@@ -48,4 +50,8 @@ export const repositoryHost: RepositoryHost = {
       getAnalyticsConfigRepository(databaseService),
     getExtractionJobRepository: (databaseService: DatabaseService) =>
       getExtractionJobRepository(databaseService),
+    getMarketplaceTemplatesRepository: (databaseService: DatabaseService) =>
+      getMarketplaceTemplateRepository(databaseService),
+    getMarketplaceReviewsRepository: (databaseService: DatabaseService) =>
+      getMarketplaceReviewRepository(databaseService),
   }

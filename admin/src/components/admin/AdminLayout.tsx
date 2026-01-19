@@ -19,6 +19,7 @@ import {
   Settings,
   FileText,
   Shield,
+  Store,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAdminRole } from "@/utils/admin-utils";
@@ -51,6 +52,11 @@ const adminNavItems = [
     title: "Usage",
     href: "/usage",
     icon: BarChart3,
+  },
+  {
+    title: "Marketplace",
+    href: "/marketplace",
+    icon: Store,
   },
   {
     title: "System Settings",

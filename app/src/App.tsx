@@ -35,6 +35,9 @@ import AuditLogPage from "./pages/settings/security/audit-log";
 import DataSourcesPage from "./pages/data-sources";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
+import MarketplaceListPage from "./pages/marketplace/marketplace-list";
+import TemplateDetailPage from "./pages/marketplace/template-detail";
+import ContributorPortalPage from "./pages/marketplace/contributor-portal";
 import WorkflowsPage from "./pages/workflows/workflows-page";
 import WorkflowTemplatesPage from "./pages/workflows/workflow-templates-page";
 import WorkflowExecutionPage from "./pages/workflows/workflow-execution-page";
@@ -253,6 +256,36 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<TemplatesPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/marketplace"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<MarketplaceListPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/marketplace/:id"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<TemplateDetailPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/marketplace/contributor"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<ContributorPortalPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}
