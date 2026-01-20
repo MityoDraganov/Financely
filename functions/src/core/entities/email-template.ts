@@ -23,6 +23,8 @@ export const emailTemplateDataSchema = z.object({
     body: z.array(z.string()).default([]),
     footer: z.array(z.string()).default([]),
   }).optional(),
+  // Marketplace template ID if this template was imported from marketplace
+  marketplaceTemplateId: z.string().optional(),
 });
 
 export type EmailTemplateData = z.infer<typeof emailTemplateDataSchema>;

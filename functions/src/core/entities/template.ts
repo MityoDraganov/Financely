@@ -294,6 +294,8 @@ export const templateDataSchema = z.object({
   compliance: templateComplianceMetadataSchema.optional(),
   // Product table configuration for pre-mapping products to invoice tables
   productTableConfig: productTableConfigSchema.optional(),
+  // Marketplace template ID if this template was imported from marketplace
+  marketplaceTemplateId: z.string().optional(),
 });
 
 export type TemplateData = z.infer<typeof templateDataSchema>;

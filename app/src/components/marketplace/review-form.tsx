@@ -40,10 +40,10 @@ export function ReviewForm({ templateId, onSuccess, onCancel }: ReviewFormProps)
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border rounded-lg p-4 space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label>Rating</Label>
-        <div className="flex items-center gap-1 mt-1">
+        <Label className="text-sm font-medium mb-2 block">Rating *</Label>
+        <div className="flex items-center gap-1">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
@@ -51,14 +51,15 @@ export function ReviewForm({ templateId, onSuccess, onCancel }: ReviewFormProps)
               onClick={() => setRating(star)}
               onMouseEnter={() => setHoveredRating(star)}
               onMouseLeave={() => setHoveredRating(0)}
-              className="focus:outline-none"
+              className="focus:outline-none transition-transform hover:scale-110"
+              aria-label={`Rate ${star} star${star !== 1 ? "s" : ""}`}
             >
               <Star
                 className={cn(
                   "h-6 w-6 transition-colors",
                   star <= (hoveredRating || rating)
                     ? "fill-yellow-400 text-yellow-400"
-                    : "text-muted-foreground"
+                    : "text-muted-foreground/30"
                 )}
               />
             </button>
@@ -67,24 +68,30 @@ export function ReviewForm({ templateId, onSuccess, onCancel }: ReviewFormProps)
       </div>
 
       <div>
-        <Label htmlFor="comment">Comment (optional)</Label>
+        <Label htmlFor="comment" className="text-sm font-medium mb-2 block">
+          Comment (optional)
+        </Label>
         <Textarea
           id="comment"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder="Share your experience with this template..."
-          className="mt-1"
+          className="text-sm"
           rows={4}
         />
       </div>
 
-      <div className="flex gap-2 justify-end">
+      <div className="flex gap-2 justify-end pt-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} size="sm">
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={rating === 0 || submitReview.isPending}>
+        <Button 
+          type="submit" 
+          disabled={rating === 0 || submitReview.isPending}
+          size="sm"
+        >
           {submitReview.isPending ? "Submitting..." : "Submit Review"}
         </Button>
       </div>

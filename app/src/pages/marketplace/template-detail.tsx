@@ -2,13 +2,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMarketplaceTemplate } from "@/hooks/repository-hooks/use-marketplace-templates";
 import { useAddMarketplaceTemplate } from "@/hooks/use-add-marketplace-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useIsMarketplaceTemplateAdded } from "@/hooks/use-is-marketplace-template-added";
 import { ReviewSection } from "@/components/marketplace/review-section";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download, Star, FileText, Mail, Check } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Download, Star, Check, Sparkles } from "lucide-react";
 import { useState, useMemo } from "react";
 import { TemplateData } from "@/core/entities/template";
 import { EmailTemplateData } from "@/core/entities/email-template";
@@ -20,7 +22,7 @@ export default function TemplateDetailPage() {
   const { data: currentOrganization } = useCurrentOrganization();
   const addTemplate = useAddMarketplaceTemplate();
   const [isAdding, setIsAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const isAdded = useIsMarketplaceTemplateAdded(template, currentOrganization?.id);
 
   // Create sample preview context for invoice templates
   const previewContext = useMemo(() => {
@@ -33,7 +35,6 @@ export default function TemplateDetailPage() {
     if (templateContent.elements) {
       templateContent.elements.forEach((element: { binding?: string; [key: string]: unknown }) => {
         if (element.binding) {
-          // Create sample values based on binding path
           const bindingPath = element.binding;
           if (bindingPath.includes("seller")) {
             context[bindingPath] = context[bindingPath] || "Sample Company";
@@ -61,12 +62,12 @@ export default function TemplateDetailPage() {
     const templateContent = template.templateContent as TemplateData;
     return {
       ...templateContent,
-      id: template.id, // Add id required by Template type
+      id: template.id,
     };
   }, [template]);
 
   const handleAddTemplate = async () => {
-    if (!currentOrganization?.id || !id) {
+    if (!currentOrganization?.id || !id || !template) {
       return;
     }
 
@@ -75,8 +76,8 @@ export default function TemplateDetailPage() {
       await addTemplate.mutateAsync({
         templateId: id,
         orgId: currentOrganization.id,
+        templateType: template.type, // Pass template type for optimized refetch
       });
-      setAdded(true);
     } finally {
       setIsAdding(false);
     }
@@ -84,207 +85,264 @@ export default function TemplateDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-32 w-full" />
+      <div className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </div>
     );
   }
 
   if (!template) {
     return (
-      <div className="p-4 sm:p-6">
-        <p className="text-muted-foreground">Template not found</p>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <p className="text-sm text-muted-foreground">Template not found</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
-      {/* Back Button */}
-      <Button variant="ghost" onClick={() => navigate("/marketplace")}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Marketplace
-      </Button>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate("/marketplace")}
+          className="mb-6 -ml-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Marketplace
+        </Button>
 
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Preview Images */}
-        <div className="flex-1">
-          {template.previewImages && template.previewImages.length > 0 ? (
-            <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-              <img
-                src={template.previewImages[0]}
-                alt={template.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-              {template.type === "invoice" ? (
-                <FileText className="h-24 w-24 text-muted-foreground" />
-              ) : (
-                <Mail className="h-24 w-24 text-muted-foreground" />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Template Info */}
-        <div className="flex-1 space-y-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">{template.title}</h1>
-            {template.description && (
-              <p className="text-muted-foreground">{template.description}</p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant={template.isOfficial ? "default" : "secondary"}>
-              {template.isOfficial ? "Official" : template.authorName}
-            </Badge>
-            <Badge variant="outline">
-              {template.type === "invoice" ? "Invoice Template" : "Email Template"}
-            </Badge>
-            {template.category && <Badge variant="outline">{template.category}</Badge>}
-            {template.language && <Badge variant="outline">{template.language}</Badge>}
-          </div>
-
-          <div className="flex items-center gap-4 text-sm">
-            {template.ratingCount > 0 && (
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span className="font-medium">{template.ratingAverage.toFixed(1)}</span>
-                <span className="text-muted-foreground">({template.ratingCount} reviews)</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Header */}
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h1 className="text-2xl font-semibold text-foreground">{template.title}</h1>
+                    {template.isFeatured && (
+                      <Badge className="bg-primary/90 text-primary-foreground rounded-full px-2 py-0.5">
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Featured
+                      </Badge>
+                    )}
+                    {template.isOfficial && (
+                      <Badge variant="default" className="rounded-full px-2 py-0.5">
+                        Official
+                      </Badge>
+                    )}
+                  </div>
+                  {template.description && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {template.description}
+                    </p>
+                  )}
+                </div>
               </div>
-            )}
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Download className="h-4 w-4" />
-              <span>{template.downloadCount} downloads</span>
-            </div>
-          </div>
 
-          <Button
-            className="w-full lg:w-auto"
-            size="lg"
-            onClick={handleAddTemplate}
-            disabled={isAdding || !currentOrganization?.id || added}
-          >
-            {added ? (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                Added to Organization
-              </>
-            ) : isAdding ? (
-              "Adding..."
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                Add to My Organization
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Template Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Template Preview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {template.type === "invoice" ? (
-            <div className="border rounded-lg p-4 bg-muted/50 overflow-auto">
-              {invoiceTemplateForPreview ? (
-                <TemplatePreview
-                  template={invoiceTemplateForPreview}
-                  context={previewContext}
-                  zoom={0.6}
-                />
-              ) : (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  Preview not available
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="border rounded-lg p-4 bg-white">
-              {template.templateContent && (template.templateContent as EmailTemplateData).htmlContent ? (
-                <div
-                  className="email-preview"
-                  dangerouslySetInnerHTML={{
-                    __html: (template.templateContent as EmailTemplateData).htmlContent || "",
-                  }}
-                />
-              ) : (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  Preview not available
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Template Details */}
-      <div className="border rounded-lg p-6 space-y-4">
-        <h2 className="text-xl font-semibold">Template Details</h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-muted-foreground">Type:</span>
-            <span className="ml-2 font-medium">
-              {template.type === "invoice" ? "Invoice Template" : "Email Template"}
-            </span>
-          </div>
-          {template.category && (
-            <div>
-              <span className="text-muted-foreground">Category:</span>
-              <span className="ml-2 font-medium">{template.category}</span>
-            </div>
-          )}
-          {template.language && (
-            <div>
-              <span className="text-muted-foreground">Language:</span>
-              <span className="ml-2 font-medium">{template.language}</span>
-            </div>
-          )}
-          {template.country && (
-            <div>
-              <span className="text-muted-foreground">Country:</span>
-              <span className="ml-2 font-medium">{template.country}</span>
-            </div>
-          )}
-          <div>
-            <span className="text-muted-foreground">Version:</span>
-            <span className="ml-2 font-medium">{template.version}</span>
-          </div>
-          {template.publishedAt && (
-            <div>
-              <span className="text-muted-foreground">Published:</span>
-              <span className="ml-2 font-medium">
-                {new Date(template.publishedAt).toLocaleDateString()}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {template.tags && template.tags.length > 0 && (
-          <div>
-            <span className="text-muted-foreground text-sm">Tags:</span>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {template.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
+              {/* Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
+                  {template.type === "invoice" ? "Invoice Template" : "Email Template"}
                 </Badge>
-              ))}
+                {template.category && (
+                  <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
+                    {template.category}
+                  </Badge>
+                )}
+                {template.language && (
+                  <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
+                    {template.language}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="flex items-center gap-6 text-sm">
+                {template.ratingCount > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span className="font-medium text-foreground">{template.ratingAverage.toFixed(1)}</span>
+                    <span className="text-muted-foreground">({template.ratingCount} reviews)</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Download className="h-4 w-4" />
+                  <span>{template.downloadCount} downloads</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Template Preview */}
+            <Card className="rounded-xl border shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-medium">Template Preview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {template.type === "invoice" ? (
+                  <div className="border rounded-lg p-4 bg-muted/50 dark:bg-muted/30 overflow-auto">
+                    {invoiceTemplateForPreview ? (
+                      <TemplatePreview
+                        template={invoiceTemplateForPreview}
+                        context={previewContext}
+                        zoom={0.6}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                        Preview not available
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="border rounded-lg p-4 bg-white dark:bg-neutral-900">
+                    {template.templateContent && (template.templateContent as EmailTemplateData).htmlContent ? (
+                      <div
+                        className="email-preview"
+                        dangerouslySetInnerHTML={{
+                          __html: (template.templateContent as EmailTemplateData).htmlContent || "",
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                        Preview not available
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Template Details */}
+            <Card className="rounded-xl border shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-medium">Template Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Type:</span>
+                    <span className="ml-2 font-medium text-foreground">
+                      {template.type === "invoice" ? "Invoice Template" : "Email Template"}
+                    </span>
+                  </div>
+                  {template.category && (
+                    <div>
+                      <span className="text-muted-foreground">Category:</span>
+                      <span className="ml-2 font-medium text-foreground">{template.category}</span>
+                    </div>
+                  )}
+                  {template.language && (
+                    <div>
+                      <span className="text-muted-foreground">Language:</span>
+                      <span className="ml-2 font-medium text-foreground">{template.language}</span>
+                    </div>
+                  )}
+                  {template.country && (
+                    <div>
+                      <span className="text-muted-foreground">Country:</span>
+                      <span className="ml-2 font-medium text-foreground">{template.country}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Version:</span>
+                    <span className="ml-2 font-medium text-foreground">{template.version}</span>
+                  </div>
+                  {template.publishedAt && (
+                    <div>
+                      <span className="text-muted-foreground">Published:</span>
+                      <span className="ml-2 font-medium text-foreground">
+                        {new Date(template.publishedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {template.tags && template.tags.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <span className="text-sm text-muted-foreground mb-2 block">Tags:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {template.tags.map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-xs rounded-full px-2 py-0.5">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Reviews Section */}
+            <ReviewSection templateId={template.id} />
+          </div>
+
+          {/* Sidebar - Sticky CTA */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-6">
+              <Card className="rounded-xl border shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-medium">Get This Template</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>By</span>
+                      <span className="font-medium text-foreground">
+                        {template.isOfficial ? "Financely" : template.authorName}
+                      </span>
+                    </div>
+                    {template.publishedAt && (
+                      <div className="text-xs text-muted-foreground">
+                        Published {new Date(template.publishedAt).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleAddTemplate}
+                    disabled={isAdding || !currentOrganization?.id || isAdded}
+                    variant={isAdded ? "secondary" : "default"}
+                  >
+                    {isAdded ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Added to Organization
+                      </>
+                    ) : isAdding ? (
+                      "Adding..."
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Add to My Organization
+                      </>
+                    )}
+                  </Button>
+
+                  {!currentOrganization?.id && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Please select an organization first
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
-        )}
+        </div>
       </div>
-
-      {/* Reviews Section */}
-      <ReviewSection templateId={template.id} />
     </div>
   );
 }
