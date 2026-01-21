@@ -55,6 +55,9 @@ export {
   deleteWorkflow 
 } from "./functions/workflow-management";
 
+// Organization functions
+export { createOrganization } from "./functions/create-organization";
+
 // Invite functions
 export { createInvite } from "./functions/create-invite";
 export { acceptInvite } from "./functions/accept-invite";

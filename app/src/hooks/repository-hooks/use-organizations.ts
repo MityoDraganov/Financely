@@ -6,6 +6,7 @@ import { useAuthReady } from "@/hooks/use-auth-ready";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "./use-users";
 import { firebase } from "@/infrastructure";
+import type { CreateOrganizationPayload } from "@/core/ports/services/functions-service";
 
 const databaseService = serviceHost.getDatabaseService();
 const organizationRepository = repositoryHost.getOrganizationsRepository(databaseService);
@@ -146,17 +147,22 @@ export const useOrganizationsByIds = (organizationIds: string[] | undefined) => 
 
 /**
  * Hook to create a new organization
+ * Uses cloud function instead of direct repository access for proper permissions
  */
 export const useCreateOrganization = () => {
   const queryClient = useQueryClient();
+  const functionsService = serviceHost.getFunctionsService();
 
   return useMutation({
-    mutationFn: async (data: Parameters<typeof organizationRepository.create>[0]["data"]) => {
-      return organizationRepository.create({ data });
+    mutationFn: async (data: CreateOrganizationPayload) => {
+      const result = await functionsService.createOrganization(data);
+      return result.organizationId;
     },
     onSuccess: () => {
       // Invalidate all organization queries to refetch
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      // Invalidate user queries since organizationRoles is updated when org is created
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     },
   });
 };

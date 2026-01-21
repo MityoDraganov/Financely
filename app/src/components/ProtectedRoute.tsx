@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
-  const { needsOnboarding, isLoading } = useOnboardingStatus();
+  const { needsOnboarding, isLoading, organizations } = useOnboardingStatus();
   const hasPreSignupData = useHasInProgressData();
   const hasRedirectedRef = useRef(false);
 
@@ -23,6 +23,17 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, [location.pathname]);
 
   useEffect(() => {
+    console.log("[ProtectedRoute] Route check:", {
+      pathname: location.pathname,
+      isLoaded,
+      isSignedIn,
+      isLoading,
+      needsOnboarding,
+      hasPreSignupData,
+      organizationsCount: organizations.length,
+      hasRedirected: hasRedirectedRef.current,
+    });
+
     // Don't redirect if we've already redirected or are still loading
     if (hasRedirectedRef.current || isLoading || !isLoaded) {
       return;
@@ -30,6 +41,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     // Redirect to sign-in if not authenticated
     if (!isSignedIn) {
+      console.log("[ProtectedRoute] User not authenticated, redirecting to sign-in");
       hasRedirectedRef.current = true;
       navigate("/sign-in", { replace: true });
       return;
@@ -37,16 +49,30 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     const isOnOnboardingPage = location.pathname === "/onboarding";
     
+    // Don't redirect to onboarding if user already has organizations
+    // (even if they have pre-signup data - they're already onboarded)
+    if (organizations.length > 0) {
+      console.log("[ProtectedRoute] User has organizations, allowing access:", {
+        organizationsCount: organizations.length,
+        organizationNames: organizations.map(org => org.name),
+      });
+      return;
+    }
+    
     // Redirect to onboarding if:
     // 1. User is signed in
     // 2. Not already on onboarding page
     // 3. Not loading (all data loaded)
     // 4. Either needsOnboarding OR has pre-signup data (completed quiz)
     if (isSignedIn && !isOnOnboardingPage && !isLoading && (needsOnboarding || hasPreSignupData)) {
+      console.log("[ProtectedRoute] Redirecting to onboarding:", {
+        needsOnboarding,
+        hasPreSignupData,
+      });
       hasRedirectedRef.current = true;
       navigate("/onboarding", { replace: true });
     }
-  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, navigate, location.pathname]);
+  }, [isLoaded, isSignedIn, isLoading, needsOnboarding, hasPreSignupData, organizations.length, navigate, location.pathname]);
 
   // Show loading state while checking authentication and onboarding status
   if (!isLoaded || isLoading) {

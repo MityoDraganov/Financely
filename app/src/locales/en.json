@@ -3181,6 +3181,10 @@
 			"joinButton": "Join Organization",
 			"joining": "Joining..."
 		},
+		"signUp": {
+			"title": "Almost there! 🎉",
+			"description": "One final step to unlock your workspace and start automating your finances."
+		},
 		"success": {
 			"title": "All Set! 🎉",
 			"description": "Your workspace <strong>{{orgName}}</strong> is ready to go. Let's start creating amazing invoices!",

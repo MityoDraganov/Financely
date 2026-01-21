@@ -5,7 +5,39 @@ export interface DeleteResponse {
   error?: string;
 }
 
+export interface CreateOrganizationPayload {
+  name: string;
+  description?: string;
+  website?: string;
+  settings?: {
+    brandColors?: {
+      primary?: string;
+      secondary?: string;
+      accent?: string;
+    };
+    [key: string]: any;
+  };
+}
+
+export interface CreateOrganizationResponse {
+  success: boolean;
+  organizationId: string;
+  message: string;
+}
+
 export interface FunctionsService {
+  /**
+   * Create a new organization
+   * 
+   * @param payload - The organization creation payload
+   * @param payload.name - Organization name (required)
+   * @param payload.description - Optional organization description
+   * @param payload.website - Optional organization website
+   * @param payload.settings - Optional organization settings including brand colors
+   * @returns Promise with the created organization ID
+   */
+  createOrganization(payload: CreateOrganizationPayload): Promise<CreateOrganizationResponse>;
+
   createProposal(payload: {
     orgId: string;
     customerId: string;

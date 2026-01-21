@@ -3,6 +3,16 @@ import { firebase } from "@/infrastructure/firebase";
 import { httpsCallable } from "@firebase/functions";
 
 export const functionsService: FunctionsService = {
+  async createOrganization(payload) {
+    type CreateOrganizationPayload = Parameters<FunctionsService["createOrganization"]>[0];
+    type CreateOrganizationResponse = Awaited<ReturnType<FunctionsService["createOrganization"]>>;
+    const result = await httpsCallable<
+      CreateOrganizationPayload,
+      CreateOrganizationResponse
+    >(firebase.functions, "createOrganization")(payload);
+    return result.data;
+  },
+
   async createProposal(payload) {
     type CreateProposalPayload = Parameters<FunctionsService["createProposal"]>[0];
     const result = await httpsCallable<CreateProposalPayload, { id: string }>(

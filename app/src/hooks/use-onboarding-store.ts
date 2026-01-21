@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
 
 export const STEPS = {
   WELCOME: 0,
@@ -9,7 +10,8 @@ export const STEPS = {
   BRANDING: 4,
   INVITES: 5,
   JOIN_ORG: 6,
-  SUCCESS: 7,
+  SIGN_UP: 7,
+  SUCCESS: 8,
 } as const;
 
 interface OnboardingStore {
@@ -132,11 +134,13 @@ export const useHasInProgressData = () =>
   );
 
 export const useOnboardingActions = () =>
-  useOnboardingStore((state) => ({
-    setCurrentStep: state.setCurrentStep,
-    setPath: state.setPath,
-    setFormData: state.setFormData,
-    setBrandingData: state.setBrandingData,
-    setInviteCode: state.setInviteCode,
-    reset: state.reset,
-  }));
+  useOnboardingStore(
+    useShallow((state) => ({
+      setCurrentStep: state.setCurrentStep,
+      setPath: state.setPath,
+      setFormData: state.setFormData,
+      setBrandingData: state.setBrandingData,
+      setInviteCode: state.setInviteCode,
+      reset: state.reset,
+    }))
+  );
