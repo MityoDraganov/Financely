@@ -11,6 +11,7 @@ export * from "./TrustSignals";
 export * from "./ProblemSolution";
 export * from "./Testimonials";
 export * from "./ProductDemo";
+export * from "./PricingSection";
 export * from "./constants";
 
 

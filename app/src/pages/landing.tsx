@@ -8,7 +8,8 @@ import {
   CTA, 
   Navbar,
   ProblemSolution,
-  ProductDemo
+  ProductDemo,
+  PricingSection
 } from "@/components/landing";
 
 export default function LandingPage() {
@@ -20,6 +21,10 @@ export default function LandingPage() {
       <HowItWorks />
       <Features />
       <ProductDemo />
+      <PricingSection 
+        stripePricingTableId={import.meta.env.VITE_STRIPE_PRICING_TABLE_ID}
+        stripePublishableKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY}
+      />
       <FAQ />
       <CTA />
     </div>
