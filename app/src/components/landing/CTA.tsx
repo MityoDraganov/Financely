@@ -15,7 +15,7 @@ export function CTA(): React.ReactElement {
         </div>
         <div className="flex gap-3">
           <Button asChild className="rounded-xl bg-white dark:bg-[#2a2d35] px-6 text-[#166534] dark:text-gray-100 shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">
-            <Link to="/sign-up">{t('landing.cta.startFree')}</Link>
+            <Link to="/onboarding">{t('landing.cta.startFree')}</Link>
           </Button>
         </div>
       </div>

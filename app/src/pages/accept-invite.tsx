@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAcceptInvite } from "@/hooks/use-invites";
 import { useAuth } from "@clerk/clerk-react";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
+import { useOnboardingStore, useHasInProgressData } from "@/hooks/use-onboarding-store";
 
 const PENDING_INVITE_KEY = "pendingInviteCode";
 
@@ -90,6 +91,13 @@ export default function AcceptInvitePage() {
           isProcessingRef.current = false;
           // Clear the pending invite code
           sessionStorage.removeItem(PENDING_INVITE_KEY);
+          
+          // Clear pre-signup store data after successful join
+          if (hasPreSignupData) {
+            const store = useOnboardingStore.getState();
+            store.reset();
+          }
+          
           setStatus("success");
           
           // Redirect to dashboard after showing success message

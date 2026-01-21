@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { useOnboardingStatus } from "@/hooks/use-onboarding";
+import { useHasInProgressData } from "@/hooks/use-onboarding-store";
 import { LoadingScreen } from "./loading-screen";
 
 interface ProtectedRouteProps {
@@ -13,6 +14,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
   const { needsOnboarding, isLoading } = useOnboardingStatus();
+  const hasPreSignupData = useHasInProgressData();
   const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
@@ -35,12 +37,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     const isOnOnboardingPage = location.pathname === "/onboarding";
     
-    // Only redirect to onboarding if:
+    // Redirect to onboarding if:
     // 1. User is signed in
     // 2. Not already on onboarding page
     // 3. Not loading (all data loaded)
-    // 4. needsOnboarding is true (hook guarantees this means user has no orgs)
-    if (isSignedIn && !isOnOnboardingPage && !isLoading && needsOnboarding) {
+    // 4. Either needsOnboarding OR has pre-signup data (completed quiz)
+    if (isSignedIn && !isOnOnboardingPage && !isLoading && (needsOnboarding || hasPreSignupData)) {
       hasRedirectedRef.current = true;
       navigate("/onboarding", { replace: true });
     }

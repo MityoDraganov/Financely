@@ -19,7 +19,7 @@ export function Hero(): React.ReactElement {
           <p className="mt-6 max-w-xl text-lg md:text-xl text-gray-100 leading-relaxed">{t('landing.hero.description')}</p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Button asChild variant="outline" className="rounded-xl bg-white dark:bg-[#2a2d35] px-7 py-3 font-semibold text-[#166534] dark:text-gray-100 shadow dark:shadow-[0px_4px_4px_#00000030] hover:bg-gray-50 dark:hover:bg-[#34373f] transition-colors">
-              <Link to="/sign-up">{t('landing.hero.startFreeTrial')}</Link>
+              <Link to="/onboarding">{t('landing.hero.startFreeTrial')}</Link>
             </Button>
           </div>
         </motion.div>

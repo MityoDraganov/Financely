@@ -31,7 +31,7 @@ export function Navbar(): React.ReactElement {
             <Link to="/sign-in">{t('landing.navbar.signIn')}</Link>
           </Button>
           <Button asChild className="rounded-xl bg-[#166534] dark:bg-[#22c55e] px-5 text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#166534] dark:focus-visible:ring-[#22c55e]">
-            <Link to="/sign-up">{t('landing.navbar.getStarted')}</Link>
+            <Link to="/onboarding">{t('landing.navbar.getStarted')}</Link>
           </Button>
           </SignedOut>
           <SignedIn>

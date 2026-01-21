@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Building2, 
-  CheckCircle2, 
-  Sparkles, 
-  Shield, 
-  Zap, 
+import {
+  Building2,
+  CheckCircle2,
+  Sparkles,
+  Shield,
+  Zap,
   Users,
   ArrowRight,
   ArrowLeft,
@@ -23,19 +24,10 @@ import {
   Workflow,
   FileText,
   Target,
-  Languages
+  Languages,
 } from "lucide-react";
-import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useCreateUser, useUserByClerkId } from "@/hooks";
-import { useAcceptInvite, useInvites } from "@/hooks/use-invites";
-import { useUser } from "@clerk/clerk-react";
 import { toast } from "sonner";
-import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
-import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
 import { ColorPicker } from "@/components/ui/color-picker";
-import { ORGANIZATION_ROLES } from "@/core/roles";
-import { Badge } from "@/components/ui/badge";
-import { useOrganizationMembers } from "@/hooks/use-organization-members";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { useTranslation } from "react-i18next";
 import {
@@ -49,96 +41,55 @@ import { sanitizeTranslationHtml } from "@/utils/html-sanitizer";
 import {
   STEPS,
   useOnboardingStore,
-  useHasInProgressData,
   useOnboardingActions,
 } from "@/hooks/use-onboarding-store";
+import { useShallow } from "zustand/react/shallow";
 
-interface OrganizationFormData {
-  name: string;
-  description: string;
-  website: string;
-}
-
-export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
+export function PreSignupOnboardingFlow() {
   const { t } = useTranslation();
-  const hasInProgressData = useHasInProgressData();
-  const { reset } = useOnboardingActions();
-  const storeState = useOnboardingStore();
+  const navigate = useNavigate();
   
-  // Initialize state from store if pre-signup data exists
-  const [currentStep, setCurrentStep] = useState<number>(() => {
-    if (hasInProgressData) {
-      // If user has completed quiz, skip to org creation or branding step
-      if (storeState.formData.name && storeState.path === 'create') {
-        // If org name is set, skip to branding (org will be created with stored data)
-        return STEPS.BRANDING;
-      }
-      if (storeState.path === 'join' && storeState.inviteCode) {
-        return STEPS.JOIN_ORG;
-      }
-      // Otherwise start from create org step
-      return STEPS.CREATE_ORG;
-    }
-    return STEPS.WELCOME;
-  });
-  
-  const [formData, setFormData] = useState<OrganizationFormData>(() => {
-    if (hasInProgressData && storeState.formData.name) {
-      return storeState.formData;
-    }
-    return {
-      name: "",
-      description: "",
-      website: "",
-    };
-  });
-  
-  const [inviteCode, setInviteCode] = useState(() => {
-    if (hasInProgressData && storeState.inviteCode) {
-      return storeState.inviteCode;
-    }
-    return "";
-  });
-  
-  const [brandingData, setBrandingData] = useState(() => {
-    if (hasInProgressData && storeState.brandingData) {
-      return storeState.brandingData;
-    }
-    return {
-      primaryColor: "#2563eb",
-      secondaryColor: "#6b7280",
-      accentColor: "#10b981",
-    };
-  });
-  
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  // Use a single selector with shallow comparison to avoid infinite loops
+  const {
+    currentStep,
+    path,
+    formData,
+    brandingData,
+    inviteCode,
+    setCurrentStep,
+    setPath,
+    setFormData,
+    setBrandingData,
+    setInviteCode,
+  } = useOnboardingStore(
+    useShallow((state) => ({
+      currentStep: state.currentStep,
+      path: state.path,
+      formData: state.formData,
+      brandingData: state.brandingData,
+      inviteCode: state.inviteCode,
+      setCurrentStep: state.setCurrentStep,
+      setPath: state.setPath,
+      setFormData: state.setFormData,
+      setBrandingData: state.setBrandingData,
+      setInviteCode: state.setInviteCode,
+    }))
+  );
 
-  // Check for pending invite code on mount
+  // Initialize startedAt on first mount if not set
   useEffect(() => {
-    const pendingCode = sessionStorage.getItem('pendingInviteCode');
-    if (pendingCode) {
-      setInviteCode(pendingCode);
-      // Clear the pending code
-      sessionStorage.removeItem('pendingInviteCode');
-      // Skip to join organization step
-      setCurrentStep(STEPS.JOIN_ORG);
+    const store = useOnboardingStore.getState();
+    // Check if there's in-progress data without subscribing
+    const hasData =
+      store.currentStep > STEPS.WELCOME ||
+      store.path !== null ||
+      store.formData.name !== "" ||
+      store.inviteCode !== "";
+    
+    if (hasData && !store.startedAt) {
+      useOnboardingStore.setState({ startedAt: Date.now() });
     }
-  }, []);
-
-  const { user: clerkUser } = useUser();
-  const { data: dbUser } = useUserByClerkId(clerkUser?.id);
-  const createUser = useCreateUser();
-  const createOrganization = useCreateOrganization();
-  const addMember = useAddOrganizationMember();
-  const updateUserRole = useUpdateUserRole();
-  const acceptInvite = useAcceptInvite();
-  const { data: organization } = useCurrentOrganization();
-  const updateOrganization = useUpdateOrganization();
-  const { data: invites = [] } = useInvites(organization?.id);
-  const { data: members = [] } = useOrganizationMembers(organization?.id);
-  
-  // Check if there are any additional users (invited or accepted) besides the current user
-  const hasAdditionalUsers = invites.length > 0 || (members.length > 1);
+  }, []); // Only run once on mount
 
   const progress = ((currentStep + 1) / Object.keys(STEPS).length) * 100;
 
@@ -157,190 +108,43 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleChooseCreate = () => {
+    setPath("create");
     setCurrentStep(STEPS.BENEFITS);
   };
 
   const handleChooseJoin = () => {
+    setPath("join");
     setCurrentStep(STEPS.JOIN_ORG);
   };
 
-  const handleJoinOrganization = async () => {
+  const handleJoinOrganization = () => {
     if (!inviteCode.trim()) {
       toast.error(t("onboarding.messages.enterInviteCode"));
       return;
     }
 
-    try {
-      await acceptInvite.mutateAsync(inviteCode);
-      
-      // Clear pre-signup store data after successful join
-      if (hasInProgressData) {
-        reset();
-      }
-      
-      setCurrentStep(STEPS.SUCCESS);
-    } catch (error) {
-      toast.error(t("onboarding.messages.joinFailed"));
-      console.error("Error joining organization:", error);
-    }
+    // Store invite code and mark as complete, then redirect to sign-up
+    setInviteCode(inviteCode.trim().toUpperCase());
+    setCurrentStep(STEPS.SUCCESS);
   };
 
-  const handleCreateOrganization = async () => {
+  const handleCreateOrganization = () => {
     if (!formData.name.trim()) {
       toast.error(t("onboarding.messages.enterOrgName"));
       return;
     }
 
-    if (!clerkUser?.id) {
-      toast.error(t("onboarding.messages.userNotAuthenticated"));
-      return;
-    }
-
-    try {
-      // Step 1: Ensure user exists in database
-      let userId = dbUser?.id;
-      if (!dbUser) {
-        const userData = {
-          clerkId: clerkUser.id,
-          email: clerkUser.emailAddresses[0]?.emailAddress || "",
-          name: clerkUser.fullName || clerkUser.firstName || "User",
-          // Only include avatarUrl if it exists and is not empty
-          ...(clerkUser.imageUrl && { avatarUrl: clerkUser.imageUrl }),
-          // Provide default values for required fields
-          status: "active" as const,
-          organizationRoles: {},
-          preferences: {
-            theme: "system" as const,
-            language: "en",
-            timezone: "UTC",
-          },
-        };
-        userId = await createUser.mutateAsync(userData);
-      }
-
-      if (!userId) {
-        throw new Error("Failed to create user");
-      }
-
-      // Step 2: Create organization
-      const orgData = {
-        name: formData.name,
-        // Only include optional fields if they have values
-        ...(formData.description && { description: formData.description }),
-        ...(formData.website && { website: formData.website }),
-        // Provide default values for required fields
-        status: "active" as const,
-        memberIds: [],
-        subscription: {
-          plan: "free" as const,
-          status: "active" as const,
-        },
-        settings: {
-          brandColors: {
-            primary: brandingData.primaryColor,
-            secondary: brandingData.secondaryColor,
-            accent: brandingData.accentColor,
-          },
-          security: {
-            ssoEnabled: false,
-          },
-          customRoles: [],
-          defaultCurrency: "USD",
-          defaultLanguage: "en",
-          defaultTimezone: "UTC",
-          invoicePrefix: "INV",
-          invoiceNumberStart: 1,
-          features: {
-            customTemplates: true,
-            pdfGeneration: true,
-            emailSending: true,
-            apiAccess: false,
-          },
-          ai: {
-            autoProposalSuggestions: false,
-          },
-        },
-        usage: {
-          templateCount: 0,
-          invoiceCount: 0,
-          memberCount: 0,
-          storageBytes: 0,
-        },
-      };
-      const orgId = await createOrganization.mutateAsync(orgData);
-
-      // Step 3: Add current user as member
-      await addMember.mutateAsync({
-        organizationId: orgId,
-        userId: userId,
-      });
-
-      // Step 4: Set user as owner
-      await updateUserRole.mutateAsync({
-        userId: userId,
-        organizationId: orgId,
-        role: ORGANIZATION_ROLES.OWNER,
-      });
-
-      toast.success(t("onboarding.messages.orgCreated"));
-      
-      // Clear pre-signup store data after successful org creation
-      if (hasInProgressData) {
-        reset();
-      }
-      
-      setCurrentStep(STEPS.BRANDING);
-    } catch (error) {
-      toast.error(t("onboarding.messages.orgCreateFailed"));
-      console.error("Error creating organization:", error);
-    }
+    // Just validate and move to branding step
+    setCurrentStep(STEPS.BRANDING);
   };
 
   const handleComplete = () => {
-    // Clear pre-signup store data on completion
-    if (hasInProgressData) {
-      reset();
-    }
-    onComplete();
+    // Redirect to sign-up with flag indicating quiz completion
+    navigate("/sign-up?from_onboarding=true");
   };
 
-  const handleBrandingSave = async () => {
-    if (!organization) {
-      setCurrentStep(STEPS.INVITES);
-      return;
-    }
-
-    try {
-      await updateOrganization.mutateAsync({
-        id: organization.id,
-        data: {
-          settings: {
-            ...organization.settings,
-            brandColors: {
-              primary: brandingData.primaryColor,
-              secondary: brandingData.secondaryColor,
-              accent: brandingData.accentColor,
-            },
-            branding: {
-              ...(organization.settings?.branding || {}),
-              brandImages: organization.settings?.branding?.brandImages || [],
-            },
-          },
-        },
-      });
-      toast.success(t("onboarding.messages.brandingSaved"));
-      
-      // Update branding data in store if it exists (use direct store access, not hook)
-      if (hasInProgressData) {
-        const store = useOnboardingStore.getState();
-        store.setBrandingData(brandingData);
-      }
-      
-      setCurrentStep(STEPS.INVITES);
-    } catch {
-      toast.error(t("onboarding.messages.brandingSaveFailed"));
-      setCurrentStep(STEPS.INVITES);
-    }
+  const handleBrandingSave = () => {
+    setCurrentStep(STEPS.INVITES);
   };
 
   const handleBrandingSkip = () => {
@@ -358,7 +162,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   // Render buttons based on current step
   const renderButtons = () => {
     if (currentStep === STEPS.WELCOME) {
-  return (
+      return (
         <div className="flex justify-center">
           <Button
             onClick={handleNext}
@@ -401,7 +205,6 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     }
 
     if (currentStep === STEPS.CREATE_ORG) {
-      const isLoading = createOrganization.isPending || addMember.isPending;
       return (
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <Button
@@ -409,7 +212,6 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             variant="outline"
             size="lg"
             className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
-            disabled={isLoading}
           >
             <ArrowLeft className="mr-2 w-5 h-5" />
             {t("onboarding.buttons.back")}
@@ -418,19 +220,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClick={handleCreateOrganization}
             size="lg"
             className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
-            disabled={isLoading || !formData.name.trim()}
+            disabled={!formData.name.trim()}
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                {t("onboarding.createOrg.creating")}
-              </>
-            ) : (
-              <>
-                {t("onboarding.createOrg.createButton")}
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </>
-            )}
+            {t("onboarding.createOrg.createButton")}
+            <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
       );
@@ -452,19 +245,9 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
             onClick={handleBrandingSave}
             size="lg"
             className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
-            disabled={updateOrganization.isPending}
           >
-            {updateOrganization.isPending ? (
-              <>
-                <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                {t("onboarding.branding.saving")}
-              </>
-            ) : (
-              <>
-                {t("onboarding.branding.saveContinue")}
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </>
-            )}
+            {t("onboarding.branding.saveContinue")}
+            <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
       );
@@ -473,39 +256,33 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     if (currentStep === STEPS.INVITES) {
       return (
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          {!hasAdditionalUsers && (
-            <Button
-              onClick={handleInvitesSkip}
-              variant="outline"
-              size="lg"
-              className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
-            >
-              <SkipForward className="mr-2 w-5 h-5" />
-              {t("onboarding.buttons.skip")}
-            </Button>
-          )}
-          {hasAdditionalUsers && (
-            <Button
-              onClick={handleInvitesContinue}
-              size="lg"
-              className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
-            >
-              {t("onboarding.buttons.continue")}
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
-          )}
+          <Button
+            onClick={handleInvitesSkip}
+            variant="outline"
+            size="lg"
+            className="rounded-xl w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
+          >
+            <SkipForward className="mr-2 w-5 h-5" />
+            {t("onboarding.buttons.skip")}
+          </Button>
+          <Button
+            onClick={handleInvitesContinue}
+            size="lg"
+            className="bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground px-8 rounded-xl w-full sm:w-auto"
+          >
+            {t("onboarding.buttons.continue")}
+            <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
         </div>
       );
     }
 
     if (currentStep === STEPS.JOIN_ORG) {
-      const isLoading = acceptInvite.isPending;
       return (
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={isLoading}
             className="flex items-center gap-2 w-full sm:w-auto bg-card border-border text-foreground hover:bg-accent md:bg-transparent"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -513,20 +290,11 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
           </Button>
           <Button
             onClick={handleJoinOrganization}
-            disabled={isLoading || !inviteCode.trim()}
+            disabled={!inviteCode.trim()}
             className="flex items-center gap-2 bg-card text-primary hover:bg-accent md:bg-primary md:hover:bg-primary/90 md:text-primary-foreground w-full sm:w-auto"
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("onboarding.joinOrg.joining")}
-              </>
-            ) : (
-              <>
-                {t("onboarding.joinOrg.joinButton")}
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
+            {t("onboarding.joinOrg.joinButton")}
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       );
@@ -576,82 +344,67 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
         <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-6 pb-24 md:pb-6 overflow-x-hidden">
           {/* Progress bar for desktop */}
           <div className="hidden md:block mb-8">
-          <Progress value={progress} className="h-2 bg-white/20" />
-        </div>
+            <Progress value={progress} className="h-2 bg-white/20" />
+          </div>
 
-        <AnimatePresence mode="wait">
-          {currentStep === STEPS.WELCOME && (
-              <WelcomeStep 
-                key="welcome" 
-                userName={clerkUser?.firstName || t("onboarding.welcome.title", { name: "" }).split(",")[0].replace("Welcome to Financely, ", "").trim() || "there"}
-                onNext={handleNext}
-              />
-          )}
+          <AnimatePresence mode="wait">
+            {currentStep === STEPS.WELCOME && (
+              <WelcomeStep key="welcome" onNext={handleNext} />
+            )}
 
-          {currentStep === STEPS.CHOOSE_PATH && (
-            <ChoosePathStep key="choose" onCreate={handleChooseCreate} onJoin={handleChooseJoin} />
-          )}
+            {currentStep === STEPS.CHOOSE_PATH && (
+              <ChoosePathStep key="choose" onCreate={handleChooseCreate} onJoin={handleChooseJoin} />
+            )}
 
-          {currentStep === STEPS.BENEFITS && (
-              <BenefitsStep 
-                key="benefits"
-                onNext={handleNext}
+            {currentStep === STEPS.BENEFITS && (
+              <BenefitsStep key="benefits" onNext={handleNext} onBack={handleBack} />
+            )}
+
+            {currentStep === STEPS.CREATE_ORG && (
+              <CreateOrgStep
+                key="create"
+                formData={formData}
+                setFormData={setFormData}
+                setStoreFormData={setFormData}
                 onBack={handleBack}
+                onSubmit={handleCreateOrganization}
               />
-          )}
-
-          {currentStep === STEPS.CREATE_ORG && (
-            <CreateOrgStep
-              key="create"
-              formData={formData}
-              setFormData={setFormData}
-              onBack={handleBack}
-              onSubmit={handleCreateOrganization}
-              isLoading={createOrganization.isPending || addMember.isPending}
-            />
-          )}
+            )}
 
             {currentStep === STEPS.BRANDING && (
               <BrandingStep
                 key="branding"
                 brandingData={brandingData}
                 setBrandingData={setBrandingData}
+                setStoreBrandingData={setBrandingData}
                 onSkip={handleBrandingSkip}
                 onSave={handleBrandingSave}
-                isLoading={updateOrganization.isPending}
               />
             )}
 
             {currentStep === STEPS.INVITES && (
-              <InviteStep 
+              <InviteStep
                 key="invites"
                 onSkip={handleInvitesSkip}
-                onInvite={() => setInviteDialogOpen(true)}
                 onContinue={handleInvitesContinue}
-                invites={invites}
-                hasAdditionalUsers={hasAdditionalUsers}
-            />
-          )}
-
-          {currentStep === STEPS.JOIN_ORG && (
-            <JoinOrgStep
-              key="join"
-              inviteCode={inviteCode}
-              setInviteCode={setInviteCode}
-              onBack={handleBack}
-              onSubmit={handleJoinOrganization}
-              isLoading={acceptInvite.isPending}
-            />
-          )}
-
-          {currentStep === STEPS.SUCCESS && (
-              <SuccessStep 
-                key="success" 
-                orgName={formData.name}
-                onComplete={handleComplete}
               />
-          )}
-        </AnimatePresence>
+            )}
+
+            {currentStep === STEPS.JOIN_ORG && (
+              <JoinOrgStep
+                key="join"
+                inviteCode={inviteCode}
+                setInviteCode={setInviteCode}
+                setStoreInviteCode={setInviteCode}
+                onBack={handleBack}
+                onSubmit={handleJoinOrganization}
+              />
+            )}
+
+            {currentStep === STEPS.SUCCESS && (
+              <SuccessStep key="success" orgName={formData.name} onComplete={handleComplete} />
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -660,24 +413,15 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
         const buttons = renderButtons();
         return buttons && (
           <div className="sticky bottom-0 z-20 bg-gradient-to-br from-[#166534] to-[#0e4424] backdrop-blur-sm pt-4 pb-4 px-4 border-t border-white/10 md:hidden shadow-lg">
-            <div className="w-full max-w-4xl mx-auto">
-              {buttons}
-            </div>
+            <div className="w-full max-w-4xl mx-auto">{buttons}</div>
           </div>
         );
       })()}
-
-      {/* Invite Dialog */}
-      {currentStep === STEPS.INVITES && (
-        <InviteUserDialog
-          open={inviteDialogOpen}
-          onOpenChange={setInviteDialogOpen}
-        />
-      )}
     </div>
   );
 }
 
+// Reuse step components from onboarding-flow.tsx
 function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: () => void }) {
   const { t } = useTranslation();
   return (
@@ -701,7 +445,6 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
         </CardHeader>
         <CardContent className="space-y-6 min-w-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {/* Create Organization Option */}
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -713,7 +456,9 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
                     <Building2 className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.createOrg.title")}</h3>
+                  <h3 className="text-xl font-semibold text-card-foreground mb-2">
+                    {t("onboarding.choosePath.createOrg.title")}
+                  </h3>
                   <p className="text-muted-foreground mb-4">
                     {t("onboarding.choosePath.createOrg.description")}
                   </p>
@@ -724,7 +469,6 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
               </Card>
             </motion.div>
 
-            {/* Join Organization Option */}
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -736,7 +480,9 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
                     <Users className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.joinOrg.title")}</h3>
+                  <h3 className="text-xl font-semibold text-card-foreground mb-2">
+                    {t("onboarding.choosePath.joinOrg.title")}
+                  </h3>
                   <p className="text-muted-foreground mb-4">
                     {t("onboarding.choosePath.joinOrg.description")}
                   </p>
@@ -753,20 +499,27 @@ function ChoosePathStep({ onCreate, onJoin }: { onCreate: () => void; onJoin: ()
   );
 }
 
-function JoinOrgStep({ 
-  inviteCode, 
-  setInviteCode, 
-  onBack, 
-  onSubmit, 
-  isLoading 
-}: { 
-  inviteCode: string; 
-  setInviteCode: (code: string) => void; 
-  onBack: () => void; 
-  onSubmit: () => void; 
-  isLoading: boolean; 
+function JoinOrgStep({
+  inviteCode,
+  setInviteCode,
+  setStoreInviteCode,
+  onBack,
+  onSubmit,
+}: {
+  inviteCode: string;
+  setInviteCode: (code: string) => void;
+  setStoreInviteCode: (code: string) => void;
+  onBack: () => void;
+  onSubmit: () => void;
 }) {
   const { t } = useTranslation();
+
+  const handleChange = (value: string) => {
+    const upperValue = value.toUpperCase();
+    setInviteCode(upperValue);
+    setStoreInviteCode(upperValue);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -797,38 +550,24 @@ function JoinOrgStep({
                 type="text"
                 placeholder={t("onboarding.joinOrg.inviteCodePlaceholder")}
                 value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                onChange={(e) => handleChange(e.target.value)}
                 className="mt-1"
               />
             </div>
           </div>
 
           <div className="flex justify-between pt-6 hidden md:flex">
-            <Button
-              variant="outline"
-              onClick={onBack}
-              disabled={isLoading}
-              className="flex items-center gap-2"
-            >
+            <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
               {t("onboarding.buttons.back")}
             </Button>
             <Button
               onClick={onSubmit}
-              disabled={isLoading || !inviteCode.trim()}
+              disabled={!inviteCode.trim()}
               className="flex items-center gap-2 bg-[#166534] hover:bg-[#0e4424]"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("onboarding.joinOrg.joining")}
-                </>
-              ) : (
-                <>
-                  {t("onboarding.joinOrg.joinButton")}
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
+              {t("onboarding.joinOrg.joinButton")}
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </CardContent>
@@ -837,7 +576,7 @@ function JoinOrgStep({
   );
 }
 
-function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => void }) {
+function WelcomeStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
   return (
     <motion.div
@@ -857,7 +596,7 @@ function WelcomeStep({ userName, onNext }: { userName: string; onNext: () => voi
             <Sparkles className="w-full h-full text-white p-3 lg:p-5" />
           </motion.div>
           <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">
-            {t("onboarding.welcome.title", { name: userName })}
+            {t("onboarding.welcome.title", { name: "" }).replace(",", "")}
           </CardTitle>
           <CardDescription className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto break-words px-2">
             {t("onboarding.welcome.description")}
@@ -962,7 +701,7 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                     <benefit.icon className="w-5 h-5 text-primary" />
-                </div>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <h3 className="font-semibold text-foreground text-sm leading-tight">{benefit.title}</h3>
@@ -983,7 +722,7 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground font-medium">{t("onboarding.benefits.bankGrade")}</span>
-              </div>
+            </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground font-medium">{t("onboarding.benefits.gdprCompliant")}</span>
@@ -995,12 +734,7 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
           </div>
 
           <div className="flex flex-col sm:flex-row justify-between gap-4 pt-2 hidden md:flex">
-            <Button
-              onClick={onBack}
-              variant="outline"
-              size="lg"
-              className="rounded-xl"
-            >
+            <Button onClick={onBack} variant="outline" size="lg" className="rounded-xl">
               <ArrowLeft className="mr-2 w-5 h-5" />
               {t("onboarding.buttons.back")}
             </Button>
@@ -1022,17 +756,24 @@ function BenefitsStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
 function CreateOrgStep({
   formData,
   setFormData,
+  setStoreFormData,
   onBack,
   onSubmit,
-  isLoading,
 }: {
-  formData: OrganizationFormData;
-  setFormData: (data: OrganizationFormData) => void;
+  formData: { name: string; description: string; website: string };
+  setFormData: (data: Partial<{ name: string; description: string; website: string }>) => void;
+  setStoreFormData: (data: Partial<{ name: string; description: string; website: string }>) => void;
   onBack: () => void;
   onSubmit: () => void;
-  isLoading: boolean;
 }) {
   const { t } = useTranslation();
+
+  const handleChange = (field: string, value: string) => {
+    const newData = { [field]: value };
+    setFormData(newData);
+    setStoreFormData(newData);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1067,7 +808,7 @@ function CreateOrgStep({
                 id="orgName"
                 placeholder={t("onboarding.createOrg.orgNamePlaceholder")}
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => handleChange("name", e.target.value)}
                 className="h-11"
                 required
               />
@@ -1081,7 +822,7 @@ function CreateOrgStep({
                 id="orgDescription"
                 placeholder={t("onboarding.createOrg.descriptionPlaceholder")}
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => handleChange("description", e.target.value)}
                 rows={3}
               />
             </div>
@@ -1095,25 +836,21 @@ function CreateOrgStep({
                 type="url"
                 placeholder={t("onboarding.createOrg.websitePlaceholder")}
                 value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                onChange={(e) => handleChange("website", e.target.value)}
                 className="h-11"
               />
             </div>
           </div>
 
           <div className="bg-accent rounded-lg p-4 max-w-xl mx-auto">
-            {/* HTML is sanitized before rendering to prevent XSS */}
-            <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.createOrg.proTip")) }} />
+            <p
+              className="text-sm text-foreground"
+              dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.createOrg.proTip")) }}
+            />
           </div>
 
           <div className="flex justify-between pt-4 hidden md:flex">
-            <Button
-              onClick={onBack}
-              variant="outline"
-              size="lg"
-              className="rounded-xl"
-              disabled={isLoading}
-            >
+            <Button onClick={onBack} variant="outline" size="lg" className="rounded-xl">
               <ArrowLeft className="mr-2 w-5 h-5" />
               {t("onboarding.buttons.back")}
             </Button>
@@ -1121,19 +858,10 @@ function CreateOrgStep({
               onClick={onSubmit}
               size="lg"
               className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
-              disabled={isLoading || !formData.name.trim()}
+              disabled={!formData.name.trim()}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                  {t("onboarding.createOrg.creating")}
-                </>
-              ) : (
-                <>
-                  {t("onboarding.createOrg.createButton")}
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </>
-              )}
+              {t("onboarding.createOrg.createButton")}
+              <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
         </CardContent>
@@ -1145,21 +873,24 @@ function CreateOrgStep({
 function BrandingStep({
   brandingData,
   setBrandingData,
+  setStoreBrandingData,
   onSkip,
   onSave,
-  isLoading,
 }: {
-  brandingData: {
-    primaryColor: string;
-    secondaryColor: string;
-    accentColor: string;
-  };
-  setBrandingData: (data: typeof brandingData) => void;
+  brandingData: { primaryColor: string; secondaryColor: string; accentColor: string };
+  setBrandingData: (data: Partial<{ primaryColor: string; secondaryColor: string; accentColor: string }>) => void;
+  setStoreBrandingData: (data: Partial<{ primaryColor: string; secondaryColor: string; accentColor: string }>) => void;
   onSkip: () => void;
   onSave: () => void;
-  isLoading: boolean;
 }) {
   const { t } = useTranslation();
+
+  const handleColorChange = (field: string, color: string) => {
+    const newData = { [field]: color };
+    setBrandingData(newData);
+    setStoreBrandingData(newData);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1187,7 +918,7 @@ function BrandingStep({
                 <ColorPicker
                   label=""
                   value={brandingData.primaryColor}
-                  onChange={(color) => setBrandingData({ ...brandingData, primaryColor: color })}
+                  onChange={(color) => handleColorChange("primaryColor", color)}
                 />
               </div>
 
@@ -1196,7 +927,7 @@ function BrandingStep({
                 <ColorPicker
                   label=""
                   value={brandingData.secondaryColor}
-                  onChange={(color) => setBrandingData({ ...brandingData, secondaryColor: color })}
+                  onChange={(color) => handleColorChange("secondaryColor", color)}
                 />
               </div>
 
@@ -1205,44 +936,27 @@ function BrandingStep({
                 <ColorPicker
                   label=""
                   value={brandingData.accentColor}
-                  onChange={(color) => setBrandingData({ ...brandingData, accentColor: color })}
+                  onChange={(color) => handleColorChange("accentColor", color)}
                 />
               </div>
             </div>
 
             <div className="bg-accent rounded-lg p-4">
-              {/* HTML is sanitized before rendering to prevent XSS */}
-              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.branding.tip")) }} />
+              <p
+                className="text-sm text-foreground"
+                dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.branding.tip")) }}
+              />
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row justify-between gap-4 pt-4 hidden md:flex">
-            <Button
-              onClick={onSkip}
-              variant="outline"
-              size="lg"
-              className="rounded-xl"
-            >
+            <Button onClick={onSkip} variant="outline" size="lg" className="rounded-xl">
               <SkipForward className="mr-2 w-5 h-5" />
               {t("onboarding.buttons.skip")}
             </Button>
-            <Button
-              onClick={onSave}
-              size="lg"
-              className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                  {t("onboarding.branding.saving")}
-                </>
-              ) : (
-                <>
-                  {t("onboarding.branding.saveContinue")}
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </>
-              )}
+            <Button onClick={onSave} size="lg" className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl">
+              {t("onboarding.branding.saveContinue")}
+              <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
         </CardContent>
@@ -1251,18 +965,12 @@ function BrandingStep({
   );
 }
 
-function InviteStep({ 
-  onSkip, 
-  onInvite,
+function InviteStep({
+  onSkip,
   onContinue,
-  invites,
-  hasAdditionalUsers
-}: { 
-  onSkip: () => void; 
-  onInvite: () => void;
+}: {
+  onSkip: () => void;
   onContinue: () => void;
-  invites: Array<{ id: string; email: string; role: string; status: string }>;
-  hasAdditionalUsers: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -1295,74 +1003,29 @@ function InviteStep({
                 <p className="text-sm text-muted-foreground mb-4">
                   {t("onboarding.invites.inviteDescription")}
                 </p>
-                <Button
-                  onClick={onInvite}
-                  size="lg"
-                  className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl mt-4"
-                >
-                  <Users className="mr-2 w-5 h-5" />
-                  {t("onboarding.invites.inviteButton")}
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {t("onboarding.invites.youCanInviteLater")}
+                </p>
               </div>
             </div>
 
-            {invites.length > 0 && (
-              <div className="space-y-3 pt-4 border-t border-border">
-                <h4 className="text-sm font-semibold text-foreground">{t("onboarding.invites.invitedMembers")}</h4>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                  {invites.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Mail className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{invite.email}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {invite.status === "sent" ? t("onboarding.invites.invitationSent") : t("onboarding.invites.pending")}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-xs shrink-0 ml-2">
-                        {invite.role}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="bg-accent rounded-lg p-4">
-              {/* HTML is sanitized before rendering to prevent XSS */}
-              <p className="text-sm text-foreground" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.invites.tip")) }} />
+              <p
+                className="text-sm text-foreground"
+                dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.invites.tip")) }}
+              />
             </div>
           </div>
 
-          <div className={`flex flex-col sm:flex-row ${hasAdditionalUsers ? 'justify-end' : 'justify-between'} gap-4 pt-4 hidden md:flex`}>
-            {!hasAdditionalUsers && (
-              <Button
-                onClick={onSkip}
-                variant="outline"
-                size="lg"
-                className="rounded-xl"
-              >
-                <SkipForward className="mr-2 w-5 h-5" />
-                {t("onboarding.buttons.skip")}
-              </Button>
-            )}
-            {hasAdditionalUsers && (
-              <Button
-                onClick={onContinue}
-                size="lg"
-                className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl"
-              >
-                {t("onboarding.buttons.continue")}
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            )}
+          <div className="flex flex-col sm:flex-row justify-between gap-4 pt-4 hidden md:flex">
+            <Button onClick={onSkip} variant="outline" size="lg" className="rounded-xl">
+              <SkipForward className="mr-2 w-5 h-5" />
+              {t("onboarding.buttons.skip")}
+            </Button>
+            <Button onClick={onContinue} size="lg" className="bg-[#166534] hover:bg-[#0e4424] text-white px-8 rounded-xl">
+              {t("onboarding.buttons.continue")}
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1390,9 +1053,15 @@ function SuccessStep({ orgName, onComplete }: { orgName: string; onComplete: () 
           </motion.div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">{t("onboarding.success.title")}</h2>
-            {/* HTML is sanitized before rendering to prevent XSS */}
-            <p className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto break-words px-2" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t("onboarding.success.description", { orgName })) }} />
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-card-foreground break-words px-2">
+              {t("onboarding.success.title")}
+            </h2>
+            <p
+              className="text-base sm:text-lg text-muted-foreground max-w-md mx-auto break-words px-2"
+              dangerouslySetInnerHTML={{
+                __html: sanitizeTranslationHtml(t("onboarding.success.description", { orgName })),
+              }}
+            />
           </div>
 
           <div className="grid gap-3 max-w-md mx-auto text-left">
@@ -1438,15 +1107,15 @@ function OnboardingLanguageSelector() {
   const { i18n } = useTranslation();
 
   const languages = [
-    { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'bg', name: 'Български', flag: '🇧🇬' },
+    { code: "en", name: "English", flag: "🇺🇸" },
+    { code: "bg", name: "Български", flag: "🇧🇬" },
   ];
 
-  const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
+  const currentLanguage = languages.find((lang) => lang.code === i18n.language) || languages[0];
 
   const handleLanguageChange = (languageCode: string) => {
     i18n.changeLanguage(languageCode);
-    localStorage.setItem('i18nextLng', languageCode);
+    localStorage.setItem("i18nextLng", languageCode);
   };
 
   return (
@@ -1475,5 +1144,3 @@ function OnboardingLanguageSelector() {
     </Select>
   );
 }
-
-

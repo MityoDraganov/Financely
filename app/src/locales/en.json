@@ -3165,6 +3165,7 @@
 			"description": "Invite team members to collaborate. You can always invite more people later.",
 			"readyToInvite": "Ready to invite your team?",
 			"inviteDescription": "Click the button below to send invitations to your team members via email.",
+			"youCanInviteLater": "Don't worry, you can invite team members later from Settings.",
 			"inviteButton": "Invite Members",
 			"invitedMembers": "Invited Members",
 			"invitationSent": "Invitation sent",

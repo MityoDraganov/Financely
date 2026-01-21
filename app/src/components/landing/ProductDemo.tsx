@@ -93,7 +93,7 @@ export function ProductDemo(): React.ReactElement {
             size="lg"
             className="rounded-xl bg-[#166534] dark:bg-[#22c55e] px-8 text-white dark:text-[#0f1115] shadow-sm dark:shadow-[0px_4px_4px_#00000030] hover:bg-[#12502b] dark:hover:bg-[#16a34a] transition-colors"
           >
-            <Link to="/sign-up">{t('landing.productDemo.tryNow')}</Link>
+            <Link to="/onboarding">{t('landing.productDemo.tryNow')}</Link>
           </Button>
         </motion.div>
       </div>
