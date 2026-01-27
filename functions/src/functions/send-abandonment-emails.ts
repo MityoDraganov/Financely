@@ -6,14 +6,12 @@ import {
   findAbandonedOnboarding,
 } from "../services/abandonment-email-service";
 import { getDatabaseService } from "../services/database-service";
-import { getOnboardingProgressRepository } from "../repositories/onboarding-progress-repository";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
 const resendFromName = defineSecret("RESEND_FROM_NAME");
 
 const databaseService = getDatabaseService();
-const progressRepo = getOnboardingProgressRepository(databaseService);
 
 /**
  * Track which emails have been sent to avoid duplicates

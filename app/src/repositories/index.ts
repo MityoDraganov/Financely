@@ -18,6 +18,8 @@ import { getAnalyticsConfigRepository } from "./analytics-config-repository";
 import { getExtractionJobRepository } from "./extraction-job-repository";
 import { getMarketplaceTemplateRepository } from "./marketplace-template-repository";
 import { getMarketplaceReviewRepository } from "./marketplace-review-repository";
+import { getMetaobjectDefinitionRepository, getMetaobjectRepository } from "./metaobject-repository";
+import { getFileRepository } from "./file-repository";
 
 export const repositoryHost: RepositoryHost = {
     getTemplatesReposity: (databaseService: DatabaseService) =>

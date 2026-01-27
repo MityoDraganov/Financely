@@ -22,8 +22,18 @@ export function getOnboardingProgressRepository(
   );
 
   return {
-    ...genericRepo,
-    
+    async create(data: OnboardingProgressData): Promise<string> {
+      return genericRepo.create({ data });
+    },
+    async get(id: string): Promise<OnboardingProgress | null> {
+      return genericRepo.get({ id });
+    },
+    async update(id: string, data: Partial<OnboardingProgressData>): Promise<void> {
+      return genericRepo.update({ id, data });
+    },
+    async delete(id: string): Promise<void> {
+      return genericRepo.delete({ id });
+    },
     async getByUserId(userId: string): Promise<OnboardingProgress | null> {
       const results = await databaseService.getAllByFields<OnboardingProgress>(
         DatabaseCollection.ONBOARDING_PROGRESS,

@@ -1,7 +1,6 @@
 import { ResendEmailService } from "./resend-email-service";
 import { generateMagicLink } from "./magic-link-service";
 import { getDatabaseService } from "./database-service";
-import { getOnboardingProgressRepository } from "../repositories/onboarding-progress-repository";
 import { OnboardingProgress } from "../core/entities/onboarding-progress";
 import {
   generateAbandonmentEmailHTML,
@@ -10,7 +9,6 @@ import {
 import { logger } from "firebase-functions";
 
 const databaseService = getDatabaseService();
-const progressRepo = getOnboardingProgressRepository(databaseService);
 
 interface EmailConfig {
   apiKey: string;
@@ -48,16 +46,6 @@ function getNextStepDescription(currentStep: number): string {
   return steps[currentStep] || "Continue onboarding";
 }
 
-/**
- * Calculate days since last activity
- */
-function getDaysSinceLastActivity(lastActivityAt: string): number {
-  const lastActivity = new Date(lastActivityAt);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - lastActivity.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
-}
 
 /**
  * Send abandonment recovery email
@@ -85,8 +73,9 @@ export async function sendAbandonmentEmail(
     const nextStep = getNextStepDescription(progress.data.currentStep);
 
     // Generate email content
+    const userName = email.split("@")[0] || "there";
     const html = generateAbandonmentEmailHTML({
-      userName: progress.data.email.split("@")[0] || "there",
+      userName,
       progressPercentage,
       nextStep,
       resumeUrl,
@@ -94,7 +83,7 @@ export async function sendAbandonmentEmail(
     });
 
     const text = generateAbandonmentEmailText({
-      userName: progress.data.email.split("@")[0] || "there",
+      userName,
       progressPercentage,
       nextStep,
       resumeUrl,
@@ -119,7 +108,7 @@ export async function sendAbandonmentEmail(
     });
 
     const result = await emailService.sendEmail({
-      to: { email, name: progress.data.email.split("@")[0] || "User" },
+      to: { email, name: userName },
       from: { email: config.fromEmail, name: config.fromName },
       subject,
       html,

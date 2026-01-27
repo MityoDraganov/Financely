@@ -20,8 +20,12 @@ export function getMagicLinkRepository(
   );
 
   return {
-    ...genericRepo,
-    
+    async create(token: MagicLinkToken): Promise<string> {
+      return genericRepo.create({ data: token });
+    },
+    async get(id: string): Promise<MagicLinkToken | null> {
+      return genericRepo.get({ id });
+    },
     async getByToken(token: string): Promise<MagicLinkToken | null> {
       const results = await databaseService.getAllByFields<MagicLinkToken>(
         DatabaseCollection.MAGIC_LINKS,
@@ -30,6 +34,12 @@ export function getMagicLinkRepository(
       );
       
       return results.length > 0 ? results[0] : null;
+    },
+    async update(id: string, updates: Partial<MagicLinkToken>): Promise<void> {
+      return genericRepo.update({ id, data: updates });
+    },
+    async delete(id: string): Promise<void> {
+      return genericRepo.delete({ id });
     },
   };
 }

@@ -25,6 +25,9 @@ export * from "./entities/analytics-config";
 export * from "./entities/audit-log";
 export * from "./entities/marketplace-template";
 export * from "./entities/marketplace-review";
+export * from "./entities/metaobject";
+export * from "./entities/file";
+export * from "./entities/product-metafield";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";
@@ -38,6 +41,9 @@ export * from "./ports/repositories/lead-repository";
 export * from "./ports/repositories/product-repository";
 export * from "./ports/repositories/analytics-config-repository";
 export * from "./ports/repositories/audit-log-repository";
+export * from "./ports/repositories/metaobject-repository";
+export * from "./ports/repositories/file-repository";
+export * from "./ports/repositories/product-metafield-repository";
 
 // Ports - Services
 export * from "./ports/services/database-service";

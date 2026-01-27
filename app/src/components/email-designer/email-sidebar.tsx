@@ -34,8 +34,6 @@ import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { PatternSelector } from "./pattern-selector";
-import { Pattern } from "@/core/patterns/email-patterns";
 
 type BlockType = EmailTemplateBlock["type"];
 
@@ -45,7 +43,6 @@ type EmailSidebarProps = {
 	onCreateNewTemplate: () => void;
 	isCreating?: boolean;
 	onAddBlock: (type: BlockType, section: EmailSection) => void;
-	onAddPattern?: (pattern: Pattern) => void;
 	onOpenAIBuilder?: () => void;
 	blocks?: EmailTemplateBlock[];
 	selectedBlockId?: string;
@@ -169,7 +166,6 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 
 export function EmailSidebar({
 	onAddBlock,
-	onAddPattern,
 	onOpenAIBuilder,
 	blocks = [],
 	selectedBlockId,
@@ -652,18 +648,6 @@ export function EmailSidebar({
 					</div>
 				)}
 
-				{/* Patterns Section */}
-				{onAddPattern && (
-					<>
-						<div className="shrink-0 border-b">
-							<PatternSelector
-								section={currentSection}
-								onSelectPattern={onAddPattern}
-							/>
-						</div>
-						<Separator />
-					</>
-				)}
 
 				{/* Add Blocks Section */}
 				<div className="shrink-0">

@@ -130,6 +130,12 @@ export { generateConsentBanner } from "./functions/generate-consent-banner";
 // Product functions
 export { createProduct } from "./functions/create-product";
 
+// Content functions - Metaobjects and Files
+export { createMetaobjectDefinition } from "./functions/create-metaobject-definition";
+export { createMetaobject } from "./functions/create-metaobject";
+export { createContentFile } from "./functions/create-content-file";
+export { createProductMetafieldDefinition } from "./functions/create-product-metafield-definition";
+
 // File upload functions
 export { uploadFile } from "./functions/upload-file";
 

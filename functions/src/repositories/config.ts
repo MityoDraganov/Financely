@@ -18,4 +18,11 @@ export enum DatabaseCollection {
   EXTERNAL_SOURCE_CACHE = "externalSourceCache",
   MARKETPLACE_TEMPLATES = "marketplaceTemplates",
   MARKETPLACE_REVIEWS = "marketplaceReviews",
+  METAOBJECT_DEFINITIONS = "metaobjectDefinitions",
+  METAOBJECTS = "metaobjects",
+  FILES = "files",
+  MAGIC_LINKS = "magicLinks",
+  ONBOARDING_PROGRESS = "onboardingProgress",
+  PRODUCT_METAFIELD_DEFINITIONS = "productMetafieldDefinitions",
+  PRODUCT_METAFIELDS = "productMetafields",
 }

@@ -729,4 +729,13 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "getContributorStatus")(payload);
     return result.data;
   },
+
+  async createProductMetafieldDefinition(payload) {
+    type CreateProductMetafieldDefinitionPayload = Parameters<FunctionsService["createProductMetafieldDefinition"]>[0];
+    const result = await httpsCallable<CreateProductMetafieldDefinitionPayload, { id: string }>(
+      firebase.functions,
+      "createProductMetafieldDefinition",
+    )(payload);
+    return result.data;
+  },
 };

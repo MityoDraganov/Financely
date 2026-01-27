@@ -19,5 +19,10 @@ export enum DatabaseCollection {
   TEMPLATE_PATTERNS = "templatePatterns",
   MARKETPLACE_TEMPLATES = "marketplaceTemplates",
   MARKETPLACE_REVIEWS = "marketplaceReviews",
+  METAOBJECT_DEFINITIONS = "metaobjectDefinitions",
+  METAOBJECTS = "metaobjects",
+  FILES = "files",
+  PRODUCT_METAFIELD_DEFINITIONS = "productMetafieldDefinitions",
+  PRODUCT_METAFIELDS = "productMetafields",
 }
 

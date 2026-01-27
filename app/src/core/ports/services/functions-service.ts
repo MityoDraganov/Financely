@@ -1153,4 +1153,15 @@ export interface FunctionsService {
       publishedAt?: string;
     }>;
   }>;
+
+  createProductMetafieldDefinition(payload: {
+    organizationId: string;
+    name: string;
+    type: string;
+    description?: string;
+    categoryAssignments?: string[];
+    options?: {
+      storefrontApiAccess?: boolean;
+    };
+  }): Promise<{ id: string }>;
 }

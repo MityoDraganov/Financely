@@ -399,6 +399,93 @@ service cloud.firestore {
       // Only admins can delete
       allow delete: if isAdmin();
     }
+    // Metaobject Definitions - Content management
+    match /metaobjectDefinitions/{definitionId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       isOwnerOrAdmin(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
+    // Metaobjects - Content instances
+    match /metaobjects/{metaobjectId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       isOwnerOrAdmin(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
+    // Files - Content file management
+    match /files/{fileId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       isOwnerOrAdmin(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
+
+    // Product Metafield Definitions
+    match /productMetafieldDefinitions/{definitionId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       isOwnerOrAdmin(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
+
+    // Product Metafields
+    match /productMetafields/{metafieldId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && 
+                     isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       isOwnerOrAdmin(request.resource.data.organizationId);
+      allow update: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() && 
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
     // Admin global bypass - catch all for any other collections
     match /{document=**} {
       allow read, write: if isAdmin();

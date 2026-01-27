@@ -24,6 +24,8 @@ export * from "./entities/lead";
 export * from "./entities/analytics-config";
 export * from "./entities/audit-log";
 export * from "./entities/marketplace-template";
+export * from "./entities/metaobject";
+export * from "./entities/product-metafield";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

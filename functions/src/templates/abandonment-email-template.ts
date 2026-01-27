@@ -30,23 +30,19 @@ export function generateAbandonmentEmailHTML(
   const config = branding || defaultBranding;
 
   // Determine email copy based on days since last activity
-  let subject: string;
   let headline: string;
   let bodyText: string;
   let ctaText: string;
 
   if (data.daysSinceLastActivity === 1) {
-    subject = "You're almost there! Complete your setup in 2 minutes";
     headline = `Hi ${data.userName}, you're almost there!`;
     bodyText = `You're ${data.progressPercentage}% done setting up your Financely workspace. Complete your setup in just 2 minutes and start managing your finances like a pro.`;
     ctaText = "Continue Setup";
   } else if (data.daysSinceLastActivity === 3) {
-    subject = "Don't miss out - Finish setting up your workspace";
     headline = `Hi ${data.userName}, don't miss out!`;
     bodyText = `You started setting up Financely ${data.daysSinceLastActivity} days ago and you're ${data.progressPercentage}% complete. Finish your setup now and unlock the full power of automated finance management.`;
     ctaText = "Finish Setup";
   } else {
-    subject = "Last chance - Complete your onboarding today";
     headline = `Hi ${data.userName}, this is your last chance!`;
     bodyText = `You're ${data.progressPercentage}% done with your Financely setup. Complete it today to start streamlining your finance operations.`;
     ctaText = "Complete Setup";

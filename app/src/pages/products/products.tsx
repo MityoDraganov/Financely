@@ -1,23 +1,30 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Package, Eye, Plus, Image as ImageIcon, Tag, Edit, Trash2, Upload, X, Star, Download } from "lucide-react";
+import { Search, Package, Eye, Plus, Edit, Trash2, Download, Database, Image as ImageIcon, Tag, Star, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useProductsByOrg, useDeleteProduct, useUpdateProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
-import { CreateProductInput } from "@/core";
+import { CreateProductInput, CreateProductMetafieldDefinitionInput, UpdateProductMetafieldDefinitionInput } from "@/core";
 import { toast } from "sonner";
-import { CURRENCIES, formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
-import { useFileUpload } from "@/hooks/use-file-upload";
+import { formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
 import { ExportDialog } from "@/components/export-import/export-dialog";
+import { 
+  useProductMetafieldDefinitions, 
+  useDeleteProductMetafieldDefinition,
+  useProductMetafields
+} from "@/hooks/repository-hooks/use-product-metafields";
+import { useCreateProductMetafieldDefinition } from "@/hooks/service-hooks/use-product-metafield-functions";
+import { ProductForm } from "@/components/products/product-form";
+import { MetafieldDisplay } from "@/components/products/metafield-display";
+import { ProductMetafieldDefinitionForm } from "@/components/products/product-metafield-definition-form";
 
 export default function ProductsPage() {
   const { t } = useTranslation();
@@ -25,11 +32,12 @@ export default function ProductsPage() {
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string } | null>(null);
-  const [editingProduct, setEditingProduct] = useState<{ id: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isManagingMetafields, setIsManagingMetafields] = useState(false);
+  const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
 
   const { data: products = [], isLoading, error } = useProductsByOrg(currentOrganization?.id);
   console.log(error);
@@ -43,26 +51,7 @@ export default function ProductsPage() {
     ? products.find((p) => p.id === selectedProduct.id)
     : null;
   
-  const editingProductData = editingProduct
-    ? products.find((p) => p.id === editingProduct.id)
-    : null;
-
-  // Form state
-  const [formData, setFormData] = useState<Partial<CreateProductInput>>({
-    name: "",
-    description: "",
-    price: 0,
-    currency: "USD",
-    sku: "",
-    stockQuantity: undefined,
-    trackInventory: false,
-    category: "",
-    status: "active",
-    images: [],
-  });
-
-  const imageUpload = useFileUpload();
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const editingProduct = editingId ? products.find((p) => p.id === editingId) : undefined;
 
   // Filter products - memoized to prevent recalculation on every render
   const filteredProducts = useMemo(() => {
@@ -103,87 +92,20 @@ export default function ProductsPage() {
     return formatCurrencyUtil(amount, currency || "USD");
   };
 
-  const handleImageUpload = async (file: File) => {
+  const handleCreateProduct = async (data: CreateProductInput | Partial<CreateProductInput>): Promise<{ id: string } | void> => {
     if (!currentOrganization?.id) {
       toast.error(t('products.messages.orgIdRequired'));
-      return;
-    }
-
-    const path = `organizations/${currentOrganization.id}/products/${Date.now()}-${file.name}`;
-    const url = await imageUpload.uploadFile(file, path);
-
-    if (url) {
-      setFormData((prev) => ({
-        ...prev,
-        images: [...(prev.images || []), url],
-      }));
-      toast.success(t('products.messages.imageUploaded'));
-    } else {
-      toast.error(imageUpload.error || t('products.messages.imageUploadFailed'));
-    }
-  };
-
-  const handleRemoveImage = useCallback((index: number) => {
-    setFormData((prev) => {
-      const newImages = prev.images?.filter((_, i) => i !== index) || [];
-      return { ...prev, images: newImages };
-    });
-  }, []);
-
-  const handleSetFeaturedImage = useCallback((index: number) => {
-    setFormData((prev) => {
-      if (!prev.images || prev.images.length === 0) return prev;
-      const newImages = [...prev.images];
-    const [featured] = newImages.splice(index, 1);
-    newImages.unshift(featured);
-      return { ...prev, images: newImages };
-    });
-  }, []);
-
-  const handleCreateProduct = async () => {
-    if (!currentOrganization?.id) {
-      toast.error(t('products.messages.orgIdRequired'));
-      return;
-    }
-
-    if (!formData.name || !formData.price) {
-      toast.error(t('products.messages.namePriceRequired'));
       return;
     }
 
     try {
-      const productPayload = {
-        organizationId: currentOrganization.id,
-        name: formData.name!,
-        description: formData.description,
-        price: formData.price!,
-        currency: formData.currency || "USD",
-        sku: formData.sku,
-        stockQuantity: formData.stockQuantity,
-        trackInventory: formData.trackInventory,
-        category: formData.category,
-        status: formData.status || "active",
-        images: formData.images || [],
-      } as CreateProductInput;
-
-      await createProductMutation.mutateAsync(productPayload);
+      const result = await createProductMutation.mutateAsync(data as CreateProductInput);
       toast.success(t('products.messages.productCreated'));
-
-      setIsCreateDialogOpen(false);
-      setFormData({
-        name: "",
-        description: "",
-        price: 0,
-        currency: "USD",
-        sku: "",
-        stockQuantity: undefined,
-        trackInventory: false,
-        category: "",
-        status: "active",
-        images: [],
-      });
+      setIsCreating(false);
+      return result;
     } catch (error) {
       toast.error(t('products.messages.createFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
+      throw error;
     }
   };
 
@@ -201,102 +123,84 @@ export default function ProductsPage() {
   };
 
   const handleEditProduct = (productId: string) => {
-    const product = products.find((p) => p.id === productId);
-    if (product) {
-      setEditingProduct({ id: productId });
-      setFormData({
-        name: product.name,
-        description: product.description || "",
-        price: product.price,
-        currency: product.currency,
-        sku: product.sku || "",
-        stockQuantity: product.stockQuantity,
-        trackInventory: product.trackInventory,
-        lowStockThreshold: product.lowStockThreshold,
-        category: product.category || "",
-        status: product.status,
-        images: product.images || [],
-        tags: product.tags || [],
-        cost: product.cost,
-        taxRate: product.taxRate,
-      });
-      setIsEditDialogOpen(true);
-    }
+    setEditingId(productId);
   };
 
-  const handleEditImageUpload = async (file: File) => {
-    if (!currentOrganization?.id) {
+  const handleUpdateProduct = async (data: Partial<CreateProductInput>) => {
+    if (!editingId || !currentOrganization?.id) {
       toast.error(t('products.messages.orgIdRequired'));
       return;
     }
-
-    const path = `organizations/${currentOrganization.id}/products/${Date.now()}-${file.name}`;
-    const url = await imageUpload.uploadFile(file, path);
-
-    if (url) {
-      setFormData({
-        ...formData,
-        images: [...(formData.images || []), url],
-      });
-      toast.success(t('products.messages.imageUploaded'));
-    } else {
-      toast.error(imageUpload.error || t('products.messages.imageUploadFailed'));
-    }
-  };
-
-  const handleUpdateProduct = async () => {
-    if (!editingProduct?.id || !currentOrganization?.id) {
-      toast.error(t('products.messages.orgIdRequired'));
-      return;
-    }
-
-    if (!formData.name || !formData.price) {
-      toast.error(t('products.messages.namePriceRequired'));
-      return;
-    }
-
-    // Filter out undefined values - Firestore doesn't accept them
-    const updateData: Partial<CreateProductInput> = {
-      name: formData.name!,
-      price: formData.price!,
-      currency: formData.currency || "USD",
-      trackInventory: formData.trackInventory,
-      status: formData.status || "active",
-      images: formData.images || [],
-    };
-
-    // Only include optional fields if they have values
-    if (formData.description !== undefined) updateData.description = formData.description;
-    if (formData.sku !== undefined) updateData.sku = formData.sku;
-    if (formData.stockQuantity !== undefined) updateData.stockQuantity = formData.stockQuantity;
-    if (formData.lowStockThreshold !== undefined) updateData.lowStockThreshold = formData.lowStockThreshold;
-    if (formData.category !== undefined) updateData.category = formData.category;
 
     try {
       await updateProductMutation.mutateAsync({
-        id: editingProduct.id,
-        data: updateData,
+        id: editingId,
+        data,
       });
 
       toast.success(t('products.messages.productUpdated'));
-      setIsEditDialogOpen(false);
-      setEditingProduct(null);
-      setFormData({
-        name: "",
-        description: "",
-        price: 0,
-        currency: "USD",
-        sku: "",
-        stockQuantity: undefined,
-        trackInventory: false,
-        category: "",
-        status: "active",
-        images: [],
-      });
+      setEditingId(null);
     } catch (error) {
       toast.error(t('products.messages.updateFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
     }
   };
+
+  const { data: metafieldDefinitions = [], error: metafieldDefinitionsError } = useProductMetafieldDefinitions(currentOrganization?.id);
+  if (metafieldDefinitionsError) {
+    console.error(metafieldDefinitionsError);
+  }
+  
+  const { data: selectedProductMetafields = [] } = useProductMetafields(
+    currentOrganization?.id,
+    selectedProduct?.id
+  );
+  const createMetafieldDefinition = useCreateProductMetafieldDefinition();
+  const deleteMetafieldDefinition = useDeleteProductMetafieldDefinition();
+
+  const handleCreateMetafieldDefinition = async (data: CreateProductMetafieldDefinitionInput | UpdateProductMetafieldDefinitionInput) => {
+    if (!currentOrganization?.id) {
+      toast.error("Organization is required");
+      return;
+    }
+
+    try {
+      if ('organizationId' in data) {
+        await createMetafieldDefinition.mutateAsync(data as CreateProductMetafieldDefinitionInput);
+      } else {
+        throw new Error("Update not supported in this context");
+      }
+      toast.success("Product metafield definition created successfully");
+      setIsCreatingMetafield(false);
+    } catch (error) {
+      console.error("Failed to create product metafield definition:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to create product metafield definition: ${errorMessage}`);
+    }
+  };
+
+  const handleDeleteMetafieldDefinition = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this metafield definition?")) {
+      return;
+    }
+
+    try {
+      await deleteMetafieldDefinition.mutateAsync(id);
+      toast.success("Metafield definition deleted successfully");
+    } catch {
+      toast.error("Failed to delete metafield definition");
+    }
+  };
+
+  // Get unique categories from products
+  const productCategories = useMemo(() => {
+    const categories = new Set<string>();
+    products.forEach((product) => {
+      if (product.category) {
+        categories.add(product.category);
+      }
+    });
+    return Array.from(categories).sort();
+  }, [products]);
 
   if (isLoading) {
     return (
@@ -314,6 +218,141 @@ export default function ProductsPage() {
     );
   }
 
+  if (isCreating && currentOrganization?.id) {
+    return (
+      <ProductForm
+        onSubmit={handleCreateProduct}
+        onCancel={() => setIsCreating(false)}
+        isPending={createProductMutation.isPending}
+        organizationId={currentOrganization.id}
+      />
+    );
+  }
+
+  if (editingProduct && currentOrganization?.id) {
+    return (
+      <ProductForm
+        initialData={editingProduct}
+        onSubmit={handleUpdateProduct}
+        onCancel={() => setEditingId(null)}
+        isPending={updateProductMutation.isPending}
+        organizationId={currentOrganization.id}
+      />
+    );
+  }
+
+  if (isCreatingMetafield) {
+    return (
+      <div className="p-4 sm:p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCreatingMetafield(false)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold">Add product metafield definition</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Define a new metafield that can be added to products
+            </p>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-6">
+            <ProductMetafieldDefinitionForm
+              onSubmit={handleCreateMetafieldDefinition}
+              onCancel={() => setIsCreatingMetafield(false)}
+              isPending={createMetafieldDefinition.isPending}
+              organizationId={currentOrganization?.id || ""}
+              availableCategories={productCategories}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isManagingMetafields) {
+    return (
+      <div className="p-4 sm:p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsManagingMetafields(false)}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold">Product metafield definitions</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage custom fields that can be added to products
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setIsCreatingMetafield(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add metafield definition
+          </Button>
+        </div>
+
+        {metafieldDefinitions.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Database className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No metafield definitions found</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {metafieldDefinitions.map((def) => (
+              <Card key={def.id}>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-lg">{def.name}</h3>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteMetafieldDefinition(def.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {def.description && (
+                    <p className="text-sm text-muted-foreground mb-4">{def.description}</p>
+                  )}
+                  {def.categoryAssignments && def.categoryAssignments.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Categories:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {def.categoryAssignments.map((cat) => (
+                          <Badge key={cat} variant="secondary" className="text-xs">
+                            {cat}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {def.options?.storefrontApiAccess && (
+                    <Badge variant="outline" className="text-xs">
+                      Storefront API
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
@@ -323,490 +362,18 @@ export default function ProductsPage() {
           <p className="text-sm sm:text-base text-muted-foreground">{t('products.subtitle')}</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsManagingMetafields(true)}>
+            <Database className="h-4 w-4 mr-2" />
+            Metafields
+          </Button>
           <Button variant="outline" onClick={() => setShowExportDialog(true)}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('products.newProduct')}
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{t('products.createTitle')}</DialogTitle>
-              <DialogDescription>
-                {t('products.createDescription')}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('products.form.productName')}</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder={t('products.form.productNamePlaceholder')}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">{t('products.form.sku')}</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
-                    placeholder={t('products.form.skuPlaceholder')}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">{t('products.form.description')}</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder={t('products.form.descriptionPlaceholder')}
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="price">{t('products.form.price')}</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    placeholder={t('products.form.pricePlaceholder')}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currency">{t('products.form.currency')}</Label>
-                  <Select
-                    value={formData.currency}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('products.form.currencyPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {CURRENCIES.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
-                          {currency.code} - {currency.name} {currency.symbol ? `(${currency.symbol})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">{t('products.form.category')}</Label>
-                  <Input
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                    placeholder={t('products.form.categoryPlaceholder')}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">{t('products.form.status')}</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('products.form.statusPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">{t('products.status.active')}</SelectItem>
-                      <SelectItem value="inactive">{t('products.status.inactive')}</SelectItem>
-                      <SelectItem value="archived">{t('products.status.archived')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="stockQuantity">{t('products.form.stockQuantity')}</Label>
-                  <Input
-                    id="stockQuantity"
-                    type="number"
-                    min="0"
-                    value={formData.stockQuantity || ""}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
-                    placeholder={t('products.form.stockQuantityPlaceholder')}
-                  />
-                </div>
-                <div className="space-y-2 flex items-end">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="trackInventory"
-                      checked={formData.trackInventory}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                      className="rounded border-border"
-                    />
-                    <Label htmlFor="trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Product Images */}
-              <div className="space-y-2">
-                <Label>{t('products.images.title')}</Label>
-                <div className="space-y-3">
-                  {formData.images && formData.images.length > 0 && (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                      {formData.images.map((image, index) => (
-                        <div key={index} className="relative group">
-                          <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
-                            <img
-                              src={image}
-                              alt={t('products.images.imageAlt', { index: index + 1 })}
-                              className="w-full h-full object-cover"
-                            />
-                            {index === 0 && (
-                              <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
-                                <Star className="h-3 w-3 fill-current" />
-                                <span>{t('products.images.featured')}</span>
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              {index !== 0 && (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => handleSetFeaturedImage(index)}
-                                  className="h-8 w-8 p-0"
-                                  title={t('products.images.setAsFeatured')}
-                                >
-                                  <Star className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleRemoveImage(index)}
-                                className="h-8 w-8 p-0"
-                                title={t('products.images.removeImage')}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div>
-                    <input
-                      ref={imageInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        files.forEach((file) => handleImageUpload(file));
-                        if (imageInputRef.current) {
-                          imageInputRef.current.value = "";
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => imageInputRef.current?.click()}
-                      disabled={imageUpload.isUploading}
-                      className="w-full"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      {imageUpload.isUploading ? t('products.images.uploading') : t('products.images.addImages')}
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t('products.images.featuredHint')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsCreateDialogOpen(false)}
-              >
-                {t('products.actions.cancel')}
-              </Button>
-              <Button
-                onClick={handleCreateProduct}
-                disabled={createProductMutation.isPending || !formData.name || !formData.price}
-              >
-                {createProductMutation.isPending ? t('products.actions.creating') : t('products.actions.create')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Product Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) {
-            setEditingProduct(null);
-            setFormData({
-              name: "",
-              description: "",
-              price: 0,
-              currency: "USD",
-              sku: "",
-              stockQuantity: undefined,
-              trackInventory: false,
-              category: "",
-              status: "active",
-              images: [],
-            });
-          }
-        }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
-            <DialogHeader>
-              <DialogTitle>{t('products.editTitle')}</DialogTitle>
-              <DialogDescription>
-                {t('products.editDescription')}
-              </DialogDescription>
-            </DialogHeader>
-            {editingProductData ? (
-              <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">{t('products.form.productName')}</Label>
-                    <Input
-                      id="edit-name"
-                      value={formData.name}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder={t('products.form.productNamePlaceholder')}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-sku">{t('products.form.sku')}</Label>
-                    <Input
-                      id="edit-sku"
-                      value={formData.sku}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
-                      placeholder={t('products.form.skuPlaceholder')}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">{t('products.form.description')}</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={formData.description}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder={t('products.form.descriptionPlaceholder')}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-price">{t('products.form.price')}</Label>
-                    <Input
-                      id="edit-price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                      placeholder={t('products.form.pricePlaceholder')}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-currency">{t('products.form.currency')}</Label>
-                    <Select
-                      value={formData.currency}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('products.form.currencyPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {CURRENCIES.map((currency) => (
-                          <SelectItem key={currency.code} value={currency.code}>
-                            {currency.code} - {currency.name} {currency.symbol ? `(${currency.symbol})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-category">{t('products.form.category')}</Label>
-                    <Input
-                      id="edit-category"
-                      value={formData.category}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                      placeholder={t('products.form.categoryPlaceholder')}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-status">{t('products.form.status')}</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value: "active" | "inactive" | "archived") => setFormData((prev) => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('products.form.statusPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">{t('products.status.active')}</SelectItem>
-                        <SelectItem value="inactive">{t('products.status.inactive')}</SelectItem>
-                        <SelectItem value="archived">{t('products.status.archived')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-stockQuantity">{t('products.form.stockQuantity')}</Label>
-                    <Input
-                      id="edit-stockQuantity"
-                      type="number"
-                      min="0"
-                      value={formData.stockQuantity || ""}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      placeholder={t('products.form.stockQuantityPlaceholder')}
-                    />
-                  </div>
-                  <div className="space-y-2 flex items-end">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="edit-trackInventory"
-                        checked={formData.trackInventory}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, trackInventory: e.target.checked }))}
-                        className="rounded border-border"
-                      />
-                      <Label htmlFor="edit-trackInventory" className="cursor-pointer">{t('products.form.trackInventory')}</Label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product Images */}
-                <div className="space-y-2">
-                  <Label>{t('products.images.title')}</Label>
-                  <div className="space-y-3">
-                    {formData.images && formData.images.length > 0 && (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                        {formData.images.map((image, index) => (
-                          <div key={index} className="relative group">
-                            <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border">
-                              <img
-                                src={image}
-                                alt={t('products.images.imageAlt', { index: index + 1 })}
-                                className="w-full h-full object-cover"
-                              />
-                              {index === 0 && (
-                                <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-current" />
-                                  <span>{t('products.images.featured')}</span>
-                                </div>
-                              )}
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                {index !== 0 && (
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => handleSetFeaturedImage(index)}
-                                    className="h-8 w-8 p-0"
-                                    title={t('products.images.setAsFeatured')}
-                                  >
-                                    <Star className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleRemoveImage(index)}
-                                  className="h-8 w-8 p-0"
-                                  title={t('products.images.removeImage')}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div>
-                      <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          files.forEach((file) => handleEditImageUpload(file));
-                          if (imageInputRef.current) {
-                            imageInputRef.current.value = "";
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={imageUpload.isUploading}
-                        className="w-full"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        {imageUpload.isUploading ? t('products.images.uploading') : t('products.images.addImages')}
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {t('products.images.featuredHint')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">{t('products.details.loading')}</p>
-              </div>
-            )}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false);
-                  setEditingProduct(null);
-                }}
-              >
-                {t('products.actions.cancel')}
-              </Button>
-              <Button
-                onClick={handleUpdateProduct}
-                disabled={updateProductMutation.isPending || !formData.name || !formData.price}
-              >
-                {updateProductMutation.isPending ? t('products.actions.updating') : t('products.actions.update')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('products.newProduct')}
+          </Button>
         </div>
       </div>
 
@@ -1256,6 +823,26 @@ export default function ProductsPage() {
                         {tag}
                       </Badge>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Metafields */}
+              {selectedProductMetafields.length > 0 && (
+                <div className="pt-4 border-t">
+                  <Label className="text-muted-foreground mb-4 block">Metafields</Label>
+                  <div className="space-y-4">
+                    {selectedProductMetafields.map((metafield) => {
+                      const definition = metafieldDefinitions.find((def) => def.id === metafield.definitionId);
+                      if (!definition) return null;
+                      return (
+                        <MetafieldDisplay
+                          key={metafield.id}
+                          metafield={metafield}
+                          definition={definition}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}

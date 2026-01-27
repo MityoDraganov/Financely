@@ -25,6 +25,7 @@ import {
 	Menu,
 	Database,
 	Store,
+	FolderOpen,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -190,6 +191,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				title: "Data Sources",
 				href: "/data-sources",
 				icon: Database,
+			},
+			{
+				title: "Content",
+				href: "/content/metaobjects",
+				icon: FolderOpen,
 			},
 			{
 				title: t("layout.navigation.settings"),

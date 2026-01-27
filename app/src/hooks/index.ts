@@ -13,6 +13,7 @@ export * from "./service-hooks/use-invoice-functions";
 export * from "./service-hooks/use-proposal-generation";
 export * from "./service-hooks/use-workflow-functions";
 export * from "./service-hooks/use-product-functions";
+export * from "./service-hooks/use-product-metafield-functions";
 export * from "./service-hooks/use-analytics-metrics";
 export * from "./service-hooks/use-generate-widget";
 export * from "./service-hooks/use-convert-proposal-to-invoice";

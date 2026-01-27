@@ -51,6 +51,10 @@ import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
 import { RevokedAccessAlert } from "./components/revoked-access-alert";
+import PaywallPreview from "./pages/PaywallPreview";
+import ContentLayout from "./pages/content/layout";
+import MetaobjectsPage from "./pages/content/metaobjects";
+import FilesPage from "./pages/content/files";
 
 const queryClient = new QueryClient();
 
@@ -366,6 +370,19 @@ function App() {
 													</ProtectedRoute>
 												}
 											/>
+											<Route
+												path="/content"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<ContentLayout />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											>
+												<Route path="metaobjects" element={<MetaobjectsPage />} />
+												<Route path="files" element={<FilesPage />} />
+											</Route>
 
 											{/* Settings routes - integrated within main layout */}
 											<Route
@@ -421,6 +438,7 @@ function App() {
 													element={<AuditLogPage />}
 												/>
 											</Route>
+											<Route path="/paywall-preview" element={<PaywallPreview />} />
 										</Routes>
 										<Toaster />
 									</Router>
