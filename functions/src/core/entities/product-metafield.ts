@@ -54,6 +54,7 @@ export const productMetafieldDefinitionDataSchema = z.object({
     "list.date",
     "list.url",
     "list.file_reference",
+    "list.metaobject_reference",
   ]),
   description: z.string().optional(),
   categoryAssignments: z.array(z.string()).default([]),

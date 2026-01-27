@@ -1,60 +1,44 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
 
+export enum MetaobjectFieldType {
+  // Text
+  SINGLE_LINE_TEXT_FIELD = "single_line_text_field",
+  MULTI_LINE_TEXT_FIELD = "multi_line_text_field",
+  RICH_TEXT_FIELD = "rich_text_field",
+  // Number
+  NUMBER_INTEGER = "number_integer",
+  NUMBER_DECIMAL = "number_decimal",
+  MONEY = "money",
+  // Media
+  FILE_REFERENCE = "file_reference",
+  FILE_REFERENCE_IMAGE = "file_reference_image",
+  FILE_REFERENCE_VIDEO = "file_reference_video",
+  // Reference
+  METAOBJECT_REFERENCE = "metaobject_reference",
+  // Link
+  URL = "url",
+  // Date and time
+  DATE = "date",
+  DATE_TIME = "date_time",
+  // Other
+  BOOLEAN = "boolean",
+  COLOR = "color",
+  // Advanced
+  JSON = "json",
+  // List variants
+  LIST_SINGLE_LINE_TEXT_FIELD = "list.single_line_text_field",
+  LIST_NUMBER_INTEGER = "list.number_integer",
+  LIST_NUMBER_DECIMAL = "list.number_decimal",
+  LIST_DATE = "list.date",
+  LIST_URL = "list.url",
+  LIST_METAOBJECT_REFERENCE = "list.metaobject_reference",
+}
+
 export const metaobjectFieldDefinitionSchema = z.object({
   key: z.string().min(1, "Field key is required"),
   name: z.string().min(1, "Field name is required"),
-  type: z.enum([
-    // Text
-    "single_line_text_field",
-    "multi_line_text_field",
-    "rich_text_field",
-    "single_line_text_field_choice_list",
-    "single_line_text_field_email",
-    // Number
-    "number_integer",
-    "number_decimal",
-    "id",
-    "money",
-    "rating",
-    "weight",
-    "volume",
-    "dimension",
-    // Media
-    "file_reference",
-    "file_reference_image",
-    "file_reference_video",
-    // Reference
-    "article_reference",
-    "collection_reference",
-    "company_reference",
-    "customer_reference",
-    "metaobject_reference",
-    "order_reference",
-    "page_reference",
-    "product_reference",
-    "variant_reference",
-    "mixed_reference",
-    // Link
-    "link",
-    "url",
-    // Date and time
-    "date",
-    "date_time",
-    // Other
-    "boolean",
-    "color",
-    // Advanced
-    "json",
-    // List variants
-    "list.single_line_text_field",
-    "list.multi_line_text_field",
-    "list.number_integer",
-    "list.number_decimal",
-    "list.date",
-    "list.url",
-    "list.file_reference",
-  ]),
+  type: z.nativeEnum(MetaobjectFieldType),
   required: z.boolean().default(false),
   description: z.string().optional(),
 });
