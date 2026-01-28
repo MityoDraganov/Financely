@@ -15,10 +15,4 @@ export default defineConfig({
     sourcemap: true,
   },
   cacheDir: '/tmp/vite-cache',
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/tests/setup.ts',
-    css: false,
-  },
 })

@@ -1,7 +1,5 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
-import { TemplateData } from "./template";
-import { EmailTemplateData } from "./email-template";
 
 export const marketplaceTemplateDataSchema = z.object({
   title: z.string().min(1),

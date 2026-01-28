@@ -27,7 +27,7 @@ export function useCreateFile() {
 
   return useMutation({
     mutationFn: (data: CreateFileInput) => fileService.createFile(data),
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       // Invalidate all files queries - this will match ["files", orgId] and ["files", orgId, params]
       queryClient.invalidateQueries({ 
         queryKey: ["files"],

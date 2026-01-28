@@ -31,11 +31,7 @@ export type ProductMetafieldService = {
 export const productMetafieldService: ProductMetafieldService = {
   async createProductMetafieldDefinition(data) {
     const result = await productMetafieldDefinitionRepository.create({
-      data: {
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
     return result;
   },
@@ -46,7 +42,7 @@ export const productMetafieldService: ProductMetafieldService = {
 
   async listProductMetafieldDefinitions(orgId) {
     const result = await productMetafieldDefinitionRepository.getAll({
-      queryConstraints: [{ field: "organizationId", operator: "==", value: orgId }],
+      queryConstraints: [{ field: "organizationId", operator: "==" as const, value: orgId }],
     });
     return result || [];
   },
@@ -54,10 +50,7 @@ export const productMetafieldService: ProductMetafieldService = {
   async updateProductMetafieldDefinition(id, data) {
     await productMetafieldDefinitionRepository.update({
       id,
-      data: {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
   },
 
@@ -67,11 +60,7 @@ export const productMetafieldService: ProductMetafieldService = {
 
   async createProductMetafield(data) {
     const result = await productMetafieldRepository.create({
-      data: {
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
     return result;
   },
@@ -81,12 +70,14 @@ export const productMetafieldService: ProductMetafieldService = {
   },
 
   async listProductMetafields(orgId, productId, definitionId) {
-    const constraints = [{ field: "organizationId", operator: "==", value: orgId }];
+    const constraints: import("@/core").QueryConstraint[] = [
+      { field: "organizationId", operator: "==" as const, value: orgId }
+    ];
     if (productId) {
-      constraints.push({ field: "productId", operator: "==", value: productId });
+      constraints.push({ field: "productId", operator: "==" as const, value: productId });
     }
     if (definitionId) {
-      constraints.push({ field: "definitionId", operator: "==", value: definitionId });
+      constraints.push({ field: "definitionId", operator: "==" as const, value: definitionId });
     }
     const result = await productMetafieldRepository.getAll({
       queryConstraints: constraints,
@@ -97,10 +88,7 @@ export const productMetafieldService: ProductMetafieldService = {
   async updateProductMetafield(id, data) {
     await productMetafieldRepository.update({
       id,
-      data: {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
   },
 

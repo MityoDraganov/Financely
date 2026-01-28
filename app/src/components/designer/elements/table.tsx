@@ -46,9 +46,6 @@ export default function TableElement({
 	const { t } = useTranslation();
 	const tbl = element;
 	
-	// Calculate preview height: header + one row for preview
-	const previewHeight = tbl.headerHeight + tbl.rowHeight;
-	
 	return (
 		<div className="w-full h-full border border-border bg-background">
 			{/* Header */}

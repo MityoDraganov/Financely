@@ -18,11 +18,9 @@ export const fileService: FileService = {
       data: {
         ...data,
         fileStatus: data.fileStatus || "PENDING",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       },
     });
-    return result.id;
+    return result;
   },
 
   async getFile(id) {
@@ -30,15 +28,16 @@ export const fileService: FileService = {
   },
 
   async listFiles(orgId, params) {
-    const constraints = [{ field: "organizationId", operator: "==", value: orgId }];
+    const constraints: import("@/core").QueryConstraint[] = [
+      { field: "organizationId", operator: "==" as const, value: orgId }
+    ];
     if (params?.fileType) {
-      constraints.push({ field: "fileType", operator: "==", value: params.fileType });
+      constraints.push({ field: "fileType", operator: "==" as const, value: params.fileType });
     }
     const result = await fileRepository.getAll({
       queryConstraints: constraints,
       pagination: {
         limit: params?.limit || 50,
-        offset: params?.offset || 0,
       },
     });
     return result || [];
@@ -47,10 +46,7 @@ export const fileService: FileService = {
   async updateFile(id, data) {
     await fileRepository.update({
       id,
-      data: {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
   },
 

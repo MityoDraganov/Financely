@@ -53,7 +53,7 @@ export function DuplicateOrganizationDialog({
       const functions = getFunctions();
       const duplicateOrganization = httpsCallable(functions, "duplicateOrganization");
       
-      const result = await duplicateOrganization({
+      await duplicateOrganization({
         sourceOrgId: currentOrganization.id,
         targetOrgName: targetOrgName.trim(),
         options: {
@@ -66,8 +66,6 @@ export function DuplicateOrganizationDialog({
         },
       });
 
-      const data = result.data as { jobId: string };
-      
       toast.success("Organization duplication started successfully!");
       onOpenChange(false);
       if (onSuccess) {

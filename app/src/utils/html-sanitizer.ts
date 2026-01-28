@@ -67,9 +67,6 @@ const STRICT_CONFIG: DOMPurify.Config = {
   // Strip all event handlers and JavaScript
   FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button"],
   FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onblur"],
-  // Sanitize URLs to prevent javascript: and data: protocols
-  SAFE_FOR_TEMPLATES: false,
-  SAFE_FOR_DATA_ATTR: false,
 };
 
 /**
@@ -159,9 +156,9 @@ export function sanitizeHtml(
   }
 
   try {
-    // Sanitize the HTML
-    const sanitized = DOMPurify.sanitize(html, config);
-    return sanitized;
+    // Sanitize the HTML - use RETURN_DOM_FRAGMENT: false to ensure string return
+    const sanitized = DOMPurify.sanitize(html, { ...config, RETURN_DOM_FRAGMENT: false, RETURN_DOM: false });
+    return sanitized as string;
   } catch (error) {
     // If sanitization fails, return empty string to fail safely
     console.error("[HTML Sanitizer] Sanitization failed:", error);

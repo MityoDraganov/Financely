@@ -15,6 +15,7 @@ const statusConfig = {
     icon: Clock,
     variant: "secondary" as const,
     color: "text-muted-foreground",
+    animate: false,
   },
   processing: {
     label: "Processing",
@@ -28,30 +29,35 @@ const statusConfig = {
     icon: CheckCircle2,
     variant: "default" as const,
     color: "text-green-600",
+    animate: false,
   },
   validated: {
     label: "Validated",
     icon: CheckCircle2,
     variant: "default" as const,
     color: "text-green-600",
+    animate: false,
   },
   completed: {
     label: "Completed",
     icon: CheckCircle2,
     variant: "default" as const,
     color: "text-green-600",
+    animate: false,
   },
   failed: {
     label: "Failed",
     icon: XCircle,
     variant: "destructive" as const,
     color: "text-destructive",
+    animate: false,
   },
   cancelled: {
     label: "Cancelled",
     icon: XCircle,
     variant: "secondary" as const,
     color: "text-muted-foreground",
+    animate: false,
   },
 } as const;
 

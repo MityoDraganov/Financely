@@ -10,9 +10,9 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { MetaobjectFieldDefinition } from "@/core";
+import { ProductMetafieldDefinition } from "@/core";
 
-type BaseFieldType = Exclude<MetaobjectFieldDefinition["type"], `list.${string}`>;
+type BaseFieldType = Exclude<ProductMetafieldDefinition["type"], `list.${string}`>;
 
 interface FieldTypeOption {
   value: BaseFieldType;

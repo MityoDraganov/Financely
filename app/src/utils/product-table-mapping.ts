@@ -102,7 +102,7 @@ async function applyTransform(
 export async function mapProductToTableRow(
   product: Product,
   config: ProductTableConfig,
-  rowIndex: number = 0
+  _rowIndex: number = 0
 ): Promise<{
   rowData: Record<string, InvoiceDataValue>;
   lockedFields: Set<string>;

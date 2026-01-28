@@ -24,5 +24,6 @@ export enum DatabaseCollection {
   FILES = "files",
   PRODUCT_METAFIELD_DEFINITIONS = "productMetafieldDefinitions",
   PRODUCT_METAFIELDS = "productMetafields",
+  ONBOARDING_PROGRESS = "onboardingProgress",
 }
 

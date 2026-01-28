@@ -3,20 +3,11 @@
  * Manages linked currency fields and table column currency conversions
  */
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { Template, TemplateElement } from "@/core/entities/template";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import type { CurrencyFieldLink } from "@/core/entities/currency-field";
-import { setBindingValue, getBindingValue } from "@/core/entities/invoice";
-
-type TableConfig = {
-	itemsPath: string;
-	columns: Array<{
-		id: string;
-		binding: string;
-		type: string;
-	}>;
-};
+import { setBindingValue } from "@/core/entities/invoice";
 
 /**
  * Round currency values to 2 decimal places

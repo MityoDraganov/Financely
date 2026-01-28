@@ -738,4 +738,22 @@ export const functionsService: FunctionsService = {
     )(payload);
     return result.data;
   },
+
+  async createCheckoutSession(payload) {
+    type CreateCheckoutSessionPayload = Parameters<FunctionsService["createCheckoutSession"]>[0];
+    const result = await httpsCallable<
+      CreateCheckoutSessionPayload,
+      { sessionId: string; url: string }
+    >(firebase.functions, "createCheckoutSession")(payload);
+    return result.data;
+  },
+
+  async createPortalSession(payload) {
+    type CreatePortalSessionPayload = Parameters<FunctionsService["createPortalSession"]>[0];
+    const result = await httpsCallable<
+      CreatePortalSessionPayload,
+      { url: string }
+    >(firebase.functions, "createPortalSession")(payload);
+    return result.data;
+  },
 };

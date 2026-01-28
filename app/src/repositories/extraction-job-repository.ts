@@ -61,10 +61,10 @@ export interface ExtractionJobData {
 
 export interface ExtractionJobRepository {
   get: (payload: { id: string }) => Promise<ExtractionJob | null>;
-  getAll: (payload?: {
+  getAll: (payload: {
     queryConstraints?: Array<{ field: string; operator: "==" | ">" | "<" | ">=" | "<="; value: unknown }>;
     orderBy?: { field: string; direction: "asc" | "desc" };
-    pagination?: { limit?: number; offset?: number };
+    pagination?: { limit?: number; cursor?: string };
   }) => Promise<ExtractionJob[]>;
   create: (payload: { data: ExtractionJobData }) => Promise<string>;
   update: (payload: { id: string; data: Partial<ExtractionJobData> }) => Promise<void>;

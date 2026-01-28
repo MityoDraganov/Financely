@@ -28,6 +28,7 @@ export * from "./entities/marketplace-review";
 export * from "./entities/metaobject";
 export * from "./entities/file";
 export * from "./entities/product-metafield";
+export * from "./entities/onboarding-progress";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

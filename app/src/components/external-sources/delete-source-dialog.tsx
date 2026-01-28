@@ -20,9 +20,9 @@ interface DeleteSourceDialogProps {
 }
 
 export function DeleteSourceDialog({
-  sourceId,
+  sourceId: _sourceId,
   sourceName,
-  organizationId,
+  organizationId: _organizationId,
   onDelete,
 }: DeleteSourceDialogProps) {
   const [open, setOpen] = useState(false);

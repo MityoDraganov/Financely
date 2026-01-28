@@ -4,7 +4,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { functionsService } from "@/services";
 import { useOnboardingProgress } from "@/hooks/use-onboarding-progress";
 import { saveProgressLocally } from "@/utils/progress-storage";
 
@@ -24,28 +23,18 @@ export default function ResumeOnboardingPage(): React.ReactElement {
 
     const validateAndLoad = async () => {
       try {
-        // Validate token via Cloud Function
-        const result = await functionsService.validateResumeLink({ token });
-
-        if (!result.valid || !result.progressId) {
-          setStatus("error");
-          setError(result.error || "Invalid or expired resume link");
-          return;
-        }
-
-        // Load progress from backend
-        // The progress will be loaded by the useOnboardingProgress hook
-        // We'll restore it to localStorage for immediate access
+        // TODO: Implement validateResumeLink Cloud Function
+        // For now, we'll just redirect to onboarding if we have local progress
         if (progress) {
           saveProgressLocally(progress);
+          setStatus("success");
+          setTimeout(() => {
+            navigate("/onboarding", { replace: true });
+          }, 1500);
+        } else {
+          setStatus("error");
+          setError("Resume link feature is not yet available");
         }
-
-        setStatus("success");
-
-        // Redirect to onboarding with progress restored
-        setTimeout(() => {
-          navigate("/onboarding", { replace: true });
-        }, 1500);
       } catch (err) {
         console.error("Error validating resume link:", err);
         setStatus("error");

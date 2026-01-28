@@ -6,6 +6,8 @@ import { inviteService } from "./invite/invite-service";
 import { workflowService } from "./workflow/workflow-service";
 import { invoiceComplianceService } from "./invoice-compliance-service";
 
+export { functionsService };
+
 export type ServiceHost = {
   getDatabaseService: () => typeof databaseService;
   getFunctionsService: () => FunctionsService;

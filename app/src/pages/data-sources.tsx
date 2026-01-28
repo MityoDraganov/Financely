@@ -1,12 +1,7 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   Database,
-  ChevronRight,
   FileText,
-  Mail,
-  Workflow,
-  Box,
   Info,
   ExternalLink,
   Plus,
@@ -38,11 +33,10 @@ import {
   type SchemaField,
   flattenSchemaFields,
 } from "@/core/data-source-schemas";
-import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useExternalSources } from "@/hooks/use-external-sources";
 import { ConnectionWizard } from "@/components/external-sources/connection-wizard";
 import { DeleteSourceDialog } from "@/components/external-sources/delete-source-dialog";
-import { Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 
 function SchemaFieldTree({ field, level = 0 }: { field: SchemaField; level?: number }) {
   const indent = level * 16;
@@ -75,7 +69,6 @@ function SchemaFieldTree({ field, level = 0 }: { field: SchemaField; level?: num
 }
 
 function DataSourceCard({ schema }: { schema: DataSourceSchema }) {
-  const [expanded, setExpanded] = useState(false);
   const flattenedFields = flattenSchemaFields(schema.fields);
 
   const getIcon = (key: string) => {
@@ -165,7 +158,7 @@ function DataSourceCard({ schema }: { schema: DataSourceSchema }) {
 function ExternalSourcesSection() {
   const { sources, isLoading, deleteSource, refreshSource } = useExternalSources();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingSource, setEditingSource] = useState<string | null>(null);
+  const [_editingSource, setEditingSource] = useState<string | null>(null);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -352,8 +345,6 @@ function ExternalSourcesSection() {
 }
 
 export default function DataSourcesPage() {
-  const { t } = useTranslation();
-
   return (
     <div className="space-y-8">
       <div>

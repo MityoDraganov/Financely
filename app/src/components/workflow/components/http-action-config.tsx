@@ -1,9 +1,13 @@
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JsonEditor } from "@/components/ui/json-editor";
 import { WorkflowAction } from "@/core";
+import { validateUrlForSSRF } from "@/utils/ssrf-validation";
 
 interface HttpActionConfigProps {
   action: WorkflowAction;

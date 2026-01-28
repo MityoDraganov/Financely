@@ -39,16 +39,16 @@ export function useUpdateBillingSettings() {
       }
 
       // Merge billing settings
-      const currentBilling = organization.settings?.billing || {};
+      const currentBilling = (organization.settings?.billing || {}) as BillingSettings;
       const updatedBilling = {
         ...currentBilling,
         ...settings,
         usageAlertThresholds: settings.usageAlertThresholds
           ? {
-              ...currentBilling?.usageAlertThresholds,
+              ...currentBilling.usageAlertThresholds,
               ...settings.usageAlertThresholds,
             }
-          : currentBilling?.usageAlertThresholds,
+          : currentBilling.usageAlertThresholds,
       };
 
       return updateOrganization.mutateAsync({

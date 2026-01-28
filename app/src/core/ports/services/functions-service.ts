@@ -1164,4 +1164,24 @@ export interface FunctionsService {
       storefrontApiAccess?: boolean;
     };
   }): Promise<{ id: string }>;
+
+  /**
+   * Create a Stripe Checkout session for subscription purchase.
+   * The session includes organizationId in metadata so the webhook
+   * can link the subscription to the correct organization.
+   */
+  createCheckoutSession(payload: {
+    orgId: string;
+    priceId: string;
+    successUrl: string;
+    cancelUrl: string;
+  }): Promise<{ sessionId: string; url: string }>;
+
+  /**
+   * Create a Stripe Customer Portal session for managing subscriptions.
+   */
+  createPortalSession(payload: {
+    orgId: string;
+    returnUrl: string;
+  }): Promise<{ url: string }>;
 }

@@ -21,18 +21,20 @@ export function getProductMetafieldRepository(
 
   return {
     ...genericRepo,
-    async getByProductId(productId: string) {
-      const result = await databaseService.getPaginated({
-        collection: DatabaseCollection.PRODUCT_METAFIELDS,
-        filters: [{ field: "productId", operator: "==", value: productId }],
-      });
+    async getByProductId(productId: string): Promise<import("@/core").ProductMetafield[]> {
+      const result = await databaseService.getPaginated<import("@/core").ProductMetafield>(
+        DatabaseCollection.PRODUCT_METAFIELDS,
+        [{ field: "productId", operator: "==" as const, value: productId }],
+        {},
+      );
       return result || [];
     },
-    async getByDefinitionId(definitionId: string) {
-      const result = await databaseService.getPaginated({
-        collection: DatabaseCollection.PRODUCT_METAFIELDS,
-        filters: [{ field: "definitionId", operator: "==", value: definitionId }],
-      });
+    async getByDefinitionId(definitionId: string): Promise<import("@/core").ProductMetafield[]> {
+      const result = await databaseService.getPaginated<import("@/core").ProductMetafield>(
+        DatabaseCollection.PRODUCT_METAFIELDS,
+        [{ field: "definitionId", operator: "==" as const, value: definitionId }],
+        {},
+      );
       return result || [];
     },
   };

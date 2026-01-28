@@ -1,48 +1,73 @@
-import * as React from "react";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useCreateCheckoutSession } from "@/hooks/use-stripe-checkout";
+import { Loader2, Check, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 const ONBOARDING_CHECKOUT_FLAG = "financely_onboarding_checkout";
 
-/**
- * PaywallStep component displays Stripe Buy Button for plan selection.
- * 
- * IMPORTANT: Configure the return URL in your Stripe Dashboard Buy Button settings:
- * - Development: http://localhost:5173/stripe/checkout-success
- * - Production: https://yourdomain.com/stripe/checkout-success
- * 
- * This ensures users are redirected back to the app after completing checkout.
- */
-export function PaywallStep() {
+interface PaywallStepProps {
+  onNext?: () => void;
+  onSkip?: () => void;
+}
+
+const PLAN = {
+  name: "Pro Plan",
+  priceId: import.meta.env.VITE_STRIPE_PRICE_ID || "price_1SrZmZKFYBp87OV7EqNtL0T0",
+  price: "€5",
+  period: "month",
+  trialDays: 14,
+  features: [
+    "Unlimited invoices",
+    "Custom templates",
+    "Email automation",
+    "Analytics dashboard",
+    "Priority support",
+  ],
+};
+
+export function PaywallStep({ onNext: _onNext, onSkip }: PaywallStepProps) {
   const { t } = useTranslation();
-  const stripeBuyButtonId = import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1Sue8uKFYBp87OV7QCe1Eu8W";
-  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_test_51SZBnbKFYBp87OV78d3Tx9iHd9aLP3EHIX3eLwKfUcw27ESPpYQI7aStyShv9VyRukHaexLAgYLNc8D8KqEZORjd00ZLZ7kG3k";
+  const { data: organization, isLoading: isOrgLoading } = useCurrentOrganization();
+  const checkoutMutation = useCreateCheckoutSession();
 
   useEffect(() => {
-    // Store flag to indicate user is checking out from onboarding
     sessionStorage.setItem(ONBOARDING_CHECKOUT_FLAG, "true");
-    
-    return () => {
-      // Clean up flag if user navigates away without completing checkout
-      // Note: This won't run if user is redirected to Stripe, which is what we want
-    };
   }, []);
 
-  useEffect(() => {
-    if (document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]')) {
+  const handleSubscribe = async () => {
+    if (!organization?.id) {
+      toast.error(t("onboarding.paywall.noOrganization", { defaultValue: "Organization not found. Please try again." }));
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = "https://js.stripe.com/v3/buy-button.js";
-    script.async = true;
-    script.onerror = () => {
-      console.error("Failed to load Stripe Buy Button script");
-    };
-    document.body.appendChild(script);
-  }, []);
+    try {
+      const result = await checkoutMutation.mutateAsync({
+        orgId: organization.id,
+        priceId: PLAN.priceId,
+        successUrl: `${window.location.origin}/stripe/checkout-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${window.location.origin}/onboarding`,
+      });
+
+      window.location.href = result.url;
+    } catch (error) {
+      console.error("Failed to create checkout session:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(t("onboarding.paywall.checkoutFailed", { defaultValue: `Failed to start checkout: ${message}` }));
+    }
+  };
+
+  const isLoading = isOrgLoading || checkoutMutation.isPending;
 
   return (
     <motion.div
@@ -57,25 +82,78 @@ export function PaywallStep() {
           </CardTitle>
           <CardDescription className="text-base sm:text-lg text-muted-foreground">
             {t("onboarding.paywall.description", {
-              defaultValue: "Select the perfect plan to get started with Financely",
+              defaultValue: "Start your free trial and unlock all features",
             })}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {stripeBuyButtonId && stripePublishableKey ? (
-            <div className="stripe-buy-button-wrapper">
-              {React.createElement("stripe-buy-button", {
-                "buy-button-id": stripeBuyButtonId,
-                "publishable-key": stripePublishableKey,
-              })}
-            </div>
-          ) : (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">
-                {t("onboarding.paywall.noPlans", {
-                  defaultValue: "Pricing plans will appear here once configured.",
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-xl">{PLAN.name}</CardTitle>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-primary">
+                    {PLAN.price}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{PLAN.period}
+                    </span>
+                  </div>
+                  {PLAN.trialDays > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("onboarding.paywall.trialDays", {
+                        defaultValue: `${PLAN.trialDays}-day free trial`,
+                        days: PLAN.trialDays,
+                      })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ul className="space-y-2">
+                {PLAN.features.map((feature, index) => (
+                  <li key={index} className="flex items-center gap-2 text-sm">
+                    <Check className="h-4 w-4 text-primary shrink-0" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Button
+                onClick={handleSubscribe}
+                disabled={isLoading}
+                className="w-full"
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("onboarding.paywall.loading", { defaultValue: "Loading..." })}
+                  </>
+                ) : (
+                  t("onboarding.paywall.startTrial", {
+                    defaultValue: `Start ${PLAN.trialDays}-day free trial`,
+                    days: PLAN.trialDays,
+                  })
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                {t("onboarding.paywall.cancelAnytime", {
+                  defaultValue: "Cancel anytime. No credit card required during trial.",
                 })}
               </p>
+            </CardContent>
+          </Card>
+
+          {onSkip && (
+            <div className="text-center">
+              <Button variant="ghost" onClick={onSkip} className="text-muted-foreground">
+                {t("onboarding.paywall.skipForNow", { defaultValue: "Skip for now" })}
+              </Button>
             </div>
           )}
         </CardContent>

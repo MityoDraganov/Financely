@@ -58,7 +58,7 @@ export const useGenerateTemplateFromExtraction = () => {
 
       return { template, templateId };
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       if (data.templateId) {
         // Navigate to template designer
         navigate(`/designer/${data.templateId}`);

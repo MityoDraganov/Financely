@@ -1,6 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { firebase } from "@/infrastructure/firebase";
 import { useAuthReady } from "@/hooks/use-auth-ready";
 
 /**
@@ -23,10 +21,6 @@ export interface BillingInvoice {
   stripeInvoiceId?: string; // When integrated with Stripe
 }
 
-interface GetBillingInvoicesResponse {
-  invoices: BillingInvoice[];
-}
-
 /**
  * Hook to fetch billing invoices (subscription invoices)
  * 
@@ -35,7 +29,6 @@ interface GetBillingInvoicesResponse {
  */
 export function useBillingInvoices(organizationId: string | undefined) {
   const { isAuthReady } = useAuthReady();
-  const functions = getFunctions(firebase.app);
 
   return useQuery<BillingInvoice[]>({
     queryKey: ["billingInvoices", organizationId],
@@ -64,18 +57,9 @@ export function useBillingInvoices(organizationId: string | undefined) {
  * Hook to download a billing invoice PDF
  */
 export function useDownloadBillingInvoice() {
-  const functions = getFunctions(firebase.app);
-
-  return async (invoiceId: string): Promise<string> => {
+  return async (_invoiceId: string): Promise<string> => {
     // TODO: Replace with actual Cloud Function when Stripe is integrated
     // For now, throw error as placeholder
-    // const downloadInvoiceFn = httpsCallable<{ invoiceId: string }, { url: string }>(
-    //   functions,
-    //   "downloadBillingInvoice"
-    // );
-    // const result = await downloadInvoiceFn({ invoiceId });
-    // return result.data.url;
-
     throw new Error("Billing invoice download not yet implemented. Stripe integration pending.");
   };
 }

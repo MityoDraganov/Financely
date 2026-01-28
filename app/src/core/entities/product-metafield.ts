@@ -1,6 +1,5 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
-import { metaobjectFieldDefinitionSchema } from "./metaobject";
 
 export const productMetafieldDefinitionDataSchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),

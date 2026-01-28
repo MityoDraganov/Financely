@@ -31,13 +31,9 @@ export type MetaobjectService = {
 export const metaobjectService: MetaobjectService = {
   async createMetaobjectDefinition(data) {
     const result = await metaobjectDefinitionRepository.create({
-      data: {
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
-    return result.id;
+    return result;
   },
 
   async getMetaobjectDefinition(id) {
@@ -46,7 +42,7 @@ export const metaobjectService: MetaobjectService = {
 
   async listMetaobjectDefinitions(orgId) {
     const result = await metaobjectDefinitionRepository.getAll({
-      queryConstraints: [{ field: "organizationId", operator: "==", value: orgId }],
+      queryConstraints: [{ field: "organizationId", operator: "==" as const, value: orgId }],
     });
     return result || [];
   },
@@ -54,10 +50,7 @@ export const metaobjectService: MetaobjectService = {
   async updateMetaobjectDefinition(id, data) {
     await metaobjectDefinitionRepository.update({
       id,
-      data: {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
   },
 
@@ -67,13 +60,9 @@ export const metaobjectService: MetaobjectService = {
 
   async createMetaobject(data) {
     const result = await metaobjectRepository.create({
-      data: {
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
-    return result.id;
+    return result;
   },
 
   async getMetaobject(id) {
@@ -81,9 +70,11 @@ export const metaobjectService: MetaobjectService = {
   },
 
   async listMetaobjects(orgId, definitionId) {
-    const constraints = [{ field: "organizationId", operator: "==", value: orgId }];
+    const constraints: import("@/core").QueryConstraint[] = [
+      { field: "organizationId", operator: "==" as const, value: orgId }
+    ];
     if (definitionId) {
-      constraints.push({ field: "definitionId", operator: "==", value: definitionId });
+      constraints.push({ field: "definitionId", operator: "==" as const, value: definitionId });
     }
     const result = await metaobjectRepository.getAll({
       queryConstraints: constraints,
@@ -94,10 +85,7 @@ export const metaobjectService: MetaobjectService = {
   async updateMetaobject(id, data) {
     await metaobjectRepository.update({
       id,
-      data: {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
+      data,
     });
   },
 

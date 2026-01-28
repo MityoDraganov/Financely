@@ -1,4 +1,5 @@
-import { DatabaseService, OnboardingProgress, OnboardingProgressData } from "@/core";
+import { DatabaseService } from "@/core";
+import { OnboardingProgress, OnboardingProgressData } from "@/core/entities/onboarding-progress";
 import { OnboardingProgressRepository } from "@/core/ports/repositories/onboarding-progress-repository";
 import { DatabaseCollection } from "./config";
 import { getGenericRepository } from "./generic-repository";

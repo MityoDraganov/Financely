@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Braces, Trash2, Table } from "lucide-react";
+import { Plus, Braces, Trash2 } from "lucide-react";
 import { parseNumber } from "@/lib/field-formatting";
 import {
 	DropdownMenu,
@@ -225,6 +225,7 @@ type PlaceholderInputFieldProps = {
 	placeholders: EmailTemplatePlaceholder[];
 	invalidPlaceholders?: string[];
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
+	placeholder?: string;
 };
 
 const PlaceholderInputField = ({
@@ -235,6 +236,7 @@ const PlaceholderInputField = ({
 	placeholders,
 	invalidPlaceholders,
 	onAddPlaceholder,
+	placeholder: inputPlaceholder,
 }: PlaceholderInputFieldProps) => {
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const handleInsert = (key: string) => {
@@ -278,6 +280,7 @@ const PlaceholderInputField = ({
 				type={type}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
+				placeholder={inputPlaceholder}
 			/>
 		</div>
 	);

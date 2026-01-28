@@ -3,7 +3,7 @@
  * Handles formula evaluation with debouncing and currency field detection
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { Template, TemplateElement } from "@/core/entities/template";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { getBindingValue, setBindingValue } from "@/core/entities/invoice";

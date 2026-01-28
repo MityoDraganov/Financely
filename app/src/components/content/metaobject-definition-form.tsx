@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldTypeSelector } from "@/components/content/field-type-selector";
-import { CreateMetaobjectDefinitionInput, UpdateMetaobjectDefinitionInput, MetaobjectFieldDefinition, MetaobjectDefinition } from "@/core";
+import { CreateMetaobjectDefinitionInput, UpdateMetaobjectDefinitionInput, MetaobjectFieldDefinition, MetaobjectDefinition, MetaobjectFieldType } from "@/core";
 
 interface MetaobjectDefinitionFormProps {
   initialData?: MetaobjectDefinition;
@@ -101,7 +101,7 @@ export function MetaobjectDefinitionForm({
                     const newField: MetaobjectFieldDefinition = {
                       key: `field_${Date.now()}`,
                       name: "",
-                      type: "single_line_text_field",
+                      type: MetaobjectFieldType.SINGLE_LINE_TEXT_FIELD,
                       required: false,
                     };
                     setFormData({

@@ -207,24 +207,76 @@ async function handleSubscriptionEvent(
 /**
  * Gets organization ID from invoice metadata
  * Handles different SDK versions where properties might be nested differently
+ * Note: In newer API versions, subscription metadata might not be copied to invoice
  */
-function getInvoiceOrgId(invoice: Stripe.Invoice): string | undefined {
+function getInvoiceOrgIdFromMetadata(invoice: Stripe.Invoice): string | undefined {
   const inv = invoice as unknown as Record<string, unknown>;
-  // Try to get from subscription_details first, then parent.subscription_details
-  const subscriptionDetails = (inv.subscription_details ?? 
-    (inv.parent as Record<string, unknown>)?.subscription_details) as Record<string, unknown> | undefined;
-  return (subscriptionDetails?.metadata as Record<string, string>)?.organizationId;
+  
+  // Try to get from subscription_details.metadata (direct)
+  const directSubDetails = inv.subscription_details as Record<string, unknown> | undefined;
+  if (directSubDetails?.metadata) {
+    const orgId = (directSubDetails.metadata as Record<string, string>).organizationId;
+    if (orgId) return orgId;
+  }
+  
+  // Try parent.subscription_details.metadata (newer API)
+  const parent = inv.parent as Record<string, unknown> | undefined;
+  if (parent?.subscription_details) {
+    const subDetails = parent.subscription_details as Record<string, unknown>;
+    if (subDetails.metadata) {
+      const orgId = (subDetails.metadata as Record<string, string>).organizationId;
+      if (orgId) return orgId;
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Looks up organization ID by Stripe subscription ID in Firestore
+ */
+async function getOrgIdBySubscriptionId(subscriptionId: string): Promise<string | undefined> {
+  const db = getFirestore();
+  const orgsSnapshot = await db
+    .collection("organizations")
+    .where("billing.stripeSubscriptionId", "==", subscriptionId)
+    .limit(1)
+    .get();
+  
+  if (orgsSnapshot.empty) {
+    return undefined;
+  }
+  
+  return orgsSnapshot.docs[0].id;
 }
 
 /**
  * Gets subscription ID from invoice
+ * Handles different SDK/API versions where subscription might be:
+ * - invoice.subscription (older)
+ * - invoice.parent.subscription_details.subscription (newer, 2025+ API)
  */
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const inv = invoice as unknown as Record<string, unknown>;
-  // The subscription field can be a string ID or an object
-  const sub = inv.subscription;
-  if (typeof sub === "string") return sub;
-  if (sub && typeof sub === "object" && "id" in sub) return (sub as { id: string }).id;
+  
+  // Try direct subscription field first (older API versions)
+  const directSub = inv.subscription;
+  if (typeof directSub === "string") return directSub;
+  if (directSub && typeof directSub === "object" && "id" in directSub) {
+    return (directSub as { id: string }).id;
+  }
+  
+  // Try parent.subscription_details.subscription (newer API versions like 2025-11-17.clover)
+  const parent = inv.parent as Record<string, unknown> | undefined;
+  if (parent?.subscription_details) {
+    const subDetails = parent.subscription_details as Record<string, unknown>;
+    const subFromParent = subDetails.subscription;
+    if (typeof subFromParent === "string") return subFromParent;
+    if (subFromParent && typeof subFromParent === "object" && "id" in subFromParent) {
+      return (subFromParent as { id: string }).id;
+    }
+  }
+  
   return null;
 }
 
@@ -241,10 +293,16 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
     return;
   }
   
-  const orgId = getInvoiceOrgId(invoice);
+  // Try to get orgId from invoice metadata first
+  let orgId = getInvoiceOrgIdFromMetadata(invoice);
+  
+  // If not found in metadata, look up by subscription ID in Firestore
+  if (!orgId) {
+    orgId = await getOrgIdBySubscriptionId(subscriptionId);
+  }
   
   if (!orgId) {
-    loggerService.warn("invoice.paid missing organizationId in subscription metadata", {
+    loggerService.warn("invoice.paid - could not find organization for subscription", {
       invoiceId: invoice.id,
       subscriptionId,
     });
@@ -272,10 +330,16 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void
     return;
   }
   
-  const orgId = getInvoiceOrgId(invoice);
+  // Try to get orgId from invoice metadata first
+  let orgId = getInvoiceOrgIdFromMetadata(invoice);
+  
+  // If not found in metadata, look up by subscription ID in Firestore
+  if (!orgId) {
+    orgId = await getOrgIdBySubscriptionId(subscriptionId);
+  }
   
   if (!orgId) {
-    loggerService.warn("invoice.payment_failed missing organizationId", {
+    loggerService.warn("invoice.payment_failed - could not find organization for subscription", {
       invoiceId: invoice.id,
       subscriptionId,
     });

@@ -7,7 +7,7 @@ export function useExternalSources() {
   const { data: organization } = useCurrentOrganization();
   const queryClient = useQueryClient();
 
-  const { data: sources = [], isLoading, error } = useQuery({
+  const { data: sourcesResult, isLoading, error } = useQuery({
     queryKey: ["externalSources", organization?.id],
     queryFn: () => {
       if (!organization?.id) return Promise.resolve({ sources: [] });
@@ -98,7 +98,7 @@ export function useExternalSources() {
   });
 
   return {
-    sources: sources.sources || [],
+    sources: sourcesResult?.sources || [],
     isLoading,
     error,
     createSource,

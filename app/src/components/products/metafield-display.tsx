@@ -7,7 +7,7 @@ interface MetafieldDisplayProps {
 }
 
 export function MetafieldDisplay({ metafield, definition }: MetafieldDisplayProps) {
-  const metaobjectId = definition.type === "metaobject_reference" && typeof metafield.value === "string" ? metafield.value : null;
+  const metaobjectId = definition.type === "metaobject_reference" && typeof metafield.value === "string" ? metafield.value : undefined;
   const { data: metaobject } = useMetaobject(metaobjectId);
 
   const formatValue = (value: unknown, type: ProductMetafieldDefinition["type"]): string => {
@@ -70,8 +70,10 @@ export function MetafieldDisplay({ metafield, definition }: MetafieldDisplayProp
   let value: string;
   if (definition.type === "metaobject_reference") {
     if (metaobject) {
-      const displayName = metaobject.displayNameKey && metaobject.fields && metaobject.fields[metaobject.displayNameKey]
-        ? String(metaobject.fields[metaobject.displayNameKey])
+      // Use first available field value as display name, or fall back to ID
+      const firstFieldKey = metaobject.fields ? Object.keys(metaobject.fields)[0] : undefined;
+      const displayName = firstFieldKey && metaobject.fields[firstFieldKey]
+        ? String(metaobject.fields[firstFieldKey])
         : metaobject.id;
       value = displayName;
     } else if (typeof metafield.value === "string") {

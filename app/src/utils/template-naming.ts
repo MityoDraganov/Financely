@@ -1,14 +1,12 @@
-import { Template } from "@/core";
-
 /**
  * Generates a unique template name by appending (1), (2), etc. if the name already exists
  * @param baseName The desired base name for the template
- * @param existingTemplates Array of existing templates for the organization
+ * @param existingTemplates Array of objects with at least a name property
  * @returns A unique template name
  */
 export function generateUniqueTemplateName(
   baseName: string,
-  existingTemplates: Template[]
+  existingTemplates: Array<{ name?: string }>
 ): string {
   // Get all existing template names (case-insensitive)
   const existingNames = new Set(

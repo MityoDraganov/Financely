@@ -22,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,6 +53,7 @@ import { Separator } from "@/components/ui/separator";
 import { useUsageHistory } from "@/hooks/service-hooks/use-usage-history";
 import { useBillingInvoices, useDownloadBillingInvoice } from "@/hooks/service-hooks/use-billing-invoices";
 import { useUpdateBillingSettings } from "@/hooks/service-hooks/use-billing-settings";
+import { useCreateCheckoutSession, useCreatePortalSession } from "@/hooks/use-stripe-checkout";
 
 type PeriodType = "current" | "previous" | "custom";
 
@@ -61,7 +61,7 @@ export default function OrganizationBillingPage() {
   const { t } = useTranslation();
   const { formatDateShort } = useDateFormatting();
   const { data: organization, isLoading: isOrgLoading } = useCurrentOrganization();
-  const [isUpgrading, setIsUpgrading] = useState(false);
+  const stripePriceId = import.meta.env.VITE_STRIPE_PRICE_ID || "price_1SrZmZKFYBp87OV7EqNtL0T0";
   const [periodType, setPeriodType] = useState<PeriodType>("current");
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
@@ -87,6 +87,10 @@ export default function OrganizationBillingPage() {
   // Billing settings mutations
   const updateBillingSettings = useUpdateBillingSettings();
   const downloadInvoice = useDownloadBillingInvoice();
+  
+  // Stripe checkout and portal
+  const checkoutMutation = useCreateCheckoutSession();
+  const portalMutation = useCreatePortalSession();
 
   // Initialize billing settings from organization
   const [autoRenew, setAutoRenew] = useState(
@@ -103,6 +107,48 @@ export default function OrganizationBillingPage() {
       setUsageAlerts(organization.settings.billing.usageAlerts ?? true);
     }
   }, [organization]);
+
+  const handleSubscribe = async () => {
+    if (!organization?.id) {
+      toast.error("Organization not found");
+      return;
+    }
+
+    try {
+      const result = await checkoutMutation.mutateAsync({
+        orgId: organization.id,
+        priceId: stripePriceId,
+        successUrl: `${window.location.origin}/settings/organization/billing?checkout=success`,
+        cancelUrl: `${window.location.origin}/settings/organization/billing`,
+      });
+      window.location.href = result.url;
+    } catch (error) {
+      console.error("Failed to create checkout session:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to start checkout: ${message}`);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    if (!organization?.id) {
+      toast.error("Organization not found");
+      return;
+    }
+
+    try {
+      const result = await portalMutation.mutateAsync({
+        orgId: organization.id,
+        returnUrl: `${window.location.origin}/settings/organization/billing`,
+      });
+      window.location.href = result.url;
+    } catch (error) {
+      console.error("Failed to create portal session:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to open billing portal: ${message}`);
+    }
+  };
+
+  const isStripeLoading = checkoutMutation.isPending || portalMutation.isPending;
 
 
   // Handle loading state
@@ -308,12 +354,28 @@ export default function OrganizationBillingPage() {
                   {/* Actions */}
                   <div className="flex gap-2 pt-2">
                     {!hasActiveSubscription && (
-                      <Button onClick={() => setIsUpgrading(true)} disabled={isUpgrading}>
-                        {isUpgrading ? "Processing..." : "Subscribe Now"}
+                      <Button onClick={handleSubscribe} disabled={isStripeLoading}>
+                        {checkoutMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          "Subscribe Now"
+                        )}
                       </Button>
                     )}
                     {billing?.stripeCustomerId && (
-                      <Button variant="outline">Manage Billing</Button>
+                      <Button variant="outline" onClick={handleManageBilling} disabled={isStripeLoading}>
+                        {portalMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          "Manage Billing"
+                        )}
+                      </Button>
                     )}
                   </div>
                 </CardContent>
@@ -574,7 +636,7 @@ export default function OrganizationBillingPage() {
                           <p className="text-xs text-muted-foreground">Cost per Invoice</p>
                         </div>
                         <p className="text-2xl font-bold">
-                          ${avgCostPerInvoice}
+                          ${currentPeriodData?.invoices && currentPeriodData.invoices > 0 ? "0.10" : "0.00"}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">This billing cycle</p>
                       </div>
@@ -614,10 +676,17 @@ export default function OrganizationBillingPage() {
                       </p>
                       <Button 
                         className="w-full" 
-                        onClick={() => setIsUpgrading(true)}
-                        disabled={isUpgrading}
+                        onClick={handleSubscribe}
+                        disabled={isStripeLoading}
                       >
-                        {isUpgrading ? "Processing..." : "View Plans"}
+                        {checkoutMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          "View Plans"
+                        )}
                       </Button>
                     </div>
                   ) : (
@@ -632,8 +701,20 @@ export default function OrganizationBillingPage() {
                             ? `Cancels on ${formatDate(billing?.currentPeriodEnd)}`
                             : `Renews on ${formatDate(billing?.currentPeriodEnd)}`}
                         </p>
-                        <Button variant="outline" className="w-full">
-                          Manage Subscription
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={handleManageBilling}
+                          disabled={isStripeLoading}
+                        >
+                          {portalMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            "Manage Subscription"
+                          )}
                         </Button>
                       </div>
                     </div>
