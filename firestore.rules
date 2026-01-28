@@ -54,6 +54,25 @@ service cloud.firestore {
       return resource.data.orgId == orgId || 
              resource.data.organizationId == orgId;
     }
+    
+    // Billing status helpers - check subscription status for paid access
+    function getOrgBillingStatus(orgId) {
+      let org = get(/databases/$(database)/documents/organizations/$(orgId));
+      return org != null && org.data.billing != null ? org.data.billing.status : null;
+    }
+    
+    // Allow reads for active, trialing, or past_due subscriptions
+    function canReadWithBilling(orgId) {
+      let status = getOrgBillingStatus(orgId);
+      return status in ['active', 'trialing', 'past_due'];
+    }
+    
+    // Allow writes only for active or trialing subscriptions
+    function canWriteWithBilling(orgId) {
+      let status = getOrgBillingStatus(orgId);
+      return status in ['active', 'trialing'];
+    }
+    
     match /users/{userId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && request.auth.uid == userId;
@@ -78,205 +97,254 @@ service cloud.firestore {
     match /invoices/{invoiceId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       hasRole(request.resource.data.orgId, 'member');
+                       hasRole(request.resource.data.orgId, 'member') &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /templates/{templateId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.orgId);
+                       isOwnerOrAdmin(request.resource.data.orgId) &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /workflows/{workflowId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.orgId);
+                       isOwnerOrAdmin(request.resource.data.orgId) &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /products/{productId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /proposals/{proposalId} {
       allow read, write: if isAdmin();
       allow list: if isAuthenticated();
       allow get: if isAuthenticated() && 
                     resource.data.organizationId != null &&
-                    isOrgMember(resource.data.organizationId);
+                    isOrgMember(resource.data.organizationId) &&
+                    canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       hasRole(request.resource.data.organizationId, 'member');
+                       hasRole(request.resource.data.organizationId, 'member') &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /leads/{leadId} {
       allow read, write: if isAdmin();
       allow list: if isAuthenticated();
       allow get: if isAuthenticated() && 
                     resource.data.organizationId != null &&
-                    isOrgMember(resource.data.organizationId);
+                    isOrgMember(resource.data.organizationId) &&
+                    canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       hasRole(request.resource.data.organizationId, 'member');
+                       hasRole(request.resource.data.organizationId, 'member') &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /contacts/{contactId} {
       allow read, write: if isAdmin();
       allow list: if isAuthenticated();
       allow get: if isAuthenticated() && 
                     resource.data.organizationId != null &&
-                    isOrgMember(resource.data.organizationId);
+                    isOrgMember(resource.data.organizationId) &&
+                    canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       hasRole(request.resource.data.organizationId, 'member');
+                       hasRole(request.resource.data.organizationId, 'member') &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /brandSites/{siteId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /invites/{inviteId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     match /emailTemplateMappings/{mappingId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.orgId);
+                       isOwnerOrAdmin(request.resource.data.orgId) &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /extractionJobs/{jobId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       hasRole(request.resource.data.orgId, 'member');
+                       hasRole(request.resource.data.orgId, 'member') &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       hasRole(resource.data.orgId, 'member');
+                       hasRole(resource.data.orgId, 'member') &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /templatePatterns/{patternId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.orgId != null &&
                        isOrgMember(request.resource.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.orgId);
+                       isOwnerOrAdmin(request.resource.data.orgId) &&
+                       canWriteWithBilling(request.resource.data.orgId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       canWriteWithBilling(resource.data.orgId);
     }
     match /workflowRuns/{runId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if false; 
       allow update: if false; 
       allow delete: if false; 
@@ -285,7 +353,8 @@ service cloud.firestore {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
                      resource.data.orgId != null &&
-                     isOrgMember(resource.data.orgId);
+                     isOrgMember(resource.data.orgId) &&
+                     canReadWithBilling(resource.data.orgId);
       allow create: if false; 
       allow update: if false;
       allow delete: if false;
@@ -295,47 +364,52 @@ service cloud.firestore {
       // Allow queries for authenticated users (queries can't check resource.data for each doc)
       // Individual document reads will still be checked below
       allow list: if isAuthenticated();
-      // Individual document read - check orgId
+      // Individual document read - check orgId and billing
       allow get: if isAuthenticated() && 
                     resource.data.data != null &&
                     resource.data.data.orgId != null &&
-                    isOrgMember(resource.data.data.orgId);
+                    isOrgMember(resource.data.data.orgId) &&
+                    canReadWithBilling(resource.data.data.orgId);
       allow create: if isAuthenticated() && 
                        request.resource.data.templateId != null &&
                        request.resource.data.data != null &&
                        request.resource.data.data.orgId != null &&
                        isOrgMember(request.resource.data.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.data.orgId);
+                       isOwnerOrAdmin(request.resource.data.data.orgId) &&
+                       canWriteWithBilling(request.resource.data.data.orgId);
       allow update: if false;
       allow delete: if isAuthenticated() && 
                        resource.data.data != null &&
                        resource.data.data.orgId != null &&
                        isOrgMember(resource.data.data.orgId) &&
-                       isOwnerOrAdmin(resource.data.data.orgId);
+                       isOwnerOrAdmin(resource.data.data.orgId) &&
+                       canWriteWithBilling(resource.data.data.orgId);
     }
     match /organizations/{orgId}/auditLogs/{logId} {
       allow read, write: if isAdmin();
-      allow read: if isAuthenticated() && isOrgMember(orgId);
+      allow read: if isAuthenticated() && isOrgMember(orgId) && canReadWithBilling(orgId);
       allow create: if false; 
       allow update: if false;
       allow delete: if false;
     }
     match /organizations/{orgId}/analyticsEvents/{eventId} {
       allow read, write: if isAdmin();
-      allow read: if isAuthenticated() && isOrgMember(orgId);
+      allow read: if isAuthenticated() && isOrgMember(orgId) && canReadWithBilling(orgId);
       allow create: if false; 
       allow update: if false;
       allow delete: if false;
     }
     match /organizations/{orgId}/analyticsConfig/{configId} {
       allow read, write: if isAdmin();
-      allow read: if isAuthenticated() && isOrgMember(orgId);
+      allow read: if isAuthenticated() && isOrgMember(orgId) && canReadWithBilling(orgId);
       allow create: if isAuthenticated() && 
                        isOrgMember(orgId) &&
-                       isOwnerOrAdmin(orgId);
+                       isOwnerOrAdmin(orgId) &&
+                       canWriteWithBilling(orgId);
       allow update: if isAuthenticated() && 
                        isOrgMember(orgId) &&
-                       isOwnerOrAdmin(orgId);
+                       isOwnerOrAdmin(orgId) &&
+                       canWriteWithBilling(orgId);
       allow delete: if false;
     }
     // Usage tracking collections - write-only from backend (Cloud Functions)
@@ -403,88 +477,112 @@ service cloud.firestore {
     match /metaobjectDefinitions/{definitionId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     // Metaobjects - Content instances
     match /metaobjects/{metaobjectId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     // Files - Content file management
     match /files/{fileId} {
       allow read, write: if isAdmin();
-      allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+      // Allow queries (list) for authenticated users - queries filter by organizationId in app code
+      allow list: if isAuthenticated();
+      // Individual document read - check organization membership and billing
+      allow get: if isAuthenticated() && 
+                    resource.data.organizationId != null &&
+                    isOrgMember(resource.data.organizationId) &&
+                    canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
 
     // Product Metafield Definitions
     match /productMetafieldDefinitions/{definitionId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
 
     // Product Metafields
     match /productMetafields/{metafieldId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && 
-                     isOrgMember(resource.data.organizationId);
+                     isOrgMember(resource.data.organizationId) &&
+                     canReadWithBilling(resource.data.organizationId);
       allow create: if isAuthenticated() && 
                        request.resource.data.organizationId != null &&
                        isOrgMember(request.resource.data.organizationId) &&
-                       isOwnerOrAdmin(request.resource.data.organizationId);
+                       isOwnerOrAdmin(request.resource.data.organizationId) &&
+                       canWriteWithBilling(request.resource.data.organizationId);
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
                        request.resource.data.organizationId == resource.data.organizationId &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.organizationId) &&
-                       isOwnerOrAdmin(resource.data.organizationId);
+                       isOwnerOrAdmin(resource.data.organizationId) &&
+                       canWriteWithBilling(resource.data.organizationId);
     }
     // Admin global bypass - catch all for any other collections
     match /{document=**} {

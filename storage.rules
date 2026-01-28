@@ -6,13 +6,21 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null;
     }
+    
+    // Helper function to check billing status for write operations
+    // Only allows writes for active or trialing subscriptions
+    function canWriteWithBilling(orgId) {
+      let org = firestore.get(/databases/(default)/documents/organizations/$(orgId));
+      let status = org.data.billing.status;
+      return status in ['active', 'trialing'];
+    }
 
     // Allow public read access to branding assets (needed for displaying in brand sites)
-    // Write access restricted to authenticated users only
-    // The app-level code ensures users can only access their own organization's branding
+    // Write access restricted to authenticated users with active subscription
     match /organizations/{orgId}/branding/{fileName} {
       allow read: if true; // Public read access for branding images (logos, gallery, etc.)
       allow write: if isAuthenticated() 
+                   && canWriteWithBilling(orgId)
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
@@ -25,21 +33,32 @@ service firebase.storage {
     }
 
     // Allow public read access to product images (needed for displaying in sites/proposals)
-    // Write access restricted to authenticated users only
+    // Write access restricted to authenticated users with active subscription
     match /organizations/{orgId}/products/{fileName} {
       allow read: if true; // Public read access for product images
       allow write: if isAuthenticated() 
+                   && canWriteWithBilling(orgId)
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
 
     // Allow public read access to article images (needed for displaying in blog posts)
-    // Write access restricted to authenticated users only
+    // Write access restricted to authenticated users with active subscription
     match /organizations/{orgId}/articles/{fileName} {
       allow read: if true; // Public read access for article images
       allow write: if isAuthenticated() 
+                   && canWriteWithBilling(orgId)
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
+    }
+
+    // Allow public read access to files (needed for displaying in metaobjects, products, etc.)
+    // Write access restricted to authenticated users with active subscription
+    match /organizations/{orgId}/files/{fileName} {
+      allow read: if true; // Public read access for files
+      allow write: if isAuthenticated() 
+                   && canWriteWithBilling(orgId)
+                   && request.resource.size < 20 * 1024 * 1024; // 20MB max file size
     }
 
     // Brand site content - accessed by Cloud Functions (admin access)

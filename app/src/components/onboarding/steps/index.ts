@@ -6,5 +6,6 @@ export { BrandingStep } from "./branding-step";
 export { InviteStep } from "./invite-step";
 export { JoinOrgStep } from "./join-org-step";
 export { SignUpStep } from "./sign-up-step";
+export { PaywallStep } from "./paywall-step";
 export { SuccessStep } from "./success-step";
 export { OnboardingLanguageSelector } from "./onboarding-language-selector";

@@ -35,6 +35,7 @@ import AuditLogPage from "./pages/settings/security/audit-log";
 import DataSourcesPage from "./pages/data-sources";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
+import CheckoutSuccessPage from "./pages/stripe/checkout-success";
 import MarketplaceListPage from "./pages/marketplace/marketplace-list";
 import TemplateDetailPage from "./pages/marketplace/template-detail";
 import ContributorPortalPage from "./pages/marketplace/contributor-portal";
@@ -147,6 +148,10 @@ function App() {
 											<Route
 												path="/accept-invite"
 												element={<AcceptInvitePage />}
+											/>
+											<Route
+												path="/stripe/checkout-success"
+												element={<CheckoutSuccessPage />}
 											/>
 
 											<Route

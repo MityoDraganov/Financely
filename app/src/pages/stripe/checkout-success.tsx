@@ -4,16 +4,42 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { storePlanContext } from "@/utils/plan-context";
+import { useOnboardingStore, STEPS } from "@/hooks/use-onboarding-store";
+
+const ONBOARDING_CHECKOUT_FLAG = "financely_onboarding_checkout";
 
 export default function CheckoutSuccessPage(): React.ReactElement {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = React.useState(true);
+  const setCurrentStep = useOnboardingStore((state) => state.setCurrentStep);
 
   useEffect(() => {
     const planId = searchParams.get("plan_id") || searchParams.get("plan");
     const sessionId = searchParams.get("session_id");
+    const isFromOnboarding = sessionStorage.getItem(ONBOARDING_CHECKOUT_FLAG) === "true";
 
+    // Store session ID if available (for future reference)
+    if (sessionId) {
+      sessionStorage.setItem("financely_stripe_session_id", sessionId);
+    }
+
+    // If user came from onboarding, redirect back to onboarding success step
+    if (isFromOnboarding) {
+      sessionStorage.removeItem(ONBOARDING_CHECKOUT_FLAG);
+      setIsProcessing(false);
+      
+      // Set onboarding step to SUCCESS
+      setCurrentStep(STEPS.SUCCESS);
+      
+      // Redirect to onboarding page
+      setTimeout(() => {
+        navigate("/onboarding", { replace: true });
+      }, 1500);
+      return;
+    }
+
+    // Original flow for non-onboarding checkouts
     if (!planId) {
       // No plan ID, redirect to sign-up without plan context
       navigate("/sign-up", { replace: true });
@@ -23,11 +49,6 @@ export default function CheckoutSuccessPage(): React.ReactElement {
     // Store plan context
     storePlanContext(planId, "stripe");
 
-    // Store session ID if available (for future reference)
-    if (sessionId) {
-      sessionStorage.setItem("financely_stripe_session_id", sessionId);
-    }
-
     setIsProcessing(false);
 
     // Redirect to sign-up with plan context
@@ -36,7 +57,7 @@ export default function CheckoutSuccessPage(): React.ReactElement {
         replace: true,
       });
     }, 1500);
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setCurrentStep]);
 
   if (isProcessing) {
     return (

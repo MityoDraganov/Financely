@@ -20,6 +20,7 @@ interface OnboardingButtonsProps {
   onBrandingSave: () => void;
   onInvitesSkip: () => void;
   onInvitesContinue: () => void;
+  onPaywallSkip?: () => void;
   onComplete?: () => void;
 }
 
@@ -35,6 +36,7 @@ export function OnboardingButtons({
   onBrandingSave,
   onInvitesSkip,
   onInvitesContinue,
+  onPaywallSkip,
   onComplete,
 }: OnboardingButtonsProps) {
   const { t } = useTranslation();
@@ -124,6 +126,14 @@ export function OnboardingButtons({
         icon: <ArrowRight className="h-4 w-4" />,
         disabled: !inviteCode.trim(),
       },
+    },
+    [STEPS.PAYWALL]: {
+      right: {
+        label: t("onboarding.paywall.skip", { defaultValue: "Skip for now" }),
+        onClick: onPaywallSkip || (() => {}),
+        icon: <SkipForward className="ml-2 w-5 h-5" />,
+      },
+      layout: "center",
     },
     [STEPS.SUCCESS]: {
       right: {

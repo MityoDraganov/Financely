@@ -19,12 +19,8 @@ export function useFileUpload(): UseFileUploadResult {
     setError(null);
 
     try {
-      if (!file.type.startsWith("image/")) {
-        throw new Error("File must be an image");
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error("File size must be less than 5MB");
+      if (file.size > 20 * 1024 * 1024) {
+        throw new Error("File size must be less than 20MB");
       }
 
       setUploadProgress(25);

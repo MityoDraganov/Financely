@@ -1,7 +1,18 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
-export const subscriptionPlanSchema = z.enum(["free", "starter", "professional", "enterprise"]);
-export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>;
+
+/** Billing status schema - mirrors Stripe subscription statuses */
+export const billingStatusSchema = z.enum([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "canceled",
+  "incomplete",
+  "paused",
+]);
+export type BillingStatus = z.infer<typeof billingStatusSchema>;
+
 export const organizationDataSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -9,17 +20,21 @@ export const organizationDataSchema = z.object({
   website: z.string().url().optional(),
   memberIds: z.array(z.string()).default([]),
   status: z.enum(["active", "suspended", "deleted"]).default("active"),
-  subscription: z
+  /** Billing state synced from Stripe via webhooks */
+  billing: z
     .object({
-      plan: subscriptionPlanSchema.default("free"),
-      status: z.enum(["active", "trialing", "past_due", "cancelled"]).default("active"),
-      currentPeriodStart: z.string().optional(),
+      stripeCustomerId: z.string().optional(),
+      stripeSubscriptionId: z.string().optional(),
+      status: billingStatusSchema.default("incomplete"),
       currentPeriodEnd: z.string().optional(),
-      trialEnd: z.string().optional(),
+      cancelAtPeriodEnd: z.boolean().default(false),
+      /** Feature entitlements derived from Stripe product metadata */
+      entitlements: z.record(z.string(), z.boolean()).default({}),
     })
     .default({
-      plan: "free",
-      status: "active",
+      status: "incomplete",
+      cancelAtPeriodEnd: false,
+      entitlements: {},
     }),
   settings: z
     .object({
@@ -359,7 +374,20 @@ export type CreateOrganizationInput = Pick<OrganizationData, "name"> & {
 };
 
 export function isOrganizationActive(org: Organization): boolean {
-  return org.status === "active" && org.subscription.status === "active";
+  const billingStatus = org.billing?.status;
+  return org.status === "active" && (billingStatus === "active" || billingStatus === "trialing");
+}
+
+/** Check if organization has read access (active, trialing, or past_due) */
+export function canOrgRead(org: Organization): boolean {
+  const billingStatus = org.billing?.status;
+  return org.status === "active" && (billingStatus === "active" || billingStatus === "trialing" || billingStatus === "past_due");
+}
+
+/** Check if organization has write access (active or trialing only) */
+export function canOrgWrite(org: Organization): boolean {
+  const billingStatus = org.billing?.status;
+  return org.status === "active" && (billingStatus === "active" || billingStatus === "trialing");
 }
 
 export function hasFeature(

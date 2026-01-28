@@ -11,7 +11,8 @@ export const STEPS = {
   INVITES: 5,
   JOIN_ORG: 6,
   SIGN_UP: 7,
-  SUCCESS: 8,
+  PAYWALL: 8,
+  SUCCESS: 9,
 } as const;
 
 interface OnboardingStore {

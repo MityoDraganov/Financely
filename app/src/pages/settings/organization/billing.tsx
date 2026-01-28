@@ -129,9 +129,10 @@ export default function OrganizationBillingPage() {
     );
   }
 
-  const subscription = organization.subscription;
-  const isActive = subscription.status === "active" || subscription.status === "trialing";
-  const isTrialing = subscription.status === "trialing";
+  const billing = organization.billing;
+  const isActive = billing?.status === "active" || billing?.status === "trialing";
+  const isTrialing = billing?.status === "trialing";
+  const isPastDue = billing?.status === "past_due";
   const usage = organization.usage;
 
   const formatDate = (dateString?: string) => {
@@ -139,46 +140,10 @@ export default function OrganizationBillingPage() {
     return formatDateShort(new Date(dateString));
   };
 
-  const getPlanFeatures = (plan: string) => {
-    return (
-      (t(`settings.organization.billing.planFeatures.${plan}`, {
-        returnObjects: true,
-      }) as string[]) || []
-    );
-  };
+  // Since plans are managed in Stripe, we show basic subscription info
+  // Plan-specific features and limits come from Stripe entitlements
+  const hasActiveSubscription = isActive || isTrialing;
 
-  const getPlanPrice = (plan: string) => {
-    const prices = {
-      free: { monthly: 0, yearly: 0 },
-      starter: { monthly: 29, yearly: 290 },
-      professional: { monthly: 99, yearly: 990 },
-      enterprise: { monthly: 299, yearly: 2990 },
-    };
-    return prices[plan as keyof typeof prices] || prices.free;
-  };
-
-  const getPlanLimits = (plan: string) => {
-    const limits = {
-      free: { invoices: 5, templates: 3, members: 1, storage: 100 },
-      starter: { invoices: 50, templates: 20, members: 3, storage: 1000 },
-      professional: { invoices: 500, templates: 100, members: 10, storage: 10000 },
-      enterprise: { invoices: Infinity, templates: Infinity, members: Infinity, storage: Infinity },
-    };
-    return limits[plan as keyof typeof limits] || limits.free;
-  };
-
-  const currentPlanPrice = getPlanPrice(subscription.plan);
-  const features = getPlanFeatures(subscription.plan);
-  const limits = getPlanLimits(subscription.plan);
-
-  const calculateUsagePercentage = (used: number, limit: number) => {
-    if (limit === Infinity) return 0;
-    return Math.min((used / limit) * 100, 100);
-  };
-
-  const avgCostPerInvoice = currentPlanPrice.monthly > 0 
-    ? (currentPlanPrice.monthly / Math.max(usage.invoiceCount, 1)).toFixed(2)
-    : "0.00";
   const storageInGB = (usage.storageBytes / (1024 * 1024 * 1024)).toFixed(2);
 
   // Get current period data
@@ -220,10 +185,10 @@ export default function OrganizationBillingPage() {
                       </CardDescription>
                     </div>
                     <Badge
-                      variant={isActive ? "default" : "destructive"}
+                      variant={isActive ? "default" : isPastDue ? "secondary" : "destructive"}
                       className="capitalize"
                     >
-                      {subscription.status}
+                      {billing?.status || "No Subscription"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -231,13 +196,13 @@ export default function OrganizationBillingPage() {
                   {/* Plan Info */}
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <h3 className="text-2xl font-semibold capitalize">
-                        {subscription.plan} Plan
+                      <h3 className="text-2xl font-semibold">
+                        {hasActiveSubscription ? "Active Subscription" : "No Active Subscription"}
                       </h3>
                       <p className="text-muted-foreground">
-                        {currentPlanPrice.monthly === 0
-                          ? "Free forever"
-                          : `$${currentPlanPrice.monthly}/month`}
+                        {hasActiveSubscription 
+                          ? "Manage your subscription via Stripe" 
+                          : "Subscribe to unlock all features"}
                       </p>
                     </div>
                     {isTrialing && (
@@ -245,33 +210,34 @@ export default function OrganizationBillingPage() {
                         <Badge variant="outline" className="text-orange-600 border-orange-600">
                           Trial
                         </Badge>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Ends {formatDate(subscription.trialEnd)}
-                        </p>
+                      </div>
+                    )}
+                    {isPastDue && (
+                      <div className="text-right">
+                        <Badge variant="outline" className="text-red-600 border-red-600">
+                          Payment Required
+                        </Badge>
                       </div>
                     )}
                   </div>
 
                   {/* Billing Cycle Info */}
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Current Period</p>
-                      <p className="text-sm font-medium">
-                        {subscription.currentPeriodStart
-                          ? formatDate(subscription.currentPeriodStart)
-                          : "N/A"}{" "}
-                        - {subscription.currentPeriodEnd ? formatDate(subscription.currentPeriodEnd) : "N/A"}
-                      </p>
+                  {hasActiveSubscription && (
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Current Period Ends</p>
+                        <p className="text-sm font-medium">
+                          {billing?.currentPeriodEnd ? formatDate(billing.currentPeriodEnd) : "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Auto-Renew</p>
+                        <p className="text-sm font-medium">
+                          {billing?.cancelAtPeriodEnd ? "Cancels at period end" : "Enabled"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Next Billing Date</p>
-                      <p className="text-sm font-medium">
-                        {subscription.currentPeriodEnd
-                          ? formatDate(subscription.currentPeriodEnd)
-                          : "N/A"}
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Payment Method */}
                   <div className="space-y-3">
@@ -322,27 +288,33 @@ export default function OrganizationBillingPage() {
                     />
                   </div>
 
-                  {/* Plan Features */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Plan Features</h4>
-                    <ul className="space-y-2">
-                      {features.map((feature, index) => (
-                        <li key={index} className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Plan Features - from Stripe entitlements */}
+                  {billing?.entitlements && Object.keys(billing.entitlements).length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Enabled Features</h4>
+                      <ul className="space-y-2">
+                        {Object.entries(billing.entitlements)
+                          .filter(([, enabled]) => enabled)
+                          .map(([feature]) => (
+                            <li key={feature} className="flex items-center gap-2 text-sm">
+                              <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                              <span className="capitalize">{feature.replace(/_/g, " ")}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2">
-                    {subscription.plan !== "enterprise" && (
+                    {!hasActiveSubscription && (
                       <Button onClick={() => setIsUpgrading(true)} disabled={isUpgrading}>
-                        {isUpgrading ? "Processing..." : "Upgrade Plan"}
+                        {isUpgrading ? "Processing..." : "Subscribe Now"}
                       </Button>
                     )}
-                    <Button variant="outline">Manage Billing</Button>
+                    {billing?.stripeCustomerId && (
+                      <Button variant="outline">Manage Billing</Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -451,18 +423,9 @@ export default function OrganizationBillingPage() {
                               </TooltipProvider>
                             </div>
                             <span className="text-muted-foreground">
-                              {currentPeriodData?.invoices ?? usage.invoiceCount} / {limits.invoices === Infinity ? "∞" : limits.invoices}
+                              {currentPeriodData?.invoices ?? usage.invoiceCount}
                             </span>
                           </div>
-                          {limits.invoices !== Infinity && (
-                            <Progress
-                              value={calculateUsagePercentage(
-                                currentPeriodData?.invoices ?? usage.invoiceCount,
-                                limits.invoices
-                              )}
-                              className="h-2"
-                            />
-                          )}
                         </div>
 
                         {/* Templates */}
@@ -473,18 +436,9 @@ export default function OrganizationBillingPage() {
                               <span className="font-medium">Templates</span>
                             </div>
                             <span className="text-muted-foreground">
-                              {currentPeriodData?.templates ?? usage.templateCount} / {limits.templates === Infinity ? "∞" : limits.templates}
+                              {currentPeriodData?.templates ?? usage.templateCount}
                             </span>
                           </div>
-                          {limits.templates !== Infinity && (
-                            <Progress
-                              value={calculateUsagePercentage(
-                                currentPeriodData?.templates ?? usage.templateCount,
-                                limits.templates
-                              )}
-                              className="h-2"
-                            />
-                          )}
                         </div>
 
                         {/* Team Members */}
@@ -495,18 +449,9 @@ export default function OrganizationBillingPage() {
                               <span className="font-medium">Team Members</span>
                             </div>
                             <span className="text-muted-foreground">
-                              {currentPeriodData?.members ?? organization.memberIds.length} / {limits.members === Infinity ? "∞" : limits.members}
+                              {currentPeriodData?.members ?? organization.memberIds.length}
                             </span>
                           </div>
-                          {limits.members !== Infinity && (
-                            <Progress
-                              value={calculateUsagePercentage(
-                                currentPeriodData?.members ?? organization.memberIds.length,
-                                limits.members
-                              )}
-                              className="h-2"
-                            />
-                          )}
                         </div>
 
                         {/* Storage */}
@@ -519,20 +464,9 @@ export default function OrganizationBillingPage() {
                             <span className="text-muted-foreground">
                               {currentPeriodData?.storageMB 
                                 ? `${(currentPeriodData.storageMB / 1024).toFixed(2)} GB`
-                                : `${storageInGB} GB`} / {limits.storage === Infinity ? "∞" : `${limits.storage} GB`}
+                                : `${storageInGB} GB`}
                             </span>
                           </div>
-                          {limits.storage !== Infinity && (
-                            <Progress
-                              value={calculateUsagePercentage(
-                                currentPeriodData?.storageMB 
-                                  ? currentPeriodData.storageMB / 1024
-                                  : usage.storageBytes / (1024 * 1024 * 1024),
-                                limits.storage
-                              )}
-                              className="h-2"
-                            />
-                          )}
                         </div>
                       </div>
 
@@ -662,49 +596,48 @@ export default function OrganizationBillingPage() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Available Plans */}
+              {/* Subscription Actions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Available Plans</CardTitle>
-                  <CardDescription>Upgrade to unlock more features</CardDescription>
+                  <CardTitle>Subscription</CardTitle>
+                  <CardDescription>
+                    {hasActiveSubscription 
+                      ? "Manage your subscription" 
+                      : "Subscribe to unlock all features"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {["starter", "professional", "enterprise"].map((plan) => {
-                    const planPrice = getPlanPrice(plan);
-                    const isCurrentPlan = plan === subscription.plan;
-
-                    return (
-                      <div
-                        key={plan}
-                        className={`p-4 rounded-lg border transition-colors ${
-                          isCurrentPlan
-                            ? "border-primary bg-primary/10 dark:bg-primary/20"
-                            : "border-border hover:border-primary/50"
-                        }`}
+                  {!hasActiveSubscription ? (
+                    <div className="p-4 rounded-lg border border-primary bg-primary/10">
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Get started with a subscription to access all features.
+                      </p>
+                      <Button 
+                        className="w-full" 
+                        onClick={() => setIsUpgrading(true)}
+                        disabled={isUpgrading}
                       >
+                        {isUpgrading ? "Processing..." : "View Plans"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-lg border border-primary bg-primary/10">
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold capitalize">{plan}</h4>
-                          {isCurrentPlan && (
-                            <Badge variant="default">Current</Badge>
-                          )}
+                          <h4 className="font-semibold">Active Subscription</h4>
+                          <Badge variant="default">Active</Badge>
                         </div>
-                        <div className="text-2xl font-bold mb-2">
-                          ${planPrice.monthly}
-                          <span className="text-sm font-normal text-muted-foreground">
-                            /month
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          variant={isCurrentPlan ? "outline" : "default"}
-                          disabled={isCurrentPlan}
-                        >
-                          {isCurrentPlan ? "Current Plan" : "Upgrade"}
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {billing?.cancelAtPeriodEnd 
+                            ? `Cancels on ${formatDate(billing?.currentPeriodEnd)}`
+                            : `Renews on ${formatDate(billing?.currentPeriodEnd)}`}
+                        </p>
+                        <Button variant="outline" className="w-full">
+                          Manage Subscription
                         </Button>
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -895,36 +828,28 @@ export default function OrganizationBillingPage() {
           </Card>
 
           {/* Upcoming Invoice Preview */}
-          {subscription.currentPeriodEnd && (
+          {billing?.currentPeriodEnd && hasActiveSubscription && (
             <Card>
               <CardHeader>
-                <CardTitle>Upcoming Invoice</CardTitle>
+                <CardTitle>Next Billing</CardTitle>
                 <CardDescription>
-                  Preview of your next billing cycle
+                  Your subscription will {billing?.cancelAtPeriodEnd ? "end" : "renew"} on {formatDate(billing?.currentPeriodEnd)}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Billing Period</span>
+                    <span className="text-sm text-muted-foreground">Current Period Ends</span>
                     <span className="text-sm font-medium">
-                      {formatDate(subscription.currentPeriodStart)} -{" "}
-                      {formatDate(subscription.currentPeriodEnd)}
+                      {formatDate(billing?.currentPeriodEnd)}
                     </span>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      {subscription.plan} Plan
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <span className="text-sm font-medium capitalize">
+                      {billing?.cancelAtPeriodEnd ? "Canceling" : "Active"}
                     </span>
-                    <span className="text-sm font-medium">
-                      ${currentPlanPrice.monthly}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-lg font-semibold">
-                    <span>Total</span>
-                    <span>${currentPlanPrice.monthly}</span>
                   </div>
                 </div>
               </CardContent>

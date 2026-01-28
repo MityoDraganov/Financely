@@ -22,6 +22,7 @@ import {
   InviteStep,
   JoinOrgStep,
   SignUpStep,
+  PaywallStep,
   SuccessStep,
   OnboardingLanguageSelector,
 } from "./steps";
@@ -75,8 +76,8 @@ export function PreSignupOnboardingFlow() {
 
     // Only create organization for "create" path, not "join" path
     if (useOnboardingStore.getState().path !== "create") {
-      // For join path, just go to success
-      setCurrentStep(STEPS.SUCCESS);
+      // For join path, go to paywall
+      setCurrentStep(STEPS.PAYWALL);
       return;
     }
 
@@ -123,13 +124,13 @@ export function PreSignupOnboardingFlow() {
 
         await createOrganization.mutateAsync(orgData);
         
-        console.log("[PreSignupOnboardingFlow] Organization created successfully, navigating to SUCCESS");
+        console.log("[PreSignupOnboardingFlow] Organization created successfully, navigating to PAYWALL");
         toast.success(t("onboarding.messages.orgCreated", { defaultValue: "Organization created successfully!" }));
 
-        // Navigate to SUCCESS step
+        // Navigate to PAYWALL step
         // Note: User and organization queries are invalidated by the mutation,
         // so they will refetch automatically when the dashboard loads
-        setCurrentStep(STEPS.SUCCESS);
+        setCurrentStep(STEPS.PAYWALL);
       } catch (error) {
         console.error("[PreSignupOnboardingFlow] Failed to create organization:", error);
         const errorMessage = error instanceof Error ? error.message : t("onboarding.messages.orgCreateFailed", { defaultValue: "Failed to create organization. Please try again." });
@@ -193,9 +194,9 @@ export function PreSignupOnboardingFlow() {
       return;
     }
 
-    // Store invite code and mark as complete, then redirect to sign-up
+    // Store invite code and redirect to sign-up
     setInviteCode(inviteCode.trim().toUpperCase());
-    setCurrentStep(STEPS.SUCCESS);
+    setCurrentStep(STEPS.SIGN_UP);
   };
 
   const handleCreateOrganization = () => {
@@ -230,6 +231,14 @@ export function PreSignupOnboardingFlow() {
 
   const handleInvitesContinue = () => {
     setCurrentStep(STEPS.SIGN_UP);
+  };
+
+  const handlePaywallNext = () => {
+    setCurrentStep(STEPS.SUCCESS);
+  };
+
+  const handlePaywallSkip = () => {
+    setCurrentStep(STEPS.SUCCESS);
   };
 
   return (
@@ -323,6 +332,10 @@ export function PreSignupOnboardingFlow() {
               <SignUpStep key="signup" isCreating={isCreatingOrg} />
             )}
 
+            {currentStep === STEPS.PAYWALL && (
+              <PaywallStep key="paywall" onNext={handlePaywallNext} onSkip={handlePaywallSkip} />
+            )}
+
             {currentStep === STEPS.SUCCESS && (
               <SuccessStep key="success" orgName={formData.name} onComplete={handleComplete} />
             )}
@@ -345,6 +358,7 @@ export function PreSignupOnboardingFlow() {
             onBrandingSave={handleBrandingSave}
             onInvitesSkip={handleInvitesSkip}
             onInvitesContinue={handleInvitesContinue}
+            onPaywallSkip={handlePaywallSkip}
             onComplete={handleComplete}
           />
         </div>

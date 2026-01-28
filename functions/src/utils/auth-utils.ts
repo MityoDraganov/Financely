@@ -40,6 +40,18 @@ export interface AuthOptions {
    * If true, requires owner role
    */
   requireOwner?: boolean;
+  
+  /**
+   * If true, requires active subscription for write operations.
+   * When set, past_due subscriptions will be blocked (read-only mode).
+   * Canceled/unpaid subscriptions are always blocked regardless of this flag.
+   */
+  requireWriteAccess?: boolean;
+  
+  /**
+   * If true, skip billing checks entirely (use for billing-related endpoints)
+   */
+  skipBillingCheck?: boolean;
 }
 
 /**
@@ -117,6 +129,27 @@ export async function verifyAuthAndOrgMembership(
       "permission-denied",
       "Organization is not active"
     );
+  }
+
+  // Check billing/subscription status (unless explicitly skipped)
+  if (!options.skipBillingCheck) {
+    const billingStatus = orgData.billing?.status as string | undefined;
+    
+    // Full lock for canceled, unpaid, or no subscription
+    if (billingStatus === "canceled" || billingStatus === "unpaid" || !billingStatus || billingStatus === "incomplete") {
+      throw new HttpsError(
+        "permission-denied",
+        "Active subscription required. Please update your billing."
+      );
+    }
+    
+    // Read-only mode for past_due when write access is required
+    if (billingStatus === "past_due" && options.requireWriteAccess) {
+      throw new HttpsError(
+        "permission-denied",
+        "Payment past due. Your account is in read-only mode. Please update your payment method."
+      );
+    }
   }
 
   // Check if user is a member

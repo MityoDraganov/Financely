@@ -105,9 +105,10 @@ export const createOrganization = onCall<
         ...(payload.website && { website: payload.website.trim() }),
         memberIds: [auth.uid], // Add creator as member
         status: "active",
-        subscription: {
-          plan: "free",
-          status: "active",
+        billing: {
+          status: "incomplete",
+          cancelAtPeriodEnd: false,
+          entitlements: {},
         },
         settings: {
           brandColors,

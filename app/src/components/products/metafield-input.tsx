@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { ProductMetafieldDefinition } from "@/core";
 import { useMetaobjects, useMetaobjectDefinitions, useCreateMetaobject } from "@/hooks/repository-hooks/use-metaobjects";
 import { toast } from "sonner";
 import { CreateMetaobjectEntryDialog } from "./create-metaobject-entry-dialog";
+import { SelectFileDialog } from "./select-file-dialog";
 
 interface MetafieldInputProps {
   definition: ProductMetafieldDefinition;
@@ -69,8 +70,14 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
   const isListType = definition.type.startsWith("list.");
   const baseType = isListType ? definition.type.replace("list.", "") : definition.type;
   
-  const { data: metaobjects = [] } = useMetaobjects(organizationId);
-  const { data: metaobjectDefinitions = [] } = useMetaobjectDefinitions(organizationId);
+  const { data: metaobjects = [], error: metaobjectsError } = useMetaobjects(organizationId);
+  if (metaobjectsError) {
+    console.error(metaobjectsError);
+  }
+  const { data: metaobjectDefinitions = [], error: metaobjectDefinitionsError } = useMetaobjectDefinitions(organizationId);
+  if (metaobjectDefinitionsError) {
+    console.error(metaobjectDefinitionsError);
+  }
 
   const [metaobjectListOpen, setMetaobjectListOpen] = useState(false);
   const [metaobjectListSearch, setMetaobjectListSearch] = useState("");
@@ -84,6 +91,8 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
 
   const [isCreatingMetaobject, setIsCreatingMetaobject] = useState(false);
   const createMetaobjectMutation = useCreateMetaobject();
+  const [fileDialogOpen, setFileDialogOpen] = useState(false);
+  const [fileDialogFieldType, setFileDialogFieldType] = useState<"file_reference" | "file_reference_image" | "file_reference_video" | null>(null);
 
   const handleChange = (newValue: unknown) => {
     onChange(newValue);
@@ -101,7 +110,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
       return renderSingleMetaobjectInput();
     }
 
-    return renderSingleInput(definition.type, value, handleChange);
+    return renderSingleInput(definition.type, value, handleChange, false);
   };
 
   const renderListInput = () => {
@@ -117,7 +126,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
                 const newList = [...listValue];
                 newList[index] = newItem;
                 handleChange(newList);
-              })}
+              }, true)}
             </div>
             <Button
               type="button"
@@ -470,7 +479,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
     );
   };
 
-  const renderSingleInput = (type: string, currentValue: unknown, onValueChange: (val: unknown) => void) => {
+  const renderSingleInput = (type: string, currentValue: unknown, onValueChange: (val: unknown) => void, isList: boolean = false) => {
     switch (type) {
       case "single_line_text_field":
       case "single_line_text_field_email":
@@ -661,10 +670,87 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
           </div>
         );
 
-      case "id":
       case "file_reference":
       case "file_reference_image":
-      case "file_reference_video":
+      case "file_reference_video": {
+        if (!organizationId) {
+          return (
+            <Input
+              type="text"
+              value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
+              onChange={(e) => onValueChange(e.target.value || undefined)}
+              placeholder="Enter file URL"
+              className={error ? "border-destructive" : ""}
+              disabled
+            />
+          );
+        }
+        const fileValue = currentValue === null || currentValue === undefined ? undefined : (Array.isArray(currentValue) ? currentValue : typeof currentValue === "string" ? [currentValue] : []);
+        const fileUrls = fileValue || [];
+        const isImage = type === "file_reference_image";
+        const isVideo = type === "file_reference_video";
+        const IconComponent = isImage ? ImageIcon : isVideo ? Video : FileIcon;
+
+        return (
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFileDialogFieldType(type as "file_reference" | "file_reference_image" | "file_reference_video");
+                setFileDialogOpen(true);
+              }}
+              className="w-full"
+            >
+              <IconComponent className="h-4 w-4 mr-2" />
+              Select {isImage ? "image" : isVideo ? "video" : "file"}
+            </Button>
+            {fileUrls.length > 0 && (
+              <div className="space-y-2">
+                {fileUrls.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 border rounded-md">
+                    {isImage && typeof url === "string" ? (
+                      <img src={url} alt="" className="h-10 w-10 object-cover rounded" />
+                    ) : (
+                      <IconComponent className="h-10 w-10 text-muted-foreground" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{typeof url === "string" ? url.split("/").pop() : "File"}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newUrls = fileUrls.filter((_, i) => i !== index);
+                        onValueChange(newUrls.length > 0 ? (isList ? newUrls : newUrls[0]) : undefined);
+                      }}
+                      className="h-8 w-8 shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <SelectFileDialog
+              open={fileDialogOpen && fileDialogFieldType === type}
+              onOpenChange={setFileDialogOpen}
+              onSelect={(selected) => {
+                const urls = Array.isArray(selected) ? selected : [selected];
+                onValueChange(urls.length > 0 ? (isList ? urls : urls[0]) : undefined);
+                setFileDialogOpen(false);
+              }}
+              organizationId={organizationId}
+              fieldType={fileDialogFieldType || "file_reference"}
+              multiple={isList}
+              currentValue={fileUrls}
+            />
+          </div>
+        );
+      }
+
+      case "id":
       case "article_reference":
       case "collection_reference":
       case "company_reference":
@@ -803,6 +889,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
           metaobjectDefinition={targetMetaobjectDefinition}
           onSubmit={handleCreateMetaobject}
           isPending={createMetaobjectMutation.isPending}
+          organizationId={organizationId}
         />
       )}
     </>

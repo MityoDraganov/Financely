@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MetaobjectDefinition, MetaobjectFieldDefinition, MetaobjectFieldType } from "@/core";
 import { toast } from "sonner";
+import { SelectFileDialog } from "./select-file-dialog";
 
 interface CreateMetaobjectEntryDialogProps {
   open: boolean;
@@ -15,6 +16,7 @@ interface CreateMetaobjectEntryDialogProps {
   metaobjectDefinition: Pick<MetaobjectDefinition, "id" | "name" | "fieldDefinitions">;
   onSubmit: (fields: Record<string, unknown>) => Promise<void>;
   isPending?: boolean;
+  organizationId?: string;
 }
 
 export function CreateMetaobjectEntryDialog({
@@ -23,8 +25,12 @@ export function CreateMetaobjectEntryDialog({
   metaobjectDefinition,
   onSubmit,
   isPending = false,
+  organizationId,
 }: CreateMetaobjectEntryDialogProps) {
   const [fields, setFields] = useState<Record<string, unknown>>({});
+  const [fileDialogOpen, setFileDialogOpen] = useState(false);
+  const [fileDialogFieldKey, setFileDialogFieldKey] = useState<string | null>(null);
+  const [fileDialogFieldType, setFileDialogFieldType] = useState<"file_reference" | "file_reference_image" | "file_reference_video" | null>(null);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
@@ -63,14 +69,14 @@ export function CreateMetaobjectEntryDialog({
       return (
         <div className="space-y-2">
           {listValue.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={index} className="flex items-center gap-2 min-w-0">
               <GripVertical className="h-5 w-5 text-muted-foreground cursor-move shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {renderSingleFieldInput(baseType, item, (newItem) => {
                   const newList = [...listValue];
                   newList[index] = newItem;
                   handleFieldChange(fieldDef.key, newList);
-                })}
+                }, fieldDef.key, index, true)}
               </div>
               <Button
                 type="button"
@@ -102,10 +108,10 @@ export function CreateMetaobjectEntryDialog({
       );
     }
 
-    return renderSingleFieldInput(fieldDef.type, value, (val) => handleFieldChange(fieldDef.key, val));
+    return renderSingleFieldInput(fieldDef.type, value, (val) => handleFieldChange(fieldDef.key, val), fieldDef.key, -1, false);
   };
 
-  const renderSingleFieldInput = (type: MetaobjectFieldDefinition["type"], currentValue: unknown, onValueChange: (val: unknown) => void) => {
+  const renderSingleFieldInput = (type: MetaobjectFieldDefinition["type"], currentValue: unknown, onValueChange: (val: unknown) => void, fieldKey: string, listIndex: number, isList: boolean) => {
     switch (type) {
       case MetaobjectFieldType.SINGLE_LINE_TEXT_FIELD:
         return (
@@ -113,6 +119,7 @@ export function CreateMetaobjectEntryDialog({
             type="text"
             value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
+            className="w-full max-w-full"
           />
         );
 
@@ -123,6 +130,7 @@ export function CreateMetaobjectEntryDialog({
             value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
             rows={4}
+            className="w-full max-w-full"
           />
         );
 
@@ -136,6 +144,7 @@ export function CreateMetaobjectEntryDialog({
               const val = e.target.value;
               onValueChange(val === "" ? undefined : parseInt(val, 10));
             }}
+            className="w-full max-w-full"
           />
         );
 
@@ -150,20 +159,82 @@ export function CreateMetaobjectEntryDialog({
               const val = e.target.value;
               onValueChange(val === "" ? undefined : parseFloat(val));
             }}
+            className="w-full max-w-full"
           />
         );
 
       case MetaobjectFieldType.FILE_REFERENCE:
       case MetaobjectFieldType.FILE_REFERENCE_IMAGE:
-      case MetaobjectFieldType.FILE_REFERENCE_VIDEO:
+      case MetaobjectFieldType.FILE_REFERENCE_VIDEO: {
+        const fileValue = currentValue === null || currentValue === undefined ? undefined : (Array.isArray(currentValue) ? currentValue : typeof currentValue === "string" ? [currentValue] : []);
+        const fileUrls = fileValue || [];
+        const isImage = type === MetaobjectFieldType.FILE_REFERENCE_IMAGE;
+        const isVideo = type === MetaobjectFieldType.FILE_REFERENCE_VIDEO;
+        const IconComponent = isImage ? ImageIcon : isVideo ? Video : FileIcon;
+        const dialogKey = `${fieldKey}-${listIndex}`;
+
         return (
-          <Input
-            type="text"
-            value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
-            onChange={(e) => onValueChange(e.target.value || undefined)}
-            placeholder="Enter file ID"
-          />
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFileDialogFieldKey(dialogKey);
+                setFileDialogFieldType(type as "file_reference" | "file_reference_image" | "file_reference_video");
+                setFileDialogOpen(true);
+              }}
+              disabled={!organizationId}
+              className="w-full"
+            >
+              <IconComponent className="h-4 w-4 mr-2" />
+              Select {isImage ? "image" : isVideo ? "video" : "file"}
+            </Button>
+            {fileUrls.length > 0 && (
+              <div className="space-y-2">
+                {fileUrls.map((url, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 border rounded-md min-w-0">
+                    {isImage && typeof url === "string" ? (
+                      <img src={url} alt="" className="h-10 w-10 object-cover rounded shrink-0" />
+                    ) : (
+                      <IconComponent className="h-10 w-10 text-muted-foreground shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-sm truncate">{typeof url === "string" ? url.split("/").pop() : "File"}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newUrls = fileUrls.filter((_, i) => i !== index);
+                        onValueChange(newUrls.length > 0 ? (isList ? newUrls : newUrls[0]) : undefined);
+                      }}
+                      className="h-8 w-8 shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {organizationId && (
+              <SelectFileDialog
+                open={fileDialogOpen && fileDialogFieldKey === dialogKey}
+                onOpenChange={setFileDialogOpen}
+                onSelect={(selected) => {
+                  const urls = Array.isArray(selected) ? selected : [selected];
+                  onValueChange(urls.length > 0 ? (isList ? urls : urls[0]) : undefined);
+                  setFileDialogOpen(false);
+                }}
+                organizationId={organizationId}
+                fieldType={fileDialogFieldType || "file_reference"}
+                multiple={isList}
+                currentValue={fileUrls}
+              />
+            )}
+          </div>
         );
+      }
 
       case MetaobjectFieldType.METAOBJECT_REFERENCE:
         return (
@@ -172,6 +243,7 @@ export function CreateMetaobjectEntryDialog({
             value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
             placeholder="Enter metaobject ID"
+            className="w-full max-w-full"
           />
         );
 
@@ -181,6 +253,7 @@ export function CreateMetaobjectEntryDialog({
             type="url"
             value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
+            className="w-full max-w-full"
           />
         );
 
@@ -190,6 +263,7 @@ export function CreateMetaobjectEntryDialog({
             type="date"
             value={currentValue === null || currentValue === undefined ? "" : typeof currentValue === "string" ? currentValue.split("T")[0] : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
+            className="w-full max-w-full"
           />
         );
 
@@ -199,6 +273,7 @@ export function CreateMetaobjectEntryDialog({
             type="datetime-local"
             value={currentValue === null || currentValue === undefined ? "" : typeof currentValue === "string" ? currentValue.slice(0, 16) : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
+            className="w-full max-w-full"
           />
         );
 
@@ -221,6 +296,7 @@ export function CreateMetaobjectEntryDialog({
             type="color"
             value={currentValue === null || currentValue === undefined ? "#000000" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value)}
+            className="w-full max-w-full"
           />
         );
 
@@ -238,6 +314,7 @@ export function CreateMetaobjectEntryDialog({
             }}
             rows={6}
             placeholder='{"key": "value"}'
+            className="w-full max-w-full"
           />
         );
 
@@ -247,6 +324,7 @@ export function CreateMetaobjectEntryDialog({
             type="text"
             value={currentValue === null || currentValue === undefined ? "" : String(currentValue)}
             onChange={(e) => onValueChange(e.target.value || undefined)}
+            className="w-full max-w-full"
           />
         );
     }
@@ -276,9 +354,9 @@ export function CreateMetaobjectEntryDialog({
             Create a new {metaobjectDefinition.name.toLowerCase()} entry
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {metaobjectDefinition.fieldDefinitions.map((fieldDef) => (
-            <div key={fieldDef.key} className="space-y-2">
+            <div key={fieldDef.key} className="space-y-2 min-w-0">
               <Label htmlFor={`field-${fieldDef.key}`}>
                 {fieldDef.name}
                 {fieldDef.required && <span className="text-destructive ml-1">*</span>}
@@ -286,7 +364,9 @@ export function CreateMetaobjectEntryDialog({
               {fieldDef.description && (
                 <p className="text-xs text-muted-foreground">{fieldDef.description}</p>
               )}
-              {renderFieldInput(fieldDef)}
+              <div className="min-w-0">
+                {renderFieldInput(fieldDef)}
+              </div>
             </div>
           ))}
         </div>

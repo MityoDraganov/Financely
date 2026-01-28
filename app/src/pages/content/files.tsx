@@ -1,16 +1,14 @@
 import { useState, useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { Search, FileText, Plus, Trash2, Download, Image as ImageIcon, Video, File } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Search, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFiles, useDeleteFile } from "@/hooks/repository-hooks/use-files";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { toast } from "sonner";
+import { FileCard } from "@/components/content/file-card";
 
 export default function FilesPage() {
-  const { t } = useTranslation();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
@@ -47,22 +45,11 @@ export default function FilesPage() {
     try {
       await deleteFile.mutateAsync(id);
       toast.success("File deleted successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete file");
     }
   };
 
-  const getFileIcon = (fileType: string) => {
-    switch (fileType) {
-      case "IMAGE":
-        return ImageIcon;
-      case "VIDEO":
-      case "EXTERNAL_VIDEO":
-        return Video;
-      default:
-        return File;
-    }
-  };
 
   if (isLoading) {
     return <div className="flex items-center justify-center p-8">Loading...</div>;
@@ -104,62 +91,10 @@ export default function FilesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredFiles.map((file) => {
-            const FileIcon = getFileIcon(file.fileType);
-            return (
-              <Card key={file.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  {file.fileType === "IMAGE" && file.url ? (
-                    <div className="aspect-square bg-muted relative">
-                      <img
-                        src={file.url}
-                        alt={file.alt || file.filename}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-square bg-muted flex items-center justify-center">
-                      <FileIcon className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-medium text-sm truncate flex-1" title={file.filename}>
-                        {file.filename}
-                      </h3>
-                      <div className="flex space-x-1 ml-2">
-                        {file.url && (
-                          <Button variant="ghost" size="icon" asChild>
-                            <a href={file.url} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(file.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {file.fileSize && (
-                      <p className="text-xs text-muted-foreground">
-                        {(file.fileSize / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    )}
-                    {file.fileStatus && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Status: {file.fileStatus}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8 gap-4">
+          {filteredFiles.map((file) => (
+            <FileCard key={file.id} file={file} onDelete={handleDelete} />
+          ))}
         </div>
       )}
     </div>

@@ -17,9 +17,10 @@ export class OrganizationDuplicator extends BaseDuplicator<Organization, Organiz
       website: entity.website,
       memberIds: [],
       status: "active",
-      subscription: {
-        plan: "free",
-        status: "active",
+      billing: {
+        status: "incomplete",
+        cancelAtPeriodEnd: false,
+        entitlements: {},
       },
       settings: {
         ...entity.settings,
@@ -53,9 +54,10 @@ export class OrganizationDuplicator extends BaseDuplicator<Organization, Organiz
       ...data,
       memberIds: [],
       status: "active",
-      subscription: {
-        plan: "free",
-        status: "active",
+      billing: {
+        status: "incomplete",
+        cancelAtPeriodEnd: false,
+        entitlements: {},
       },
       usage: {
         templateCount: 0,

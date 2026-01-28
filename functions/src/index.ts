@@ -71,6 +71,13 @@ export { sendWelcomeEmail } from "./functions/send-welcome-email";
 // Clerk webhook functions
 export { onClerkWebhookEvent } from "./functions/clerk/on-clerk-event-webhook";
 
+// Stripe webhook functions
+export { onStripeWebhook } from "./functions/stripe/on-stripe-webhook";
+
+// Stripe billing functions
+export { createCheckoutSession } from "./functions/stripe/create-checkout-session";
+export { createPortalSession } from "./functions/stripe/create-portal-session";
+
 // Clerk authentication functions
 export { verifyClerkToken } from "./functions/clerk/verify-clerk-token";
 export { verifyAdminClerkToken } from "./functions/clerk/verify-admin-clerk-token";

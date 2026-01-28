@@ -120,9 +120,12 @@ export const getUsageHistory = onCall<GetUsageHistoryPayload, Promise<GetUsageHi
       }
 
       // Calculate billing period dates
-      const subscriptionPeriodStart = organization.subscription?.currentPeriodStart
-        ? new Date(organization.subscription.currentPeriodStart)
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const billingPeriodEnd = organization.billing?.currentPeriodEnd
+        ? new Date(organization.billing.currentPeriodEnd)
+        : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
+      // Estimate period start as 30 days before period end
+      const subscriptionPeriodStart = new Date(billingPeriodEnd);
+      subscriptionPeriodStart.setDate(subscriptionPeriodStart.getDate() - 30);
 
       const { start: periodStart, end: periodEnd } = calculateBillingPeriod(
         subscriptionPeriodStart,
