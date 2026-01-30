@@ -29,6 +29,9 @@ export * from "./entities/metaobject";
 export * from "./entities/file";
 export * from "./entities/product-metafield";
 export * from "./entities/onboarding-progress";
+export * from "./entities/widget-block-schema";
+export * from "./entities/widget-definition";
+export * from "./entities/widget-version";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

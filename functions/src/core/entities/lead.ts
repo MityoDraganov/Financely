@@ -4,7 +4,7 @@ import { baseEntitySchema } from "./base";
 export const leadDataSchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),
   contactId: z.string().optional(), // Reference to the contact if one exists
-  widgetType: z.enum(["contactForm", "invoiceRequest", "quoteRequest"]),
+  widgetType: z.enum(["contactForm", "invoiceRequest", "quoteRequest", "modular"]),
   source: z.enum(["widget", "manual", "import"]).default("widget"),
   // Contact information from the submission
   firstName: z.string().optional(),

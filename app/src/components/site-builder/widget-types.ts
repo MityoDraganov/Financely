@@ -23,6 +23,8 @@ export interface WidgetStyling {
   modalBorderRadius: string;
   modalMaxWidth: string;
   shadow: string;
+  /** Public widget page background (e.g. shareable link). Falls back to primary tint if unset. */
+  pageBackgroundColor?: string;
 }
 
 export interface WidgetLocalization {

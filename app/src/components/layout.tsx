@@ -179,7 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			},
 			{
 				title: t("layout.navigation.siteBuilder"),
-				href: "/site-builder",
+				href: "/integrations",
 				icon: Sparkles,
 			},
 			{

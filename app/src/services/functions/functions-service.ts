@@ -1,5 +1,5 @@
 import { FunctionsService } from "@/core";
-import { firebase } from "@/infrastructure/firebase";
+import { firebase, projectId } from "@/infrastructure/firebase";
 import { httpsCallable } from "@firebase/functions";
 
 export const functionsService: FunctionsService = {
@@ -468,6 +468,103 @@ export const functionsService: FunctionsService = {
       SaveWidgetVersionPayload,
       Awaited<ReturnType<FunctionsService["saveWidgetVersion"]>>
     >(firebase.functions, "saveWidgetVersion")(payload);
+    return result.data;
+  },
+
+  async createWidgetDefinition(payload) {
+    type P = Parameters<FunctionsService["createWidgetDefinition"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["createWidgetDefinition"]>>>(
+      firebase.functions,
+      "createWidgetDefinition"
+    )(payload);
+    return result.data;
+  },
+
+  async updateWidgetDefinition(payload) {
+    type P = Parameters<FunctionsService["updateWidgetDefinition"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["updateWidgetDefinition"]>>>(
+      firebase.functions,
+      "updateWidgetDefinition"
+    )(payload);
+    return result.data;
+  },
+
+  async deleteWidgetDefinition(payload) {
+    type P = Parameters<FunctionsService["deleteWidgetDefinition"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["deleteWidgetDefinition"]>>>(
+      firebase.functions,
+      "deleteWidgetDefinition"
+    )(payload);
+    return result.data;
+  },
+
+  async saveModularWidgetVersion(payload) {
+    type P = Parameters<FunctionsService["saveModularWidgetVersion"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["saveModularWidgetVersion"]>>>(
+      firebase.functions,
+      "saveModularWidgetVersion"
+    )(payload);
+    return result.data;
+  },
+
+  async getModularWidgetDraft(payload) {
+    type P = Parameters<FunctionsService["getModularWidgetDraft"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["getModularWidgetDraft"]>>>(
+      firebase.functions,
+      "getModularWidgetDraft"
+    )(payload);
+    return result.data;
+  },
+
+  async listWidgetDefinitions(payload) {
+    type P = Parameters<FunctionsService["listWidgetDefinitions"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["listWidgetDefinitions"]>>>(
+      firebase.functions,
+      "listWidgetDefinitions"
+    )(payload);
+    return result.data;
+  },
+
+  async getModularWidgetConfig(params) {
+    const { organizationId, widgetId, widgetVersionId } = params;
+    const baseUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
+    const url = new URL(baseUrl);
+    url.pathname = "/getModularWidgetConfig";
+    url.searchParams.set("organizationId", organizationId);
+    url.searchParams.set("widgetId", widgetId);
+    if (widgetVersionId) url.searchParams.set("widgetVersionId", widgetVersionId);
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error ?? "Failed to load widget config");
+    }
+    return res.json();
+  },
+
+  async publishModularWidget(payload) {
+    type P = Parameters<FunctionsService["publishModularWidget"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["publishModularWidget"]>>>(
+      firebase.functions,
+      "publishModularWidget"
+    )(payload);
+    return result.data;
+  },
+
+  async unpublishModularWidget(payload) {
+    type P = Parameters<FunctionsService["unpublishModularWidget"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["unpublishModularWidget"]>>>(
+      firebase.functions,
+      "unpublishModularWidget"
+    )(payload);
+    return result.data;
+  },
+
+  async listModularWidgetVersions(payload) {
+    type P = Parameters<FunctionsService["listModularWidgetVersions"]>[0];
+    const result = await httpsCallable<P, Awaited<ReturnType<FunctionsService["listModularWidgetVersions"]>>>(
+      firebase.functions,
+      "listModularWidgetVersions"
+    )(payload);
     return result.data;
   },
 

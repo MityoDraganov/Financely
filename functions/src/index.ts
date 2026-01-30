@@ -108,8 +108,19 @@ export { publishBrandSite } from "./functions/publish-brand-site";
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";
 export { submitWidgetForm } from "./functions/submit-widget-form";
+export { submitModularWidget } from "./functions/submit-modular-widget";
 export { deployManualSite } from "./functions/deploy-manual-site";
 export { restoreWidgetVersion } from "./functions/restore-widget-version";
+export { createWidgetDefinition } from "./functions/create-widget-definition";
+export { updateWidgetDefinition } from "./functions/update-widget-definition";
+export { deleteWidgetDefinition } from "./functions/delete-widget-definition";
+export { saveModularWidgetVersion } from "./functions/save-modular-widget-version";
+export { getModularWidgetDraft } from "./functions/get-modular-widget-draft";
+export { listWidgetDefinitions } from "./functions/list-widget-definitions";
+export { getModularWidgetConfig } from "./functions/get-modular-widget-config";
+export { publishModularWidget } from "./functions/publish-modular-widget";
+export { unpublishModularWidget } from "./functions/unpublish-modular-widget";
+export { listModularWidgetVersions } from "./functions/list-modular-widget-versions";
 
 // Admin functions
 export { getAdminDashboardStats } from "./functions/admin/get-admin-dashboard-stats";

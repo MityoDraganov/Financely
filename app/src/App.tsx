@@ -42,7 +42,16 @@ import ContributorPortalPage from "./pages/marketplace/contributor-portal";
 import WorkflowsPage from "./pages/workflows/workflows-page";
 import WorkflowTemplatesPage from "./pages/workflows/workflow-templates-page";
 import WorkflowExecutionPage from "./pages/workflows/workflow-execution-page";
-import SiteBuilderPage from "./pages/site-builder/site-builder-page";
+// import SiteBuilderPage from "./pages/site-builder/site-builder-page";
+import IntegrationsWrapper from "./pages/integrations/integrations-wrapper";
+import { Navigate, useParams } from "react-router-dom";
+import WidgetPage from "./pages/widget/widget-page";
+
+function RedirectWidgetBuilderToIntegrations() {
+	const { widgetId } = useParams<{ widgetId: string }>();
+	return <Navigate to={widgetId ? `/integrations/${widgetId}` : "/integrations"} replace />;
+}
+import ModularWidgetPage from "./pages/widget/modular-widget-page";
 import AnalyticsPage from "./pages/analytics/analytics-page";
 import EmailDesignerWrapper from "./pages/email-designer-wrapper";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -152,6 +161,14 @@ function App() {
 											<Route
 												path="/stripe/checkout-success"
 												element={<CheckoutSuccessPage />}
+											/>
+											<Route
+												path="/widget/:organizationId/modular/:widgetId"
+												element={<ModularWidgetPage />}
+											/>
+											<Route
+												path="/widget/:organizationId/:widgetType"
+												element={<WidgetPage />}
 											/>
 
 											<Route
@@ -346,14 +363,28 @@ function App() {
 												}
 											/>
 											<Route
-												path="/site-builder"
+												path="/integrations"
 												element={
 													<ProtectedRoute>
-														<AppLayout>
-															<SiteBuilderPage />
-														</AppLayout>
+														<IntegrationsWrapper />
 													</ProtectedRoute>
 												}
+											/>
+											<Route
+												path="/integrations/:widgetId"
+												element={
+													<ProtectedRoute>
+														<IntegrationsWrapper />
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/integrations/widget-builder"
+												element={<Navigate to="/integrations" replace />}
+											/>
+											<Route
+												path="/integrations/widget-builder/:widgetId"
+												element={<RedirectWidgetBuilderToIntegrations />}
 											/>
 											<Route
 												path="/analytics"

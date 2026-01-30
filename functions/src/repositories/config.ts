@@ -25,4 +25,7 @@ export enum DatabaseCollection {
   ONBOARDING_PROGRESS = "onboardingProgress",
   PRODUCT_METAFIELD_DEFINITIONS = "productMetafieldDefinitions",
   PRODUCT_METAFIELDS = "productMetafields",
+  WIDGET_DEFINITIONS = "widgetDefinitions",
+  WIDGET_VERSIONS = "widgetVersions",
+  WIDGET_SUBMISSIONS = "widgetSubmissions",
 }

@@ -698,6 +698,100 @@ export interface FunctionsService {
     description?: string;
   }): Promise<{ success: boolean; organizationId: string; version: number }>;
 
+  createWidgetDefinition(payload: {
+    organizationId: string;
+    name: string;
+  }): Promise<{ success: boolean; widgetId: string }>;
+
+  updateWidgetDefinition(payload: {
+    organizationId: string;
+    widgetId: string;
+    name: string;
+  }): Promise<{ success: boolean; widgetId: string }>;
+
+  deleteWidgetDefinition(payload: {
+    organizationId: string;
+    widgetId: string;
+  }): Promise<{ success: boolean; widgetId: string }>;
+
+  saveModularWidgetVersion(payload: {
+    organizationId: string;
+    widgetId: string;
+    schema: import("@/core/entities/widget-block-schema").WidgetBlockSchema;
+    actions: import("@/core/entities/widget-block-schema").WidgetVersionActions;
+  }): Promise<{
+    success: boolean;
+    widgetId: string;
+    versionId: string;
+    versionNumber: number;
+  }>;
+
+  getModularWidgetDraft(payload: {
+    organizationId: string;
+    widgetId: string;
+  }): Promise<{
+    definition: {
+      id: string;
+      orgId: string;
+      name: string;
+      status: string;
+      publishedVersionId: string | null;
+    };
+    version: {
+      id: string;
+      widgetId: string;
+      versionNumber: number;
+      schema: unknown;
+      actions: unknown;
+    } | null;
+  }>;
+
+  listWidgetDefinitions(payload: {
+    organizationId: string;
+  }): Promise<{
+    definitions: Array<{
+      id: string;
+      orgId: string;
+      name: string;
+      status: string;
+      publishedVersionId: string | null;
+    }>;
+  }>;
+
+  getModularWidgetConfig(params: {
+    organizationId: string;
+    widgetId: string;
+    widgetVersionId?: string | null;
+  }): Promise<{
+    organizationId: string;
+    branding: { logo: string | null; companyName: string; colors: Record<string, string> };
+    widget: {
+      widgetId: string;
+      name: string;
+      versionId: string;
+      schema: unknown;
+      actions: unknown;
+    };
+  }>;
+
+  publishModularWidget(payload: {
+    organizationId: string;
+    widgetId: string;
+    versionId: string;
+  }): Promise<{ success: boolean; widgetId: string; versionId: string }>;
+
+  unpublishModularWidget(payload: {
+    organizationId: string;
+    widgetId: string;
+  }): Promise<{ success: boolean; widgetId: string }>;
+
+  listModularWidgetVersions(payload: {
+    organizationId: string;
+    widgetId: string;
+  }): Promise<{
+    versions: Array<{ id: string; versionNumber: number; createdAt?: string }>;
+  }>;
+
   /**
    * Translate widget text using AI
    * 

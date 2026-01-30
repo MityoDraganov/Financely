@@ -25,7 +25,7 @@ export const useDeleteBrandSite = () => {
       toast.success("Website deleted successfully");
       
       // Navigate away from the site builder page
-      navigate("/site-builder");
+      navigate("/dashboard");
     },
     onError: (error: unknown) => {
       console.error("Failed to delete brand site:", error);
