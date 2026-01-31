@@ -26,11 +26,6 @@ import {
 	WidgetSidebar,
 	type TabValue,
 } from "@/components/integrations";
-import {
-	ResizableHandle,
-	ResizablePanel,
-	ResizablePanelGroup,
-} from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -66,13 +61,17 @@ export default function IntegrationsPage() {
 	const [widgetName, setWidgetName] = useState("");
 	const [widgetNameSaving, setWidgetNameSaving] = useState(false);
 
-	// Load modular widget draft when a widget is selected
+	// Load modular widget draft when a widget is selected and it belongs to current org
+	const definitions = widgetDesigner?.definitions ?? [];
+	const widgetBelongsToOrg = definitions.some((d) => d.id === effectiveWidgetId);
+
 	useEffect(() => {
 		if (!organization?.id || !effectiveWidgetId) {
 			setBuilderSchema([]);
 			setBuilderSelectedId(null);
 			return;
 		}
+		if (!widgetBelongsToOrg) return;
 		setBuilderLoading(true);
 		functionsService
 			.getModularWidgetDraft({
@@ -95,7 +94,7 @@ export default function IntegrationsPage() {
 			})
 			.catch(() => toast.error("Failed to load widget"))
 			.finally(() => setBuilderLoading(false));
-	}, [organization?.id, effectiveWidgetId]);
+	}, [organization?.id, effectiveWidgetId, widgetBelongsToOrg]);
 
 	// Sync editable widget name from current definition
 	useEffect(() => {
@@ -155,6 +154,39 @@ export default function IntegrationsPage() {
 		},
 		[],
 	);
+
+	const builderAddBlockAt = useCallback(
+		(index: number, type: BlockType, defaultProps: Record<string, unknown>) => {
+			const block: WidgetBlock = {
+				id: generateBlockId(),
+				type,
+				props: defaultProps,
+			};
+			setBuilderSchema((prev) => [
+				...prev.slice(0, index),
+				block,
+				...prev.slice(index),
+			]);
+			setBuilderSelectedId(block.id);
+		},
+		[],
+	);
+
+	const builderDuplicateBlock = useCallback((index: number) => {
+		const block = builderSchema[index];
+		if (!block) return;
+		const copy: WidgetBlock = {
+			id: generateBlockId(),
+			type: block.type,
+			props: { ...block.props },
+		};
+		setBuilderSchema((prev) => [
+			...prev.slice(0, index + 1),
+			copy,
+			...prev.slice(index + 1),
+		]);
+		setBuilderSelectedId(copy.id);
+	}, [builderSchema]);
 
 	const builderRemoveBlock = useCallback(
 		(id: string) => {
@@ -340,19 +372,17 @@ export default function IntegrationsPage() {
 				</div>
 			</div>
 
-			<ResizablePanelGroup
-				direction="horizontal"
-				className="flex-1 min-h-0"
-			>
-				<ResizablePanel
-					defaultSize={16}
-					minSize={12}
-					maxSize={24}
-					className="shrink-0"
-				>
+			<div className="flex flex-1 min-h-0 w-full">
+				<aside className="w-fit shrink-0 overflow-y-auto">
 					<WidgetSidebar
 						onAddBlock={
 							effectiveWidgetId ? builderAddBlock : undefined
+						}
+						onAddBlockAt={
+							effectiveWidgetId ? builderAddBlockAt : undefined
+						}
+						onDuplicateBlock={
+							effectiveWidgetId ? builderDuplicateBlock : undefined
 						}
 						schema={showBuilder ? builderSchema : []}
 						selectedBlockId={builderSelectedId}
@@ -361,13 +391,8 @@ export default function IntegrationsPage() {
 						onRemoveBlock={builderRemoveBlock}
 						onDeleteWidget={handleDeleteWidget}
 					/>
-				</ResizablePanel>
-				<ResizableHandle withHandle />
-				<ResizablePanel
-					defaultSize={showPropertiesPanel ? 60 : 84}
-					minSize={40}
-				>
-					<main className="h-full overflow-y-auto mx-auto max-w-[1400px] px-6 py-8">
+				</aside>
+				<main className="flex-1 min-w-0 overflow-y-auto mx-auto max-w-[1400px] px-6 py-8">
 						{showBuilder ? (
 							builderLoading ? (
 								<div className="flex items-center justify-center min-h-[300px]">
@@ -375,26 +400,34 @@ export default function IntegrationsPage() {
 								</div>
 							) : (
 								<div className="space-y-4">
-									<div className="flex items-center justify-between gap-4">
-										<Input
-											value={widgetName}
-											onChange={(e) =>
-												setWidgetName(e.target.value)
-											}
-											onBlur={handleWidgetNameBlur}
-											onKeyDown={(e) =>
-												e.key === "Enter" &&
-												(
-													e.target as HTMLInputElement
-												).blur()
-											}
-											placeholder={t(
-												"siteBuilder.widgets.widgetName",
-												"Widget name",
-											)}
-											disabled={widgetNameSaving}
-											className="max-w-[240px] font-semibold text-lg h-9"
-										/>
+									<div className="flex items-end justify-between gap-4">
+										<div className="flex flex-col gap-0.5">
+											<Label className="text-sm font-medium">
+												{t(
+													"siteBuilder.widgets.widgetName",
+													"Widget name",
+												)}
+											</Label>
+											<Input
+												value={widgetName}
+												onChange={(e) =>
+													setWidgetName(e.target.value)
+												}
+												onBlur={handleWidgetNameBlur}
+												onKeyDown={(e) =>
+													e.key === "Enter" &&
+													(
+														e.target as HTMLInputElement
+													).blur()
+												}
+												placeholder={t(
+													"siteBuilder.widgets.widgetName",
+													"Widget name",
+												)}
+												disabled={widgetNameSaving}
+												className="max-w-[240px] font-semibold text-lg h-9"
+											/>
+										</div>
 										<div className="flex items-center gap-2">
 											<div className="flex gap-2">
 												{builderDefinitionStatus ===
@@ -503,17 +536,10 @@ export default function IntegrationsPage() {
 								)}
 							</div>
 						)}
-					</main>
-				</ResizablePanel>
+				</main>
 				{showPropertiesPanel && (
-					<>
-						<ResizableHandle withHandle />
-						<ResizablePanel
-							defaultSize={24}
-							minSize={20}
-							maxSize={40}
-						>
-							<div className="h-full overflow-y-auto border-l bg-muted/20 p-4">
+					<aside className="w-fit shrink-0 min-w-[220px] overflow-y-auto border-l bg-muted/20">
+						<div className="h-full overflow-y-auto p-4">
 								<h3 className="text-sm font-semibold mb-3">
 									Properties
 								</h3>
@@ -848,11 +874,10 @@ export default function IntegrationsPage() {
 										)}
 									</div>
 								)}
-							</div>
-						</ResizablePanel>
-					</>
+						</div>
+					</aside>
 				)}
-			</ResizablePanelGroup>
+			</div>
 		</div>
 	);
 }

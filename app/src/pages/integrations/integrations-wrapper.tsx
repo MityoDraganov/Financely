@@ -23,6 +23,17 @@ export default function IntegrationsWrapper() {
 		}
 	}, [widgetIdFromUrl, currentWidgetId]);
 
+	// Clear URL widget if it doesn't belong to current org (e.g. after org switch or stale link)
+	useEffect(() => {
+		if (isLoadingDefinitions || !orgId) return;
+		if (!currentWidgetId) return;
+		const belongsToOrg = definitions.some((d) => d.id === currentWidgetId);
+		if (!belongsToOrg) {
+			setCurrentWidgetId(undefined);
+			navigate("/integrations", { replace: true });
+		}
+	}, [orgId, currentWidgetId, definitions, isLoadingDefinitions, navigate]);
+
 	const currentDefinition = useMemo(() => {
 		if (!currentWidgetId) return undefined;
 		return definitions.find((d) => d.id === currentWidgetId);

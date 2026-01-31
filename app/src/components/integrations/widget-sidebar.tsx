@@ -6,7 +6,16 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, FileText, MessageSquare, Receipt, GripVertical, Trash2 } from "lucide-react";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Input } from "@/components/ui/input";
+import { Loader2, FileText, MessageSquare, Receipt, GripVertical, Trash2, Plus, Search, Copy, ChevronUp, ChevronDown } from "lucide-react";
+import { DeleteWidgetDialog } from "./delete-widget-dialog";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { WIDGET_TEMPLATES } from "@/core/widget-templates";
 import type { BlockType, WidgetBlock, WidgetBlockSchema } from "@/core/entities/widget-block-schema";
@@ -25,6 +34,8 @@ interface BlockOrderItemProps {
 	onSelect: () => void;
 	onRemove: () => void;
 	onReorder: (fromIndex: number, toIndex: number) => void;
+	onDuplicateBlock?: (index: number) => void;
+	onOpenAddBlockPicker?: (index: number) => void;
 }
 
 function BlockOrderItem({
@@ -37,6 +48,8 @@ function BlockOrderItem({
 	onSelect,
 	onRemove,
 	onReorder,
+	onDuplicateBlock,
+	onOpenAddBlockPicker,
 }: BlockOrderItemProps) {
 	const handleDragStart = (e: React.DragEvent) => {
 		e.dataTransfer.effectAllowed = "move";
@@ -65,7 +78,7 @@ function BlockOrderItem({
 		onDragLeave();
 	};
 
-	return (
+	const blockRow = (
 		<li
 			className={cn(
 				"flex items-center gap-1 rounded border p-1.5 text-left text-sm transition-colors",
@@ -80,7 +93,7 @@ function BlockOrderItem({
 			<div
 				draggable
 				onDragStart={handleDragStart}
-				className="shrink-0 cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded touch-none"
+				className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded touch-none shrink-0"
 				aria-label="Drag to reorder"
 			>
 				<GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
@@ -106,6 +119,42 @@ function BlockOrderItem({
 			</Button>
 		</li>
 	);
+
+	if (!onDuplicateBlock && !onOpenAddBlockPicker) return blockRow;
+
+	return (
+		<ContextMenu>
+			<ContextMenuTrigger asChild>
+				{blockRow}
+			</ContextMenuTrigger>
+			<ContextMenuContent className="min-w-40">
+				{onDuplicateBlock && (
+					<ContextMenuItem onSelect={() => onDuplicateBlock(index)}>
+						<Copy className="h-4 w-4" />
+						Duplicate
+					</ContextMenuItem>
+				)}
+				{(onDuplicateBlock || onOpenAddBlockPicker) && <ContextMenuSeparator />}
+				{onOpenAddBlockPicker && (
+					<>
+						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index)}>
+							<ChevronUp className="h-4 w-4" />
+							Add block before
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index + 1)}>
+							<ChevronDown className="h-4 w-4" />
+							Add block after
+						</ContextMenuItem>
+					</>
+				)}
+				<ContextMenuSeparator />
+				<ContextMenuItem variant="destructive" onSelect={onRemove}>
+					<Trash2 className="h-4 w-4" />
+					Remove
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
+	);
 }
 
 interface BlockOrderListProps {
@@ -114,6 +163,10 @@ interface BlockOrderListProps {
 	onSelectBlock: (id: string) => void;
 	onRemoveBlock: (id: string) => void;
 	onReorderBlocks: (fromIndex: number, toIndex: number) => void;
+	onAddBlock?: (type: BlockType, defaultProps: Record<string, unknown>) => void;
+	onAddBlockAt?: (index: number, type: BlockType, defaultProps: Record<string, unknown>) => void;
+	onOpenAddBlockPicker?: (index: number) => void;
+	onDuplicateBlock?: (index: number) => void;
 }
 
 function BlockOrderList({
@@ -122,8 +175,13 @@ function BlockOrderList({
 	onSelectBlock,
 	onRemoveBlock,
 	onReorderBlocks,
+	onAddBlock,
+	onAddBlockAt,
+	onOpenAddBlockPicker,
+	onDuplicateBlock,
 }: BlockOrderListProps) {
 	const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+	const canAdd = (onAddBlock ?? onAddBlockAt) && onOpenAddBlockPicker;
 
 	return (
 		<div
@@ -134,6 +192,14 @@ function BlockOrderList({
 			<ul className="space-y-1">
 				{schema.map((block, index) => (
 					<Fragment key={block.id}>
+						{canAdd && (
+							<li className="flex items-center justify-center py-0.5">
+								<AddBlockSlot
+									insertIndex={index}
+									onOpenAddBlockPicker={onOpenAddBlockPicker!}
+								/>
+							</li>
+						)}
 						{dropTargetIndex === index && (
 							<li className={DROP_LINE_CLASS} aria-hidden />
 						)}
@@ -149,9 +215,19 @@ function BlockOrderList({
 							onSelect={() => onSelectBlock(block.id)}
 							onRemove={() => onRemoveBlock(block.id)}
 							onReorder={onReorderBlocks}
+							onDuplicateBlock={onDuplicateBlock}
+							onOpenAddBlockPicker={onOpenAddBlockPicker}
 						/>
 					</Fragment>
 				))}
+				{canAdd && (
+					<li className="flex items-center justify-center py-0.5">
+						<AddBlockSlot
+							insertIndex={schema.length}
+							onOpenAddBlockPicker={onOpenAddBlockPicker!}
+						/>
+					</li>
+				)}
 				{dropTargetIndex === schema.length && (
 					<li className={DROP_LINE_CLASS} aria-hidden />
 				)}
@@ -200,8 +276,29 @@ const BLOCK_GROUPS: {
 	},
 ];
 
+function AddBlockSlot({
+	insertIndex,
+	onOpenAddBlockPicker,
+}: {
+	insertIndex: number;
+	onOpenAddBlockPicker: (index: number) => void;
+}) {
+	return (
+		<button
+			type="button"
+			className="flex items-center justify-center w-full py-1 rounded border border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+			aria-label="Add block here"
+			onClick={() => onOpenAddBlockPicker(insertIndex)}
+		>
+			<Plus className="h-3.5 w-3.5" />
+		</button>
+	);
+}
+
 export interface WidgetSidebarProps {
 	onAddBlock?: (type: BlockType, defaultProps: Record<string, unknown>) => void;
+	onAddBlockAt?: (index: number, type: BlockType, defaultProps: Record<string, unknown>) => void;
+	onDuplicateBlock?: (index: number) => void;
 	schema?: WidgetBlockSchema;
 	selectedBlockId?: string | null;
 	onSelectBlock?: (id: string) => void;
@@ -212,6 +309,8 @@ export interface WidgetSidebarProps {
 
 export function WidgetSidebar({
 	onAddBlock,
+	onAddBlockAt,
+	onDuplicateBlock,
 	schema = [],
 	selectedBlockId,
 	onSelectBlock,
@@ -221,17 +320,47 @@ export function WidgetSidebar({
 }: WidgetSidebarProps) {
 	const ctx = useWidgetDesigner();
 	const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+	const [widgetToDeleteId, setWidgetToDeleteId] = useState<string | null>(null);
+	const [addBlockPickerOpen, setAddBlockPickerOpen] = useState(false);
+	const [addBlockInsertIndex, setAddBlockInsertIndex] = useState<number | null>(null);
+	const [addBlockSearchQuery, setAddBlockSearchQuery] = useState("");
+
+	const openAddBlockPicker = (index: number) => {
+		setAddBlockInsertIndex(index);
+		setAddBlockSearchQuery("");
+		setAddBlockPickerOpen(true);
+	};
+
+	const handleAddBlockSelect = (type: BlockType, defaultProps: Record<string, unknown>) => {
+		if (addBlockInsertIndex !== null && onAddBlockAt) {
+			onAddBlockAt(addBlockInsertIndex, type, defaultProps);
+		} else if (onAddBlock) {
+			onAddBlock(type, defaultProps);
+		}
+		setAddBlockInsertIndex(null);
+		setAddBlockPickerOpen(false);
+	};
+
+	const addBlockQ = addBlockSearchQuery.trim().toLowerCase();
+	const addBlockFilteredGroups = addBlockQ
+		? BLOCK_GROUPS.map((group) => ({
+				...group,
+				types: group.types.filter(
+					(t) =>
+						t.label.toLowerCase().includes(addBlockQ) ||
+						t.type.toLowerCase().includes(addBlockQ),
+				),
+			}))
+				.filter((g) => g.types.length > 0)
+		: BLOCK_GROUPS;
 
 	if (!ctx) {
 		return null;
 	}
 
 	const {
-		definitions,
 		currentWidgetId,
 		currentDefinition,
-		onWidgetChange,
-		onCreateNewWidget,
 		onCreateFromTemplate,
 		isLoadingDefinitions,
 	} = ctx;
@@ -248,105 +377,78 @@ export function WidgetSidebar({
 
 	if (isLoadingDefinitions) {
 		return (
-			<div className="flex h-full w-64 items-center justify-center border-r bg-muted/30 p-4">
+			<div className="flex h-full w-48 sm:w-52 md:w-56 items-center justify-center border-r bg-muted/30 p-4 shrink-0">
 				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex h-full w-64 flex-col border-r bg-muted/30 overflow-y-auto">
-			<div className="shrink-0 space-y-2 p-3">
-				<div className="flex gap-2">
-					<Button
-						size="sm"
-						className="flex-1"
-						onClick={() => void onCreateNewWidget()}
-					>
-						<Plus className="h-4 w-4 mr-1" />
-						New
-					</Button>
-					<Button
-						size="sm"
-						variant="outline"
-						className="flex-1"
-						onClick={() => setTemplateDialogOpen(true)}
-					>
-						Template
-					</Button>
-				</div>
-				<p className="text-xs font-medium text-muted-foreground">Widgets</p>
-			</div>
-			<ul className="min-h-0 flex-1 space-y-1 px-2 pb-2">
-				{definitions.map((d) => (
-					<li key={d.id}>
-						<div
-							className={cn(
-								"flex items-center gap-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-								currentWidgetId === d.id
-									? "border-primary bg-primary/10 text-foreground"
-									: "border-transparent hover:bg-muted/50"
-							)}
-						>
-							<button
-								type="button"
-								onClick={() => onWidgetChange(d.id)}
-								className="flex-1 min-w-0 text-left"
-							>
-								<span className="font-medium truncate block">{d.name}</span>
-								<span className="text-xs text-muted-foreground">{d.status === "published" ? "Active" : "Draft"}</span>
-							</button>
-							{onDeleteWidget && (
-								<button
-									type="button"
-									onClick={(e) => {
-										e.stopPropagation();
-										if (window.confirm("Delete this widget? This cannot be undone.")) {
-											onDeleteWidget(d.id);
-										}
-									}}
-									className="shrink-0 p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
-									aria-label="Delete widget"
-								>
-									<Trash2 className="h-3.5 w-3.5" />
-								</button>
-							)}
-						</div>
-					</li>
-				))}
-			</ul>
-			{currentWidgetId && currentDefinition && schema.length > 0 && onSelectBlock && onReorderBlocks && onRemoveBlock && (
+		<div className="flex h-full w-48 sm:w-52 md:w-56 flex-col border-r bg-muted/30 overflow-y-auto shrink-0">
+			{currentWidgetId && currentDefinition && (onAddBlock || onAddBlockAt) && onSelectBlock && onReorderBlocks && onRemoveBlock && (
 				<BlockOrderList
 					schema={schema}
 					selectedBlockId={selectedBlockId}
 					onSelectBlock={onSelectBlock}
 					onRemoveBlock={onRemoveBlock}
 					onReorderBlocks={onReorderBlocks}
+					onAddBlock={onAddBlock}
+					onAddBlockAt={onAddBlockAt}
+					onOpenAddBlockPicker={openAddBlockPicker}
+					onDuplicateBlock={onDuplicateBlock}
 				/>
 			)}
-			{currentWidgetId && currentDefinition && onAddBlock && (
-				<div className="shrink-0 border-t p-3">
-					<p className="text-xs font-medium text-muted-foreground mb-2">Blocks</p>
-					<div className="space-y-3">
-						{BLOCK_GROUPS.map((group) => (
-							<div key={group.label}>
-								<p className="text-xs font-semibold mb-1">{group.label}</p>
-								<div className="space-y-0.5">
+			<Dialog
+				open={addBlockPickerOpen}
+				onOpenChange={(open) => !open && (setAddBlockPickerOpen(false), setAddBlockInsertIndex(null))}
+			>
+				<DialogContent className="max-h-[85vh] overflow-hidden flex flex-col p-0 w-64">
+					<div className="p-2 border-b shrink-0">
+						<div className="relative">
+							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+							<Input
+								placeholder="Search blocks..."
+								value={addBlockSearchQuery}
+								onChange={(e) => setAddBlockSearchQuery(e.target.value)}
+								className="h-8 pl-8 text-sm"
+							/>
+						</div>
+					</div>
+					<div className="overflow-y-auto p-1 min-h-0">
+						{addBlockFilteredGroups.length === 0 ? (
+							<p className="text-xs text-muted-foreground py-4 text-center">No blocks match</p>
+						) : (
+							addBlockFilteredGroups.map((group, groupIndex) => (
+								<Fragment key={group.label}>
+									{groupIndex > 0 && (
+										<div className="bg-border -mx-1 my-1 h-px" />
+									)}
+									<p className="text-xs font-medium text-muted-foreground px-2 py-1.5">{group.label}</p>
 									{group.types.map(({ type, label, defaultProps }) => (
 										<button
 											key={type}
 											type="button"
-											className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-muted"
-											onClick={() => onAddBlock(type, defaultProps)}
+											className="w-full text-left px-2 py-1.5 rounded-sm text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground outline-none"
+											onClick={() => handleAddBlockSelect(type, defaultProps)}
 										>
 											{label}
 										</button>
 									))}
-								</div>
-							</div>
-						))}
+								</Fragment>
+							))
+						)}
 					</div>
-				</div>
+				</DialogContent>
+			</Dialog>
+			{onDeleteWidget && (
+				<DeleteWidgetDialog
+					open={widgetToDeleteId !== null}
+					onOpenChange={(open) => !open && setWidgetToDeleteId(null)}
+					widgetId={widgetToDeleteId}
+					onConfirm={async (id) => {
+						await onDeleteWidget(id);
+					}}
+				/>
 			)}
 			<Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
 				<DialogContent>

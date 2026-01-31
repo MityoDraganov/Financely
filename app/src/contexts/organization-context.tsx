@@ -25,8 +25,16 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   
   // Use organizations from organizationRoles
   const organizations = organizationsByIds;
-  
-  const isLoading = !isClerkLoaded || isUserLoading || isOrganizationsByIdsLoading;
+
+  // Stay in loading until we have a definitive db user (or know there is none).
+  // When user?.id exists but dbUser is undefined, the user query may be disabled (e.g. auth not ready)
+  // or still in flight — don't treat that as "loaded with no orgs" or we clear currentOrgId on refresh.
+  const waitingForUser = user?.id != null && dbUser === undefined;
+  const isLoading =
+    !isClerkLoaded ||
+    waitingForUser ||
+    isUserLoading ||
+    (organizationIds.length > 0 && isOrganizationsByIdsLoading);
   const error = userError || orgsError;
 
   // Get user-specific storage key

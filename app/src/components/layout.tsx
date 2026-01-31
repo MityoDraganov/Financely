@@ -21,9 +21,9 @@ import {
 	Sparkles,
 	MessageSquare,
 	Package,
-	BarChart3,
+	//BarChart3,
 	Menu,
-	Database,
+	//Database,
 	Store,
 	FolderOpen,
 } from "lucide-react";
@@ -143,6 +143,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				icon: Package,
 			},
 			{
+				title: t("layout.navigation.templates"),
+				href: "/templates",
+				icon: Brush,
+			},
+			{
 				title: t("layout.navigation.invoices"),
 				href: "/invoices",
 				icon: FileText,
@@ -163,11 +168,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				icon: FileText,
 			},
 			{
-				title: t("layout.navigation.templates"),
-				href: "/templates",
-				icon: Brush,
-			},
-			{
 				title: t("layout.navigation.marketplace") || "Marketplace",
 				href: "/marketplace",
 				icon: Store,
@@ -182,16 +182,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				href: "/integrations",
 				icon: Sparkles,
 			},
-			{
-				title: t("layout.navigation.analytics"),
-				href: "/analytics",
-				icon: BarChart3,
-			},
-			{
-				title: "Data Sources",
-				href: "/data-sources",
-				icon: Database,
-			},
+			// {
+			// 	title: t("layout.navigation.analytics"),
+			// 	href: "/analytics",
+			// 	icon: BarChart3,
+			// },
+			// {
+			// 	title: "Data Sources",
+			// 	href: "/data-sources",
+			// 	icon: Database,
+			// },
 			{
 				title: "Content",
 				href: "/content/metaobjects",
