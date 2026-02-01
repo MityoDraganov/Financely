@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
-import type { WidgetBlockSchema, WidgetVersionActions } from "@/core/entities/widget-block-schema";
+import type { WidgetVersionActions } from "@/core/entities/widget-block-schema";
 import type { WidgetStyling } from "@/components/site-builder/widget-types";
 import { projectId } from "@/infrastructure/firebase";
 import { functionsService } from "@/services/functions/functions-service";
+import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
+import { WidgetPage } from "@/core/entities/widget-block-schema";
 
 const defaultStyling: Partial<WidgetStyling> = {
 	primaryColor: "#166534",
@@ -28,11 +30,22 @@ export default function ModularWidgetPage() {
 		widgetId: string;
 	}>();
 	const [config, setConfig] = useState<{
-		branding: { logo: string | null; companyName: string; colors: Record<string, string> };
-		widget: { versionId: string; schema: WidgetBlockSchema; actions: WidgetVersionActions };
+		branding: {
+			logo: string | null;
+			companyName: string;
+			colors: Record<string, string>;
+		};
+		widget: {
+			versionId: string;
+			pages: WidgetPage[];
+			actions: WidgetVersionActions;
+			multiStepOptions?: WidgetMultiStepOptions;
+		};
 	} | null>(null);
 	const [configError, setConfigError] = useState<string | null>(null);
-	const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
+	const [submitStatus, setSubmitStatus] = useState<
+		"idle" | "success" | "error"
+	>("idle");
 	const [submitMessage, setSubmitMessage] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<string | null>(null);
@@ -45,28 +58,44 @@ export default function ModularWidgetPage() {
 		functionsService
 			.getModularWidgetConfig({ organizationId, widgetId })
 			.then((data) => {
-				const schema = Array.isArray(data.widget.schema) ? data.widget.schema : [];
-				const actions = (data.widget.actions && typeof data.widget.actions === "object")
-					? data.widget.actions as WidgetVersionActions
-					: { success: { message: "Thank you!" } };
+				const pages = Array.isArray(data.widget.pages)
+					? data.widget.pages
+					: [];
+				const actions =
+					data.widget.actions &&
+					typeof data.widget.actions === "object"
+						? (data.widget.actions as WidgetVersionActions)
+						: { success: { message: "Thank you!" } };
+				const multiStepOptions =
+					data.widget.multiStepOptions &&
+					typeof data.widget.multiStepOptions === "object"
+						? data.widget.multiStepOptions
+						: undefined;
 				setConfig({
 					branding: data.branding,
 					widget: {
 						versionId: data.widget.versionId,
-						schema,
+						pages,
 						actions,
+						multiStepOptions,
 					},
 				});
 			})
 			.catch((err) => {
-				setConfigError(err instanceof Error ? err.message : "Failed to load widget");
+				setConfigError(
+					err instanceof Error
+						? err.message
+						: "Failed to load widget",
+				);
 			});
 	}, [organizationId, widgetId]);
 
 	if (!organizationId || !widgetId) {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
-				<p className="text-destructive">Missing organization or widget</p>
+				<p className="text-destructive">
+					Missing organization or widget
+				</p>
 			</div>
 		);
 	}
@@ -111,9 +140,15 @@ export default function ModularWidgetPage() {
 				return;
 			}
 			setSubmitStatus("success");
-			setSubmitMessage(json.message ?? config.widget.actions.success?.message ?? "Thank you!");
+			setSubmitMessage(
+				json.message ??
+					config.widget.actions.success?.message ??
+					"Thank you!",
+			);
 		} catch (err) {
-			setSubmitError(err instanceof Error ? err.message : "Something went wrong");
+			setSubmitError(
+				err instanceof Error ? err.message : "Something went wrong",
+			);
 		} finally {
 			setSubmitting(false);
 		}
@@ -190,12 +225,13 @@ export default function ModularWidgetPage() {
 					}}
 				>
 					<WidgetSchemaRenderer
-						schema={config.widget.schema}
+						pages={config.widget.pages}
 						actions={config.widget.actions}
 						styling={{ ...defaultStyling, ...themeStyling }}
 						onSubmit={handleSubmit}
 						submitting={submitting}
 						submitError={submitError}
+						multiStepOptions={config.widget.multiStepOptions}
 					/>
 				</div>
 				<footer className="mt-8 flex justify-center">

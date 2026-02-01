@@ -1,11 +1,11 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { WidgetDefinitionListItem } from "@/hooks/repository-hooks/use-widget-definitions";
-import type { WidgetBlockSchema, WidgetVersionActions } from "@/core/entities/widget-block-schema";
+import type { WidgetPage, WidgetVersionActions } from "@/core/entities/widget-block-schema";
 
 export type WidgetTemplateForCreate = {
 	id: string;
 	name: string;
-	schema: WidgetBlockSchema;
+	pages: WidgetPage[];
 	actions: WidgetVersionActions;
 };
 

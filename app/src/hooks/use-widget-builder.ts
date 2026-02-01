@@ -6,11 +6,12 @@ import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { functionsService } from "@/services/functions/functions-service";
 import type {
-	WidgetBlockSchema,
 	WidgetBlock,
+	WidgetPage,
 	WidgetVersionActions,
 } from "@/core/entities/widget-block-schema";
 import type { BlockType } from "@/core/entities/widget-block-schema";
+import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
 import type { WidgetStyling } from "@/components/site-builder/widget-types";
 
 const DEFAULT_ACTIONS: WidgetVersionActions = {
@@ -31,11 +32,19 @@ export interface UseWidgetBuilderParams {
 }
 
 export interface UseWidgetBuilderReturn {
-	schema: WidgetBlockSchema;
+	pages: WidgetPage[];
+	activePageId: string | null;
+	setActivePageId: (id: string | null) => void;
 	selectedBlockId: string | null;
 	setSelectedBlockId: (id: string | null) => void;
 	selectedBlock: WidgetBlock | undefined;
 	actions: WidgetVersionActions;
+	multiStepOptions: WidgetMultiStepOptions;
+	setMultiStepOptions: (opts: WidgetMultiStepOptions) => void;
+	addPage: () => void;
+	removePage: (pageId: string) => void;
+	reorderPages: (fromIndex: number, toIndex: number) => void;
+	updatePage: (pageId: string, updates: { name?: string; description?: string }) => void;
 	addBlock: (type: BlockType, defaultProps: Record<string, unknown>) => void;
 	addBlockAt: (
 		index: number,
@@ -67,6 +76,22 @@ export interface UseWidgetBuilderReturn {
 const generateBlockId = () =>
 	`block-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+const generatePageId = () =>
+	`page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+function findBlockInPages(pages: WidgetPage[], blockId: string): WidgetBlock | undefined {
+	for (const page of pages) {
+		const b = page.fields.find((f) => f.id === blockId);
+		if (b) return b;
+	}
+	return undefined;
+}
+
+function ensureAtLeastOnePage(pages: WidgetPage[]): WidgetPage[] {
+	if (pages.length > 0) return pages;
+	return [{ id: generatePageId(), name: "Page 1", fields: [] }];
+}
+
 export function useWidgetBuilder({
 	effectiveWidgetId,
 	organizationId,
@@ -78,8 +103,10 @@ export function useWidgetBuilder({
 	const widgetDesigner = useWidgetDesigner();
 	const { data: organization } = useCurrentOrganization();
 
-	const [schema, setSchema] = useState<WidgetBlockSchema>([]);
+	const [pages, setPages] = useState<WidgetPage[]>([]);
+	const [activePageId, setActivePageId] = useState<string | null>(null);
 	const [actions, setActions] = useState<WidgetVersionActions>(DEFAULT_ACTIONS);
+	const [multiStepOptions, setMultiStepOptions] = useState<WidgetMultiStepOptions>({});
 	const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -92,14 +119,20 @@ export function useWidgetBuilder({
 	const [widgetNameSaving, setWidgetNameSaving] = useState(false);
 	const [deleteWidgetId, setDeleteWidgetId] = useState<string | null>(null);
 
+	const activePage = useMemo(
+		() => pages.find((p) => p.id === activePageId) ?? pages[0] ?? null,
+		[pages, activePageId],
+	);
+
 	const selectedBlock = useMemo(
-		() => schema.find((b) => b.id === selectedBlockId),
-		[schema, selectedBlockId],
+		() => (selectedBlockId ? findBlockInPages(pages, selectedBlockId) : undefined),
+		[pages, selectedBlockId],
 	);
 
 	useEffect(() => {
 		if (!organizationId || !effectiveWidgetId) {
-			setSchema([]);
+			setPages([]);
+			setActivePageId(null);
 			setSelectedBlockId(null);
 			return;
 		}
@@ -111,14 +144,33 @@ export function useWidgetBuilder({
 				widgetId: effectiveWidgetId,
 			})
 			.then((r) => {
-				if (r.version?.schema && Array.isArray(r.version.schema)) {
-					setSchema(r.version.schema as WidgetBlockSchema);
+				if (r.version?.pages && Array.isArray(r.version.pages)) {
+					const raw = r.version.pages as WidgetPage[];
+					const normalized = raw.map((p) => ({
+						...p,
+						fields: Array.isArray(p.fields) ? p.fields : [],
+					}));
+					const loaded = ensureAtLeastOnePage(normalized);
+					setPages(loaded);
+					setActivePageId(loaded[0]?.id ?? null);
+				} else {
+					const defaultPages = ensureAtLeastOnePage([]);
+					setPages(defaultPages);
+					setActivePageId(defaultPages[0]?.id ?? null);
 				}
 				if (
 					r.version?.actions &&
 					typeof r.version.actions === "object"
 				) {
 					setActions(r.version.actions as WidgetVersionActions);
+				}
+				if (
+					r.version?.multiStepOptions &&
+					typeof r.version.multiStepOptions === "object"
+				) {
+					setMultiStepOptions(r.version.multiStepOptions as WidgetMultiStepOptions);
+				} else {
+					setMultiStepOptions({});
 				}
 				setDefinitionStatus(r.definition?.status ?? null);
 			})
@@ -168,17 +220,67 @@ export function useWidgetBuilder({
 		t,
 	]);
 
+	const addPage = useCallback(() => {
+		const newPage: WidgetPage = {
+			id: generatePageId(),
+			name: `Page ${pages.length + 1}`,
+			fields: [],
+		};
+		setPages((prev) => [...prev, newPage]);
+		setActivePageId(newPage.id);
+	}, [pages.length]);
+
+	const removePage = useCallback((pageId: string) => {
+		const remaining = pages.filter((p) => p.id !== pageId);
+		if (remaining.length === 0 || remaining.length === pages.length) return;
+		setPages(remaining);
+		if (activePageId === pageId) {
+			setActivePageId(remaining[0]?.id ?? null);
+			setSelectedBlockId(null);
+		} else {
+			const removed = pages.find((p) => p.id === pageId);
+			if ((removed?.fields ?? []).some((f) => f.id === selectedBlockId)) {
+				setSelectedBlockId(null);
+			}
+		}
+	}, [activePageId, pages, selectedBlockId]);
+
+	const reorderPages = useCallback((fromIndex: number, toIndex: number) => {
+		if (fromIndex === toIndex) return;
+		setPages((prev) => {
+			const copy = [...prev];
+			const [item] = copy.splice(fromIndex, 1);
+			copy.splice(toIndex, 0, item);
+			return copy;
+		});
+	}, []);
+
+	const updatePage = useCallback((pageId: string, updates: { name?: string; description?: string }) => {
+		setPages((prev) =>
+			prev.map((p) =>
+				p.id !== pageId ? p : { ...p, ...updates },
+			),
+		);
+	}, []);
+
 	const addBlock = useCallback(
 		(type: BlockType, defaultProps: Record<string, unknown>) => {
+			if (!activePageId) return;
 			const block: WidgetBlock = {
 				id: generateBlockId(),
 				type,
 				props: defaultProps,
 			};
-			setSchema((prev) => [...prev, block]);
+			setPages((prev) =>
+				prev.map((p) =>
+					p.id === activePageId
+						? { ...p, fields: [...(p.fields ?? []), block] }
+						: p,
+				),
+			);
 			setSelectedBlockId(block.id);
 		},
-		[],
+		[activePageId],
 	);
 
 	const addBlockAt = useCallback(
@@ -187,64 +289,82 @@ export function useWidgetBuilder({
 			type: BlockType,
 			defaultProps: Record<string, unknown>,
 		) => {
+			if (!activePageId) return;
 			const block: WidgetBlock = {
 				id: generateBlockId(),
 				type,
 				props: defaultProps,
 			};
-			setSchema((prev) => [
-				...prev.slice(0, index),
-				block,
-				...prev.slice(index),
-			]);
+			setPages((prev) =>
+				prev.map((p) => {
+					if (p.id !== activePageId) return p;
+					const fields = [...(p.fields ?? [])];
+					fields.splice(index, 0, block);
+					return { ...p, fields };
+				}),
+			);
 			setSelectedBlockId(block.id);
 		},
-		[],
+		[activePageId],
 	);
 
 	const duplicateBlock = useCallback((index: number) => {
-		setSchema((prev) => {
-			const block = prev[index];
-			if (!block) return prev;
-			const copy: WidgetBlock = {
-				id: generateBlockId(),
-				type: block.type,
-				props: { ...block.props },
-			};
-			setSelectedBlockId(copy.id);
-			return [
-				...prev.slice(0, index + 1),
-				copy,
-				...prev.slice(index + 1),
-			];
-		});
-	}, []);
+		if (!activePage) return;
+		const fields = activePage.fields ?? [];
+		const block = fields[index];
+		if (!block) return;
+		const copy: WidgetBlock = {
+			id: generateBlockId(),
+			type: block.type,
+			props: { ...block.props },
+		};
+		setPages((prev) =>
+			prev.map((p) => {
+				if (p.id !== activePageId) return p;
+				const fieldList = [...(p.fields ?? [])];
+				fieldList.splice(index + 1, 0, copy);
+				return { ...p, fields: fieldList };
+			}),
+		);
+		setSelectedBlockId(copy.id);
+	}, [activePage, activePageId]);
 
 	const removeBlock = useCallback((id: string) => {
-		setSchema((prev) => prev.filter((b) => b.id !== id));
+		setPages((prev) =>
+			prev.map((p) => ({
+				...p,
+				fields: (p.fields ?? []).filter((b) => b.id !== id),
+			})),
+		);
 		setSelectedBlockId((prev) => (prev === id ? null : prev));
 	}, []);
 
 	const reorderBlocks = useCallback(
 		(fromIndex: number, toIndex: number) => {
-			if (fromIndex === toIndex) return;
-			setSchema((prev) => {
-				const copy = [...prev];
-				const [item] = copy.splice(fromIndex, 1);
-				copy.splice(toIndex, 0, item);
-				return copy;
-			});
+			if (fromIndex === toIndex || !activePageId) return;
+			setPages((prev) =>
+				prev.map((p) => {
+					if (p.id !== activePageId) return p;
+					const fieldList = [...(p.fields ?? [])];
+					const [item] = fieldList.splice(fromIndex, 1);
+					fieldList.splice(toIndex, 0, item);
+					return { ...p, fields: fieldList };
+				}),
+			);
 		},
-		[],
+		[activePageId],
 	);
 
 	const updateBlockProps = useCallback(
-		(id: string, props: Record<string, unknown>) => {
-			setSchema((prev) =>
-				prev.map((b) =>
-					b.id === id ? { ...b, props: { ...b.props, ...props } } : b,
+		(id: string, updates: Record<string, unknown>) => {
+		setPages((prev) =>
+			prev.map((p) => ({
+				...p,
+				fields: (p.fields ?? []).map((b) =>
+					b.id !== id ? b : { ...b, props: { ...b.props, ...updates } },
 				),
-			);
+			})),
+		);
 		},
 		[],
 	);
@@ -256,8 +376,9 @@ export function useWidgetBuilder({
 			await functionsService.saveModularWidgetVersion({
 				organizationId,
 				widgetId: effectiveWidgetId,
-				schema,
+				pages,
 				actions,
+				multiStepOptions: Object.keys(multiStepOptions).length > 0 ? multiStepOptions : undefined,
 			});
 			toast.success("Draft saved");
 		} catch {
@@ -265,7 +386,7 @@ export function useWidgetBuilder({
 		} finally {
 			setSaving(false);
 		}
-	}, [organizationId, effectiveWidgetId, schema, actions]);
+	}, [organizationId, effectiveWidgetId, pages, actions, multiStepOptions]);
 
 	const publish = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
@@ -274,8 +395,9 @@ export function useWidgetBuilder({
 			const r = await functionsService.saveModularWidgetVersion({
 				organizationId,
 				widgetId: effectiveWidgetId,
-				schema,
+				pages,
 				actions,
+				multiStepOptions: Object.keys(multiStepOptions).length > 0 ? multiStepOptions : undefined,
 			});
 			await functionsService.publishModularWidget({
 				organizationId,
@@ -292,7 +414,7 @@ export function useWidgetBuilder({
 		} finally {
 			setPublishing(false);
 		}
-	}, [organizationId, effectiveWidgetId, schema, actions, queryClient]);
+	}, [organizationId, effectiveWidgetId, pages, actions, multiStepOptions, queryClient]);
 
 	const unpublish = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
@@ -337,11 +459,19 @@ export function useWidgetBuilder({
 
 	if (!active) {
 		return {
-			schema: [],
+			pages: [],
+			activePageId: null,
+			setActivePageId: noopSetNull,
 			selectedBlockId: null,
 			setSelectedBlockId: noopSetNull,
 			selectedBlock: undefined,
 			actions: DEFAULT_ACTIONS,
+			multiStepOptions: {},
+			setMultiStepOptions: noop,
+			addPage: noop,
+			removePage: noop,
+			reorderPages: noop,
+			updatePage: noop,
 			addBlock: noop,
 			addBlockAt: noop,
 			duplicateBlock: noop,
@@ -368,11 +498,19 @@ export function useWidgetBuilder({
 	}
 
 	return {
-		schema,
+		pages,
+		activePageId,
+		setActivePageId,
 		selectedBlockId,
 		setSelectedBlockId,
 		selectedBlock,
 		actions,
+		multiStepOptions,
+		setMultiStepOptions,
+		addPage,
+		removePage,
+		reorderPages,
+		updatePage,
 		addBlock,
 		addBlockAt,
 		duplicateBlock,

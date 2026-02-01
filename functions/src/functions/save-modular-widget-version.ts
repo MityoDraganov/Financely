@@ -3,17 +3,19 @@ import { getDatabaseService } from "../services/database-service";
 import { getWidgetDefinitionRepository } from "../repositories/widget-definition-repository";
 import { getWidgetVersionRepository } from "../repositories/widget-version-repository";
 import {
-	widgetBlockTreeSchema,
+	widgetPagesSchema,
 	widgetVersionActionsSchema,
-	type WidgetBlockSchema,
+	type WidgetPage,
 	type WidgetVersionActions,
 } from "../core/entities/widget-block-schema";
+import { multiStepOptionsSchema } from "../core/entities/widget-version";
 
 interface SaveModularWidgetVersionPayload {
 	organizationId: string;
 	widgetId: string;
-	schema: WidgetBlockSchema;
+	pages: WidgetPage[];
 	actions: WidgetVersionActions;
+	multiStepOptions?: { showProgressBar?: boolean; progressStyle?: string; nextLabel?: string; backLabel?: string; submitLabel?: string };
 }
 
 /**
@@ -26,7 +28,8 @@ export const saveModularWidgetVersion = onCall<SaveModularWidgetVersionPayload>(
 		timeoutSeconds: 60,
 	},
 	async (request) => {
-		const { organizationId, widgetId, schema, actions } = request.data ?? {};
+		const { organizationId, widgetId, pages, actions, multiStepOptions } =
+			request.data ?? {};
 		if (!organizationId || !widgetId) {
 			throw new HttpsError(
 				"invalid-argument",
@@ -47,15 +50,21 @@ export const saveModularWidgetVersion = onCall<SaveModularWidgetVersionPayload>(
 				"Widget does not belong to this organization"
 			);
 		}
-		const parsedSchema = widgetBlockTreeSchema.safeParse(schema);
-		if (!parsedSchema.success) {
+		const parsedPages = widgetPagesSchema.safeParse(pages);
+		if (!parsedPages.success) {
 			throw new HttpsError(
 				"invalid-argument",
-				"Invalid schema: " + parsedSchema.error.message
+				"Invalid pages: " + parsedPages.error.message
 			);
 		}
 		const parsedActions = widgetVersionActionsSchema.safeParse(actions ?? {});
 		const safeActions = parsedActions.success ? parsedActions.data : {};
+		const parsedMultiStep =
+			multiStepOptions != null
+				? multiStepOptionsSchema.safeParse(multiStepOptions)
+				: { success: true as const, data: undefined };
+		const safeMultiStep =
+			parsedMultiStep.success ? parsedMultiStep.data : undefined;
 		const widgetVersionRepository = getWidgetVersionRepository(databaseService);
 		const existingVersions = await widgetVersionRepository.getAll({
 			queryConstraints: [{ field: "widgetId", operator: "==", value: widgetId }],
@@ -73,8 +82,11 @@ export const saveModularWidgetVersion = onCall<SaveModularWidgetVersionPayload>(
 			data: {
 				widgetId,
 				versionNumber,
-				schema: parsedSchema.data,
+				pages: parsedPages.data,
 				actions: safeActions,
+				...(safeMultiStep != null && Object.keys(safeMultiStep).length > 0
+					? { multiStepOptions: safeMultiStep }
+					: {}),
 			},
 		});
 		return {

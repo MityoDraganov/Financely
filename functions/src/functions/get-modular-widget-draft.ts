@@ -64,8 +64,9 @@ export const getModularWidgetDraft = onCall<GetModularWidgetDraftPayload>(
 						id: (latest as { id: string }).id,
 						widgetId: (latest as { widgetId: string }).widgetId,
 						versionNumber: (latest as { versionNumber: number }).versionNumber,
-						schema: (latest as { schema: unknown }).schema,
+						pages: (latest as { pages: unknown }).pages,
 						actions: (latest as { actions: unknown }).actions,
+						multiStepOptions: (latest as { multiStepOptions?: unknown }).multiStepOptions,
 					}
 				: null,
 		};

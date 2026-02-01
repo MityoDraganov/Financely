@@ -18,7 +18,7 @@ import { Loader2, FileText, MessageSquare, Receipt, GripVertical, Trash2, Plus, 
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
 import { WIDGET_TEMPLATES } from "@/core/widget-templates";
-import type { BlockType, WidgetBlock, WidgetBlockSchema } from "@/core/entities/widget-block-schema";
+import type { BlockType, WidgetBlock, WidgetPage } from "@/core/entities/widget-block-schema";
 import { cn } from "@/lib/utils";
 
 const DROP_LINE_CLASS =
@@ -157,46 +157,43 @@ function BlockOrderItem({
 	);
 }
 
-interface BlockOrderListProps {
-	schema: WidgetBlockSchema;
+interface FieldListProps {
+	fields: WidgetBlock[];
 	selectedBlockId?: string | null;
 	onSelectBlock: (id: string) => void;
 	onRemoveBlock: (id: string) => void;
 	onReorderBlocks: (fromIndex: number, toIndex: number) => void;
-	onAddBlock?: (type: BlockType, defaultProps: Record<string, unknown>) => void;
 	onAddBlockAt?: (index: number, type: BlockType, defaultProps: Record<string, unknown>) => void;
 	onOpenAddBlockPicker?: (index: number) => void;
 	onDuplicateBlock?: (index: number) => void;
 }
 
-function BlockOrderList({
-	schema,
+function FieldList({
+	fields,
 	selectedBlockId,
 	onSelectBlock,
 	onRemoveBlock,
 	onReorderBlocks,
-	onAddBlock,
-	onAddBlockAt,
 	onOpenAddBlockPicker,
 	onDuplicateBlock,
-}: BlockOrderListProps) {
+}: FieldListProps) {
 	const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
-	const canAdd = (onAddBlock ?? onAddBlockAt) && onOpenAddBlockPicker;
+	const canAdd = onOpenAddBlockPicker != null;
 
 	return (
 		<div
 			className="shrink-0 border-t p-3"
 			onDragLeave={() => setDropTargetIndex(null)}
 		>
-			<p className="text-xs font-medium text-muted-foreground mb-2">Block order</p>
+			<p className="text-xs font-medium text-muted-foreground mb-2">Fields</p>
 			<ul className="space-y-1">
-				{schema.map((block, index) => (
+				{fields.map((block, index) => (
 					<Fragment key={block.id}>
 						{canAdd && (
 							<li className="flex items-center justify-center py-0.5">
 								<AddBlockSlot
 									insertIndex={index}
-									onOpenAddBlockPicker={onOpenAddBlockPicker!}
+									onOpenAddBlockPicker={onOpenAddBlockPicker}
 								/>
 							</li>
 						)}
@@ -223,14 +220,123 @@ function BlockOrderList({
 				{canAdd && (
 					<li className="flex items-center justify-center py-0.5">
 						<AddBlockSlot
-							insertIndex={schema.length}
-							onOpenAddBlockPicker={onOpenAddBlockPicker!}
+							insertIndex={fields.length}
+							onOpenAddBlockPicker={onOpenAddBlockPicker}
 						/>
 					</li>
 				)}
-				{dropTargetIndex === schema.length && (
+				{dropTargetIndex === fields.length && (
 					<li className={DROP_LINE_CLASS} aria-hidden />
 				)}
+			</ul>
+		</div>
+	);
+}
+
+interface PagesListProps {
+	pages: WidgetPage[];
+	activePageId: string | null;
+	onSelectPage: (id: string) => void;
+	onAddPage: () => void;
+	onRemovePage: (id: string) => void;
+	onReorderPages: (from: number, to: number) => void;
+	onDuplicatePage?: (pageId: string) => void;
+}
+
+function PagesList({
+	pages,
+	activePageId,
+	onSelectPage,
+	onAddPage,
+	onRemovePage,
+	onReorderPages,
+}: PagesListProps) {
+	const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+
+	const handleDragStart = (e: React.DragEvent, index: number) => {
+		e.dataTransfer.effectAllowed = "move";
+		e.dataTransfer.setData("application/x-page-index", String(index));
+	};
+
+	const handleDrop = (e: React.DragEvent, toIndex: number) => {
+		e.preventDefault();
+		const fromIndex = Number(e.dataTransfer.getData("application/x-page-index"));
+		if (Number.isNaN(fromIndex)) return;
+		const resolved = fromIndex < toIndex ? toIndex - 1 : toIndex;
+		if (fromIndex !== resolved) onReorderPages(fromIndex, resolved);
+		setDropTargetIndex(null);
+	};
+
+	return (
+		<div className="shrink-0 p-3">
+			<p className="text-xs font-medium text-muted-foreground mb-2">Pages</p>
+			<ul className="space-y-1">
+				{pages.map((page, index) => (
+					<Fragment key={page.id}>
+						{dropTargetIndex === index && (
+							<li className={DROP_LINE_CLASS} aria-hidden />
+						)}
+						<li
+							className={cn(
+								"flex items-center gap-1.5 rounded border p-1.5 text-left text-sm transition-colors",
+								activePageId === page.id
+									? "border-primary bg-primary/5"
+									: "border-transparent bg-background hover:bg-muted/50"
+							)}
+							onDragOver={(e) => {
+								e.preventDefault();
+								setDropTargetIndex(index);
+							}}
+							onDragLeave={() => setDropTargetIndex(null)}
+							onDrop={(e) => handleDrop(e, index)}
+						>
+							<div
+								draggable
+								onDragStart={(e) => handleDragStart(e, index)}
+								className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded touch-none shrink-0"
+								aria-label="Drag to reorder"
+							>
+								<GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+							</div>
+							<span className="shrink-0 w-5 text-xs text-muted-foreground tabular-nums">
+								{index + 1}
+							</span>
+							<button
+								type="button"
+								className="flex-1 min-w-0 truncate text-left py-0.5"
+								onClick={() => onSelectPage(page.id)}
+							>
+								{page.name}
+							</button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+								aria-label="Delete page"
+								disabled={pages.length <= 1}
+								onClick={(e) => {
+									e.stopPropagation();
+									onRemovePage(page.id);
+								}}
+							>
+								<Trash2 className="h-3.5 w-3.5" />
+							</Button>
+						</li>
+					</Fragment>
+				))}
+				{dropTargetIndex === pages.length && (
+					<li className={DROP_LINE_CLASS} aria-hidden />
+				)}
+				<li>
+					<button
+						type="button"
+						className="flex w-full items-center justify-center gap-1.5 rounded border border-dashed border-muted-foreground/30 py-1.5 text-xs text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary transition-colors"
+						onClick={onAddPage}
+					>
+						<Plus className="h-3.5 w-3.5" />
+						Add page
+					</button>
+				</li>
 			</ul>
 		</div>
 	);
@@ -303,7 +409,10 @@ export function WidgetSidebar() {
 	const [addBlockInsertIndex, setAddBlockInsertIndex] = useState<number | null>(null);
 	const [addBlockSearchQuery, setAddBlockSearchQuery] = useState("");
 
-	const schema = builder?.schema ?? [];
+	const pages = builder?.pages ?? [];
+	const activePageId = builder?.activePageId ?? null;
+	const activePage = pages.find((p) => p.id === activePageId) ?? null;
+	const fields = activePage?.fields ?? [];
 	const selectedBlockId = builder?.selectedBlockId ?? null;
 	const onSelectBlock = builder ? (id: string) => builder.setSelectedBlockId(id) : undefined;
 	const onReorderBlocks = builder?.reorderBlocks;
@@ -311,6 +420,11 @@ export function WidgetSidebar() {
 	const onAddBlock = builder?.addBlock;
 	const onAddBlockAt = builder?.addBlockAt;
 	const onDuplicateBlock = builder?.duplicateBlock;
+	const onSelectPage = builder ? (id: string) => builder.setActivePageId(id) : undefined;
+	const onAddPage = builder?.addPage ?? (() => {});
+	const onRemovePage = builder?.removePage ?? (() => {});
+	const onReorderPages = builder?.reorderPages ?? (() => {});
+
 	const openAddBlockPicker = (index: number) => {
 		setAddBlockInsertIndex(index);
 		setAddBlockSearchQuery("");
@@ -355,7 +469,7 @@ export function WidgetSidebar() {
 		await onCreateFromTemplate({
 			id: template.id,
 			name: template.name,
-			schema: template.schema,
+			pages: template.pages,
 			actions: template.actions,
 		});
 		setTemplateDialogOpen(false);
@@ -371,18 +485,29 @@ export function WidgetSidebar() {
 
 	return (
 		<div className="flex h-full w-48 sm:w-52 md:w-56 flex-col border-r bg-muted/30 overflow-y-auto shrink-0">
-			{currentWidgetId && currentDefinition && (onAddBlock || onAddBlockAt) && onSelectBlock && onReorderBlocks && onRemoveBlock && (
-				<BlockOrderList
-					schema={schema}
-					selectedBlockId={selectedBlockId}
-					onSelectBlock={onSelectBlock}
-					onRemoveBlock={onRemoveBlock}
-					onReorderBlocks={onReorderBlocks}
-					onAddBlock={onAddBlock}
-					onAddBlockAt={onAddBlockAt}
-					onOpenAddBlockPicker={openAddBlockPicker}
-					onDuplicateBlock={onDuplicateBlock}
-				/>
+			{currentWidgetId && currentDefinition && (
+				<>
+					<PagesList
+						pages={pages}
+						activePageId={activePageId}
+						onSelectPage={onSelectPage ?? (() => {})}
+						onAddPage={onAddPage}
+						onRemovePage={onRemovePage}
+						onReorderPages={onReorderPages}
+					/>
+					{activePage && (onAddBlock ?? onAddBlockAt) && onSelectBlock && onReorderBlocks && onRemoveBlock && (
+						<FieldList
+							fields={fields}
+							selectedBlockId={selectedBlockId}
+							onSelectBlock={onSelectBlock}
+							onRemoveBlock={onRemoveBlock}
+							onReorderBlocks={onReorderBlocks}
+							onAddBlockAt={onAddBlockAt}
+							onOpenAddBlockPicker={openAddBlockPicker}
+							onDuplicateBlock={onDuplicateBlock}
+						/>
+					)}
+				</>
 			)}
 			<Dialog
 				open={addBlockPickerOpen}

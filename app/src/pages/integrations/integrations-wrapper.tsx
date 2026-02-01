@@ -85,7 +85,7 @@ export default function IntegrationsWrapper() {
 				await functionsService.saveModularWidgetVersion({
 					organizationId: orgId,
 					widgetId: r.widgetId,
-					schema: template.schema,
+					pages: template.pages,
 					actions: template.actions,
 				});
 				invalidate();

@@ -146,8 +146,9 @@ export const getModularWidgetConfig = onRequest(
 					widgetId,
 					name: (definition as { name: string }).name,
 					versionId: (version as { id: string }).id,
-					schema: (version as { schema: unknown }).schema,
+					pages: (version as { pages: unknown }).pages,
 					actions: (version as { actions: unknown }).actions,
+					multiStepOptions: (version as { multiStepOptions?: unknown }).multiStepOptions,
 				},
 			};
 			cache.set(cacheKey, config, 300);

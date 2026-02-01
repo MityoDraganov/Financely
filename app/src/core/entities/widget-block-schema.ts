@@ -90,8 +90,16 @@ export interface WidgetBlock {
 	children?: WidgetBlock[];
 }
 
-/** Root schema: tree of blocks. Stored in WidgetVersion.schema */
+/** Fields are blocks; stored inside a page. */
 export type WidgetBlockSchema = WidgetBlock[];
+
+/** A page in a multi-step widget: name, optional description, and fields (blocks). */
+export interface WidgetPage {
+	id: string;
+	name: string;
+	description?: string;
+	fields: WidgetBlock[];
+}
 
 /** Action config for submit pipeline: create lead, notify, success behavior */
 export interface WidgetVersionActions {

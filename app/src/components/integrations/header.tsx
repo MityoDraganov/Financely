@@ -46,7 +46,7 @@ export function IntegrationsHeader() {
 		await onCreateFromTemplate({
 			id: template.id,
 			name: template.name,
-			schema: template.schema,
+			pages: template.pages,
 			actions: template.actions,
 		});
 		setTemplateDialogOpen(false);

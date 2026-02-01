@@ -101,6 +101,17 @@ export const widgetBlockTreeSchema = z.array(widgetBlockSchema);
 export type WidgetBlock = z.infer<typeof widgetBlockSchema>;
 export type WidgetBlockSchema = z.infer<typeof widgetBlockTreeSchema>;
 
+export const widgetPageSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+	fields: widgetBlockTreeSchema,
+});
+
+export const widgetPagesSchema = z.array(widgetPageSchema);
+
+export type WidgetPage = z.infer<typeof widgetPageSchema>;
+
 export const widgetVersionActionsSchema = z.object({
 	createLead: z
 		.object({

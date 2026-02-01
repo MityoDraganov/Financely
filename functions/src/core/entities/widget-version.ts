@@ -1,15 +1,24 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
 import {
-	widgetBlockTreeSchema,
+	widgetPagesSchema,
 	widgetVersionActionsSchema,
 } from "./widget-block-schema";
+
+export const multiStepOptionsSchema = z.object({
+	showProgressBar: z.boolean().optional(),
+	progressStyle: z.enum(["steps", "percentage"]).optional(),
+	nextLabel: z.string().optional(),
+	backLabel: z.string().optional(),
+	submitLabel: z.string().optional(),
+});
 
 export const widgetVersionDataSchema = z.object({
 	widgetId: z.string(),
 	versionNumber: z.number().int(),
-	schema: widgetBlockTreeSchema,
+	pages: widgetPagesSchema,
 	actions: widgetVersionActionsSchema,
+	multiStepOptions: multiStepOptionsSchema.optional(),
 	createdBy: z.string().nullable().optional(),
 });
 

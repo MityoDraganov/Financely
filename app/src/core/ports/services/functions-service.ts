@@ -717,8 +717,9 @@ export interface FunctionsService {
   saveModularWidgetVersion(payload: {
     organizationId: string;
     widgetId: string;
-    schema: import("@/core/entities/widget-block-schema").WidgetBlockSchema;
+    pages: import("@/core/entities/widget-block-schema").WidgetPage[];
     actions: import("@/core/entities/widget-block-schema").WidgetVersionActions;
+    multiStepOptions?: import("@/core/entities/widget-version").WidgetMultiStepOptions;
   }): Promise<{
     success: boolean;
     widgetId: string;
@@ -741,8 +742,9 @@ export interface FunctionsService {
       id: string;
       widgetId: string;
       versionNumber: number;
-      schema: unknown;
+      pages: unknown;
       actions: unknown;
+      multiStepOptions?: import("@/core/entities/widget-version").WidgetMultiStepOptions;
     } | null;
   }>;
 
@@ -769,8 +771,9 @@ export interface FunctionsService {
       widgetId: string;
       name: string;
       versionId: string;
-      schema: unknown;
+      pages: unknown;
       actions: unknown;
+      multiStepOptions?: import("@/core/entities/widget-version").WidgetMultiStepOptions;
     };
   }>;
 

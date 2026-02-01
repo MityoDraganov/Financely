@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Trash2 } from "lucide-react";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
@@ -30,8 +29,14 @@ const REQUIRED_FIELD_TYPES = [
 export function WidgetBuilderPropertiesPanel() {
 	const ctx = useWidgetBuilderContext();
 	const widgetDesigner = useWidgetDesigner();
+	const pages = ctx?.pages ?? [];
+	const activePageId = ctx?.activePageId ?? null;
+	const activePage = pages.find((p) => p.id === activePageId) ?? null;
 	const selectedBlock = ctx?.selectedBlock;
 	const onUpdateProps = ctx?.updateBlockProps ?? (() => {});
+	const updatePage = ctx?.updatePage ?? (() => {});
+	const multiStepOptions = ctx?.multiStepOptions ?? {};
+	const setMultiStepOptions = ctx?.setMultiStepOptions ?? (() => {});
 	const currentWidgetId = widgetDesigner?.currentWidgetId;
 	const deleteWidgetId = ctx?.deleteWidgetId ?? null;
 	const setDeleteWidgetId = ctx?.setDeleteWidgetId ?? (() => {});
@@ -42,9 +47,116 @@ export function WidgetBuilderPropertiesPanel() {
 			<div className="h-full overflow-y-auto p-4 flex flex-col">
 				<h3 className="text-sm font-semibold mb-3">Properties</h3>
 				{!selectedBlock ? (
-					<p className="text-xs text-muted-foreground">
-						Select a block to edit its properties.
-					</p>
+					<>
+						<p className="text-xs text-muted-foreground mb-3">
+							Select a field or edit widget/page settings.
+						</p>
+						{activePage && (
+							<div className="space-y-3 border-t pt-3">
+								<p className="text-xs font-medium text-muted-foreground">Page</p>
+								<div>
+									<Label className="text-xs">Name</Label>
+									<Input
+										className="mt-1"
+										value={activePage.name}
+										onChange={(e) =>
+											updatePage(activePage.id, { name: e.target.value })
+										}
+									/>
+								</div>
+								<div>
+									<Label className="text-xs">Description (optional)</Label>
+									<Input
+										className="mt-1"
+										value={activePage.description ?? ""}
+										onChange={(e) =>
+											updatePage(activePage.id, {
+												description: e.target.value || undefined,
+											})
+										}
+										placeholder="Helper text for this page"
+									/>
+								</div>
+							</div>
+						)}
+						<div className="space-y-3 border-t pt-3">
+							<p className="text-xs font-medium text-muted-foreground">Widget</p>
+							<div className="flex items-center gap-2">
+								<input
+									type="checkbox"
+									id="builder-show-progress-bar"
+									checked={multiStepOptions.showProgressBar ?? false}
+									onChange={(e) =>
+										setMultiStepOptions({
+											...multiStepOptions,
+											showProgressBar: e.target.checked,
+										})
+									}
+								/>
+								<Label htmlFor="builder-show-progress-bar" className="text-xs">
+									Show progress bar
+								</Label>
+							</div>
+							<div>
+								<Label className="text-xs">Progress style</Label>
+								<select
+									className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+									value={multiStepOptions.progressStyle ?? "steps"}
+									onChange={(e) =>
+										setMultiStepOptions({
+											...multiStepOptions,
+											progressStyle: e.target.value as "steps" | "percentage",
+										})
+									}
+								>
+									<option value="steps">Steps (Page 1 / Page 2)</option>
+									<option value="percentage">Percentage</option>
+								</select>
+							</div>
+							<div>
+								<Label className="text-xs">Next label</Label>
+								<Input
+									className="mt-1"
+									value={multiStepOptions.nextLabel ?? ""}
+									onChange={(e) =>
+										setMultiStepOptions({
+											...multiStepOptions,
+											nextLabel: e.target.value || undefined,
+										})
+									}
+									placeholder="Continue"
+								/>
+							</div>
+							<div>
+								<Label className="text-xs">Back label</Label>
+								<Input
+									className="mt-1"
+									value={multiStepOptions.backLabel ?? ""}
+									onChange={(e) =>
+										setMultiStepOptions({
+											...multiStepOptions,
+											backLabel: e.target.value || undefined,
+										})
+									}
+									placeholder="Back"
+								/>
+							</div>
+							<div>
+								<Label className="text-xs">Submit label</Label>
+								<Input
+									className="mt-1"
+									value={multiStepOptions.submitLabel ?? ""}
+									onChange={(e) =>
+										setMultiStepOptions({
+											...multiStepOptions,
+											submitLabel: e.target.value || undefined,
+										})
+									}
+									placeholder="Submit"
+								/>
+							</div>
+						</div>
+					</>
 				) : (
 					<div className="space-y-3">
 						<div>
@@ -209,25 +321,62 @@ export function WidgetBuilderPropertiesPanel() {
 								</Label>
 							</div>
 						)}
-						{selectedBlock.type === "select" && (
-							<div>
-								<Label className="text-xs">Options (one per line)</Label>
-								<Textarea
-									className="mt-1 min-h-[80px]"
-									value={(
-										(selectedBlock.props as { options?: string[] }).options ??
-										[]
-									).join("\n")}
-									onChange={(e) =>
-										onUpdateProps(selectedBlock.id, {
-											options: e.target.value
-												.split("\n")
-												.filter(Boolean),
-										})
-									}
-								/>
-							</div>
-						)}
+						{selectedBlock.type === "select" && (() => {
+							const options: string[] =
+								(selectedBlock.props as { options?: string[] }).options ?? [];
+							return (
+								<div>
+									<Label className="text-xs">Options</Label>
+									<div className="mt-1 space-y-2">
+										{options.map((opt, i) => (
+											<div
+												key={i}
+												className="flex items-center gap-2"
+											>
+												<Input
+													className="flex-1 min-w-0 rounded-sm"
+													value={opt}
+													onChange={(e) =>
+														onUpdateProps(selectedBlock.id, {
+															options: options.map((o, j) =>
+																j === i ? e.target.value : o,
+															),
+														})
+													}
+												/>
+												<Button
+													type="button"
+													variant="secondary"
+													size="icon"
+													className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+													onClick={() =>
+														onUpdateProps(selectedBlock.id, {
+															options: options.filter((_, j) => j !== i),
+														})
+													}
+													aria-label="Remove option"
+												>
+													<Trash2 className="h-4 w-4" />
+												</Button>
+											</div>
+										))}
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											className="w-full text-muted-foreground"
+											onClick={() =>
+												onUpdateProps(selectedBlock.id, {
+													options: [...options, ""],
+												})
+											}
+										>
+											+ Add option
+										</Button>
+									</div>
+								</div>
+							);
+						})()}
 					</div>
 				)}
 				{currentWidgetId && onDeleteWidget && (

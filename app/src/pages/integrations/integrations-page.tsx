@@ -48,7 +48,7 @@ function DesignAreaContent({
 
 	return (
 		<>
-			{!noWidgetSelected && (
+			{showBuilder && (
 				<aside className="w-fit shrink-0 overflow-y-auto">
 					<WidgetSidebar />
 				</aside>
@@ -138,18 +138,23 @@ function DesignAreaContent({
 							</div>
 
 							<div className="min-h-[200px] rounded-lg border bg-card p-6">
-								{ctx.schema.length === 0 ? (
+								{ctx.pages.length === 0 ? (
 									<p className="text-sm text-muted-foreground">
-										Add blocks from the left to build your
-										widget.
+										Add a page from the left to build your widget.
 									</p>
 								) : (
 									<div className="max-w-md mx-auto">
 										<WidgetSchemaRenderer
-											schema={ctx.schema}
+											pages={ctx.pages}
 											actions={ctx.actions}
 											styling={ctx.previewStyling}
 											onSubmit={async () => {}}
+											multiStepOptions={ctx.multiStepOptions}
+											previewPageIndex={
+												ctx.activePageId != null
+													? ctx.pages.findIndex((p) => p.id === ctx.activePageId)
+													: undefined
+											}
 										/>
 									</div>
 								)}
