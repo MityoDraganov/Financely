@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { Loader2, FileText, MessageSquare, Receipt, GripVertical, Trash2, Plus, Search, Copy, ChevronUp, ChevronDown } from "lucide-react";
-import { DeleteWidgetDialog } from "./delete-widget-dialog";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
+import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
 import { WIDGET_TEMPLATES } from "@/core/widget-templates";
 import type { BlockType, WidgetBlock, WidgetBlockSchema } from "@/core/entities/widget-block-schema";
 import { cn } from "@/lib/utils";
@@ -295,36 +295,22 @@ function AddBlockSlot({
 	);
 }
 
-export interface WidgetSidebarProps {
-	onAddBlock?: (type: BlockType, defaultProps: Record<string, unknown>) => void;
-	onAddBlockAt?: (index: number, type: BlockType, defaultProps: Record<string, unknown>) => void;
-	onDuplicateBlock?: (index: number) => void;
-	schema?: WidgetBlockSchema;
-	selectedBlockId?: string | null;
-	onSelectBlock?: (id: string) => void;
-	onReorderBlocks?: (fromIndex: number, toIndex: number) => void;
-	onRemoveBlock?: (id: string) => void;
-	onDeleteWidget?: (widgetId: string) => void;
-}
-
-export function WidgetSidebar({
-	onAddBlock,
-	onAddBlockAt,
-	onDuplicateBlock,
-	schema = [],
-	selectedBlockId,
-	onSelectBlock,
-	onReorderBlocks,
-	onRemoveBlock,
-	onDeleteWidget,
-}: WidgetSidebarProps) {
+export function WidgetSidebar() {
 	const ctx = useWidgetDesigner();
+	const builder = useWidgetBuilderContext();
 	const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-	const [widgetToDeleteId, setWidgetToDeleteId] = useState<string | null>(null);
 	const [addBlockPickerOpen, setAddBlockPickerOpen] = useState(false);
 	const [addBlockInsertIndex, setAddBlockInsertIndex] = useState<number | null>(null);
 	const [addBlockSearchQuery, setAddBlockSearchQuery] = useState("");
 
+	const schema = builder?.schema ?? [];
+	const selectedBlockId = builder?.selectedBlockId ?? null;
+	const onSelectBlock = builder ? (id: string) => builder.setSelectedBlockId(id) : undefined;
+	const onReorderBlocks = builder?.reorderBlocks;
+	const onRemoveBlock = builder?.removeBlock;
+	const onAddBlock = builder?.addBlock;
+	const onAddBlockAt = builder?.addBlockAt;
+	const onDuplicateBlock = builder?.duplicateBlock;
 	const openAddBlockPicker = (index: number) => {
 		setAddBlockInsertIndex(index);
 		setAddBlockSearchQuery("");
@@ -440,16 +426,6 @@ export function WidgetSidebar({
 					</div>
 				</DialogContent>
 			</Dialog>
-			{onDeleteWidget && (
-				<DeleteWidgetDialog
-					open={widgetToDeleteId !== null}
-					onOpenChange={(open) => !open && setWidgetToDeleteId(null)}
-					widgetId={widgetToDeleteId}
-					onConfirm={async (id) => {
-						await onDeleteWidget(id);
-					}}
-				/>
-			)}
 			<Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
 				<DialogContent>
 					<DialogHeader>

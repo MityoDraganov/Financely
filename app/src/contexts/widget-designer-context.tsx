@@ -18,6 +18,7 @@ export interface WidgetDesignerContextValue {
 	onCreateNewWidget: () => void | Promise<void>;
 	onCreateFromTemplate: (template: WidgetTemplateForCreate) => Promise<void>;
 	isLoadingDefinitions: boolean;
+	isCreatingNewWidget: boolean;
 }
 
 const WidgetDesignerContext = createContext<WidgetDesignerContextValue | null>(null);
@@ -32,6 +33,7 @@ export function WidgetDesignerProvider({
 	onCreateNewWidget,
 	onCreateFromTemplate,
 	isLoadingDefinitions,
+	isCreatingNewWidget,
 }: {
 	children: ReactNode;
 	definitions: WidgetDefinitionListItem[];
@@ -42,6 +44,7 @@ export function WidgetDesignerProvider({
 	onCreateNewWidget: () => void | Promise<void>;
 	onCreateFromTemplate: (template: WidgetTemplateForCreate) => Promise<void>;
 	isLoadingDefinitions: boolean;
+	isCreatingNewWidget: boolean;
 }) {
 	return (
 		<WidgetDesignerContext.Provider
@@ -54,6 +57,7 @@ export function WidgetDesignerProvider({
 				onCreateNewWidget,
 				onCreateFromTemplate,
 				isLoadingDefinitions,
+				isCreatingNewWidget,
 			}}
 		>
 			{children}

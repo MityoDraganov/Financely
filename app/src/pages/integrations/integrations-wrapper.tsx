@@ -13,8 +13,9 @@ export default function IntegrationsWrapper() {
 	const { widgetId: widgetIdFromUrl } = useParams<{ widgetId?: string }>();
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id ?? "";
-	const { data: definitions = [], isLoading: isLoadingDefinitions, invalidate } = useWidgetDefinitions(orgId);
+	const { data: definitions = [], isLoading: isLoadingDefinitions, invalidate, refetch } = useWidgetDefinitions(orgId);
 	const [currentWidgetId, setCurrentWidgetId] = useState<string | undefined>(widgetIdFromUrl);
+	const [isCreatingNewWidget, setIsCreatingNewWidget] = useState(false);
 	const creatingRef = useRef(false);
 
 	useEffect(() => {
@@ -42,20 +43,23 @@ export default function IntegrationsWrapper() {
 	const handleCreateNewWidget = useCallback(async () => {
 		if (!orgId || creatingRef.current) return;
 		creatingRef.current = true;
+		setIsCreatingNewWidget(true);
 		try {
 			const r = await functionsService.createWidgetDefinition({
 				organizationId: orgId,
 				name: `Widget ${definitions.length + 1}`,
 			});
 			invalidate();
+			await refetch();
 			setCurrentWidgetId(r.widgetId);
 			navigate(`/integrations/${r.widgetId}`, { replace: true });
 		} catch {
 			creatingRef.current = false;
 		} finally {
 			creatingRef.current = false;
+			setIsCreatingNewWidget(false);
 		}
-	}, [orgId, definitions.length, invalidate, navigate]);
+	}, [orgId, definitions.length, invalidate, refetch, navigate]);
 
 	const onWidgetChange = useCallback(
 		(id: string) => {
@@ -105,6 +109,7 @@ export default function IntegrationsWrapper() {
 				onCreateNewWidget={handleCreateNewWidget}
 				onCreateFromTemplate={handleCreateFromTemplate}
 				isLoadingDefinitions={isLoadingDefinitions}
+				isCreatingNewWidget={isCreatingNewWidget}
 			>
 				<AppLayout>
 					<IntegrationsPage />
