@@ -4,11 +4,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { signInAnonymously } from "@firebase/auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-	ResizableHandle,
-	ResizablePanel,
-	ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import {
 	Drawer,
 	DrawerContent,
 } from "@/components/ui/drawer";
@@ -19,7 +14,7 @@ import {
 	TabsContent,
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Menu, Settings } from "lucide-react";
+import { ChevronLeft, Menu, Settings } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
@@ -82,6 +77,7 @@ export default function TemplateDesignerPage() {
 	const createTemplate = useCreateTemplate();
 	const generateTemplate = useGenerateInvoiceTemplate();
 	const isMobile = useMediaQuery("(max-width: 768px)");
+	const isWideLayout = useMediaQuery("(min-width: 1600px)");
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const [mobilePanelTab, setMobilePanelTab] = useState<"elements" | "properties">("elements");
 	const { theme } = useTheme();
@@ -1425,18 +1421,12 @@ export default function TemplateDesignerPage() {
 
 	// Helper function to handle multi-select with Shift+click
 	const handleSelectElement = (elementId: string, event?: React.MouseEvent | React.PointerEvent) => {
-		// Check shiftKey from the event - make sure we're checking the right property
+		if (!elementId) {
+			setState((s) => ({ ...s, selectedElementIds: [] }));
+			return;
+		}
 		const isShiftPressed = Boolean(event?.shiftKey);
 		const currentSelected = state.selectedElementIds || [];
-		
-		console.log('[SELECT]', { 
-			elementId, 
-			isShiftPressed, 
-			currentSelected, 
-			eventType: event?.type,
-			shiftKey: event?.shiftKey,
-			hasEvent: !!event
-		});
 		
 		if (isShiftPressed) {
 			// Toggle selection: add if not selected, remove if already selected
@@ -2309,20 +2299,46 @@ export default function TemplateDesignerPage() {
 						</DrawerContent>
 					</Drawer>
 				</>
-			) : (
-				<ResizablePanelGroup direction="horizontal" className="w-full">
-					<ResizablePanel defaultSize={18} minSize={16} maxSize={25}>
+			) : isWideLayout ? (
+				<div className="flex min-h-0 w-full flex-1 overflow-hidden">
+					<aside className="max-w-48 shrink-0 overflow-y-auto border-r bg-background">
 						{sidebarContent}
-					</ResizablePanel>
-					<ResizableHandle withHandle />
-					<ResizablePanel minSize={40}>
+					</aside>
+					<main className="min-h-0 min-w-0 flex-1 overflow-hidden">
 						{canvasContent}
-					</ResizablePanel>
-					<ResizableHandle withHandle />
-					<ResizablePanel defaultSize={22} minSize={18} maxSize={30}>
+					</main>
+					<aside className="w-72 shrink-0 overflow-y-auto border-l bg-background">
 						{propertiesContent}
-					</ResizablePanel>
-				</ResizablePanelGroup>
+					</aside>
+				</div>
+			) : (
+				<div className="flex min-h-0 w-full flex-1 overflow-hidden">
+					<aside className="w-72 shrink-0 flex flex-col overflow-hidden border-r bg-background">
+						{state.selectedElementIds?.length ? (
+							<>
+								<div className="shrink-0 flex items-center gap-2 border-b bg-background px-3 py-2">
+									<Button
+										variant="ghost"
+										size="sm"
+										className="-ml-1"
+										onClick={() => setState((s) => ({ ...s, selectedElementIds: [] }))}
+									>
+										<ChevronLeft className="h-4 w-4 mr-1" />
+										{t("designer.back", "Back")}
+									</Button>
+								</div>
+								<div className="flex-1 overflow-y-auto">
+									{propertiesContent}
+								</div>
+							</>
+						) : (
+							sidebarContent
+						)}
+					</aside>
+					<main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+						{canvasContent}
+					</main>
+				</div>
 			)}
 
 		<BrandImagePickerDialog

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { LoadingScreen } from "@/components/loading-screen";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
 import type { WidgetVersionActions } from "@/core/entities/widget-block-schema";
 import type { WidgetStyling } from "@/components/site-builder/widget-types";
@@ -92,7 +93,7 @@ export default function ModularWidgetPage() {
 
 	if (!organizationId || !widgetId) {
 		return (
-			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
+			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
 				<p className="text-destructive">
 					Missing organization or widget
 				</p>
@@ -102,18 +103,14 @@ export default function ModularWidgetPage() {
 
 	if (configError) {
 		return (
-			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
+			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
 				<p className="text-destructive">{configError}</p>
 			</div>
 		);
 	}
 
 	if (!config) {
-		return (
-			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
-				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-			</div>
-		);
+		return <LoadingScreen />;
 	}
 
 	const handleSubmit = async (payload: Record<string, string | boolean>) => {
@@ -166,7 +163,7 @@ export default function ModularWidgetPage() {
 	if (submitStatus === "success") {
 		return (
 			<div
-				className="min-h-screen flex flex-col px-6 py-12 md:py-20"
+				className="min-h-screen w-screen max-w-none flex flex-col px-6 py-12 md:py-20"
 				style={{
 					backgroundColor: pageBg,
 					fontFamily: defaultStyling.fontFamily,
@@ -206,7 +203,7 @@ export default function ModularWidgetPage() {
 
 	return (
 		<div
-			className="min-h-screen w-full flex flex-col items-center justify-center px-6 py-12 md:py-20"
+			className="min-h-screen w-screen max-w-none flex flex-col items-center justify-center px-6 py-12 md:py-20"
 			style={{
 				backgroundColor: pageBg,
 				fontFamily: defaultStyling.fontFamily,

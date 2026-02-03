@@ -9,6 +9,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Template, TemplateData, TemplateElement, TemplateVersion } from "@/core";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -132,157 +133,159 @@ export function PropertiesPanel({
 	}
 
 	const elements = draftElements ?? template.elements ?? [];
-	// Handle multiple selections
 	const selectedElements = selectedElementIds.length > 0
 		? elements.filter((e) => selectedElementIds.includes(e.id))
 		: [];
 	const selectedElement = selectedElements.length === 1 ? selectedElements[0] : undefined;
+	const hasBlockSelected = selectedElement != null;
+
+	const templatePropertiesContent = (
+		<div className={spacing.sectionGap}>
+			{complianceStatus && (
+				<ComplianceStatus
+					complianceStatus={complianceStatus}
+					template={template}
+					onAddRequiredElement={onAddRequiredElement}
+					determineElementTypeForBinding={determineElementTypeForBinding}
+				/>
+			)}
+			<section className={components.section}>
+				<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.template')}</h3>
+				<div className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.name')}</Label>
+						<Input
+							value={template.name}
+							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+								saveMutation.mutate({ name: e.target.value })
+							}
+							className={components.inputHeight}
+						/>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageSize')}</Label>
+						<Select
+							value={template.pageSize}
+							onValueChange={(v: string) =>
+								saveMutation.mutate({ pageSize: v as TemplateData["pageSize"] })
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="A4">A4</SelectItem>
+								<SelectItem value="Letter">Letter</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+			</section>
+			<section className={`${components.section} ${separators.sectionDivider}`}>
+				<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.compliance')}</h3>
+				<div className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.region')}</Label>
+						<Select
+							value={template.compliance?.region || (organization ? invoiceComplianceService.detectRegion(organization) : "US")}
+							onValueChange={(v: string) => {
+								const currentCompliance = template.compliance || {
+									region: "US" as const,
+									requiredFields: [],
+									autoFooter: true,
+									complianceValidated: false,
+								};
+								saveMutation.mutate({
+									compliance: {
+										...currentCompliance,
+										region: v as "US" | "EU" | "CA" | "AU" | "UK",
+										complianceValidated: false,
+									},
+								});
+							}}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="US">🇺🇸 United States</SelectItem>
+								<SelectItem value="EU">🇪🇺 European Union</SelectItem>
+								<SelectItem value="CA">🇨🇦 Canada</SelectItem>
+								<SelectItem value="AU">🇦🇺 Australia</SelectItem>
+								<SelectItem value="UK">🇬🇧 United Kingdom</SelectItem>
+							</SelectContent>
+						</Select>
+						<p className={typography.helperText}>
+							{t('designer.propertiesPanel.regionDescription')}
+						</p>
+					</div>
+				</div>
+			</section>
+			<WatermarkConfig
+				template={template}
+				organizationLogo={organization?.settings?.branding?.customLogo}
+				saveMutation={saveMutation}
+			/>
+			{templateId && onRestoreVersion && (
+				<div className={separators.sectionDivider}>
+					<TemplateVersionHistory
+						templateId={templateId}
+						versions={versions}
+						currentVersion={currentVersion ?? null}
+						onRestoreVersion={onRestoreVersion}
+						isRestoring={isRestoringVersion ?? false}
+						currentUserId={currentUserId}
+					/>
+				</div>
+			)}
+		</div>
+	);
+
+	const blockPropertiesContent = selectedElement && (
+		<div className={spacing.sectionGap}>
+			{selectedElement.type === "table" && selectedElement.itemsBinding && (
+				<div className={separators.sectionDivider}>
+					<ProductTableConfigPanel
+						template={template}
+						selectedTable={selectedElement}
+						onSave={(config) => saveMutation.mutate({ productTableConfig: config })}
+						isSaving={saveMutation.isPending}
+					/>
+				</div>
+			)}
+			<div ref={elementPropertiesRef} className={selectedElement.type === "table" && selectedElement.itemsBinding ? separators.sectionDivider : undefined}>
+				<ElementProperties
+					element={selectedElement}
+					onChange={onUpdateElement}
+					allElements={elements}
+					onOpenImagePicker={onOpenImagePicker}
+				/>
+			</div>
+		</div>
+	);
 
 	return (
 		<div
 			ref={propertiesRef}
-			className={`h-full ${spacing.panelPadding} border-l ${colors.bgDefault} ${spacing.sectionGap} overflow-auto min-w-0`}
+			className={`h-full flex flex-col ${spacing.panelPadding} border-l ${colors.bgDefault} overflow-hidden min-w-0`}
 		>
-			<h2 className={typography.sectionTitle}>{t('designer.propertiesPanel.title')}</h2>
-			
-			<div className={spacing.sectionGap}>
-				{/* Compliance Status Indicator */}
-				{complianceStatus && (
-					<ComplianceStatus
-						complianceStatus={complianceStatus}
-						template={template}
-						onAddRequiredElement={onAddRequiredElement}
-						determineElementTypeForBinding={determineElementTypeForBinding}
-					/>
-				)}
-				
-				{/* Template Properties */}
-				<section className={components.section}>
-					<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.template')}</h3>
-					<div className={components.subsection}>
-						<div className={components.field}>
-							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.name')}</Label>
-							<Input
-								value={template.name}
-								onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-									saveMutation.mutate({
-										name: e.target.value,
-									})
-								}
-								className={components.inputHeight}
-							/>
-						</div>
-						<div className={components.field}>
-							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageSize')}</Label>
-							<Select
-								value={template.pageSize}
-								onValueChange={(v: string) =>
-									saveMutation.mutate({
-										pageSize: v as TemplateData["pageSize"],
-									})
-								}
-							>
-								<SelectTrigger className={components.inputHeight}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="A4">A4</SelectItem>
-									<SelectItem value="Letter">Letter</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-				</section>
-				
-				{/* Compliance Region */}
-				<section className={`${components.section} ${separators.sectionDivider}`}>
-					<h3 className={typography.sectionTitle}>{t('designer.propertiesPanel.compliance')}</h3>
-					<div className={components.subsection}>
-						<div className={components.field}>
-							<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.region')}</Label>
-							<Select
-								value={template.compliance?.region || (organization ? invoiceComplianceService.detectRegion(organization) : "US")}
-								onValueChange={(v: string) => {
-									const currentCompliance = template.compliance || {
-										region: "US" as const,
-										requiredFields: [],
-										autoFooter: true,
-										complianceValidated: false,
-									};
-									saveMutation.mutate({
-										compliance: {
-											...currentCompliance,
-											region: v as "US" | "EU" | "CA" | "AU" | "UK",
-											complianceValidated: false,
-										},
-									});
-								}}
-							>
-								<SelectTrigger className={components.inputHeight}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="US">🇺🇸 United States</SelectItem>
-									<SelectItem value="EU">🇪🇺 European Union</SelectItem>
-									<SelectItem value="CA">🇨🇦 Canada</SelectItem>
-									<SelectItem value="AU">🇦🇺 Australia</SelectItem>
-									<SelectItem value="UK">🇬🇧 United Kingdom</SelectItem>
-								</SelectContent>
-							</Select>
-							<p className={typography.helperText}>
-								{t('designer.propertiesPanel.regionDescription')}
-							</p>
-						</div>
-					</div>
-				</section>
-				
-				{/* Watermark Configuration */}
-				<WatermarkConfig
-					template={template}
-					organizationLogo={organization?.settings?.branding?.customLogo}
-					saveMutation={saveMutation}
-				/>
-				
-				{/* Version History */}
-				{templateId && onRestoreVersion && (
-					<div className={separators.sectionDivider}>
-						<TemplateVersionHistory
-							templateId={templateId}
-							versions={versions}
-							currentVersion={currentVersion ?? null}
-							onRestoreVersion={onRestoreVersion}
-							isRestoring={isRestoringVersion ?? false}
-							currentUserId={currentUserId}
-						/>
-					</div>
-				)}
-				
-				{/* Product Table Configuration - Only show when a table is selected */}
-				{selectedElement?.type === "table" && selectedElement.itemsBinding && (
-					<div className={separators.sectionDivider}>
-						<ProductTableConfigPanel
-							template={template}
-							selectedTable={selectedElement}
-							onSave={(config) => {
-								saveMutation.mutate({ productTableConfig: config });
-							}}
-							isSaving={saveMutation.isPending}
-						/>
-					</div>
-				)}
-				
-				{/* Element Properties */}
-				{selectedElement && (
-					<div ref={elementPropertiesRef} className={separators.sectionDivider}>
-					<ElementProperties
-						element={selectedElement}
-						onChange={onUpdateElement}
-						allElements={elements}
-						onOpenImagePicker={onOpenImagePicker}
-					/>
-					</div>
-				)}
-			</div>
+			<h2 className={`${typography.sectionTitle} shrink-0`}>{t('designer.propertiesPanel.title')}</h2>
+			{hasBlockSelected ? (
+				<Tabs defaultValue="block" className="flex-1 flex flex-col min-h-0 gap-2">
+					<TabsList className="w-full shrink-0">
+						<TabsTrigger value="block" className="flex-1">{t('designer.propertiesPanel.block', 'Block')}</TabsTrigger>
+						<TabsTrigger value="template" className="flex-1">{t('designer.propertiesPanel.templateTab', 'Template')}</TabsTrigger>
+					</TabsList>
+					<TabsContent value="block" className="flex-1 overflow-auto min-h-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
+						{blockPropertiesContent}
+					</TabsContent>
+					<TabsContent value="template" className="flex-1 overflow-auto min-h-0 m-0 data-[state=active]:flex data-[state=active]:flex-col">
+						{templatePropertiesContent}
+					</TabsContent>
+				</Tabs>
+			) : (
+				<div className="flex-1 overflow-auto min-h-0">{templatePropertiesContent}</div>
+			)}
 		</div>
 	);
 }

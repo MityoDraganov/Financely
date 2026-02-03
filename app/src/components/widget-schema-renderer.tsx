@@ -12,6 +12,7 @@ import type { WidgetStyling } from "@/components/site-builder/widget-types";
 
 export interface WidgetMultiStepOptions {
 	showProgressBar?: boolean;
+	progressBarPosition?: "top" | "bottom";
 	progressStyle?: "steps" | "percentage";
 	nextLabel?: string;
 	backLabel?: string;
@@ -398,34 +399,39 @@ export function WidgetSchemaRenderer({
 	const progressPct =
 		pages.length > 0 ? ((safePageIndex + 1) / pages.length) * 100 : 0;
 
+	const progressBarEl =
+		isMultiStep && (multiStepOptions?.showProgressBar !== false) ? (
+			<div key="progress" className="space-y-2">
+				{multiStepOptions?.progressStyle === "percentage" ? (
+					<p className="text-xs font-medium" style={{ color: s.textColor }}>
+						{Math.round(progressPct)}%
+					</p>
+				) : (
+					<p className="text-xs font-medium" style={{ color: s.textColor }}>
+						{currentPage?.name ?? `Page ${safePageIndex + 1}`} ({safePageIndex + 1} / {pages.length})
+					</p>
+				)}
+				<div
+					className="h-1.5 w-full rounded-full overflow-hidden"
+					style={{ backgroundColor: s.borderColor }}
+				>
+					<div
+						className="h-full rounded-full transition-[width]"
+						style={{
+							width: `${progressPct}%`,
+							backgroundColor: s.primaryColor,
+						}}
+					/>
+				</div>
+			</div>
+		) : null;
+
+	const progressBarAtTop = (multiStepOptions?.progressBarPosition ?? "top") === "top";
+
 	return (
 		<form onSubmit={formSubmitHandler} className="space-y-4">
-			{isMultiStep && !isPreviewMode && multiStepOptions?.showProgressBar && (
-				<div className="space-y-2">
-					{multiStepOptions.progressStyle === "percentage" ? (
-						<p className="text-xs font-medium" style={{ color: s.textColor }}>
-							{Math.round(progressPct)}%
-						</p>
-					) : (
-						<p className="text-xs font-medium" style={{ color: s.textColor }}>
-							{currentPage?.name ?? `Page ${safePageIndex + 1}`} ({safePageIndex + 1} / {pages.length})
-						</p>
-					)}
-					<div
-						className="h-1.5 w-full rounded-full overflow-hidden"
-						style={{ backgroundColor: s.borderColor }}
-					>
-						<div
-							className="h-full rounded-full transition-[width]"
-							style={{
-								width: `${progressPct}%`,
-								backgroundColor: s.primaryColor,
-							}}
-						/>
-					</div>
-				</div>
-			)}
-			{isMultiStep && !isPreviewMode && currentPage?.description && (
+			{progressBarAtTop && progressBarEl}
+			{isMultiStep && currentPage?.description && (
 				<p className="text-sm opacity-80" style={{ color: s.textColor }}>
 					{currentPage.description}
 				</p>
@@ -446,6 +452,7 @@ export function WidgetSchemaRenderer({
 			{currentBlocks.map((block, i) =>
 				renderBlock(block, s, block.id || `block-${i}`)
 			)}
+			{!progressBarAtTop && progressBarEl}
 			{submitError && (
 				<p
 					className="text-sm py-2 px-3 rounded-md"

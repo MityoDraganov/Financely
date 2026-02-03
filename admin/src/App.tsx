@@ -17,6 +17,7 @@ import { AdminSettingsPage } from "@/pages/admin/settings";
 import { AdminLogsPage } from "@/pages/admin/logs";
 import { AdminUserDetailPage } from "@/pages/admin/user-detail";
 import { AdminMarketplacePage } from "@/pages/admin/marketplace";
+import { AdminTemplatePreviewPastePage } from "@/pages/admin/template-preview-paste";
 import { AdminSignInPage } from "@/pages/sign-in";
 import { AdminAuthProvider } from "@/components/AdminAuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -158,6 +159,16 @@ function App() {
                     <AdminProtectedRoute>
                       <AdminLayout>
                         <AdminMarketplacePage />
+                      </AdminLayout>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/template-preview"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminLayout>
+                        <AdminTemplatePreviewPastePage />
                       </AdminLayout>
                     </AdminProtectedRoute>
                   }

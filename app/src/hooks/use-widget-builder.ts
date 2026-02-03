@@ -51,9 +51,16 @@ export interface UseWidgetBuilderReturn {
 		type: BlockType,
 		defaultProps: Record<string, unknown>,
 	) => void;
-	duplicateBlock: (index: number) => void;
+	addBlockToParent: (
+		parentId: string | null,
+		index: number,
+		type: BlockType,
+		defaultProps: Record<string, unknown>,
+	) => void;
+	duplicateBlockAt: (parentId: string | null, index: number) => void;
 	removeBlock: (id: string) => void;
-	reorderBlocks: (fromIndex: number, toIndex: number) => void;
+	reorderBlocks: (parentId: string | null, fromIndex: number, toIndex: number) => void;
+	moveBlock: (blockId: string, targetParentId: string | null, targetIndex: number) => void;
 	updateBlockProps: (id: string, props: Record<string, unknown>) => void;
 	save: () => Promise<void>;
 	publish: () => Promise<void>;
@@ -79,12 +86,89 @@ const generateBlockId = () =>
 const generatePageId = () =>
 	`page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+const LAYOUT_BLOCKS_WITH_CHILDREN: BlockType[] = ["container", "card", "columns"];
+
+function findBlockInFields(fields: WidgetBlock[], blockId: string): WidgetBlock | undefined {
+	for (const b of fields) {
+		if (b.id === blockId) return b;
+		const inChild = b.children?.length
+			? findBlockInFields(b.children, blockId)
+			: undefined;
+		if (inChild) return inChild;
+	}
+	return undefined;
+}
+
 function findBlockInPages(pages: WidgetPage[], blockId: string): WidgetBlock | undefined {
 	for (const page of pages) {
-		const b = page.fields.find((f) => f.id === blockId);
+		const b = findBlockInFields(page.fields ?? [], blockId);
 		if (b) return b;
 	}
 	return undefined;
+}
+
+function removeBlockFromFields(fields: WidgetBlock[], blockId: string): WidgetBlock[] {
+	return fields
+		.filter((b) => b.id !== blockId)
+		.map((b) =>
+			b.children?.length
+				? { ...b, children: removeBlockFromFields(b.children, blockId) }
+				: b,
+		);
+}
+
+function updateBlockInFields(
+	fields: WidgetBlock[],
+	blockId: string,
+	updater: (block: WidgetBlock) => WidgetBlock,
+): WidgetBlock[] {
+	return fields.map((b) => {
+		if (b.id === blockId) return updater(b);
+		if (b.children?.length) {
+			return { ...b, children: updateBlockInFields(b.children, blockId, updater) };
+		}
+		return b;
+	});
+}
+
+function insertBlockAt(
+	fields: WidgetBlock[],
+	parentId: string | null,
+	index: number,
+	block: WidgetBlock,
+): WidgetBlock[] {
+	if (parentId === null) {
+		const next = [...fields];
+		next.splice(index, 0, block);
+		return next;
+	}
+	return updateBlockInFields(fields, parentId, (parent) => {
+		const children = [...(parent.children ?? [])];
+		children.splice(index, 0, block);
+		return { ...parent, children };
+	});
+}
+
+function duplicateBlockDeep(block: WidgetBlock): WidgetBlock {
+	const copy: WidgetBlock = {
+		id: generateBlockId(),
+		type: block.type,
+		props: { ...block.props },
+		...(block.children?.length
+			? { children: block.children.map(duplicateBlockDeep) }
+			: {}),
+	};
+	return copy;
+}
+
+function ensureLayoutBlockChildren(block: WidgetBlock): WidgetBlock {
+	const withChildren =
+		LAYOUT_BLOCKS_WITH_CHILDREN.includes(block.type) && !Array.isArray(block.children)
+			? { ...block, children: [] }
+			: block;
+	return withChildren.children?.length
+		? { ...withChildren, children: withChildren.children.map(ensureLayoutBlockChildren) }
+		: withChildren;
 }
 
 function ensureAtLeastOnePage(pages: WidgetPage[]): WidgetPage[] {
@@ -119,11 +203,6 @@ export function useWidgetBuilder({
 	const [widgetNameSaving, setWidgetNameSaving] = useState(false);
 	const [deleteWidgetId, setDeleteWidgetId] = useState<string | null>(null);
 
-	const activePage = useMemo(
-		() => pages.find((p) => p.id === activePageId) ?? pages[0] ?? null,
-		[pages, activePageId],
-	);
-
 	const selectedBlock = useMemo(
 		() => (selectedBlockId ? findBlockInPages(pages, selectedBlockId) : undefined),
 		[pages, selectedBlockId],
@@ -148,7 +227,7 @@ export function useWidgetBuilder({
 					const raw = r.version.pages as WidgetPage[];
 					const normalized = raw.map((p) => ({
 						...p,
-						fields: Array.isArray(p.fields) ? p.fields : [],
+						fields: (Array.isArray(p.fields) ? p.fields : []).map(ensureLayoutBlockChildren),
 					}));
 					const loaded = ensureAtLeastOnePage(normalized);
 					setPages(loaded);
@@ -270,6 +349,7 @@ export function useWidgetBuilder({
 				id: generateBlockId(),
 				type,
 				props: defaultProps,
+				...(LAYOUT_BLOCKS_WITH_CHILDREN.includes(type) ? { children: [] } : {}),
 			};
 			setPages((prev) =>
 				prev.map((p) =>
@@ -294,6 +374,7 @@ export function useWidgetBuilder({
 				id: generateBlockId(),
 				type,
 				props: defaultProps,
+				...(LAYOUT_BLOCKS_WITH_CHILDREN.includes(type) ? { children: [] } : {}),
 			};
 			setPages((prev) =>
 				prev.map((p) => {
@@ -308,47 +389,142 @@ export function useWidgetBuilder({
 		[activePageId],
 	);
 
-	const duplicateBlock = useCallback((index: number) => {
-		if (!activePage) return;
-		const fields = activePage.fields ?? [];
-		const block = fields[index];
-		if (!block) return;
-		const copy: WidgetBlock = {
-			id: generateBlockId(),
-			type: block.type,
-			props: { ...block.props },
-		};
-		setPages((prev) =>
-			prev.map((p) => {
-				if (p.id !== activePageId) return p;
-				const fieldList = [...(p.fields ?? [])];
-				fieldList.splice(index + 1, 0, copy);
-				return { ...p, fields: fieldList };
-			}),
-		);
-		setSelectedBlockId(copy.id);
-	}, [activePage, activePageId]);
+	const addBlockToParent = useCallback(
+		(
+			parentId: string | null,
+			index: number,
+			type: BlockType,
+			defaultProps: Record<string, unknown>,
+		) => {
+			if (!activePageId) return;
+			const block: WidgetBlock = {
+				id: generateBlockId(),
+				type,
+				props: defaultProps,
+				...(LAYOUT_BLOCKS_WITH_CHILDREN.includes(type) ? { children: [] } : {}),
+			};
+			if (parentId === null) {
+				setPages((prev) =>
+					prev.map((p) => {
+						if (p.id !== activePageId) return p;
+						const fields = [...(p.fields ?? [])];
+						fields.splice(index, 0, block);
+						return { ...p, fields };
+					}),
+				);
+			} else {
+				setPages((prev) =>
+					prev.map((p) => {
+						if (p.id !== activePageId) return p;
+						const fields = updateBlockInFields(p.fields ?? [], parentId, (parent) => {
+							const children = [...(parent.children ?? [])];
+							children.splice(index, 0, block);
+							return { ...parent, children };
+						});
+						return { ...p, fields };
+					}),
+				);
+			}
+			setSelectedBlockId(block.id);
+		},
+		[activePageId],
+	);
+
+	const duplicateBlockAt = useCallback(
+		(parentId: string | null, index: number) => {
+			if (!activePageId) return;
+			const newIdRef = { current: "" };
+			setPages((prev) => {
+				const p = prev.find((page) => page.id === activePageId);
+				if (!p) return prev;
+				let block: WidgetBlock | undefined;
+				if (parentId === null) {
+					block = (p.fields ?? [])[index];
+				} else {
+					const parent = findBlockInFields(p.fields ?? [], parentId);
+					block = parent?.children?.[index];
+				}
+				if (!block) return prev;
+				const copy = duplicateBlockDeep(block);
+				newIdRef.current = copy.id;
+				return prev.map((page) => {
+					if (page.id !== activePageId) return page;
+					if (parentId === null) {
+						const fieldList = [...(page.fields ?? [])];
+						fieldList.splice(index + 1, 0, copy);
+						return { ...page, fields: fieldList };
+					}
+					const fields = updateBlockInFields(page.fields ?? [], parentId, (parent) => {
+						const children = [...(parent.children ?? [])];
+						children.splice(index + 1, 0, copy);
+						return { ...parent, children };
+					});
+					return { ...page, fields };
+				});
+			});
+			setSelectedBlockId(newIdRef.current);
+		},
+		[activePageId],
+	);
 
 	const removeBlock = useCallback((id: string) => {
 		setPages((prev) =>
 			prev.map((p) => ({
 				...p,
-				fields: (p.fields ?? []).filter((b) => b.id !== id),
+				fields: removeBlockFromFields(p.fields ?? [], id),
 			})),
 		);
 		setSelectedBlockId((prev) => (prev === id ? null : prev));
 	}, []);
 
 	const reorderBlocks = useCallback(
-		(fromIndex: number, toIndex: number) => {
+		(parentId: string | null, fromIndex: number, toIndex: number) => {
 			if (fromIndex === toIndex || !activePageId) return;
 			setPages((prev) =>
 				prev.map((p) => {
 					if (p.id !== activePageId) return p;
-					const fieldList = [...(p.fields ?? [])];
-					const [item] = fieldList.splice(fromIndex, 1);
-					fieldList.splice(toIndex, 0, item);
-					return { ...p, fields: fieldList };
+					if (parentId === null) {
+						const fieldList = [...(p.fields ?? [])];
+						const [item] = fieldList.splice(fromIndex, 1);
+						fieldList.splice(toIndex, 0, item);
+						return { ...p, fields: fieldList };
+					}
+					const fields = updateBlockInFields(p.fields ?? [], parentId, (parent) => {
+						const children = [...(parent.children ?? [])];
+						const [item] = children.splice(fromIndex, 1);
+						children.splice(toIndex, 0, item);
+						return { ...parent, children };
+					});
+					return { ...p, fields };
+				}),
+			);
+		},
+		[activePageId],
+	);
+
+	const moveBlock = useCallback(
+		(blockId: string, targetParentId: string | null, targetIndex: number) => {
+			if (!activePageId) return;
+			if (targetParentId === blockId) return;
+			setPages((prev) =>
+				prev.map((p) => {
+					if (p.id !== activePageId) return p;
+					const block = findBlockInFields(p.fields ?? [], blockId);
+					if (!block) return p;
+					if (
+						targetParentId &&
+						findBlockInFields([block], targetParentId) !== undefined
+					) {
+						return p;
+					}
+					const fieldsWithout = removeBlockFromFields(p.fields ?? [], blockId);
+					const fieldsWith = insertBlockAt(
+						fieldsWithout,
+						targetParentId,
+						targetIndex,
+						block,
+					);
+					return { ...p, fields: fieldsWith };
 				}),
 			);
 		},
@@ -357,14 +533,15 @@ export function useWidgetBuilder({
 
 	const updateBlockProps = useCallback(
 		(id: string, updates: Record<string, unknown>) => {
-		setPages((prev) =>
-			prev.map((p) => ({
-				...p,
-				fields: (p.fields ?? []).map((b) =>
-					b.id !== id ? b : { ...b, props: { ...b.props, ...updates } },
-				),
-			})),
-		);
+			setPages((prev) =>
+				prev.map((p) => ({
+					...p,
+					fields: updateBlockInFields(p.fields ?? [], id, (b) => ({
+						...b,
+						props: { ...b.props, ...updates },
+					})),
+				})),
+			);
 		},
 		[],
 	);
@@ -474,9 +651,11 @@ export function useWidgetBuilder({
 			updatePage: noop,
 			addBlock: noop,
 			addBlockAt: noop,
-			duplicateBlock: noop,
+			addBlockToParent: noop,
+			duplicateBlockAt: noop,
 			removeBlock: noop,
 			reorderBlocks: noop,
+			moveBlock: noop,
 			updateBlockProps: noop,
 			save: noopAsync,
 			publish: noopAsync,
@@ -513,9 +692,11 @@ export function useWidgetBuilder({
 		updatePage,
 		addBlock,
 		addBlockAt,
-		duplicateBlock,
+		addBlockToParent,
+		duplicateBlockAt,
 		removeBlock,
 		reorderBlocks,
+		moveBlock,
 		updateBlockProps,
 		save,
 		publish,

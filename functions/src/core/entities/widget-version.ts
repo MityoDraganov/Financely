@@ -7,6 +7,7 @@ import {
 
 export const multiStepOptionsSchema = z.object({
 	showProgressBar: z.boolean().optional(),
+	progressBarPosition: z.enum(["top", "bottom"]).optional(),
 	progressStyle: z.enum(["steps", "percentage"]).optional(),
 	nextLabel: z.string().optional(),
 	backLabel: z.string().optional(),

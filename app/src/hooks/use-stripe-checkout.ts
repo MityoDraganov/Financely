@@ -12,8 +12,8 @@ export function useCreateCheckoutSession() {
     mutationFn: (payload: Parameters<typeof functionsService.createCheckoutSession>[0]) =>
       functionsService.createCheckoutSession(payload),
     onSuccess: () => {
-      // Invalidate organization queries to refresh billing state after checkout
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["stripeBilling"] });
     },
   });
 }

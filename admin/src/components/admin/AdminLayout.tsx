@@ -20,6 +20,7 @@ import {
   FileText,
   Shield,
   Store,
+  FileJson,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAdminRole } from "@/utils/admin-utils";
@@ -57,6 +58,11 @@ const adminNavItems = [
     title: "Marketplace",
     href: "/marketplace",
     icon: Store,
+  },
+  {
+    title: "Template Preview",
+    href: "/template-preview",
+    icon: FileJson,
   },
   {
     title: "System Settings",

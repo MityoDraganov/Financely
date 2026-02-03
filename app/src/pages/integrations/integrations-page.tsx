@@ -309,8 +309,14 @@ export default function IntegrationsPage() {
 		if (!organization) return "";
 		const apiUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
 		const widgetLoaderUrl = window.location.origin + "/widget-loader.js";
-		return `<script src="${widgetLoaderUrl}" data-org-id="${organization.id}" data-api-url="${apiUrl}"></script>`;
-	}, [organization]);
+		const appUrl = window.location.origin;
+		let script = `<script src="${widgetLoaderUrl}" data-org-id="${organization.id}" data-api-url="${apiUrl}"`;
+		if (effectiveWidgetId) {
+			script += ` data-widget-id="${effectiveWidgetId}" data-app-url="${appUrl}"`;
+		}
+		script += `></script>`;
+		return script;
+	}, [organization, effectiveWidgetId]);
 
 	const showBuilder = Boolean(effectiveWidgetId) && activeTab === "design";
 	const showPropertiesPanel = showBuilder;

@@ -4,6 +4,7 @@ import type { WidgetVersionActions } from "./widget-block-schema";
 
 export interface WidgetMultiStepOptions {
 	showProgressBar?: boolean;
+	progressBarPosition?: "top" | "bottom";
 	progressStyle?: "steps" | "percentage";
 	nextLabel?: string;
 	backLabel?: string;

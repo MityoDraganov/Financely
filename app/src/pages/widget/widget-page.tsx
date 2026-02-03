@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { projectId } from "@/infrastructure/firebase";
@@ -123,20 +124,20 @@ export default function WidgetPage() {
 
 	if (error) {
 		return (
-			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
+			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
 				<p className="text-destructive">{error}</p>
 			</div>
 		);
 	}
 
-	if (!config || !widgetConfig?.enabled) {
+	if (!config) {
+		return <LoadingScreen />;
+	}
+
+	if (!widgetConfig?.enabled) {
 		return (
-			<div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
-				{!config ? (
-					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-				) : (
-					<p className="text-muted-foreground">Widget not available</p>
-				)}
+			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
+				<p className="text-muted-foreground">Widget not available</p>
 			</div>
 		);
 	}
@@ -254,7 +255,7 @@ export default function WidgetPage() {
 	if (submitStatus === "success") {
 		return (
 			<div
-				className="min-h-screen flex flex-col px-6 py-12 md:py-20"
+				className="min-h-screen w-screen max-w-none flex flex-col px-6 py-12 md:py-20"
 				style={{
 					backgroundColor: pageBg,
 					fontFamily: s.fontFamily,
@@ -301,7 +302,7 @@ export default function WidgetPage() {
 
 	return (
 		<div
-			className="min-h-screen w-full flex flex-col items-center justify-center px-6 py-12 md:py-20"
+			className="min-h-screen w-screen max-w-none flex flex-col items-center justify-center px-6 py-12 md:py-20"
 			style={{
 				backgroundColor: pageBg,
 				fontFamily: s.fontFamily,

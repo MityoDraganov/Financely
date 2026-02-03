@@ -18,6 +18,7 @@ import { WIDGET_TEMPLATES } from "@/core/widget-templates";
 import type {
 	WidgetBlockSchema,
 	WidgetBlock,
+	WidgetPage,
 	WidgetVersionActions,
 	BlockType,
 } from "@/core/entities/widget-block-schema";
@@ -111,8 +112,9 @@ export default function WidgetBuilderPage() {
 				widgetId,
 			})
 			.then((r) => {
-				if (r.version?.schema && Array.isArray(r.version.schema)) {
-					setSchema(r.version.schema as WidgetBlockSchema);
+				const pages = r.version?.pages as WidgetPage[] | undefined;
+				if (Array.isArray(pages) && pages.length > 0 && pages[0].fields) {
+					setSchema(pages[0].fields);
 				}
 				if (r.version?.actions && typeof r.version.actions === "object") {
 					setActions(r.version.actions as WidgetVersionActions);
@@ -167,10 +169,13 @@ export default function WidgetBuilderPage() {
 		if (!organization?.id || !widgetId) return;
 		setSaving(true);
 		try {
+			const pages: WidgetPage[] = [
+				{ id: "page-1", name: "Page 1", fields: schema },
+			];
 			const r = await functionsService.saveModularWidgetVersion({
 				organizationId: organization.id,
 				widgetId,
-				schema,
+				pages,
 				actions,
 			});
 			toast.success("Draft saved");
@@ -234,7 +239,7 @@ export default function WidgetBuilderPage() {
 			await functionsService.saveModularWidgetVersion({
 				organizationId: organization.id,
 				widgetId: r.widgetId,
-				schema: template.schema,
+				pages: template.pages,
 				actions: template.actions,
 			});
 			navigate(`/integrations/widget-builder/${r.widgetId}`);

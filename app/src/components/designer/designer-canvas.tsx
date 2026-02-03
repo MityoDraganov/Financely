@@ -116,12 +116,9 @@ export function DesignerCanvas({
 					<div
 						ref={pageRef}
 						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
-						onClick={(e) => {
-							// Deselect all when clicking on empty canvas (not on an element)
-							// Elements stop propagation, so if we reach here, it's empty space
-							if (e.target === e.currentTarget || (e.target as HTMLElement) === pageRef.current) {
-								onSelectElement("", e);
-							}
+						onClick={() => {
+							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
+							onSelectElement("");
 						}}
 						style={{
 							width: PAGE_WIDTH * state.zoom,

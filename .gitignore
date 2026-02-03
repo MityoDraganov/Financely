@@ -144,6 +144,10 @@ vite.config.ts.timestamp-*
 functions/lib/**/*.js
 functions/lib/**/*.js.map
 
+# Loader copies (source: app/public/; prebuild copies into functions/public/)
+functions/public/widget-loader.js
+functions/public/analytics-loader.js
+
 # TypeScript v1 declaration files
 functions/typings/
 

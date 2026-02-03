@@ -24,6 +24,8 @@
     config.apiUrl = currentScript.getAttribute('data-api-url') || 
       currentScript.getAttribute('data-api-base-url') ||
       'https://us-central1-YOUR_PROJECT.cloudfunctions.net';
+    config.widgetId = currentScript.getAttribute('data-widget-id');
+    config.appUrl = currentScript.getAttribute('data-app-url') || (config.widgetId ? window.location.origin : null);
     config.language = currentScript.getAttribute('data-language');
   }
 
@@ -918,8 +920,56 @@
     };
   }
 
+  // Modular widget: open widget page in iframe (integration widgets with pages)
+  function initModularWidget() {
+    if (!config.widgetId || !config.appUrl) return;
+    const iframeUrl = config.appUrl.replace(/\/$/, '') + '/widget/' + encodeURIComponent(config.orgId) + '/modular/' + encodeURIComponent(config.widgetId);
+    const button = document.createElement('button');
+    button.className = 'financely-widget-button financely-widget-modular bottom-right';
+    button.setAttribute('aria-label', 'Open form');
+    button.style.cssText = 'position:fixed;z-index:9999;bottom:24px;right:24px;border:none;border-radius:50px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);background:#2563eb;color:#fff;display:flex;align-items:center;gap:8px;';
+    button.textContent = 'Contact';
+    button.onclick = function() {
+      const modal = document.createElement('div');
+      modal.className = 'financely-widget-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.onclick = function(e) {
+        if (e.target === modal) {
+          document.body.removeChild(modal);
+        }
+      };
+      const content = document.createElement('div');
+      content.style.cssText = 'background:#fff;border-radius:12px;max-width:500px;width:100%;max-height:90vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+      content.onclick = function(e) { e.stopPropagation(); };
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:flex-end;';
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '\u00D7';
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.style.cssText = 'background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;padding:0;width:32px;height:32px;';
+      closeBtn.onclick = function() { document.body.removeChild(modal); };
+      header.appendChild(closeBtn);
+      const iframe = document.createElement('iframe');
+      iframe.src = iframeUrl;
+      iframe.title = 'Form';
+      iframe.setAttribute('name', 'financely-form-view');
+      iframe.setAttribute('id', 'financely-form-view');
+      iframe.style.cssText = 'width:100%;height:500px;border:none;display:block;';
+      content.appendChild(header);
+      content.appendChild(iframe);
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+    };
+    document.body.appendChild(button);
+  }
+
   // Initialize widgets
   async function init() {
+    if (config.widgetId && config.appUrl) {
+      initModularWidget();
+      return;
+    }
+
     const widgetConfig = await loadConfig();
     
     if (!widgetConfig || !widgetConfig.widgets.enabled) {

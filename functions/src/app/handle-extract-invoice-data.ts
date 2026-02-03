@@ -112,12 +112,12 @@ export async function handleExtractInvoiceData(
 
     const processingDurationMs = Date.now() - startTime;
 
-    // Update extraction job with results
+    // Update extraction job with results (omit extractedData when null - Firestore rejects undefined)
     await extractionJobRepository.update({
       id: jobId,
       data: {
         status: "extracted",
-        extractedData: structuredData || undefined, // Convert null to undefined
+        ...(structuredData != null && { extractedData: structuredData }),
         confidenceScores,
         ocrRawResults: {
           fullText: ocrResult.fullText,

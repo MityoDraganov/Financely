@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -21,39 +21,51 @@ import { WIDGET_TEMPLATES } from "@/core/widget-templates";
 import type { BlockType, WidgetBlock, WidgetPage } from "@/core/entities/widget-block-schema";
 import { cn } from "@/lib/utils";
 
+const LAYOUT_WITH_CHILDREN: BlockType[] = ["container", "card", "columns"];
+
 const DROP_LINE_CLASS =
 	"list-none h-0.5 rounded-full bg-primary mx-1 my-0.5 flex-shrink-0 min-w-0";
 
 interface BlockOrderItemProps {
 	block: WidgetBlock;
+	parentId: string | null;
 	index: number;
 	selectedBlockId?: string | null;
-	dropTargetIndex: number | null;
-	onDragOver: (index: number, half: "top" | "bottom") => void;
+	dropTarget: { parentId: string | null; index: number } | null;
+	onDragOver: (parentId: string | null, index: number, half: "top" | "bottom") => void;
 	onDragLeave: () => void;
 	onSelect: () => void;
 	onRemove: () => void;
-	onReorder: (fromIndex: number, toIndex: number) => void;
-	onDuplicateBlock?: (index: number) => void;
-	onOpenAddBlockPicker?: (index: number) => void;
+	onReorder: (parentId: string | null, fromIndex: number, toIndex: number) => void;
+	onMoveBlock?: (blockId: string, targetParentId: string | null, targetIndex: number) => void;
+	onDuplicateBlock?: (parentId: string | null, index: number) => void;
+	onOpenAddBlockPicker?: (index: number, parentId: string | null) => void;
+	dropTargetRef?: React.MutableRefObject<{
+		parentId: string | null;
+		index: number;
+	} | null>;
 }
 
 function BlockOrderItem({
 	block,
+	parentId,
 	index,
 	selectedBlockId,
-	dropTargetIndex,
+	dropTarget,
+	dropTargetRef,
 	onDragOver,
 	onDragLeave,
 	onSelect,
 	onRemove,
 	onReorder,
+	onMoveBlock,
 	onDuplicateBlock,
 	onOpenAddBlockPicker,
 }: BlockOrderItemProps) {
 	const handleDragStart = (e: React.DragEvent) => {
 		e.dataTransfer.effectAllowed = "move";
-		e.dataTransfer.setData("text/plain", String(index));
+		e.dataTransfer.setData("application/x-block-id", block.id);
+		e.dataTransfer.setData("application/x-block-parent-id", parentId ?? "");
 		e.dataTransfer.setData("application/x-block-index", String(index));
 	};
 
@@ -62,18 +74,27 @@ function BlockOrderItem({
 		e.dataTransfer.dropEffect = "move";
 		const rect = e.currentTarget.getBoundingClientRect();
 		const half = e.clientY - rect.top < rect.height / 2 ? "top" : "bottom";
-		onDragOver(index, half);
+		onDragOver(parentId, index, half);
 	};
 
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
+		const blockId = e.dataTransfer.getData("application/x-block-id");
+		const dragParentId = e.dataTransfer.getData("application/x-block-parent-id") || null;
 		const fromIndex = Number(e.dataTransfer.getData("application/x-block-index"));
-		if (Number.isNaN(fromIndex)) return;
-		if (dropTargetIndex === null) return;
-		const toIndex =
-			fromIndex < dropTargetIndex ? dropTargetIndex - 1 : dropTargetIndex;
-		if (fromIndex !== toIndex) {
-			onReorder(fromIndex, toIndex);
+		const target = dropTargetRef?.current ?? dropTarget;
+		if (!blockId || target === null) {
+			onDragLeave();
+			return;
+		}
+		if (onMoveBlock) {
+			onMoveBlock(blockId, target.parentId, target.index);
+		} else if (dragParentId === target.parentId && !Number.isNaN(fromIndex)) {
+			const toIndex =
+				fromIndex < target.index ? target.index - 1 : target.index;
+			if (fromIndex !== toIndex) {
+				onReorder(target.parentId, fromIndex, toIndex);
+			}
 		}
 		onDragLeave();
 	};
@@ -129,7 +150,7 @@ function BlockOrderItem({
 			</ContextMenuTrigger>
 			<ContextMenuContent className="min-w-40">
 				{onDuplicateBlock && (
-					<ContextMenuItem onSelect={() => onDuplicateBlock(index)}>
+					<ContextMenuItem onSelect={() => onDuplicateBlock(parentId, index)}>
 						<Copy className="h-4 w-4" />
 						Duplicate
 					</ContextMenuItem>
@@ -137,11 +158,11 @@ function BlockOrderItem({
 				{(onDuplicateBlock || onOpenAddBlockPicker) && <ContextMenuSeparator />}
 				{onOpenAddBlockPicker && (
 					<>
-						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index)}>
+						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index, parentId)}>
 							<ChevronUp className="h-4 w-4" />
 							Add block before
 						</ContextMenuItem>
-						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index + 1)}>
+						<ContextMenuItem onSelect={() => onOpenAddBlockPicker(index + 1, parentId)}>
 							<ChevronDown className="h-4 w-4" />
 							Add block after
 						</ContextMenuItem>
@@ -159,77 +180,144 @@ function BlockOrderItem({
 
 interface FieldListProps {
 	fields: WidgetBlock[];
+	parentId: string | null;
+	depth?: number;
 	selectedBlockId?: string | null;
 	onSelectBlock: (id: string) => void;
 	onRemoveBlock: (id: string) => void;
-	onReorderBlocks: (fromIndex: number, toIndex: number) => void;
-	onAddBlockAt?: (index: number, type: BlockType, defaultProps: Record<string, unknown>) => void;
-	onOpenAddBlockPicker?: (index: number) => void;
-	onDuplicateBlock?: (index: number) => void;
+	onReorderBlocks: (parentId: string | null, fromIndex: number, toIndex: number) => void;
+	onMoveBlock?: (blockId: string, targetParentId: string | null, targetIndex: number) => void;
+	onOpenAddBlockPicker?: (index: number, parentId: string | null) => void;
+	onDuplicateBlock?: (parentId: string | null, index: number) => void;
 }
 
 function FieldList({
 	fields,
+	parentId,
+	depth = 0,
 	selectedBlockId,
 	onSelectBlock,
 	onRemoveBlock,
 	onReorderBlocks,
+	onMoveBlock,
 	onOpenAddBlockPicker,
 	onDuplicateBlock,
 }: FieldListProps) {
-	const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+	const [dropTarget, setDropTarget] = useState<{
+		parentId: string | null;
+		index: number;
+	} | null>(null);
+	const dropTargetRef = useRef<{ parentId: string | null; index: number } | null>(null);
 	const canAdd = onOpenAddBlockPicker != null;
 
+	const handleDragOver = useCallback(
+		(pid: string | null, index: number, half: "top" | "bottom") => {
+			const value = { parentId: pid, index: half === "top" ? index : index + 1 };
+			dropTargetRef.current = value;
+			setDropTarget(value);
+		},
+		[],
+	);
+
+	const handleEmptyContainerDrop = useCallback(
+		(e: React.DragEvent, containerId: string) => {
+			e.preventDefault();
+			const blockId = e.dataTransfer.getData("application/x-block-id");
+			if (blockId && onMoveBlock) {
+				onMoveBlock(blockId, containerId, 0);
+			}
+			dropTargetRef.current = null;
+			setDropTarget(null);
+		},
+		[onMoveBlock],
+	);
+
 	return (
-		<div
-			className="shrink-0 border-t p-3"
-			onDragLeave={() => setDropTargetIndex(null)}
-		>
-			<p className="text-xs font-medium text-muted-foreground mb-2">Fields</p>
-			<ul className="space-y-1">
-				{fields.map((block, index) => (
-					<Fragment key={block.id}>
-						{canAdd && (
-							<li className="flex items-center justify-center py-0.5">
-								<AddBlockSlot
-									insertIndex={index}
+		<ul className={cn("space-y-1", depth > 0 && "ml-3 border-l-2 border-muted pl-2")}>
+			{parentId !== null && fields.length === 0 && (
+				<li
+					className="min-h-8 rounded border border-dashed border-muted-foreground/40 flex items-center justify-center py-2 px-2 text-xs text-muted-foreground bg-muted/30"
+					onDragOver={(e) => {
+						e.preventDefault();
+						e.dataTransfer.dropEffect = "move";
+						handleDragOver(parentId, 0, "top");
+					}}
+					onDragLeave={() => {
+						dropTargetRef.current = null;
+						setDropTarget(null);
+					}}
+					onDrop={(e) => handleEmptyContainerDrop(e, parentId)}
+				>
+					Drop blocks here
+				</li>
+			)}
+			{fields.map((block, index) => (
+				<Fragment key={block.id}>
+					{canAdd && (
+						<li className="flex items-center justify-center py-0.5">
+							<AddBlockSlot
+								insertIndex={index}
+								parentId={parentId}
+								onOpenAddBlockPicker={onOpenAddBlockPicker}
+							/>
+						</li>
+					)}
+					{dropTarget?.parentId === parentId && dropTarget?.index === index && (
+						<li className={DROP_LINE_CLASS} aria-hidden />
+					)}
+					<BlockOrderItem
+						block={block}
+						parentId={parentId}
+						index={index}
+						selectedBlockId={selectedBlockId}
+						dropTarget={dropTarget}
+						dropTargetRef={dropTargetRef}
+						onDragOver={handleDragOver}
+						onDragLeave={() => {
+							dropTargetRef.current = null;
+							setDropTarget(null);
+						}}
+						onSelect={() => onSelectBlock(block.id)}
+						onRemove={() => onRemoveBlock(block.id)}
+						onReorder={onReorderBlocks}
+						onMoveBlock={onMoveBlock}
+						onDuplicateBlock={onDuplicateBlock}
+						onOpenAddBlockPicker={onOpenAddBlockPicker}
+					/>
+					{LAYOUT_WITH_CHILDREN.includes(block.type) && (
+						<>
+						
+							<li>
+								<FieldList
+									fields={block.children ?? []}
+									parentId={block.id}
+									depth={depth + 1}
+									selectedBlockId={selectedBlockId}
+									onSelectBlock={onSelectBlock}
+									onRemoveBlock={onRemoveBlock}
+									onReorderBlocks={onReorderBlocks}
+									onMoveBlock={onMoveBlock}
 									onOpenAddBlockPicker={onOpenAddBlockPicker}
+									onDuplicateBlock={onDuplicateBlock}
 								/>
 							</li>
-						)}
-						{dropTargetIndex === index && (
-							<li className={DROP_LINE_CLASS} aria-hidden />
-						)}
-						<BlockOrderItem
-							block={block}
-							index={index}
-							selectedBlockId={selectedBlockId}
-							dropTargetIndex={dropTargetIndex}
-							onDragOver={(idx, half) =>
-								setDropTargetIndex(half === "top" ? idx : idx + 1)
-							}
-							onDragLeave={() => setDropTargetIndex(null)}
-							onSelect={() => onSelectBlock(block.id)}
-							onRemove={() => onRemoveBlock(block.id)}
-							onReorder={onReorderBlocks}
-							onDuplicateBlock={onDuplicateBlock}
-							onOpenAddBlockPicker={onOpenAddBlockPicker}
-						/>
-					</Fragment>
-				))}
-				{canAdd && (
-					<li className="flex items-center justify-center py-0.5">
-						<AddBlockSlot
-							insertIndex={fields.length}
-							onOpenAddBlockPicker={onOpenAddBlockPicker}
-						/>
-					</li>
-				)}
-				{dropTargetIndex === fields.length && (
-					<li className={DROP_LINE_CLASS} aria-hidden />
-				)}
-			</ul>
-		</div>
+						</>
+					)}
+				</Fragment>
+			))}
+			{canAdd && (
+				<li className="flex items-center justify-center py-0.5">
+					<AddBlockSlot
+						insertIndex={fields.length}
+						parentId={parentId}
+						onOpenAddBlockPicker={onOpenAddBlockPicker}
+					/>
+				</li>
+			)}
+			{dropTarget?.parentId === parentId && dropTarget?.index === fields.length && (
+				<li className={DROP_LINE_CLASS} aria-hidden />
+			)}
+		</ul>
 	);
 }
 
@@ -384,17 +472,19 @@ const BLOCK_GROUPS: {
 
 function AddBlockSlot({
 	insertIndex,
+	parentId,
 	onOpenAddBlockPicker,
 }: {
 	insertIndex: number;
-	onOpenAddBlockPicker: (index: number) => void;
+	parentId: string | null;
+	onOpenAddBlockPicker: (index: number, parentId: string | null) => void;
 }) {
 	return (
 		<button
 			type="button"
 			className="flex items-center justify-center w-full py-1 rounded border border-dashed border-muted-foreground/30 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
 			aria-label="Add block here"
-			onClick={() => onOpenAddBlockPicker(insertIndex)}
+			onClick={() => onOpenAddBlockPicker(insertIndex, parentId)}
 		>
 			<Plus className="h-3.5 w-3.5" />
 		</button>
@@ -407,6 +497,7 @@ export function WidgetSidebar() {
 	const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
 	const [addBlockPickerOpen, setAddBlockPickerOpen] = useState(false);
 	const [addBlockInsertIndex, setAddBlockInsertIndex] = useState<number | null>(null);
+	const [addBlockParentId, setAddBlockParentId] = useState<string | null>(null);
 	const [addBlockSearchQuery, setAddBlockSearchQuery] = useState("");
 
 	const pages = builder?.pages ?? [];
@@ -416,28 +507,34 @@ export function WidgetSidebar() {
 	const selectedBlockId = builder?.selectedBlockId ?? null;
 	const onSelectBlock = builder ? (id: string) => builder.setSelectedBlockId(id) : undefined;
 	const onReorderBlocks = builder?.reorderBlocks;
+	const onMoveBlock = builder?.moveBlock;
 	const onRemoveBlock = builder?.removeBlock;
 	const onAddBlock = builder?.addBlock;
 	const onAddBlockAt = builder?.addBlockAt;
-	const onDuplicateBlock = builder?.duplicateBlock;
+	const onAddBlockToParent = builder?.addBlockToParent;
+	const onDuplicateBlock = builder?.duplicateBlockAt;
 	const onSelectPage = builder ? (id: string) => builder.setActivePageId(id) : undefined;
 	const onAddPage = builder?.addPage ?? (() => {});
 	const onRemovePage = builder?.removePage ?? (() => {});
 	const onReorderPages = builder?.reorderPages ?? (() => {});
 
-	const openAddBlockPicker = (index: number) => {
+	const openAddBlockPicker = (index: number, parentId: string | null = null) => {
 		setAddBlockInsertIndex(index);
+		setAddBlockParentId(parentId);
 		setAddBlockSearchQuery("");
 		setAddBlockPickerOpen(true);
 	};
 
 	const handleAddBlockSelect = (type: BlockType, defaultProps: Record<string, unknown>) => {
-		if (addBlockInsertIndex !== null && onAddBlockAt) {
+		if (addBlockInsertIndex !== null && onAddBlockToParent) {
+			onAddBlockToParent(addBlockParentId ?? null, addBlockInsertIndex, type, defaultProps);
+		} else if (addBlockInsertIndex !== null && onAddBlockAt) {
 			onAddBlockAt(addBlockInsertIndex, type, defaultProps);
 		} else if (onAddBlock) {
 			onAddBlock(type, defaultProps);
 		}
 		setAddBlockInsertIndex(null);
+		setAddBlockParentId(null);
 		setAddBlockPickerOpen(false);
 	};
 
@@ -495,23 +592,33 @@ export function WidgetSidebar() {
 						onRemovePage={onRemovePage}
 						onReorderPages={onReorderPages}
 					/>
-					{activePage && (onAddBlock ?? onAddBlockAt) && onSelectBlock && onReorderBlocks && onRemoveBlock && (
-						<FieldList
-							fields={fields}
-							selectedBlockId={selectedBlockId}
-							onSelectBlock={onSelectBlock}
-							onRemoveBlock={onRemoveBlock}
-							onReorderBlocks={onReorderBlocks}
-							onAddBlockAt={onAddBlockAt}
-							onOpenAddBlockPicker={openAddBlockPicker}
-							onDuplicateBlock={onDuplicateBlock}
-						/>
-					)}
+					{activePage &&
+						(onAddBlock ?? onAddBlockAt ?? onAddBlockToParent) &&
+						onSelectBlock &&
+						onReorderBlocks &&
+						onRemoveBlock && (
+							<div className="shrink-0 border-t p-3" onDragLeave={() => {}}>
+								<p className="text-xs font-medium text-muted-foreground mb-2">Fields</p>
+								<FieldList
+									fields={fields}
+									parentId={null}
+									selectedBlockId={selectedBlockId}
+									onSelectBlock={onSelectBlock}
+									onRemoveBlock={onRemoveBlock}
+									onReorderBlocks={onReorderBlocks}
+									onMoveBlock={onMoveBlock}
+									onOpenAddBlockPicker={openAddBlockPicker}
+									onDuplicateBlock={onDuplicateBlock}
+								/>
+							</div>
+						)}
 				</>
 			)}
 			<Dialog
 				open={addBlockPickerOpen}
-				onOpenChange={(open) => !open && (setAddBlockPickerOpen(false), setAddBlockInsertIndex(null))}
+				onOpenChange={(open) =>
+					!open && (setAddBlockPickerOpen(false), setAddBlockInsertIndex(null), setAddBlockParentId(null))
+				}
 			>
 				<DialogContent className="max-h-[85vh] overflow-hidden flex flex-col p-0 w-64">
 					<div className="p-2 border-b shrink-0">

@@ -1281,4 +1281,18 @@ export interface FunctionsService {
     orgId: string;
     returnUrl: string;
   }): Promise<{ url: string }>;
+
+  /**
+   * Fetch current subscription billing info from Stripe (period end, renewal, status).
+   */
+  getStripeBilling(payload: { orgId: string }): Promise<{
+    status: string;
+    currentPeriodEnd: string;
+    cancelAtPeriodEnd: boolean;
+    entitlements: Record<string, boolean>;
+    planName?: string;
+    planAmount?: number;
+    planCurrency?: string;
+    planInterval?: string;
+  } | null>;
 }

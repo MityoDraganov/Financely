@@ -128,7 +128,7 @@ export function TemplateSidebar({
 					<span>{t('designer.sidebar.palette')}</span>
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+				<div className="grid grid-cols-1 gap-2.5">
 					<Button
 						variant="secondary"
 						onClick={() => {
@@ -255,7 +255,7 @@ export function TemplateSidebar({
 					<span>{t('designer.elements')}</span>
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+					<div className="grid grid-cols-1 gap-2">
 						{(currentTemplate?.elements ?? []).map((el) => {
 							const binding = el.type === "text" ? el.binding :
 								el.type === "input" ? el.binding :

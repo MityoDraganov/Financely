@@ -853,4 +853,14 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "createPortalSession")(payload);
     return result.data;
   },
+
+  async getStripeBilling(payload) {
+    type GetStripeBillingPayload = Parameters<FunctionsService["getStripeBilling"]>[0];
+    type GetStripeBillingResponse = Awaited<ReturnType<FunctionsService["getStripeBilling"]>>;
+    const result = await httpsCallable<
+      GetStripeBillingPayload,
+      GetStripeBillingResponse
+    >(firebase.functions, "getStripeBilling")(payload);
+    return result.data;
+  },
 };

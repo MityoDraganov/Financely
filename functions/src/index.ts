@@ -77,6 +77,7 @@ export { onStripeWebhook } from "./functions/stripe/on-stripe-webhook";
 // Stripe billing functions
 export { createCheckoutSession } from "./functions/stripe/create-checkout-session";
 export { createPortalSession } from "./functions/stripe/create-portal-session";
+export { getStripeBilling } from "./functions/stripe/get-stripe-billing";
 
 // Clerk authentication functions
 export { verifyClerkToken } from "./functions/clerk/verify-clerk-token";
