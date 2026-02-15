@@ -15,6 +15,7 @@ import { formatProductFieldsForAI } from "../../utils/product-fields";
 import { validateTemplateData, repairTemplateGenerationRaw } from "./template-generation-validate-repair";
 import type { JSONSchema } from "./ai-service";
 import { clampTemplateElementsToPrintableArea } from "../../utils/template-printable-bounds";
+import { stabilizeTemplateLayout } from "../../utils/template-layout-stability";
 
 const STANDARD_PRINT_MARGINS_PX = { top: 96, right: 96, bottom: 96, left: 96 };
 
@@ -378,7 +379,8 @@ export class InvoiceTemplateGenerationService {
         );
       }
 
-      // Final boundary pass: keep all elements inside printable bounds (page size minus margins).
+      // Stabilize AI layout first, then keep all elements inside printable bounds.
+      template = stabilizeTemplateLayout(template);
       template = clampTemplateElementsToPrintableArea(template);
       const boundedParse = validateTemplateData(template);
       if (!boundedParse.success) {
@@ -494,7 +496,7 @@ export class InvoiceTemplateGenerationService {
 
     return `Generate a valid invoice template that conforms to the attached schema. Use ONLY supported element types/properties from the schema. The elements array is REQUIRED and must not be empty.
 
-Rules: All monetary values use Currency elements (not Input). Table price columns use type="currency" with currency code. Fields with bindings must be Input or Currency; Text is for static labels only. Canvas 794×1123: every element must satisfy x+width≤794, y+height≤1123. Use only organization data from context; do not invent data.
+Rules: All monetary values use Currency elements (not Input). Table price columns use type="currency" with currency code. Fields with bindings must be Input or Currency; Text is for static labels only. Canvas 794×1123: every element must satisfy x+width≤794, y+height≤1123. Text-bearing elements must have enough height to avoid clipping/overflow. Do not overlap text/input/currency/table content elements; overlap is allowed only for intentional background layers like box elements. Use only organization data from context; do not invent data.
 
 Schema capabilities:
 ${schemaGuidance}

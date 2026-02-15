@@ -14,6 +14,7 @@ import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
 import { FormulaBuilder } from "../formula-builder";
 import { typography, spacing, separators, components, colors } from "../design-system";
+import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 interface InputElementProps {
 	element: Extract<TemplateElement, { type: "input" }>;
 }
@@ -27,7 +28,10 @@ export default function InputElement({ element }: InputElementProps) {
 				type={inp.variant}
 				placeholder={inp.placeholder}
 				className="w-[95%] h-[80%] border border-border rounded px-2 text-[10px] bg-background text-foreground placeholder:text-muted-foreground"
-				style={{ textAlign: inp.align as React.CSSProperties["textAlign"] }}
+				style={{
+					textAlign: inp.align as React.CSSProperties["textAlign"],
+					fontFamily: inp.fontFamily || "Inter",
+				}}
 				readOnly
 			/>
 		</div>
@@ -153,6 +157,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 									placeholder: e.target.value,
 									variant: inp.variant,
 									align: inp.align,
+									fontFamily: inp.fontFamily,
 									binding: inp.binding,
 								})
 							}
@@ -177,6 +182,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 									placeholder: inp.placeholder,
 									variant: v as typeof inp.variant,
 									align: inp.align,
+									fontFamily: inp.fontFamily,
 									binding: inp.binding,
 								})
 							}
@@ -209,6 +215,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 									placeholder: inp.placeholder,
 									variant: inp.variant,
 									align: v as typeof inp.align,
+									fontFamily: inp.fontFamily,
 									binding: inp.binding,
 								})
 							}
@@ -222,6 +229,31 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 								<SelectItem value="right">{t('designer.elementProperties.input.alignments.right')}</SelectItem>
 							</SelectContent>
 						</Select>
+					</div>
+					<div className={components.field}>
+						<GoogleFontPicker
+							value={inp.fontFamily}
+							onChange={(fontFamily) =>
+								onChange({
+									id: element.id,
+									type: "input",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									placeholder: inp.placeholder,
+									variant: inp.variant,
+									align: inp.align,
+									fontFamily,
+									binding: inp.binding,
+								})
+							}
+							label={t("designer.elementProperties.input.fontFamily", "Font Family")}
+							title={t("designer.elementProperties.input.fontFamilyDialogTitle", "Choose Input Font")}
+						/>
 					</div>
 					<div className={`${components.field} col-span-full`}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.binding.dataBinding')}</Label>
@@ -246,6 +278,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 										placeholder: inp.placeholder,
 										variant: inp.variant,
 										align: inp.align,
+										fontFamily: inp.fontFamily,
 										binding: newValue || undefined,
 									});
 								}}
@@ -281,6 +314,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 														placeholder: inp.placeholder,
 														variant: inp.variant,
 														align: inp.align,
+														fontFamily: inp.fontFamily,
 														binding: suggestedBinding,
 													});
 												}}

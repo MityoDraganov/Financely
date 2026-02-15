@@ -174,6 +174,7 @@ export const inputElementSchema = templateElementBaseSchema.extend({
   binding: z.string().optional(),
   variant: z.enum(["text", "number", "date"]).default("text"),
   align: z.enum(["left", "center", "right"]).default("left"),
+  fontFamily: z.string().optional(),
 });
 
 export const currencyElementSchema = templateElementBaseSchema.extend({
@@ -195,6 +196,7 @@ export const currencyElementSchema = templateElementBaseSchema.extend({
   mode: z.enum(["independent", "linked", "formula"]).default("independent"),
   formula: z.string().optional(), // Formula for formula mode (Excel-like syntax)
   align: z.enum(["left", "center", "right"]).default("left"),
+  fontFamily: z.string().optional(),
 });
 
 export const tableColumnSchema = z.object({

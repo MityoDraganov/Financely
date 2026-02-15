@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { TemplateElement } from "@/core";
 import { AlertCircle, Check } from "lucide-react";
 import { typography, spacing, separators, components, colors } from "../design-system";
+import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 
 interface TextElementProps {
 	element: Extract<TemplateElement, { type: "text" }>;
@@ -264,6 +265,30 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
 				<h4 className={typography.subsectionTitle}>{translate('designer.elementProperties.text.typography')}</h4>
 				<div className={components.grid}>
+					<div className={components.field}>
+						<GoogleFontPicker
+							value={t.typography.fontFamily}
+							onChange={(fontFamily) =>
+								onChange({
+									id: element.id,
+									type: "text",
+									x: element.x,
+									y: element.y,
+									width: element.width,
+									height: element.height,
+									rotation: element.rotation,
+									zIndex: element.zIndex,
+									visible: element.visible,
+									text: t.text,
+									binding: t.binding,
+									typography: { ...t.typography, fontFamily },
+									format: t.format,
+								})
+							}
+							label={translate('designer.elementProperties.text.fontFamily', 'Font Family')}
+							title={translate('designer.elementProperties.text.fontFamilyDialogTitle', 'Choose Text Font')}
+						/>
+					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.fontSize')}</Label>
 						<Input

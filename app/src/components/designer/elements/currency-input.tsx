@@ -36,6 +36,7 @@ export default function CurrencyInputElement({
         className="flex-1 min-w-0 text-[10px] bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground"
         style={{
           textAlign: element.align as React.CSSProperties["textAlign"],
+          fontFamily: element.fontFamily || "Inter",
         }}
         readOnly
       />
@@ -47,4 +48,3 @@ export default function CurrencyInputElement({
     </div>
   );
 }
-

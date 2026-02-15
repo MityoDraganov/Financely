@@ -30,6 +30,51 @@ function generateInvoiceHTML(
 ): string {
   const { pageSize, brand, elements, pageSettings } = template;
 
+  function encodeGoogleFamily(family: string): string {
+    return encodeURIComponent(family.trim()).replace(/%20/g, "+");
+  }
+
+  function buildGoogleFontLinks(): string {
+    const families = new Set<string>();
+    brand?.fonts?.forEach((font) => {
+      if (typeof font === "string" && font.trim().length > 0) families.add(font.trim());
+    });
+
+    (elements || []).forEach((element) => {
+      if (element.type === "text" && element.typography?.fontFamily) {
+        families.add(element.typography.fontFamily);
+      }
+      if (element.type === "input" && element.fontFamily) {
+        families.add(element.fontFamily);
+      }
+      if (element.type === "currency" && element.fontFamily) {
+        families.add(element.fontFamily);
+      }
+      if (element.type === "table") {
+        if (element.headerStyle?.fontFamily) families.add(element.headerStyle.fontFamily);
+        if (element.rowStyle?.fontFamily) families.add(element.rowStyle.fontFamily);
+        if (element.footerStyle?.fontFamily) families.add(element.footerStyle.fontFamily);
+      }
+      if (element.type === "stamp" && element.fontFamily) {
+        families.add(element.fontFamily);
+      }
+    });
+
+    const familyList = Array.from(families);
+    if (familyList.length === 0) return "";
+
+    const chunkSize = 20;
+    const links: string[] = [];
+    for (let i = 0; i < familyList.length; i += chunkSize) {
+      const chunk = familyList.slice(i, i + chunkSize);
+      const params = chunk
+        .map((family) => `family=${encodeGoogleFamily(family)}:wght@400;500;600;700`)
+        .join("&");
+      links.push(`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${params}&display=swap">`);
+    }
+    return links.join("\n");
+  }
+
   // Override template brand colors with organization branding if available
   const finalBrand = {
     ...brand,
@@ -355,6 +400,7 @@ function generateInvoiceHTML(
             border-radius: 4px;
             padding: 4px 8px;
             font-size: 12px;
+            font-family: ${inp.fontFamily || "Inter"};
             color: ${displayValue ? "#111827" : "#9ca3af"};
             background-color: #ffffff;
             display: flex;
@@ -400,6 +446,7 @@ function generateInvoiceHTML(
             border-radius: 4px;
             padding: 4px 8px;
             font-size: 12px;
+            font-family: ${curr.fontFamily || "Inter"};
             color: ${displayValue ? "#111827" : "#9ca3af"};
             background-color: #ffffff;
             display: flex;
@@ -491,6 +538,15 @@ function generateInvoiceHTML(
         const rowTextBehavior = normalizeTableTextBehavior(el.rowStyle?.textBehavior, "wrap");
         const headerTextCss = getTableTextBehaviorInlineCss(headerTextBehavior);
         const rowTextCss = getTableTextBehaviorInlineCss(rowTextBehavior);
+        const normalizeTableFontWeight = (value: unknown): string => {
+          if (value === "semibold") return "600";
+          if (value === "medium") return "500";
+          if (value === "bold") return "700";
+          if (value === "normal") return "400";
+          return "400";
+        };
+        const headerTypographyCss = `font-family:${el.headerStyle?.fontFamily || "Inter"};font-size:${el.headerStyle?.fontSize || 10}px;font-weight:${normalizeTableFontWeight(el.headerStyle?.fontWeight)};color:${el.headerStyle?.color || "#374151"};`;
+        const rowTypographyCss = `font-family:${el.rowStyle?.fontFamily || "Inter"};font-size:${el.rowStyle?.fontSize || 10}px;font-weight:${normalizeTableFontWeight(el.rowStyle?.fontWeight)};color:${el.rowStyle?.color || "#374151"};`;
         const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
         const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
         const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
@@ -503,7 +559,7 @@ function generateInvoiceHTML(
         const showTotals = slice ? slice.isLastSlice : true;
 
         const columnsHTML = el.columns.map((col) => `
-          <div style="padding: 4px; font-weight: 600; min-width: 0; display: flex; align-items: ${headerIsMultiline ? "flex-start" : "center"}; overflow: ${headerOverflowVisible ? "visible" : "hidden"};"><span style="${headerTextCss}">${col.header}</span></div>
+          <div style="padding: 4px; min-width: 0; display: flex; align-items: ${headerIsMultiline ? "flex-start" : "center"}; overflow: ${headerOverflowVisible ? "visible" : "hidden"};"><span style="${headerTextCss}${headerTypographyCss}">${col.header}</span></div>
         `).join("");
 
         const rowsHTML = items.map((row, idx) => {
@@ -545,7 +601,7 @@ function generateInvoiceHTML(
 
           return `
             <div style="padding: 4px; display: flex; align-items: ${rowIsMultiline ? "flex-start" : "center"}; justify-content: ${justify}; min-height: 20px; min-width: 0; overflow: ${rowOverflowVisible ? "visible" : "hidden"};">
-              <span style="${rowTextCss}">${text}</span>
+              <span style="${rowTextCss}${rowTypographyCss}">${text}</span>
             </div>
           `;
         }).join("");
@@ -647,7 +703,7 @@ function generateInvoiceHTML(
 
           return `
             <div style="${styleString}">
-              <span style="${rowTextCss}">${text}</span>
+              <span style="${rowTextCss}${rowTypographyCss}">${text}</span>
             </div>
           `;
         }).join("");
@@ -825,6 +881,7 @@ function generateInvoiceHTML(
       </div>
     `;
   }).join("");
+  const googleFontLinks = buildGoogleFontLinks();
 
   // Complete HTML document with multiple pages
   return `
@@ -832,6 +889,7 @@ function generateInvoiceHTML(
     <html>
       <head>
         <meta charset="UTF-8">
+        ${googleFontLinks}
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body { 

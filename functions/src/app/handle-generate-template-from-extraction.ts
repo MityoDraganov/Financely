@@ -8,6 +8,7 @@ import { getAIService, type JSONSchema } from "../services/ai/ai-service";
 import { getAssetCroppingService } from "../services/invoice-extraction/asset-cropping-service";
 import { compileInvoiceBlocksToElements } from "../services/template-compiler/invoice-block-compiler";
 import { clampTemplateElementsToPrintableArea } from "../utils/template-printable-bounds";
+import { stabilizeTemplateLayout } from "../utils/template-layout-stability";
 
 export type GenerateTemplateFromExtractionResult = {
   template: TemplateData;
@@ -48,7 +49,7 @@ export async function handleGenerateTemplateFromExtraction(
   ) {
     loggerService.info("Returning cached generatedTemplate from job", { jobId });
     const boundedCachedTemplate = clampTemplateElementsToPrintableArea(
-      workingJob.generatedTemplate as unknown as TemplateData
+      stabilizeTemplateLayout(workingJob.generatedTemplate as unknown as TemplateData)
     );
     return {
       template: boundedCachedTemplate,
@@ -212,6 +213,7 @@ const ONE_SHOT_VISION_SCHEMA: JSONSchema = {
           binding: { type: "string" },
           placeholder: { type: "string" },
           align: { type: "string" },
+          fontFamily: { type: "string" },
           typography: { type: "object" },
           iconName: { type: "string" },
           color: { type: "string" },
@@ -272,6 +274,9 @@ RULES
 - Do not hallucinate table columns.
 - If table has no borders, explicitly set both booleans to false.
 - For icons, iconName must be selected from the provided icon catalog.
+- Text-bearing elements (text/input/currency/table headers/cells) must be sized to fit visible content.
+- Do not place text-bearing elements so they overlap each other; keep clear vertical separation.
+- Overlap is acceptable only for intentional background layers (e.g., box behind content).
 `;
 
 function buildOneShotVisionPrompt(input: {
@@ -787,7 +792,8 @@ async function buildTemplateFromVisionResult(input: {
   if (!parsed.success) {
     throw new Error(`Generated template failed validation: ${parsed.error.message}`);
   }
-  return clampTemplateElementsToPrintableArea(parsed.data);
+  const stabilized = stabilizeTemplateLayout(parsed.data);
+  return clampTemplateElementsToPrintableArea(stabilized);
 }
 
 function normalizeVisionResult(raw: Record<string, unknown>): VisionResult {
@@ -1221,6 +1227,7 @@ function normalizeVisionElements(
         ...(asString(entry.binding, "") ? { binding: asString(entry.binding, "") } : {}),
         variant: normalizeInputVariant(asString(entry.variant, "")),
         align: normalizeAlign(asString(entry.align, "")),
+        ...(asString(entry.fontFamily, "") ? { fontFamily: asString(entry.fontFamily, "") } : {}),
       } satisfies TemplateElement);
       continue;
     }
@@ -1235,6 +1242,7 @@ function normalizeVisionElements(
         currencyLinks: [],
         mode: "independent",
         align: normalizeAlign(asString(entry.align, "")),
+        ...(asString(entry.fontFamily, "") ? { fontFamily: asString(entry.fontFamily, "") } : {}),
       } satisfies TemplateElement);
       continue;
     }

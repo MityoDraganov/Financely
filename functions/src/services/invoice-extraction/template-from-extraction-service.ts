@@ -981,6 +981,7 @@ FINAL JSON TARGET
           ...(asString(el.formula) ? { formula: asString(el.formula) } : {}),
           placeholder: asString(el.placeholder) || "",
           align: normalizeAlign(el.align),
+          ...(asString(el.fontFamily) ? { fontFamily: asString(el.fontFamily) } : {}),
         } as TemplateElement;
 
       case "table":
@@ -1018,6 +1019,7 @@ FINAL JSON TARGET
           placeholder: asString(el.placeholder) || "",
           variant: normalizeInputVariant(el.variant),
           align: normalizeAlign(el.align),
+          ...(asString(el.fontFamily) ? { fontFamily: asString(el.fontFamily) } : {}),
         } as TemplateElement;
 
       case "box":

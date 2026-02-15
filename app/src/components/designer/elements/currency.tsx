@@ -36,6 +36,7 @@ import { FormulaBuilder } from "../formula-builder";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
 import { typography, spacing, separators, components, colors } from "../design-system";
+import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 
 interface CurrencyElementProps {
   element: Extract<TemplateElement, { type: "currency" }>;
@@ -261,6 +262,20 @@ export function CurrencyProperties({
           </div>
 
           <div className={components.field}>
+            <GoogleFontPicker
+              value={element.fontFamily}
+              onChange={(fontFamily) =>
+                onChange({
+                  ...element,
+                  fontFamily,
+                })
+              }
+              label={t("designer.elementProperties.currency.fontFamily", "Font Family")}
+              title={t("designer.elementProperties.currency.fontFamilyDialogTitle", "Choose Currency Font")}
+            />
+          </div>
+
+          <div className={components.field}>
             <Label className={typography.fieldLabel}>{t('designer.elementProperties.currency.mode')}</Label>
             <Select
               value={element.mode || (element.formula ? "formula" : "independent")}
@@ -380,4 +395,3 @@ export function CurrencyProperties({
     </div>
   );
 }
-

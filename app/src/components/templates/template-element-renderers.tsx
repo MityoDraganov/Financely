@@ -12,6 +12,7 @@ import { DynamicIcon, normalizeIconName } from "@/components/designer/elements/l
 import { getElementBorderRadiusCss, getElementPaddingCss } from "@/utils/element-box-model";
 import { getTableGridTemplateColumns } from "@/utils/table-column-width";
 import { getTableTextBehaviorStyles, normalizeTableTextBehavior } from "@/utils/table-text-behavior";
+import { loadGoogleFonts } from "@/utils/google-fonts";
 
 type InvoicePreviewContext = unknown;
 
@@ -135,6 +136,7 @@ function renderTextElement(
 	style: ElementStyle,
 	context: InvoicePreviewContext
 ): React.ReactNode {
+	loadGoogleFonts([el.typography.fontFamily]);
 	let display = el.text ?? "";
 	
 	if (el.binding) {
@@ -309,6 +311,7 @@ function renderInputElement(
 	style: ElementStyle,
 	context: InvoicePreviewContext
 ): React.ReactNode {
+	loadGoogleFonts([el.fontFamily || "Inter"]);
 	const boundValue = el.binding ? getByPath<unknown>(context, el.binding) : undefined;
 	const displayValue = boundValue != null ? formatValue(boundValue, "none") : "";
 	const textAlign = el.align || "left";
@@ -323,6 +326,7 @@ function renderInputElement(
 					borderRadius: "4px",
 					padding: "4px 8px",
 					fontSize: 12,
+					fontFamily: el.fontFamily || "Inter",
 					color: displayValue ? "#111827" : "#9ca3af",
 					backgroundColor: "#ffffff",
 					display: "flex",
@@ -346,6 +350,7 @@ function renderCurrencyElement(
 	style: ElementStyle,
 	context: InvoicePreviewContext
 ): React.ReactNode {
+	loadGoogleFonts([el.fontFamily || "Inter"]);
 	const boundValue = el.binding ? getByPath<unknown>(context, el.binding) : undefined;
 	
 	let displayValue = "";
@@ -375,6 +380,7 @@ function renderCurrencyElement(
 					borderRadius: "4px",
 					padding: "4px 8px",
 					fontSize: 12,
+					fontFamily: el.fontFamily || "Inter",
 					color: displayValue ? "#111827" : "#9ca3af",
 					backgroundColor: "#ffffff",
 					display: "flex",
@@ -404,6 +410,11 @@ function renderTableElement(
 	style: ElementStyle,
 	renderContext: RenderContext
 ): React.ReactNode {
+	loadGoogleFonts([
+		el.headerStyle?.fontFamily || "Inter",
+		el.rowStyle?.fontFamily || "Inter",
+		el.footerStyle?.fontFamily || "Inter",
+	]);
 	const { context, page } = renderContext;
 	const allItems = getByPath<Array<Record<string, unknown>>>(context, el.itemsBinding) || [];
 	
@@ -421,6 +432,24 @@ function renderTableElement(
 	const rowTextBehavior = normalizeTableTextBehavior(el.rowStyle?.textBehavior, "wrap");
 	const headerTextStyle = getTableTextBehaviorStyles(headerTextBehavior);
 	const rowTextStyle = getTableTextBehaviorStyles(rowTextBehavior);
+	const normalizeTableFontWeight = (value: unknown): React.CSSProperties["fontWeight"] => {
+		if (value === "semibold") return 600;
+		if (value === "medium") return 500;
+		if (value === "bold") return 700;
+		return 400;
+	};
+	const headerTypographyStyle: React.CSSProperties = {
+		fontFamily: el.headerStyle?.fontFamily || "Inter",
+		fontSize: el.headerStyle?.fontSize || 10,
+		fontWeight: normalizeTableFontWeight(el.headerStyle?.fontWeight),
+		color: el.headerStyle?.color || "#374151",
+	};
+	const rowTypographyStyle: React.CSSProperties = {
+		fontFamily: el.rowStyle?.fontFamily || "Inter",
+		fontSize: el.rowStyle?.fontSize || 10,
+		fontWeight: normalizeTableFontWeight(el.rowStyle?.fontWeight),
+		color: el.rowStyle?.color || "#374151",
+	};
 	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
 	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
 	const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
@@ -462,7 +491,7 @@ function renderTableElement(
 								overflow: headerOverflowVisible ? "visible" : "hidden",
 							}}
 						>
-							<span style={headerTextStyle}>{c.header}</span>
+							<span style={{ ...headerTextStyle, ...headerTypographyStyle }}>{c.header}</span>
 						</div>
 					))}
 				</div>
@@ -533,7 +562,7 @@ function renderTableElement(
 												overflow: rowOverflowVisible ? "visible" : "hidden",
 											}}
 										>
-											<span style={rowTextStyle}>{text}</span>
+											<span style={{ ...rowTextStyle, ...rowTypographyStyle }}>{text}</span>
 										</div>
 									);
 								})}
@@ -618,7 +647,7 @@ function renderTableElement(
 								
 								return (
 									<div key={c.id} style={cellStyle}>
-										<span style={rowTextStyle}>{text}</span>
+										<span style={{ ...rowTextStyle, ...rowTypographyStyle }}>{text}</span>
 									</div>
 								);
 							})}

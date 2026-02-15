@@ -7,7 +7,7 @@ const PAGE_SIZES_PX = {
   Legal: { width: 816, height: 1344 },
 } as const;
 
-type PrintableBounds = {
+export type PrintableBounds = {
   left: number;
   top: number;
   right: number;
@@ -56,7 +56,7 @@ function resolveMarginsPx(template: TemplateData): { top: number; right: number;
   };
 }
 
-function resolvePrintableBounds(template: TemplateData): PrintableBounds {
+export function resolvePrintableBounds(template: TemplateData): PrintableBounds {
   const page = resolvePageDimensionsPx(template);
   const margins = resolveMarginsPx(template);
 

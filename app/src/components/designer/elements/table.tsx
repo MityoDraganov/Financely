@@ -45,6 +45,7 @@ import {
 import { CurrencyFieldLinking } from "../currency-field-linking";
 import { FormulaBuilder } from "../formula-builder";
 import { typography, spacing, separators, components, colors } from "../design-system";
+import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 
 interface TableElementProps {
 	element: Extract<TemplateElement, { type: "table" }>;
@@ -65,6 +66,24 @@ export default function TableElement({
 	const rowTextStyle = getTableTextBehaviorStyles(
 		rowTextBehavior
 	);
+	const normalizeFontWeight = (value: unknown): number => {
+		if (value === "semibold") return 600;
+		if (value === "medium") return 500;
+		if (value === "bold") return 700;
+		return 400;
+	};
+	const headerPreviewTypography = {
+		fontFamily: tbl.headerStyle?.fontFamily || "Inter",
+		fontSize: tbl.headerStyle?.fontSize ? `${tbl.headerStyle.fontSize}px` : "10px",
+		fontWeight: normalizeFontWeight(tbl.headerStyle?.fontWeight),
+		color: tbl.headerStyle?.color || "hsl(var(--foreground))",
+	} as const;
+	const rowPreviewTypography = {
+		fontFamily: tbl.rowStyle?.fontFamily || "Inter",
+		fontSize: tbl.rowStyle?.fontSize ? `${tbl.rowStyle.fontSize}px` : "10px",
+		fontWeight: normalizeFontWeight(tbl.rowStyle?.fontWeight),
+		color: tbl.rowStyle?.color || "hsl(var(--muted-foreground))",
+	} as const;
 	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
 	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
 	const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
@@ -102,9 +121,9 @@ export default function TableElement({
 							rows={headerTextBehavior.mode === "clamp" ? headerTextBehavior.clampLines ?? 2 : 2}
 							style={{
 								...headerTextStyle,
+								...headerPreviewTypography,
 								textAlign: c.align,
 								height: "100%",
-								fontSize: "10px",
 							}}
 						/>
 					</div>
@@ -130,7 +149,7 @@ export default function TableElement({
 							overflow: rowOverflowVisible ? "visible" : "hidden",
 						}}
 					>
-						<span style={rowTextStyle}>
+						<span style={{ ...rowTextStyle, ...rowPreviewTypography }}>
 							{c.type === "currency"
 								? "$1,234.56"
 								: c.type === "number"
@@ -217,6 +236,26 @@ export function TableProperties({
 			rowStyle: {
 				...(tbl.rowStyle ?? {}),
 				textBehavior: next,
+			},
+		});
+	};
+
+	const updateHeaderFontFamily = (fontFamily: string) => {
+		onChange({
+			...tbl,
+			headerStyle: {
+				...(tbl.headerStyle ?? {}),
+				fontFamily,
+			},
+		});
+	};
+
+	const updateRowFontFamily = (fontFamily: string) => {
+		onChange({
+			...tbl,
+			rowStyle: {
+				...(tbl.rowStyle ?? {}),
+				fontFamily,
 			},
 		});
 	};
@@ -338,6 +377,22 @@ export function TableProperties({
 						onCheckedChange={(checked) => onChange({ ...tbl, stripe: checked })}
 					/>
 				</div>
+					</div>
+					<div className={components.field}>
+						<GoogleFontPicker
+							value={tbl.headerStyle?.fontFamily}
+							onChange={updateHeaderFontFamily}
+							label={t("designer.elementProperties.table.headerFontFamily", "Header Font Family")}
+							title={t("designer.elementProperties.table.headerFontFamilyDialogTitle", "Choose Table Header Font")}
+						/>
+					</div>
+					<div className={components.field}>
+						<GoogleFontPicker
+							value={tbl.rowStyle?.fontFamily}
+							onChange={updateRowFontFamily}
+							label={t("designer.elementProperties.table.cellFontFamily", "Cell Font Family")}
+							title={t("designer.elementProperties.table.cellFontFamilyDialogTitle", "Choose Table Cell Font")}
+						/>
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>

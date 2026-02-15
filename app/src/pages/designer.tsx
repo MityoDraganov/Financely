@@ -47,6 +47,17 @@ import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { compileInvoiceBlocksToElements } from "@/services/template-compiler/invoice-block-compiler";
 import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx, resolveTemplateMarginsPx } from "@/utils/print-margins";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
+import { loadGoogleFonts } from "@/utils/google-fonts";
+
+const DEBUG_DESIGNER = false;
+const debugLog = (...args: unknown[]) => {
+	if (!DEBUG_DESIGNER) return;
+	console.log(...args);
+};
+const debugWarn = (...args: unknown[]) => {
+	if (!DEBUG_DESIGNER) return;
+	console.warn(...args);
+};
 
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
@@ -103,7 +114,7 @@ export default function TemplateDesignerPage() {
 	// Version history hooks
 	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
 	const { data: versions = []} = useTemplateVersions(templateId);
-	//console.log("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
+	//debugLog("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
 	const saveVersion = useSaveTemplateVersion();
 	const restoreVersion = useRestoreTemplateVersion();
 	
@@ -118,12 +129,16 @@ export default function TemplateDesignerPage() {
 	// Refs to avoid stale closures and track pending saves
 	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
 	const lastSavedElementsRef = useRef<string>("");
+	const loadedFontSignatureRef = useRef<string>("");
 	const currentTemplateIdRef = useRef<string | undefined>(undefined);
 	const templatesRef = useRef<Template[]>([]);
 		const selectedElementIdsRef = useRef<string[]>([]);
 		const pendingSaveRef = useRef<{ elements: TemplateElement[]; timestamp: number } | null>(null);
 		// Debounce timers per element ID for property panel changes
 		const elementSaveTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+		const keyboardNudgeSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+		const keyboardNudgeRafRef = useRef<number | null>(null);
+		const keyboardNudgeDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 	
 	// Keep refs in sync
 	useEffect(() => {
@@ -173,6 +188,15 @@ export default function TemplateDesignerPage() {
 			if (versionCreationTimerRef.current) {
 				clearTimeout(versionCreationTimerRef.current);
 			}
+			if (keyboardNudgeSaveTimerRef.current) {
+				clearTimeout(keyboardNudgeSaveTimerRef.current);
+				keyboardNudgeSaveTimerRef.current = null;
+			}
+			if (keyboardNudgeRafRef.current != null) {
+				cancelAnimationFrame(keyboardNudgeRafRef.current);
+				keyboardNudgeRafRef.current = null;
+				keyboardNudgeDeltaRef.current = { dx: 0, dy: 0 };
+			}
 			// Clear all element save timers and save any pending changes before clearing
 			timersMap.forEach((timer, elementId) => {
 				clearTimeout(timer);
@@ -181,7 +205,7 @@ export default function TemplateDesignerPage() {
 				if (latestElements && latestElements.length > 0) {
 					const element = latestElements.find((el) => el.id === elementId);
 					if (element) {
-						console.log(`[SAVE] Template changing, saving element ${elementId} immediately`);
+						debugLog(`[SAVE] Template changing, saving element ${elementId} immediately`);
 						saveMutation.mutate({ elements: latestElements });
 					}
 				}
@@ -194,7 +218,7 @@ export default function TemplateDesignerPage() {
 	// Handler for creating a new template - now uses context
 	const handleCreateNewTemplate = contextHandleCreateNewTemplate;
 
-	// console.log(
+	// debugLog(
 	// 	"templates",
 	// 	templates,
 	// 	"realtime subscribed:",
@@ -208,7 +232,7 @@ export default function TemplateDesignerPage() {
 		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
 		const template = templates.find((t: Template) => t.id === templateId) ?? templates[0];
 		if (!template) {
-			console.log("[TEMPLATE] currentTemplate useMemo: No template found");
+			debugLog("[TEMPLATE] currentTemplate useMemo: No template found");
 			return undefined;
 		}
 		
@@ -216,7 +240,7 @@ export default function TemplateDesignerPage() {
 		const pendingSave = pendingSaveRef.current;
 		let elementsToUse = draftElements ?? template.elements ?? [];
 		
-		console.log("[TEMPLATE] currentTemplate useMemo", {
+		debugLog("[TEMPLATE] currentTemplate useMemo", {
 			templateId,
 			hasPendingSave: !!pendingSave,
 			hasDraftElements: !!draftElements,
@@ -245,7 +269,7 @@ export default function TemplateDesignerPage() {
 			const pendingElementsStr = JSON.stringify(normalizedPending);
 			const matches = templateElementsStr === pendingElementsStr;
 			
-			console.log("[TEMPLATE] currentTemplate useMemo: Pending save check", {
+			debugLog("[TEMPLATE] currentTemplate useMemo: Pending save check", {
 				matches,
 				templateElementsCount: normalizedTemplate.length,
 				pendingElementsCount: normalizedPending.length,
@@ -256,15 +280,15 @@ export default function TemplateDesignerPage() {
 			if (matches) {
 				// Realtime update confirmed our save - use template elements
 				elementsToUse = template.elements ?? [];
-				console.log("[TEMPLATE] Using template elements (realtime confirmed)");
+				debugLog("[TEMPLATE] Using template elements (realtime confirmed)");
 			} else if (draftElements) {
 				// Template hasn't been updated yet, but we have draftElements - use them
 				elementsToUse = draftElements;
-				console.log("[TEMPLATE] Using draftElements (waiting for realtime confirmation)");
+				debugLog("[TEMPLATE] Using draftElements (waiting for realtime confirmation)");
 			} else {
 				// No draftElements and template doesn't match - use template (fallback)
 				elementsToUse = template.elements ?? [];
-				console.log("[TEMPLATE] Using template elements (fallback, no draftElements)");
+				debugLog("[TEMPLATE] Using template elements (fallback, no draftElements)");
 			}
 		}
 		
@@ -275,7 +299,7 @@ export default function TemplateDesignerPage() {
 			brand: draftBrand ?? template.brand,
 		} as Template;
 		
-		console.log("[TEMPLATE] currentTemplate useMemo: Final result", {
+		debugLog("[TEMPLATE] currentTemplate useMemo: Final result", {
 			elementsCount: result.elements.length,
 			hasBrand: !!result.brand,
 		});
@@ -283,11 +307,43 @@ export default function TemplateDesignerPage() {
 		return result;
 	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements, draftBrand]);
 
+	useEffect(() => {
+		if (!currentTemplate) return;
+		const families = new Set<string>();
+		currentTemplate.brand?.fonts?.forEach((font) => {
+			if (typeof font === "string" && font.trim().length > 0) families.add(font.trim());
+		});
+		for (const element of currentTemplate.elements ?? []) {
+			if (element.type === "text" && element.typography?.fontFamily) {
+				families.add(element.typography.fontFamily);
+			}
+			if (element.type === "input" && element.fontFamily) {
+				families.add(element.fontFamily);
+			}
+			if (element.type === "currency" && element.fontFamily) {
+				families.add(element.fontFamily);
+			}
+			if (element.type === "table") {
+				if (element.headerStyle?.fontFamily) families.add(element.headerStyle.fontFamily);
+				if (element.rowStyle?.fontFamily) families.add(element.rowStyle.fontFamily);
+				if (element.footerStyle?.fontFamily) families.add(element.footerStyle.fontFamily);
+			}
+			if (element.type === "stamp" && element.fontFamily) {
+				families.add(element.fontFamily);
+			}
+		}
+		const uniqueFamilies = Array.from(families).sort();
+		const nextSignature = uniqueFamilies.join("|");
+		if (nextSignature === loadedFontSignatureRef.current) return;
+		loadedFontSignatureRef.current = nextSignature;
+		loadGoogleFonts(uniqueFamilies);
+	}, [currentTemplate]);
+
 	// Effect to clear draftElements when realtime update confirms our save
 	useEffect(() => {
 		const pendingSave = pendingSaveRef.current;
 		if (!pendingSave) {
-			console.log("[SAVE] useEffect: No pending save, skipping check");
+			debugLog("[SAVE] useEffect: No pending save, skipping check");
 			return;
 		}
 		
@@ -295,11 +351,11 @@ export default function TemplateDesignerPage() {
 		const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
 		const rawTemplate = templates.find((t: Template) => t.id === templateId);
 		if (!rawTemplate) {
-			console.log("[SAVE] useEffect: No raw template found for templateId:", templateId);
+			debugLog("[SAVE] useEffect: No raw template found for templateId:", templateId);
 			return;
 		}
 		
-		console.log("[SAVE] useEffect: Checking realtime confirmation", {
+		debugLog("[SAVE] useEffect: Checking realtime confirmation", {
 			templateId,
 			pendingSaveElementsCount: pendingSave.elements.length,
 			rawTemplateElementsCount: rawTemplate.elements?.length ?? 0,
@@ -326,7 +382,7 @@ export default function TemplateDesignerPage() {
 		const templateElementsStr = JSON.stringify(normalizedTemplate);
 		const pendingElementsStr = JSON.stringify(normalizedPending);
 		
-		console.log("[SAVE] useEffect: Comparison result", {
+		debugLog("[SAVE] useEffect: Comparison result", {
 			stringsMatch: templateElementsStr === pendingElementsStr,
 			templateElementsLength: templateElementsStr.length,
 			pendingElementsLength: pendingElementsStr.length,
@@ -336,7 +392,7 @@ export default function TemplateDesignerPage() {
 		
 		// If template elements match our pending save, the realtime update confirmed our save
 		if (templateElementsStr === pendingElementsStr && draftElements) {
-			console.log("[SAVE] ✅ Realtime update confirmed save, clearing draftElements", {
+			debugLog("[SAVE] ✅ Realtime update confirmed save, clearing draftElements", {
 				elementsCount: pendingSave.elements.length,
 				timeSinceSave: Date.now() - pendingSave.timestamp,
 			});
@@ -344,7 +400,7 @@ export default function TemplateDesignerPage() {
 			pendingSaveRef.current = null;
 			setDraftElements(null);
 		} else if (templateElementsStr !== pendingElementsStr && draftElements) {
-			console.log("[SAVE] ⏳ Realtime update doesn't match yet, keeping draftElements", {
+			debugLog("[SAVE] ⏳ Realtime update doesn't match yet, keeping draftElements", {
 				rawTemplateElementIds: (rawTemplate.elements ?? []).map(el => el.id),
 				pendingSaveElementIds: pendingSave.elements.map(el => el.id),
 			});
@@ -704,7 +760,7 @@ export default function TemplateDesignerPage() {
 
 		const saveMutation = useMutation({
 			mutationFn: async (partial: Partial<TemplateData>) => {
-			console.log("[SAVE] 🔄 mutationFn called", {
+			debugLog("[SAVE] 🔄 mutationFn called", {
 				hasElements: !!partial.elements,
 				elementsCount: partial.elements?.length ?? 0,
 				hasBrand: !!partial.brand,
@@ -714,18 +770,18 @@ export default function TemplateDesignerPage() {
 			// Use refs to get latest values, avoiding stale closures
 			const templateId = currentTemplateIdRef.current;
 			if (!templateId) {
-				console.warn("[SAVE] ⚠️ mutationFn: No templateId in ref");
+				debugWarn("[SAVE] ⚠️ mutationFn: No templateId in ref");
 				return;
 			}
 			
 			const templates = templatesRef.current;
 			const template = templates.find((t: Template) => t.id === templateId);
 			if (!template) {
-				console.warn("[SAVE] ⚠️ mutationFn: Template not found", { templateId, templatesCount: templates.length });
+				debugWarn("[SAVE] ⚠️ mutationFn: Template not found", { templateId, templatesCount: templates.length });
 				return;
 			}
 			
-			console.log("[SAVE] mutationFn: Calling templateService.updateDraft", {
+			debugLog("[SAVE] mutationFn: Calling templateService.updateDraft", {
 				templateId,
 				elementsCount: partial.elements?.length ?? 0,
 				existingElementsCount: template.elements?.length ?? 0,
@@ -778,7 +834,7 @@ export default function TemplateDesignerPage() {
 				const startTime = Date.now();
 				await templateService.updateDraft(templateId, partial);
 			const duration = Date.now() - startTime;
-			console.log("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
+			debugLog("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
 				templateId,
 				duration,
 				elementsCount: partial.elements?.length ?? 0,
@@ -805,7 +861,7 @@ export default function TemplateDesignerPage() {
 			}
 		},
 		onSuccess: async (_, partial) => {
-			console.log("[SAVE] 🎉 saveMutation.onSuccess called", {
+			debugLog("[SAVE] 🎉 saveMutation.onSuccess called", {
 				hasElements: !!partial.elements,
 				elementsCount: partial.elements?.length ?? 0,
 				hasBrand: !!partial.brand,
@@ -820,7 +876,7 @@ export default function TemplateDesignerPage() {
 					elements: savedElements,
 					timestamp: saveTimestamp,
 				};
-				console.log("[SAVE] ✅ Mutation successful, set pendingSaveRef", {
+				debugLog("[SAVE] ✅ Mutation successful, set pendingSaveRef", {
 					elementsCount: savedElements.length,
 					elementIds: savedElements.map(el => el.id),
 					timestamp: new Date(saveTimestamp).toISOString(),
@@ -836,7 +892,7 @@ export default function TemplateDesignerPage() {
 						const savedStr = JSON.stringify(savedElements);
 						const stillMatches = pendingStr === savedStr;
 						
-						console.log("[SAVE] ⏰ 2s timeout check", {
+						debugLog("[SAVE] ⏰ 2s timeout check", {
 							hasPending: !!pending,
 							stillMatches,
 							pendingElementsCount: pending.elements.length,
@@ -846,7 +902,7 @@ export default function TemplateDesignerPage() {
 						
 						if (stillMatches) {
 							// Realtime update hasn't confirmed our save yet, but clear anyway to prevent stuck state
-							console.warn("[SAVE] ⚠️ Realtime update didn't confirm save within 2s, clearing draftElements", {
+							debugWarn("[SAVE] ⚠️ Realtime update didn't confirm save within 2s, clearing draftElements", {
 								pendingElementsCount: pending.elements.length,
 								savedElementsCount: savedElements.length,
 								timeSinceSave: Date.now() - saveTimestamp,
@@ -857,13 +913,13 @@ export default function TemplateDesignerPage() {
 							setDraftElements(null);
 						} else {
 							// Pending save was updated (different elements), which means a new save happened
-							console.log("[SAVE] ℹ️ Pending save was updated during timeout (new save happened), keeping it", {
+							debugLog("[SAVE] ℹ️ Pending save was updated during timeout (new save happened), keeping it", {
 								oldCount: savedElements.length,
 								newCount: pending.elements.length,
 							});
 						}
 					} else {
-						console.log("[SAVE] ✅ Pending save was already cleared (realtime confirmed)");
+						debugLog("[SAVE] ✅ Pending save was already cleared (realtime confirmed)");
 					}
 				}, 2000);
 			}
@@ -952,13 +1008,13 @@ export default function TemplateDesignerPage() {
 					complianceValidated: false,
 				},
 			};
-			console.log("[CREATE] creating new template for orgId:", orgId);
+			debugLog("[CREATE] creating new template for orgId:", orgId);
 			const id = await templateService.createDraft(empty);
-			console.log("[CREATE] template created with id:", id);
+			debugLog("[CREATE] template created with id:", id);
 			return id;
 		},
 		onSuccess: (id: string) => {
-			console.log("[CREATE] onSuccess called with id:", id);
+			debugLog("[CREATE] onSuccess called with id:", id);
 			setState((s: DesignerState) => ({ ...s, currentTemplateId: id }));
 			queryClient.invalidateQueries({ queryKey: ["templates", orgId] });
 		},
@@ -1218,7 +1274,7 @@ export default function TemplateDesignerPage() {
 
 	function handleCanvasDragOver(e: React.DragEvent<HTMLDivElement>) {
 		e.preventDefault();
-		console.log("[DND] canvas dragover", {
+		debugLog("[DND] canvas dragover", {
 			target: (e.target as HTMLElement)?.className,
 			currentTarget: (e.currentTarget as HTMLElement)?.className,
 		});
@@ -1235,7 +1291,7 @@ export default function TemplateDesignerPage() {
 			e.dataTransfer.getData("application/x-template-element") ||
 			e.dataTransfer.getData("text/plain");
 		const type = (raw as TemplateElement["type"]) || undefined;
-		console.log("[DND] canvas drop", {
+		debugLog("[DND] canvas drop", {
 			raw,
 			type,
 			target: (e.target as HTMLElement)?.className,
@@ -1243,37 +1299,37 @@ export default function TemplateDesignerPage() {
 		});
 		if (!type) return;
 		if (!currentTemplate) {
-			console.log(
+			debugLog(
 				"[DND] no current template; creating one before drop..."
 			);
 			try {
 				// Try to ensure authentication for better security, but don't block if it fails
 				if (!firebase.auth.currentUser) {
 					try {
-						console.log("[AUTH] attempting anonymous sign-in...");
+						debugLog("[AUTH] attempting anonymous sign-in...");
 						await signInAnonymously(firebase.auth);
-						console.log("[AUTH] signed in anonymously");
+						debugLog("[AUTH] signed in anonymously");
 					} catch (authErr) {
-						console.warn(
+						debugWarn(
 							"[AUTH] anonymous sign-in failed, continuing without auth:",
 							authErr
 						);
 						// Continue without auth for development/demo purposes
 					}
 				}
-				console.log("[DND] calling createMutation.mutateAsync...");
+				debugLog("[DND] calling createMutation.mutateAsync...");
 				const newId = await (
 					createMutation as unknown as {
 						mutateAsync: () => Promise<string | undefined>;
 					}
 				).mutateAsync();
-				console.log("[DND] mutateAsync returned:", newId);
+				debugLog("[DND] mutateAsync returned:", newId);
 				if (newId && typeof newId === "string") {
 					setState((s: DesignerState) => ({
 						...s,
 						currentTemplateId: newId,
 					}));
-					console.log("[DND] set currentTemplateId to", newId);
+					debugLog("[DND] set currentTemplateId to", newId);
 					// Wait a bit for the template to be available
 					await new Promise((resolve) => setTimeout(resolve, 500));
 				} else {
@@ -1286,11 +1342,11 @@ export default function TemplateDesignerPage() {
 			}
 		}
 		const rect = pageRef.current?.getBoundingClientRect();
-		console.log("[DND] page rect", rect);
+		debugLog("[DND] page rect", rect);
 		if (!rect) return;
 			const x = (e.clientX - rect.left) / state.zoom;
 			const y = (e.clientY - rect.top) / state.zoom;
-			console.log("[DND] computed drop coords", { x, y, zoom: state.zoom });
+			debugLog("[DND] computed drop coords", { x, y, zoom: state.zoom });
 			addElement(type, {
 				x: Math.max(printableBounds.left, Math.min(Math.round(x), printableBounds.right - 1)),
 				y: Math.max(printableBounds.top, Math.min(Math.round(y), printableBounds.bottom - 1)),
@@ -1302,7 +1358,7 @@ export default function TemplateDesignerPage() {
 		at?: { x: number; y: number }
 	) {
 		if (!currentTemplate) return;
-		console.log("[ADD] addElement called", {
+		debugLog("[ADD] addElement called", {
 			kind,
 			at,
 			templateId: currentTemplate.id,
@@ -1583,7 +1639,7 @@ export default function TemplateDesignerPage() {
 										stroke: "#e5e7eb",
 										strokeWidth: 1,
 									};
-			console.log("[ADD] new element", newElement);
+			debugLog("[ADD] new element", newElement);
 			const maxPrintableWidth = Math.max(8, printableBounds.right - printableBounds.left);
 			const maxPrintableHeight = Math.max(8, printableBounds.bottom - printableBounds.top);
 			const boundedSizeElement = {
@@ -1604,7 +1660,7 @@ export default function TemplateDesignerPage() {
 				y: clampedAt.y,
 			} as TemplateElement;
 		const next = [...(currentTemplate?.elements ?? []), nextElement];
-		console.log("[ADD] next elements length", next.length);
+		debugLog("[ADD] next elements length", next.length);
 		// optimistic UI update so drop shows immediately
 		draftRef.current = next;
 		setDraftElements(next);
@@ -1628,14 +1684,14 @@ export default function TemplateDesignerPage() {
 			// Toggle selection: add if not selected, remove if already selected
 			if (currentSelected.includes(elementId)) {
 				const newSelected = currentSelected.filter((id) => id !== elementId);
-				console.log('[SELECT] Removing from selection:', newSelected);
+				debugLog('[SELECT] Removing from selection:', newSelected);
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
 				}));
 			} else {
 				const newSelected = [...currentSelected, elementId];
-				console.log('[SELECT] Adding to selection:', newSelected);
+				debugLog('[SELECT] Adding to selection:', newSelected);
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
@@ -1643,7 +1699,7 @@ export default function TemplateDesignerPage() {
 			}
 		} else {
 			// Single select: replace selection
-			console.log('[SELECT] Single select:', [elementId]);
+			debugLog('[SELECT] Single select:', [elementId]);
 			setState((s) => ({
 				...s,
 				selectedElementIds: [elementId],
@@ -1657,7 +1713,7 @@ export default function TemplateDesignerPage() {
 			? selectedElementIdsRef.current 
 			: state.selectedElementIds || [];
 		
-		console.log("[SAVE] updateSelected called", {
+		debugLog("[SAVE] updateSelected called", {
 			selectedIds,
 			partial,
 			hasCurrentTemplate: !!currentTemplate,
@@ -1667,12 +1723,12 @@ export default function TemplateDesignerPage() {
 		});
 		
 		if (!currentTemplate) {
-			console.warn("[SAVE] updateSelected called but no currentTemplate");
+			debugWarn("[SAVE] updateSelected called but no currentTemplate");
 			return;
 		}
 		
 		if (selectedIds.length === 0) {
-			console.warn("[SAVE] updateSelected called but no elements selected", {
+			debugWarn("[SAVE] updateSelected called but no elements selected", {
 				refIds: selectedElementIdsRef.current,
 				stateIds: state.selectedElementIds,
 			});
@@ -1681,7 +1737,7 @@ export default function TemplateDesignerPage() {
 		
 		// Use draftElements if available, otherwise use currentTemplate.elements
 		const currentElements = draftElements ?? currentTemplate.elements ?? [];
-		console.log("[SAVE] Updating elements", {
+		debugLog("[SAVE] Updating elements", {
 			usingDraftElements: !!draftElements,
 			currentElementsCount: currentElements.length,
 			selectedIds,
@@ -1706,7 +1762,7 @@ export default function TemplateDesignerPage() {
 								x: clamped.x,
 								y: clamped.y,
 							} as TemplateElement;
-							console.log(`[SAVE] Updated element ${el.id}`, {
+							debugLog(`[SAVE] Updated element ${el.id}`, {
 								before: { x: el.x, y: el.y, width: el.width, height: el.height },
 								after: { x: updated.x, y: updated.y, width: updated.width, height: updated.height },
 							});
@@ -1717,7 +1773,7 @@ export default function TemplateDesignerPage() {
 		// Update ref synchronously
 		draftRef.current = next;
 		setDraftElements(next);
-		console.log("[SAVE] Set draftElements", {
+		debugLog("[SAVE] Set draftElements", {
 			count: next.length,
 			elementIds: next.map(el => el.id),
 		});
@@ -1727,7 +1783,7 @@ export default function TemplateDesignerPage() {
 			// Clear existing timer for this element
 			const existingTimer = elementSaveTimersRef.current.get(elementId);
 			if (existingTimer) {
-				console.log(`[SAVE] Clearing existing timer for element ${elementId}`);
+				debugLog(`[SAVE] Clearing existing timer for element ${elementId}`);
 				clearTimeout(existingTimer);
 			}
 			
@@ -1736,7 +1792,7 @@ export default function TemplateDesignerPage() {
 				// Get the latest elements at save time (in case multiple properties changed)
 				const latestElements = draftRef.current;
 				if (!latestElements || latestElements.length === 0) {
-					console.warn(`[SAVE] No elements to save for element ${elementId}`, {
+					debugWarn(`[SAVE] No elements to save for element ${elementId}`, {
 						draftRef: !!draftRef.current,
 						draftRefLength: draftRef.current?.length,
 					});
@@ -1747,12 +1803,12 @@ export default function TemplateDesignerPage() {
 				// Verify the element still exists
 				const elementToSave = latestElements.find((el) => el.id === elementId);
 				if (!elementToSave) {
-					console.warn(`[SAVE] Element ${elementId} not found in latestElements`);
+					debugWarn(`[SAVE] Element ${elementId} not found in latestElements`);
 					elementSaveTimersRef.current.delete(elementId);
 					return;
 				}
 				
-				console.log(`[SAVE] ⚡ Triggering saveMutation for element ${elementId}`, {
+				debugLog(`[SAVE] ⚡ Triggering saveMutation for element ${elementId}`, {
 					totalElements: latestElements.length,
 					elementToSave: {
 						id: elementToSave.id,
@@ -1766,10 +1822,145 @@ export default function TemplateDesignerPage() {
 				elementSaveTimersRef.current.delete(elementId);
 			}, 50); // 50ms debounce per input
 			
-			console.log(`[SAVE] Set 50ms debounce timer for element ${elementId}`);
+			debugLog(`[SAVE] Set 50ms debounce timer for element ${elementId}`);
 			elementSaveTimersRef.current.set(elementId, timer);
 		});
 	}
+
+	useEffect(() => {
+		const KEYBOARD_NUDGE_SAVE_DEBOUNCE_MS = 220;
+
+		function isEditableTarget(target: EventTarget | null): boolean {
+			if (!(target instanceof HTMLElement)) return false;
+			if (target.isContentEditable) return true;
+			return Boolean(
+				target.closest(
+					'input, textarea, select, [contenteditable="true"], [role="textbox"]'
+				)
+			);
+		}
+
+		function moveSelectedBy(dx: number, dy: number) {
+			const selectedIds = selectedElementIdsRef.current;
+			if (!selectedIds?.length) return;
+
+			const sourceElements = draftRef.current ?? currentTemplateRef.current?.elements ?? [];
+			if (!sourceElements.length) return;
+
+			let changed = false;
+			const next = sourceElements.map((element) => {
+				if (!selectedIds.includes(element.id)) return element;
+
+				const targetX = element.x + dx;
+				const targetY = element.y + dy;
+				const minX = printableBounds.left;
+				const minY = printableBounds.top;
+				const maxX = Math.max(minX, printableBounds.right - element.width);
+				const maxY = Math.max(minY, printableBounds.bottom - element.height);
+				const x = Math.min(Math.max(minX, targetX), maxX);
+				const y = Math.min(Math.max(minY, targetY), maxY);
+
+				if (x === element.x && y === element.y) {
+					return element;
+				}
+
+				changed = true;
+				return {
+					...element,
+					x,
+					y,
+				};
+			});
+
+			if (!changed) return;
+
+			draftRef.current = next;
+			setDraftElements(next);
+			setSnapGuides((prev) => (prev.length > 0 ? [] : prev));
+
+			if (keyboardNudgeSaveTimerRef.current) {
+				clearTimeout(keyboardNudgeSaveTimerRef.current);
+			}
+			keyboardNudgeSaveTimerRef.current = setTimeout(() => {
+				const latestElements = draftRef.current;
+				if (latestElements && latestElements.length > 0) {
+					saveMutation.mutate({ elements: latestElements });
+				}
+				keyboardNudgeSaveTimerRef.current = null;
+			}, KEYBOARD_NUDGE_SAVE_DEBOUNCE_MS);
+		}
+
+		function scheduleKeyboardNudge(dx: number, dy: number) {
+			keyboardNudgeDeltaRef.current = {
+				dx: keyboardNudgeDeltaRef.current.dx + dx,
+				dy: keyboardNudgeDeltaRef.current.dy + dy,
+			};
+
+			if (keyboardNudgeRafRef.current != null) return;
+
+			keyboardNudgeRafRef.current = window.requestAnimationFrame(() => {
+				keyboardNudgeRafRef.current = null;
+				const { dx: totalDx, dy: totalDy } = keyboardNudgeDeltaRef.current;
+				keyboardNudgeDeltaRef.current = { dx: 0, dy: 0 };
+				if (totalDx !== 0 || totalDy !== 0) {
+					moveSelectedBy(totalDx, totalDy);
+				}
+			});
+		}
+
+		function handleKeyDown(event: KeyboardEvent) {
+			if (isEditableTarget(event.target)) return;
+
+			if (event.key === "Escape") {
+				if ((selectedElementIdsRef.current?.length ?? 0) > 0) {
+					event.preventDefault();
+					setState((s) => ({ ...s, selectedElementIds: [] }));
+				}
+				return;
+			}
+
+			if (drag) return;
+			if (event.metaKey || event.ctrlKey) return;
+			if ((selectedElementIdsRef.current?.length ?? 0) === 0) return;
+
+			const step = event.shiftKey ? 10 : event.altKey ? 0.5 : 1;
+			switch (event.key) {
+				case "ArrowUp":
+					event.preventDefault();
+					scheduleKeyboardNudge(0, -step);
+					break;
+				case "ArrowDown":
+					event.preventDefault();
+					scheduleKeyboardNudge(0, step);
+					break;
+				case "ArrowLeft":
+					event.preventDefault();
+					scheduleKeyboardNudge(-step, 0);
+					break;
+				case "ArrowRight":
+					event.preventDefault();
+					scheduleKeyboardNudge(step, 0);
+					break;
+			}
+		}
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			if (keyboardNudgeRafRef.current != null) {
+				cancelAnimationFrame(keyboardNudgeRafRef.current);
+				keyboardNudgeRafRef.current = null;
+				keyboardNudgeDeltaRef.current = { dx: 0, dy: 0 };
+			}
+		};
+	}, [
+		drag,
+		printableBounds.bottom,
+		printableBounds.left,
+		printableBounds.right,
+		printableBounds.top,
+		saveMutation,
+	]);
 
 	const handleOpenImagePicker = (elementId: string) => {
 		setImagePickerTargetElementId(elementId);
@@ -2149,7 +2340,7 @@ export default function TemplateDesignerPage() {
 			// Save if drag started (movement detected) OR if position actually changed
 			const shouldSave = dragStartedRef.current || positionChanged;
 			
-			console.log("[CANVAS] handlePointerUp called", {
+			debugLog("[CANVAS] handlePointerUp called", {
 				elementId,
 				mode,
 				hasMoved,
@@ -2161,7 +2352,7 @@ export default function TemplateDesignerPage() {
 			// If we never moved and position didn't change, it was just a click - don't save drag state
 			// The click handler will handle selection
 			if (shouldSave) {
-				console.log("[CANVAS] Pointer up after move", {
+				debugLog("[CANVAS] Pointer up after move", {
 					hasLatestDraft: !!latestDraft,
 					latestDraftCount: latestDraft?.length ?? 0,
 					hasTemplate: !!tmpl,
@@ -2180,7 +2371,7 @@ export default function TemplateDesignerPage() {
 								...s,
 								selectedElementIds: [elementId],
 							}));
-							console.log("[CANVAS] Element not selected, selecting it first:", elementId);
+							debugLog("[CANVAS] Element not selected, selecting it first:", elementId);
 						}
 						
 						// Use updateSelected to trigger the same debounced save mechanism as property panel
@@ -2197,7 +2388,7 @@ export default function TemplateDesignerPage() {
 							changes.height = changedElement.height;
 						}
 						
-						console.log("[CANVAS] 🎯 Calling updateSelected from pointer up", {
+						debugLog("[CANVAS] 🎯 Calling updateSelected from pointer up", {
 							elementId,
 							mode,
 							changes,
@@ -2213,20 +2404,20 @@ export default function TemplateDesignerPage() {
 						// Call updateSelected directly - it will use selectedElementIdsRef which we just updated
 						updateSelected(changes);
 					} else {
-						console.warn("[CANVAS] ⚠️ Changed element not found in latestDraft", { 
+						debugWarn("[CANVAS] ⚠️ Changed element not found in latestDraft", { 
 							elementId, 
 							latestDraftLength: latestDraft.length,
 							latestDraftIds: latestDraft.map(el => el.id),
 						});
 					}
 				} else {
-					console.warn("[CANVAS] ⚠️ Missing latestDraft or template", {
+					debugWarn("[CANVAS] ⚠️ Missing latestDraft or template", {
 						hasLatestDraft: !!latestDraft,
 						hasTemplate: !!tmpl,
 					});
 				}
 			} else {
-				console.log("[CANVAS] Pointer up without move (click only)", {
+				debugLog("[CANVAS] Pointer up without move (click only)", {
 					dragStarted: dragStartedRef.current,
 					positionChanged,
 				});
