@@ -100,6 +100,7 @@ export function formatValue(
 export const PAGE_SIZES = {
 	A4: { w: 794, h: 1123 },
 	Letter: { w: 816, h: 1056 },
+	Legal: { w: 816, h: 1344 },
 } as const;
 
 export type PageSize = keyof typeof PAGE_SIZES;

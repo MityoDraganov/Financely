@@ -54,6 +54,34 @@ function convertTimestampsToDates(
   return documentData;
 }
 
+function stripUndefinedDeep<T>(value: T): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedDeep(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (nestedValue === undefined) {
+        continue;
+      }
+      const normalized = stripUndefinedDeep(nestedValue);
+      if (normalized !== undefined) {
+        output[key] = normalized;
+      }
+    }
+    return output as T;
+  }
+
+  return value;
+}
+
 /**
  * Convert a snapshot to data
  *
@@ -317,9 +345,10 @@ export const databaseService: DatabaseService = {
   async update<T>(collectionName: string, id: string, data: T): Promise<void> {
     console.log(`Updating document ${collectionName}/${id}`, data);
     const documentRef = firestore().collection(collectionName).doc(id);
+    const sanitizedData = stripUndefinedDeep(data);
 
     await documentRef.update({
-      ...data,
+      ...(sanitizedData as object),
       updatedAt: firestore.FieldValue.serverTimestamp(),
     });
   },

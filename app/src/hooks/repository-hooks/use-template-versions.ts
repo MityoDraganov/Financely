@@ -31,6 +31,7 @@ export function useSaveTemplateVersion() {
       templateId: string;
       userId?: string;
       description?: string;
+      silent?: boolean;
     }) => {
       return templateService.saveVersion(templateId, userId, description);
     },
@@ -38,9 +39,12 @@ export function useSaveTemplateVersion() {
       queryClient.invalidateQueries({
         queryKey: ["templateVersions", variables.templateId],
       });
-      toast.success(`Version ${result.version} saved successfully`);
+      if (!variables.silent) {
+        toast.success(`Version ${result.version} saved successfully`);
+      }
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, variables) => {
+      if (variables?.silent) return;
       const message = error instanceof Error ? error.message : "Failed to save version";
       toast.error(message);
     },
@@ -78,4 +82,3 @@ export function useRestoreTemplateVersion() {
     },
   });
 }
-

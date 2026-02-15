@@ -226,6 +226,8 @@ export const templateDataSchema = z.object({
   status: z.enum(["draft", "published"]).default("draft"),
   // Compliance metadata for invoice templates
   compliance: templateComplianceMetadataSchema.optional(),
+  // Block/schema version used when generating (for compatibility and marketplace)
+  schemaVersion: z.number().int().min(1).optional(),
 });
 
 export type TemplateData = z.infer<typeof templateDataSchema>;

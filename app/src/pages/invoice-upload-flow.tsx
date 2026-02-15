@@ -43,6 +43,9 @@ export default function InvoiceUploadFlowPage() {
   const [matchedTemplates, setMatchedTemplates] = useState<Array<{ template: Template; confidence: number; reason: string }>>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [generatedTemplate, setGeneratedTemplate] = useState<TemplateData | null>(null);
+  const [templateQuality, setTemplateQuality] = useState<{ overall: number; layout: number; text: number; table: number; font: number } | null>(null);
+  const [templateNeedsReview, setTemplateNeedsReview] = useState(false);
+  const [templateReviewReasons, setTemplateReviewReasons] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [updatedExtractedData, setUpdatedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
   const [editedExtractedData, setEditedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
@@ -97,14 +100,20 @@ export default function InvoiceUploadFlowPage() {
     try {
       const result = await generateTemplate.mutateAsync({
         jobId,
+        editedData,
         options: {
           style: "modern",
           templateName: `Template from ${job?.fileName || "Invoice"}`,
+          strategy: "layout_fusion_v2",
+          qualityTarget: "pixel",
         },
         createTemplate: false, // Don't create yet, show preview first
       });
 
       setGeneratedTemplate(result.template);
+      setTemplateQuality(result.quality);
+      setTemplateNeedsReview(result.needsReview);
+      setTemplateReviewReasons(result.reviewReasons);
       setShowPreview(true);
     } catch (error) {
       console.error("Failed to generate template:", error);
@@ -407,6 +416,9 @@ export default function InvoiceUploadFlowPage() {
                 open={showPreview}
                 onOpenChange={setShowPreview}
                 template={generatedTemplate}
+                quality={templateQuality || undefined}
+                needsReview={templateNeedsReview}
+                reviewReasons={templateReviewReasons}
                 extractedData={(editedExtractedData || job.extractedData) as Record<string, InvoiceDataValue>}
                 flowType={flowType}
                 onAccept={handleAcceptTemplate}
@@ -419,4 +431,3 @@ export default function InvoiceUploadFlowPage() {
     </AppLayout>
   );
 }
-

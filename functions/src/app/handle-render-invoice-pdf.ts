@@ -26,7 +26,7 @@ function generateInvoiceHTML(
   organization: { settings?: { brandColors?: { primary?: string; secondary?: string; accent?: string }; branding?: { customLogo?: string } } } | null,
   dataContext?: DataContext
 ): string {
-  const { pageSize, brand, elements } = template;
+  const { pageSize, brand, elements, pageSettings } = template;
 
   // Override template brand colors with organization branding if available
   const finalBrand = {
@@ -50,8 +50,24 @@ function generateInvoiceHTML(
   const pageSizes = {
     A4: { width: 794, height: 1123, widthMm: 210, heightMm: 297 },
     Letter: { width: 816, height: 1056, widthMm: 216, heightMm: 279 },
+    Legal: { width: 816, height: 1344, widthMm: 216, heightMm: 356 },
   };
-  const size = pageSizes[pageSize] || pageSizes.A4;
+  const baseSize = pageSettings?.size === "Custom" && pageSettings.customSize
+    ? {
+        width: pageSettings.customSize.width,
+        height: pageSettings.customSize.height,
+        widthMm: (pageSettings.customSize.width / 96) * 25.4,
+        heightMm: (pageSettings.customSize.height / 96) * 25.4,
+      }
+    : pageSizes[(pageSettings?.size as keyof typeof pageSizes) || pageSize] || pageSizes.A4;
+  const size = pageSettings?.orientation === "landscape"
+    ? {
+        width: baseSize.height,
+        height: baseSize.width,
+        widthMm: baseSize.heightMm,
+        heightMm: baseSize.widthMm,
+      }
+    : baseSize;
 
   /**
    * Helper to get value from invoice data by path
@@ -181,7 +197,8 @@ function generateInvoiceHTML(
   }
 
   // Get margins from template
-  const margins = template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+  const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+  const usableHeight = size.height - margins.top - margins.bottom;
   
   // Paginate template into multiple pages
   const pages = paginateTemplate(template, invoice.data, { w: size.width, h: size.height });
@@ -192,7 +209,6 @@ function generateInvoiceHTML(
     pageIndex: number,
     adjustedY: number
   ): { x: number; y: number } => {
-    const usableHeight = size.height - margins.top - margins.bottom;
     const pageStartY = pageIndex * usableHeight;
     const yInUsableArea = adjustedY - pageStartY;
     const yOnPage = margins.top + yInUsableArea;
@@ -206,6 +222,13 @@ function generateInvoiceHTML(
   // Helper to calculate adjusted Y position accounting for table expansion
   const calculateAdjustedY = (el: TemplateElement): number => {
     let adjustedY = el.y;
+
+    for (const prevEl of elements) {
+      if (prevEl.id === el.id) break;
+      if (prevEl.type === "pageBreak") {
+        adjustedY += usableHeight;
+      }
+    }
     
     // Adjust for tables that came before and expanded
     for (const prevEl of elements) {
@@ -234,25 +257,6 @@ function generateInvoiceHTML(
 
       // Calculate adjusted Y position
       let adjustedY = calculateAdjustedY(el);
-      
-      // For tables, use the table's adjusted position from pagination
-      if (el.type === "table") {
-        // Find the table's adjusted position by checking previous elements
-        adjustedY = el.y;
-        for (const prevEl of elements) {
-          if (prevEl.id === el.id) break;
-          if (prevEl.type === "table" && prevEl.y < el.y) {
-            const prevTbl = prevEl;
-            const allItems = (getValueFromContextOrData(prevTbl.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
-            const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
-            const prevActualHeight = prevTbl.headerHeight + (allItems.length * prevTbl.rowHeight) + (prevTbl.columns.some((c) => c.showTotal) ? prevTbl.rowHeight : 0);
-            const prevTableBottom = prevEl.y + prevOriginalHeight;
-            if (el.y >= prevTableBottom) {
-              adjustedY += (prevActualHeight - prevOriginalHeight);
-            }
-          }
-        }
-      }
       
       const pos = calculateElementPosition(el, page.pageIndex, adjustedY);
       
@@ -286,10 +290,14 @@ function generateInvoiceHTML(
             font-family: ${el.typography.fontFamily};
             font-size: ${el.typography.fontSize}px;
             font-weight: ${el.typography.fontWeight};
+            font-style: ${el.typography.fontStyle || "normal"};
             line-height: ${el.typography.lineHeight};
             letter-spacing: ${el.typography.letterSpacing}px;
+            ${el.typography.wordSpacing != null ? `word-spacing: ${el.typography.wordSpacing}px;` : ""}
             color: ${el.typography.color};
             text-align: ${el.typography.align};
+            ${el.typography.textDecoration ? `text-decoration: ${el.typography.textDecoration};` : ""}
+            ${el.typography.textIndent != null ? `text-indent: ${el.typography.textIndent}px;` : ""}
             ${el.typography.uppercase ? "text-transform: uppercase;" : ""}
             ${el.typography.lowercase ? "text-transform: lowercase;" : ""}
             white-space: pre-wrap;
@@ -301,7 +309,14 @@ function generateInvoiceHTML(
     if (el.type === "image") {
       return `
         <div style="${commonStyle}">
-          <img src="${el.src}" alt="${el.alt || ""}" style="width: 100%; height: 100%; object-fit: ${el.objectFit};" />
+          <img src="${el.src}" alt="${el.alt || ""}" style="
+            width: 100%;
+            height: 100%;
+            object-fit: ${el.objectFit};
+            ${el.objectPosition ? `object-position: ${el.objectPosition};` : ""}
+            opacity: ${el.opacity ?? 1};
+            ${el.border ? `border: ${el.border.width}px ${el.border.style} ${el.border.color}; border-radius: ${el.border.radius}px;` : ""}
+          " />
         </div>
       `;
     }
@@ -319,7 +334,7 @@ function generateInvoiceHTML(
     if (el.type === "line") {
       return `
         <div style="${commonStyle}">
-          <div style="border-top: ${el.strokeWidth}px solid ${el.stroke}; position: absolute; left: 0; right: 0; top: 50%;"></div>
+          <div style="border-top: ${el.strokeWidth}px ${el.style || "solid"} ${el.stroke}; opacity: ${el.opacity ?? 1}; position: absolute; left: 0; right: 0; top: 50%;"></div>
         </div>
       `;
     }
@@ -350,8 +365,8 @@ function generateInvoiceHTML(
       `;
     }
 
-    if (el.type === "currency") {
-      const curr = el as Extract<TemplateElement, { type: "currency" }>;
+	    if (el.type === "currency") {
+	      const curr = el as Extract<TemplateElement, { type: "currency" }>;
       const boundValue = curr.binding ? getValueFromContextOrData(curr.binding, dataContext, invoice.data) : undefined;
       
       // Format as currency
@@ -396,8 +411,77 @@ function generateInvoiceHTML(
             <span style="flex: 1;">${displayValue || curr.placeholder || "0.00"}</span>
           </div>
         </div>
-      `;
-    }
+	      `;
+	    }
+
+      if (el.type === "icon") {
+        const iconEl = el as Extract<TemplateElement, { type: "icon" }>;
+        return `
+          <div style="${commonStyle}; display: flex; align-items: center; justify-content: center; color: ${iconEl.color};">
+            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase;">${iconEl.iconName}</div>
+          </div>
+        `;
+      }
+
+      if (el.type === "spacer") {
+        const spacer = el as Extract<TemplateElement, { type: "spacer" }>;
+        if (!spacer.showDivider) return `<div style="${commonStyle}"></div>`;
+        return `
+          <div style="${commonStyle}">
+            <div style="border-top: ${spacer.dividerWidth}px ${spacer.dividerStyle} ${spacer.dividerColor}; width: 100%; position: absolute; top: 50%; left: 0;"></div>
+          </div>
+        `;
+      }
+
+      if (el.type === "pageBreak") {
+        return "";
+      }
+
+      if (el.type === "qrCode") {
+        const qr = el as Extract<TemplateElement, { type: "qrCode" }>;
+        const value = qr.binding ? getValueFromContextOrData(qr.binding, dataContext, invoice.data) : qr.content;
+        return `
+          <div style="${commonStyle}; background: ${qr.backgroundColor}; color: ${qr.foregroundColor}; border: 1px solid #d1d5db; display: grid; place-items: center; font-size: 10px; font-weight: 700;" title="${String(value ?? "")}">
+            QR
+          </div>
+        `;
+      }
+
+      if (el.type === "barcode") {
+        const barcode = el as Extract<TemplateElement, { type: "barcode" }>;
+        const value = barcode.binding ? getValueFromContextOrData(barcode.binding, dataContext, invoice.data) : barcode.value;
+        return `
+          <div style="${commonStyle}; background: ${barcode.backgroundColor}; color: ${barcode.color}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+            <div style="width: 92%; height: 60%; background-image: repeating-linear-gradient(to right, currentColor 0, currentColor 2px, transparent 2px, transparent 4px);"></div>
+            ${barcode.showText ? `<div style="font-size: 10px; letter-spacing: 1px;">${String(value ?? "BARCODE")}</div>` : ""}
+          </div>
+        `;
+      }
+
+      if (el.type === "signature") {
+        const signature = el as Extract<TemplateElement, { type: "signature" }>;
+        return `
+          <div style="${commonStyle}">
+            <div style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;">
+              ${
+                signature.signatureType === "image" && signature.signatureImage
+                  ? `<img src="${signature.signatureImage}" alt="Signature" style="max-height: 70%; object-fit: contain; object-position: left bottom;" />`
+                  : `<div style="font-size: 10px; color: #6b7280; margin-bottom: 4px;">${signature.placeholderText || "Signature"}</div>`
+              }
+              <div style="border-bottom: ${signature.borderBottom?.width ?? 1}px ${signature.borderBottom?.style ?? "solid"} ${signature.borderBottom?.color ?? "#111827"};"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (el.type === "stamp") {
+        const stamp = el as Extract<TemplateElement, { type: "stamp" }>;
+        return `
+          <div style="${commonStyle}; background: ${stamp.backgroundColor}; color: ${stamp.textColor}; opacity: ${stamp.opacity}; border-radius: ${stamp.shape === "circle" ? "9999px" : "8px"}; border: ${stamp.border ? `${stamp.border.width}px ${stamp.border.style} ${stamp.border.color}` : "1px solid currentColor"}; font-family: ${stamp.fontFamily}; font-size: ${stamp.fontSize}px; font-weight: ${stamp.fontWeight}; display: flex; align-items: center; justify-content: center; text-transform: uppercase;">
+            ${stamp.text}
+          </div>
+        `;
+      }
 
       if (el.type === "table") {
         const allItems = (getValueFromContextOrData(el.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
@@ -718,8 +802,8 @@ function generateInvoiceHTML(
         position: relative;
         width: ${size.width}px;
         height: ${size.height}px;
-        background: white;
-        ${finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
+        background: ${pageSettings?.backgroundColor || "white"};
+        ${pageSettings?.backgroundImage ? `background-image: url(${pageSettings.backgroundImage});` : finalBrand.backgroundImage ? `background-image: url(${finalBrand.backgroundImage});` : ""}
         background-size: cover;
         ${pageBreak}
       ">
@@ -842,8 +926,17 @@ export async function handleRenderInvoicePdf(
     const pageSizes = {
       A4: { width: 794, height: 1123 },
       Letter: { width: 816, height: 1056 },
+      Legal: { width: 816, height: 1344 },
     };
-    const pdfSize = pageSizes[template.pageSize] || pageSizes.A4;
+    const basePdfSize = template.pageSettings?.size === "Custom" && template.pageSettings.customSize
+      ? {
+          width: template.pageSettings.customSize.width,
+          height: template.pageSettings.customSize.height,
+        }
+      : pageSizes[(template.pageSettings?.size as keyof typeof pageSizes) || template.pageSize] || pageSizes.A4;
+    const pdfSize = template.pageSettings?.orientation === "landscape"
+      ? { width: basePdfSize.height, height: basePdfSize.width }
+      : basePdfSize;
     
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const page = await browser.newPage();
@@ -917,4 +1010,3 @@ export async function handleRenderInvoicePdf(
 
   return publicUrl;
 }
-

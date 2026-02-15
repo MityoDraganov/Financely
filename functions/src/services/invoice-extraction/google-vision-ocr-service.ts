@@ -1,7 +1,7 @@
 import { ImageAnnotatorClient } from "@google-cloud/vision";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
-import type { OCRService, OCRResult, OCRTextBlock } from "./ocr-service";
+import type { OCRService, OCRResult, OCRTextBlock, OCRWord } from "./ocr-service";
 
 /**
  * Google Cloud Vision API OCR Service Implementation
@@ -286,9 +286,14 @@ export class GoogleVisionOCRService implements OCRService {
       
       // Extract text blocks with bounding boxes
       const textBlocks: OCRTextBlock[] = [];
+      const ocrWords: OCRWord[] = [];
       
       if (fullTextAnnotation.pages) {
-        for (const page of fullTextAnnotation.pages) {
+        for (let pageIndex = 0; pageIndex < fullTextAnnotation.pages.length; pageIndex += 1) {
+          const page = fullTextAnnotation.pages[pageIndex];
+          const pageWidth = page.width || 1;
+          const pageHeight = page.height || 1;
+
           if (page.blocks) {
             for (const block of page.blocks) {
               if (block.paragraphs) {
@@ -306,12 +311,21 @@ export class GoogleVisionOCRService implements OCRService {
                           const y = boundingBox[0].y || 0;
                           const width = (boundingBox[1].x || 0) - x;
                           const height = (boundingBox[3]?.y || boundingBox[2]?.y || 0) - y;
+                          const normalizedX = Math.max(0, Math.min(1, x / pageWidth));
+                          const normalizedY = Math.max(0, Math.min(1, y / pageHeight));
+                          const normalizedWidth = Math.max(0, Math.min(1, Math.max(0, width) / pageWidth));
+                          const normalizedHeight = Math.max(0, Math.min(1, Math.max(0, height) / pageHeight));
 
                           // Calculate confidence from word confidence or use default
                           const confidence = word.confidence || 0.8;
+                          const safeText = wordText.trim();
+                          if (!safeText) {
+                            continue;
+                          }
+                          const id = `p${pageIndex}-w${ocrWords.length + 1}`;
 
                           textBlocks.push({
-                            text: wordText,
+                            text: safeText,
                             confidence,
                             boundingBox: {
                               x,
@@ -319,6 +333,31 @@ export class GoogleVisionOCRService implements OCRService {
                               width: Math.max(0, width),
                               height: Math.max(0, height),
                             },
+                          });
+
+                          ocrWords.push({
+                            id,
+                            text: safeText,
+                            confidence,
+                            pageIndex,
+                            boundingBox: {
+                              x,
+                              y,
+                              width: Math.max(0, width),
+                              height: Math.max(0, height),
+                            },
+                            normalizedBoundingBox: {
+                              x: normalizedX,
+                              y: normalizedY,
+                              width: normalizedWidth,
+                              height: normalizedHeight,
+                            },
+                            polygon: boundingBox
+                              .filter((vertex: { x?: number; y?: number }) => typeof vertex?.x === "number" && typeof vertex?.y === "number")
+                              .map((vertex: { x?: number; y?: number }) => ({
+                                x: vertex.x || 0,
+                                y: vertex.y || 0,
+                              })),
                           });
                         }
                       }
@@ -344,6 +383,7 @@ export class GoogleVisionOCRService implements OCRService {
         fileUrl,
         textLength: fullText.length,
         textBlockCount: textBlocks.length,
+        wordCount: ocrWords.length,
         confidence: overallConfidence,
         pageCount,
         durationMs,
@@ -352,6 +392,7 @@ export class GoogleVisionOCRService implements OCRService {
       return {
         fullText,
         textBlocks,
+        ocrWords,
         confidence: overallConfidence,
         language: fullTextAnnotation.pages?.[0]?.property?.detectedLanguages?.[0]?.languageCode || undefined,
         pageCount,
@@ -422,4 +463,3 @@ export function getGoogleVisionOCRService(projectId?: string): GoogleVisionOCRSe
   }
   return googleVisionOCRServiceInstance;
 }
-

@@ -798,14 +798,17 @@ export function ExtractionResultsPanel({
 			onGenerateTemplate(editedData);
 		} else {
 			try {
-				await generateTemplate.mutateAsync({
-					jobId: job.id,
-					options: {
-						style: "modern",
-						templateName: `Template from ${job.fileName}`,
-					},
-					createTemplate: true,
-				});
+					await generateTemplate.mutateAsync({
+						jobId: job.id,
+						editedData,
+						options: {
+							style: "modern",
+							templateName: `Template from ${job.fileName}`,
+							strategy: "layout_fusion_v2",
+							qualityTarget: "pixel",
+						},
+						createTemplate: true,
+					});
 			} catch (error) {
 				// Error is handled by the hook
 				console.error("Failed to generate template:", error);

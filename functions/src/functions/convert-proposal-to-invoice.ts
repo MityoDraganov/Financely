@@ -140,7 +140,7 @@ export const convertProposalToInvoice = onCall<
       if (!aiService.getProvider("gemini")) {
         const geminiProvider = new GeminiProvider({
           apiKey,
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.0-flash",
         });
         aiService.registerProvider(geminiProvider);
         aiService.setDefaultProvider("gemini");

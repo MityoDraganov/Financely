@@ -375,7 +375,7 @@ service cloud.firestore {
                        request.resource.data.data != null &&
                        request.resource.data.data.orgId != null &&
                        isOrgMember(request.resource.data.data.orgId) &&
-                       isOwnerOrAdmin(request.resource.data.data.orgId) &&
+                       hasRole(request.resource.data.data.orgId, 'member') &&
                        canWriteWithBilling(request.resource.data.data.orgId);
       allow update: if false;
       allow delete: if isAuthenticated() && 

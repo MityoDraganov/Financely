@@ -451,9 +451,14 @@ export interface FunctionsService {
    */
   generateTemplateFromExtraction(payload: {
     jobId: string;
+    editedData?: Record<string, unknown>;
+    strategy?: "layout_fusion_v2" | "legacy";
+    qualityTarget?: "pixel";
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       templateName?: string;
+      strategy?: "layout_fusion_v2" | "legacy";
+      qualityTarget?: "pixel";
     };
   }): Promise<{
     template: {
@@ -477,6 +482,15 @@ export interface FunctionsService {
         complianceValidatedAt?: string;
       };
     };
+    quality: {
+      overall: number;
+      layout: number;
+      text: number;
+      table: number;
+      font: number;
+    };
+    needsReview: boolean;
+    reviewReasons: string[];
   }>;
 
   /**

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,9 @@ interface TemplatePreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: TemplateData;
+  quality?: { overall: number; layout: number; text: number; table: number; font: number };
+  needsReview?: boolean;
+  reviewReasons?: string[];
   extractedData?: Record<string, InvoiceDataValue>;
   flowType?: FlowType;
   onAccept: (updatedData?: Record<string, InvoiceDataValue>, updatedTemplate?: TemplateData) => void;
@@ -55,6 +59,9 @@ export function TemplatePreviewDialog({
   open,
   onOpenChange,
   template,
+  quality,
+  needsReview = false,
+  reviewReasons = [],
   extractedData,
   flowType = "template",
   onAccept,
@@ -76,6 +83,21 @@ export function TemplatePreviewDialog({
   
   const isTemplateOnly = flowType === "template";
 
+  const resolvePreviewSize = (data: TemplateData): { w: number; h: number } => {
+    const PAGE_SIZES: Record<Exclude<TemplateData["pageSize"], undefined>, { w: number; h: number }> = {
+      A4: { w: 794, h: 1123 },
+      Letter: { w: 816, h: 1056 },
+      Legal: { w: 816, h: 1344 },
+    };
+    const baseSize =
+      data.pageSettings?.size === "Custom" && data.pageSettings.customSize
+        ? { w: data.pageSettings.customSize.width, h: data.pageSettings.customSize.height }
+        : PAGE_SIZES[(data.pageSettings?.size ?? data.pageSize) as Exclude<TemplateData["pageSize"], undefined>] ?? PAGE_SIZES.A4;
+    return data.pageSettings?.orientation === "landscape"
+      ? { w: baseSize.h, h: baseSize.w }
+      : baseSize;
+  };
+
   // Update editable data when extractedData prop changes
   useEffect(() => {
     if (extractedData) {
@@ -95,11 +117,7 @@ export function TemplatePreviewDialog({
     }
 
     const container = previewContainerRef.current;
-    const PAGE_SIZES: Record<TemplateData["pageSize"], { w: number; h: number }> = {
-      A4: { w: 794, h: 1123 },
-      Letter: { w: 816, h: 1056 },
-    };
-    const size = PAGE_SIZES[editableTemplate.pageSize] ?? PAGE_SIZES.A4;
+    const size = resolvePreviewSize(editableTemplate);
 
     const updateScale = () => {
       if (!previewContainerRef.current) return;
@@ -200,7 +218,7 @@ export function TemplatePreviewDialog({
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateScale);
     };
-  }, [previewMode, editableTemplate.pageSize, editableData, activeTab]);
+  }, [previewMode, editableTemplate.pageSize, editableTemplate.pageSettings, editableData, activeTab]);
 
   // Force scale recalculation when switching back to preview tab
   useEffect(() => {
@@ -211,11 +229,7 @@ export function TemplatePreviewDialog({
       const container = previewContainerRef.current;
       if (!container) return;
 
-      const PAGE_SIZES: Record<TemplateData["pageSize"], { w: number; h: number }> = {
-        A4: { w: 794, h: 1123 },
-        Letter: { w: 816, h: 1056 },
-      };
-      const size = PAGE_SIZES[editableTemplate.pageSize] ?? PAGE_SIZES.A4;
+      const size = resolvePreviewSize(editableTemplate);
 
       const rect = container.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
@@ -230,7 +244,7 @@ export function TemplatePreviewDialog({
     }, 150); // Slightly longer delay to ensure tab animation completes
 
     return () => clearTimeout(timeoutId);
-  }, [activeTab, previewMode, editableTemplate.pageSize]);
+  }, [activeTab, previewMode, editableTemplate.pageSize, editableTemplate.pageSettings]);
 
   // Update editable template when template prop changes, using organization colors as defaults
   useEffect(() => {
@@ -883,6 +897,9 @@ export function TemplatePreviewDialog({
 
   // Handle accept with updated data and template
   const handleAccept = () => {
+    if (needsReview) {
+      return;
+    }
     onAccept(editableData, editableTemplate);
   };
 
@@ -895,6 +912,23 @@ export function TemplatePreviewDialog({
           <DialogDescription className="mt-1 text-xs">
             Review the generated template with your extracted data. You can accept it or edit it manually.
           </DialogDescription>
+          {quality && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge variant="outline">Overall {(quality.overall * 100).toFixed(0)}%</Badge>
+              <Badge variant="outline">Layout {(quality.layout * 100).toFixed(0)}%</Badge>
+              <Badge variant="outline">Text {(quality.text * 100).toFixed(0)}%</Badge>
+              <Badge variant="outline">Table {(quality.table * 100).toFixed(0)}%</Badge>
+              <Badge variant="outline">Font {(quality.font * 100).toFixed(0)}%</Badge>
+            </div>
+          )}
+          {needsReview && (
+            <Alert className="mt-3 border-amber-500/50 bg-amber-50 dark:bg-amber-950/30">
+              <AlertDescription className="text-xs">
+                This template is flagged for manual review and cannot be accepted directly.
+                {reviewReasons.length > 0 ? ` Reasons: ${reviewReasons.join("; ")}` : ""}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <Tabs defaultValue="preview" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1569,7 +1603,7 @@ export function TemplatePreviewDialog({
               <Edit className="h-4 w-4 mr-2" />
               Edit in Designer
             </Button>
-            <Button onClick={handleAccept}>
+            <Button onClick={handleAccept} disabled={needsReview} title={needsReview ? "Manual review required before acceptance" : undefined}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Accept Template
             </Button>
@@ -1596,4 +1630,3 @@ function getBindingValue(data: Record<string, InvoiceDataValue>, path: string): 
   }
   return current;
 }
-

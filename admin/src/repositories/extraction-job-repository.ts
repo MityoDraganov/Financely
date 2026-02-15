@@ -29,6 +29,57 @@ export interface ExtractionJob {
   processingDurationMs?: number;
   vendorName?: string;
   documentType?: "invoice" | "receipt" | "utility_bill" | "unknown";
+  documentPages?: Array<{
+    pageIndex: number;
+    width: number;
+    height: number;
+    imageUrl: string;
+    mimeType?: string;
+    source: "original" | "rendered_pdf";
+  }>;
+  ocrWords?: Array<{
+    id: string;
+    text: string;
+    confidence: number;
+    pageIndex: number;
+    boundingBox: { x: number; y: number; width: number; height: number };
+    normalizedBoundingBox: { x: number; y: number; width: number; height: number };
+    polygon: Array<{ x: number; y: number }>;
+  }>;
+  visionLayout?: {
+    regions: Array<Record<string, unknown>>;
+    elements: Array<Record<string, unknown>>;
+    tables: Array<Record<string, unknown>>;
+    styleClusters: Array<Record<string, unknown>>;
+  };
+  fusionMap?: Array<{
+    binding: string;
+    valueText?: string;
+    ocrWordIds: string[];
+    layoutNodeIds: string[];
+    boundingBox?: { x: number; y: number; width: number; height: number };
+    confidence: number;
+    fieldType: "text" | "currency" | "date" | "number" | "table" | "unknown";
+  }>;
+  fontMatches?: Array<{
+    clusterId: string;
+    provider: "external_api" | "fallback";
+    matchedFont: string;
+    fallbackFont: string;
+    confidence: number;
+    raw?: Record<string, unknown>;
+  }>;
+  croppedAssets?: Array<{
+    id: string;
+    pageIndex: number;
+    kind: "logo" | "image";
+    imageUrl: string;
+    boundingBox: { x: number; y: number; width: number; height: number };
+    confidence: number;
+  }>;
+  quality?: { overall: number; layout: number; text: number; table: number; font: number };
+  needsReview?: boolean;
+  reviewReasons?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -57,6 +108,57 @@ export interface ExtractionJobData {
   processingDurationMs?: number;
   vendorName?: string;
   documentType?: "invoice" | "receipt" | "utility_bill" | "unknown";
+  documentPages?: Array<{
+    pageIndex: number;
+    width: number;
+    height: number;
+    imageUrl: string;
+    mimeType?: string;
+    source: "original" | "rendered_pdf";
+  }>;
+  ocrWords?: Array<{
+    id: string;
+    text: string;
+    confidence: number;
+    pageIndex: number;
+    boundingBox: { x: number; y: number; width: number; height: number };
+    normalizedBoundingBox: { x: number; y: number; width: number; height: number };
+    polygon: Array<{ x: number; y: number }>;
+  }>;
+  visionLayout?: {
+    regions: Array<Record<string, unknown>>;
+    elements: Array<Record<string, unknown>>;
+    tables: Array<Record<string, unknown>>;
+    styleClusters: Array<Record<string, unknown>>;
+  };
+  fusionMap?: Array<{
+    binding: string;
+    valueText?: string;
+    ocrWordIds: string[];
+    layoutNodeIds: string[];
+    boundingBox?: { x: number; y: number; width: number; height: number };
+    confidence: number;
+    fieldType: "text" | "currency" | "date" | "number" | "table" | "unknown";
+  }>;
+  fontMatches?: Array<{
+    clusterId: string;
+    provider: "external_api" | "fallback";
+    matchedFont: string;
+    fallbackFont: string;
+    confidence: number;
+    raw?: Record<string, unknown>;
+  }>;
+  croppedAssets?: Array<{
+    id: string;
+    pageIndex: number;
+    kind: "logo" | "image";
+    imageUrl: string;
+    boundingBox: { x: number; y: number; width: number; height: number };
+    confidence: number;
+  }>;
+  quality?: { overall: number; layout: number; text: number; table: number; font: number };
+  needsReview?: boolean;
+  reviewReasons?: string[];
 }
 
 export interface ExtractionJobRepository {
@@ -79,4 +181,3 @@ export function getExtractionJobRepository(
     databaseService,
   );
 }
-

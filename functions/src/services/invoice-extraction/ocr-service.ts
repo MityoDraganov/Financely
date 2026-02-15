@@ -16,9 +16,27 @@ export interface OCRTextBlock {
   };
 }
 
+export interface OCRPolygonPoint {
+  x: number;
+  y: number;
+}
+
+export interface OCRWord extends OCRTextBlock {
+  id: string;
+  pageIndex: number;
+  normalizedBoundingBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  polygon: OCRPolygonPoint[];
+}
+
 export interface OCRResult {
   fullText: string;
   textBlocks: OCRTextBlock[];
+  ocrWords?: OCRWord[];
   confidence: number;
   language?: string;
   pageCount?: number;  // For PDFs
@@ -44,4 +62,3 @@ export interface OCRService {
    */
   isAvailable(): boolean;
 }
-

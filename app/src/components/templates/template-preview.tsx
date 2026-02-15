@@ -23,7 +23,16 @@ export function TemplatePreview({
 	context,
 	zoom = 0.75,
 }: TemplatePreviewProps) {
-	const size = PAGE_SIZES[template.pageSize] ?? PAGE_SIZES.A4;
+	const baseSize =
+		template.pageSettings?.size === "Custom" && template.pageSettings.customSize
+			? {
+					w: template.pageSettings.customSize.width,
+					h: template.pageSettings.customSize.height,
+				}
+			: PAGE_SIZES[(template.pageSettings?.size ?? template.pageSize) as keyof typeof PAGE_SIZES] ?? PAGE_SIZES.A4;
+	const size = template.pageSettings?.orientation === "landscape"
+		? { w: baseSize.h, h: baseSize.w }
+		: baseSize;
 
 	// Paginate template into multiple pages
 	const pages = React.useMemo(
@@ -41,7 +50,7 @@ export function TemplatePreview({
 		: null;
 
 	// Get margins from template
-	const margins = template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
 	
 	// Render a single page
 	const renderPage = (page: RenderPage) => {
@@ -75,6 +84,7 @@ export function TemplatePreview({
 					style={{
 						width: size.w,
 						height: size.h,
+						backgroundColor: template.pageSettings?.backgroundColor || undefined,
 						transform: `scale(${zoom})`,
 						transformOrigin: "top left",
 						overflow: "hidden",

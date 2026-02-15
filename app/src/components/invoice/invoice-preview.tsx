@@ -25,8 +25,15 @@ export function InvoicePreview({
 		const PAGE_SIZES: Record<Template["pageSize"], { w: number; h: number }> = {
 			A4: { w: 794, h: 1123 },
 			Letter: { w: 816, h: 1056 },
+			Legal: { w: 816, h: 1344 },
 		};
-		const size = PAGE_SIZES[template.pageSize] ?? PAGE_SIZES.A4;
+		const baseSize =
+			template.pageSettings?.size === "Custom" && template.pageSettings.customSize
+				? { w: template.pageSettings.customSize.width, h: template.pageSettings.customSize.height }
+				: PAGE_SIZES[(template.pageSettings?.size ?? template.pageSize) as Template["pageSize"]] ?? PAGE_SIZES.A4;
+		const size = template.pageSettings?.orientation === "landscape"
+			? { w: baseSize.h, h: baseSize.w }
+			: baseSize;
 
 		const updateZoom = () => {
 			if (!containerRef.current) return;
@@ -77,4 +84,3 @@ export function InvoicePreview({
 		</div>
 	);
 }
-

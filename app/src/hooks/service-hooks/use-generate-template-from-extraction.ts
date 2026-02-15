@@ -16,19 +16,30 @@ export const useGenerateTemplateFromExtraction = () => {
   return useMutation({
     mutationFn: async ({
       jobId,
+      editedData,
       options,
       createTemplate = true,
     }: {
       jobId: string;
+      editedData?: Record<string, unknown>;
       options?: {
         style?: "modern" | "classic" | "minimal" | "professional";
         templateName?: string;
+        strategy?: "layout_fusion_v2" | "legacy";
+        qualityTarget?: "pixel";
       };
       createTemplate?: boolean;
-    }): Promise<{ template: TemplateData; templateId?: string }> => {
+    }): Promise<{
+      template: TemplateData;
+      templateId?: string;
+      quality: { overall: number; layout: number; text: number; table: number; font: number };
+      needsReview: boolean;
+      reviewReasons: string[];
+    }> => {
       // Generate template from extraction
       const result = await functionsService.generateTemplateFromExtraction({
         jobId,
+        editedData,
         options,
       });
 
@@ -56,7 +67,13 @@ export const useGenerateTemplateFromExtraction = () => {
         queryClient.invalidateQueries({ queryKey: ["templates", template.orgId] });
       }
 
-      return { template, templateId };
+      return {
+        template,
+        templateId,
+        quality: result.quality,
+        needsReview: result.needsReview,
+        reviewReasons: result.reviewReasons,
+      };
     },
     onSuccess: (data) => {
       if (data.templateId) {
@@ -74,4 +91,3 @@ export const useGenerateTemplateFromExtraction = () => {
     },
   });
 };
-

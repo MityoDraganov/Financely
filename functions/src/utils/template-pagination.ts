@@ -83,7 +83,7 @@ export function paginateTemplate(
 	};
 
 	const pageHeight = pageSize.h;
-	const margins = template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
 	const topMargin = margins.top;
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;
@@ -98,9 +98,15 @@ export function paginateTemplate(
 
 	// Track current position in the document (absolute Y)
 	let currentDocumentY = 0;
+	let forcedPageShift = 0;
 
 	// Process each element in order
 	for (const el of sortedElements) {
+		if (el.type === "pageBreak") {
+			forcedPageShift += 1;
+			continue;
+		}
+
 		if (el.type === "table") {
 			// Handle table pagination
 			const tbl = el;
@@ -139,7 +145,7 @@ export function paginateTemplate(
 			
 			// Paginate table across pages
 			let rowStart = 0;
-			let currentTablePageIndex = tablePageIndex;
+			let currentTablePageIndex = tablePageIndex + forcedPageShift;
 			let currentTablePageY = tablePageStartY;
 			
 			while (rowStart < allItems.length || rowStart === 0) {
@@ -253,6 +259,8 @@ export function paginateTemplate(
 			if (elementBottom > pageEndY) {
 				targetPageIndex += 1;
 			}
+
+			targetPageIndex += forcedPageShift;
 			
 			// Place element on appropriate page
 			ensurePage(targetPageIndex).elements.push(el);

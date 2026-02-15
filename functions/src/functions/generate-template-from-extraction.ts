@@ -15,9 +15,12 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 interface GenerateTemplateFromExtractionPayload {
   jobId: string;
+  editedData?: Record<string, unknown>;
   options?: {
     style?: "modern" | "classic" | "minimal" | "professional";
     templateName?: string;
+    strategy?: "layout_fusion_v2" | "legacy";
+    qualityTarget?: "pixel";
   };
 }
 
@@ -54,7 +57,7 @@ export const generateTemplateFromExtraction = onCall<
   },
   async (request) => {
     try {
-      const { jobId, options } = request.data;
+      const { jobId, options, editedData } = request.data;
 
       if (!jobId) {
         throw new HttpsError(
@@ -95,7 +98,7 @@ export const generateTemplateFromExtraction = onCall<
       if (!aiService.getProvider("gemini")) {
         const geminiProvider = new GeminiProvider({
           apiKey,
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
         });
         aiService.registerProvider(geminiProvider);
         aiService.setDefaultProvider("gemini");
@@ -108,7 +111,7 @@ export const generateTemplateFromExtraction = onCall<
       });
 
       // Generate template
-      const template = await handleGenerateTemplateFromExtraction(jobId, options);
+      const generated = await handleGenerateTemplateFromExtraction(jobId, options, editedData);
 
       // Note: Success log is already in the service layer, no need to duplicate
 
@@ -124,8 +127,10 @@ export const generateTemplateFromExtraction = onCall<
           metadata: {
             entityId: jobId,
             context: "api",
-            templateName: template.name,
-            elementCount: template.elements.length,
+            templateName: generated.template.name,
+            elementCount: generated.template.elements.length,
+            needsReview: generated.needsReview,
+            qualityOverall: generated.quality.overall,
           },
         });
       } catch (usageError) {
@@ -134,7 +139,7 @@ export const generateTemplateFromExtraction = onCall<
         });
       }
 
-      return { template };
+      return { template: generated.template };
     } catch (error: any) {
       loggerService.error("Failed to generate template from extraction", {
         error: error.message,
@@ -152,4 +157,3 @@ export const generateTemplateFromExtraction = onCall<
     }
   }
 );
-

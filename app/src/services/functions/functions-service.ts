@@ -650,30 +650,50 @@ export const functionsService: FunctionsService = {
   },
 
   async uploadInvoiceFile(payload) {
-    type UploadInvoiceFilePayload = Parameters<FunctionsService["uploadInvoiceFile"]>[0];
-    const result = await httpsCallable<UploadInvoiceFilePayload, { jobId: string }>(
-      firebase.functions,
-      "uploadInvoiceFile",
-    )(payload);
-    return result.data;
+    type UploadPayload = Parameters<FunctionsService["uploadInvoiceFile"]>[0];
+    type Response = Awaited<ReturnType<FunctionsService["uploadInvoiceFile"]>>;
+    const result = await httpsCallable<
+      { action: "upload" } & UploadPayload,
+      { action: "upload"; jobId: string }
+    >(firebase.functions, "invoiceExtraction")({ action: "upload", ...payload });
+    return { jobId: (result.data as { jobId: string }).jobId } as Response;
   },
 
   async extractInvoiceData(payload) {
-    type ExtractInvoiceDataPayload = Parameters<FunctionsService["extractInvoiceData"]>[0];
+    type ExtractPayload = Parameters<FunctionsService["extractInvoiceData"]>[0];
+    type Response = Awaited<ReturnType<FunctionsService["extractInvoiceData"]>>;
     const result = await httpsCallable<
-      ExtractInvoiceDataPayload,
-      Awaited<ReturnType<FunctionsService["extractInvoiceData"]>>
-    >(firebase.functions, "extractInvoiceData")(payload);
-    return result.data;
+      { action: "extract" } & ExtractPayload,
+      { action: "extract"; job: unknown }
+    >(firebase.functions, "invoiceExtraction")({ action: "extract", ...payload });
+    return { job: (result.data as { job: unknown }).job } as Response;
   },
 
   async generateTemplateFromExtraction(payload) {
-    type GenerateTemplateFromExtractionPayload = Parameters<FunctionsService["generateTemplateFromExtraction"]>[0];
+    type GenPayload = Parameters<FunctionsService["generateTemplateFromExtraction"]>[0];
+    type Response = Awaited<ReturnType<FunctionsService["generateTemplateFromExtraction"]>>;
     const result = await httpsCallable<
-      GenerateTemplateFromExtractionPayload,
-      Awaited<ReturnType<FunctionsService["generateTemplateFromExtraction"]>>
-    >(firebase.functions, "generateTemplateFromExtraction")(payload);
-    return result.data;
+      { action: "generateTemplate" } & GenPayload,
+      {
+        action: "generateTemplate";
+        template: Response["template"];
+        quality: Response["quality"];
+        needsReview: Response["needsReview"];
+        reviewReasons: Response["reviewReasons"];
+      }
+    >(firebase.functions, "invoiceExtraction")({ action: "generateTemplate", ...payload });
+    const data = result.data as {
+      template: Response["template"];
+      quality: Response["quality"];
+      needsReview: Response["needsReview"];
+      reviewReasons: Response["reviewReasons"];
+    };
+    return {
+      template: data.template,
+      quality: data.quality,
+      needsReview: data.needsReview,
+      reviewReasons: data.reviewReasons,
+    } as Response;
   },
 
   async getUsageHistory(payload) {

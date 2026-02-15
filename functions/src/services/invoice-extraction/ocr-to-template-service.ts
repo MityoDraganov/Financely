@@ -2,111 +2,126 @@ import { logger } from "firebase-functions";
 import { TemplateData, TemplateElement } from "../../core/entities/template";
 import { ExtractionJob } from "../../core/entities/invoice-extraction-job";
 import { Organization } from "../../core/entities/organization";
-import { OCRTextBlock } from "./ocr-service";
 import { invoiceComplianceService } from "../invoice-compliance-service";
 import { COMPLIANCE_SCHEMAS } from "../../core/entities/invoice-compliance";
+import type {
+  BoundingBox,
+  FontMatch,
+  FusionMapEntry,
+  VisionLayout,
+  VisionLayoutElement,
+} from "./pipeline-types";
+
+const CANVAS_WIDTH = 794;
+const CANVAS_HEIGHT = 1123;
+type TextTemplateElement = Extract<TemplateElement, { type: "text" }>;
+type ImageTemplateElement = Extract<TemplateElement, { type: "image" }>;
+
+type TemplateGenerationOptions = {
+  style?: "modern" | "classic" | "minimal" | "professional";
+  templateName?: string;
+};
 
 /**
- * Service for converting OCR text blocks directly to template elements
- * 
- * This is more efficient than AI generation because:
- * 1. Uses actual OCR layout positions (preserves original invoice layout)
- * 2. Faster (minimal AI processing)
- * 3. More accurate (real positions, not guessed)
- * 4. Better UX (template matches original invoice)
+ * Compiler-oriented service that converts fused OCR+vision outputs to TemplateData.
+ * This intentionally avoids value-to-word heuristic mapping in favor of precomputed fusionMap.
  */
 export class OCRToTemplateService {
-  /**
-   * Convert OCR text blocks to template elements
-   * Maps extracted data fields to OCR blocks and creates template elements
-   */
   convertOCRToTemplate(
     extractionJob: ExtractionJob,
     organization: Organization,
-    options?: {
-      style?: "modern" | "classic" | "minimal" | "professional";
-      templateName?: string;
-    }
+    options?: TemplateGenerationOptions
   ): TemplateData {
-    if (!extractionJob.ocrTextBlocks || extractionJob.ocrTextBlocks.length === 0) {
-      throw new Error("No OCR text blocks available for template generation");
-    }
-
     if (!extractionJob.extractedData || Object.keys(extractionJob.extractedData).length === 0) {
       throw new Error("No extracted data available for template generation");
     }
 
-    const ocrBlocks = extractionJob.ocrTextBlocks;
-    const extractedData = extractionJob.extractedData;
+    const rawVisionLayout = extractionJob.visionLayout as unknown;
+    const rawFusionMap = extractionJob.fusionMap as unknown;
+    const rawFontMatches = extractionJob.fontMatches as unknown;
 
-    // Detect compliance region
+    const visionLayout = normalizeVisionLayout(rawVisionLayout);
+    const fusionMap = normalizeFusionMap(rawFusionMap);
+    const fontMatches = normalizeFontMatches(rawFontMatches);
+
+    if (visionLayout.elements.length === 0 && fusionMap.length === 0) {
+      throw new Error("No fused layout data available. Run layout_fusion_v2 extraction first.");
+    }
+
     const region = invoiceComplianceService.detectRegion(organization);
     const complianceSchema = COMPLIANCE_SCHEMAS[region];
 
-    // Determine currency
-    const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
-      US: "USD",
-      EU: "EUR",
-      CA: "CAD",
-      AU: "AUD",
-      UK: "GBP",
-    };
-    const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
+    const currency =
+      organization.settings?.defaultCurrency ||
+      ({ US: "USD", EU: "EUR", CA: "CAD", AU: "AUD", UK: "GBP" }[region] ?? "USD");
 
-    // Map extracted fields to OCR blocks
-    const fieldMappings = this.mapFieldsToOCRBlocks(extractedData, ocrBlocks);
+    const baseFontStack = deriveFontStack(fontMatches);
 
-    logger.info("Field to OCR block mapping completed", {
-      extractionJobId: extractionJob.id,
-      totalFields: Object.keys(extractedData).length,
-      mappedFields: fieldMappings.size,
-      ocrBlockCount: ocrBlocks.length,
-    });
+    const sourcePage = extractionJob.documentPages?.[0];
+    const scaleX = sourcePage?.width ? CANVAS_WIDTH / sourcePage.width : 1;
+    const scaleY = sourcePage?.height ? CANVAS_HEIGHT / sourcePage.height : 1;
 
-    // Convert OCR blocks to template elements
-    const elements = this.convertBlocksToElements(
-      ocrBlocks,
-      fieldMappings,
-      extractedData,
-      currency
+    const elements: TemplateElement[] = [];
+    const seenBindings = new Set<string>();
+
+    elements.push(
+      ...this.compileStaticTextElements(
+        visionLayout.elements,
+        visionLayout.styleClusters,
+        scaleX,
+        scaleY,
+        baseFontStack
+      )
+    );
+    elements.push(
+      ...this.compileDynamicElements({
+        fusionMap,
+        visionLayout,
+        scaleX,
+        scaleY,
+        currency,
+        seenBindings,
+      })
+    );
+    elements.push(
+      ...this.compileTableElements({
+        extractedData: extractionJob.extractedData,
+        fusionMap,
+        visionLayout,
+        scaleX,
+        scaleY,
+        currency,
+      })
+    );
+    elements.push(
+      ...this.compileImageElements({
+        visionLayout,
+        croppedAssets: extractionJob.croppedAssets as Array<{ id: string; imageUrl: string }> | undefined,
+        scaleX,
+        scaleY,
+      })
     );
 
-    logger.info("OCR to template conversion completed", {
-      extractionJobId: extractionJob.id,
-      elementCount: elements.length,
-      mappedFields: fieldMappings.size,
-    });
-
-    // If no elements were created, throw error with details
     if (elements.length === 0) {
-      logger.error("OCR-to-template conversion produced no elements", {
-        extractionJobId: extractionJob.id,
-        ocrBlockCount: ocrBlocks.length,
-        extractedFieldCount: Object.keys(extractedData).length,
-        mappedFieldCount: fieldMappings.size,
-        sampleOCRBlocks: ocrBlocks.slice(0, 5).map(b => ({
-          text: b.text.substring(0, 50),
-          x: b.boundingBox.x,
-          y: b.boundingBox.y,
-        })),
-        sampleExtractedFields: Object.keys(extractedData).slice(0, 10),
-      });
-      throw new Error(
-        `OCR-to-template conversion failed: No elements created. ` +
-        `OCR blocks: ${ocrBlocks.length}, Mapped fields: ${fieldMappings.size}, ` +
-        `Extracted fields: ${Object.keys(extractedData).length}. ` +
-        `This might indicate that field-to-block mapping failed. Falling back to AI generation.`
-      );
+      throw new Error("Template compiler produced zero elements from fusion data.");
     }
 
-    // Build template data
-    const template: TemplateData = {
+    const deduped = deduplicateElements(elements);
+
+    logger.info("Compiled template from fused layout", {
+      extractionJobId: extractionJob.id,
+      elementCount: deduped.length,
+      fusionEntryCount: fusionMap.length,
+      visionElementCount: visionLayout.elements.length,
+    });
+
+    return {
       orgId: organization.id,
       name: options?.templateName || `Template from ${extractionJob.fileName}`,
-      description: `Template generated from extracted invoice: ${extractionJob.fileName}`,
-      pageSize: "A4", // Default, can be detected from OCR if needed
+      description: `Template generated from fused invoice layout: ${extractionJob.fileName}`,
+      pageSize: "A4",
       brand: {
-        fonts: ["Inter"],
+        fonts: [baseFontStack],
         colors: {
           primary: organization.settings?.brandColors?.primary || "#111827",
           secondary: organization.settings?.brandColors?.secondary || "#6b7280",
@@ -114,466 +129,575 @@ export class OCRToTemplateService {
         },
         margins: { top: 40, right: 40, bottom: 40, left: 40 },
       },
-      elements,
+      elements: deduped,
       status: "draft",
       compliance: {
         region,
-        requiredFields: complianceSchema.requiredFields.map(f => f.binding),
+        requiredFields: complianceSchema.requiredFields.map((field) => field.binding),
         autoFooter: true,
         complianceValidated: false,
       },
     };
-
-    logger.info("Template generated from OCR layout", {
-      extractionJobId: extractionJob.id,
-      organizationId: organization.id,
-      elementCount: elements.length,
-      ocrBlockCount: ocrBlocks.length,
-    });
-
-    return template;
   }
 
-  /**
-   * Map extracted data fields to OCR text blocks
-   * Uses text matching to find which OCR blocks contain which fields
-   */
-  private mapFieldsToOCRBlocks(
-    extractedData: Record<string, unknown>,
-    ocrBlocks: OCRTextBlock[]
-  ): Map<string, OCRTextBlock[]> {
-    const mappings = new Map<string, OCRTextBlock[]>();
-
-    // Helper to find OCR blocks containing a value
-    const findBlocksForValue = (value: unknown, fieldPath: string): OCRTextBlock[] => {
-      if (value === null || value === undefined) return [];
-
-      const searchText = String(value).toLowerCase().trim();
-      if (searchText.length === 0) return [];
-
-      // Try exact match first
-      let matches = ocrBlocks.filter(block => {
-        const blockText = block.text.toLowerCase().trim();
-        return blockText === searchText;
-      });
-
-      // If no exact match, try partial match
-      if (matches.length === 0) {
-        matches = ocrBlocks.filter(block => {
-          const blockText = block.text.toLowerCase();
-          // Check if block text contains the value or vice versa
-          return blockText.includes(searchText) || searchText.includes(blockText);
-        });
-      }
-
-      // If still no match, try fuzzy matching (for numbers, dates, etc.)
-      if (matches.length === 0 && typeof value === "number") {
-        const numStr = String(value);
-        matches = ocrBlocks.filter(block => {
-          const blockText = block.text.replace(/[^\d.-]/g, "");
-          return blockText.includes(numStr) || numStr.includes(blockText);
-        });
-      }
-
-      return matches;
-    };
-
-    // Map simple fields
-    for (const [key, value] of Object.entries(extractedData)) {
-      if (Array.isArray(value)) {
-        // Handle arrays (line items)
-        // For arrays, we'll create table elements separately
-        continue;
-      } else if (typeof value === "object" && value !== null) {
-        // Handle nested objects
-        const nestedObj = value as Record<string, unknown>;
-        for (const [nestedKey, nestedValue] of Object.entries(nestedObj)) {
-          const fieldPath = `${key}.${nestedKey}`;
-          const blocks = findBlocksForValue(nestedValue, fieldPath);
-          if (blocks.length > 0) {
-            mappings.set(fieldPath, blocks);
-          }
-        }
-      } else {
-        // Handle primitive values
-        const blocks = findBlocksForValue(value, key);
-        if (blocks.length > 0) {
-          mappings.set(key, blocks);
-        }
-      }
-    }
-
-    return mappings;
-  }
-
-  /**
-   * Convert OCR blocks to template elements
-   */
-  private convertBlocksToElements(
-    ocrBlocks: OCRTextBlock[],
-    fieldMappings: Map<string, OCRTextBlock[]>,
-    extractedData: Record<string, unknown>,
-    currency: string
+  private compileStaticTextElements(
+    nodes: VisionLayoutElement[],
+    styleClusters: VisionLayout["styleClusters"],
+    scaleX: number,
+    scaleY: number,
+    baseFontStack: string
   ): TemplateElement[] {
-    const elements: TemplateElement[] = [];
-    const CANVAS_WIDTH = 794; // A4 width in pixels
-    const CANVAS_HEIGHT = 1123; // A4 height in pixels
-    let elementIdCounter = 1;
+    const styleById = new Map(
+      styleClusters.map((cluster) => [cluster.id, cluster] as const)
+    );
+    const textNodes = nodes
+      .filter((node) => (node.kind === "label" || node.kind === "text") && !!node.text)
+      .slice(0, 80);
 
-    // Normalize OCR coordinates to canvas coordinates
-    // OCR coordinates are relative to the original image, we need to scale them
-    const normalizeCoordinates = (x: number, y: number, width: number, height: number) => {
-      // For now, assume OCR coordinates are already in pixels
-      // In production, you might need to scale based on image dimensions
-      return {
-        x: Math.max(0, Math.min(x, CANVAS_WIDTH - 20)),
-        y: Math.max(0, Math.min(y, CANVAS_HEIGHT - 20)),
-        width: Math.max(20, Math.min(width, CANVAS_WIDTH - x)),
-        height: Math.max(20, Math.min(height, CANVAS_HEIGHT - y)),
-      };
-    };
+    return textNodes
+      .map((node, index): TextTemplateElement | null => {
+        const box = scaleBoundingBox(node.boundingBox, scaleX, scaleY);
+        if (!box) return null;
+        const style = node.styleClusterId ? styleById.get(node.styleClusterId) : undefined;
 
-    // If no field mappings, create elements from all OCR blocks as fallback
-    if (fieldMappings.size === 0) {
-      logger.warn("No field mappings found, creating elements from all OCR blocks", {
-        ocrBlockCount: ocrBlocks.length,
-        extractedFieldCount: Object.keys(extractedData).length,
-      });
-
-      // Create text elements from top OCR blocks
-      const topBlocks = ocrBlocks
-        .filter(b => b.boundingBox.width > 0 && b.boundingBox.height > 0)
-        .sort((a, b) => a.boundingBox.y - b.boundingBox.y)
-        .slice(0, Math.min(20, ocrBlocks.length)); // Take top 20 blocks
-
-      for (const block of topBlocks) {
-        const coords = normalizeCoordinates(
-          block.boundingBox.x,
-          block.boundingBox.y,
-          block.boundingBox.width,
-          block.boundingBox.height
-        );
-
-        elements.push({
-          id: `element-${elementIdCounter++}`,
-          type: "text",
-          x: coords.x,
-          y: coords.y,
-          width: coords.width,
-          height: coords.height,
+        return {
+          id: `static-text-${index + 1}`,
+          type: "text" as const,
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
           rotation: 0,
           zIndex: 1,
           visible: true,
-          text: block.text.substring(0, 50), // Limit text length
-          binding: undefined, // No binding since we couldn't map it
+          text: truncate(node.text || "", 140),
           typography: {
-            fontFamily: "Inter",
-            fontSize: 12,
-            fontWeight: "normal",
+            fontFamily: style?.fontFamilyHint
+              ? `${style.fontFamilyHint}, ${baseFontStack}`
+              : baseFontStack,
+            fontSize: clamp(
+              Math.round((style?.fontSizePx || estimateFontSize(box.height / Math.max(scaleY, 0.01))) * scaleY),
+              8,
+              32
+            ),
+            fontWeight: normalizeFontWeightHint(style?.fontWeightHint),
             lineHeight: 1.2,
             letterSpacing: 0,
-            color: "#111827",
+            color: normalizeColor(style?.color, "#111827"),
             align: "left",
             uppercase: false,
             lowercase: false,
           },
-          format: { kind: "none" },
+          format: { kind: "none" as const },
           padding: 0,
           opacity: 1,
-        });
-      }
+        };
+      })
+      .filter((element): element is TextTemplateElement => element !== null);
+  }
 
-      return elements;
+  private compileDynamicElements(input: {
+    fusionMap: FusionMapEntry[];
+    visionLayout: VisionLayout;
+    scaleX: number;
+    scaleY: number;
+    currency: string;
+    seenBindings: Set<string>;
+  }): TemplateElement[] {
+    const layoutById = new Map<string, VisionLayoutElement>();
+    for (const element of input.visionLayout.elements) {
+      layoutById.set(element.id, element);
     }
 
-    // Convert mapped fields to elements
-    for (const [fieldPath, blocks] of fieldMappings.entries()) {
-      if (blocks.length === 0) continue;
+    const entries = input.fusionMap
+      .filter((entry) => entry.fieldType !== "table")
+      .sort((a, b) => a.binding.localeCompare(b.binding));
 
-      // Use the first block (or merge multiple blocks if needed)
-      const primaryBlock = blocks[0];
-      
-      // Validate block coordinates
-      if (
-        primaryBlock.boundingBox.width <= 0 ||
-        primaryBlock.boundingBox.height <= 0 ||
-        primaryBlock.boundingBox.x < 0 ||
-        primaryBlock.boundingBox.y < 0
-      ) {
-        logger.warn("Skipping block with invalid coordinates", {
-          fieldPath,
-          boundingBox: primaryBlock.boundingBox,
-        });
-        continue;
-      }
+    const output: TemplateElement[] = [];
 
-      const coords = normalizeCoordinates(
-        primaryBlock.boundingBox.x,
-        primaryBlock.boundingBox.y,
-        primaryBlock.boundingBox.width,
-        primaryBlock.boundingBox.height
-      );
+    for (const entry of entries) {
+      if (input.seenBindings.has(entry.binding)) continue;
+      const sourceBox = resolveFusionBoundingBox(entry, layoutById);
+      const box = scaleBoundingBox(sourceBox, input.scaleX, input.scaleY);
+      if (!box) continue;
 
-      // Validate normalized coordinates
-      if (coords.width <= 0 || coords.height <= 0) {
-        logger.warn("Skipping block with invalid normalized coordinates", {
-          fieldPath,
-          coords,
-        });
-        continue;
-      }
+      input.seenBindings.add(entry.binding);
 
-      // Determine element type based on field path and value
-      const fieldValue = this.getNestedValue(extractedData, fieldPath);
-      const elementType = this.determineElementType(fieldPath, fieldValue, currency);
-
-      if (elementType === "currency") {
-        elements.push({
-          id: `element-${elementIdCounter++}`,
+      if (entry.fieldType === "currency") {
+        output.push({
+          id: `currency-${safeId(entry.binding)}`,
           type: "currency",
-          x: coords.x,
-          y: coords.y,
-          width: coords.width,
-          height: coords.height,
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
           rotation: 0,
-          zIndex: 1,
+          zIndex: 2,
           visible: true,
-          binding: fieldPath,
-          currency,
+          binding: entry.binding,
+          currency: input.currency,
           currencyLinks: [],
           mode: "independent",
-          placeholder: "",
-          align: "left",
+          placeholder: entry.valueText || "",
+          align: "right",
         });
-      } else if (elementType === "text") {
-        // Extract label from block text (e.g., "Invoice #12345" -> label: "Invoice #", value: "12345")
-        const label = this.extractLabel(primaryBlock.text, fieldValue);
-        
-        elements.push({
-          id: `element-${elementIdCounter++}`,
-          type: "text",
-          x: coords.x,
-          y: coords.y,
-          width: coords.width,
-          height: coords.height,
+        continue;
+      }
+
+      const align = entry.fieldType === "number" ? "right" : "left";
+      output.push({
+        id: `input-${safeId(entry.binding)}`,
+        type: "input",
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        rotation: 0,
+        zIndex: 2,
+        visible: true,
+        binding: entry.binding,
+        placeholder: entry.valueText || "",
+        variant: entry.fieldType === "date" ? "date" : entry.fieldType === "number" ? "number" : "text",
+        align,
+      });
+    }
+
+    return output;
+  }
+
+  private compileTableElements(input: {
+    extractedData: Record<string, unknown>;
+    fusionMap: FusionMapEntry[];
+    visionLayout: VisionLayout;
+    scaleX: number;
+    scaleY: number;
+    currency: string;
+  }): TemplateElement[] {
+    const tableEntries = input.fusionMap.filter((entry) => entry.fieldType === "table");
+
+    const tables: TemplateElement[] = [];
+
+    for (const entry of tableEntries) {
+      const tableData = input.extractedData[entry.binding];
+      if (!Array.isArray(tableData) || tableData.length === 0 || typeof tableData[0] !== "object") {
+        continue;
+      }
+
+      const tableNode = input.visionLayout.tables.find((table) =>
+        entry.layoutNodeIds.includes(table.id)
+      ) || input.visionLayout.tables[0];
+
+      const sourceBox = entry.boundingBox || tableNode?.boundingBox;
+      const box = scaleBoundingBox(sourceBox, input.scaleX, input.scaleY) || {
+        x: 40,
+        y: 320,
+        width: 700,
+        height: 300,
+      };
+
+      const firstRow = tableData[0] as Record<string, unknown>;
+      const keys = Object.keys(firstRow);
+      if (keys.length === 0) continue;
+
+      const orderedKeys = orderTableKeys(keys, tableNode?.columns, tableNode?.columnHeaders || []);
+      const defaultColumnWidth = Math.max(80, Math.floor(box.width / Math.max(orderedKeys.length, 1)));
+      const columnWidthByKey = mapColumnWidthsByHeader(
+        orderedKeys,
+        tableNode?.columns,
+        defaultColumnWidth,
+        input.scaleX
+      );
+
+      const columns = orderedKeys.map((key) => {
+        const sampleValue = firstRow[key];
+        const inferredType = inferColumnType(key, sampleValue);
+        const currencyLike = inferredType === "currency";
+        const numeric = inferredType === "number" || currencyLike;
+        const format = currencyLike
+          ? { kind: "currency" as const, currency: input.currency }
+          : { kind: "none" as const };
+
+        return {
+          id: key,
+          header: formatColumnHeader(key),
+          width: columnWidthByKey.get(key) || defaultColumnWidth,
+          align: (numeric ? "right" : "left") as "left" | "center" | "right",
+          type: inferredType,
+          binding: key,
+          format,
+          showTotal: currencyLike,
+          ...(currencyLike ? { currency: input.currency } : {}),
+        };
+      });
+
+      const rowCount = Math.max(1, tableData.length);
+      const headerHeight = tableNode?.headerBoundingBox
+        ? Math.max(18, Math.round(tableNode.headerBoundingBox.height * input.scaleY))
+        : Math.max(24, Math.round(box.height * 0.1));
+      const rowHeight = Math.max(
+        22,
+        Math.round((box.height - headerHeight) / Math.max(rowCount, 1))
+      );
+
+      tables.push({
+        id: `table-${safeId(entry.binding)}`,
+        type: "table",
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        rotation: 0,
+        zIndex: 2,
+        visible: true,
+        itemsBinding: entry.binding,
+        columns,
+        rowHeight,
+        headerHeight,
+        stripe: true,
+        designRows: [],
+        borderStyle: "rows",
+        borderColor: "#d1d5db",
+        borderWidth: 1,
+        cellPadding: { top: 6, right: 10, bottom: 6, left: 10 },
+        headerStyle: {
+          fontFamily: "Inter",
+          fontSize: 12,
+          fontWeight: "semibold",
+          color: "#111827",
+        },
+        rowStyle: {
+          fontFamily: "Inter",
+          fontSize: 12,
+          fontWeight: "normal",
+          color: "#374151",
+        },
+        showFooter: columns.some((column) => column.showTotal),
+      });
+    }
+
+    return tables;
+  }
+
+  private compileImageElements(input: {
+    visionLayout: VisionLayout;
+    croppedAssets: Array<{ id: string; imageUrl: string }> | undefined;
+    scaleX: number;
+    scaleY: number;
+  }): TemplateElement[] {
+    if (!input.croppedAssets || input.croppedAssets.length === 0) {
+      return [];
+    }
+
+    const assetById = new Map(input.croppedAssets.map((asset) => [asset.id, asset.imageUrl]));
+
+    return input.visionLayout.elements
+      .filter((element) => (element.kind === "logo" || element.kind === "image") && assetById.has(element.id))
+      .map((element, index): ImageTemplateElement | null => {
+        const box = scaleBoundingBox(element.boundingBox, input.scaleX, input.scaleY);
+        if (!box) return null;
+
+        return {
+          id: `image-${index + 1}`,
+          type: "image" as const,
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
           rotation: 0,
-          zIndex: 1,
+          zIndex: 3,
           visible: true,
-          text: label,
-          binding: fieldPath,
-          typography: {
-            fontFamily: "Inter",
-            fontSize: 12,
-            fontWeight: "normal",
-            lineHeight: 1.2,
-            letterSpacing: 0,
-            color: "#111827",
-            align: "left",
-            uppercase: false,
-            lowercase: false,
-          },
-          format: { kind: "none" },
-          padding: 0,
-          opacity: 1,
-        });
-      }
-    }
-
-    // Handle arrays (line items) - create table element
-    for (const [key, value] of Object.entries(extractedData)) {
-      if (Array.isArray(value) && value.length > 0 && typeof value[0] === "object") {
-        // Find OCR blocks that might be part of the table
-        const tableBlocks = this.findTableBlocks(ocrBlocks, value);
-        
-        if (tableBlocks.length > 0) {
-          // Calculate table bounds from blocks
-          const tableBounds = this.calculateTableBounds(tableBlocks);
-          const coords = normalizeCoordinates(
-            tableBounds.x,
-            tableBounds.y,
-            tableBounds.width,
-            tableBounds.height
-          );
-
-          // Create columns from first item
-          const firstItem = value[0] as Record<string, unknown>;
-          const columns = Object.keys(firstItem).map(colKey => {
-            const colValue = firstItem[colKey];
-            const isNumeric = this.isNumeric(colValue);
-            const isCurrency = isNumeric && this.looksLikeCurrency(colKey, colValue);
-            
-            return {
-              id: colKey,
-              header: this.formatLabel(colKey),
-              width: coords.width / Object.keys(firstItem).length,
-              align: (isNumeric ? "right" : "left") as "left" | "center" | "right",
-              type: (isCurrency ? "currency" : isNumeric ? "number" : "text") as "text" | "number" | "date" | "currency",
-              binding: colKey,
-              format: {
-                kind: isCurrency ? ("currency" as const) : ("none" as const),
-                currency: isCurrency ? currency : undefined,
-              },
-              showTotal: isCurrency || isNumeric,
-            };
-          });
-
-          elements.push({
-            id: `element-${elementIdCounter++}`,
-            type: "table",
-            x: coords.x,
-            y: coords.y,
-            width: coords.width,
-            height: coords.height,
-            rotation: 0,
-            zIndex: 1,
-            visible: true,
-            itemsBinding: key,
-            columns,
-            rowHeight: 28,
-            headerHeight: 28,
-            stripe: true,
-            designRows: [],
-          });
-        }
-      }
-    }
-
-    return elements;
-  }
-
-  /**
-   * Determine element type based on field path and value
-   */
-  private determineElementType(
-    fieldPath: string,
-    value: unknown,
-    currency: string
-  ): "text" | "currency" | "input" {
-    // Check if it's a currency field
-    const currencyKeywords = ["total", "subtotal", "amount", "price", "cost", "fee", "tax", "vat"];
-    const fieldPathLower = fieldPath.toLowerCase();
-    
-    if (currencyKeywords.some(keyword => fieldPathLower.includes(keyword))) {
-      return "currency";
-    }
-
-    // Check if value is numeric and looks like currency
-    if (typeof value === "number" && value > 0 && value < 1000000) {
-      return "currency";
-    }
-
-    // Check if it's a date field
-    if (fieldPathLower.includes("date")) {
-      return "input";
-    }
-
-    return "text";
-  }
-
-  /**
-   * Extract label from OCR text (e.g., "Invoice #12345" -> "Invoice #")
-   */
-  private extractLabel(ocrText: string, fieldValue: unknown): string {
-    if (fieldValue === null || fieldValue === undefined) {
-      return ocrText;
-    }
-
-    const valueStr = String(fieldValue);
-    const valueIndex = ocrText.indexOf(valueStr);
-    
-    if (valueIndex > 0) {
-      return ocrText.substring(0, valueIndex).trim();
-    }
-
-    return ocrText;
-  }
-
-  /**
-   * Get nested value from object using dot notation
-   */
-  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-    const parts = path.split(".");
-    let current: unknown = obj;
-    
-    for (const part of parts) {
-      if (current && typeof current === "object" && part in current) {
-        current = (current as Record<string, unknown>)[part];
-      } else {
-        return undefined;
-      }
-    }
-    
-    return current;
-  }
-
-  /**
-   * Find OCR blocks that might be part of a table
-   */
-  private findTableBlocks(ocrBlocks: OCRTextBlock[], items: unknown[]): OCRTextBlock[] {
-    // Simple heuristic: find blocks that are aligned in rows
-    // In production, you might use more sophisticated table detection
-    return ocrBlocks.filter(block => {
-      // Check if block text might be part of a table row
-      const text = block.text.toLowerCase();
-      const tableKeywords = ["item", "description", "qty", "quantity", "price", "total", "amount"];
-      return tableKeywords.some(keyword => text.includes(keyword));
-    });
-  }
-
-  /**
-   * Calculate table bounds from OCR blocks
-   */
-  private calculateTableBounds(blocks: OCRTextBlock[]): { x: number; y: number; width: number; height: number } {
-    if (blocks.length === 0) {
-      return { x: 0, y: 0, width: 794, height: 200 };
-    }
-
-    const xs = blocks.map(b => b.boundingBox.x);
-    const ys = blocks.map(b => b.boundingBox.y);
-    const widths = blocks.map(b => b.boundingBox.width);
-    const heights = blocks.map(b => b.boundingBox.height);
-
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    const maxX = Math.max(...xs.map((x, i) => x + widths[i]));
-    const maxY = Math.max(...ys.map((y, i) => y + heights[i]));
-
-    return {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-    };
-  }
-
-  /**
-   * Format field name to label
-   */
-  private formatLabel(fieldName: string): string {
-    return fieldName
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
-  }
-
-  /**
-   * Check if value is numeric
-   */
-  private isNumeric(value: unknown): boolean {
-    return typeof value === "number" || (typeof value === "string" && !isNaN(Number(value)));
-  }
-
-  /**
-   * Check if field looks like a currency field
-   */
-  private looksLikeCurrency(fieldName: string, value: unknown): boolean {
-    const currencyKeywords = ["price", "amount", "total", "cost", "fee", "tax", "vat", "subtotal"];
-    const fieldNameLower = fieldName.toLowerCase();
-    return currencyKeywords.some(keyword => fieldNameLower.includes(keyword));
+          src: assetById.get(element.id) || "",
+          objectFit: "contain" as const,
+          alt: element.kind === "logo" ? "Company logo" : "Decorative asset",
+        };
+      })
+      .filter((element): element is ImageTemplateElement => element !== null && !!element.src);
   }
 }
 
-// Export singleton instance
+function normalizeVisionLayout(raw: unknown): VisionLayout {
+  if (!raw || typeof raw !== "object") {
+    return { regions: [], elements: [], tables: [], styleClusters: [] };
+  }
+
+  const value = raw as Record<string, unknown>;
+  const elements = Array.isArray(value.elements) ? value.elements : [];
+  const tables = Array.isArray(value.tables) ? value.tables : [];
+
+  return {
+    regions: Array.isArray(value.regions) ? (value.regions as VisionLayout["regions"]) : [],
+    elements: elements as VisionLayout["elements"],
+    tables: tables as VisionLayout["tables"],
+    styleClusters: Array.isArray(value.styleClusters) ? (value.styleClusters as VisionLayout["styleClusters"]) : [],
+  };
+}
+
+function normalizeFusionMap(raw: unknown): FusionMapEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => entry as FusionMapEntry)
+    .filter((entry) => typeof entry.binding === "string");
+}
+
+function normalizeFontMatches(raw: unknown): FontMatch[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => entry as FontMatch)
+    .filter((entry) => typeof entry.matchedFont === "string" && entry.matchedFont.length > 0);
+}
+
+function resolveFusionBoundingBox(
+  entry: FusionMapEntry,
+  layoutById: Map<string, VisionLayoutElement>
+): BoundingBox | null {
+  if (entry.boundingBox) {
+    return entry.boundingBox;
+  }
+
+  for (const nodeId of entry.layoutNodeIds) {
+    const node = layoutById.get(nodeId);
+    if (node?.boundingBox) {
+      return node.boundingBox;
+    }
+  }
+
+  return null;
+}
+
+function scaleBoundingBox(
+  boundingBox: BoundingBox | null | undefined,
+  scaleX: number,
+  scaleY: number
+): BoundingBox | null {
+  if (!boundingBox) return null;
+
+  const x = clamp(Math.round(boundingBox.x * scaleX), 0, CANVAS_WIDTH - 20);
+  const y = clamp(Math.round(boundingBox.y * scaleY), 0, CANVAS_HEIGHT - 20);
+  const width = clamp(Math.round(boundingBox.width * scaleX), 20, CANVAS_WIDTH - x);
+  const height = clamp(Math.round(boundingBox.height * scaleY), 20, CANVAS_HEIGHT - y);
+
+  if (width <= 0 || height <= 0) return null;
+  return { x, y, width, height };
+}
+
+function deriveFontStack(matches: FontMatch[]): string {
+  if (matches.length === 0) {
+    return "Inter, Arial, sans-serif";
+  }
+
+  const sorted = matches.slice().sort((a, b) => b.confidence - a.confidence);
+  const primary = sorted[0];
+  return `${primary.matchedFont}, ${primary.fallbackFont}`;
+}
+
+function estimateFontSize(height: number): number {
+  return Math.max(10, Math.min(22, Math.round(height * 0.65)));
+}
+
+function normalizeFontWeightHint(value: string | undefined): "normal" | "medium" | "semibold" | "bold" {
+  const hint = (value || "").toLowerCase();
+  if (hint.includes("bold")) return "bold";
+  if (hint.includes("semi")) return "semibold";
+  if (hint.includes("medium")) return "medium";
+  return "normal";
+}
+
+function normalizeColor(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  const color = value.trim();
+  if (color.length === 0) return fallback;
+  if (/^#[0-9a-fA-F]{3,8}$/.test(color)) return color;
+  if (/^rgb(a)?\(/i.test(color)) return color;
+  return fallback;
+}
+
+function formatColumnHeader(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase())
+    .trim();
+}
+
+function safeId(binding: string): string {
+  return binding.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function looksCurrencyKey(value: string): boolean {
+  const lower = value.toLowerCase();
+  return (
+    lower.includes("total") ||
+    lower.includes("amount") ||
+    lower.includes("price") ||
+    lower.includes("tax") ||
+    lower.includes("vat")
+  );
+}
+
+function looksDateValue(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim();
+  return (
+    /^\d{4}-\d{2}-\d{2}/.test(normalized) ||
+    /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$/.test(normalized)
+  );
+}
+
+function inferColumnType(
+  key: string,
+  sampleValue: unknown
+): "text" | "number" | "date" | "currency" {
+  if (looksDateValue(sampleValue) || key.toLowerCase().includes("date")) {
+    return "date";
+  }
+
+  if (typeof sampleValue === "number") {
+    if (looksCurrencyKey(key)) return "currency";
+    return "number";
+  }
+
+  if (typeof sampleValue === "string") {
+    const normalized = sampleValue.replace(/[,\s]/g, "");
+    const numeric = Number(normalized.replace(/[^0-9.-]/g, ""));
+    if (Number.isFinite(numeric) && normalized.length > 0 && looksCurrencyKey(key)) {
+      return "currency";
+    }
+  }
+
+  return "text";
+}
+
+function orderTableKeys(
+  keys: string[],
+  columns: VisionLayoutTableColumns | undefined,
+  columnHeaders: string[]
+): string[] {
+  if (!columns || columns.length === 0) {
+    if (columnHeaders.length === 0) return keys;
+    return orderKeysByHeaders(keys, columnHeaders);
+  }
+
+  const used = new Set<string>();
+  const ordered: string[] = [];
+
+  for (const column of columns) {
+    const header = (column.header || "").toLowerCase().trim();
+    if (!header) continue;
+
+    const match = keys.find((key) => !used.has(key) && keyMatchesHeader(key, header));
+    if (!match) continue;
+    used.add(match);
+    ordered.push(match);
+  }
+
+  for (const key of keys) {
+    if (!used.has(key)) ordered.push(key);
+  }
+
+  return ordered;
+}
+
+type VisionLayoutTableColumns = VisionLayout["tables"][number]["columns"];
+
+function orderKeysByHeaders(keys: string[], columnHeaders: string[]): string[] {
+  const used = new Set<string>();
+  const ordered: string[] = [];
+
+  for (const header of columnHeaders) {
+    const normalizedHeader = header.toLowerCase().trim();
+    const match = keys.find((key) => !used.has(key) && keyMatchesHeader(key, normalizedHeader));
+    if (!match) continue;
+    used.add(match);
+    ordered.push(match);
+  }
+
+  for (const key of keys) {
+    if (!used.has(key)) ordered.push(key);
+  }
+
+  return ordered;
+}
+
+function keyMatchesHeader(key: string, normalizedHeader: string): boolean {
+  const normalizedKey = key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/[_-]/g, " ")
+    .trim()
+    .toLowerCase();
+  return (
+    normalizedKey === normalizedHeader ||
+    normalizedKey.includes(normalizedHeader) ||
+    normalizedHeader.includes(normalizedKey)
+  );
+}
+
+function mapColumnWidthsByHeader(
+  keys: string[],
+  columns: VisionLayoutTableColumns | undefined,
+  fallbackWidth: number,
+  scaleX: number
+): Map<string, number> {
+  const byKey = new Map<string, number>();
+  if (!columns || columns.length === 0) {
+    return byKey;
+  }
+
+  for (const key of keys) {
+    const matchingColumn = columns.find((column) =>
+      keyMatchesHeader(key, (column.header || "").toLowerCase().trim())
+    );
+    if (!matchingColumn?.boundingBox) continue;
+    byKey.set(
+      key,
+      Math.max(60, Math.round(matchingColumn.boundingBox.width * scaleX))
+    );
+  }
+
+  // Ensure all keys get a width.
+  for (const key of keys) {
+    if (!byKey.has(key)) {
+      byKey.set(key, fallbackWidth);
+    }
+  }
+
+  return byKey;
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function deduplicateElements(elements: TemplateElement[]): TemplateElement[] {
+  const unique = new Map<string, TemplateElement>();
+
+  for (const element of elements) {
+    const key =
+      element.type === "input" || element.type === "currency" || element.type === "text"
+        ? `${element.type}:${"binding" in element && element.binding ? element.binding : element.id}`
+        : element.id;
+
+    if (!unique.has(key)) {
+      unique.set(key, element);
+      continue;
+    }
+
+    const existing = unique.get(key);
+    if (!existing) continue;
+
+    if ((existing.width * existing.height) < (element.width * element.height)) {
+      unique.set(key, element);
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 let ocrToTemplateServiceInstance: OCRToTemplateService | null = null;
 
 export function getOCRToTemplateService(): OCRToTemplateService {
@@ -582,4 +706,3 @@ export function getOCRToTemplateService(): OCRToTemplateService {
   }
   return ocrToTemplateServiceInstance;
 }
-

@@ -313,20 +313,21 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.shadow')}</Label>
 						<Switch
 							checked={element.shadow?.enabled || false}
-							onCheckedChange={(checked) => {
-								onChange({
-									...element,
-									shadow: checked
-										? {
-												enabled: true,
-												blur: 4,
-												offsetX: 0,
-												offsetY: 2,
-												color: "#00000040",
-											}
-										: undefined,
-								});
-							}}
+								onCheckedChange={(checked) => {
+									onChange({
+										...element,
+										shadow: checked
+											? {
+													enabled: true,
+													blur: 4,
+													offsetX: 0,
+													offsetY: 2,
+													spread: 0,
+													color: "#00000040",
+												}
+											: undefined,
+									});
+								}}
 						/>
 					</div>
 					

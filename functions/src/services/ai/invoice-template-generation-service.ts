@@ -1,11 +1,18 @@
 import { logger } from "firebase-functions";
 import { AIService } from "./ai-service";
 import { getAIService } from "./ai-service";
+import {
+  BLOCK_SCHEMA_VERSION,
+  buildTemplateGenerationSchema,
+  buildTemplateSchemaGuidance,
+} from "../../core/block-registry";
 import { TemplateData, TemplateElement } from "../../core/entities/template";
 import { Organization } from "../../core/entities/organization";
 import { COMPLIANCE_SCHEMAS } from "../../core/entities/invoice-compliance";
 import { validateTemplateCompliance } from "../../utils/invoice-compliance";
 import { formatProductFieldsForAI } from "../../utils/product-fields";
+import { validateTemplateData, repairTemplateGenerationRaw } from "./template-generation-validate-repair";
+import type { JSONSchema } from "./ai-service";
 
 /**
  * Service for generating invoice templates using AI
@@ -46,104 +53,49 @@ export class InvoiceTemplateGenerationService {
     
     // Create prompt for AI
     const prompt = this.buildTemplatePrompt(context, requiredFields, region, organization, options);
-    
-      // Import Product type to ensure we use correct fields
-      // Product entity fields: name, description, price, currency, sku, barcode, category, taxRate, cost
-      
-      // Define the expected JSON schema for template data
-      const schema = {
+
+    const baseSchema = buildTemplateGenerationSchema();
+    const schema = {
       type: "object" as const,
+      required: baseSchema.required,
       properties: {
-        name: { type: "string" as const, description: "Template name" },
-        description: { type: "string" as const, description: "Template description" },
-        pageSize: { type: "string" as const, enum: ["A4", "Letter"], description: "Page size" },
-        brand: {
-          type: "object" as const,
-          properties: {
-            fonts: { type: "array" as const, items: { type: "string" as const } },
-            colors: {
-              type: "object" as const,
-              properties: {
-                primary: { type: "string" as const },
-                secondary: { type: "string" as const },
-                accent: { type: "string" as const },
-              },
-            },
-            margins: {
-              type: "object" as const,
-              properties: {
-                top: { type: "number" as const },
-                right: { type: "number" as const },
-                bottom: { type: "number" as const },
-                left: { type: "number" as const },
-              },
-            },
-          },
-        },
-        elements: {
-          type: "array" as const,
-          items: {
-            type: "object" as const,
-            properties: {
-              id: { type: "string" as const },
-              type: { type: "string" as const, enum: ["text", "image", "table", "box", "line", "input", "currency"] },
-              x: { type: "number" as const },
-              y: { type: "number" as const },
-              width: { type: "number" as const },
-              height: { type: "number" as const },
-              binding: { type: "string" as const },
-              text: { type: "string" as const },
-              typography: { type: "object" as const },
-              format: { type: "object" as const },
-              itemsBinding: { type: "string" as const },
-              columns: { type: "array" as const },
-              // Currency element specific fields (optional)
-              currency: { type: "string" as const },
-              mode: { type: "string" as const, enum: ["independent", "linked", "formula"] },
-              formula: { type: "string" as const },
-              // Table column specific fields (optional)
-              calc: { type: "string" as const },
-            },
-          },
-        },
+        ...(baseSchema.properties as Record<string, unknown>),
         productTableConfig: {
-          type: "object" as const,
+          type: "object",
           properties: {
-            itemsBinding: { type: "string" as const, description: "The items binding path for the table (e.g., 'items')" },
+            itemsBinding: { type: "string", description: "The items binding path for the table (e.g., 'items')" },
             columnMappings: {
-              type: "array" as const,
+              type: "array",
               items: {
-                type: "object" as const,
+                type: "object",
                 properties: {
-                  columnBinding: { type: "string" as const, description: "The table column binding (e.g., 'description', 'unitPrice')" },
+                  columnBinding: { type: "string", description: "The table column binding" },
                   productField: {
-                    type: "string" as const,
+                    type: "string",
                     enum: ["name", "description", "price", "currency", "sku", "barcode", "category", "taxRate", "cost"],
-                    description: "The product entity field to map from"
+                    description: "The product entity field to map from",
                   },
                   transform: {
-                    type: "string" as const,
+                    type: "string",
                     enum: ["none", "currency_convert", "format_number"],
-                    description: "Transformation to apply (none, currency_convert, format_number)"
                   },
-                  targetCurrency: { type: "string" as const, description: "Target currency for conversion (3-letter code, optional)" },
-                  lockOnProductSelect: { type: "boolean" as const, description: "Whether to lock this field when product is selected" },
+                  targetCurrency: { type: "string" },
+                  lockOnProductSelect: { type: "boolean" },
                 },
                 required: ["columnBinding", "productField"],
               },
             },
-            autoQuantity: { type: "boolean" as const, description: "Whether to auto-populate quantity" },
-            defaultQuantity: { type: "number" as const, description: "Default quantity if autoQuantity is true" },
-            autoConvertCurrency: { type: "boolean" as const, description: "Whether to auto-convert currency" },
-            defaultCurrency: { type: "string" as const, description: "Default currency code (3 letters)" },
+            autoQuantity: { type: "boolean" },
+            defaultQuantity: { type: "number" },
+            autoConvertCurrency: { type: "boolean" },
+            defaultCurrency: { type: "string" },
           },
           required: ["itemsBinding", "columnMappings"],
         },
       },
-      required: ["name", "pageSize", "brand", "elements"],
     };
-    
-      try {
+
+    try {
       const result = await this.aiService.generateJSON<{
         name: string;
         description?: string;
@@ -155,7 +107,7 @@ export class InvoiceTemplateGenerationService {
         };
         elements: Array<{
           id: string;
-          type: "text" | "image" | "table" | "box" | "line" | "input" | "currency";
+          type: "text" | "image" | "table" | "box" | "line" | "input" | "currency" | "icon";
           x: number;
           y: number;
           width: number;
@@ -166,6 +118,8 @@ export class InvoiceTemplateGenerationService {
           format?: any;
           itemsBinding?: string;
           columns?: any[];
+          iconName?: string;
+          color?: string;
         }>;
         productTableConfig?: {
           itemsBinding: string;
@@ -181,7 +135,7 @@ export class InvoiceTemplateGenerationService {
           autoConvertCurrency?: boolean;
           defaultCurrency?: string;
         };
-      }>(prompt, schema, {
+      }>(prompt, schema as unknown as JSONSchema, {
         temperature: 0.7,
         maxTokens: 16384, // Large token limit for complex template structures
       });
@@ -276,7 +230,7 @@ export class InvoiceTemplateGenerationService {
         }
       }
       
-      const template: TemplateData = {
+      let template: TemplateData = {
         orgId: organization.id,
         name: result.name || `${region} Invoice Template`,
         description: result.description,
@@ -299,8 +253,113 @@ export class InvoiceTemplateGenerationService {
           complianceValidated: false,
         },
         ...(productTableConfig && { productTableConfig }),
+        schemaVersion: BLOCK_SCHEMA_VERSION,
       };
-      
+
+      const parsed = validateTemplateData(template);
+      if (!parsed.success) {
+        logger.warn("Template validation failed, attempting one-shot repair", { organizationId: organization.id, region });
+        const repairedRaw = await repairTemplateGenerationRaw(
+          this.aiService,
+          result,
+          parsed.error.message,
+          schema as unknown as JSONSchema
+        ) as typeof result;
+        if (!repairedRaw?.elements?.length) {
+          throw new Error("Template repair returned no elements. Validation errors: " + parsed.error.message);
+        }
+        const enrichedElements2 = this.enrichElements(repairedRaw.elements, requiredFields, region, organization);
+        let productTableConfig2: TemplateData["productTableConfig"] = undefined;
+        if (repairedRaw.productTableConfig) {
+          productTableConfig2 = {
+            itemsBinding: repairedRaw.productTableConfig.itemsBinding,
+            columnMappings: repairedRaw.productTableConfig.columnMappings.map(m => ({
+              columnBinding: m.columnBinding,
+              productField: m.productField,
+              transform: (m.transform || "none") as "none" | "currency_convert" | "format_number",
+              targetCurrency: m.targetCurrency,
+              lockOnProductSelect: m.lockOnProductSelect !== false,
+            })),
+            autoQuantity: repairedRaw.productTableConfig.autoQuantity ?? false,
+            defaultQuantity: repairedRaw.productTableConfig.defaultQuantity ?? 1,
+            autoConvertCurrency: repairedRaw.productTableConfig.autoConvertCurrency !== false,
+            defaultCurrency: repairedRaw.productTableConfig.defaultCurrency || organization.settings?.defaultCurrency || "USD",
+          };
+        } else {
+          const itemsTable2 = enrichedElements2.find(
+            (el): el is Extract<typeof el, { type: "table" }> =>
+              el.type === "table" && !!(el as Extract<typeof el, { type: "table" }>).itemsBinding
+          );
+          if (itemsTable2?.itemsBinding && itemsTable2.columns?.length) {
+            const columnMappings2: Array<{
+              columnBinding: string;
+              productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost";
+              transform: "none" | "currency_convert" | "format_number";
+              targetCurrency?: string;
+              lockOnProductSelect: boolean;
+            }> = [];
+            for (const col of itemsTable2.columns) {
+              if (!col.binding) continue;
+              const bindingLower = col.binding.toLowerCase();
+              let productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost" | null = null;
+              let transform: "none" | "currency_convert" | "format_number" = "none";
+              let targetCurrency: string | undefined;
+              if (bindingLower.includes("description") || bindingLower.includes("name") || bindingLower === "itemdescription") productField = "description";
+              else if (bindingLower.includes("price") || bindingLower.includes("amount") || bindingLower === "unitprice") {
+                productField = "price";
+                transform = col.type === "currency" ? "currency_convert" : "format_number";
+                if (col.type === "currency" && "currency" in col && col.currency) targetCurrency = col.currency;
+              } else if (bindingLower === "currency" && col.type === "text") productField = "currency";
+              else if (bindingLower.includes("sku") || bindingLower.includes("reference") || bindingLower === "itemnumber") productField = "sku";
+              else if (bindingLower.includes("category")) productField = "category";
+              else if (bindingLower.includes("tax") && bindingLower.includes("rate")) productField = "taxRate";
+              else if (bindingLower.includes("cost")) productField = "cost";
+              if (productField) columnMappings2.push({ columnBinding: col.binding, productField, transform, targetCurrency, lockOnProductSelect: true });
+            }
+            if (columnMappings2.length > 0) {
+              productTableConfig2 = {
+                itemsBinding: itemsTable2.itemsBinding,
+                columnMappings: columnMappings2,
+                autoQuantity: false,
+                defaultQuantity: 1,
+                autoConvertCurrency: true,
+                defaultCurrency: organization.settings?.defaultCurrency || "USD",
+              };
+            }
+          }
+        }
+        const template2: TemplateData = {
+          orgId: organization.id,
+          name: repairedRaw.name || `${region} Invoice Template`,
+          description: repairedRaw.description,
+          pageSize: repairedRaw.pageSize || "A4",
+          brand: {
+            fonts: repairedRaw.brand?.fonts || ["Inter"],
+            colors: repairedRaw.brand?.colors ?? {
+              primary: organization.settings?.brandColors?.primary || "#111827",
+              secondary: organization.settings?.brandColors?.secondary || "#6b7280",
+              accent: organization.settings?.brandColors?.accent || "#2563eb",
+            },
+            margins: repairedRaw.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+          },
+          elements: enrichedElements2,
+          status: "draft",
+          compliance: {
+            region,
+            requiredFields: requiredFields.map(f => f.binding),
+            autoFooter: true,
+            complianceValidated: false,
+          },
+          ...(productTableConfig2 && { productTableConfig: productTableConfig2 }),
+          schemaVersion: BLOCK_SCHEMA_VERSION,
+        };
+        const parsed2 = validateTemplateData(template2);
+        if (!parsed2.success) {
+          throw new Error("Template validation failed after repair: " + parsed2.error.message);
+        }
+        template = parsed2.data;
+      }
+
       // Validate template compliance (using validateTemplateCompliance directly with elements)
       const missingBindings = validateTemplateCompliance(template.elements, region);
       if (missingBindings.length > 0) {
@@ -408,8 +467,6 @@ export class InvoiceTemplateGenerationService {
   ): string {
     const style = options?.style || "modern";
     const includeLogo = options?.includeLogo ?? true;
-    
-    // Determine currency based on region if not set in org settings
     const regionCurrencyMap: Record<"US" | "EU" | "CA" | "AU" | "UK", string> = {
       US: "USD",
       EU: "EUR",
@@ -418,275 +475,26 @@ export class InvoiceTemplateGenerationService {
       UK: "GBP",
     };
     const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
-    
-    const requiredFieldsList = requiredFields.map((f, idx) => 
-      `${idx + 1}. ${f.binding} (${f.label})${f.description ? `: ${f.description}` : ""}${f.format ? ` [Format: ${f.format}]` : ""}`
-    ).join("\n");
-    
-    const requiredFieldsSummary = requiredFields.map(f => f.binding).join(", ");
-    
-    return `You are a professional invoice template designer. Create a beautiful, functional, and fully compliant invoice template.
+    const requiredList = requiredFields.map(f => `${f.binding} (${f.label})`).join("; ");
+    const schemaGuidance = buildTemplateSchemaGuidance();
 
-Organization Context:
+    return `Generate a valid invoice template that conforms to the attached schema. Use ONLY supported element types/properties from the schema. The elements array is REQUIRED and must not be empty.
+
+Rules: All monetary values use Currency elements (not Input). Table price columns use type="currency" with currency code. Fields with bindings must be Input or Currency; Text is for static labels only. Canvas 794×1123: every element must satisfy x+width≤794, y+height≤1123. Use only organization data from context; do not invent data.
+
+Schema capabilities:
+${schemaGuidance}
+
+Organization context:
 ${context}
 
-CRITICAL: Required Compliance Fields (ALL MUST be included - this is legally mandatory):
-${requiredFieldsList}
+Required compliance fields (${region}), all must have elements with these bindings: ${requiredList}.
 
-Required Field Bindings Summary: ${requiredFieldsSummary}
+Style: ${style} (${this.getStyleDescription(style)}). Include logo: ${includeLogo ? "Yes" : "No"}. Table itemsBinding="items". Currency: ${currency}. For calculated table columns add calc (e.g. "=quantity * unitPrice"). For calculated totals use mode "formula" and formula (e.g. "=SUM(items[*].total)" or subtotal+vat).
 
-IMPORTANT: You MUST create elements for EVERY single required field listed above. Missing any field will result in non-compliance. Double-check your output includes all ${requiredFields.length} required fields.
+Product table config: Generate productTableConfig mapping table columns to product fields (name, description, price, currency, sku, etc.). Items: ${formatProductFieldsForAI()}. Use itemsBinding "items", columnMappings from your table columns, defaultCurrency "${currency}", autoQuantity false.
 
-Design Requirements:
-- Style: ${style} (${this.getStyleDescription(style)})
-- Page size: A4 (794x1123 pixels) - CANVAS DIMENSIONS ARE FIXED: width=794px, height=1123px
-- Include organization logo: ${includeLogo ? "Yes" : "No"}
-- All required compliance fields must be present with correct bindings
-- Layout should be professional and easy to read
-- Use appropriate typography hierarchy
-- Include proper spacing and alignment
-- Table for line items must use binding "items" for itemsBinding
-
-🚨 CRITICAL: Currency Element Usage (MANDATORY):
-- ALL monetary values MUST use Currency elements, NOT Input elements
-- Use Currency elements for: total, subtotal, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.
-- NEVER use Input elements for monetary amounts - this is incorrect
-- Currency elements automatically format with currency symbol and proper locale formatting
-- Set currency code based on region: EU → EUR, US → USD, CA → CAD, AU → AUD, UK → GBP
-- For ${region} region, use ${currency || (region === "EU" ? "EUR" : region === "US" ? "USD" : region === "CA" ? "CAD" : region === "AU" ? "AUD" : region === "UK" ? "GBP" : "USD")} for ALL currency fields
-- For table price columns (unitPrice, lineTotal, etc.), set column type to "currency" and specify currency code as ${currency || (region === "EU" ? "EUR" : "USD")}
-
-- Date fields should use Input elements with variant="date" or Text elements with date formatting
-
-Template Structure:
-1. Header section (top): Logo (if included), organization name, invoice title
-2. Seller/Supplier section: Name, address, contact info, VAT ID (if required)
-3. Customer section: Name, address, VAT ID (if required)
-4. Invoice details: Invoice number, date, due date, currency
-5. Items table: Description, quantity, unit price, total (with proper bindings)
-6. Totals section: Subtotal, tax/VAT, total
-7. Footer: Payment terms, notes, compliance footer (if auto-footer enabled)
-
-Element Guidelines:
-- Text elements: Use for labels, headers, static text. Set appropriate typography (font size, weight, color)
-- Table elements: Use for line items. Must have itemsBinding="items" and columns with bindings like "description", "quantity", "unitPrice", "total"
-  * 🚨 MANDATORY: Table columns with price bindings (unitPrice, lineTotal, total, etc.) MUST have type="currency"
-  * When creating price columns in tables, ALWAYS set column type to "currency" (NOT "number" or "text")
-  * Specify the currency code in the column (e.g., currency: "USD", "EUR", "GBP") from organization context
-  * Currency columns automatically format with currency symbol and proper locale formatting
-  * Currency columns support field linking for automatic conversion between currencies
-  * **FORMULA FOR TABLE COLUMNS**: For calculated columns (like "Line Total", "Total", "Amount"), add a "calc" property with a formula
-  * Example for line total: { id: "col-total", header: "Line Total", type: "currency", currency: "USD", binding: "total", width: 100, align: "right", calc: "=quantity * unitPrice" }
-  * Example: { id: "col-price", header: "Price", type: "currency", currency: "USD", binding: "unitPrice", width: 100, align: "right" }
-- Input elements: Use ONLY for date fields (variant="date") or basic text inputs. NEVER use Input elements for monetary amounts.
-- 🚨 Currency elements: MANDATORY for ALL monetary values (totals, subtotals, taxTotal, vatTotal, grandTotal, amount, price, fee, discount, etc.)
-  * Automatically formats with currency symbol and proper locale formatting
-  * Set currency code (e.g., "USD", "EUR", "GBP") from organization context
-  * Set binding to the monetary field (e.g., binding: "total", binding: "subtotal")
-  * Supports field linking for automatic conversion between currencies
-  * **FORMULA MODE**: For calculated fields (subtotal, netAmount, vatTotal, taxTotal, total, grossTotal), set mode: "formula" and provide a formula
-  * Example: { type: "currency", currency: "USD", binding: "total", x: 550, y: 650, width: 200, height: 32, mode: "formula", formula: "=SUM(items[*].total)" }
-- Box elements: Use for sections/containers with borders
-- Line elements: Use for separators
-
-Binding Requirements:
-- All required fields from the compliance schema must have corresponding elements with the correct binding
-- Table itemsBinding must be "items"
-- Use dot notation for nested data (e.g., "seller.name", "seller.address.street")
-- Currency fields should have format: { kind: "currency", currency: "USD" }
-- Date fields should have format: { kind: "date", dateFormat: "YYYY-MM-DD" }
-
-🚨 CRITICAL: Canvas Boundaries (A4 = 794x1123 pixels) - ABSOLUTE REQUIREMENT:
-- Canvas dimensions are FIXED: width = 794px, height = 1123px
-- ALL elements MUST satisfy these constraints:
-  * x >= 0 AND x + width <= 794 (element must fit horizontally)
-  * y >= 0 AND y + height <= 1123 (element must fit vertically)
-- BEFORE setting any element position, CALCULATE: x + width <= 794 and y + height <= 1123
-- If an element would overflow, REDUCE its width/height or move it to a valid position
-- NEVER create elements that violate these boundaries - they will cause rendering errors
-
-Recommended Safe Zones (with margins):
-- Header section: x: 40-60, y: 40-100, max width: 714px (794 - 80px margins), max y: 150
-- Seller section: x: 40-60, y: 150-250, max width: 350px
-- Customer section: x: 40-60 or 400-450, y: 150-250, max width: 350px
-- Invoice details: x: 400-450, y: 40-150, max width: 344px (794 - 450)
-- Items table: x: 40-60, y: 350-450, width: 700-714px MAX (794 - 80px margins), ensure x + width <= 794
-- Totals section: x: 500-550, y: 600-700, max width: 244px (794 - 550), ensure x + width <= 794
-- Footer: x: 40-60, y: 950-1050, max width: 714px, ensure y + height <= 1123
-
-VALIDATION CHECKLIST for each element:
-1. Is x >= 0? ✓
-2. Is y >= 0? ✓
-3. Is x + width <= 794? ✓ (CRITICAL - check this!)
-4. Is y + height <= 1123? ✓ (CRITICAL - check this!)
-5. If any check fails, ADJUST the element before including it in output
-
-Layout Guidelines:
-- Use consistent margins: 40-60px from edges
-- Vertical spacing: 20-40px between sections, 10-15px between related elements
-- Two-column layout for header: logo/org info (left), invoice details (right)
-- Table width calculation: MAX width = 794 - x - 40 (leave 40px right margin). If x=40, max width = 714px. ALWAYS verify: x + width <= 794
-- Ensure no overlapping elements - check x, y, width, height carefully
-- Group related elements visually (use boxes or consistent spacing)
-- Align elements to a grid for professional appearance
-
-🚨 ELEMENT POSITIONING VALIDATION (MANDATORY):
-Before including ANY element in the output, verify:
-1. Calculate: element.x + element.width. This MUST be <= 794
-2. Calculate: element.y + element.height. This MUST be <= 1123
-3. If either calculation fails, REDUCE width/height or adjust position
-4. For tables: table.x + table.width <= 794 (critical for wide tables)
-5. For text elements: text.x + text.width <= 794 (text can overflow if too wide)
-6. Double-check all numeric values are within bounds before finalizing
-
-Design Quality:
-- Avoid random or sloppy positioning - every element should have a clear purpose
-- Use consistent alignment (left-align text blocks, right-align numbers)
-- Create visual hierarchy with font sizes (headers: 18-24px, body: 11-14px, labels: 10-12px)
-- Use appropriate colors from organization brand colors provided in context
-- Ensure text is readable (sufficient contrast, appropriate font sizes)
-- Box elements should have subtle borders (strokeWidth: 1-2px) and optional background fills
-- Line elements should be used sparingly for section separators
-
-CRITICAL: Data Accuracy Rules
-- Use ONLY the organization data provided in the context (name, address, email, phone, brand colors, currency)
-- DO NOT invent or hallucinate organization information that is not in the context
-- If organization data is missing (e.g., no address), use empty strings or omit those fields - DO NOT make up addresses, phone numbers, or other details
-- Use the exact brand colors from the context, do not invent new colors
-- Use the exact currency from the context, do not assume a currency
-
-${options?.customPrompt ? `\n\nADDITIONAL USER INSTRUCTIONS:\n${options.customPrompt}\n\nPlease incorporate these specific requirements into the template design while maintaining compliance and professional appearance.` : ""}
-
-🧮 FORMULA GENERATION RULES (CRITICAL for calculated fields):
-
-A. TABLE COLUMN FORMULAS (for calculated columns like "Line Total", "Total", "Amount"):
-   - For table columns that should be calculated (e.g., lineTotal = quantity * unitPrice), add a "calc" property to the column object
-   - Pattern: Use column bindings directly (e.g., "quantity", "unitPrice") - these will be resolved to row-specific paths at runtime
-   - Example: If you create columns with bindings "quantity" and "unitPrice", and a "total" column, set: { id: "col-total", header: "Total", type: "currency", binding: "total", calc: "=quantity * unitPrice", ... }
-   - Example: If you create columns with bindings "qty" and "price", and a "lineTotal" column, set: { id: "col-line", header: "Line Total", type: "currency", binding: "lineTotal", calc: "=qty * price", ... }
-   - IMPORTANT: Use the ACTUAL column binding names you create, not hardcoded names
-   - Common calculated columns: "total", "lineTotal", "amount", "itemTotal" should typically have formulas
-   - The "calc" property should be a string starting with "=" (e.g., "=quantity * unitPrice")
-
-B. CURRENCY ELEMENT FORMULAS (for calculated fields like subtotal, netAmount, vatTotal, taxTotal, total, grossTotal):
-   - Set mode: "formula" (NOT "independent" or "linked")
-   - Generate appropriate formulas based on the ACTUAL bindings you create in the template
-
-FORMULA PATTERNS (use the ACTUAL binding names you create, not hardcoded names):
-
-C. Subtotal/Net Amount Fields (subtotal, netAmount, net, etc.):
-   - These should sum all line item totals from the items table
-   - Pattern: =SUM({itemsBinding}[*].{totalColumnBinding})
-   - Example: If you create a table with itemsBinding="items" and a column with binding="total", use: =SUM(items[*].total)
-   - Example: If you create a table with itemsBinding="lineItems" and a column with binding="lineTotal", use: =SUM(lineItems[*].lineTotal)
-   - IMPORTANT: Use the ACTUAL itemsBinding and total column binding you create, not hardcoded "items" or "total"
-
-D. VAT/Tax Total Fields (vatTotal, taxTotal, vat, tax, etc.):
-   - These should calculate tax as a percentage of the subtotal
-   - Pattern: =IF({subtotalBinding} > 0, {subtotalBinding} * {taxRate}, 0)
-   - Tax rates: EU = 20% (0.20), US = 0% (0), CA = varies, AU = 10% (0.10), UK = 20% (0.20)
-   - Example for EU: =IF(subtotal > 0, subtotal * 0.20, IF(netAmount > 0, netAmount * 0.20, 0))
-   - IMPORTANT: Use the ACTUAL subtotal/netAmount binding names you create, check for both "subtotal" and "netAmount" variants
-
-E. Total/Gross Total Fields (total, grossTotal, grandTotal, etc.):
-   - These should ALWAYS sum subtotal/netAmount + tax/VAT
-   - Formula MUST add the base amount (subtotal or netAmount) to the tax amount (vatTotal or taxTotal)
-   - Pattern: =IF({subtotalBinding} > 0, {subtotalBinding}, IF({netAmountBinding} > 0, {netAmountBinding}, 0)) + IF({vatBinding} > 0, {vatBinding}, IF({taxBinding} > 0, {taxBinding}, 0))
-   - Example: =IF(subtotal > 0, subtotal, IF(netAmount > 0, netAmount, 0)) + IF(vatTotal > 0, vatTotal, IF(taxTotal > 0, taxTotal, 0))
-   - CRITICAL: The formula MUST use the + operator to add the base amount and tax amount together
-   - IMPORTANT: Use the ACTUAL binding names you create, check for all variants (subtotal/netAmount, vatTotal/taxTotal)
-   - NEVER generate a formula that returns only the base amount without adding the tax
-
-FORMULA SYNTAX:
-- All formulas must start with "="
-- Use SUM() function for summing arrays: SUM(arrayName[*].fieldName)
-- Use IF() function for conditional logic: IF(condition, trueValue, falseValue)
-- Support nested IF for fallbacks: IF(primary > 0, primary, IF(fallback > 0, fallback, 0))
-- Array wildcard [*] automatically expands to all items at runtime
-- Field references use exact binding names (e.g., "subtotal", "netAmount", "vatTotal", "items[*].total")
-
-CRITICAL FORMULA GENERATION STEPS:
-1. Identify which fields are calculated (subtotal/netAmount, vatTotal/taxTotal, total/grossTotal)
-2. Look at the table you create - note its itemsBinding (e.g., "items", "lineItems", "invoiceItems")
-3. Look at the table columns - identify which column represents the line total (binding like "total", "lineTotal", "amount", "itemTotal")
-4. Generate formulas using the ACTUAL binding names you create
-5. For VAT/tax, use the appropriate rate for the region (EU=20%, US=0%, etc.)
-6. Always include fallbacks using IF() to handle missing fields gracefully
-
-EXAMPLE FORMULA GENERATION:
-- If you create: table with itemsBinding="items", column with binding="lineTotal"
-- And you create: currency element with binding="subtotal"
-- Then formula should be: =SUM(items[*].lineTotal) (using YOUR actual bindings)
-
-- If you create: currency element with binding="vatTotal" for EU region
-- And you created: currency element with binding="subtotal"
-- Then formula should be: =IF(subtotal > 0, subtotal * 0.20, 0) (using YOUR actual binding name)
-
-FINAL VALIDATION BEFORE OUTPUT:
-1. ✅ All monetary fields (total, subtotal, taxTotal, etc.) use Currency elements (NOT Input)
-2. ✅ All table price columns have type="currency" with currency code specified
-3. ✅ Calculated table columns (lineTotal, total, amount) have "calc" property with formulas using ACTUAL column binding names
-4. ✅ Calculated currency fields have mode: "formula" with appropriate formulas using ACTUAL binding names
-5. ✅ Formulas reference the ACTUAL itemsBinding and column bindings you create, not hardcoded names
-6. ✅ Every element satisfies: x >= 0, y >= 0, x + width <= 794, y + height <= 1123
-7. ✅ No elements overflow canvas boundaries
-8. ✅ All required compliance fields have elements with correct bindings
-
-Generate a complete template JSON with all elements properly configured, positioned within canvas boundaries, and styled professionally. Ensure all required compliance fields are included with correct bindings. For calculated currency fields, generate formulas using the ACTUAL binding names you create in the template. Use only real data from the organization context provided.
-
-REMEMBER: Currency elements for ALL money values. Canvas boundaries are ABSOLUTE - verify every element position. Formulas must use YOUR actual binding names, not hardcoded field names.
-
-📦 PRODUCT TABLE MAPPING CONFIGURATION (MANDATORY):
-After generating the template elements, you MUST also generate a productTableConfig that maps product entity fields to invoice table columns.
-
-Product Entity Fields Available (from Product interface):
-${formatProductFieldsForAI()}
-
-Product Table Configuration Rules:
-1. Find the table element with itemsBinding="items" (or your table's itemsBinding)
-2. For each column in that table, create a mapping from a product field to the column binding
-3. Common mappings:
-   - description column → product.description or product.name
-   - unitPrice/price column → product.price (with currency_convert transform if needed)
-   - currency column → product.currency
-   - sku/reference column → product.sku
-   - category column → product.category
-4. Set lockOnProductSelect: true for fields that should be locked when product is selected
-5. Use currency_convert transform for price columns if product currency differs from table currency
-6. Set autoQuantity: false (users set quantity manually)
-7. Set defaultCurrency to the organization's default currency (${currency})
-
-Example productTableConfig:
-{
-  "itemsBinding": "items",
-  "columnMappings": [
-    {
-      "columnBinding": "description",
-      "productField": "description",
-      "transform": "none",
-      "lockOnProductSelect": true
-    },
-    {
-      "columnBinding": "unitPrice",
-      "productField": "price",
-      "transform": "currency_convert",
-      "targetCurrency": "${currency}",
-      "lockOnProductSelect": true
-    },
-    {
-      "columnBinding": "sku",
-      "productField": "sku",
-      "transform": "none",
-      "lockOnProductSelect": true
-    }
-  ],
-  "autoQuantity": false,
-  "defaultQuantity": 1,
-  "autoConvertCurrency": true,
-  "defaultCurrency": "${currency}"
-}
-
-CRITICAL: Generate productTableConfig based on the ACTUAL table columns you create. Use the exact column bindings from your table element.`;
+${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : ""}`;
   }
 
   private getStyleDescription(style: string): string {
@@ -760,7 +568,7 @@ CRITICAL: Generate productTableConfig based on the ACTUAL table columns you crea
   private enrichElements(
     elements: Array<{
       id: string;
-      type: "text" | "image" | "table" | "box" | "line" | "input" | "currency";
+      type: "text" | "image" | "table" | "box" | "line" | "input" | "currency" | "icon";
       x: number;
       y: number;
       width: number;
@@ -771,6 +579,8 @@ CRITICAL: Generate productTableConfig based on the ACTUAL table columns you crea
       format?: any;
       itemsBinding?: string;
       columns?: any[];
+      iconName?: string;
+      color?: string;
     }>,
     requiredFields: Array<{ binding: string; label: string; format?: string }>,
     region: "US" | "EU" | "CA" | "AU" | "UK",
@@ -1032,6 +842,15 @@ CRITICAL: Generate productTableConfig based on the ACTUAL table columns you crea
         binding: el.binding,
         variant: el.binding?.includes("Date") || el.binding?.includes("date") ? "date" : "number",
         align: "left",
+      };
+    }
+
+    if (el.type === "icon") {
+      return {
+        ...base,
+        type: "icon",
+        iconName: typeof el.iconName === "string" && el.iconName.trim() ? el.iconName.trim() : "file-text",
+        color: typeof el.color === "string" && el.color ? el.color : "#111827",
       };
     }
 
@@ -1313,4 +1132,3 @@ export function getInvoiceTemplateGenerationService(): InvoiceTemplateGeneration
   }
   return invoiceTemplateGenerationServiceInstance;
 }
-
