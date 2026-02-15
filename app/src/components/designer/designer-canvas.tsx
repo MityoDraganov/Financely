@@ -15,6 +15,7 @@ import {
 	ImageElement,
 	BoxElement,
 	LineElement,
+	IconElement,
 	InputElement,
 	TableElement,
 } from "@/components/designer/elements";
@@ -26,6 +27,8 @@ type DesignerCanvasProps = {
 	template: Template | undefined;
 	draftElements: TemplateElement[] | null;
 	state: DesignerState;
+	hoveredElementId?: string | null;
+	onHoverElement?: (id: string | null) => void;
 	drag: DragState | null;
 	snapGuides: SnapGuide[];
 	activeUsers: UserPresence[];
@@ -51,16 +54,34 @@ type DesignerCanvasProps = {
 const PAGE_SIZES = {
 	A4: { width: 794, height: 1123 },
 	Letter: { width: 816, height: 1056 },
+	Legal: { width: 816, height: 1344 },
 } as const;
 
-function getPageDimensions(pageSize: string | undefined): { width: number; height: number } {
-	return PAGE_SIZES[pageSize as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
+function getPageDimensions(template: Template | undefined): { width: number; height: number } {
+	const pageSettings = template?.pageSettings;
+	const sizeKey = pageSettings?.size && pageSettings.size !== "Custom"
+		? pageSettings.size
+		: template?.pageSize ?? "A4";
+	const base = pageSettings?.size === "Custom" && pageSettings.customSize
+		? {
+				width: pageSettings.customSize.width,
+				height: pageSettings.customSize.height,
+			}
+		: PAGE_SIZES[sizeKey as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
+
+	if (pageSettings?.orientation === "landscape") {
+		return { width: base.height, height: base.width };
+	}
+
+	return base;
 }
 
 export function DesignerCanvas({
 	template,
 	draftElements,
 	state,
+	hoveredElementId,
+	onHoverElement,
 	drag,
 	snapGuides,
 	activeUsers,
@@ -80,7 +101,7 @@ export function DesignerCanvas({
 	dragStartedRef,
 }: DesignerCanvasProps) {
 	const elements = draftElements ?? template?.elements ?? [];
-	const pageDimensions = getPageDimensions(template?.pageSize);
+	const pageDimensions = getPageDimensions(template);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
 
@@ -124,6 +145,7 @@ export function DesignerCanvas({
 							width: PAGE_WIDTH * state.zoom,
 							height: PAGE_HEIGHT * state.zoom,
 							position: "relative",
+							backgroundColor: template.pageSettings?.backgroundColor || undefined,
 						}}
 						onDragOver={onDragOver}
 						onDrop={onDrop}
@@ -139,6 +161,27 @@ export function DesignerCanvas({
 					onDragOver={onDragOver}
 					onDrop={onDrop}
 				/>
+				{template.referenceLayer?.assetUrl && template.referenceLayer.visible !== false && (
+					<div
+						className="absolute pointer-events-none"
+						style={{
+							left: (template.referenceLayer.offsetX ?? 0) * state.zoom,
+							top: (template.referenceLayer.offsetY ?? 0) * state.zoom,
+							width: PAGE_WIDTH * state.zoom,
+							height: PAGE_HEIGHT * state.zoom,
+							opacity: template.referenceLayer.opacity ?? 0.3,
+							transform: `scale(${template.referenceLayer.scale ?? 1}) rotate(${template.referenceLayer.rotation ?? 0}deg)`,
+							transformOrigin: "top left",
+							zIndex: 1,
+						}}
+					>
+						<img
+							src={template.referenceLayer.assetUrl}
+							alt="Template source reference"
+							className="w-full h-full object-contain"
+						/>
+					</div>
+				)}
 				{/* Snap guides */}
 				{snapGuides.map((guide, idx) => (
 					<div
@@ -191,7 +234,7 @@ export function DesignerCanvas({
 						<ContextMenu key={el.id}>
 							<ContextMenuTrigger asChild>
 									<div
-									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""}`}
+									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${hoveredElementId === el.id && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
@@ -207,6 +250,8 @@ export function DesignerCanvas({
 										msUserSelect: "none",
 										zIndex: el.zIndex ?? 10,
 									}}
+									onMouseEnter={() => onHoverElement?.(el.id)}
+									onMouseLeave={() => onHoverElement?.(null)}
 									onPointerDown={(e) => {
 										if (e.button !== 0) return;
 										// Don't prevent default here - we need click events to fire
@@ -318,6 +363,11 @@ export function DesignerCanvas({
 											element={el as Extract<TemplateElement, { type: "line" }>}
 										/>
 									)}
+									{el.type === "icon" && (
+										<IconElement
+											element={el as Extract<TemplateElement, { type: "icon" }>}
+										/>
+									)}
 									{el.type === "currency" && (
 										<CurrencyElement
 											element={el as Extract<TemplateElement, { type: "currency" }>}
@@ -336,6 +386,120 @@ export function DesignerCanvas({
 													}
 												}}
 											/>
+										);
+									})()}
+									{el.type === "spacer" && (() => {
+										const spacer = el as Extract<TemplateElement, { type: "spacer" }>;
+										return (
+											<div className="w-full h-full flex items-center">
+												{spacer.showDivider ? (
+													<div
+														className="w-full"
+														style={{
+															borderTopWidth: spacer.dividerWidth,
+															borderTopStyle: spacer.dividerStyle,
+															borderTopColor: spacer.dividerColor,
+														}}
+													/>
+												) : (
+													<div className="w-full h-full opacity-40 bg-slate-100 border border-dashed border-slate-300" />
+												)}
+											</div>
+										);
+									})()}
+									{el.type === "pageBreak" && (() => {
+										const pageBreak = el as Extract<TemplateElement, { type: "pageBreak" }>;
+										if (pageBreak.showInEditor === false) return null;
+										return (
+											<div className="w-full h-full flex items-center">
+												<div
+													className="w-full text-center text-[10px] uppercase tracking-wide text-orange-600"
+													style={{
+														borderTop: pageBreak.style === "none"
+															? "none"
+															: pageBreak.style === "line"
+																? "1px solid #f97316"
+																: "1px dashed #f97316",
+													}}
+												>
+													<span className="bg-white px-1 relative -top-2">Page Break</span>
+												</div>
+											</div>
+										);
+									})()}
+									{el.type === "qrCode" && (() => {
+										const qr = el as Extract<TemplateElement, { type: "qrCode" }>;
+										return (
+											<div
+												className="w-full h-full grid place-items-center text-[10px] font-semibold"
+												style={{
+													background: qr.backgroundColor,
+													color: qr.foregroundColor,
+													border: "1px solid #d1d5db",
+												}}
+											>
+												QR
+											</div>
+										);
+									})()}
+									{el.type === "barcode" && (() => {
+										const barcode = el as Extract<TemplateElement, { type: "barcode" }>;
+										return (
+											<div
+												className="w-full h-full flex flex-col items-center justify-center gap-1"
+												style={{ background: barcode.backgroundColor, color: barcode.color }}
+											>
+												<div
+													className="w-[92%] h-[60%]"
+													style={{
+														backgroundImage: "repeating-linear-gradient(to right, currentColor 0, currentColor 2px, transparent 2px, transparent 4px)",
+													}}
+												/>
+												{barcode.showText && (
+													<div className="text-[10px] tracking-widest">{barcode.value || "BARCODE"}</div>
+												)}
+											</div>
+										);
+									})()}
+									{el.type === "signature" && (() => {
+										const signature = el as Extract<TemplateElement, { type: "signature" }>;
+										return (
+											<div className="w-full h-full flex flex-col justify-end">
+												{signature.signatureType === "image" && signature.signatureImage ? (
+													<img src={signature.signatureImage} alt="Signature" className="max-h-[70%] object-contain object-left" />
+												) : (
+													<div className="text-[10px] text-slate-500 mb-1">
+														{signature.placeholderText || "Signature"}
+													</div>
+												)}
+												<div
+													style={{
+														borderBottomWidth: signature.borderBottom?.width ?? 1,
+														borderBottomStyle: signature.borderBottom?.style ?? "solid",
+														borderBottomColor: signature.borderBottom?.color ?? "#111827",
+													}}
+												/>
+											</div>
+										);
+									})()}
+									{el.type === "stamp" && (() => {
+										const stamp = el as Extract<TemplateElement, { type: "stamp" }>;
+										return (
+											<div
+												className="w-full h-full flex items-center justify-center uppercase tracking-wide"
+												style={{
+													color: stamp.textColor,
+													background: stamp.backgroundColor,
+													opacity: stamp.opacity,
+													borderRadius: stamp.shape === "circle" ? "9999px" : 8,
+													border: stamp.border ? `${stamp.border.width}px ${stamp.border.style} ${stamp.border.color}` : "1px solid currentColor",
+													fontFamily: stamp.fontFamily,
+													fontWeight: stamp.fontWeight,
+													fontSize: stamp.fontSize,
+												}}
+											>
+												{stamp.text}
+											</div>
 										);
 									})()}
 								</div>
@@ -363,4 +527,3 @@ export function DesignerCanvas({
 		</div>
 	);
 }
-

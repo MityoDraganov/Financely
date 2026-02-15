@@ -1,138 +1,239 @@
 import { getDatabaseService } from "../services/database-service";
 import { getExtractionJobRepository } from "../repositories/extraction-job-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { ExtractionJob } from "../core/entities/invoice-extraction-job";
 import { getGoogleVisionOCRService } from "../services/invoice-extraction/google-vision-ocr-service";
 import { getAIService } from "../services/ai/ai-service";
 import type { JSONSchema } from "../services/ai/ai-service";
 import { loggerService } from "../services/logger-service";
+import type { OCRWord } from "../services/invoice-extraction/ocr-service";
+import {
+  DEFAULT_TEMPLATE_QUALITY,
+  type DocumentPage,
+  type FontMatch,
+  type VisionLayout,
+} from "../services/invoice-extraction/pipeline-types";
+import { getPdfPageRendererService } from "../services/invoice-extraction/pdf-page-renderer-service";
+import { getInvoiceLayoutVisionService } from "../services/invoice-extraction/invoice-layout-vision-service";
+import { getLayoutFusionService } from "../services/invoice-extraction/layout-fusion-service";
+import { getFontMatchingService } from "../services/invoice-extraction/font-matching-service";
+import { getAssetCroppingService } from "../services/invoice-extraction/asset-cropping-service";
+
+const isImageFileType = (fileType: string): boolean => fileType !== "pdf";
 
 /**
  * Application handler for extracting invoice data from an uploaded file.
- *
- * This handler:
- * 1. Retrieves the extraction job
- * 2. Calls Google Cloud Vision API for OCR
- * 3. Uses AI (Gemini) to structure the extracted data
- * 4. Updates the extraction job with results
- *
- * @param {string} jobId - The extraction job ID
- * @return {Promise<ExtractionJob>} The updated extraction job
- * @throws Error if extraction fails
+ * layout_fusion_v2 pipeline: OCR + vision layout + fusion + font matching + review quality.
  */
 export async function handleExtractInvoiceData(
   jobId: string
 ): Promise<ExtractionJob> {
   const startTime = Date.now();
+  const databaseService = getDatabaseService();
+  const extractionJobRepository = getExtractionJobRepository(databaseService);
+  const organizationRepository = getOrganizationRepository(databaseService);
 
   try {
-    // Get database service and repository
-    const databaseService = getDatabaseService();
-    const extractionJobRepository = getExtractionJobRepository(databaseService);
-
-    // Get the extraction job
     const job = await extractionJobRepository.get({ id: jobId });
     if (!job) {
       throw new Error(`Extraction job not found: ${jobId}`);
     }
 
     if (job.status !== "pending") {
-      throw new Error(`Extraction job is not in pending status: ${job.status}`);
+      return job;
     }
 
-    // Update status to processing
     await extractionJobRepository.update({
       id: jobId,
-      data: {
-        status: "processing",
-      },
+      data: { status: "processing" },
     });
 
     loggerService.info("Starting invoice extraction", {
       jobId,
       orgId: job.orgId,
-      fileUrl: job.fileUrl,
       fileType: job.fileType,
+      pipeline: "layout_fusion_v2",
     });
 
-    // Initialize OCR service
+    const organization = await organizationRepository.get({ id: job.orgId });
+    if (!organization) {
+      throw new Error(`Organization not found: ${job.orgId}`);
+    }
+
     const ocrService = getGoogleVisionOCRService();
     if (!ocrService.isAvailable()) {
       throw new Error("Google Cloud Vision OCR service is not available");
     }
 
-    // Perform OCR extraction
     const ocrResult = await ocrService.extractText(job.fileUrl, job.fileType);
 
-    loggerService.info("OCR extraction completed", {
-      jobId,
-      textLength: ocrResult.fullText.length,
+    const ocrWords = normalizeOcrWords(
+      ocrResult.ocrWords,
+      ocrResult.textBlocks,
+      ocrResult.pageCount || 1
+    );
+
+    let documentPages: DocumentPage[] = [];
+    if (isImageFileType(job.fileType)) {
+      const pageSize = derivePageSizeFromWords(ocrWords);
+      documentPages = [{
+        pageIndex: 0,
+        width: pageSize.width,
+        height: pageSize.height,
+        imageUrl: job.fileUrl,
+        mimeType: job.fileType,
+        source: "original",
+      }];
+    } else {
+      const renderer = getPdfPageRendererService();
+      documentPages = await renderer.renderPages({
+        fileUrl: job.fileUrl,
+        orgId: job.orgId,
+        jobId,
+        maxPages: 5,
+      });
+
+      if (documentPages.length === 0) {
+        const pageSize = derivePageSizeFromWords(ocrWords);
+        documentPages = [{
+          pageIndex: 0,
+          width: pageSize.width,
+          height: pageSize.height,
+          imageUrl: job.fileUrl,
+          mimeType: "application/pdf",
+          source: "rendered_pdf",
+        }];
+      }
+    }
+
+    const resolvedPageCount = ocrResult.pageCount ?? Math.max(1, documentPages.length);
+
+    const ocrRawResults: Record<string, unknown> = {
+      fullText: ocrResult.fullText,
       textBlockCount: ocrResult.textBlocks.length,
-      confidence: ocrResult.confidence,
-      fileType: job.fileType,
-      hasText: ocrResult.fullText.trim().length > 0,
+      wordCount: ocrWords.length,
+      overallConfidence: ocrResult.confidence,
+      pageCount: resolvedPageCount,
+      textBlocks: ocrResult.textBlocks,
+    };
+
+    const aiService = getAIService();
+
+    let structuredData: Record<string, unknown> | null = null;
+    if (ocrResult.fullText && ocrResult.fullText.trim().length > 0) {
+      structuredData = await extractStructuredData(ocrResult.fullText, aiService);
+    }
+
+    if (structuredData == null) {
+      structuredData = { rawText: ocrResult.fullText || "" };
+    }
+
+    let visionLayout: VisionLayout = {
+      regions: [],
+      elements: [],
+      tables: [],
+      styleClusters: [],
+    };
+
+    try {
+      const visionService = getInvoiceLayoutVisionService();
+      visionLayout = await visionService.analyzeDocument({
+        pages: documentPages.filter((page) => page.imageUrl.startsWith("http")),
+        ocrWords,
+        maxPages: 5,
+      });
+    } catch (error) {
+      loggerService.warn("Vision layout analysis failed for extraction job", {
+        jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    let fontMatches: FontMatch[] = [];
+    try {
+      const fontMatchingService = getFontMatchingService();
+      fontMatches = await fontMatchingService.matchFonts({
+        pages: documentPages,
+        visionLayout,
+      });
+    } catch (error) {
+      loggerService.warn("Font matching failed for extraction job", {
+        jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      fontMatches = [];
+    }
+
+    const layoutFusionService = getLayoutFusionService();
+    const fusion = layoutFusionService.fuse({
+      extractedData: structuredData,
+      ocrWords,
+      visionLayout,
+      fontMatches,
     });
 
-    // Check if OCR returned empty text
-    if (!ocrResult.fullText || ocrResult.fullText.trim().length === 0) {
-      loggerService.warn("OCR extraction returned empty text", {
+    let croppedAssets: Array<{
+      id: string;
+      pageIndex: number;
+      kind: "logo" | "image";
+      imageUrl: string;
+      boundingBox: { x: number; y: number; width: number; height: number };
+      confidence: number;
+    }> = [];
+
+    try {
+      const assetCroppingService = getAssetCroppingService();
+      croppedAssets = await assetCroppingService.cropAssets({
+        orgId: job.orgId,
         jobId,
-        fileType: job.fileType,
-        confidence: ocrResult.confidence,
-        textBlockCount: ocrResult.textBlocks.length,
+        pages: documentPages,
+        visionLayout,
+        maxAssets: 8,
       });
+    } catch (error) {
+      loggerService.warn("Asset cropping failed for extraction job", {
+        jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      croppedAssets = [];
     }
 
-    // Use AI to structure the extracted data (only if we have OCR text)
-    let structuredData: Record<string, unknown> | null = null;
-    
-    if (ocrResult.fullText && ocrResult.fullText.trim().length > 0) {
-      const aiService = getAIService();
-      structuredData = await extractStructuredData(
-        ocrResult.fullText,
-        aiService
-      );
-      
-      loggerService.info("AI structured data extraction completed", {
-        jobId,
-        extractedFieldCount: structuredData ? Object.keys(structuredData).length : 0,
-        hasData: !!structuredData,
-      });
-    } else {
-      loggerService.warn("Skipping AI extraction - OCR text is empty", { jobId });
-    }
-
-    // Calculate confidence scores from OCR results
     const confidenceScores: Record<string, number> = {};
-    if (structuredData) {
-      // Use OCR confidence as base, can be refined with AI confidence later
-      Object.keys(structuredData).forEach((key) => {
-        confidenceScores[key] = ocrResult.confidence;
-      });
+    for (const entry of fusion.fusionMap) {
+      confidenceScores[entry.binding] = entry.confidence;
+    }
+
+    if (Object.keys(confidenceScores).length === 0) {
+      for (const key of Object.keys(structuredData)) {
+        confidenceScores[key] = 0.6;
+      }
     }
 
     const processingDurationMs = Date.now() - startTime;
 
-    // Update extraction job with results (omit extractedData when null - Firestore rejects undefined)
-    await extractionJobRepository.update({
-      id: jobId,
-      data: {
-        status: "extracted",
-        ...(structuredData != null && { extractedData: structuredData }),
-        confidenceScores,
-        ocrRawResults: {
-          fullText: ocrResult.fullText,
-          textBlockCount: ocrResult.textBlocks.length,
-          overallConfidence: ocrResult.confidence,
-          // Store textBlocks here as backup (in case ocrTextBlocks field isn't available)
-          textBlocks: ocrResult.textBlocks,
-        },
-        // Store OCR text blocks for template generation from layout
-        ocrTextBlocks: ocrResult.textBlocks,
-        processingDurationMs,
-      },
+    const safeExtractionUpdate = stripUndefinedDeep({
+      status: "extracted" as const,
+      extractedData: structuredData,
+      confidenceScores,
+      ocrRawResults,
+      ocrTextBlocks: ocrResult.textBlocks,
+      documentPages,
+      ocrWords,
+      visionLayout,
+      fusionMap: fusion.fusionMap,
+      fontMatches,
+      croppedAssets,
+      quality: fusion.quality || DEFAULT_TEMPLATE_QUALITY,
+      needsReview: fusion.needsReview,
+      reviewReasons: fusion.reviewReasons,
+      processingDurationMs,
     });
 
-    // Get updated job
+    await extractionJobRepository.update({
+      id: jobId,
+      data: safeExtractionUpdate,
+    });
+
     const updatedJob = await extractionJobRepository.get({ id: jobId });
     if (!updatedJob) {
       throw new Error("Failed to retrieve updated extraction job");
@@ -141,18 +242,18 @@ export async function handleExtractInvoiceData(
     loggerService.info("Invoice extraction completed", {
       jobId,
       processingDurationMs,
-      extractedFieldCount: structuredData ? Object.keys(structuredData).length : 0,
+      extractedFieldCount: Object.keys(structuredData).length,
+      ocrWordCount: ocrWords.length,
+      visionElements: visionLayout.elements.length,
+      needsReview: fusion.needsReview,
+      qualityOverall: fusion.quality.overall,
     });
 
     return updatedJob;
   } catch (error) {
     const processingDurationMs = Date.now() - startTime;
-    
-    // Update job status to failed
+
     try {
-      const databaseService = getDatabaseService();
-      const extractionJobRepository = getExtractionJobRepository(databaseService);
-      
       await extractionJobRepository.update({
         id: jobId,
         data: {
@@ -179,53 +280,44 @@ export async function handleExtractInvoiceData(
 }
 
 /**
- * Use AI to extract structured invoice data from OCR text
+ * Use AI to extract structured invoice data from OCR text.
  */
 async function extractStructuredData(
   ocrText: string,
   aiService: ReturnType<typeof getAIService>
 ): Promise<Record<string, unknown> | null> {
   try {
-    // Check if OCR text is empty
     if (!ocrText || ocrText.trim().length === 0) {
       loggerService.warn("OCR text is empty, cannot extract structured data");
       return null;
     }
 
-    const prompt = `Extract ALL structured data from the following invoice OCR text. The text may be in any language (English, Bulgarian, German, French, Spanish, Italian, etc.). 
+    const prompt = `Extract ALL structured data from the following invoice OCR text. The text may be in any language (English, Bulgarian, German, French, Spanish, Italian, etc.).
 
 OCR Text:
 ${ocrText}
 
 Instructions:
-1. Extract ALL fields and information you find in the invoice - be comprehensive and dynamic
-2. Recognize field labels in multiple languages (English, Bulgarian, German, French, Spanish, Italian, etc.)
-3. Use appropriate field names based on what you find (e.g., "invoiceNumber", "invoiceNo", "factura", "номер", etc.)
-4. For dates, parse and convert to YYYY-MM-DD format regardless of source format
-5. For amounts, extract numbers (remove currency symbols, handle decimal separators correctly)
-6. For Bulgarian invoices: recognize Cyrillic text and common Bulgarian invoice terms
-7. Extract nested objects where appropriate (e.g., seller: {name, address, taxId}, buyer: {name, address, taxId})
-8. Extract line items as arrays with all available fields (description, quantity, unitPrice, total, etc.)
-9. Include any additional fields you find (payment terms, notes, references, etc.)
-10. Return a valid JSON object with all extracted data
-11. Use null only for truly missing values, otherwise extract what you can find
-12. Preserve the structure and relationships in the data
+1. Extract all fields and information you find in the invoice.
+2. Recognize multilingual field labels and preserve meaningful field names.
+3. Convert dates to YYYY-MM-DD where possible.
+4. Extract numeric amounts (normalize separators where possible).
+5. Support nested objects for seller, buyer, invoice metadata.
+6. Extract line items arrays with all available fields.
+7. Include payment terms, references, notes when present.
+8. Return strictly valid JSON object.
+9. Use null only when data is truly missing.`;
 
-Return a comprehensive JSON object with all invoice data you can extract. Be dynamic - extract whatever fields are present, don't limit yourself to a predefined set.`;
-
-    // Use a minimal schema that allows any structure - fully dynamic extraction
-    // Just specify it's an object, and the AI will extract whatever fields it finds
     const schema: JSONSchema = {
       type: "object",
-      // No properties defined - allows AI to extract any fields dynamically
     };
 
     const result = await aiService.generateJSON<Record<string, unknown>>(
       prompt,
       schema,
       {
-        temperature: 0.2, // Lower temperature for more consistent extraction
-        maxTokens: 4000, // Increased for more comprehensive extraction
+        temperature: 0.2,
+        maxTokens: 4000,
       }
     );
 
@@ -234,8 +326,82 @@ Return a comprehensive JSON object with all invoice data you can extract. Be dyn
     loggerService.error("Failed to extract structured data with AI", {
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    // Return null to allow manual entry
     return null;
   }
 }
 
+function normalizeOcrWords(
+  words: OCRWord[] | undefined,
+  textBlocks: Array<{ text: string; confidence: number; boundingBox: { x: number; y: number; width: number; height: number } }>,
+  pageCount: number
+): OCRWord[] {
+  if (words && words.length > 0) {
+    return words;
+  }
+
+  const pageSafeCount = Math.max(1, pageCount);
+  const syntheticWords: OCRWord[] = [];
+
+  for (let index = 0; index < textBlocks.length; index += 1) {
+    const block = textBlocks[index];
+    const pageIndex = index % pageSafeCount;
+    syntheticWords.push({
+      id: `synthetic-${index + 1}`,
+      text: block.text,
+      confidence: block.confidence,
+      pageIndex,
+      boundingBox: block.boundingBox,
+      normalizedBoundingBox: {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+      },
+      polygon: [],
+    });
+  }
+
+  return syntheticWords;
+}
+
+function derivePageSizeFromWords(words: OCRWord[]): { width: number; height: number } {
+  if (words.length === 0) {
+    return { width: 1240, height: 1754 };
+  }
+
+  const maxX = Math.max(...words.map((word) => word.boundingBox.x + word.boundingBox.width));
+  const maxY = Math.max(...words.map((word) => word.boundingBox.y + word.boundingBox.height));
+
+  return {
+    width: Math.max(600, Math.ceil(maxX + 20)),
+    height: Math.max(900, Math.ceil(maxY + 20)),
+  };
+}
+
+function stripUndefinedDeep<T>(value: T): T {
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedDeep(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (nestedValue === undefined) {
+        continue;
+      }
+      const normalized = stripUndefinedDeep(nestedValue);
+      if (normalized !== undefined) {
+        output[key] = normalized;
+      }
+    }
+    return output as T;
+  }
+
+  return value;
+}

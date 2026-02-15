@@ -15,9 +15,21 @@ export interface AIGenerationOptions {
   stopSequences?: string[];
 }
 
+/** Image input for vision calls: base64 data and MIME type (e.g. image/png, image/jpeg) */
+export interface ImageInput {
+  data: string;
+  mimeType: string;
+}
+
 export interface AIProvider {
   generate(prompt: string, options?: AIGenerationOptions): Promise<string>;
   generateJSON<T = unknown>(
+    prompt: string,
+    schema?: JSONSchema,
+    options?: AIGenerationOptions
+  ): Promise<T>;
+  generateJSONWithImage?<T = unknown>(
+    image: ImageInput,
     prompt: string,
     schema?: JSONSchema,
     options?: AIGenerationOptions
@@ -29,6 +41,12 @@ export interface AIProvider {
 export interface AIService {
   generate(prompt: string, options?: AIGenerationOptions): Promise<string>;
   generateJSON<T = unknown>(
+    prompt: string,
+    schema?: JSONSchema,
+    options?: AIGenerationOptions
+  ): Promise<T>;
+  generateJSONWithImage<T = unknown>(
+    image: ImageInput,
     prompt: string,
     schema?: JSONSchema,
     options?: AIGenerationOptions
@@ -115,12 +133,38 @@ export class DefaultAIService implements AIService {
     if (!provider) {
       throw new Error("No AI provider is available. Please register a provider first.");
     }
-    
+
     if (!provider.isAvailable()) {
       throw new Error(`AI provider ${provider.getName()} is not available. Please check configuration.`);
     }
-    
+
     return provider.generateJSON<T>(prompt, schema, options);
+  }
+
+  /**
+   * Generate structured JSON content from an image (vision) and text prompt.
+   * Uses the provider's generateJSONWithImage when available; otherwise throws.
+   */
+  async generateJSONWithImage<T = unknown>(
+    image: ImageInput,
+    prompt: string,
+    schema?: JSONSchema,
+    options?: AIGenerationOptions
+  ): Promise<T> {
+    const provider = this.getProvider();
+    if (!provider) {
+      throw new Error("No AI provider is available. Please register a provider first.");
+    }
+
+    if (!provider.isAvailable()) {
+      throw new Error(`AI provider ${provider.getName()} is not available. Please check configuration.`);
+    }
+
+    if (!provider.generateJSONWithImage) {
+      throw new Error(`Provider ${provider.getName()} does not support vision (generateJSONWithImage).`);
+    }
+
+    return provider.generateJSONWithImage<T>(image, prompt, schema, options);
   }
 }
 

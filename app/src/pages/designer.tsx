@@ -43,6 +43,8 @@ import { useTheme } from "@/components/ui/theme-provider";
 import { BrandImagePickerDialog } from "@/components/brand-image-picker-dialog";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
+import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
+import { compileInvoiceBlocksToElements } from "@/services/template-compiler/invoice-block-compiler";
 
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
@@ -56,6 +58,7 @@ export default function TemplateDesignerPage() {
 	>(null);
 	const [draftBrand, setDraftBrand] = useState<Template["brand"] | null>(null);
 	const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+	const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
@@ -74,6 +77,7 @@ export default function TemplateDesignerPage() {
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
 	const { user: clerkUser } = useUser();
+	const { data: dbUser } = useUserByClerkId(clerkUser?.id);
 	const createTemplate = useCreateTemplate();
 	const generateTemplate = useGenerateInvoiceTemplate();
 	const isMobile = useMediaQuery("(max-width: 768px)");
@@ -103,6 +107,11 @@ export default function TemplateDesignerPage() {
 	
 	// Determine current version (latest version number)
 	const currentVersion = versions.length > 0 ? versions[0].version : null;
+	const canAutoCreateVersion = useMemo(() => {
+		if (!dbUser || !currentOrg?.id) return false;
+		const role = dbUser.organizationRoles?.[currentOrg.id];
+		return role === "owner" || role === "admin" || role === "member";
+	}, [dbUser, currentOrg?.id]);
 
 	// Refs to avoid stale closures and track pending saves
 	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -692,8 +701,8 @@ export default function TemplateDesignerPage() {
 
 
 
-	const saveMutation = useMutation({
-		mutationFn: async (partial: Partial<TemplateData>) => {
+		const saveMutation = useMutation({
+			mutationFn: async (partial: Partial<TemplateData>) => {
 			console.log("[SAVE] 🔄 mutationFn called", {
 				hasElements: !!partial.elements,
 				elementsCount: partial.elements?.length ?? 0,
@@ -721,9 +730,9 @@ export default function TemplateDesignerPage() {
 				existingElementsCount: template.elements?.length ?? 0,
 			});
 			
-			// For brand updates, we need to ensure we merge with existing brand data
-			// since Firebase Realtime Database update does shallow merge
-			if (partial.brand && template.brand) {
+				// For brand updates, we need to ensure we merge with existing brand data
+				// since Firebase Realtime Database update does shallow merge
+				if (partial.brand && template.brand) {
 				partial = {
 					...partial,
 					brand: {
@@ -736,12 +745,37 @@ export default function TemplateDesignerPage() {
 									...partial.brand.watermark,
 								}
 							: template.brand.watermark,
-					},
-				};
-			}
-			
-			const startTime = Date.now();
-			await templateService.updateDraft(templateId, partial);
+						},
+					};
+				}
+
+				const nextLayoutModel = partial.layoutModel || template.layoutModel;
+				const nextBlocksV2 = partial.blocksV2 ?? template.blocksV2;
+				const hasHybridBlocks = nextLayoutModel === "hybrid_v2" && Array.isArray(nextBlocksV2);
+				const compileTriggeredBySettings =
+					partial.pageSettings != null ||
+					partial.theme != null ||
+					partial.repeating != null;
+
+				if (hasHybridBlocks && (partial.blocksV2 != null || compileTriggeredBySettings || partial.layoutModel === "hybrid_v2")) {
+					const compiled = compileInvoiceBlocksToElements({
+						blocks: nextBlocksV2,
+						template: {
+							pageSettings: partial.pageSettings ?? template.pageSettings,
+							theme: partial.theme ?? template.theme,
+							repeating: partial.repeating ?? template.repeating,
+						},
+					});
+					partial = {
+						...partial,
+						layoutModel: "hybrid_v2",
+						elements: compiled,
+						schemaVersion: 2,
+					};
+				}
+				
+				const startTime = Date.now();
+				await templateService.updateDraft(templateId, partial);
 			const duration = Date.now() - startTime;
 			console.log("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
 				templateId,
@@ -842,7 +876,7 @@ export default function TemplateDesignerPage() {
 
 			// Auto-create version when elements are changed
 			const templateId = currentTemplateIdRef.current;
-			if (partial.elements && templateId && clerkUser?.id) {
+			if (partial.elements && templateId && clerkUser?.id && canAutoCreateVersion) {
 				const elementsStr = JSON.stringify(partial.elements);
 				
 				// Only create version if elements actually changed
@@ -862,6 +896,7 @@ export default function TemplateDesignerPage() {
 								templateId,
 								userId: clerkUser.id,
 								description: t('designer.defaults.autoSavedVersion'),
+								silent: true,
 							});
 						} catch (error) {
 							console.error("Failed to auto-create version:", error);
@@ -924,17 +959,34 @@ export default function TemplateDesignerPage() {
 		},
 	});
 
-	// Page dimensions in pixels (at 96 DPI to match PDF rendering)
-	const PAGE_SIZES = {
-		A4: { width: 794, height: 1123 },
-		Letter: { width: 816, height: 1056 },
-	} as const;
-	
-	function getPageDimensions(pageSize: string | undefined): { width: number; height: number } {
-		return PAGE_SIZES[pageSize as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
-	}
-	
-	const pageDimensions = getPageDimensions(currentTemplate?.pageSize);
+		// Page dimensions in pixels (at 96 DPI to match PDF rendering)
+		const PAGE_SIZES = {
+			A4: { width: 794, height: 1123 },
+			Letter: { width: 816, height: 1056 },
+			Legal: { width: 816, height: 1344 },
+		} as const;
+		
+		function getPageDimensions(templateData: Template | undefined): { width: number; height: number } {
+			const pageSettings = templateData?.pageSettings;
+			const sizeKey = pageSettings?.size && pageSettings.size !== "Custom"
+				? pageSettings.size
+				: (templateData?.pageSize ?? "A4");
+
+			const base = pageSettings?.size === "Custom" && pageSettings.customSize
+				? {
+					width: pageSettings.customSize.width,
+					height: pageSettings.customSize.height,
+				}
+				: (PAGE_SIZES[sizeKey as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4);
+
+			if (pageSettings?.orientation === "landscape") {
+				return { width: base.height, height: base.width };
+			}
+
+			return base;
+		}
+		
+		const pageDimensions = getPageDimensions(currentTemplate);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
 	const SNAP_THRESHOLD = 5; // pixels
@@ -1379,9 +1431,131 @@ export default function TemplateDesignerPage() {
 											mode: "independent",
 										align: "left",
 									}
-								: {
-										id: crypto.randomUUID(),
-										type: "line",
+									: kind === "icon"
+										? {
+												id: crypto.randomUUID(),
+												type: "icon",
+											x: at?.x ?? 60,
+											y: at?.y ?? 80,
+											width: 32,
+											height: 32,
+											rotation: 0,
+											zIndex: 1,
+												visible: true,
+												iconName: "file-text",
+												color: "#111827",
+											}
+									: kind === "spacer"
+										? {
+												id: crypto.randomUUID(),
+												type: "spacer",
+												x: at?.x ?? 40,
+												y: at?.y ?? 140,
+												width: 320,
+												height: 24,
+												rotation: 0,
+												zIndex: 0,
+												visible: true,
+												showDivider: false,
+												dividerStyle: "solid",
+												dividerColor: "#d1d5db",
+												dividerWidth: 1,
+											}
+									: kind === "pageBreak"
+										? {
+												id: crypto.randomUUID(),
+												type: "pageBreak",
+												x: at?.x ?? 40,
+												y: at?.y ?? 520,
+												width: PAGE_WIDTH - 80,
+												height: 24,
+												rotation: 0,
+												zIndex: 0,
+												visible: true,
+												breakType: "always",
+												showInEditor: true,
+												style: "dashed",
+											}
+									: kind === "qrCode"
+										? {
+												id: crypto.randomUUID(),
+												type: "qrCode",
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 120,
+												height: 120,
+												rotation: 0,
+												zIndex: 1,
+												visible: true,
+												content: "",
+												binding: defaultBinding,
+												dataType: "text",
+												foregroundColor: "#111827",
+												backgroundColor: "#ffffff",
+												errorCorrection: "medium",
+												margin: 2,
+											}
+									: kind === "barcode"
+										? {
+												id: crypto.randomUUID(),
+												type: "barcode",
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 260,
+												height: 80,
+												rotation: 0,
+												zIndex: 1,
+												visible: true,
+												value: "",
+												binding: defaultBinding,
+												format: "CODE128",
+												color: "#111827",
+												backgroundColor: "#ffffff",
+												showText: true,
+												textPosition: "bottom",
+											}
+									: kind === "signature"
+										? {
+												id: crypto.randomUUID(),
+												type: "signature",
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 240,
+												height: 80,
+												rotation: 0,
+												zIndex: 1,
+												visible: true,
+												signatureType: "placeholder",
+												placeholderText: "Signature",
+												showDate: false,
+											}
+									: kind === "stamp"
+										? {
+												id: crypto.randomUUID(),
+												type: "stamp",
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 160,
+												height: 80,
+												rotation: -12,
+												zIndex: 1,
+												visible: true,
+												text: "PAID",
+												stampType: "paid",
+												shape: "rectangle",
+												size: 120,
+												fontFamily: "Inter",
+												fontSize: 24,
+												fontWeight: "bold",
+												textColor: "#991b1b",
+												backgroundColor: "#fee2e2",
+												opacity: 0.85,
+												effect: "stamped",
+												pattern: "diagonal-lines",
+											}
+									: {
+											id: crypto.randomUUID(),
+											type: "line",
 										x: at?.x ?? 40,
 										y: at?.y ?? 140,
 										width: 200,
@@ -2025,6 +2199,7 @@ export default function TemplateDesignerPage() {
 			templates={templates}
 			currentTemplate={currentTemplate}
 			state={state}
+			hoveredElementId={hoveredElementId}
 			onStateChange={setState}
 			onCreateNewTemplate={handleCreateNewTemplate}
 			onOpenAIBuilder={() => {
@@ -2041,6 +2216,7 @@ export default function TemplateDesignerPage() {
 					setMobilePanelOpen(true);
 				}
 			}}
+			onHoverElement={setHoveredElementId}
 			onDuplicateElement={duplicateElement}
 			onDeleteElement={deleteElement}
 			missingRequiredFields={missingRequiredFields}
@@ -2101,6 +2277,8 @@ export default function TemplateDesignerPage() {
 					template={currentTemplate}
 					draftElements={draftElements}
 					state={state}
+					hoveredElementId={hoveredElementId}
+					onHoverElement={setHoveredElementId}
 					drag={drag}
 					snapGuides={snapGuides}
 					activeUsers={activeUsers}

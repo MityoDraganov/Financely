@@ -18,6 +18,7 @@ import {
 	CircleDollarSign,
 	Copy,
 	Sparkles,
+	StickyNote,
 } from "lucide-react";
 import { Template, TemplateElement } from "@/core";
 import { toast } from "sonner";
@@ -27,11 +28,13 @@ type TemplateSidebarProps = {
 	templates: Template[];
 	currentTemplate: Template | undefined;
 	state: DesignerState;
+	hoveredElementId?: string | null;
 	onStateChange: (updater: (s: DesignerState) => DesignerState) => void;
 	onCreateNewTemplate: () => void;
 	onOpenAIBuilder: () => void;
 	onAddElement: (kind: TemplateElement["type"]) => void;
 	onSelectElement: (id: string, event?: React.MouseEvent) => void;
+	onHoverElement?: (id: string | null) => void;
 	onDuplicateElement: (id: string) => void;
 	onDeleteElement: (id: string) => void;
 	missingRequiredFields: Array<{
@@ -52,6 +55,8 @@ export function TemplateSidebar({
 	onOpenAIBuilder,
 	onAddElement,
 	onSelectElement,
+	hoveredElementId,
+	onHoverElement,
 	onDuplicateElement,
 	onDeleteElement,
 	missingRequiredFields,
@@ -234,6 +239,23 @@ export function TemplateSidebar({
 					<Button
 						variant="secondary"
 						onClick={() => {
+							onAddElement("icon");
+							toast.success(t('designer.sidebar.iconAdded', 'Icon added'), { duration: 1500 });
+						}}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "icon");
+							e.dataTransfer.setData("text/plain", "icon");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<StickyNote className="h-4 w-4 mr-2 text-muted-foreground" />
+						<span className="font-medium">{t('designer.sidebar.icon', 'Icon')}</span>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => {
 							onAddElement("currency");
 							toast.success(t('designer.sidebar.currencyAdded'), { duration: 1500 });
 						}}
@@ -244,11 +266,95 @@ export function TemplateSidebar({
 							e.dataTransfer.effectAllowed = "copy";
 						}}
 						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+						>
+							<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
+							<span className="font-medium">{t('designer.sidebar.currency')}</span>
+						</Button>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("spacer")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "spacer");
+							e.dataTransfer.setData("text/plain", "spacer");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
 					>
-						<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.currency')}</span>
+						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
+						<span className="font-medium">{t('designer.sidebar.spacer', 'Spacer')}</span>
 					</Button>
-				</div>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("pageBreak")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "pageBreak");
+							e.dataTransfer.setData("text/plain", "pageBreak");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
+						<span className="font-medium">{t('designer.sidebar.pageBreak', 'Page Break')}</span>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("qrCode")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "qrCode");
+							e.dataTransfer.setData("text/plain", "qrCode");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<Square className="h-4 w-4 mr-2 text-neutral-600" />
+						<span className="font-medium">{t('designer.sidebar.qrCode', 'QR Code')}</span>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("barcode")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "barcode");
+							e.dataTransfer.setData("text/plain", "barcode");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
+						<span className="font-medium">{t('designer.sidebar.barcode', 'Barcode')}</span>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("signature")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "signature");
+							e.dataTransfer.setData("text/plain", "signature");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+						<span className="font-medium">{t('designer.sidebar.signature', 'Signature')}</span>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => onAddElement("stamp")}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "stamp");
+							e.dataTransfer.setData("text/plain", "stamp");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<StickyNote className="h-4 w-4 mr-2 text-muted-foreground" />
+						<span className="font-medium">{t('designer.sidebar.stamp', 'Stamp')}</span>
+					</Button>
+					</div>
 				<div className="mt-5">
 				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
@@ -267,12 +373,16 @@ export function TemplateSidebar({
 								<ContextMenu key={el.id}>
 									<ContextMenuTrigger asChild>
 										<div
-											className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-lg cursor-pointer truncate transition-all duration-200 ${
+											className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-sm cursor-pointer truncate transition-all duration-200 ${
 												state.selectedElementIds?.includes(el.id)
 													? "bg-primary/10 dark:bg-primary/20 text-primary border-2 border-primary/30 dark:border-primary/50 shadow-md"
-													: "hover:bg-accent hover:shadow-sm border border-transparent hover:border-border"
+													: hoveredElementId === el.id
+														? "bg-primary/5 dark:bg-primary/10 border border-primary/30 dark:border-primary/40"
+														: "hover:bg-accent hover:shadow-sm border border-transparent hover:border-border"
 											} ${isRequiredField ? "ring-1 ring-amber-400/50 dark:ring-amber-500/50" : ""}`}
 											onClick={(e) => onSelectElement(el.id, e)}
+											onMouseEnter={() => onHoverElement?.(el.id)}
+											onMouseLeave={() => onHoverElement?.(null)}
 										>
 											<div className="flex items-center gap-2">
 												{isRequiredField && (
@@ -327,6 +437,55 @@ export function TemplateSidebar({
 															: "text-muted-foreground"
 													}`} />
 												)}
+												{el.type === "icon" && (
+													<StickyNote className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "spacer" && (
+													<Minus className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "pageBreak" && (
+													<Minus className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "qrCode" && (
+													<Square className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "barcode" && (
+													<Minus className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "signature" && (
+													<TypeIcon className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
+												{el.type === "stamp" && (
+													<StickyNote className={`h-4 w-4 shrink-0 ${
+														state.selectedElementIds?.includes(el.id)
+															? "text-primary"
+															: "text-muted-foreground"
+													}`} />
+												)}
 												<span className="truncate flex-1 text-sm text-foreground">
 													{(() => {
 														if (el.type === "text") {
@@ -343,7 +502,21 @@ export function TemplateSidebar({
 															return t('designer.sidebar.box');
 														} else if (el.type === "line") {
 															return t('designer.sidebar.line');
-														}
+															} else if (el.type === "icon") {
+																return t('designer.sidebar.icon', 'Icon');
+															} else if (el.type === "spacer") {
+																return t('designer.sidebar.spacer', 'Spacer');
+															} else if (el.type === "pageBreak") {
+																return t('designer.sidebar.pageBreak', 'Page Break');
+															} else if (el.type === "qrCode") {
+																return t('designer.sidebar.qrCode', 'QR Code');
+															} else if (el.type === "barcode") {
+																return t('designer.sidebar.barcode', 'Barcode');
+															} else if (el.type === "signature") {
+																return t('designer.sidebar.signature', 'Signature');
+															} else if (el.type === "stamp") {
+																return t('designer.sidebar.stamp', 'Stamp');
+															}
 														// Fallback for any other element type
 														const element = el as TemplateElement;
 														return t('designer.sidebar.element', { id: element.id.slice(0, 6) });
@@ -375,4 +548,3 @@ export function TemplateSidebar({
 		</div>
 	);
 }
-

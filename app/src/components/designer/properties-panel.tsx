@@ -22,6 +22,7 @@ import {
 	ImageProperties,
 	BoxProperties,
 	LineProperties,
+	IconProperties,
 	TableProperties,
 	InputProperties,
 } from "@/components/designer/elements";
@@ -165,10 +166,38 @@ export function PropertiesPanel({
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageSize')}</Label>
 						<Select
-							value={template.pageSize}
-							onValueChange={(v: string) =>
-								saveMutation.mutate({ pageSize: v as TemplateData["pageSize"] })
-							}
+							value={template.pageSettings?.size ?? template.pageSize}
+							onValueChange={(v: string) => {
+								if (v === "A4" || v === "Letter" || v === "Legal") {
+									saveMutation.mutate({
+										pageSize: v as TemplateData["pageSize"],
+										pageSettings: {
+											size: v,
+											orientation: template.pageSettings?.orientation ?? "portrait",
+											customSize: template.pageSettings?.customSize,
+											margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+											padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+											backgroundColor: template.pageSettings?.backgroundColor,
+											backgroundImage: template.pageSettings?.backgroundImage,
+											backgroundOpacity: template.pageSettings?.backgroundOpacity,
+										},
+									});
+									return;
+								}
+
+								saveMutation.mutate({
+									pageSettings: {
+										size: "Custom",
+										orientation: template.pageSettings?.orientation ?? "portrait",
+										customSize: template.pageSettings?.customSize ?? { width: 794, height: 1123 },
+										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+										backgroundColor: template.pageSettings?.backgroundColor,
+										backgroundImage: template.pageSettings?.backgroundImage,
+										backgroundOpacity: template.pageSettings?.backgroundOpacity,
+									},
+								});
+							}}
 						>
 							<SelectTrigger className={components.inputHeight}>
 								<SelectValue />
@@ -176,8 +205,114 @@ export function PropertiesPanel({
 							<SelectContent>
 								<SelectItem value="A4">A4</SelectItem>
 								<SelectItem value="Letter">Letter</SelectItem>
+								<SelectItem value="Legal">Legal</SelectItem>
+								<SelectItem value="Custom">Custom</SelectItem>
 							</SelectContent>
 						</Select>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.orientation', 'Orientation')}</Label>
+						<Select
+							value={template.pageSettings?.orientation ?? "portrait"}
+							onValueChange={(v: string) =>
+								saveMutation.mutate({
+									pageSettings: {
+										size: template.pageSettings?.size ?? template.pageSize,
+										orientation: v as "portrait" | "landscape",
+										customSize: template.pageSettings?.customSize,
+										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+										backgroundColor: template.pageSettings?.backgroundColor,
+										backgroundImage: template.pageSettings?.backgroundImage,
+										backgroundOpacity: template.pageSettings?.backgroundOpacity,
+									},
+								})
+							}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="portrait">Portrait</SelectItem>
+								<SelectItem value="landscape">Landscape</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					{template.pageSettings?.size === "Custom" && (
+						<>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.customWidth', 'Custom Width')}</Label>
+								<Input
+									type="number"
+									value={template.pageSettings?.customSize?.width ?? 794}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+										saveMutation.mutate({
+											pageSettings: {
+												size: "Custom",
+												orientation: template.pageSettings?.orientation ?? "portrait",
+												customSize: {
+													width: Number(e.target.value),
+													height: template.pageSettings?.customSize?.height ?? 1123,
+												},
+												margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+												padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+												backgroundColor: template.pageSettings?.backgroundColor,
+												backgroundImage: template.pageSettings?.backgroundImage,
+												backgroundOpacity: template.pageSettings?.backgroundOpacity,
+											},
+										})
+									}
+									className={components.inputHeight}
+								/>
+							</div>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.customHeight', 'Custom Height')}</Label>
+								<Input
+									type="number"
+									value={template.pageSettings?.customSize?.height ?? 1123}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+										saveMutation.mutate({
+											pageSettings: {
+												size: "Custom",
+												orientation: template.pageSettings?.orientation ?? "portrait",
+												customSize: {
+													width: template.pageSettings?.customSize?.width ?? 794,
+													height: Number(e.target.value),
+												},
+												margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+												padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+												backgroundColor: template.pageSettings?.backgroundColor,
+												backgroundImage: template.pageSettings?.backgroundImage,
+												backgroundOpacity: template.pageSettings?.backgroundOpacity,
+											},
+										})
+									}
+									className={components.inputHeight}
+								/>
+							</div>
+						</>
+					)}
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageBackground', 'Page Background')}</Label>
+						<Input
+							type="color"
+							value={template.pageSettings?.backgroundColor ?? "#ffffff"}
+							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+								saveMutation.mutate({
+									pageSettings: {
+										size: template.pageSettings?.size ?? template.pageSize,
+										orientation: template.pageSettings?.orientation ?? "portrait",
+										customSize: template.pageSettings?.customSize,
+										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+										backgroundColor: e.target.value,
+										backgroundImage: template.pageSettings?.backgroundImage,
+										backgroundOpacity: template.pageSettings?.backgroundOpacity,
+									},
+								})
+							}
+							className={components.inputHeight}
+						/>
 					</div>
 				</div>
 			</section>
@@ -334,6 +469,11 @@ function ElementProperties({
 		return <LineProperties element={ln} onChange={onChange} />;
 	}
 
+	if (element.type === "icon") {
+		const iconEl = element as Extract<TemplateElement, { type: "icon" }>;
+		return <IconProperties element={iconEl} onChange={onChange} />;
+	}
+
 	if (element.type === "table") {
 		const tbl = element as Extract<TemplateElement, { type: "table" }>;
 		return (
@@ -367,6 +507,22 @@ function ElementProperties({
 		);
 	}
 
+	if (
+		element.type === "spacer" ||
+		element.type === "pageBreak" ||
+		element.type === "qrCode" ||
+		element.type === "barcode" ||
+		element.type === "signature" ||
+		element.type === "stamp"
+	) {
+		return (
+			<BasicElementProperties
+				element={element}
+				onChange={onChange}
+			/>
+		);
+	}
+
 	return (
 		<div className={typography.helperText}>
 			Select an element to edit.
@@ -374,3 +530,80 @@ function ElementProperties({
 	);
 }
 
+function BasicElementProperties({
+	element,
+	onChange,
+}: {
+	element: Extract<
+		TemplateElement,
+		{ type: "spacer" | "pageBreak" | "qrCode" | "barcode" | "signature" | "stamp" }
+	>;
+	onChange: (partial: Partial<TemplateElement>) => void;
+}) {
+	const titleByType: Record<typeof element.type, string> = {
+		spacer: "Spacer",
+		pageBreak: "Page Break",
+		qrCode: "QR Code",
+		barcode: "Barcode",
+		signature: "Signature",
+		stamp: "Stamp",
+	};
+
+	return (
+		<div className={components.section}>
+			<h3 className={typography.sectionTitle}>{titleByType[element.type]}</h3>
+			<section className={components.subsection}>
+				<div className={components.grid}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>X</Label>
+						<Input type="number" value={element.x} onChange={(e) => onChange({ x: Number(e.target.value) })} className={components.inputHeight} />
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Y</Label>
+						<Input type="number" value={element.y} onChange={(e) => onChange({ y: Number(e.target.value) })} className={components.inputHeight} />
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Width</Label>
+						<Input type="number" value={element.width} onChange={(e) => onChange({ width: Number(e.target.value) })} className={components.inputHeight} />
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Height</Label>
+						<Input type="number" value={element.height} onChange={(e) => onChange({ height: Number(e.target.value) })} className={components.inputHeight} />
+					</div>
+				</div>
+			</section>
+			{element.type === "qrCode" && (
+				<section className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Content</Label>
+						<Input value={element.content} onChange={(e) => onChange({ content: e.target.value })} className={components.inputHeight} />
+					</div>
+				</section>
+			)}
+			{element.type === "barcode" && (
+				<section className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Value</Label>
+						<Input value={element.value} onChange={(e) => onChange({ value: e.target.value })} className={components.inputHeight} />
+					</div>
+				</section>
+			)}
+			{element.type === "signature" && (
+				<section className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Placeholder</Label>
+						<Input value={element.placeholderText} onChange={(e) => onChange({ placeholderText: e.target.value })} className={components.inputHeight} />
+					</div>
+				</section>
+			)}
+			{element.type === "stamp" && (
+				<section className={components.subsection}>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Text</Label>
+						<Input value={element.text} onChange={(e) => onChange({ text: e.target.value })} className={components.inputHeight} />
+					</div>
+				</section>
+			)}
+		</div>
+	);
+}

@@ -15,10 +15,8 @@ export { generateProductTableConfig } from "./functions/generate-product-table-c
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
 export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 
-// Invoice extraction functions
-export { uploadInvoiceFile } from "./functions/upload-invoice-file";
-export { extractInvoiceData } from "./functions/extract-invoice-data";
-export { generateTemplateFromExtraction } from "./functions/generate-template-from-extraction";
+// Invoice extraction (single callable with action: upload | extract | generateTemplate)
+export { invoiceExtraction } from "./functions/invoice-extraction";
 
 // Workflow functions
 export { createWorkflow } from "./functions/create-workflow";

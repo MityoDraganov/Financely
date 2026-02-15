@@ -7,6 +7,8 @@ import React from "react";
 import type { TemplateElement } from "@/core/entities/template";
 import type { RenderPage } from "@/utils/template-pagination";
 import { getByPath, formatValue } from "@/utils/template-preview-utils";
+import type { IconName } from "lucide-react/dynamic";
+import { DynamicIcon, normalizeIconName } from "@/components/designer/elements/lucide-icon-map";
 
 type InvoicePreviewContext = unknown;
 
@@ -68,9 +70,19 @@ function calculateElementStyle(
 function calculateAdjustedY(
 	el: TemplateElement,
 	_templateElements: TemplateElement[],
-	context: InvoicePreviewContext
+	context: InvoicePreviewContext,
+	pageSize: { w: number; h: number },
+	margins: { top: number; right: number; bottom: number; left: number }
 ): number {
 	let adjustedY = el.y;
+	const usableHeight = pageSize.h - margins.top - margins.bottom;
+
+	// Each page-break element forces a new page for subsequent content.
+	_templateElements.forEach((otherEl) => {
+		if (otherEl.type === "pageBreak" && otherEl.id !== el.id && otherEl.y <= el.y) {
+			adjustedY += usableHeight;
+		}
+	});
 	
 	_templateElements.forEach((otherEl) => {
 		if (otherEl.type === "table" && otherEl.id !== el.id) {
@@ -167,6 +179,13 @@ function renderImageElement(
 						width: "100%",
 						height: "100%",
 						objectFit: el.objectFit,
+						objectPosition: el.objectPosition,
+						opacity: el.opacity ?? 1,
+						border: el.border ? `${el.border.width}px ${el.border.style} ${el.border.color}` : undefined,
+						borderRadius: el.border?.radius,
+						boxShadow: el.shadow?.enabled
+							? `${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.spread}px ${el.shadow.color}`
+							: undefined,
 						display: "block",
 						maxWidth: "100%",
 						maxHeight: "100%",
@@ -225,13 +244,40 @@ function renderLineElement(
 		<div key={el.id} style={style}>
 			<div
 				style={{
-					borderTop: `${el.strokeWidth}px solid ${el.stroke}`,
+					borderTop: `${el.strokeWidth}px ${el.style || "solid"} ${el.stroke}`,
 					position: "absolute",
 					left: 0,
 					right: 0,
 					top: "50%",
+					opacity: el.opacity ?? 1,
 				}}
 			/>
+		</div>
+	);
+}
+
+/**
+ * Render icon element
+ */
+function renderIconElement(
+	el: Extract<TemplateElement, { type: "icon" }>,
+	style: ElementStyle
+): React.ReactNode {
+	const name = normalizeIconName(el.iconName) as IconName;
+	return (
+		<div key={el.id} style={style}>
+			<div
+				style={{
+					width: "100%",
+					height: "100%",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					color: el.color ?? "#111827",
+				}}
+			>
+				<DynamicIcon name={name} style={{ width: "100%", height: "100%", minWidth: 16, minHeight: 16 }} />
+			</div>
 		</div>
 	);
 }
@@ -562,6 +608,139 @@ function renderTableElement(
 	);
 }
 
+function renderSpacerElement(
+	el: Extract<TemplateElement, { type: "spacer" }>,
+	style: ElementStyle
+): React.ReactNode {
+	return (
+		<div key={el.id} style={style}>
+			{el.showDivider ? (
+				<div
+					style={{
+						borderTopWidth: el.dividerWidth,
+						borderTopStyle: el.dividerStyle,
+						borderTopColor: el.dividerColor,
+						width: "100%",
+						position: "absolute",
+						top: "50%",
+						left: 0,
+					}}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+function renderQrCodeElement(
+	el: Extract<TemplateElement, { type: "qrCode" }>,
+	style: ElementStyle,
+	context: InvoicePreviewContext
+): React.ReactNode {
+	const value = el.binding ? getByPath<string>(context, el.binding) || el.content : el.content;
+	return (
+		<div
+			key={el.id}
+			style={{
+				...style,
+				background: el.backgroundColor,
+				color: el.foregroundColor,
+				border: "1px solid #d1d5db",
+				display: "grid",
+				placeItems: "center",
+				fontSize: 10,
+				fontWeight: 700,
+			}}
+			title={value}
+		>
+			QR
+		</div>
+	);
+}
+
+function renderBarcodeElement(
+	el: Extract<TemplateElement, { type: "barcode" }>,
+	style: ElementStyle,
+	context: InvoicePreviewContext
+): React.ReactNode {
+	const value = el.binding ? getByPath<string>(context, el.binding) || el.value : el.value;
+	return (
+		<div
+			key={el.id}
+			style={{
+				...style,
+				background: el.backgroundColor,
+				color: el.color,
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "center",
+				justifyContent: "center",
+				gap: 4,
+			}}
+		>
+			<div
+				style={{
+					width: "92%",
+					height: "60%",
+					backgroundImage: "repeating-linear-gradient(to right, currentColor 0, currentColor 2px, transparent 2px, transparent 4px)",
+				}}
+			/>
+			{el.showText ? <div style={{ fontSize: 10, letterSpacing: 1 }}>{value || "BARCODE"}</div> : null}
+		</div>
+	);
+}
+
+function renderSignatureElement(
+	el: Extract<TemplateElement, { type: "signature" }>,
+	style: ElementStyle
+): React.ReactNode {
+	return (
+		<div key={el.id} style={style}>
+			<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+				{el.signatureType === "image" && el.signatureImage ? (
+					<img src={el.signatureImage} alt="Signature" style={{ maxHeight: "70%", objectFit: "contain", objectPosition: "left bottom" }} />
+				) : (
+					<div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>{el.placeholderText || "Signature"}</div>
+				)}
+				<div
+					style={{
+						borderBottomWidth: el.borderBottom?.width ?? 1,
+						borderBottomStyle: el.borderBottom?.style ?? "solid",
+						borderBottomColor: el.borderBottom?.color ?? "#111827",
+					}}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function renderStampElement(
+	el: Extract<TemplateElement, { type: "stamp" }>,
+	style: ElementStyle
+): React.ReactNode {
+	return (
+		<div
+			key={el.id}
+			style={{
+				...style,
+				background: el.backgroundColor,
+				color: el.textColor,
+				opacity: el.opacity,
+				borderRadius: el.shape === "circle" ? "9999px" : 8,
+				border: el.border ? `${el.border.width}px ${el.border.style} ${el.border.color}` : "1px solid currentColor",
+				fontFamily: el.fontFamily,
+				fontWeight: el.fontWeight,
+				fontSize: el.fontSize,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				textTransform: "uppercase",
+			}}
+		>
+			{el.text}
+		</div>
+	);
+}
+
 /**
  * Render a template element
  */
@@ -572,7 +751,7 @@ export function renderTemplateElement(
 	const { context, pageIndex, pageSize, templateElements, margins } = renderContext;
 	// page is accessed via renderContext in renderTableElement
 	
-	const adjustedY = calculateAdjustedY(el, templateElements, context);
+	const adjustedY = calculateAdjustedY(el, templateElements, context, pageSize, margins);
 	const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins);
 	
 	switch (el.type) {
@@ -584,14 +763,27 @@ export function renderTemplateElement(
 			return renderBoxElement(el, style);
 		case "line":
 			return renderLineElement(el, style);
+		case "icon":
+			return renderIconElement(el, style);
 		case "input":
 			return renderInputElement(el, style, context);
 		case "currency":
 			return renderCurrencyElement(el, style, context);
 		case "table":
 			return renderTableElement(el, style, renderContext);
+		case "spacer":
+			return renderSpacerElement(el, style);
+		case "pageBreak":
+			return null;
+		case "qrCode":
+			return renderQrCodeElement(el, style, context);
+		case "barcode":
+			return renderBarcodeElement(el, style, context);
+		case "signature":
+			return renderSignatureElement(el, style);
+		case "stamp":
+			return renderStampElement(el, style);
 		default:
 			return null;
 	}
 }
-
