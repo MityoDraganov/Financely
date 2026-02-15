@@ -193,6 +193,14 @@ function compileBlock(block: InvoiceBlock, out: TemplateElement[], inheritedZ = 
       const columns = Array.isArray(props.columns)
         ? (props.columns as TableColumn[])
         : defaultTableColumns(block.id);
+      const borderStyle =
+        props.borderStyle === "none" ||
+        props.borderStyle === "rows" ||
+        props.borderStyle === "columns" ||
+        props.borderStyle === "all" ||
+        props.borderStyle === "outer"
+          ? props.borderStyle
+          : undefined;
 
       out.push({
         id: `${block.id}-table`,
@@ -204,6 +212,27 @@ function compileBlock(block: InvoiceBlock, out: TemplateElement[], inheritedZ = 
         itemsBinding: toStr(props.itemsBinding, block.type === "lineItems" ? "line_items" : "items"),
         columns,
         designRows: [],
+        headerStyle:
+          typeof props.headerStyle === "object" && props.headerStyle !== null
+            ? (props.headerStyle as Record<string, unknown> as Extract<TemplateElement, { type: "table" }>["headerStyle"])
+            : undefined,
+        rowStyle:
+          typeof props.rowStyle === "object" && props.rowStyle !== null
+            ? (props.rowStyle as Record<string, unknown> as Extract<TemplateElement, { type: "table" }>["rowStyle"])
+            : undefined,
+        footerStyle:
+          typeof props.footerStyle === "object" && props.footerStyle !== null
+            ? (props.footerStyle as Record<string, unknown> as Extract<TemplateElement, { type: "table" }>["footerStyle"])
+            : undefined,
+        headerBackground: typeof props.headerBackground === "string" ? props.headerBackground : undefined,
+        rowBackground: typeof props.rowBackground === "string" ? props.rowBackground : undefined,
+        alternateRowBackground:
+          typeof props.alternateRowBackground === "string" ? props.alternateRowBackground : undefined,
+        footerBackground: typeof props.footerBackground === "string" ? props.footerBackground : undefined,
+        borderStyle,
+        borderColor: typeof props.borderColor === "string" ? props.borderColor : undefined,
+        borderWidth: typeof props.borderWidth === "number" ? props.borderWidth : undefined,
+        showFooter: typeof props.showFooter === "boolean" ? props.showFooter : undefined,
       });
       break;
     }

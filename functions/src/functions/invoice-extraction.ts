@@ -234,18 +234,18 @@ async function handleGenerateTemplateAction(
     throw new HttpsError("failed-precondition", "GEMINI_API_KEY not configured");
   }
   const aiService = getAIService();
-  if (!aiService.getProvider("gemini")) {
-    aiService.registerProvider(
-      new GeminiProvider({ apiKey: geminiApiKey.value()!, model: "gemini-2.5-flash" })
-    );
-    aiService.setDefaultProvider("gemini");
-  }
+  // Force a stronger vision-capable model for one-shot template cloning.
+  aiService.registerProvider(
+    new GeminiProvider({ apiKey: geminiApiKey.value()!, model: "gemini-2.5-pro" })
+  );
+  aiService.setDefaultProvider("gemini");
 
   const normalizedOptions = normalizeGenerateTemplateOptions(payload);
 
   loggerService.info("Invoice extraction: generateTemplate", {
     jobId,
     orgId: job.orgId,
+    model: "gemini-2.5-pro",
     strategy: normalizedOptions.strategy,
     qualityTarget: normalizedOptions.qualityTarget,
   });

@@ -58,6 +58,12 @@ export default function InvoiceUploadFlowPage() {
 
   const handleUploadSuccess = (uploadedJobId: string) => {
     setJobId(uploadedJobId);
+    if (flowType === "template") {
+      setStep("preview");
+      void handleGenerateTemplate(undefined, uploadedJobId);
+      return;
+    }
+
     setStep("extract");
     setTimeout(() => {
       extractMutation.mutate(uploadedJobId);
@@ -66,10 +72,11 @@ export default function InvoiceUploadFlowPage() {
 
   // Auto-extract when job is uploaded and pending
   useEffect(() => {
+    if (flowType !== "invoice") return;
     if (job && job.status === "pending" && !extractMutation.isPending && extractMutation.isIdle) {
       extractMutation.mutate(job.id);
     }
-  }, [job, extractMutation]);
+  }, [job, extractMutation, flowType]);
 
   // Check for template matches when extraction completes
   useEffect(() => {
@@ -83,14 +90,15 @@ export default function InvoiceUploadFlowPage() {
         // No good match, proceed to template generation
         setStep("preview");
       }
-    } else if (job && job.status === "extracted" && flowType === "template" && step === "extract") {
-      // For template flow, always generate template
-      setStep("preview");
     }
   }, [job, templates, flowType, step]);
 
-  const handleGenerateTemplate = async (editedData?: Record<string, unknown>) => {
-    if (!jobId) return;
+  const handleGenerateTemplate = async (
+    editedData?: Record<string, unknown>,
+    explicitJobId?: string
+  ) => {
+    const targetJobId = explicitJobId || jobId;
+    if (!targetJobId) return;
 
     // Store edited data if provided
     if (editedData) {
@@ -99,7 +107,7 @@ export default function InvoiceUploadFlowPage() {
 
     try {
       const result = await generateTemplate.mutateAsync({
-        jobId,
+        jobId: targetJobId,
         editedData,
         options: {
           style: "modern",
@@ -242,7 +250,7 @@ export default function InvoiceUploadFlowPage() {
             }`}>
               {["match", "preview", "complete"].includes(step) ? <CheckCircle2 className="h-4 w-4" /> : "2"}
             </div>
-            <span className="font-medium">Extract</span>
+            <span className="font-medium">{flowType === "template" ? "Analyze" : "Extract"}</span>
           </div>
           {flowType === "invoice" && (
             <>
@@ -382,8 +390,60 @@ export default function InvoiceUploadFlowPage() {
           </Card>
         )}
 
-        {/* Preview/Generate Step */}
-        {step === "preview" && job && job.status === "extracted" && (
+        {/* Preview/Generate Step (Template Flow: one-shot vision, no OCR step) */}
+        {step === "preview" && flowType === "template" && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Template Generation</CardTitle>
+                <CardDescription>
+                  We analyze your invoice visually in one AI pass and build a block-based template.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {generateTemplate.isPending ? (
+                  <div className="flex items-center justify-center gap-3 py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Generating template from invoice layout...
+                    </p>
+                  </div>
+                ) : generatedTemplate ? (
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertDescription>
+                      Template generated. Review and accept the preview.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      Template generation failed. Please upload again or retry.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            {generatedTemplate && (
+              <TemplatePreviewDialog
+                open={showPreview}
+                onOpenChange={setShowPreview}
+                template={generatedTemplate}
+                quality={templateQuality || undefined}
+                needsReview={templateNeedsReview}
+                reviewReasons={templateReviewReasons}
+                extractedData={(editedExtractedData || (job?.extractedData as Record<string, InvoiceDataValue>) || {})}
+                flowType={flowType}
+                onAccept={handleAcceptTemplate}
+                onEdit={handleEditTemplate}
+              />
+            )}
+          </>
+        )}
+
+        {/* Preview/Generate Step (Invoice Flow: OCR/extraction path) */}
+        {step === "preview" && flowType === "invoice" && job && job.status === "extracted" && (
           <>
             <Card>
               <CardHeader>
