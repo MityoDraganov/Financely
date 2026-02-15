@@ -3,6 +3,7 @@ import { AIService } from "./ai-service";
 import { getAIService } from "./ai-service";
 import {
   BLOCK_SCHEMA_VERSION,
+  buildTemplateLlmManifest,
   buildTemplateGenerationSchema,
   buildTemplateSchemaGuidance,
 } from "../../core/block-registry";
@@ -13,6 +14,9 @@ import { validateTemplateCompliance } from "../../utils/invoice-compliance";
 import { formatProductFieldsForAI } from "../../utils/product-fields";
 import { validateTemplateData, repairTemplateGenerationRaw } from "./template-generation-validate-repair";
 import type { JSONSchema } from "./ai-service";
+import { clampTemplateElementsToPrintableArea } from "../../utils/template-printable-bounds";
+
+const STANDARD_PRINT_MARGINS_PX = { top: 96, right: 96, bottom: 96, left: 96 };
 
 /**
  * Service for generating invoice templates using AI
@@ -242,7 +246,7 @@ export class InvoiceTemplateGenerationService {
             secondary: organization.settings?.brandColors?.secondary || "#6b7280",
             accent: organization.settings?.brandColors?.accent || "#2563eb",
           },
-          margins: result.brand?.margins || { top: 40, right: 40, bottom: 40, left: 40 },
+          margins: result.brand?.margins || STANDARD_PRINT_MARGINS_PX,
         },
         elements: enrichedElements,
         status: "draft",
@@ -340,7 +344,7 @@ export class InvoiceTemplateGenerationService {
               secondary: organization.settings?.brandColors?.secondary || "#6b7280",
               accent: organization.settings?.brandColors?.accent || "#2563eb",
             },
-            margins: repairedRaw.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
+            margins: repairedRaw.brand?.margins ?? STANDARD_PRINT_MARGINS_PX,
           },
           elements: enrichedElements2,
           status: "draft",
@@ -373,6 +377,14 @@ export class InvoiceTemplateGenerationService {
           requiredFields
         );
       }
+
+      // Final boundary pass: keep all elements inside printable bounds (page size minus margins).
+      template = clampTemplateElementsToPrintableArea(template);
+      const boundedParse = validateTemplateData(template);
+      if (!boundedParse.success) {
+        throw new Error("Template validation failed after boundary clamp: " + boundedParse.error.message);
+      }
+      template = boundedParse.data;
       
       logger.info("Invoice template generated successfully", {
         organizationId: organization.id,
@@ -477,6 +489,8 @@ export class InvoiceTemplateGenerationService {
     const currency = organization.settings?.defaultCurrency || regionCurrencyMap[region] || "USD";
     const requiredList = requiredFields.map(f => `${f.binding} (${f.label})`).join("; ");
     const schemaGuidance = buildTemplateSchemaGuidance();
+    const llmManifest = buildTemplateLlmManifest("template_generation");
+    const llmManifestJson = JSON.stringify(llmManifest);
 
     return `Generate a valid invoice template that conforms to the attached schema. Use ONLY supported element types/properties from the schema. The elements array is REQUIRED and must not be empty.
 
@@ -484,6 +498,9 @@ Rules: All monetary values use Currency elements (not Input). Table price column
 
 Schema capabilities:
 ${schemaGuidance}
+
+LLM block contract (authoritative JSON):
+${llmManifestJson}
 
 Organization context:
 ${context}
@@ -701,7 +718,6 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
         type: "text",
         text: el.text || "",
         binding: el.binding,
-        padding: 0,
         opacity: 1,
         typography: el.typography || {
           fontFamily: "Inter",
@@ -748,7 +764,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-1`,
             header: "Description",
-            width: 200,
+            width: "44%",
             align: "left",
             type: "text",
             binding: "description",
@@ -758,7 +774,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-2`,
             header: "Quantity",
-            width: 80,
+            width: "16%",
             align: "right",
             type: "number",
             binding: "quantity",
@@ -768,7 +784,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-3`,
             header: "Price",
-            width: 100,
+            width: "20%",
             align: "right",
             type: "currency",
             binding: "unitPrice",
@@ -779,7 +795,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-4`,
             header: "Total",
-            width: 100,
+            width: "20%",
             align: "right",
             type: "currency",
             binding: "total",
@@ -884,7 +900,6 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
         visible: true,
         text: field.label,
         binding: field.binding,
-        padding: 0,
         opacity: 1,
         typography: {
           fontFamily: "Inter",
@@ -925,7 +940,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-1`,
             header: "Description",
-            width: 200,
+            width: "44%",
             align: "left",
             type: "text",
             binding: "description",
@@ -935,7 +950,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-2`,
             header: "Quantity",
-            width: 80,
+            width: "16%",
             align: "right",
             type: "number",
             binding: "quantity",
@@ -945,7 +960,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-3`,
             header: "Price",
-            width: 100,
+            width: "20%",
             align: "right",
             type: "currency",
             binding: "unitPrice",
@@ -956,7 +971,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
           {
             id: `col-${Date.now()}-4`,
             header: "Total",
-            width: 100,
+            width: "20%",
             align: "right",
             type: "currency",
             binding: "total",
@@ -1076,7 +1091,6 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
       visible: true,
       text: field.label,
       binding: field.binding,
-      padding: 0,
       opacity: 1,
       typography: {
         fontFamily: "Inter",

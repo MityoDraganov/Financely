@@ -14,6 +14,7 @@ import type {
 
 const CANVAS_WIDTH = 794;
 const CANVAS_HEIGHT = 1123;
+const STANDARD_PRINT_MARGINS_PX = { top: 96, right: 96, bottom: 96, left: 96 };
 type TextTemplateElement = Extract<TemplateElement, { type: "text" }>;
 type ImageTemplateElement = Extract<TemplateElement, { type: "image" }>;
 
@@ -127,7 +128,7 @@ export class OCRToTemplateService {
           secondary: organization.settings?.brandColors?.secondary || "#6b7280",
           accent: organization.settings?.brandColors?.accent || "#2563eb",
         },
-        margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        margins: STANDARD_PRINT_MARGINS_PX,
       },
       elements: deduped,
       status: "draft",
@@ -189,7 +190,6 @@ export class OCRToTemplateService {
             lowercase: false,
           },
           format: { kind: "none" as const },
-          padding: 0,
           opacity: 1,
         };
       })

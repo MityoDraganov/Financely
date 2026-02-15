@@ -46,7 +46,6 @@ export default function InvoiceUploadFlowPage() {
   const [templateQuality, setTemplateQuality] = useState<{ overall: number; layout: number; text: number; table: number; font: number } | null>(null);
   const [templateNeedsReview, setTemplateNeedsReview] = useState(false);
   const [templateReviewReasons, setTemplateReviewReasons] = useState<string[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
   const [updatedExtractedData, setUpdatedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
   const [editedExtractedData, setEditedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
 
@@ -122,7 +121,6 @@ export default function InvoiceUploadFlowPage() {
       setTemplateQuality(result.quality);
       setTemplateNeedsReview(result.needsReview);
       setTemplateReviewReasons(result.reviewReasons);
-      setShowPreview(true);
     } catch (error) {
       console.error("Failed to generate template:", error);
     }
@@ -142,8 +140,6 @@ export default function InvoiceUploadFlowPage() {
 
       // Create template
       const templateId = await templateService.createDraft(templateToCreate);
-      
-      setShowPreview(false);
 
       if (flowType === "invoice") {
         // Create invoice using the new template
@@ -169,7 +165,6 @@ export default function InvoiceUploadFlowPage() {
 
     // Create template first, then navigate to designer
     templateService.createDraft(templateToCreate).then((templateId) => {
-      setShowPreview(false);
       navigate(`/designer/${templateId}`);
     }).catch((error) => {
       toast.error("Failed to create template", {
@@ -427,8 +422,7 @@ export default function InvoiceUploadFlowPage() {
 
             {generatedTemplate && (
               <TemplatePreviewDialog
-                open={showPreview}
-                onOpenChange={setShowPreview}
+                inline
                 template={generatedTemplate}
                 quality={templateQuality || undefined}
                 needsReview={templateNeedsReview}
@@ -473,8 +467,7 @@ export default function InvoiceUploadFlowPage() {
 
             {generatedTemplate && (
               <TemplatePreviewDialog
-                open={showPreview}
-                onOpenChange={setShowPreview}
+                inline
                 template={generatedTemplate}
                 quality={templateQuality || undefined}
                 needsReview={templateNeedsReview}

@@ -75,7 +75,7 @@ export const textElementSchema = templateElementBaseSchema.extend({
   }),
   // Enhanced styling options
   backgroundColor: z.string().optional(), // Background color for text element
-  padding: z.number().min(0).max(50).default(0), // Padding around text
+  padding: z.number().min(0).max(50).optional(), // Legacy text padding (deprecated; use paddingStyle)
   opacity: z.number().min(0).max(1).default(1), // Opacity (0-1)
   shadow: shadowSchema.optional(),
   format: z
@@ -89,7 +89,7 @@ export const textElementSchema = templateElementBaseSchema.extend({
 
 export const imageElementSchema = templateElementBaseSchema.extend({
   type: z.literal("image"),
-  src: z.string().min(1),
+  src: z.string().default(""),
   binding: z.string().optional(),
   objectFit: z.enum(["contain", "cover", "fill", "none", "scale-down"]).default("contain"),
   objectPosition: z.string().optional(),
@@ -200,7 +200,7 @@ export const currencyElementSchema = templateElementBaseSchema.extend({
 export const tableColumnSchema = z.object({
   id: z.string().min(1),
   header: z.string().default("Column"),
-  width: z.number().min(20).default(80),
+  width: z.union([z.string().min(1), z.number().positive()]).default("1fr"),
   align: z.enum(["left", "center", "right"]).default("left"),
   type: z.enum(["text", "number", "date", "currency"]).default("text"),
   binding: z.string().optional(),
@@ -239,6 +239,19 @@ export const tableColumnSchema = z.object({
     .optional(),
 });
 
+const tableTextBehaviorSchema = z.object({
+  mode: z.enum(["wrap", "nowrap", "break-words", "ellipsis", "clamp"]).default("wrap"),
+  clampLines: z.number().int().min(1).max(10).optional(),
+});
+
+const tableTypographyStyleSchema = z.object({
+  fontFamily: z.string().optional(),
+  fontSize: z.number().optional(),
+  fontWeight: z.enum(["normal", "medium", "semibold", "bold"]).optional(),
+  color: z.string().optional(),
+  textBehavior: tableTextBehaviorSchema.optional(),
+});
+
 export const tableElementSchema = templateElementBaseSchema.extend({
   type: z.literal("table"),
   rowHeight: z.number().min(10).max(200).default(28),
@@ -255,18 +268,8 @@ export const tableElementSchema = templateElementBaseSchema.extend({
       }),
     )
     .default([]),
-  headerStyle: z.object({
-    fontFamily: z.string().optional(),
-    fontSize: z.number().optional(),
-    fontWeight: z.enum(["normal", "medium", "semibold", "bold"]).optional(),
-    color: z.string().optional(),
-  }).optional(),
-  rowStyle: z.object({
-    fontFamily: z.string().optional(),
-    fontSize: z.number().optional(),
-    fontWeight: z.enum(["normal", "medium", "semibold", "bold"]).optional(),
-    color: z.string().optional(),
-  }).optional(),
+  headerStyle: tableTypographyStyleSchema.optional(),
+  rowStyle: tableTypographyStyleSchema.optional(),
   footerStyle: z.object({
     fontFamily: z.string().optional(),
     fontSize: z.number().optional(),
@@ -405,7 +408,7 @@ export const templateBrandSchema = z.object({
     .default({ primary: "#111827", secondary: "#6b7280", accent: "#2563eb" }),
   margins: z
     .object({ top: z.number(), right: z.number(), bottom: z.number(), left: z.number() })
-    .default({ top: 40, right: 40, bottom: 40, left: 40 }),
+    .default({ top: 96, right: 96, bottom: 96, left: 96 }),
   backgroundImage: z.string().optional(),
   watermark: templateWatermarkSchema.optional(),
 });
@@ -417,7 +420,8 @@ export const templatePageSettingsSchema = z.object({
     width: z.number().min(100).max(5000),
     height: z.number().min(100).max(5000),
   }).optional(),
-  margins: spacingSchema.default({ top: 40, right: 40, bottom: 40, left: 40 }),
+  margins: spacingSchema.default({ top: 96, right: 96, bottom: 96, left: 96 }),
+  marginUnit: z.enum(["in", "cm"]).default("in"),
   padding: spacingSchema.default({ top: 0, right: 0, bottom: 0, left: 0 }),
   backgroundColor: z.string().optional(),
   backgroundImage: z.string().optional(),

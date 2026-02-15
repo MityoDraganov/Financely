@@ -11,6 +11,7 @@ import type { JSONSchema } from "../ai/ai-service";
 import { validateTemplateData, repairTemplateGenerationRaw } from "../ai/template-generation-validate-repair";
 import {
   BLOCK_SCHEMA_VERSION,
+  buildTemplateLlmManifest,
   buildTemplateGenerationSchema,
   buildTemplateSchemaGuidance,
 } from "../../core/block-registry";
@@ -799,6 +800,8 @@ export class TemplateFromExtractionService {
     const arrayPathList = arrayPaths.length > 0 ? arrayPaths.join(", ") : "(none)";
     const targetName = options?.templateName || "Template from Extracted Invoice";
     const schemaGuidance = buildTemplateSchemaGuidance();
+    const llmManifest = buildTemplateLlmManifest("template_generation");
+    const llmManifestJson = JSON.stringify(llmManifest);
 
     return `ROLE
 You are a Financely invoice-template generation engine. Build a production-ready template JSON for Financely only.
@@ -811,6 +814,9 @@ OUTPUT CONTRACT (STRICT)
 
 SCHEMA CAPABILITIES
 ${schemaGuidance}
+
+LLM BLOCK CONTRACT (AUTHORITATIVE JSON)
+${llmManifestJson}
 
 FINANCELY RULES (MANDATORY)
 1. Use only supported element types and properties from schema.
@@ -957,7 +963,6 @@ FINAL JSON TARGET
           ...(asString(el.calc) ? { calc: asString(el.calc) } : {}),
           typography: normalizeTypography(el.typography),
           format: normalizeFormat(el.format, currency),
-          padding: safeNumber(el.padding, 0),
           opacity: clamp01(safeNumber(el.opacity, 1)),
           ...(asString(el.backgroundColor) ? { backgroundColor: asString(el.backgroundColor) } : {}),
           ...(isPlainObject(el.shadow) ? { shadow: el.shadow as Record<string, unknown> } : {}),
@@ -1057,7 +1062,6 @@ FINAL JSON TARGET
           ...(normalizeIconLibrary(el.library) ? { library: normalizeIconLibrary(el.library) } : {}),
           ...(asString(el.customIconUrl) ? { customIconUrl: asString(el.customIconUrl) } : {}),
           ...(asString(el.backgroundColor) ? { backgroundColor: asString(el.backgroundColor) } : {}),
-          ...(typeof el.padding === "number" ? { padding: safeNumber(el.padding, 0) } : {}),
           ...(isPlainObject(el.border) ? { border: el.border as Record<string, unknown> } : {}),
           ...(normalizeIconShape(el.shape) ? { shape: normalizeIconShape(el.shape) } : {}),
           ...(normalizeIconFlip(el.flip) ? { flip: normalizeIconFlip(el.flip) } : {}),
@@ -1233,7 +1237,7 @@ function normalizeTableColumns(raw: unknown, currency: string): Array<Record<str
       const column: Record<string, unknown> = {
         id: asString(entry.id) || `column-${index + 1}`,
         header: asString(entry.header) || `Column ${index + 1}`,
-        width: Math.max(20, safeNumber(entry.width, 120)),
+        width: normalizeTableColumnWidth(entry.width, raw.length),
         align: normalizeAlign(entry.align),
         type: columnType,
         format,
@@ -1270,6 +1274,29 @@ function normalizePageSize(pageSize: unknown): "A4" | "Letter" | "Legal" {
   if (normalized === "Letter") return "Letter";
   if (normalized === "Legal") return "Legal";
   return "A4";
+}
+
+function normalizeTableColumnWidth(value: unknown, columnCount: number): string {
+  const trackRegex = /^([0-9]*\.?[0-9]+)\s*(%|fr)$/i;
+  if (typeof value === "string") {
+    const trimmed = value.trim().toLowerCase();
+    const match = trackRegex.exec(trimmed);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return `${Math.round(parsed * 100) / 100}${match[2]}`;
+      }
+    }
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return `${Math.round(numeric * 100) / 100}fr`;
+    }
+  }
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return `${Math.round(value * 100) / 100}fr`;
+  }
+  const fallbackPercent = 100 / Math.max(1, columnCount);
+  return `${Math.round(fallbackPercent * 100) / 100}%`;
 }
 
 function normalizeCurrencyCode(value: string | undefined, fallback: string): string {

@@ -8,6 +8,8 @@ interface ColorPickerProps {
   onChange: (color: string) => void;
   label?: string;
   className?: string;
+  allowTransparent?: boolean;
+  transparentLabel?: string;
 }
 
 interface ColorRGB {
@@ -157,9 +159,17 @@ function parseHsv(hsv: string): ColorHSV | null {
   return { h, s, v };
 }
 
-export function ColorPicker({ value, onChange, label, className }: ColorPickerProps) {
+export function ColorPicker({
+  value,
+  onChange,
+  label,
+  className,
+  allowTransparent = false,
+  transparentLabel = "Transparent",
+}: ColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [internalColor, setInternalColor] = useState(value || "#000000");
+  const [internalColor, setInternalColor] = useState(() => parseHex(value || "") || "#000000");
+  const [isTransparent, setIsTransparent] = useState((value || "").trim().toLowerCase() === "transparent");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hueSliderRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -168,6 +178,10 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   const [isHueDragging, setIsHueDragging] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<'bottom' | 'top'>('bottom');
+  const [popoverCoords, setPopoverCoords] = useState<{ left: number; top: number }>({
+    left: 0,
+    top: 0,
+  });
   
   // Track which input is focused
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -177,7 +191,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   const currentHsv = useMemo(() => rgbToHsv(currentRgb.r, currentRgb.g, currentRgb.b), [currentRgb]);
   
   // Local input states for free typing - initialized after RGB/HSV computation
-  const [hexInput, setHexInput] = useState(internalColor);
+  const [hexInput, setHexInput] = useState(isTransparent ? "transparent" : internalColor);
   const [rgbInput, setRgbInput] = useState(`${currentRgb.r}, ${currentRgb.g}, ${currentRgb.b}`);
   const [hsvInput, setHsvInput] = useState(`${currentHsv.h}, ${currentHsv.s}, ${currentHsv.v}`);
   
@@ -187,7 +201,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     const currentHsv = rgbToHsv(currentRgb.r, currentRgb.g, currentRgb.b);
     
     if (focusedInput !== 'hex') {
-      setHexInput(internalColor);
+      setHexInput(isTransparent ? "transparent" : internalColor);
     }
     if (focusedInput !== 'rgb') {
       setRgbInput(`${currentRgb.r}, ${currentRgb.g}, ${currentRgb.b}`);
@@ -195,36 +209,49 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     if (focusedInput !== 'hsv') {
       setHsvInput(`${currentHsv.h}, ${currentHsv.s}, ${currentHsv.v}`);
     }
-  }, [internalColor, focusedInput]);
+  }, [internalColor, focusedInput, isTransparent]);
 
-  // Calculate popover position based on available space
+  const updatePopoverLayout = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const triggerRect = containerRef.current.getBoundingClientRect();
+    const popoverWidth = 240;
+    const popoverHeight = 420;
+    const viewportMargin = 8;
+
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportMargin;
+    const spaceAbove = triggerRect.top - viewportMargin;
+    const nextPosition =
+      spaceBelow < popoverHeight && spaceAbove > spaceBelow ? "top" : "bottom";
+    setPopoverPosition(nextPosition);
+
+    let left = triggerRect.left;
+    if (left + popoverWidth > window.innerWidth - viewportMargin) {
+      left = Math.max(viewportMargin, window.innerWidth - popoverWidth - viewportMargin);
+    }
+
+    const top =
+      nextPosition === "top"
+        ? triggerRect.top - viewportMargin
+        : triggerRect.bottom + viewportMargin;
+
+    setPopoverCoords({ left, top });
+  }, []);
+
+  // Calculate and keep fixed popover position in sync with viewport/scroll.
   useEffect(() => {
-    if (!isOpen || !containerRef.current) return;
+    if (!isOpen) return;
+    updatePopoverLayout();
 
-    // Use requestAnimationFrame to ensure DOM is updated
-    const updatePosition = () => {
-      if (!popoverRef.current || !containerRef.current) return;
+    const handleReposition = () => updatePopoverLayout();
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
 
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const popoverHeight = 420; // Approximate height of the popover
-      const spaceBelow = window.innerHeight - containerRect.bottom - 20; // 20px margin
-      const spaceAbove = containerRect.top - 20; // 20px margin
-
-      // Position above if not enough space below, but enough space above
-      if (spaceBelow < popoverHeight && spaceAbove > spaceBelow) {
-        setPopoverPosition('top');
-      } else {
-        setPopoverPosition('bottom');
-      }
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
     };
-
-    // Use requestAnimationFrame for better timing
-    const rafId = requestAnimationFrame(() => {
-      setTimeout(updatePosition, 0);
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [isOpen]);
+  }, [isOpen, updatePopoverLayout]);
 
   const getInitialHsv = () => {
     const rgb = hexToRgb(value || "#000000");
@@ -240,25 +267,34 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   const [val, setVal] = useState(initialHsv.v);
 
   useEffect(() => {
-    const rgb = hexToRgb(value);
-    if (rgb) {
-      const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
-      setInternalColor(value);
-      setHue(hsv.h);
-      setSat(hsv.s);
-      setVal(hsv.v);
+    const raw = (value || "").trim().toLowerCase();
+    if (raw === "transparent") {
+      setIsTransparent(true);
+      return;
     }
+
+    const parsed = parseHex(value || "");
+    if (!parsed) return;
+    const rgb = hexToRgb(parsed);
+    if (!rgb) return;
+    const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+    setIsTransparent(false);
+    setInternalColor(parsed);
+    setHue(hsv.h);
+    setSat(hsv.s);
+    setVal(hsv.v);
   }, [value]);
 
   useEffect(() => {
     if (isOpen) {
-      const rgb = hexToRgb(value || internalColor);
+      const currentColor = parseHex(value || "") || internalColor;
+      const rgb = hexToRgb(currentColor);
       if (rgb) {
         const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
         setHue(hsv.h);
         setSat(hsv.s);
         setVal(hsv.v);
-        setInternalColor(value || internalColor);
+        setInternalColor(currentColor);
       }
     }
   }, [isOpen, value, internalColor]);
@@ -291,9 +327,9 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     ctx.fillStyle = blackGradient;
     ctx.fillRect(10, 10, size - 20, size - 20);
 
-    // Draw picker indicator
+    // Draw picker indicator (value is brightest at top, darkest at bottom)
     const x = 10 + (sat / 100) * (size - 20);
-    const y = 10 + (val / 100) * (size - 20);
+    const y = 10 + ((100 - val) / 100) * (size - 20);
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -317,7 +353,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     const padding = 10;
 
     const newSat = Math.max(0, Math.min(100, ((x - padding) / (size - padding * 2)) * 100));
-    const newVal = Math.max(0, Math.min(100, ((y - padding) / (size - padding * 2)) * 100));
+    const newVal = Math.max(0, Math.min(100, 100 - ((y - padding) / (size - padding * 2)) * 100));
 
     const newRgb = hsvToRgb(hue, newSat, newVal);
     const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
@@ -327,6 +363,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     }
 
     animationFrameRef.current = requestAnimationFrame(() => {
+      setIsTransparent(false);
       setSat(newSat);
       setVal(newVal);
       setInternalColor(newHex);
@@ -407,6 +444,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     }
 
     animationFrameRef.current = requestAnimationFrame(() => {
+      setIsTransparent(false);
       setHue(newHue);
       setInternalColor(newHex);
       onChange(newHex);
@@ -433,7 +471,12 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        (!popoverRef.current || !popoverRef.current.contains(target))
+      ) {
         setIsOpen(false);
       }
     };
@@ -450,6 +493,13 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   }, [isOpen]);
 
   const applyHexValue = (hexValue: string) => {
+    if (allowTransparent && hexValue.trim().toLowerCase() === "transparent") {
+      setIsTransparent(true);
+      setHexInput("transparent");
+      onChange("transparent");
+      return true;
+    }
+
     // Auto-add # if missing but user typed something
     let normalizedHex = hexValue.trim();
     if (normalizedHex && !normalizedHex.startsWith('#')) {
@@ -458,6 +508,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     
     const parsed = parseHex(normalizedHex);
     if (parsed) {
+      setIsTransparent(false);
       setInternalColor(parsed);
       onChange(parsed);
       const rgbValue = hexToRgb(parsed);
@@ -476,6 +527,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     const parsed = parseRgb(rgbStr.trim());
     if (parsed) {
       const hex = rgbToHex(parsed.r, parsed.g, parsed.b);
+      setIsTransparent(false);
       setInternalColor(hex);
       onChange(hex);
       const hsvValue = rgbToHsv(parsed.r, parsed.g, parsed.b);
@@ -495,6 +547,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
       setVal(parsed.v);
       const rgbValue = hsvToRgb(parsed.h, parsed.s, parsed.v);
       const hex = rgbToHex(rgbValue.r, rgbValue.g, rgbValue.b);
+      setIsTransparent(false);
       setInternalColor(hex);
       onChange(hex);
       return true;
@@ -504,6 +557,12 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
 
   const handleHexInput = (value: string) => {
     setHexInput(value);
+
+    if (allowTransparent && value.trim().toLowerCase() === "transparent") {
+      setIsTransparent(true);
+      onChange("transparent");
+      return;
+    }
     
     // Apply in real-time for preview, but still validate on blur
     let normalizedHex = value.trim();
@@ -517,6 +576,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
       const rgbValue = hexToRgb(parsed);
       if (rgbValue) {
         const hsvValue = rgbToHsv(rgbValue.r, rgbValue.g, rgbValue.b);
+        setIsTransparent(false);
         setHue(hsvValue.h);
         setSat(hsvValue.s);
         setVal(hsvValue.v);
@@ -530,7 +590,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     const success = applyHexValue(hexInput);
     if (!success) {
       // Revert to last valid value
-      setHexInput(internalColor);
+      setHexInput(isTransparent ? "transparent" : internalColor);
     }
     setFocusedInput(null);
   };
@@ -549,6 +609,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     if (parsed) {
       const hex = rgbToHex(parsed.r, parsed.g, parsed.b);
       const hsvValue = rgbToHsv(parsed.r, parsed.g, parsed.b);
+      setIsTransparent(false);
       setHue(hsvValue.h);
       setSat(hsvValue.s);
       setVal(hsvValue.v);
@@ -583,6 +644,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
       setVal(parsed.v);
       const rgbValue = hsvToRgb(parsed.h, parsed.s, parsed.v);
       const hex = rgbToHex(rgbValue.r, rgbValue.g, rgbValue.b);
+      setIsTransparent(false);
       setInternalColor(hex);
       onChange(hex);
     }
@@ -607,6 +669,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   // Helper to check if current input is valid
   const isHexValid = () => {
     if (focusedInput !== 'hex') return true;
+    if (allowTransparent && hexInput.trim().toLowerCase() === "transparent") return true;
     const normalized = hexInput.trim().startsWith('#') ? hexInput.trim() : '#' + hexInput.trim();
     return parseHex(normalized) !== null;
   };
@@ -630,15 +693,28 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             className="w-12 h-12 rounded border-2 border-border shadow-sm hover:border-primary/50 transition-colors"
-            style={{ backgroundColor: internalColor }}
+            style={
+              isTransparent
+                ? {
+                    backgroundColor: "#ffffff",
+                    backgroundImage:
+                      "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+                    backgroundSize: "10px 10px",
+                    backgroundPosition: "0 0, 0 5px, 5px -5px, -5px 0px",
+                  }
+                : { backgroundColor: internalColor }
+            }
             aria-label="Pick color"
           />
           {isOpen && (
             <div 
               ref={popoverRef}
-              className={`absolute z-[100] left-0 ${
-                popoverPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
-              } p-4 bg-background border border-border rounded-lg shadow-xl w-[240px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto`}
+              className="fixed z-[100] p-4 bg-background border border-border rounded-lg shadow-xl w-[240px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto"
+              style={{
+                left: popoverCoords.left,
+                top: popoverCoords.top,
+                transform: popoverPosition === "top" ? "translateY(-100%)" : undefined,
+              }}
             >
               <div className="space-y-4">
                 <div className="relative">
@@ -671,7 +747,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
                   <div className="space-y-1">
                     <Label className="text-xs">HEX</Label>
                     <Input
-                      value={focusedInput === 'hex' ? hexInput : internalColor}
+                      value={focusedInput === 'hex' ? hexInput : (isTransparent ? "transparent" : internalColor)}
                       onChange={(e) => handleHexInput(e.target.value)}
                       onFocus={() => setFocusedInput('hex')}
                       onBlur={handleHexBlur}
@@ -683,6 +759,19 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
                       placeholder="#000000"
                     />
                   </div>
+                  {allowTransparent && (
+                    <button
+                      type="button"
+                      className="h-8 rounded border border-border bg-background px-2 text-xs hover:bg-accent"
+                      onClick={() => {
+                        setIsTransparent(true);
+                        setHexInput("transparent");
+                        onChange("transparent");
+                      }}
+                    >
+                      {transparentLabel}
+                    </button>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-xs">RGB</Label>
                     <Input
@@ -719,8 +808,14 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
           )}
         </div>
         <Input
-          value={internalColor}
+          value={isTransparent ? "transparent" : internalColor}
           onChange={(e) => {
+            if (allowTransparent && e.target.value.trim().toLowerCase() === "transparent") {
+              setIsTransparent(true);
+              setHexInput("transparent");
+              onChange("transparent");
+              return;
+            }
             const success = applyHexValue(e.target.value);
             if (!success && e.target.value.trim() === '') {
               // Allow clearing
@@ -728,8 +823,11 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
             }
           }}
           onBlur={(e) => {
+            if (allowTransparent && e.target.value.trim().toLowerCase() === "transparent") {
+              return;
+            }
             if (!e.target.value || !parseHex(e.target.value)) {
-              e.target.value = internalColor;
+              e.target.value = isTransparent ? "transparent" : internalColor;
             }
           }}
           className="flex-1 font-mono text-sm"
@@ -739,4 +837,3 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     </div>
   );
 }
-

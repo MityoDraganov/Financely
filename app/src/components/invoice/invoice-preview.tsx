@@ -3,6 +3,7 @@ import { TemplatePreview } from "@/components/templates/template-preview";
 import type { Template } from "@/core";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { useRef, useEffect, useState } from "react";
+import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 
 interface InvoicePreviewProps {
 	template: Template | undefined;
@@ -22,15 +23,10 @@ export function InvoicePreview({
 	useEffect(() => {
 		if (!template || !containerRef.current) return;
 
-		const PAGE_SIZES: Record<Template["pageSize"], { w: number; h: number }> = {
-			A4: { w: 794, h: 1123 },
-			Letter: { w: 816, h: 1056 },
-			Legal: { w: 816, h: 1344 },
-		};
 		const baseSize =
 			template.pageSettings?.size === "Custom" && template.pageSettings.customSize
 				? { w: template.pageSettings.customSize.width, h: template.pageSettings.customSize.height }
-				: PAGE_SIZES[(template.pageSettings?.size ?? template.pageSize) as Template["pageSize"]] ?? PAGE_SIZES.A4;
+				: PAGE_SIZES_PX[(template.pageSettings?.size ?? template.pageSize) as Template["pageSize"]] ?? PAGE_SIZES_PX.A4;
 		const size = template.pageSettings?.orientation === "landscape"
 			? { w: baseSize.h, h: baseSize.w }
 			: baseSize;

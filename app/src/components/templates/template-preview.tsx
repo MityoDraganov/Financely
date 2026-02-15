@@ -9,6 +9,7 @@ import { paginateTemplate, type RenderPage } from "@/utils/template-pagination";
 import { PAGE_SIZES } from "@/utils/template-preview-utils";
 import { renderTemplateElement } from "./template-element-renderers";
 import { renderWatermark } from "./template-watermark";
+import { resolveTemplateMarginsPx } from "@/utils/print-margins";
 
 type InvoicePreviewContext = unknown;
 
@@ -50,7 +51,7 @@ export function TemplatePreview({
 		: null;
 
 	// Get margins from template
-	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+		const margins = resolveTemplateMarginsPx(template.pageSettings?.margins, template.brand?.margins);
 	
 	// Render a single page
 	const renderPage = (page: RenderPage) => {

@@ -83,7 +83,7 @@ export function paginateTemplate(
 	};
 
 	const pageHeight = pageSize.h;
-	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 96, right: 96, bottom: 96, left: 96 };
 	const topMargin = margins.top;
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;

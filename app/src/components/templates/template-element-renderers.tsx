@@ -9,6 +9,9 @@ import type { RenderPage } from "@/utils/template-pagination";
 import { getByPath, formatValue } from "@/utils/template-preview-utils";
 import type { IconName } from "lucide-react/dynamic";
 import { DynamicIcon, normalizeIconName } from "@/components/designer/elements/lucide-icon-map";
+import { getElementBorderRadiusCss, getElementPaddingCss } from "@/utils/element-box-model";
+import { getTableGridTemplateColumns } from "@/utils/table-column-width";
+import { getTableTextBehaviorStyles, normalizeTableTextBehavior } from "@/utils/table-text-behavior";
 
 type InvoicePreviewContext = unknown;
 
@@ -22,6 +25,19 @@ type RenderContext = {
 };
 
 type ElementStyle = React.CSSProperties;
+
+function getElementWrapperBackgroundColor(element: TemplateElement): string | undefined {
+	if (element.type === "text") {
+		return element.backgroundColor;
+	}
+	if (element.type === "icon") {
+		if (element.shape && element.shape !== "none") {
+			return undefined;
+		}
+		return element.backgroundColor;
+	}
+	return undefined;
+}
 
 /**
  * Calculate element position and style
@@ -57,6 +73,9 @@ function calculateElementStyle(
 		transform: `rotate(${el.rotation}deg)`,
 		display: el.visible ? undefined : "none",
 		zIndex: el.zIndex ?? 0,
+		padding: getElementPaddingCss(el),
+		backgroundColor: getElementWrapperBackgroundColor(el),
+		borderRadius: getElementBorderRadiusCss(el),
 		overflow: "hidden",
 		boxSizing: "border-box",
 	};
@@ -398,6 +417,14 @@ function renderTableElement(
 	const hasTotalingRow = el.columns.some((c) => c.showTotal) && showTotals;
 	const totalingRowHeight = hasTotalingRow ? minRowHeight : 0;
 	const totalTableHeight = headerHeight + actualContentHeight + totalingRowHeight;
+	const headerTextBehavior = normalizeTableTextBehavior(el.headerStyle?.textBehavior, "wrap");
+	const rowTextBehavior = normalizeTableTextBehavior(el.rowStyle?.textBehavior, "wrap");
+	const headerTextStyle = getTableTextBehaviorStyles(headerTextBehavior);
+	const rowTextStyle = getTableTextBehaviorStyles(rowTextBehavior);
+	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
+	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
+	const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
+	const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
 	
 	const tableStyle = { ...style, height: totalTableHeight, overflow: "visible" };
 	
@@ -418,12 +445,9 @@ function renderTableElement(
 				<div
 					style={{
 						display: "grid",
-						gridTemplateColumns:
-							el.columns.length > 0
-								? el.columns.map((c) => `${c.width}px`).join(" ")
-								: "1fr",
+						gridTemplateColumns: getTableGridTemplateColumns(el.columns),
 						borderBottom: "1px solid #e5e7eb",
-						height: el.headerHeight,
+						minHeight: el.headerHeight,
 					}}
 				>
 					{el.columns.map((c) => (
@@ -431,12 +455,14 @@ function renderTableElement(
 							key={c.id}
 							style={{
 								display: "flex",
-								alignItems: "center",
+								alignItems: headerIsMultiline ? "flex-start" : "center",
 								padding: "4px",
 								fontWeight: 600,
+								minWidth: 0,
+								overflow: headerOverflowVisible ? "visible" : "hidden",
 							}}
 						>
-							{c.header}
+							<span style={headerTextStyle}>{c.header}</span>
 						</div>
 					))}
 				</div>
@@ -448,10 +474,7 @@ function renderTableElement(
 								key={actualIdx}
 								style={{
 									display: "grid",
-									gridTemplateColumns:
-										el.columns.length > 0
-											? el.columns.map((c) => `${c.width}px`).join(" ")
-											: "1fr",
+									gridTemplateColumns: getTableGridTemplateColumns(el.columns),
 									borderBottom:
 										el.stripe && actualIdx % 2 === 1
 											? "1px solid #f3f4f6"
@@ -502,15 +525,15 @@ function renderTableElement(
 											key={c.id}
 											style={{
 												display: "flex",
-												alignItems: "center",
+												alignItems: rowIsMultiline ? "flex-start" : "center",
 												justifyContent: justify,
 												padding: "4px",
-												wordBreak: "break-word",
-												overflowWrap: "break-word",
 												minHeight: "20px",
+												minWidth: 0,
+												overflow: rowOverflowVisible ? "visible" : "hidden",
 											}}
 										>
-											{text}
+											<span style={rowTextStyle}>{text}</span>
 										</div>
 									);
 								})}
@@ -523,19 +546,16 @@ function renderTableElement(
 						<div
 							style={{
 								display: "grid",
-								gridTemplateColumns:
-									el.columns.length > 0
-										? el.columns.map((c) => `${c.width}px`).join(" ")
-										: "1fr",
+								gridTemplateColumns: getTableGridTemplateColumns(el.columns),
 								borderBottom: "1px solid #e5e7eb",
-								height: el.rowHeight,
+								minHeight: el.rowHeight,
 							}}
 						>
 							{el.columns.map((c) => {
 								let text = "";
 								const cellStyle: React.CSSProperties = {
 									display: "flex",
-									alignItems: "center",
+									alignItems: rowIsMultiline ? "flex-start" : "center",
 									justifyContent:
 										c.align === "right"
 											? "flex-end"
@@ -543,6 +563,8 @@ function renderTableElement(
 												? "center"
 												: "flex-start",
 									padding: "4px",
+									minWidth: 0,
+									overflow: rowOverflowVisible ? "visible" : "hidden",
 								};
 								
 								if (c.showTotal && (c.type === "number" || c.type === "currency")) {
@@ -596,7 +618,7 @@ function renderTableElement(
 								
 								return (
 									<div key={c.id} style={cellStyle}>
-										{text}
+										<span style={rowTextStyle}>{text}</span>
 									</div>
 								);
 							})}

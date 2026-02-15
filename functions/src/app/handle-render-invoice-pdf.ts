@@ -11,6 +11,8 @@ import { buildDataContext } from "../services/data-context-builder";
 import { resolveBinding } from "../utils/binding-resolver";
 import { DataContext } from "../core/entities/data-context";
 import { paginateTemplate, type RenderPage } from "../utils/template-pagination";
+import { getTableGridTemplateColumns } from "../utils/table-column-width";
+import { getTableTextBehaviorInlineCss, normalizeTableTextBehavior } from "../utils/table-text-behavior";
 
 /**
  * Generates HTML from template and invoice data with organization branding
@@ -197,7 +199,7 @@ function generateInvoiceHTML(
   }
 
   // Get margins from template
-  const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+  const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 96, right: 96, bottom: 96, left: 96 };
   const usableHeight = size.height - margins.top - margins.bottom;
   
   // Paginate template into multiple pages
@@ -484,6 +486,15 @@ function generateInvoiceHTML(
       }
 
       if (el.type === "table") {
+        const columnTracks = getTableGridTemplateColumns(el.columns);
+        const headerTextBehavior = normalizeTableTextBehavior(el.headerStyle?.textBehavior, "wrap");
+        const rowTextBehavior = normalizeTableTextBehavior(el.rowStyle?.textBehavior, "wrap");
+        const headerTextCss = getTableTextBehaviorInlineCss(headerTextBehavior);
+        const rowTextCss = getTableTextBehaviorInlineCss(rowTextBehavior);
+        const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
+        const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
+        const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
+        const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
         const allItems = (getValueFromContextOrData(el.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
         
         // Get table slice for this page
@@ -492,7 +503,7 @@ function generateInvoiceHTML(
         const showTotals = slice ? slice.isLastSlice : true;
 
         const columnsHTML = el.columns.map((col) => `
-          <div style="padding: 4px; font-weight: 600;">${col.header}</div>
+          <div style="padding: 4px; font-weight: 600; min-width: 0; display: flex; align-items: ${headerIsMultiline ? "flex-start" : "center"}; overflow: ${headerOverflowVisible ? "visible" : "hidden"};"><span style="${headerTextCss}">${col.header}</span></div>
         `).join("");
 
         const rowsHTML = items.map((row, idx) => {
@@ -533,8 +544,8 @@ function generateInvoiceHTML(
           const justify = col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start";
 
           return `
-            <div style="padding: 4px; display: flex; align-items: center; justify-content: ${justify}; word-break: break-word; overflow-wrap: break-word; min-height: 20px;">
-              ${text}
+            <div style="padding: 4px; display: flex; align-items: ${rowIsMultiline ? "flex-start" : "center"}; justify-content: ${justify}; min-height: 20px; min-width: 0; overflow: ${rowOverflowVisible ? "visible" : "hidden"};">
+              <span style="${rowTextCss}">${text}</span>
             </div>
           `;
         }).join("");
@@ -544,7 +555,7 @@ function generateInvoiceHTML(
         return `
           <div style="
             display: grid;
-            grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
+            grid-template-columns: ${columnTracks};
             border-bottom: ${borderStyle};
             min-height: ${el.rowHeight}px;
             padding: 4px 0;
@@ -562,8 +573,10 @@ function generateInvoiceHTML(
             let cellStyle: Record<string, string> = {
               padding: "4px",
               display: "flex",
-              "align-items": "center",
+              "align-items": rowIsMultiline ? "flex-start" : "center",
               "justify-content": col.align === "right" ? "flex-end" : col.align === "center" ? "center" : "flex-start",
+              "min-width": "0",
+              overflow: rowOverflowVisible ? "visible" : "hidden",
             };
             
             if (col.showTotal && (col.type === "number" || col.type === "currency")) {
@@ -634,7 +647,7 @@ function generateInvoiceHTML(
 
           return `
             <div style="${styleString}">
-              ${text}
+              <span style="${rowTextCss}">${text}</span>
             </div>
           `;
         }).join("");
@@ -642,9 +655,9 @@ function generateInvoiceHTML(
         totalsHTML = `
           <div style="
             display: grid;
-            grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
+            grid-template-columns: ${columnTracks};
             border-bottom: 1px solid #e5e7eb;
-            height: ${el.rowHeight}px;
+            min-height: ${el.rowHeight}px;
           ">
             ${totalsCellsHTML}
           </div>
@@ -661,14 +674,14 @@ function generateInvoiceHTML(
         return `
           <div style="${commonStyle}; height: ${totalTableHeight}px;">
             <div style="width: 100%; height: 100%; font-size: 10px; color: #374151; overflow: visible;">
-              <div style="
-                display: grid;
-                grid-template-columns: ${el.columns.map((c) => `${c.width}px`).join(" ")};
-                border-bottom: 1px solid #e5e7eb;
-                height: ${el.headerHeight}px;
-              ">
-                ${columnsHTML}
-              </div>
+          <div style="
+            display: grid;
+            grid-template-columns: ${columnTracks};
+            border-bottom: 1px solid #e5e7eb;
+            min-height: ${el.headerHeight}px;
+          ">
+            ${columnsHTML}
+          </div>
               <div style="overflow: visible;">
                 ${rowsHTML}
                 ${totalsHTML}

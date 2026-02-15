@@ -1,6 +1,7 @@
 /**
  * Utility functions for template preview rendering
  */
+import { PAGE_SIZES_PX } from "./page-size-presets";
 
 /**
  * Safely get a value from a nested object using dot-notation path
@@ -98,9 +99,9 @@ export function formatValue(
  * Page size constants for different paper sizes
  */
 export const PAGE_SIZES = {
-	A4: { w: 794, h: 1123 },
-	Letter: { w: 816, h: 1056 },
-	Legal: { w: 816, h: 1344 },
+	A4: PAGE_SIZES_PX.A4,
+	Letter: PAGE_SIZES_PX.Letter,
+	Legal: PAGE_SIZES_PX.Legal,
 } as const;
 
 export type PageSize = keyof typeof PAGE_SIZES;

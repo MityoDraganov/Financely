@@ -14,6 +14,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import type { TemplateData } from "@/core";
 import { typography, spacing, separators, components } from "./design-system";
 import { toast } from "sonner";
+import { getDefaultPrintMarginsPx } from "@/utils/print-margins";
 
 type WatermarkConfigProps = {
 	template: Template;
@@ -26,15 +27,15 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 	const navigate = useNavigate();
 	
 	// Ensure brand object exists (defensive check for AI-generated templates)
-	const brand = template.brand || {
-		fonts: ["Inter"],
-		colors: {
-			primary: "#111827",
-			secondary: "#6b7280",
-			accent: "#2563eb",
-		},
-		margins: { top: 40, right: 40, bottom: 40, left: 40 },
-	};
+		const brand = template.brand || {
+			fonts: ["Inter"],
+			colors: {
+				primary: "#111827",
+				secondary: "#6b7280",
+				accent: "#2563eb",
+			},
+			margins: getDefaultPrintMarginsPx(),
+		};
 	
 	// Helper function to wrap mutations with error handling
 	const handleMutation = (
@@ -654,4 +655,3 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 		</section>
 	);
 }
-

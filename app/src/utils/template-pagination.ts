@@ -5,6 +5,7 @@
 
 import type { Template, TemplateElement } from "@/core/entities/template";
 import { getByPath } from "./template-preview-utils";
+import { resolveTemplateMarginsPx } from "./print-margins";
 
 export type TableSlice = {
 	start: number;
@@ -66,7 +67,7 @@ export function paginateTemplate(
 	};
 
 	const pageHeight = pageSize.h;
-	const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 };
+	const margins = resolveTemplateMarginsPx(template.pageSettings?.margins, template.brand?.margins);
 	const topMargin = margins.top;
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;

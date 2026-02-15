@@ -10,6 +10,7 @@ import { TemplatePreview } from "@/components/templates/template-preview";
 import { MarketplaceTemplate, TemplateData, EmailTemplateData } from "@/core";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { getDefaultPrintMarginsPx } from "@/utils/print-margins";
 
 interface TemplateCardProps {
   template: MarketplaceTemplate;
@@ -88,7 +89,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
         brand: templateContent.brand || {
           fonts: [],
           colors: { primary: "#000000", secondary: "#666666", accent: "#000000" },
-          margins: { top: 40, right: 40, bottom: 40, left: 40 },
+          margins: getDefaultPrintMarginsPx(),
         },
       };
     } catch {

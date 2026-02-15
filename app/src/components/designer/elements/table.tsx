@@ -28,6 +28,20 @@ import { TemplateElement } from "@/core";
 import { AlertCircle, Check, ChevronsUpDown } from "lucide-react";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
+import {
+	clampPercentageColumnWidth,
+	formatTableColumnWidth,
+	getEditableTableColumnWidth,
+	getTableGridTemplateColumns,
+	getTablePercentageWidthSum,
+	type TableColumnWidthUnit,
+} from "@/utils/table-column-width";
+import {
+	getTableTextBehaviorStyles,
+	normalizeTableTextBehavior,
+	type TableTextBehavior,
+	type TableTextBehaviorMode,
+} from "@/utils/table-text-behavior";
 import { CurrencyFieldLinking } from "../currency-field-linking";
 import { FormulaBuilder } from "../formula-builder";
 import { typography, spacing, separators, components, colors } from "../design-system";
@@ -45,6 +59,21 @@ export default function TableElement({
 }: TableElementProps) {
 	const { t } = useTranslation();
 	const tbl = element;
+	const headerTextBehavior = normalizeTableTextBehavior(tbl.headerStyle?.textBehavior, "wrap");
+	const rowTextBehavior = normalizeTableTextBehavior(tbl.rowStyle?.textBehavior, "wrap");
+	const headerTextStyle = getTableTextBehaviorStyles(headerTextBehavior);
+	const rowTextStyle = getTableTextBehaviorStyles(
+		rowTextBehavior
+	);
+	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
+	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
+	const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
+	const previewColumns = tbl.columns.length > 0
+		? tbl.columns
+		: [
+			{ id: "c1", header: "", width: "1fr", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+			{ id: "c2", header: "", width: "1fr", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+		];
 	
 	return (
 		<div className="w-full h-full border border-border bg-background">
@@ -52,54 +81,64 @@ export default function TableElement({
 			<div
 				style={{
 					display: "grid",
-					gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr 1fr",
-					height: tbl.headerHeight * zoom,
+					gridTemplateColumns: getTableGridTemplateColumns(previewColumns),
+					minHeight: tbl.headerHeight * zoom,
 					borderBottom: "1px solid hsl(var(--border))",
 				}}
 			>
-				{(tbl.columns.length > 0
-					? tbl.columns
-					: [
-						{ id: "c1", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-						{ id: "c2", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-					]
-				).map((c) => (
-					<input
-						key={c.id}
-						value={c.header ?? ""}
-						onChange={(e) => onHeaderChange(c.id, e.target.value)}
-						className="border-r last:border-r-0 px-2 text-[10px] bg-background text-foreground border-border"
+				{previewColumns.map((c) => (
+						<div
+							key={c.id}
+							className="border-r last:border-r-0 px-2 text-[10px] bg-background text-foreground border-border min-w-0 flex"
 						style={{
 							textAlign: c.align,
+							alignItems: headerIsMultiline ? "flex-start" : "center",
 						}}
-					/>
+					>
+						<textarea
+							value={c.header ?? ""}
+							onChange={(e) => onHeaderChange(c.id, e.target.value)}
+							className="w-full bg-transparent border-0 outline-none resize-none p-0"
+							rows={headerTextBehavior.mode === "clamp" ? headerTextBehavior.clampLines ?? 2 : 2}
+							style={{
+								...headerTextStyle,
+								textAlign: c.align,
+								height: "100%",
+								fontSize: "10px",
+							}}
+						/>
+					</div>
 				))}
 			</div>
 			{/* Preview row - show first row for design preview */}
 			<div
 				style={{
 					display: "grid",
-					gridTemplateColumns: tbl.columns.length > 0 ? tbl.columns.map(c => `${c.width * zoom}px`).join(" ") : "1fr 1fr",
-					height: tbl.rowHeight * zoom,
+					gridTemplateColumns: getTableGridTemplateColumns(previewColumns),
+					minHeight: tbl.rowHeight * zoom,
 					borderBottom: "1px solid hsl(var(--border))",
 				}}
 			>
-				{(tbl.columns.length > 0
-					? tbl.columns
-					: [
-						{ id: "c1", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-						{ id: "c2", header: "", width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-					]
-				).map((c) => (
+				{previewColumns.map((c) => (
 					<div
 						key={c.id}
-						className="border-r last:border-r-0 px-2 text-[10px] text-muted-foreground flex items-center"
+						className="border-r last:border-r-0 px-2 text-[10px] text-muted-foreground flex items-center min-w-0"
 						style={{
 							textAlign: c.align,
 							justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
+							alignItems: rowIsMultiline ? "flex-start" : "center",
+							overflow: rowOverflowVisible ? "visible" : "hidden",
 						}}
 					>
-						{c.type === "currency" ? "$0.00" : c.type === "number" ? "0" : c.type === "date" ? "2024-01-01" : "Sample"}
+						<span style={rowTextStyle}>
+							{c.type === "currency"
+								? "$1,234.56"
+								: c.type === "number"
+									? "12345"
+									: c.type === "date"
+										? "2024-01-01"
+										: "Sample value that can wrap"}
+						</span>
 					</div>
 				))}
 			</div>
@@ -127,9 +166,60 @@ export function TableProperties({
 	
 	// Default columns for fallback
 	const defaultTwo = [
-		{ id: "c1", header: t('designer.tableColumns.column1'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
-		{ id: "c2", header: t('designer.tableColumns.column2'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c1", header: t('designer.tableColumns.column1'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c2", header: t('designer.tableColumns.column2'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 	];
+
+	const getBaseColumns = () => (tbl.columns && tbl.columns.length > 0)
+		? tbl.columns
+		: defaultTwo.map((column) => ({ ...column, type: "text" as const }));
+
+	const setColumnWidth = (columnId: string, value: number, unit: TableColumnWidthUnit) => {
+		const base = getBaseColumns();
+		const safeValue = unit === "%"
+			? clampPercentageColumnWidth(value, base, columnId)
+			: Math.max(0.1, Number.isFinite(value) ? value : 0.1);
+		const next = base.map((column) =>
+			column.id === columnId
+				? {
+						...column,
+						width: formatTableColumnWidth({ value: safeValue, unit }),
+					}
+				: column
+		);
+		onChange({ ...tbl, columns: next });
+	};
+
+	const setColumnWidthUnit = (columnId: string, unit: TableColumnWidthUnit) => {
+		const base = getBaseColumns();
+		const target = base.find((column) => column.id === columnId);
+		if (!target) return;
+		const current = getEditableTableColumnWidth(target.width);
+		setColumnWidth(columnId, current.value, unit);
+	};
+
+	const headerTextBehavior = normalizeTableTextBehavior(tbl.headerStyle?.textBehavior, "wrap");
+	const rowTextBehavior = normalizeTableTextBehavior(tbl.rowStyle?.textBehavior, "wrap");
+
+	const updateHeaderTextBehavior = (next: TableTextBehavior) => {
+		onChange({
+			...tbl,
+			headerStyle: {
+				...(tbl.headerStyle ?? {}),
+				textBehavior: next,
+			},
+		});
+	};
+
+	const updateRowTextBehavior = (next: TableTextBehavior) => {
+		onChange({
+			...tbl,
+			rowStyle: {
+				...(tbl.rowStyle ?? {}),
+				textBehavior: next,
+			},
+		});
+	};
 	
 	// Check for duplicate bindings
 	const hasDuplicateBinding = (binding: string | undefined): boolean => {
@@ -209,6 +299,9 @@ export function TableProperties({
 		</section>
 	);
 
+	const derivedColumns = getBaseColumns();
+	const percentWidthTotal = getTablePercentageWidthSum(derivedColumns);
+
 	return (
 		<div className={components.section}>
 			<h3 className={typography.sectionTitle}>{t('designer.elementProperties.table.title')}</h3>
@@ -246,6 +339,96 @@ export function TableProperties({
 					/>
 				</div>
 					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>
+							{t("designer.elementProperties.table.headerTextBehavior", "Header Text Behavior")}
+						</Label>
+						<Select
+							value={headerTextBehavior.mode}
+							onValueChange={(mode) => {
+								const nextMode = mode as TableTextBehaviorMode;
+								updateHeaderTextBehavior(
+									nextMode === "clamp"
+										? { mode: nextMode, clampLines: headerTextBehavior.clampLines ?? 2 }
+										: { mode: nextMode }
+								);
+							}}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="wrap">{t("designer.elementProperties.table.textModes.wrap", "Wrap (Normal)")}</SelectItem>
+								<SelectItem value="nowrap">{t("designer.elementProperties.table.textModes.nowrap", "No Wrap")}</SelectItem>
+								<SelectItem value="break-words">{t("designer.elementProperties.table.textModes.breakWords", "Break Words")}</SelectItem>
+								<SelectItem value="ellipsis">{t("designer.elementProperties.table.textModes.ellipsis", "Ellipsis (...)")}</SelectItem>
+								<SelectItem value="clamp">{t("designer.elementProperties.table.textModes.clamp", "Clamp (Multi-line Ellipsis)")}</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>
+							{t("designer.elementProperties.table.cellTextBehavior", "Cell Text Behavior")}
+						</Label>
+						<Select
+							value={rowTextBehavior.mode}
+							onValueChange={(mode) => {
+								const nextMode = mode as TableTextBehaviorMode;
+								updateRowTextBehavior(
+									nextMode === "clamp"
+										? { mode: nextMode, clampLines: rowTextBehavior.clampLines ?? 2 }
+										: { mode: nextMode }
+								);
+							}}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="wrap">{t("designer.elementProperties.table.textModes.wrap", "Wrap (Normal)")}</SelectItem>
+								<SelectItem value="nowrap">{t("designer.elementProperties.table.textModes.nowrap", "No Wrap")}</SelectItem>
+								<SelectItem value="break-words">{t("designer.elementProperties.table.textModes.breakWords", "Break Words")}</SelectItem>
+								<SelectItem value="ellipsis">{t("designer.elementProperties.table.textModes.ellipsis", "Ellipsis (...)")}</SelectItem>
+								<SelectItem value="clamp">{t("designer.elementProperties.table.textModes.clamp", "Clamp (Multi-line Ellipsis)")}</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					{headerTextBehavior.mode === "clamp" && (
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>
+								{t("designer.elementProperties.table.headerClampLines", "Header Clamp Lines")}
+							</Label>
+							<Input
+								type="number"
+								min={1}
+								max={10}
+								value={headerTextBehavior.clampLines ?? 2}
+								onChange={(e) => {
+									const value = Math.max(1, Math.min(10, Number(e.target.value) || 2));
+									updateHeaderTextBehavior({ mode: "clamp", clampLines: value });
+								}}
+								className={components.inputHeight}
+							/>
+						</div>
+					)}
+					{rowTextBehavior.mode === "clamp" && (
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>
+								{t("designer.elementProperties.table.cellClampLines", "Cell Clamp Lines")}
+							</Label>
+							<Input
+								type="number"
+								min={1}
+								max={10}
+								value={rowTextBehavior.clampLines ?? 2}
+								onChange={(e) => {
+									const value = Math.max(1, Math.min(10, Number(e.target.value) || 2));
+									updateRowTextBehavior({ mode: "clamp", clampLines: value });
+								}}
+								className={components.inputHeight}
+							/>
+						</div>
+					)}
 					<div className={`${components.field} col-span-full`}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.itemsBinding')}</Label>
 						<div className={spacing.fieldGroupGap}>
@@ -295,10 +478,13 @@ export function TableProperties({
 			{/* Columns Configuration */}
 			<section className={`${components.subsection} ${separators.subsectionDivider}`}>
 				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.table.columns')}</h4>
+				<p className={typography.helperText}>
+					{`% columns total: ${percentWidthTotal}% / 100%`}
+				</p>
 				<div className={spacing.fieldGroupGap}>
-					{(() => {
-						const derivedColumns = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-						return derivedColumns.map((c) => (
+					{derivedColumns.map((c) => {
+						const widthEditor = getEditableTableColumnWidth(c.width);
+						return (
 							<div key={c.id} className={`${components.card} ${spacing.fieldGroupGap}`}>
 								{/* Column Basic Settings */}
 								<div className={components.grid}>
@@ -317,18 +503,33 @@ export function TableProperties({
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.width')}</Label>
-									<Input
-										type="number"
-											placeholder={t('designer.elementProperties.table.column.widthPlaceholder')}
-										value={c.width}
-										onChange={(e) => {
-											const w = Math.max(20, Number(e.target.value));
-											const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
-											const next = base.map((col) => (col.id === c.id ? { ...col, width: w } : col));
-											onChange({ ...tbl, columns: next });
-										}}
-											className={components.inputHeight}
-									/>
+										<div className="flex gap-2">
+											<Input
+												type="number"
+												step="0.1"
+												min={widthEditor.unit === "%" ? 0 : 0.1}
+												placeholder={t('designer.elementProperties.table.column.widthPlaceholder')}
+												value={widthEditor.value}
+												onChange={(e) => {
+													const parsed = Number(e.target.value);
+													if (!Number.isFinite(parsed)) return;
+													setColumnWidth(c.id, parsed, widthEditor.unit);
+												}}
+												className={components.inputHeight}
+											/>
+											<Select
+												value={widthEditor.unit}
+												onValueChange={(unit) => setColumnWidthUnit(c.id, unit as TableColumnWidthUnit)}
+											>
+												<SelectTrigger className="h-9 w-20">
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="%">%</SelectItem>
+													<SelectItem value="fr">fr</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.align')}</Label>
@@ -816,8 +1017,8 @@ export function TableProperties({
 									</div>
 								)}
 							</div>
-						));
-					})()}
+							);
+						})}
 					<Button
 						variant="secondary"
 						size="sm"
@@ -827,7 +1028,7 @@ export function TableProperties({
 							const header = columnNum === 1 ? t('designer.tableColumns.column1') : columnNum === 2 ? t('designer.tableColumns.column2') : `${t('designer.elementProperties.table.columns')} ${columnNum}`;
 							const next = [
 								...tbl.columns,
-								{ id: crypto.randomUUID(), header, width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+									{ id: crypto.randomUUID(), header, width: "1fr", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 							];
 							onChange({ ...tbl, columns: next });
 						}}

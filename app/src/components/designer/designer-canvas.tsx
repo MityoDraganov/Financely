@@ -22,6 +22,9 @@ import {
 import CurrencyElement from "@/components/designer/elements/currency";
 import type { DesignerState, DragState, SnapGuide } from "./designer-types";
 import type { UserPresence } from "@/services/presence/presence-service";
+import { resolveTemplateMarginsPx } from "@/utils/print-margins";
+import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
+import { getElementBorderRadiusCss, getElementPaddingCss } from "@/utils/element-box-model";
 
 type DesignerCanvasProps = {
 	template: Template | undefined;
@@ -50,13 +53,6 @@ type DesignerCanvasProps = {
 	dragStartedRef?: React.MutableRefObject<boolean>; // Track if drag actually started (movement detected)
 };
 
-// Page dimensions in pixels (at 96 DPI to match PDF rendering)
-const PAGE_SIZES = {
-	A4: { width: 794, height: 1123 },
-	Letter: { width: 816, height: 1056 },
-	Legal: { width: 816, height: 1344 },
-} as const;
-
 function getPageDimensions(template: Template | undefined): { width: number; height: number } {
 	const pageSettings = template?.pageSettings;
 	const sizeKey = pageSettings?.size && pageSettings.size !== "Custom"
@@ -67,13 +63,89 @@ function getPageDimensions(template: Template | undefined): { width: number; hei
 				width: pageSettings.customSize.width,
 				height: pageSettings.customSize.height,
 			}
-		: PAGE_SIZES[sizeKey as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4;
+		: {
+				width: PAGE_SIZES_PX[sizeKey as keyof typeof PAGE_SIZES_PX]?.w ?? PAGE_SIZES_PX.A4.w,
+				height: PAGE_SIZES_PX[sizeKey as keyof typeof PAGE_SIZES_PX]?.h ?? PAGE_SIZES_PX.A4.h,
+			};
 
 	if (pageSettings?.orientation === "landscape") {
 		return { width: base.height, height: base.width };
 	}
 
 	return base;
+}
+
+function parseHexColor(color: string): { r: number; g: number; b: number } | null {
+	const value = color.trim();
+	const short = value.match(/^#([0-9a-fA-F]{3})$/);
+	if (short) {
+		const [r, g, b] = short[1].split("");
+		return {
+			r: parseInt(`${r}${r}`, 16),
+			g: parseInt(`${g}${g}`, 16),
+			b: parseInt(`${b}${b}`, 16),
+		};
+	}
+	const full = value.match(/^#([0-9a-fA-F]{6})$/);
+	if (!full) return null;
+	return {
+		r: parseInt(full[1].slice(0, 2), 16),
+		g: parseInt(full[1].slice(2, 4), 16),
+		b: parseInt(full[1].slice(4, 6), 16),
+	};
+}
+
+function parseRgbColor(color: string): { r: number; g: number; b: number } | null {
+	const match = color.trim().match(
+		/^rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})(?:\s*,\s*[0-9.]+\s*)?\)$/i
+	);
+	if (!match) return null;
+	return {
+		r: Math.max(0, Math.min(255, Number(match[1]))),
+		g: Math.max(0, Math.min(255, Number(match[2]))),
+		b: Math.max(0, Math.min(255, Number(match[3]))),
+	};
+}
+
+function resolveGridColor(backgroundColor: string | undefined): {
+	minor: string;
+} {
+	const parsed =
+		(backgroundColor && parseHexColor(backgroundColor)) ||
+		(backgroundColor && parseRgbColor(backgroundColor)) ||
+		null;
+	if (!parsed) {
+		return {
+			minor: "rgba(15, 23, 42, 0.10)",
+		};
+	}
+	const srgb = [parsed.r, parsed.g, parsed.b].map((channel) => channel / 255);
+	const linear = srgb.map((channel) =>
+		channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4)
+	);
+	const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+	const useLightLines = luminance < 0.45;
+	return useLightLines
+		? {
+				minor: "rgba(255, 255, 255, 0.14)",
+			}
+		: {
+				minor: "rgba(15, 23, 42, 0.12)",
+			};
+}
+
+function getElementWrapperBackgroundColor(element: TemplateElement): string | undefined {
+	if (element.type === "text") {
+		return element.backgroundColor;
+	}
+	if (element.type === "icon") {
+		// When icon has a shaped background, keep it rendered by the icon component itself.
+		if (element.shape && element.shape !== "none") {
+			return undefined;
+		}
+		return element.backgroundColor;
+	}
+	return undefined;
 }
 
 export function DesignerCanvas({
@@ -104,6 +176,19 @@ export function DesignerCanvas({
 	const pageDimensions = getPageDimensions(template);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
+	const margins = resolveTemplateMarginsPx(
+		template?.pageSettings?.margins,
+		template?.brand?.margins
+	);
+	const printableArea = {
+		left: margins.left * state.zoom,
+		top: margins.top * state.zoom,
+		width: Math.max(0, (PAGE_WIDTH - margins.left - margins.right) * state.zoom),
+		height: Math.max(0, (PAGE_HEIGHT - margins.top - margins.bottom) * state.zoom),
+	};
+	const pageBackgroundColor = template?.pageSettings?.backgroundColor;
+	const gridColors = resolveGridColor(pageBackgroundColor);
+	const minorGridSize = Math.max(4, 8 * state.zoom);
 
 	return (
 		<div className="bg-muted/30 p-8 pr-16"
@@ -155,11 +240,28 @@ export function DesignerCanvas({
 				<div
 					className="absolute inset-0 z-0"
 					style={{
-						backgroundSize: `${8 * state.zoom}px ${8 * state.zoom}px`,
-						backgroundImage: `linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px)`,
+						backgroundSize: [
+							`${minorGridSize}px ${minorGridSize}px`,
+							`${minorGridSize}px ${minorGridSize}px`,
+						].join(", "),
+						backgroundImage: [
+							`linear-gradient(to right, ${gridColors.minor} 1px, transparent 1px)`,
+							`linear-gradient(to bottom, ${gridColors.minor} 1px, transparent 1px)`,
+						].join(", "),
 					}}
 					onDragOver={onDragOver}
 					onDrop={onDrop}
+				/>
+				<div
+					className="absolute pointer-events-none z-[2]"
+					style={{
+						left: printableArea.left,
+						top: printableArea.top,
+						width: printableArea.width,
+						height: printableArea.height,
+						border: "1px dashed rgba(99, 102, 241, 0.6)",
+						boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.03)",
+					}}
 				/>
 				{template.referenceLayer?.assetUrl && template.referenceLayer.visible !== false && (
 					<div
@@ -229,6 +331,9 @@ export function DesignerCanvas({
 						el.type === "currency" ? el.binding :
 						el.type === "table" ? el.itemsBinding : undefined;
 					const isRequiredField = isRequired(binding);
+					const elementPaddingCss = getElementPaddingCss(el);
+					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
+					const elementWrapperBackgroundColor = getElementWrapperBackgroundColor(el);
 					
 					return (
 						<ContextMenu key={el.id}>
@@ -248,6 +353,11 @@ export function DesignerCanvas({
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
+										boxSizing: "border-box",
+										padding: elementPaddingCss,
+										backgroundColor: elementWrapperBackgroundColor,
+										borderRadius: elementBorderRadiusCss,
+										overflow: elementBorderRadiusCss ? "hidden" : undefined,
 										zIndex: el.zIndex ?? 10,
 									}}
 									onMouseEnter={() => onHoverElement?.(el.id)}

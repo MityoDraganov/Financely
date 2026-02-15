@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/color-picker";
 import {
 	Select,
 	SelectContent,
@@ -33,6 +34,9 @@ export default function TextElement({ element, zoom }: TextElementProps) {
 		<div
 			className="select-none"
 			style={{
+				width: "100%",
+				height: "100%",
+				boxSizing: "border-box",
 				fontFamily: t.typography.fontFamily,
 				fontSize: t.typography.fontSize * zoom,
 				fontWeight: t.typography.fontWeight,
@@ -40,8 +44,6 @@ export default function TextElement({ element, zoom }: TextElementProps) {
 				letterSpacing: t.typography.letterSpacing,
 				color: t.typography.color,
 				textAlign: t.typography.align,
-				backgroundColor: t.backgroundColor || "transparent",
-				padding: `${(t.padding || 0) * zoom}px`,
 				opacity: t.opacity ?? 1,
 				userSelect: "none",
 				WebkitUserSelect: "none",
@@ -411,48 +413,16 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 				<div className={components.grid}>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.backgroundColor')}</Label>
-						<div className="flex gap-2">
-							<Input
-								type="color"
-								value={t.backgroundColor || "#ffffff"}
-								onChange={(e) => {
-									const newBg = e.target.value === "#ffffff" ? undefined : e.target.value;
-									onChange({
-										...element,
-										backgroundColor: newBg,
-									});
-								}}
-								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-							/>
-							<Input
-								placeholder={translate('designer.elementProperties.text.backgroundColorPlaceholder')}
-								value={t.backgroundColor || ""}
-								onChange={(e) => {
-									const newBg = e.target.value || undefined;
-									onChange({
-										...element,
-										backgroundColor: newBg,
-									});
-								}}
-								className={components.inputHeight}
-							/>
-						</div>
-					</div>
-					
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.padding')}</Label>
-						<Input
-							type="number"
-							min="0"
-							max="50"
-							value={t.padding || 0}
-							onChange={(e) => {
+						<ColorPicker
+							value={t.backgroundColor || "#ffffff"}
+							onChange={(color) =>
 								onChange({
 									...element,
-									padding: Number(e.target.value) || 0,
-								});
-							}}
-							className={components.inputHeight}
+									backgroundColor: color.trim().length === 0 ? undefined : color,
+								})
+							}
+							allowTransparent
+							transparentLabel={translate("designer.elementProperties.text.transparent", "Transparent")}
 						/>
 					</div>
 					

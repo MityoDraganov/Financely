@@ -31,10 +31,26 @@ interface IconElementProps {
 
 export default function IconElement({ element }: IconElementProps) {
 	const name = normalizeIconName(element.iconName) as IconName;
+	const borderStyle = element.border
+		? `${element.border.width}px ${element.border.style} ${element.border.color}`
+		: undefined;
 	return (
 		<div
 			className="w-full h-full flex items-center justify-center"
-			style={{ color: element.color }}
+			style={{
+				color: element.color,
+				backgroundColor: element.backgroundColor,
+				border: borderStyle,
+				borderRadius:
+					element.shape === "circle"
+						? "9999px"
+						: element.shape === "rounded"
+							? 8
+							: element.shape === "square"
+								? 0
+								: undefined,
+				boxSizing: "border-box",
+			}}
 		>
 			<DynamicIcon name={name} className="w-full h-full" style={{ minWidth: 16, minHeight: 16 }} />
 		</div>

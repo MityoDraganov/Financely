@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
 	Select,
 	SelectContent,
@@ -29,6 +30,21 @@ import {
 import { CurrencyProperties } from "@/components/designer/elements/currency";
 import type { Organization } from "@/core";
 import { typography, spacing, separators, components, colors } from "./design-system";
+import {
+	DEFAULT_MARGIN_UNIT,
+	type MarginUnit,
+	getDefaultPrintMarginsPx,
+	marginUnitToPx,
+	pxToMarginUnit,
+	resolveTemplateMarginsPx,
+} from "@/utils/print-margins";
+import {
+	DEFAULT_BOX_MODEL_STYLE,
+	ELEMENT_BOX_MODEL_UNITS,
+	normalizeBoxModelStyle,
+	type ElementBoxModelStyle,
+	type ElementMeasuredLength,
+} from "@/utils/element-box-model";
 
 type PropertiesPanelProps = {
 	template: Template | undefined;
@@ -139,6 +155,41 @@ export function PropertiesPanel({
 		: [];
 	const selectedElement = selectedElements.length === 1 ? selectedElements[0] : undefined;
 	const hasBlockSelected = selectedElement != null;
+	const currentMargins = resolveTemplateMarginsPx(
+		template.pageSettings?.margins,
+		template.brand?.margins
+	);
+	const marginUnit: MarginUnit = template.pageSettings?.marginUnit === "cm" ? "cm" : DEFAULT_MARGIN_UNIT;
+
+	const buildNextPageSettings = (
+		patch: Partial<NonNullable<Template["pageSettings"]>> = {}
+	): NonNullable<Template["pageSettings"]> => {
+		const merged = {
+			size: template.pageSettings?.size ?? template.pageSize,
+			orientation: template.pageSettings?.orientation ?? "portrait",
+			margins: currentMargins,
+			marginUnit,
+			padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+			customSize: template.pageSettings?.customSize,
+			backgroundColor: template.pageSettings?.backgroundColor,
+			backgroundImage: template.pageSettings?.backgroundImage,
+			backgroundOpacity: template.pageSettings?.backgroundOpacity,
+			...patch,
+		};
+
+		// Firebase Realtime Database rejects undefined values in update payloads.
+		return {
+			size: merged.size,
+			orientation: merged.orientation,
+			margins: merged.margins,
+			marginUnit: merged.marginUnit,
+			padding: merged.padding,
+			...(merged.size === "Custom" && merged.customSize ? { customSize: merged.customSize } : {}),
+			...(typeof merged.backgroundColor === "string" ? { backgroundColor: merged.backgroundColor } : {}),
+			...(typeof merged.backgroundImage === "string" ? { backgroundImage: merged.backgroundImage } : {}),
+			...(typeof merged.backgroundOpacity === "number" ? { backgroundOpacity: merged.backgroundOpacity } : {}),
+		};
+	};
 
 	const templatePropertiesContent = (
 		<div className={spacing.sectionGap}>
@@ -171,31 +222,18 @@ export function PropertiesPanel({
 								if (v === "A4" || v === "Letter" || v === "Legal") {
 									saveMutation.mutate({
 										pageSize: v as TemplateData["pageSize"],
-										pageSettings: {
+										pageSettings: buildNextPageSettings({
 											size: v,
-											orientation: template.pageSettings?.orientation ?? "portrait",
-											customSize: template.pageSettings?.customSize,
-											margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-											padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
-											backgroundColor: template.pageSettings?.backgroundColor,
-											backgroundImage: template.pageSettings?.backgroundImage,
-											backgroundOpacity: template.pageSettings?.backgroundOpacity,
-										},
+										}),
 									});
 									return;
 								}
 
 								saveMutation.mutate({
-									pageSettings: {
+									pageSettings: buildNextPageSettings({
 										size: "Custom",
-										orientation: template.pageSettings?.orientation ?? "portrait",
 										customSize: template.pageSettings?.customSize ?? { width: 794, height: 1123 },
-										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
-										backgroundColor: template.pageSettings?.backgroundColor,
-										backgroundImage: template.pageSettings?.backgroundImage,
-										backgroundOpacity: template.pageSettings?.backgroundOpacity,
-									},
+									}),
 								});
 							}}
 						>
@@ -203,9 +241,9 @@ export function PropertiesPanel({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="A4">A4</SelectItem>
-								<SelectItem value="Letter">Letter</SelectItem>
-								<SelectItem value="Legal">Legal</SelectItem>
+								<SelectItem value="A4">A4 (210 × 297 mm)</SelectItem>
+								<SelectItem value="Letter">Letter (8.5 × 11 in)</SelectItem>
+								<SelectItem value="Legal">Legal (8.5 × 14 in)</SelectItem>
 								<SelectItem value="Custom">Custom</SelectItem>
 							</SelectContent>
 						</Select>
@@ -216,16 +254,9 @@ export function PropertiesPanel({
 							value={template.pageSettings?.orientation ?? "portrait"}
 							onValueChange={(v: string) =>
 								saveMutation.mutate({
-									pageSettings: {
-										size: template.pageSettings?.size ?? template.pageSize,
+									pageSettings: buildNextPageSettings({
 										orientation: v as "portrait" | "landscape",
-										customSize: template.pageSettings?.customSize,
-										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
-										backgroundColor: template.pageSettings?.backgroundColor,
-										backgroundImage: template.pageSettings?.backgroundImage,
-										backgroundOpacity: template.pageSettings?.backgroundOpacity,
-									},
+									}),
 								})
 							}
 						>
@@ -238,6 +269,138 @@ export function PropertiesPanel({
 							</SelectContent>
 						</Select>
 					</div>
+					<div className={`${components.field} col-span-full`}>
+						<div className="flex items-center justify-between mb-2">
+							<Label className={typography.fieldLabel}>Margins</Label>
+							<Select
+								value={marginUnit}
+								onValueChange={(v: string) =>
+									saveMutation.mutate({
+										pageSettings: buildNextPageSettings({
+											marginUnit: (v === "cm" ? "cm" : "in") as MarginUnit,
+										}),
+									})
+								}
+							>
+								<SelectTrigger className="h-8 w-24">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="in">in</SelectItem>
+									<SelectItem value="cm">cm</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div className={components.grid}>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Top</Label>
+								<Input
+									type="number"
+									step={marginUnit === "cm" ? "0.1" : "0.05"}
+									min={0}
+									value={Number(pxToMarginUnit(currentMargins.top, marginUnit).toFixed(2))}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+										const next = Number(e.target.value);
+										if (!Number.isFinite(next)) return;
+										saveMutation.mutate({
+											pageSettings: buildNextPageSettings({
+												margins: {
+													...currentMargins,
+													top: Math.max(0, marginUnitToPx(next, marginUnit)),
+												},
+											}),
+										});
+									}}
+									className={components.inputHeight}
+								/>
+							</div>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Right</Label>
+								<Input
+									type="number"
+									step={marginUnit === "cm" ? "0.1" : "0.05"}
+									min={0}
+									value={Number(pxToMarginUnit(currentMargins.right, marginUnit).toFixed(2))}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+										const next = Number(e.target.value);
+										if (!Number.isFinite(next)) return;
+										saveMutation.mutate({
+											pageSettings: buildNextPageSettings({
+												margins: {
+													...currentMargins,
+													right: Math.max(0, marginUnitToPx(next, marginUnit)),
+												},
+											}),
+										});
+									}}
+									className={components.inputHeight}
+								/>
+							</div>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Bottom</Label>
+								<Input
+									type="number"
+									step={marginUnit === "cm" ? "0.1" : "0.05"}
+									min={0}
+									value={Number(pxToMarginUnit(currentMargins.bottom, marginUnit).toFixed(2))}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+										const next = Number(e.target.value);
+										if (!Number.isFinite(next)) return;
+										saveMutation.mutate({
+											pageSettings: buildNextPageSettings({
+												margins: {
+													...currentMargins,
+													bottom: Math.max(0, marginUnitToPx(next, marginUnit)),
+												},
+											}),
+										});
+									}}
+									className={components.inputHeight}
+								/>
+							</div>
+							<div className={components.field}>
+								<Label className={typography.fieldLabel}>Left</Label>
+								<Input
+									type="number"
+									step={marginUnit === "cm" ? "0.1" : "0.05"}
+									min={0}
+									value={Number(pxToMarginUnit(currentMargins.left, marginUnit).toFixed(2))}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+										const next = Number(e.target.value);
+										if (!Number.isFinite(next)) return;
+										saveMutation.mutate({
+											pageSettings: buildNextPageSettings({
+												margins: {
+													...currentMargins,
+													left: Math.max(0, marginUnitToPx(next, marginUnit)),
+												},
+											}),
+										});
+									}}
+									className={components.inputHeight}
+								/>
+							</div>
+						</div>
+						<div className="mt-2 flex items-center justify-between gap-2">
+							<p className={typography.helperText}>
+								Standard print margin is 1 in (2.54 cm) on all sides.
+							</p>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									saveMutation.mutate({
+										pageSettings: buildNextPageSettings({
+											margins: getDefaultPrintMarginsPx(),
+										}),
+									})
+								}
+							>
+								Use Standard
+							</Button>
+						</div>
+					</div>
 					{template.pageSettings?.size === "Custom" && (
 						<>
 							<div className={components.field}>
@@ -247,19 +410,13 @@ export function PropertiesPanel({
 									value={template.pageSettings?.customSize?.width ?? 794}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										saveMutation.mutate({
-											pageSettings: {
+											pageSettings: buildNextPageSettings({
 												size: "Custom",
-												orientation: template.pageSettings?.orientation ?? "portrait",
 												customSize: {
 													width: Number(e.target.value),
 													height: template.pageSettings?.customSize?.height ?? 1123,
 												},
-												margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-												padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
-												backgroundColor: template.pageSettings?.backgroundColor,
-												backgroundImage: template.pageSettings?.backgroundImage,
-												backgroundOpacity: template.pageSettings?.backgroundOpacity,
-											},
+											}),
 										})
 									}
 									className={components.inputHeight}
@@ -272,19 +429,13 @@ export function PropertiesPanel({
 									value={template.pageSettings?.customSize?.height ?? 1123}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										saveMutation.mutate({
-											pageSettings: {
+											pageSettings: buildNextPageSettings({
 												size: "Custom",
-												orientation: template.pageSettings?.orientation ?? "portrait",
 												customSize: {
 													width: template.pageSettings?.customSize?.width ?? 794,
 													height: Number(e.target.value),
 												},
-												margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-												padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
-												backgroundColor: template.pageSettings?.backgroundColor,
-												backgroundImage: template.pageSettings?.backgroundImage,
-												backgroundOpacity: template.pageSettings?.backgroundOpacity,
-											},
+											}),
 										})
 									}
 									className={components.inputHeight}
@@ -299,16 +450,9 @@ export function PropertiesPanel({
 							value={template.pageSettings?.backgroundColor ?? "#ffffff"}
 							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 								saveMutation.mutate({
-									pageSettings: {
-										size: template.pageSettings?.size ?? template.pageSize,
-										orientation: template.pageSettings?.orientation ?? "portrait",
-										customSize: template.pageSettings?.customSize,
-										margins: template.pageSettings?.margins ?? { top: 40, right: 40, bottom: 40, left: 40 },
-										padding: template.pageSettings?.padding ?? { top: 0, right: 0, bottom: 0, left: 0 },
+									pageSettings: buildNextPageSettings({
 										backgroundColor: e.target.value,
-										backgroundImage: template.pageSettings?.backgroundImage,
-										backgroundOpacity: template.pageSettings?.backgroundOpacity,
-									},
+									}),
 								})
 							}
 							className={components.inputHeight}
@@ -378,6 +522,12 @@ export function PropertiesPanel({
 
 	const blockPropertiesContent = selectedElement && (
 		<div className={spacing.sectionGap}>
+			<div className={components.section}>
+				<UniversalBoxModelProperties
+					element={selectedElement}
+					onChange={onUpdateElement}
+				/>
+			</div>
 			{selectedElement.type === "table" && selectedElement.itemsBinding && (
 				<div className={separators.sectionDivider}>
 					<ProductTableConfigPanel
@@ -420,6 +570,168 @@ export function PropertiesPanel({
 				</Tabs>
 			) : (
 				<div className="flex-1 overflow-auto min-h-0">{templatePropertiesContent}</div>
+			)}
+		</div>
+	);
+}
+
+function UniversalBoxModelProperties({
+	element,
+	onChange,
+}: {
+	element: TemplateElement;
+	onChange: (partial: Partial<TemplateElement>) => void;
+}) {
+	const paddingStyle = normalizeBoxModelStyle(
+		(element.paddingStyle as Partial<ElementBoxModelStyle> | undefined) ?? DEFAULT_BOX_MODEL_STYLE
+	);
+	const borderRadiusStyle = normalizeBoxModelStyle(
+		(element.borderRadiusStyle as Partial<ElementBoxModelStyle> | undefined) ?? DEFAULT_BOX_MODEL_STYLE
+	);
+
+	return (
+		<section className={components.section}>
+			<h3 className={typography.sectionTitle}>Box Model</h3>
+			<div className={components.subsection}>
+				<BoxModelStyleEditor
+					label="Padding"
+					value={paddingStyle}
+					onChange={(next) => onChange({ paddingStyle: next })}
+				/>
+				<BoxModelStyleEditor
+					label="Border Radius"
+					value={borderRadiusStyle}
+					onChange={(next) => onChange({ borderRadiusStyle: next })}
+				/>
+			</div>
+		</section>
+	);
+}
+
+function BoxModelStyleEditor({
+	label,
+	value,
+	onChange,
+}: {
+	label: string;
+	value: ElementBoxModelStyle;
+	onChange: (next: ElementBoxModelStyle) => void;
+}) {
+	const normalized = normalizeBoxModelStyle(value);
+
+	const updateAll = (patch: Partial<ElementMeasuredLength>) => {
+		onChange({
+			...normalized,
+			all: {
+				...normalized.all,
+				...patch,
+			},
+		});
+	};
+
+	const updateSide = (
+		side: keyof ElementBoxModelStyle["values"],
+		patch: Partial<ElementMeasuredLength>
+	) => {
+		onChange({
+			...normalized,
+			values: {
+				...normalized.values,
+				[side]: {
+					...normalized.values[side],
+					...patch,
+				},
+			},
+		});
+	};
+
+	return (
+		<div className={components.card}>
+			<div className="flex items-center justify-between gap-2">
+				<Label className={typography.fieldLabel}>{label}</Label>
+				<Select
+					value={normalized.mode}
+					onValueChange={(mode) =>
+						onChange({
+							...normalized,
+							mode: mode === "custom" ? "custom" : "all",
+						})
+					}
+				>
+					<SelectTrigger className="h-8 w-36">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">1 value (all sides)</SelectItem>
+						<SelectItem value="custom">Separate values</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			{normalized.mode === "all" ? (
+				<div className={`${components.field} mt-3`}>
+					<Label className={typography.fieldLabel}>All Sides</Label>
+					<div className="flex gap-2">
+						<Input
+							type="number"
+							step="0.1"
+							value={normalized.all.value}
+							onChange={(e) => updateAll({ value: Number(e.target.value) || 0 })}
+							className={components.inputHeight}
+						/>
+						<Select
+							value={normalized.all.unit}
+							onValueChange={(unit) => updateAll({ unit: unit as ElementMeasuredLength["unit"] })}
+						>
+							<SelectTrigger className="h-9 w-24">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{ELEMENT_BOX_MODEL_UNITS.map((unit) => (
+									<SelectItem key={unit} value={unit}>
+										{unit}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+			) : (
+				<div className={`${components.grid} mt-3`}>
+					{(["top", "right", "bottom", "left"] as const).map((side) => (
+						<div key={side} className={components.field}>
+							<Label className={typography.fieldLabel}>
+								{side.charAt(0).toUpperCase() + side.slice(1)}
+							</Label>
+							<div className="flex gap-2">
+								<Input
+									type="number"
+									step="0.1"
+									value={normalized.values[side].value}
+									onChange={(e) => updateSide(side, { value: Number(e.target.value) || 0 })}
+									className={components.inputHeight}
+								/>
+								<Select
+									value={normalized.values[side].unit}
+									onValueChange={(unit) =>
+										updateSide(side, { unit: unit as ElementMeasuredLength["unit"] })
+									}
+								>
+									<SelectTrigger className="h-9 w-24">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{ELEMENT_BOX_MODEL_UNITS.map((unit) => (
+											<SelectItem key={unit} value={unit}>
+												{unit}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+					))}
+				</div>
 			)}
 		</div>
 	);

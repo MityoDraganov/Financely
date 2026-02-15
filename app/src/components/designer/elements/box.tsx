@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Switch } from "@/components/ui/switch";
 import {
 	Select,
@@ -11,6 +12,20 @@ import {
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
 import { typography, spacing, separators, components } from "../design-system";
+
+function normalizeColorInputValue(value: string | undefined): string {
+	if (!value) return "#ffffff";
+	const trimmed = value.trim();
+	if (!trimmed || trimmed.toLowerCase() === "transparent") return "#ffffff";
+	const shortHex = /^#([0-9a-fA-F]{3})$/.exec(trimmed);
+	if (shortHex) {
+		const [r, g, b] = shortHex[1].split("");
+		return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+	}
+	const longHex = /^#([0-9a-fA-F]{6})$/.exec(trimmed);
+	if (longHex) return `#${longHex[1].toLowerCase()}`;
+	return "#ffffff";
+}
 
 interface BoxElementProps {
 	element: Extract<TemplateElement, { type: "box" }>;
@@ -109,31 +124,24 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 				<div className={components.grid}>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.fill')}</Label>
-						<div className="flex gap-2">
-							<Input
-								type="color"
-								value={element.fill || "#ffffff"}
-								onChange={(e) => {
-									onChange({ ...element, fill: e.target.value });
-								}}
-								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-							/>
-							<Input
-								placeholder={t('designer.elementProperties.box.fillPlaceholder')}
-								value={element.fill}
-								onChange={(e) => {
-									onChange({ ...element, fill: e.target.value });
-								}}
-								className={components.inputHeight}
-							/>
-						</div>
+						<ColorPicker
+							value={element.fill || "#ffffff"}
+							onChange={(color) =>
+								onChange({
+									...element,
+									fill: color.trim().length === 0 ? undefined : color,
+								})
+							}
+							allowTransparent
+							transparentLabel={t("designer.elementProperties.text.transparent", "Transparent")}
+						/>
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.stroke')}</Label>
 						<div className="flex gap-2">
 							<Input
 								type="color"
-								value={element.stroke || "#e5e7eb"}
+								value={normalizeColorInputValue(element.stroke || "#e5e7eb")}
 								onChange={(e) => {
 									onChange({ ...element, stroke: e.target.value });
 								}}

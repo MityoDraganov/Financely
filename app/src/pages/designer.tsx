@@ -45,6 +45,8 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { compileInvoiceBlocksToElements } from "@/services/template-compiler/invoice-block-compiler";
+import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx, resolveTemplateMarginsPx } from "@/utils/print-margins";
+import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
@@ -489,7 +491,7 @@ export default function TemplateDesignerPage() {
 					{
 						id: crypto.randomUUID(),
 						header: t('designer.tableColumns.description'),
-						width: 200,
+						width: "44%",
 						align: "left",
 						type: "text",
 						binding: "description",
@@ -499,7 +501,7 @@ export default function TemplateDesignerPage() {
 					{
 						id: crypto.randomUUID(),
 						header: t('designer.tableColumns.quantity'),
-						width: 80,
+						width: "16%",
 						align: "right",
 						type: "number",
 						binding: "quantity",
@@ -509,7 +511,7 @@ export default function TemplateDesignerPage() {
 					{
 						id: crypto.randomUUID(),
 						header: t('designer.tableColumns.price'),
-						width: 100,
+						width: "20%",
 						align: "right",
 						type: "number",
 						binding: "unitPrice",
@@ -519,7 +521,7 @@ export default function TemplateDesignerPage() {
 					{
 						id: crypto.randomUUID(),
 						header: t('designer.tableColumns.total'),
-						width: 100,
+						width: "20%",
 						align: "right",
 						type: "number",
 						binding: "total",
@@ -595,7 +597,6 @@ export default function TemplateDesignerPage() {
 				visible: true,
 				text: label,
 				binding: binding,
-				padding: 0,
 				opacity: 1,
 				typography: {
 					fontFamily: "Inter",
@@ -932,7 +933,14 @@ export default function TemplateDesignerPage() {
 						secondary: "#6b7280",
 						accent: "#2563eb",
 					},
-					margins: { top: 40, right: 40, bottom: 40, left: 40 },
+					margins: getDefaultPrintMarginsPx(),
+				},
+				pageSettings: {
+					size: "A4",
+					orientation: "portrait",
+					margins: getDefaultPrintMarginsPx(),
+					marginUnit: DEFAULT_MARGIN_UNIT,
+					padding: { top: 0, right: 0, bottom: 0, left: 0 },
 				},
 				elements: [],
 				status: "draft",
@@ -959,13 +967,6 @@ export default function TemplateDesignerPage() {
 		},
 	});
 
-		// Page dimensions in pixels (at 96 DPI to match PDF rendering)
-		const PAGE_SIZES = {
-			A4: { width: 794, height: 1123 },
-			Letter: { width: 816, height: 1056 },
-			Legal: { width: 816, height: 1344 },
-		} as const;
-		
 		function getPageDimensions(templateData: Template | undefined): { width: number; height: number } {
 			const pageSettings = templateData?.pageSettings;
 			const sizeKey = pageSettings?.size && pageSettings.size !== "Custom"
@@ -977,7 +978,10 @@ export default function TemplateDesignerPage() {
 					width: pageSettings.customSize.width,
 					height: pageSettings.customSize.height,
 				}
-				: (PAGE_SIZES[sizeKey as keyof typeof PAGE_SIZES] || PAGE_SIZES.A4);
+				: {
+					width: PAGE_SIZES_PX[sizeKey as keyof typeof PAGE_SIZES_PX]?.w ?? PAGE_SIZES_PX.A4.w,
+					height: PAGE_SIZES_PX[sizeKey as keyof typeof PAGE_SIZES_PX]?.h ?? PAGE_SIZES_PX.A4.h,
+				};
 
 			if (pageSettings?.orientation === "landscape") {
 				return { width: base.height, height: base.width };
@@ -989,6 +993,16 @@ export default function TemplateDesignerPage() {
 		const pageDimensions = getPageDimensions(currentTemplate);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
+	const templateMargins = resolveTemplateMarginsPx(
+		currentTemplate?.pageSettings?.margins,
+		currentTemplate?.brand?.margins
+	);
+	const printableBounds = {
+		left: templateMargins.left,
+		top: templateMargins.top,
+		right: Math.max(templateMargins.left, PAGE_WIDTH - templateMargins.right),
+		bottom: Math.max(templateMargins.top, PAGE_HEIGHT - templateMargins.bottom),
+	};
 	const SNAP_THRESHOLD = 5; // pixels
 
 	function calculateSnapPositions(
@@ -1167,38 +1181,40 @@ export default function TemplateDesignerPage() {
 		return { snappedX, snappedY, guides };
 	}
 
-	function clampMove(x: number, y: number, width: number, height: number) {
-		const maxX = Math.max(0, PAGE_WIDTH - width);
-		const maxY = Math.max(0, PAGE_HEIGHT - height);
-		return {
-			x: Math.min(Math.max(0, x), maxX),
-			y: Math.min(Math.max(0, y), maxY),
-		};
-	}
+		function clampMove(x: number, y: number, width: number, height: number) {
+			const minX = printableBounds.left;
+			const minY = printableBounds.top;
+			const maxX = Math.max(minX, printableBounds.right - width);
+			const maxY = Math.max(minY, printableBounds.bottom - height);
+			return {
+				x: Math.min(Math.max(minX, x), maxX),
+				y: Math.min(Math.max(minY, y), maxY),
+			};
+		}
 
-	function clampResize(x: number, y: number, width: number, height: number) {
-		const minW = 8;
-		const minH = 8;
-		let nextX = x;
-		let nextY = y;
-		let nextW = Math.max(minW, width);
-		let nextH = Math.max(minH, height);
-		if (nextX < 0) {
-			nextW = Math.max(minW, nextW + nextX);
-			nextX = 0;
+		function clampResize(x: number, y: number, width: number, height: number) {
+			const minW = 8;
+			const minH = 8;
+			let nextX = x;
+			let nextY = y;
+			let nextW = Math.max(minW, width);
+			let nextH = Math.max(minH, height);
+			if (nextX < printableBounds.left) {
+				nextW = Math.max(minW, nextW + (nextX - printableBounds.left));
+				nextX = printableBounds.left;
+			}
+			if (nextY < printableBounds.top) {
+				nextH = Math.max(minH, nextH + (nextY - printableBounds.top));
+				nextY = printableBounds.top;
+			}
+			if (nextX + nextW > printableBounds.right) {
+				nextW = Math.max(minW, printableBounds.right - nextX);
+			}
+			if (nextY + nextH > printableBounds.bottom) {
+				nextH = Math.max(minH, printableBounds.bottom - nextY);
+			}
+			return { x: nextX, y: nextY, width: nextW, height: nextH };
 		}
-		if (nextY < 0) {
-			nextH = Math.max(minH, nextH + nextY);
-			nextY = 0;
-		}
-		if (nextX + nextW > PAGE_WIDTH) {
-			nextW = Math.max(minW, PAGE_WIDTH - nextX);
-		}
-		if (nextY + nextH > PAGE_HEIGHT) {
-			nextH = Math.max(minH, PAGE_HEIGHT - nextY);
-		}
-		return { x: nextX, y: nextY, width: nextW, height: nextH };
-	}
 
 	function handleCanvasDragOver(e: React.DragEvent<HTMLDivElement>) {
 		e.preventDefault();
@@ -1272,14 +1288,14 @@ export default function TemplateDesignerPage() {
 		const rect = pageRef.current?.getBoundingClientRect();
 		console.log("[DND] page rect", rect);
 		if (!rect) return;
-		const x = (e.clientX - rect.left) / state.zoom;
-		const y = (e.clientY - rect.top) / state.zoom;
-		console.log("[DND] computed drop coords", { x, y, zoom: state.zoom });
-		addElement(type, {
-			x: Math.max(0, Math.min(Math.round(x), PAGE_WIDTH - 1)),
-			y: Math.max(0, Math.min(Math.round(y), PAGE_HEIGHT - 1)),
-		});
-	}
+			const x = (e.clientX - rect.left) / state.zoom;
+			const y = (e.clientY - rect.top) / state.zoom;
+			console.log("[DND] computed drop coords", { x, y, zoom: state.zoom });
+			addElement(type, {
+				x: Math.max(printableBounds.left, Math.min(Math.round(x), printableBounds.right - 1)),
+				y: Math.max(printableBounds.top, Math.min(Math.round(y), printableBounds.bottom - 1)),
+			});
+		}
 
 	function addElement(
 		kind: TemplateElement["type"],
@@ -1313,7 +1329,6 @@ export default function TemplateDesignerPage() {
 						visible: true,
 						text: t('designer.defaults.text'),
 						binding: defaultBinding,
-						padding: 0,
 						opacity: 1,
 						typography: {
 							fontFamily: "Inter",
@@ -1361,7 +1376,7 @@ export default function TemplateDesignerPage() {
 									{
 										id: crypto.randomUUID(),
 										header: t('designer.tableColumns.column1'),
-										width: 160,
+										width: "50%",
 										align: "left",
 										type: "text",
 										format: { kind: "none" },
@@ -1370,7 +1385,7 @@ export default function TemplateDesignerPage() {
 									{
 										id: crypto.randomUUID(),
 										header: t('designer.tableColumns.column2'),
-										width: 160,
+										width: "50%",
 										align: "left",
 										type: "text",
 										format: { kind: "none" },
@@ -1568,19 +1583,26 @@ export default function TemplateDesignerPage() {
 										stroke: "#e5e7eb",
 										strokeWidth: 1,
 									};
-		console.log("[ADD] new element", newElement);
-		// Clamp initial position so element appears fully in frame
-		const clampedAt = clampMove(
-			newElement.x,
-			newElement.y,
-			newElement.width,
-			newElement.height
-		);
-		const nextElement = {
-			...newElement,
-			x: clampedAt.x,
-			y: clampedAt.y,
-		} as TemplateElement;
+			console.log("[ADD] new element", newElement);
+			const maxPrintableWidth = Math.max(8, printableBounds.right - printableBounds.left);
+			const maxPrintableHeight = Math.max(8, printableBounds.bottom - printableBounds.top);
+			const boundedSizeElement = {
+				...newElement,
+				width: Math.min(newElement.width, maxPrintableWidth),
+				height: Math.min(newElement.height, maxPrintableHeight),
+			} as TemplateElement;
+			// Clamp initial position so element appears fully in frame
+			const clampedAt = clampMove(
+				boundedSizeElement.x,
+				boundedSizeElement.y,
+				boundedSizeElement.width,
+				boundedSizeElement.height
+			);
+			const nextElement = {
+				...boundedSizeElement,
+				x: clampedAt.x,
+				y: clampedAt.y,
+			} as TemplateElement;
 		const next = [...(currentTemplate?.elements ?? []), nextElement];
 		console.log("[ADD] next elements length", next.length);
 		// optimistic UI update so drop shows immediately
@@ -1863,6 +1885,42 @@ export default function TemplateDesignerPage() {
 			selectedElementIds: [duplicated.id],
 		}));
 		toast.success(t('designer.duplicateSuccess'));
+	}
+
+	function reorderElementsByLayer(fromIndex: number, toIndex: number) {
+		if (!currentTemplate) return;
+		const base = draftElements ?? currentTemplate.elements ?? [];
+		if (base.length < 2) return;
+		if (fromIndex < 0 || toIndex < 0 || fromIndex >= base.length || toIndex >= base.length) return;
+		if (fromIndex === toIndex) return;
+
+		const ordered = base
+			.map((el, index) => ({ el, index }))
+			.sort((a, b) => {
+				const aZ = a.el.zIndex ?? 0;
+				const bZ = b.el.zIndex ?? 0;
+				if (aZ !== bZ) return bZ - aZ;
+				return b.index - a.index;
+			});
+
+		const reordered = [...ordered];
+		const [movedEntry] = reordered.splice(fromIndex, 1);
+		if (!movedEntry) return;
+		reordered.splice(toIndex, 0, movedEntry);
+
+		const total = reordered.length;
+		const zIndexById = new Map<string, number>();
+		reordered.forEach((entry, index) => {
+			zIndexById.set(entry.el.id, total - index);
+		});
+
+		const next = base.map((el) => ({
+			...el,
+			zIndex: zIndexById.get(el.id) ?? (el.zIndex ?? 0),
+		}));
+
+		draftRef.current = next;
+		setDraftElements(next);
 	}
 
 	// Global pointer handlers during drag
@@ -2211,7 +2269,7 @@ export default function TemplateDesignerPage() {
 			onAddElement={addElement}
 			onSelectElement={(id, event) => {
 				handleSelectElement(id, event);
-				if (isMobile) {
+				if (isMobile && event && !event.defaultPrevented) {
 					setMobilePanelTab("properties");
 					setMobilePanelOpen(true);
 				}
@@ -2219,6 +2277,7 @@ export default function TemplateDesignerPage() {
 			onHoverElement={setHoveredElementId}
 			onDuplicateElement={duplicateElement}
 			onDeleteElement={deleteElement}
+			onReorderElements={reorderElementsByLayer}
 			missingRequiredFields={missingRequiredFields}
 			onAddRequiredElement={addRequiredElement}
 			isRequired={isRequired}
@@ -2374,8 +2433,8 @@ export default function TemplateDesignerPage() {
 						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
 						if (!tbl) return;
 						const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-							{ id: "c1", header: t('designer.tableColumns.column1'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-							{ id: "c2", header: t('designer.tableColumns.column2'), width: 120, align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c1", header: t('designer.tableColumns.column1'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c2", header: t('designer.tableColumns.column2'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 						];
 						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
 						// Update draft elements but don't save - save will happen when user edits in properties panel

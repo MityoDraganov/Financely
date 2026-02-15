@@ -14,17 +14,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, type ElementType } from "react";
 import { cn } from "@/lib/utils";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 import { getPrimaryColor, getSecondaryColor, getAccentColor } from "@/utils/branding";
 import { COMPLIANCE_SCHEMAS, type InvoiceRegion } from "@/core/entities/invoice-compliance";
 
 type FlowType = "template" | "invoice";
 
 interface TemplatePreviewDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  inline?: boolean;
   template: TemplateData;
   quality?: { overall: number; layout: number; text: number; table: number; font: number };
   needsReview?: boolean;
@@ -56,8 +58,9 @@ function formatBindingValue(value: unknown): string {
 }
 
 export function TemplatePreviewDialog({
-  open,
-  onOpenChange,
+  open = true,
+  onOpenChange = () => {},
+  inline = false,
   template,
   quality,
   needsReview = false,
@@ -84,15 +87,10 @@ export function TemplatePreviewDialog({
   const isTemplateOnly = flowType === "template";
 
   const resolvePreviewSize = (data: TemplateData): { w: number; h: number } => {
-    const PAGE_SIZES: Record<Exclude<TemplateData["pageSize"], undefined>, { w: number; h: number }> = {
-      A4: { w: 794, h: 1123 },
-      Letter: { w: 816, h: 1056 },
-      Legal: { w: 816, h: 1344 },
-    };
     const baseSize =
       data.pageSettings?.size === "Custom" && data.pageSettings.customSize
         ? { w: data.pageSettings.customSize.width, h: data.pageSettings.customSize.height }
-        : PAGE_SIZES[(data.pageSettings?.size ?? data.pageSize) as Exclude<TemplateData["pageSize"], undefined>] ?? PAGE_SIZES.A4;
+        : PAGE_SIZES_PX[(data.pageSettings?.size ?? data.pageSize) as Exclude<TemplateData["pageSize"], undefined>] ?? PAGE_SIZES_PX.A4;
     return data.pageSettings?.orientation === "landscape"
       ? { w: baseSize.h, h: baseSize.w }
       : baseSize;
@@ -904,14 +902,32 @@ export function TemplatePreviewDialog({
   };
 
 
+  const Root = (inline ? "div" : Dialog) as ElementType;
+  const Content = (inline ? "div" : DialogContent) as ElementType;
+  const rootProps = inline ? {} : { open, onOpenChange };
+  const contentClassName = inline
+    ? "w-full h-[85vh] max-h-[85vh] overflow-hidden flex flex-col border rounded-md bg-background"
+    : "max-w-none! lg:max-w-[80dvw]! w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0";
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none! lg:max-w-[80dvw]! w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0">
+    <Root {...rootProps}>
+      <Content className={contentClassName}>
         <div className="px-4 pt-4 pb-3 shrink-0 border-b">
-          <DialogTitle className="text-base">Template Preview</DialogTitle>
-          <DialogDescription className="mt-1 text-xs">
-            Review the generated template with your extracted data. You can accept it or edit it manually.
-          </DialogDescription>
+          {inline ? (
+            <>
+              <h2 className="text-base font-semibold">Template Preview</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Review the generated template with your extracted data. You can accept it or edit it manually.
+              </p>
+            </>
+          ) : (
+            <>
+              <DialogTitle className="text-base">Template Preview</DialogTitle>
+              <DialogDescription className="mt-1 text-xs">
+                Review the generated template with your extracted data. You can accept it or edit it manually.
+              </DialogDescription>
+            </>
+          )}
           {quality && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Badge variant="outline">Overall {(quality.overall * 100).toFixed(0)}%</Badge>
@@ -941,114 +957,108 @@ export function TemplatePreviewDialog({
           </div>
 
           <TabsContent value="preview" className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
-            {editableData && Object.keys(editableData).length > 0 ? (
-              <>
-                {/* Preview Mode Toggle - Compact floating style */}
-                <div className="flex items-center justify-end gap-2 mb-2 shrink-0">
-                  <ToggleGroup
-                    type="single"
-                    value={previewMode}
-                    onValueChange={(value) => {
-                      if (value) setPreviewMode(value as "fit" | "scroll");
-                    }}
-                    variant="outline"
-                    className="h-8"
-                  >
-                    <ToggleGroupItem value="fit" aria-label="Fit to screen" className="text-xs px-3">
-                      <Maximize2 className="h-3.5 w-3.5 mr-1.5" />
-                      Fit
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="scroll" aria-label="Larger width with scroll" className="text-xs px-3">
-                      <Scroll className="h-3.5 w-3.5 mr-1.5" />
-                      Scroll
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
+            {/* Preview Mode Toggle - Compact floating style */}
+            <div className="flex items-center justify-end gap-2 mb-2 shrink-0">
+              <ToggleGroup
+                type="single"
+                value={previewMode}
+                onValueChange={(value) => {
+                  if (value) setPreviewMode(value as "fit" | "scroll");
+                }}
+                variant="outline"
+                className="h-8"
+              >
+                <ToggleGroupItem value="fit" aria-label="Fit to screen" className="text-xs px-3">
+                  <Maximize2 className="h-3.5 w-3.5 mr-1.5" />
+                  Fit
+                </ToggleGroupItem>
+                <ToggleGroupItem value="scroll" aria-label="Larger width with scroll" className="text-xs px-3">
+                  <Scroll className="h-3.5 w-3.5 mr-1.5" />
+                  Scroll
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
 
-                {/* Preview Container */}
-                <div 
-                  ref={previewContainerRef}
-                  className={cn(
-                    "flex-1 bg-muted/30 rounded-md border overflow-hidden",
-                    previewMode === "fit" 
-                      ? "flex items-center justify-center p-2" 
-                      : "p-4 overflow-y-auto"
-                  )}
-                  style={{
-                    minWidth: 0,
-                    minHeight: 0,
-                    position: 'relative',
-                  }}
-                >
-                  {/* Wrapper for fit mode - scales down to fit */}
-                  {previewMode === "fit" ? (
-                    <div 
-                      className="flex items-center justify-center w-full h-full"
-                      style={{
-                        overflow: 'hidden',
-                        position: 'relative',
-                        minWidth: 0,
-                        minHeight: 0,
-                      }}
-                    >
-                      {/* Wrapper that scales the preview to fit */}
-                      <div
-                        style={{
-                          transform: 'scale(var(--preview-scale, 1))',
-                          transformOrigin: 'center center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          // Don't constrain width/height - let preview render at natural size
-                          width: 'auto',
-                          height: 'auto',
-                        }}
-                      >
-                        <TemplatePreview
-                          template={{
-                            ...editableTemplate,
-                            id: "preview-template",
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString(),
-                          } as Template}
-                          context={editableData}
-                          zoom={1}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    /* Scroll mode - larger width with vertical scroll */
-                    <div 
-                      className="flex items-start justify-center w-full min-h-full"
-                      style={{
-                        minWidth: '800px', // Larger width for scroll mode
-                        maxWidth: '1200px',
-                        margin: '0 auto',
-                      }}
-                    >
-                      <TemplatePreview
-                        template={{
-                          ...editableTemplate,
-                          id: "preview-template",
-                          createdAt: new Date().toISOString(),
-                          updatedAt: new Date().toISOString(),
-                        } as Template}
-                        context={editableData}
-                        zoom={1}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground text-center">
-                    No extracted data available for preview
-                  </p>
-                </div>
+            {Object.keys(editableData || {}).length === 0 && (
+              <div className="mb-2 text-xs text-muted-foreground">
+                No extracted data available. Showing template preview with empty context.
               </div>
             )}
+
+            {/* Preview Container */}
+            <div 
+              ref={previewContainerRef}
+              className={cn(
+                "flex-1 bg-muted/30 rounded-md border overflow-hidden",
+                previewMode === "fit" 
+                  ? "flex items-center justify-center p-2" 
+                  : "p-4 overflow-y-auto"
+              )}
+              style={{
+                minWidth: 0,
+                minHeight: 0,
+                position: 'relative',
+              }}
+            >
+              {/* Wrapper for fit mode - scales down to fit */}
+              {previewMode === "fit" ? (
+                <div 
+                  className="flex items-center justify-center w-full h-full"
+                  style={{
+                    overflow: 'hidden',
+                    position: 'relative',
+                    minWidth: 0,
+                    minHeight: 0,
+                  }}
+                >
+                  {/* Wrapper that scales the preview to fit */}
+                  <div
+                    style={{
+                      transform: 'scale(var(--preview-scale, 1))',
+                      transformOrigin: 'center center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      // Don't constrain width/height - let preview render at natural size
+                      width: 'auto',
+                      height: 'auto',
+                    }}
+                  >
+                    <TemplatePreview
+                      template={{
+                        ...editableTemplate,
+                        id: "preview-template",
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                      } as Template}
+                      context={editableData || {}}
+                      zoom={1}
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Scroll mode - larger width with vertical scroll */
+                <div 
+                  className="flex items-start justify-center w-full min-h-full"
+                  style={{
+                    minWidth: '800px', // Larger width for scroll mode
+                    maxWidth: '1200px',
+                    margin: '0 auto',
+                  }}
+                >
+                  <TemplatePreview
+                    template={{
+                      ...editableTemplate,
+                      id: "preview-template",
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    } as Template}
+                    context={editableData || {}}
+                    zoom={1}
+                  />
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="data" className="flex-1 overflow-y-auto mt-4 px-6 pb-6">
@@ -1595,10 +1605,12 @@ export function TemplatePreviewDialog({
 
         <div className="px-4 py-3 border-t shrink-0">
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
+            {!inline && (
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+            )}
             <Button variant="outline" onClick={() => onEdit(editableTemplate)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit in Designer
@@ -1609,8 +1621,8 @@ export function TemplatePreviewDialog({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </Content>
+    </Root>
   );
 }
 

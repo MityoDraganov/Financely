@@ -46,7 +46,7 @@ function defaultTableColumns(blockId: string): TableColumn[] {
     {
       id: `${blockId}-c1`,
       header: "Description",
-      width: 220,
+      width: "44%",
       align: "left",
       type: "text",
       format: { kind: "none" },
@@ -55,7 +55,7 @@ function defaultTableColumns(blockId: string): TableColumn[] {
     {
       id: `${blockId}-c2`,
       header: "Qty",
-      width: 80,
+      width: "16%",
       align: "right",
       type: "number",
       format: { kind: "none" },
@@ -64,7 +64,7 @@ function defaultTableColumns(blockId: string): TableColumn[] {
     {
       id: `${blockId}-c3`,
       header: "Price",
-      width: 120,
+      width: "20%",
       align: "right",
       type: "currency",
       format: { kind: "currency", currency: "USD" },
@@ -74,7 +74,7 @@ function defaultTableColumns(blockId: string): TableColumn[] {
     {
       id: `${blockId}-c4`,
       header: "Total",
-      width: 120,
+      width: "20%",
       align: "right",
       type: "currency",
       format: { kind: "currency", currency: "USD" },
@@ -120,7 +120,6 @@ function compileBlock(block: InvoiceBlock, out: TemplateElement[], inheritedZ = 
           textIndent: toNum(props.textIndent, 0),
         },
         backgroundColor: typeof props.backgroundColor === "string" ? props.backgroundColor : undefined,
-        padding: toNum(props.padding, 0),
         opacity: toNum(props.opacity, 1),
         format: { kind: "none" },
       });
@@ -377,7 +376,6 @@ function compileBlock(block: InvoiceBlock, out: TemplateElement[], inheritedZ = 
           textIndent: 0,
         },
         format: { kind: "none" },
-        padding: 0,
         opacity: 1,
       });
       break;

@@ -2,6 +2,8 @@ import { FunctionsService } from "@/core";
 import { firebase, projectId } from "@/infrastructure/firebase";
 import { httpsCallable } from "@firebase/functions";
 
+const INVOICE_EXTRACTION_CALL_TIMEOUT_MS = 540_000;
+
 export const functionsService: FunctionsService = {
   async createOrganization(payload) {
     type CreateOrganizationPayload = Parameters<FunctionsService["createOrganization"]>[0];
@@ -655,7 +657,10 @@ export const functionsService: FunctionsService = {
     const result = await httpsCallable<
       { action: "upload" } & UploadPayload,
       { action: "upload"; jobId: string }
-    >(firebase.functions, "invoiceExtraction")({ action: "upload", ...payload });
+    >(firebase.functions, "invoiceExtraction", { timeout: INVOICE_EXTRACTION_CALL_TIMEOUT_MS })({
+      action: "upload",
+      ...payload,
+    });
     return { jobId: (result.data as { jobId: string }).jobId } as Response;
   },
 
@@ -665,7 +670,10 @@ export const functionsService: FunctionsService = {
     const result = await httpsCallable<
       { action: "extract" } & ExtractPayload,
       { action: "extract"; job: unknown }
-    >(firebase.functions, "invoiceExtraction")({ action: "extract", ...payload });
+    >(firebase.functions, "invoiceExtraction", { timeout: INVOICE_EXTRACTION_CALL_TIMEOUT_MS })({
+      action: "extract",
+      ...payload,
+    });
     return { job: (result.data as { job: unknown }).job } as Response;
   },
 
@@ -681,7 +689,10 @@ export const functionsService: FunctionsService = {
         needsReview: Response["needsReview"];
         reviewReasons: Response["reviewReasons"];
       }
-    >(firebase.functions, "invoiceExtraction")({ action: "generateTemplate", ...payload });
+    >(firebase.functions, "invoiceExtraction", { timeout: INVOICE_EXTRACTION_CALL_TIMEOUT_MS })({
+      action: "generateTemplate",
+      ...payload,
+    });
     const data = result.data as {
       template: Response["template"];
       quality: Response["quality"];

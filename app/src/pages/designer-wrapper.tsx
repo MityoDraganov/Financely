@@ -9,6 +9,7 @@ import { DesignerTemplateProvider } from "@/contexts/designer-template-context";
 import TemplateDesignerPage from "./designer";
 import AppLayout from "@/components/layout";
 import type { TemplateData } from "@/core";
+import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx } from "@/utils/print-margins";
 
 export default function DesignerWrapper() {
 	const navigate = useNavigate();
@@ -40,17 +41,24 @@ export default function DesignerWrapper() {
 			name: uniqueName,
 			description: "A new template",
 			pageSize: "A4",
-			brand: {
-				colors: {
-					primary: "#000000",
-					secondary: "#666666",
-					accent: "#2563eb",
+				brand: {
+					colors: {
+						primary: "#000000",
+						secondary: "#666666",
+						accent: "#2563eb",
+					},
+					backgroundImage: "",
+					margins: getDefaultPrintMarginsPx(),
+					fonts: ["Inter"],
 				},
-				backgroundImage: "",
-				margins: { top: 40, right: 40, bottom: 40, left: 40 },
-				fonts: ["Inter"],
-			},
-			elements: [],
+				pageSettings: {
+					size: "A4",
+					orientation: "portrait",
+					margins: getDefaultPrintMarginsPx(),
+					marginUnit: DEFAULT_MARGIN_UNIT,
+					padding: { top: 0, right: 0, bottom: 0, left: 0 },
+				},
+				elements: [],
 			status: "draft",
 			compliance: {
 				region,
@@ -93,4 +101,3 @@ export default function DesignerWrapper() {
 		</DesignerTemplateProvider>
 	);
 }
-
