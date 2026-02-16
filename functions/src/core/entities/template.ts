@@ -54,6 +54,26 @@ const shadowSchema = z.object({
   color: z.string().default("#00000040"),
 });
 
+const pathNodeHandleSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+const pathNodeSchema = z.object({
+  id: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  type: z.enum(["corner", "smooth"]).default("corner"),
+  handleIn: pathNodeHandleSchema.nullable().optional(),
+  handleOut: pathNodeHandleSchema.nullable().optional(),
+});
+
+const pathSubpathSchema = z.object({
+  id: z.string().min(1),
+  closed: z.boolean().default(false),
+  nodes: z.array(pathNodeSchema).default([]),
+});
+
 export const textElementSchema = templateElementBaseSchema.extend({
   type: z.literal("text"),
   text: z.string().default(""),
@@ -370,6 +390,7 @@ export const pathElementSchema = templateElementBaseSchema.extend({
   type: z.literal("path"),
   // SVG path data (d attribute) - supports all SVG path commands (M, L, C, Q, A, Z, etc.)
   pathData: z.string().min(1),
+  subpaths: z.array(pathSubpathSchema).optional(),
   // Fill color (supports gradients via fillGradient)
   fill: z.string().default("#3b82f6"),
   fillGradient: z.object({
@@ -390,6 +411,7 @@ export const pathElementSchema = templateElementBaseSchema.extend({
   shadow: shadowSchema.optional(),
   // Blend mode for layering effects
   blendMode: z.enum(["normal", "multiply", "screen", "overlay", "darken", "lighten"]).optional(),
+  scaleStroke: z.boolean().default(false),
 });
 
 export const templateElementSchema = z.discriminatedUnion("type", [

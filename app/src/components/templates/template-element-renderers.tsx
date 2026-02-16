@@ -27,6 +27,51 @@ type RenderContext = {
 
 type ElementStyle = React.CSSProperties;
 
+function buildPathDataFromSubpaths(
+	subpaths: NonNullable<Extract<TemplateElement, { type: "path" }>["subpaths"]>
+): string {
+	return subpaths
+		.map((subpath) => {
+			const nodes = subpath.nodes;
+			if (nodes.length === 0) return "";
+			const segments: string[] = [];
+			const start = nodes[0];
+			segments.push(`M ${start.x} ${start.y}`);
+			for (let i = 1; i < nodes.length; i += 1) {
+				const prev = nodes[i - 1];
+				const current = nodes[i];
+				const hasHandles = prev.handleOut || current.handleIn;
+				if (hasHandles) {
+					const h1 = prev.handleOut
+						? { x: prev.x + prev.handleOut.x, y: prev.y + prev.handleOut.y }
+						: { x: prev.x, y: prev.y };
+					const h2 = current.handleIn
+						? { x: current.x + current.handleIn.x, y: current.y + current.handleIn.y }
+						: { x: current.x, y: current.y };
+					segments.push(`C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${current.x} ${current.y}`);
+				} else {
+					segments.push(`L ${current.x} ${current.y}`);
+				}
+			}
+			if (subpath.closed) {
+				segments.push("Z");
+			}
+			return segments.join(" ");
+		})
+		.filter((segment) => segment.length > 0)
+		.join(" ");
+}
+
+function resolvePathData(element: Extract<TemplateElement, { type: "path" }>): string {
+	if (element.subpaths && element.subpaths.length > 0) {
+		const fromSubpaths = buildPathDataFromSubpaths(element.subpaths);
+		if (fromSubpaths.trim().length > 0) {
+			return fromSubpaths;
+		}
+	}
+	return element.pathData;
+}
+
 function getElementWrapperBackgroundColor(element: TemplateElement): string | undefined {
 	if (element.type === "text") {
 		return element.backgroundColor;
@@ -273,6 +318,77 @@ function renderLineElement(
 					opacity: el.opacity ?? 1,
 				}}
 			/>
+		</div>
+	);
+}
+
+function renderPathElement(
+	el: Extract<TemplateElement, { type: "path" }>,
+	style: ElementStyle
+): React.ReactNode {
+	const gradient = el.fillGradient;
+	const fill = gradient ? `url(#gradient-${el.id})` : el.fill;
+	const strokeDasharray =
+		el.strokeStyle === "dashed"
+			? `${(el.strokeWidth || 1) * 4},${(el.strokeWidth || 1) * 2}`
+			: el.strokeStyle === "dotted"
+				? `${el.strokeWidth || 1},${(el.strokeWidth || 1) * 2}`
+				: undefined;
+	const shadowStyle = el.shadow?.enabled
+		? `drop-shadow(${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.color})`
+		: undefined;
+	const pathData = resolvePathData(el);
+
+	return (
+		<div key={el.id} style={style}>
+			<svg
+				width="100%"
+				height="100%"
+				viewBox={`0 0 ${el.width} ${el.height}`}
+				preserveAspectRatio="none"
+				xmlns="http://www.w3.org/2000/svg"
+				style={{
+					opacity: el.opacity ?? 1,
+					mixBlendMode: el.blendMode || "normal",
+					filter: shadowStyle,
+				}}
+			>
+				{gradient && (
+					<defs>
+						{gradient.type === "linear" ? (
+							<linearGradient id={`gradient-${el.id}`} gradientTransform={`rotate(${gradient.angle})`}>
+								{gradient.colors.map((color, idx) => (
+									<stop
+										key={idx}
+										offset={`${(idx / (gradient.colors.length - 1)) * 100}%`}
+										stopColor={color}
+									/>
+								))}
+							</linearGradient>
+						) : (
+							<radialGradient id={`gradient-${el.id}`}>
+								{gradient.colors.map((color, idx) => (
+									<stop
+										key={idx}
+										offset={`${(idx / (gradient.colors.length - 1)) * 100}%`}
+										stopColor={color}
+									/>
+								))}
+							</radialGradient>
+						)}
+					</defs>
+				)}
+				<path
+					d={pathData}
+					fill={fill}
+					fillRule={el.fillRule || "nonzero"}
+					stroke={el.stroke}
+					strokeWidth={el.strokeWidth || 0}
+					strokeLinecap={el.strokeLinecap || "butt"}
+					strokeLinejoin={el.strokeLinejoin || "miter"}
+					strokeDasharray={strokeDasharray}
+				/>
+			</svg>
 		</div>
 	);
 }
@@ -814,6 +930,8 @@ export function renderTemplateElement(
 			return renderBoxElement(el, style);
 		case "line":
 			return renderLineElement(el, style);
+		case "path":
+			return renderPathElement(el, style);
 		case "icon":
 			return renderIconElement(el, style);
 		case "input":

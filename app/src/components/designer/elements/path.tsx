@@ -96,9 +96,21 @@ interface PathPropertiesProps {
 	element: Extract<TemplateElement, { type: "path" }>;
 	onChange: (partial: Partial<TemplateElement>) => void;
 	isNarrow?: boolean;
+	isEditing?: boolean;
+	activeTool?: "select" | "pen";
+	onEditToggle?: (enabled: boolean) => void;
+	onToolChange?: (tool: "select" | "pen") => void;
 }
 
-export function PathProperties({ element, onChange, isNarrow }: PathPropertiesProps) {
+export function PathProperties({
+	element,
+	onChange,
+	isNarrow,
+	isEditing,
+	activeTool,
+	onEditToggle,
+	onToolChange,
+}: PathPropertiesProps) {
 	const { t } = useTranslation();
 
 	// Common position/size controls
@@ -149,6 +161,36 @@ export function PathProperties({ element, onChange, isNarrow }: PathPropertiesPr
 	return (
 		<div className={components.section}>
 			<h3 className={typography.sectionTitle}>SVG Path</h3>
+
+			<section className={components.subsection}>
+				<h4 className={typography.subsectionTitle}>Edit</h4>
+				<div className={components.field}>
+					<div className="flex items-center justify-between">
+						<Label className={typography.fieldLabel}>Edit Nodes</Label>
+						<Switch
+							checked={Boolean(isEditing)}
+							onCheckedChange={(checked) => onEditToggle?.(checked)}
+						/>
+					</div>
+				</div>
+				{isEditing && (
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Tool</Label>
+						<Select
+							value={activeTool ?? "select"}
+							onValueChange={(value) => onToolChange?.(value as "select" | "pen")}
+						>
+							<SelectTrigger className={components.inputHeight}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="select">Select</SelectItem>
+								<SelectItem value="pen">Pen</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				)}
+			</section>
 
 			{/* Path Data */}
 			<section className={components.subsection}>
@@ -418,7 +460,13 @@ export function PathProperties({ element, onChange, isNarrow }: PathPropertiesPr
 					<Label className={typography.fieldLabel}>Blend Mode</Label>
 					<Select
 						value={element.blendMode || "normal"}
-						onValueChange={(v) => onChange({ blendMode: v as any })}
+						onValueChange={(v) =>
+							onChange({
+								blendMode: v as NonNullable<
+									Extract<TemplateElement, { type: "path" }>["blendMode"]
+								>,
+							})
+						}
 					>
 						<SelectTrigger className={components.inputHeight}>
 							<SelectValue />

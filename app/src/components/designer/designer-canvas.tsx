@@ -53,6 +53,15 @@ type DesignerCanvasProps = {
 	onTableHeaderChange?: (tableId: string, columnId: string, header: string) => void;
 	onStartTextEdit?: (id: string) => void;
 	onUpdateTextInline?: (id: string, text: string) => void;
+	onAddPathNode?: (elementId: string, point: { x: number; y: number }) => void;
+	onStartPathNodeDrag?: (options: {
+		elementId: string;
+		nodeId: string;
+		handleType?: "in" | "out";
+		clientX: number;
+		clientY: number;
+		symmetricHandles: boolean;
+	}) => void;
 	onLassoSelect?: (
 		rect: { x: number; y: number; width: number; height: number },
 		append: boolean
@@ -182,6 +191,8 @@ export function DesignerCanvas({
 	onTableHeaderChange,
 	onStartTextEdit,
 	onUpdateTextInline,
+	onAddPathNode,
+	onStartPathNodeDrag,
 	onLassoSelect,
 	dragStartedRef,
 }: DesignerCanvasProps) {
@@ -419,6 +430,11 @@ export function DesignerCanvas({
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
 					const elementWrapperBackgroundColor = getElementWrapperBackgroundColor(el);
+					const pathElement = el.type === "path" ? (el as Extract<TemplateElement, { type: "path" }>) : null;
+					const isPathEditing = pathElement != null && state.editingPathElementId === el.id;
+					const pathSubpaths = pathElement?.subpaths ?? [];
+					const pathNodeSize = 10;
+					const pathHandleSize = 8;
 					
 					return (
 						<ContextMenu key={el.id}>
@@ -711,10 +727,145 @@ export function DesignerCanvas({
 											</div>
 										);
 									})()}
-									{el.type === "path" && (
-										<PathElement
-											element={el as Extract<TemplateElement, { type: "path" }>}
-										/>
+									{pathElement && (
+										<div className="absolute inset-0">
+											<PathElement element={pathElement} />
+											{isPathEditing && (
+												<>
+													{state.activeTool === "pen" && (
+														<div
+															className="absolute inset-0"
+															style={{ cursor: "crosshair" }}
+															onPointerDown={(event) => {
+																if (isLocked) return;
+																if (!onAddPathNode) return;
+																event.stopPropagation();
+																const rect = event.currentTarget.getBoundingClientRect();
+																const x = (event.clientX - rect.left) / state.zoom;
+																const y = (event.clientY - rect.top) / state.zoom;
+																onAddPathNode(el.id, { x, y });
+															}}
+														/>
+													)}
+													<svg
+														className="absolute inset-0 pointer-events-none"
+														viewBox={`0 0 ${pathElement.width} ${pathElement.height}`}
+														preserveAspectRatio="none"
+													>
+														{pathSubpaths.map((subpath) =>
+															subpath.nodes.flatMap((node) => {
+																const segments = [];
+																if (node.handleIn) {
+																	segments.push(
+																		<line
+																			key={`${node.id}-in`}
+																			x1={node.x}
+																			y1={node.y}
+																			x2={node.x + node.handleIn.x}
+																			y2={node.y + node.handleIn.y}
+																			stroke="rgba(99, 102, 241, 0.6)"
+																			strokeWidth={1 / state.zoom}
+																		/>
+																	);
+																}
+																if (node.handleOut) {
+																	segments.push(
+																		<line
+																			key={`${node.id}-out`}
+																			x1={node.x}
+																			y1={node.y}
+																			x2={node.x + node.handleOut.x}
+																			y2={node.y + node.handleOut.y}
+																			stroke="rgba(99, 102, 241, 0.6)"
+																			strokeWidth={1 / state.zoom}
+																		/>
+																	);
+																}
+																return segments;
+															})
+														)}
+													</svg>
+													{pathSubpaths.map((subpath) =>
+														subpath.nodes.map((node) => {
+															const nodeLeft = node.x * state.zoom - pathNodeSize / 2;
+															const nodeTop = node.y * state.zoom - pathNodeSize / 2;
+															return (
+																<div
+																	key={node.id}
+																	className="absolute rounded-full border border-primary bg-background"
+																	style={{
+																		left: nodeLeft,
+																		top: nodeTop,
+																		width: pathNodeSize,
+																		height: pathNodeSize,
+																		cursor: "pointer",
+																	}}
+																	onPointerDown={(event) => {
+																		if (isLocked) return;
+																		if (!onStartPathNodeDrag) return;
+																		event.stopPropagation();
+																		onStartPathNodeDrag({
+																			elementId: el.id,
+																			nodeId: node.id,
+																			clientX: event.clientX,
+																			clientY: event.clientY,
+																			symmetricHandles: !event.altKey,
+																		});
+																	}}
+																/>
+															);
+														})
+													)}
+													{pathSubpaths.map((subpath) =>
+														subpath.nodes.flatMap((node) => {
+															const handles: Array<{ type: "in" | "out"; x: number; y: number; id: string }> = [];
+															if (node.handleIn) {
+																handles.push({
+																	type: "in",
+																	x: node.x + node.handleIn.x,
+																	y: node.y + node.handleIn.y,
+																	id: `${node.id}-in`,
+																});
+															}
+															if (node.handleOut) {
+																handles.push({
+																	type: "out",
+																	x: node.x + node.handleOut.x,
+																	y: node.y + node.handleOut.y,
+																	id: `${node.id}-out`,
+																});
+															}
+															return handles.map((handle) => (
+																<div
+																	key={handle.id}
+																	className="absolute rounded-full border border-indigo-400 bg-white"
+																	style={{
+																		left: handle.x * state.zoom - pathHandleSize / 2,
+																		top: handle.y * state.zoom - pathHandleSize / 2,
+																		width: pathHandleSize,
+																		height: pathHandleSize,
+																		cursor: "pointer",
+																	}}
+																	onPointerDown={(event) => {
+																		if (isLocked) return;
+																		if (!onStartPathNodeDrag) return;
+																		event.stopPropagation();
+																		onStartPathNodeDrag({
+																			elementId: el.id,
+																			nodeId: node.id,
+																			handleType: handle.type,
+																			clientX: event.clientX,
+																			clientY: event.clientY,
+																			symmetricHandles: !event.altKey,
+																		});
+																	}}
+																/>
+															));
+														})
+													)}
+												</>
+											)}
+										</div>
 									)}
 								</div>
 							</ContextMenuTrigger>

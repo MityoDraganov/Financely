@@ -35,7 +35,7 @@ import { CanvasHeader } from "@/components/designer/canvas-header";
 import { DesignerCanvas } from "@/components/designer/designer-canvas";
 import { PropertiesPanel } from "@/components/designer/properties-panel";
 import { AIBuilderDialog } from "@/components/designer/ai-builder-dialog";
-import type { DesignerState, DragState, SnapGuide } from "@/components/designer/designer-types";
+import type { DesignerState, DragState, SnapGuide, PathNodeDragState } from "@/components/designer/designer-types";
 import { useDesignerTemplate } from "@/contexts/designer-template-context";
 import { useTemplateVersions, useSaveTemplateVersion, useRestoreTemplateVersion } from "@/hooks/repository-hooks/use-template-versions";
 import { useUser } from "@clerk/clerk-react";
@@ -54,7 +54,6 @@ import {
 	createClipboardPayload,
 	deleteSelection,
 	duplicateSelection,
-	distributeSelection,
 	groupSelection,
 	jumpSelectionToEdge,
 	moveSelection,
@@ -88,8 +87,10 @@ export default function TemplateDesignerPage() {
 		selectedElementIds: [],
 		showGrid: true,
 		snapEnabled: true,
+		activeTool: "select",
 	});
 	const [drag, setDrag] = useState<DragState | null>(null);
+	const [pathNodeDrag, setPathNodeDrag] = useState<PathNodeDragState | null>(null);
 	const [draftElements, setDraftElements] = useState<
 		TemplateElement[] | null
 	>(null);
@@ -102,11 +103,8 @@ export default function TemplateDesignerPage() {
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const isCreatingTemplateRef = useRef<boolean>(false);
 	const dragStartedRef = useRef<boolean>(false); // Track if drag actually started (movement detected)
-	const canvasScrollRef = useRef<HTMLDivElement | null>(null);
 	const lastCursorCanvasPointRef = useRef<{ x: number; y: number } | null>(null);
 	const isSpacePressedRef = useRef(false);
-	const isPanningRef = useRef(false);
-	const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const designerTemplateContext = useDesignerTemplate();
@@ -1357,6 +1355,75 @@ export default function TemplateDesignerPage() {
 		return elements.map((el) => ({ ...el }));
 	}
 
+	type PathElement = Extract<TemplateElement, { type: "path" }>;
+	function buildPathDataFromSubpaths(subpaths: NonNullable<PathElement["subpaths"]>): string {
+		return subpaths
+			.map((subpath) => {
+				const nodes = subpath.nodes;
+				if (nodes.length === 0) return "";
+				const segments: string[] = [];
+				const start = nodes[0];
+				segments.push(`M ${start.x} ${start.y}`);
+				for (let i = 1; i < nodes.length; i += 1) {
+					const prev = nodes[i - 1];
+					const current = nodes[i];
+					const hasHandles = prev.handleOut || current.handleIn;
+					if (hasHandles) {
+						const h1 = prev.handleOut
+							? { x: prev.x + prev.handleOut.x, y: prev.y + prev.handleOut.y }
+							: { x: prev.x, y: prev.y };
+						const h2 = current.handleIn
+							? { x: current.x + current.handleIn.x, y: current.y + current.handleIn.y }
+							: { x: current.x, y: current.y };
+						segments.push(`C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${current.x} ${current.y}`);
+					} else {
+						segments.push(`L ${current.x} ${current.y}`);
+					}
+				}
+				if (subpath.closed) {
+					segments.push("Z");
+				}
+				return segments.join(" ");
+			})
+			.filter((segment) => segment.length > 0)
+			.join(" ");
+	}
+
+	function clonePathSubpaths(subpaths: NonNullable<PathElement["subpaths"]>): NonNullable<PathElement["subpaths"]> {
+		return subpaths.map((subpath) => ({
+			...subpath,
+			nodes: subpath.nodes.map((node) => ({
+				...node,
+				handleIn: node.handleIn ? { ...node.handleIn } : node.handleIn,
+				handleOut: node.handleOut ? { ...node.handleOut } : node.handleOut,
+			})),
+		}));
+	}
+
+	function createDefaultPathSubpaths(width: number, height: number): NonNullable<PathElement["subpaths"]> {
+		const w = Math.max(40, width);
+		const h = Math.max(40, height);
+		return [
+			{
+				id: crypto.randomUUID(),
+				closed: false,
+				nodes: [
+					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, type: "corner" },
+					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, type: "corner" },
+					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, type: "corner" },
+					{ id: crypto.randomUUID(), x: w, y: h * 0.5, type: "corner" },
+				],
+			},
+		];
+	}
+
+	function clampPathPoint(x: number, y: number, width: number, height: number): { x: number; y: number } {
+		return {
+			x: Math.max(0, Math.min(width, x)),
+			y: Math.max(0, Math.min(height, y)),
+		};
+	}
+
 	function getCommandBounds(): Bounds {
 		return {
 			left: printableBounds.left,
@@ -1366,7 +1433,7 @@ export default function TemplateDesignerPage() {
 		};
 	}
 
-	function queueCommandSave(elements: TemplateElement[]) {
+	function queueCommandSave() {
 		if (commandSaveTimerRef.current) {
 			clearTimeout(commandSaveTimerRef.current);
 		}
@@ -1424,7 +1491,7 @@ export default function TemplateDesignerPage() {
 		undoStackRef.current = undoStack.slice(0, -1);
 		redoStackRef.current = [...redoStackRef.current, current].slice(-HISTORY_LIMIT);
 		applyHistoryEntry(previous);
-		queueCommandSave(previous.elements);
+		queueCommandSave();
 	}
 
 	function redo() {
@@ -1435,7 +1502,7 @@ export default function TemplateDesignerPage() {
 		redoStackRef.current = redoStack.slice(0, -1);
 		undoStackRef.current = [...undoStackRef.current, current].slice(-HISTORY_LIMIT);
 		applyHistoryEntry(next);
-		queueCommandSave(next.elements);
+		queueCommandSave();
 	}
 
 	function applyCommandResult(options: {
@@ -1466,7 +1533,7 @@ export default function TemplateDesignerPage() {
 			selectedElementIds: nextSelectedIds ?? s.selectedElementIds ?? [],
 			editingTextElementId: clearEditing ? undefined : s.editingTextElementId,
 		}));
-		if (save) queueCommandSave(nextElements);
+		if (save) queueCommandSave();
 	}
 
 	function deleteSelectedElements() {
@@ -1516,13 +1583,6 @@ export default function TemplateDesignerPage() {
 		const elements = getWorkingElements();
 		const selectedIds = selectedElementIdsRef.current ?? [];
 		const nextElements = alignSelection(elements, selectedIds, mode);
-		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
-	}
-
-	function distributeSelected(axis: "horizontal" | "vertical") {
-		const elements = getWorkingElements();
-		const selectedIds = selectedElementIdsRef.current ?? [];
-		const nextElements = distributeSelection(elements, selectedIds, axis);
 		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
 	}
 
@@ -1943,10 +2003,13 @@ export default function TemplateDesignerPage() {
 												rotation: 0,
 												zIndex: 1,
 												visible: true,
-												pathData: "M 0,75 Q 50,25 100,75 T 200,75",
+												subpaths: createDefaultPathSubpaths(200, 150),
+												pathData: buildPathDataFromSubpaths(createDefaultPathSubpaths(200, 150)),
 												fill: "#3b82f6",
 												opacity: 0.8,
 												strokeWidth: 0,
+												fillRule: "nonzero",
+												scaleStroke: false,
 											}
 									: {
 											id: crypto.randomUUID(),
@@ -2156,6 +2219,164 @@ export default function TemplateDesignerPage() {
 			elementSaveTimersRef.current.set(elementId, timer);
 		});
 	}
+
+	function setPathEditMode(elementId: string, enabled: boolean) {
+		setState((s) => ({
+			...s,
+			editingPathElementId: enabled ? elementId : undefined,
+			activeTool: enabled ? s.activeTool ?? "select" : "select",
+		}));
+	}
+
+	function setPathTool(tool: "select" | "pen") {
+		setState((s) => ({ ...s, activeTool: tool }));
+	}
+
+	function handleAddPathNode(elementId: string, point: { x: number; y: number }) {
+		const elements = getWorkingElements();
+		const nextElements = elements.map((el) => {
+			if (el.id !== elementId || el.type !== "path") return el;
+			const pathEl = el as PathElement;
+			const baseSubpaths = pathEl.subpaths && pathEl.subpaths.length > 0
+				? clonePathSubpaths(pathEl.subpaths)
+				: createDefaultPathSubpaths(pathEl.width, pathEl.height);
+			const clamped = clampPathPoint(point.x, point.y, pathEl.width, pathEl.height);
+			const first = baseSubpaths[0];
+			const nextNodes = [
+				...first.nodes,
+				{ id: crypto.randomUUID(), x: clamped.x, y: clamped.y, type: "corner" as const },
+			];
+			const updatedSubpaths = [
+				{ ...first, nodes: nextNodes },
+				...baseSubpaths.slice(1),
+			];
+			return {
+				...pathEl,
+				subpaths: updatedSubpaths,
+				pathData: buildPathDataFromSubpaths(updatedSubpaths),
+			};
+		});
+		applyCommandResult({ nextElements, nextSelectedIds: [elementId], clearEditing: false });
+	}
+
+	function handleStartPathNodeDrag(options: {
+		elementId: string;
+		nodeId: string;
+		handleType?: "in" | "out";
+		clientX: number;
+		clientY: number;
+		symmetricHandles: boolean;
+	}) {
+		const elements = getWorkingElements();
+		const element = elements.find((el) => el.id === options.elementId && el.type === "path") as PathElement | undefined;
+		if (!element) return;
+		const node = element.subpaths
+			?.flatMap((subpath) => subpath.nodes)
+			.find((item) => item.id === options.nodeId);
+		if (!node) return;
+		const handle = options.handleType === "in" ? node.handleIn : options.handleType === "out" ? node.handleOut : undefined;
+		setPathNodeDrag({
+			elementId: options.elementId,
+			nodeId: options.nodeId,
+			handleType: options.handleType,
+			startClientX: options.clientX,
+			startClientY: options.clientY,
+			startNodeX: node.x,
+			startNodeY: node.y,
+			startHandleX: handle?.x ?? 0,
+			startHandleY: handle?.y ?? 0,
+			symmetricHandles: options.symmetricHandles,
+		});
+	}
+
+	useEffect(() => {
+		if (!state.editingPathElementId) return;
+		const selected = state.selectedElementIds ?? [];
+		if (!selected.includes(state.editingPathElementId)) {
+			setState((s) => ({
+				...s,
+				editingPathElementId: undefined,
+				activeTool: "select",
+			}));
+		}
+	}, [state.editingPathElementId, state.selectedElementIds]);
+
+	useEffect(() => {
+		if (!pathNodeDrag) return;
+		const {
+			elementId,
+			nodeId,
+			handleType,
+			startClientX,
+			startClientY,
+			startNodeX,
+			startNodeY,
+			startHandleX = 0,
+			startHandleY = 0,
+			symmetricHandles = false,
+		} = pathNodeDrag;
+
+		function handlePointerMove(event: PointerEvent) {
+			const dx = (event.clientX - startClientX) / state.zoom;
+			const dy = (event.clientY - startClientY) / state.zoom;
+			setDraftElements((current) => {
+				const base = current ?? getWorkingElements();
+				const next = base.map((el) => {
+					if (el.id !== elementId || el.type !== "path") return el;
+					const pathEl = el as PathElement;
+					if (!pathEl.subpaths || pathEl.subpaths.length === 0) return pathEl;
+					const subpaths = clonePathSubpaths(pathEl.subpaths);
+					let updated = false;
+					const updatedSubpaths = subpaths.map((subpath) => {
+						const nodes = subpath.nodes.map((node) => {
+							if (node.id !== nodeId) return node;
+							updated = true;
+							if (handleType === "in" || handleType === "out") {
+								const nextHandle = { x: startHandleX + dx, y: startHandleY + dy };
+								let nextNode = handleType === "in"
+									? { ...node, handleIn: nextHandle }
+									: { ...node, handleOut: nextHandle };
+								if (symmetricHandles) {
+									if (handleType === "in" && node.handleOut) {
+										nextNode = { ...nextNode, handleOut: { x: -nextHandle.x, y: -nextHandle.y } };
+									}
+									if (handleType === "out" && node.handleIn) {
+										nextNode = { ...nextNode, handleIn: { x: -nextHandle.x, y: -nextHandle.y } };
+									}
+								}
+								return nextNode;
+							}
+							const nextPoint = clampPathPoint(startNodeX + dx, startNodeY + dy, pathEl.width, pathEl.height);
+							return { ...node, x: nextPoint.x, y: nextPoint.y };
+						});
+						return { ...subpath, nodes };
+					});
+					if (!updated) return pathEl;
+					const pathData = buildPathDataFromSubpaths(updatedSubpaths);
+					return {
+						...pathEl,
+						subpaths: updatedSubpaths,
+						pathData,
+					};
+				});
+				draftRef.current = next;
+				return next;
+			});
+		}
+
+		function handlePointerUp() {
+			const latest = draftRef.current ?? getWorkingElements();
+			applyCommandResult({ nextElements: latest, nextSelectedIds: [elementId], clearEditing: false });
+			setPathNodeDrag(null);
+		}
+
+		window.addEventListener("pointermove", handlePointerMove);
+		window.addEventListener("pointerup", handlePointerUp, { once: true });
+		return () => {
+			window.removeEventListener("pointermove", handlePointerMove);
+			window.removeEventListener("pointerup", handlePointerUp);
+		};
+	}, [pathNodeDrag, state.zoom]);
 
 	useEffect(() => {
 		const KEYBOARD_NUDGE_SAVE_DEBOUNCE_MS = 220;
@@ -3069,6 +3290,10 @@ export default function TemplateDesignerPage() {
 			onAddRequiredElement={addRequiredElement}
 			determineElementTypeForBinding={determineElementTypeForBinding}
 			onOpenImagePicker={handleOpenImagePicker}
+			editingPathElementId={state.editingPathElementId}
+			activePathTool={state.activeTool}
+			onPathEditModeChange={setPathEditMode}
+			onPathToolChange={setPathTool}
 			templateId={templateId}
 			versions={versions}
 			currentVersion={currentVersion}
@@ -3197,6 +3422,8 @@ export default function TemplateDesignerPage() {
 							startHeight: el.height,
 						});
 					}}
+					onAddPathNode={handleAddPathNode}
+					onStartPathNodeDrag={handleStartPathNodeDrag}
 					onDuplicateElement={duplicateElement}
 					onDeleteElement={deleteElement}
 					onCreateTemplate={() => createMutation.mutate()}

@@ -44,6 +44,7 @@ export const templateElementBaseSchema = z.object({
     "barcode",
     "signature",
     "stamp",
+    "path",
   ]),
   x: z.number().min(0),
   y: z.number().min(0),
@@ -79,6 +80,26 @@ const shadowSchema = z.object({
   offsetY: z.number().min(-50).max(50).default(2),
   spread: z.number().min(-20).max(40).default(0),
   color: z.string().default("#00000040"),
+});
+
+const pathNodeHandleSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+const pathNodeSchema = z.object({
+  id: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  type: z.enum(["corner", "smooth"]).default("corner"),
+  handleIn: pathNodeHandleSchema.nullable().optional(),
+  handleOut: pathNodeHandleSchema.nullable().optional(),
+});
+
+const pathSubpathSchema = z.object({
+  id: z.string().min(1),
+  closed: z.boolean().default(false),
+  nodes: z.array(pathNodeSchema).default([]),
 });
 
 export const textElementSchema = templateElementBaseSchema.extend({
@@ -374,6 +395,28 @@ export const stampElementSchema = templateElementBaseSchema.extend({
   pattern: z.enum(["diagonal-lines", "dots", "none"]).default("none"),
 });
 
+export const pathElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("path"),
+  pathData: z.string().default(""),
+  subpaths: z.array(pathSubpathSchema).optional(),
+  fill: z.string().default("#3b82f6"),
+  fillGradient: z.object({
+    type: z.enum(["linear", "radial"]).default("linear"),
+    colors: z.array(z.string()).min(2).max(4),
+    angle: z.number().min(0).max(360).default(90),
+  }).optional(),
+  stroke: z.string().optional(),
+  strokeWidth: z.number().min(0).max(20).default(0),
+  strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+  strokeLinecap: z.enum(["butt", "round", "square"]).optional(),
+  strokeLinejoin: z.enum(["miter", "round", "bevel"]).optional(),
+  opacity: z.number().min(0).max(1).default(1),
+  fillRule: z.enum(["nonzero", "evenodd"]).default("nonzero"),
+  shadow: shadowSchema.optional(),
+  blendMode: z.enum(["normal", "multiply", "screen", "overlay", "darken", "lighten"]).optional(),
+  scaleStroke: z.boolean().default(false),
+});
+
 export const templateElementSchema = z.discriminatedUnion("type", [
   textElementSchema,
   imageElementSchema,
@@ -389,6 +432,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   barcodeElementSchema,
   signatureElementSchema,
   stampElementSchema,
+  pathElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;

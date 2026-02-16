@@ -63,6 +63,10 @@ type PropertiesPanelProps = {
 	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
 	onOpenImagePicker?: (elementId: string) => void;
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
+	editingPathElementId?: string;
+	activePathTool?: "select" | "pen";
+	onPathEditModeChange?: (elementId: string, enabled: boolean) => void;
+	onPathToolChange?: (tool: "select" | "pen") => void;
 	// Version history props
 	templateId?: string;
 	versions?: TemplateVersion[];
@@ -86,6 +90,10 @@ export function PropertiesPanel({
 	determineElementTypeForBinding,
 	onOpenImagePicker,
 	onPropsNarrowChange,
+	editingPathElementId,
+	activePathTool,
+	onPathEditModeChange,
+	onPathToolChange,
 	templateId,
 	versions = [],
 	currentVersion,
@@ -545,6 +553,10 @@ export function PropertiesPanel({
 					onChange={onUpdateElement}
 					allElements={elements}
 					onOpenImagePicker={onOpenImagePicker}
+					editingPathElementId={editingPathElementId}
+					activePathTool={activePathTool}
+					onPathEditModeChange={onPathEditModeChange}
+					onPathToolChange={onPathToolChange}
 				/>
 			</div>
 		</div>
@@ -743,11 +755,19 @@ function ElementProperties({
 	onChange,
 	allElements,
 	onOpenImagePicker,
+	editingPathElementId,
+	activePathTool,
+	onPathEditModeChange,
+	onPathToolChange,
 }: {
 	element: TemplateElement;
 	onChange: (partial: Partial<TemplateElement>) => void;
 	allElements?: TemplateElement[];
 	onOpenImagePicker?: (elementId: string) => void;
+	editingPathElementId?: string;
+	activePathTool?: "select" | "pen";
+	onPathEditModeChange?: (elementId: string, enabled: boolean) => void;
+	onPathToolChange?: (tool: "select" | "pen") => void;
 }) {
 	if (element.type === "text") {
 		const t = element as Extract<TemplateElement, { type: "text" }>;
@@ -825,6 +845,10 @@ function ElementProperties({
 			<PathProperties
 				element={element as Extract<TemplateElement, { type: "path" }>}
 				onChange={onChange}
+				isEditing={editingPathElementId === element.id}
+				activeTool={activePathTool}
+				onEditToggle={(enabled: boolean) => onPathEditModeChange?.(element.id, enabled)}
+				onToolChange={onPathToolChange}
 			/>
 		);
 	}
