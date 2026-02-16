@@ -3259,7 +3259,75 @@
 		}
 	},
 	"templates": {
-		"browseMarketplace": "Browse Marketplace"
+		"title": "Templates",
+		"subtitle": "Create and manage your invoice and email templates",
+		"browseMarketplace": "Browse Marketplace",
+		"actions": {
+			"createInvoice": "Create Invoice Template",
+			"createEmail": "Create Email Template"
+		},
+		"sections": {
+			"invoice": {
+				"title": "Invoice Templates",
+				"description": "Design and manage your invoice templates"
+			},
+			"email": {
+				"title": "Email Templates",
+				"description": "Create and manage email templates for invoices and communications"
+			}
+		},
+		"empty": {
+			"title": "No templates yet",
+			"description": "Create your first template to get started with automated invoicing",
+			"createFirst": "Create Your First Template"
+		},
+		"card": {
+			"untitled": "Untitled Template",
+			"noDescription": "No description",
+			"published": "Published",
+			"draft": "Draft",
+			"elements": "{{count}} element",
+			"elementsPlural": "{{count}} elements"
+		},
+		"email": {
+			"empty": {
+				"title": "No email templates yet",
+				"description": "Create your first email template for invoice communications",
+				"createFirst": "Create Your First Email Template"
+			},
+			"card": {
+				"untitled": "Untitled Email Template",
+				"noSubject": "No subject"
+			},
+			"status": {
+				"published": "Published",
+				"draft": "Draft"
+			},
+			"lastUpdated": "Updated {{date}}",
+			"openDesigner": "Open in Designer"
+		},
+		"delete": {
+			"title": "Delete Template",
+			"description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+			"cancel": "Cancel",
+			"delete": "Delete",
+			"deleting": "Deleting..."
+		},
+		"bulkDelete": {
+			"delete": "Delete {{count}} selected",
+			"clear": "Clear selection",
+			"selectAll": "Select all",
+			"deselectAll": "Deselect all",
+			"title": "Delete {{count}} template?",
+			"title_plural": "Delete {{count}} templates?",
+			"description": "Are you sure you want to delete {{count}} selected template? This action cannot be undone.",
+			"description_plural": "Are you sure you want to delete {{count}} selected templates? This action cannot be undone.",
+			"confirm": "Delete {{count}} template",
+			"confirm_plural": "Delete {{count}} templates",
+			"deleting": "Deleting...",
+			"success": "Successfully deleted {{count}} template",
+			"success_plural": "Successfully deleted {{count}} templates"
+		}
 	},
 	"common": {
 		"cancel": "Cancel",

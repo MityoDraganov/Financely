@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -45,9 +46,16 @@ type DesignerCanvasProps = {
 	onStartResize: (element: TemplateElement, edge: DragState["edge"], e: React.PointerEvent) => void;
 	onDuplicateElement: (id: string) => void;
 	onDeleteElement: (id: string) => void;
+	onSetElementLock?: (id: string, locked: boolean) => void;
 	onCreateTemplate: () => void;
 	isRequired: (binding: string | undefined) => boolean;
 	onTableHeaderChange?: (tableId: string, columnId: string, header: string) => void;
+	onStartTextEdit?: (id: string) => void;
+	onUpdateTextInline?: (id: string, text: string) => void;
+	onLassoSelect?: (
+		rect: { x: number; y: number; width: number; height: number },
+		append: boolean
+	) => void;
 	currentTemplateRef: React.MutableRefObject<Template | null>;
 	saveMutation: { mutate: (data: { elements: TemplateElement[] }) => void };
 	dragStartedRef?: React.MutableRefObject<boolean>; // Track if drag actually started (movement detected)
@@ -167,12 +175,23 @@ export function DesignerCanvas({
 	onStartResize,
 	onDuplicateElement,
 	onDeleteElement,
+	onSetElementLock,
 	onCreateTemplate,
 	isRequired,
 	onTableHeaderChange,
+	onStartTextEdit,
+	onUpdateTextInline,
+	onLassoSelect,
 	dragStartedRef,
 }: DesignerCanvasProps) {
 	const elements = draftElements ?? template?.elements ?? [];
+	const [lassoRect, setLassoRect] = useState<{
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		append: boolean;
+	} | null>(null);
 	const pageDimensions = getPageDimensions(template);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
@@ -189,6 +208,48 @@ export function DesignerCanvas({
 	const pageBackgroundColor = template?.pageSettings?.backgroundColor;
 	const gridColors = resolveGridColor(pageBackgroundColor);
 	const minorGridSize = Math.max(4, 8 * state.zoom);
+
+	const startLasso = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+		if (e.button !== 0) return;
+		if ((e.target as HTMLElement) !== e.currentTarget) return;
+		if (!onLassoSelect) return;
+		const rect = e.currentTarget.getBoundingClientRect();
+		const startX = (e.clientX - rect.left) / state.zoom;
+		const startY = (e.clientY - rect.top) / state.zoom;
+		const append = e.shiftKey;
+		setLassoRect({
+			x: startX,
+			y: startY,
+			width: 0,
+			height: 0,
+			append,
+		});
+
+		const handleMove = (ev: PointerEvent) => {
+			const curX = (ev.clientX - rect.left) / state.zoom;
+			const curY = (ev.clientY - rect.top) / state.zoom;
+			setLassoRect({
+				x: Math.min(startX, curX),
+				y: Math.min(startY, curY),
+				width: Math.abs(curX - startX),
+				height: Math.abs(curY - startY),
+				append,
+			});
+		};
+		const handleUp = () => {
+			setLassoRect((current) => {
+				if (current && current.width > 1 && current.height > 1) {
+					onLassoSelect(current, current.append);
+				}
+				return null;
+			});
+			window.removeEventListener("pointermove", handleMove);
+			window.removeEventListener("pointerup", handleUp);
+		};
+
+		window.addEventListener("pointermove", handleMove);
+		window.addEventListener("pointerup", handleUp);
+	}, [onLassoSelect, state.zoom]);
 
 	return (
 		<div className="bg-muted/30 p-8 pr-16"
@@ -235,23 +296,26 @@ export function DesignerCanvas({
 						onDragOver={onDragOver}
 						onDrop={onDrop}
 						onMouseMove={onMouseMove}
+						onPointerDown={startLasso}
 					>
 				{/* Grid */}
-				<div
-					className="absolute inset-0 z-0"
-					style={{
-						backgroundSize: [
-							`${minorGridSize}px ${minorGridSize}px`,
-							`${minorGridSize}px ${minorGridSize}px`,
-						].join(", "),
-						backgroundImage: [
-							`linear-gradient(to right, ${gridColors.minor} 1px, transparent 1px)`,
-							`linear-gradient(to bottom, ${gridColors.minor} 1px, transparent 1px)`,
-						].join(", "),
-					}}
-					onDragOver={onDragOver}
-					onDrop={onDrop}
-				/>
+				{state.showGrid !== false && (
+					<div
+						className="absolute inset-0 z-0"
+						style={{
+							backgroundSize: [
+								`${minorGridSize}px ${minorGridSize}px`,
+								`${minorGridSize}px ${minorGridSize}px`,
+							].join(", "),
+							backgroundImage: [
+								`linear-gradient(to right, ${gridColors.minor} 1px, transparent 1px)`,
+								`linear-gradient(to bottom, ${gridColors.minor} 1px, transparent 1px)`,
+							].join(", "),
+						}}
+						onDragOver={onDragOver}
+						onDrop={onDrop}
+					/>
+				)}
 				<div
 					className="absolute pointer-events-none z-[2]"
 					style={{
@@ -303,12 +367,31 @@ export function DesignerCanvas({
 										width: (guide.end - guide.start) * state.zoom,
 										height: 1,
 									}),
-							backgroundColor: "#8b5cf6",
+							backgroundColor: guide.kind === "distance" ? "#ec4899" : "#8b5cf6",
 							boxShadow: "0 0 0 0.5px rgba(139, 92, 246, 0.5)",
 							zIndex: 9999,
 						}}
-					/>
+					>
+						{guide.label && (
+							<span
+								className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] px-1 py-0.5 rounded bg-background border border-border text-foreground whitespace-nowrap"
+							>
+								{guide.label}
+							</span>
+						)}
+					</div>
 				))}
+				{lassoRect && (
+					<div
+						className="absolute pointer-events-none border border-primary bg-primary/10 z-[10000]"
+						style={{
+							left: lassoRect.x * state.zoom,
+							top: lassoRect.y * state.zoom,
+							width: lassoRect.width * state.zoom,
+							height: lassoRect.height * state.zoom,
+						}}
+					/>
+				)}
 				{/* Live cursors - exclude current user's cursor */}
 				{activeUsers
 					.filter(user => user.uid !== currentUserId)
@@ -331,6 +414,7 @@ export function DesignerCanvas({
 						el.type === "currency" ? el.binding :
 						el.type === "table" ? el.itemsBinding : undefined;
 					const isRequiredField = isRequired(binding);
+					const isLocked = el.locked === true;
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
 					const elementWrapperBackgroundColor = getElementWrapperBackgroundColor(el);
@@ -339,7 +423,7 @@ export function DesignerCanvas({
 						<ContextMenu key={el.id}>
 							<ContextMenuTrigger asChild>
 									<div
-									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${hoveredElementId === el.id && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""}`}
+									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${hoveredElementId === el.id && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""} ${isLocked ? "opacity-80" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
@@ -364,6 +448,7 @@ export function DesignerCanvas({
 									onMouseLeave={() => onHoverElement?.(null)}
 									onPointerDown={(e) => {
 										if (e.button !== 0) return;
+										if (isLocked) return;
 										// Don't prevent default here - we need click events to fire
 										// We'll prevent text selection via CSS
 										// Only start drag if there's actual movement (handled in pointer move)
@@ -377,19 +462,16 @@ export function DesignerCanvas({
 									}}
 									onClick={(e) => {
 										e.stopPropagation(); // Prevent page onClick from firing
-										console.log('[CLICK]', { 
-											elementId: el.id, 
-											shiftKey: e.shiftKey,
-											dragStarted: dragStartedRef?.current,
-											dragElementId: drag?.elementId
-										});
 										// Only select if we didn't drag (check if drag actually started)
 										// If dragStartedRef is true, it means we actually moved the pointer
 										const didDrag = dragStartedRef?.current && drag?.elementId === el.id;
 										if (!didDrag) {
 											onSelectElement(el.id, e);
-										} else {
-											console.log('[CLICK] Skipping selection because drag occurred');
+										}
+									}}
+									onDoubleClick={() => {
+										if (el.type === "text" && !isLocked) {
+											onStartTextEdit?.(el.id);
 										}
 									}}
 								>
@@ -404,7 +486,7 @@ export function DesignerCanvas({
 									)}
 									{/* Resize handles - only show for single selection */}
 									{/* For tables, only show width resize handles (e, w) - height is calculated dynamically */}
-									{state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && (
+									{state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && !isLocked && (
 										<>
 											{(
 												el.type === "table"
@@ -448,10 +530,26 @@ export function DesignerCanvas({
 										</>
 									)}
 									{el.type === "text" && (
-										<TextElement
-											element={el as Extract<TemplateElement, { type: "text" }>}
-											zoom={state.zoom}
-										/>
+										<>
+											<TextElement
+												element={el as Extract<TemplateElement, { type: "text" }>}
+												zoom={state.zoom}
+											/>
+											{state.editingTextElementId === el.id && (
+												<textarea
+													autoFocus
+													value={(el as Extract<TemplateElement, { type: "text" }>).text ?? ""}
+													onChange={(event) => onUpdateTextInline?.(el.id, event.target.value)}
+													onBlur={() => onStartTextEdit?.("")}
+													className="absolute inset-0 w-full h-full resize-none bg-background/90 border border-primary outline-none p-1 text-foreground"
+													style={{
+														fontFamily: (el as Extract<TemplateElement, { type: "text" }>).typography.fontFamily,
+														fontSize: (el as Extract<TemplateElement, { type: "text" }>).typography.fontSize * state.zoom,
+														fontWeight: (el as Extract<TemplateElement, { type: "text" }>).typography.fontWeight,
+													}}
+												/>
+											)}
+										</>
 									)}
 									{el.type === "input" && (
 										<InputElement
@@ -622,6 +720,12 @@ export function DesignerCanvas({
 								<ContextMenuItem onClick={() => onDuplicateElement(el.id)}>
 									<Copy className="mr-2 h-4 w-4" />
 									Duplicate
+								</ContextMenuItem>
+								<ContextMenuSeparator />
+								<ContextMenuItem
+									onClick={() => onSetElementLock?.(el.id, !isLocked)}
+								>
+									{isLocked ? "Unlock" : "Lock"}
 								</ContextMenuItem>
 								<ContextMenuSeparator />
 								<ContextMenuItem onClick={() => onDeleteElement(el.id)} variant="destructive">

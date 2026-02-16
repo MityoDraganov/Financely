@@ -48,6 +48,25 @@ import { compileInvoiceBlocksToElements } from "@/services/template-compiler/inv
 import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx, resolveTemplateMarginsPx } from "@/utils/print-margins";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 import { loadGoogleFonts } from "@/utils/google-fonts";
+import {
+	alignSelection,
+	cycleSelection,
+	createClipboardPayload,
+	deleteSelection,
+	duplicateSelection,
+	distributeSelection,
+	groupSelection,
+	jumpSelectionToEdge,
+	moveSelection,
+	pasteClipboard,
+	reorderSelectionLayer,
+	resizeSelectionByKeyboard,
+	setLockSelection,
+	ungroupSelection,
+	type AlignMode,
+	type Bounds,
+	type ClipboardPayload,
+} from "@/components/designer/editor-commands";
 
 const DEBUG_DESIGNER = false;
 const debugLog = (...args: unknown[]) => {
@@ -64,7 +83,12 @@ export default function TemplateDesignerPage() {
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const [state, setState] = useState<DesignerState>({ zoom: 1, selectedElementIds: [] });
+	const [state, setState] = useState<DesignerState>({
+		zoom: 1,
+		selectedElementIds: [],
+		showGrid: true,
+		snapEnabled: true,
+	});
 	const [drag, setDrag] = useState<DragState | null>(null);
 	const [draftElements, setDraftElements] = useState<
 		TemplateElement[] | null
@@ -78,6 +102,11 @@ export default function TemplateDesignerPage() {
 	const pageRef = useRef<HTMLDivElement | null>(null);
 	const isCreatingTemplateRef = useRef<boolean>(false);
 	const dragStartedRef = useRef<boolean>(false); // Track if drag actually started (movement detected)
+	const canvasScrollRef = useRef<HTMLDivElement | null>(null);
+	const lastCursorCanvasPointRef = useRef<{ x: number; y: number } | null>(null);
+	const isSpacePressedRef = useRef(false);
+	const isPanningRef = useRef(false);
+	const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || ""; // Fallback to demo-org if no org is loaded
 	const designerTemplateContext = useDesignerTemplate();
@@ -139,6 +168,23 @@ export default function TemplateDesignerPage() {
 		const keyboardNudgeSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 		const keyboardNudgeRafRef = useRef<number | null>(null);
 		const keyboardNudgeDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+		const keyboardNudgeHistoryOpenRef = useRef(false);
+		const commandSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+		const undoStackRef = useRef<Array<{
+			elements: TemplateElement[];
+			selectedElementIds: string[];
+			showGrid: boolean;
+			snapEnabled: boolean;
+			editingTextElementId?: string;
+		}>>([]);
+		const redoStackRef = useRef<Array<{
+			elements: TemplateElement[];
+			selectedElementIds: string[];
+			showGrid: boolean;
+			snapEnabled: boolean;
+			editingTextElementId?: string;
+		}>>([]);
+		const clipboardRef = useRef<ClipboardPayload | null>(null);
 	
 	// Keep refs in sync
 	useEffect(() => {
@@ -196,6 +242,10 @@ export default function TemplateDesignerPage() {
 				cancelAnimationFrame(keyboardNudgeRafRef.current);
 				keyboardNudgeRafRef.current = null;
 				keyboardNudgeDeltaRef.current = { dx: 0, dy: 0 };
+			}
+			if (commandSaveTimerRef.current) {
+				clearTimeout(commandSaveTimerRef.current);
+				commandSaveTimerRef.current = null;
 			}
 			// Clear all element save timers and save any pending changes before clearing
 			timersMap.forEach((timer, elementId) => {
@@ -1071,6 +1121,9 @@ export default function TemplateDesignerPage() {
 		snappedY: number;
 		guides: SnapGuide[];
 	} {
+		if (state.snapEnabled === false) {
+			return { snappedX: dragX, snappedY: dragY, guides: [] };
+		}
 		const guides: SnapGuide[] = [];
 		let snappedX = dragX;
 		let snappedY = dragY;
@@ -1086,36 +1139,56 @@ export default function TemplateDesignerPage() {
 		let bestXSnap: {
 			distance: number;
 			position: number;
-			otherElement: TemplateElement;
+			otherBounds: { left: number; right: number; top: number; bottom: number };
 		} | null = null;
 		let bestYSnap: {
 			distance: number;
 			position: number;
-			otherElement: TemplateElement;
+			otherBounds: { left: number; right: number; top: number; bottom: number };
 		} | null = null;
 
-		// Check against all other elements
-		for (const el of allElements) {
-			if (el.id === draggingElement.id) continue;
+		const comparableBounds: Array<{ id: string; left: number; right: number; top: number; bottom: number }> = [
+			...allElements
+				.filter((el) => el.id !== draggingElement.id)
+				.map((el) => ({
+					id: el.id,
+					left: el.x,
+					right: el.x + el.width,
+					top: el.y,
+					bottom: el.y + el.height,
+				})),
+			{
+				id: "__printable__",
+				left: printableBounds.left,
+				right: printableBounds.right,
+				top: printableBounds.top,
+				bottom: printableBounds.bottom,
+			},
+			{
+				id: "__center__",
+				left: (printableBounds.left + printableBounds.right) / 2,
+				right: (printableBounds.left + printableBounds.right) / 2,
+				top: (printableBounds.top + printableBounds.bottom) / 2,
+				bottom: (printableBounds.top + printableBounds.bottom) / 2,
+			},
+		];
 
-			const elLeft = el.x;
-			const elRight = el.x + el.width;
-			const elTop = el.y;
-			const elBottom = el.y + el.height;
-			const elCenterX = el.x + el.width / 2;
-			const elCenterY = el.y + el.height / 2;
+		// Check against all other elements + printable bounds + center guides
+		for (const target of comparableBounds) {
+			const elLeft = target.left;
+			const elRight = target.right;
+			const elTop = target.top;
+			const elBottom = target.bottom;
+			const elCenterX = (elLeft + elRight) / 2;
+			const elCenterY = (elTop + elBottom) / 2;
 
 			// Check vertical alignments (X axis)
 			const xAlignments = [
-				{ dragPos: dragLeft, elPos: elLeft, name: "left-left" },
-				{ dragPos: dragLeft, elPos: elRight, name: "left-right" },
-				{ dragPos: dragRight, elPos: elLeft, name: "right-left" },
-				{ dragPos: dragRight, elPos: elRight, name: "right-right" },
-				{
-					dragPos: dragCenterX,
-					elPos: elCenterX,
-					name: "center-center",
-				},
+				{ dragPos: dragLeft, elPos: elLeft },
+				{ dragPos: dragLeft, elPos: elRight },
+				{ dragPos: dragRight, elPos: elLeft },
+				{ dragPos: dragRight, elPos: elRight },
+				{ dragPos: dragCenterX, elPos: elCenterX },
 			];
 
 			for (const align of xAlignments) {
@@ -1128,22 +1201,23 @@ export default function TemplateDesignerPage() {
 					bestXSnap = {
 						distance,
 						position: align.elPos - offset,
-						otherElement: el,
+						otherBounds: {
+							left: elLeft,
+							right: elRight,
+							top: elTop,
+							bottom: elBottom,
+						},
 					};
 				}
 			}
 
 			// Check horizontal alignments (Y axis)
 			const yAlignments = [
-				{ dragPos: dragTop, elPos: elTop, name: "top-top" },
-				{ dragPos: dragTop, elPos: elBottom, name: "top-bottom" },
-				{ dragPos: dragBottom, elPos: elTop, name: "bottom-top" },
-				{ dragPos: dragBottom, elPos: elBottom, name: "bottom-bottom" },
-				{
-					dragPos: dragCenterY,
-					elPos: elCenterY,
-					name: "center-center",
-				},
+				{ dragPos: dragTop, elPos: elTop },
+				{ dragPos: dragTop, elPos: elBottom },
+				{ dragPos: dragBottom, elPos: elTop },
+				{ dragPos: dragBottom, elPos: elBottom },
+				{ dragPos: dragCenterY, elPos: elCenterY },
 			];
 
 			for (const align of yAlignments) {
@@ -1156,7 +1230,12 @@ export default function TemplateDesignerPage() {
 					bestYSnap = {
 						distance,
 						position: align.elPos - offset,
-						otherElement: el,
+						otherBounds: {
+							left: elLeft,
+							right: elRight,
+							top: elTop,
+							bottom: elBottom,
+						},
 					};
 				}
 			}
@@ -1166,8 +1245,7 @@ export default function TemplateDesignerPage() {
 		if (bestXSnap) {
 			snappedX = bestXSnap.position;
 			const snappedCenterX = snappedX + draggingElement.width / 2;
-			const otherCenterX =
-				bestXSnap.otherElement.x + bestXSnap.otherElement.width / 2;
+			const otherCenterX = (bestXSnap.otherBounds.left + bestXSnap.otherBounds.right) / 2;
 
 			// Determine guide position based on alignment type
 			let guideX = snappedX;
@@ -1177,8 +1255,7 @@ export default function TemplateDesignerPage() {
 				Math.abs(
 					snappedX +
 						draggingElement.width -
-						(bestXSnap.otherElement.x +
-							bestXSnap.otherElement.width)
+						bestXSnap.otherBounds.right
 				) < 1
 			) {
 				guideX = snappedX + draggingElement.width;
@@ -1187,19 +1264,19 @@ export default function TemplateDesignerPage() {
 			guides.push({
 				type: "vertical",
 				position: guideX,
-				start: Math.min(dragY, bestXSnap.otherElement.y),
+				start: Math.min(dragY, bestXSnap.otherBounds.top),
 				end: Math.max(
 					dragY + draggingElement.height,
-					bestXSnap.otherElement.y + bestXSnap.otherElement.height
+					bestXSnap.otherBounds.bottom
 				),
+				kind: "snap",
 			});
 		}
 
 		if (bestYSnap) {
 			snappedY = bestYSnap.position;
 			const snappedCenterY = snappedY + draggingElement.height / 2;
-			const otherCenterY =
-				bestYSnap.otherElement.y + bestYSnap.otherElement.height / 2;
+			const otherCenterY = (bestYSnap.otherBounds.top + bestYSnap.otherBounds.bottom) / 2;
 
 			// Determine guide position based on alignment type
 			let guideY = snappedY;
@@ -1209,8 +1286,7 @@ export default function TemplateDesignerPage() {
 				Math.abs(
 					snappedY +
 						draggingElement.height -
-						(bestYSnap.otherElement.y +
-							bestYSnap.otherElement.height)
+						bestYSnap.otherBounds.bottom
 				) < 1
 			) {
 				guideY = snappedY + draggingElement.height;
@@ -1221,16 +1297,15 @@ export default function TemplateDesignerPage() {
 				position: guideY,
 				start: Math.min(
 					dragX,
-					bestXSnap?.otherElement?.x ?? bestYSnap.otherElement.x
+					bestXSnap?.otherBounds.left ?? bestYSnap.otherBounds.left
 				),
 				end: Math.max(
 					dragX + draggingElement.width,
-					bestXSnap?.otherElement
-						? bestXSnap.otherElement.x +
-								bestXSnap.otherElement.width
-						: bestYSnap.otherElement.x +
-								bestYSnap.otherElement.width
+					bestXSnap?.otherBounds
+						? bestXSnap.otherBounds.right
+						: bestYSnap.otherBounds.right
 				),
+				kind: "snap",
 			});
 		}
 
@@ -1271,6 +1346,239 @@ export default function TemplateDesignerPage() {
 			}
 			return { x: nextX, y: nextY, width: nextW, height: nextH };
 		}
+
+	const HISTORY_LIMIT = 100;
+
+	function getWorkingElements(): TemplateElement[] {
+		return draftRef.current ?? currentTemplateRef.current?.elements ?? [];
+	}
+
+	function cloneElements(elements: TemplateElement[]): TemplateElement[] {
+		return elements.map((el) => ({ ...el }));
+	}
+
+	function getCommandBounds(): Bounds {
+		return {
+			left: printableBounds.left,
+			top: printableBounds.top,
+			right: printableBounds.right,
+			bottom: printableBounds.bottom,
+		};
+	}
+
+	function queueCommandSave(elements: TemplateElement[]) {
+		if (commandSaveTimerRef.current) {
+			clearTimeout(commandSaveTimerRef.current);
+		}
+		commandSaveTimerRef.current = setTimeout(() => {
+			const latest = draftRef.current;
+			if (latest && latest.length >= 0) {
+				saveMutation.mutate({ elements: latest });
+			}
+			commandSaveTimerRef.current = null;
+		}, 140);
+	}
+
+	function createHistoryEntry(elements: TemplateElement[]) {
+		return {
+			elements: cloneElements(elements),
+			selectedElementIds: [...(selectedElementIdsRef.current ?? [])],
+			showGrid: state.showGrid !== false,
+			snapEnabled: state.snapEnabled !== false,
+			editingTextElementId: state.editingTextElementId,
+		};
+	}
+
+	function pushUndoHistory(sourceElements?: TemplateElement[]) {
+		const elements = sourceElements ?? getWorkingElements();
+		const entry = createHistoryEntry(elements);
+		undoStackRef.current = [...undoStackRef.current, entry].slice(-HISTORY_LIMIT);
+		redoStackRef.current = [];
+	}
+
+	function applyHistoryEntry(entry: {
+		elements: TemplateElement[];
+		selectedElementIds: string[];
+		showGrid: boolean;
+		snapEnabled: boolean;
+		editingTextElementId?: string;
+	}) {
+		const nextElements = cloneElements(entry.elements);
+		draftRef.current = nextElements;
+		setDraftElements(nextElements);
+		selectedElementIdsRef.current = [...entry.selectedElementIds];
+		setState((s) => ({
+			...s,
+			selectedElementIds: [...entry.selectedElementIds],
+			showGrid: entry.showGrid,
+			snapEnabled: entry.snapEnabled,
+			editingTextElementId: entry.editingTextElementId,
+		}));
+	}
+
+	function undo() {
+		const undoStack = undoStackRef.current;
+		if (undoStack.length === 0) return;
+		const current = createHistoryEntry(getWorkingElements());
+		const previous = undoStack[undoStack.length - 1];
+		undoStackRef.current = undoStack.slice(0, -1);
+		redoStackRef.current = [...redoStackRef.current, current].slice(-HISTORY_LIMIT);
+		applyHistoryEntry(previous);
+		queueCommandSave(previous.elements);
+	}
+
+	function redo() {
+		const redoStack = redoStackRef.current;
+		if (redoStack.length === 0) return;
+		const current = createHistoryEntry(getWorkingElements());
+		const next = redoStack[redoStack.length - 1];
+		redoStackRef.current = redoStack.slice(0, -1);
+		undoStackRef.current = [...undoStackRef.current, current].slice(-HISTORY_LIMIT);
+		applyHistoryEntry(next);
+		queueCommandSave(next.elements);
+	}
+
+	function applyCommandResult(options: {
+		nextElements: TemplateElement[];
+		nextSelectedIds?: string[];
+		pushHistory?: boolean;
+		save?: boolean;
+		clearEditing?: boolean;
+	}) {
+		const {
+			nextElements,
+			nextSelectedIds,
+			pushHistory = true,
+			save = true,
+			clearEditing = false,
+		} = options;
+		const currentElements = getWorkingElements();
+		if (pushHistory) {
+			pushUndoHistory(currentElements);
+		}
+		draftRef.current = nextElements;
+		setDraftElements(nextElements);
+		if (nextSelectedIds) {
+			selectedElementIdsRef.current = [...nextSelectedIds];
+		}
+		setState((s) => ({
+			...s,
+			selectedElementIds: nextSelectedIds ?? s.selectedElementIds ?? [],
+			editingTextElementId: clearEditing ? undefined : s.editingTextElementId,
+		}));
+		if (save) queueCommandSave(nextElements);
+	}
+
+	function deleteSelectedElements() {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		if (selectedIds.length === 0) return;
+		const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
+		const requiredSelected = selectedElements.filter((el) => {
+			const binding =
+				el.type === "text" || el.type === "input" || el.type === "image" || el.type === "currency"
+					? el.binding
+					: el.type === "table"
+						? el.itemsBinding
+						: undefined;
+			return isRequired(binding);
+		});
+		if (requiredSelected.length > 0) {
+			toast.warning(t("designer.toast.requiredDeleteWarning", "Deleted required compliance fields. Template marked as non-compliant."));
+		}
+		const { elements: nextElements, removedIds } = deleteSelection(elements, selectedIds);
+		if (removedIds.length === 0) return;
+		applyCommandResult({
+			nextElements,
+			nextSelectedIds: [],
+			clearEditing: true,
+		});
+	}
+
+	function duplicateSelectedElements(offsetX = 20, offsetY = 20) {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const { elements: nextElements, newIds } = duplicateSelection(
+			elements,
+			selectedIds,
+			getCommandBounds(),
+			{ offsetX, offsetY, clearBindings: true }
+		);
+		if (newIds.length === 0) return;
+		applyCommandResult({
+			nextElements,
+			nextSelectedIds: newIds,
+			clearEditing: true,
+		});
+	}
+
+	function alignSelected(mode: AlignMode) {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const nextElements = alignSelection(elements, selectedIds, mode);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function distributeSelected(axis: "horizontal" | "vertical") {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const nextElements = distributeSelection(elements, selectedIds, axis);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function reorderSelectedLayer(mode: "forward" | "backward" | "front" | "back") {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const nextElements = reorderSelectionLayer(elements, selectedIds, mode);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function lockSelection(locked: boolean) {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		if (selectedIds.length === 0) return;
+		const nextElements = setLockSelection(elements, selectedIds, locked);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function groupSelected() {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const { elements: nextElements } = groupSelection(elements, selectedIds);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function ungroupSelected() {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		const nextElements = ungroupSelection(elements, selectedIds);
+		applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+	}
+
+	function copySelectedToClipboard() {
+		const elements = getWorkingElements();
+		const selectedIds = selectedElementIdsRef.current ?? [];
+		clipboardRef.current = createClipboardPayload(elements, selectedIds);
+	}
+
+	function pasteFromClipboard(target?: { x: number; y: number } | null) {
+		const clipboard = clipboardRef.current;
+		if (!clipboard) return;
+		const elements = getWorkingElements();
+		const { elements: nextElements, newIds } = pasteClipboard(
+			elements,
+			clipboard,
+			getCommandBounds(),
+			{
+				target: target ?? lastCursorCanvasPointRef.current,
+				offsetX: 20,
+				offsetY: 20,
+				clearBindings: true,
+			}
+		);
+		if (newIds.length === 0) return;
+		applyCommandResult({ nextElements, nextSelectedIds: newIds, clearEditing: true });
+	}
 
 	function handleCanvasDragOver(e: React.DragEvent<HTMLDivElement>) {
 		e.preventDefault();
@@ -1674,17 +1982,21 @@ export default function TemplateDesignerPage() {
 	// Helper function to handle multi-select with Shift+click
 	const handleSelectElement = (elementId: string, event?: React.MouseEvent | React.PointerEvent) => {
 		if (!elementId) {
-			setState((s) => ({ ...s, selectedElementIds: [] }));
+			selectedElementIdsRef.current = [];
+			setState((s) => ({ ...s, selectedElementIds: [], editingTextElementId: undefined }));
 			return;
 		}
 		const isShiftPressed = Boolean(event?.shiftKey);
+		const isMetaToggle = Boolean(event?.metaKey || event?.ctrlKey);
+		const isToggleSelection = isShiftPressed || isMetaToggle;
 		const currentSelected = state.selectedElementIds || [];
 		
-		if (isShiftPressed) {
+		if (isToggleSelection) {
 			// Toggle selection: add if not selected, remove if already selected
 			if (currentSelected.includes(elementId)) {
 				const newSelected = currentSelected.filter((id) => id !== elementId);
 				debugLog('[SELECT] Removing from selection:', newSelected);
+				selectedElementIdsRef.current = newSelected;
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
@@ -1692,6 +2004,7 @@ export default function TemplateDesignerPage() {
 			} else {
 				const newSelected = [...currentSelected, elementId];
 				debugLog('[SELECT] Adding to selection:', newSelected);
+				selectedElementIdsRef.current = newSelected;
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
@@ -1700,6 +2013,7 @@ export default function TemplateDesignerPage() {
 		} else {
 			// Single select: replace selection
 			debugLog('[SELECT] Single select:', [elementId]);
+			selectedElementIdsRef.current = [elementId];
 			setState((s) => ({
 				...s,
 				selectedElementIds: [elementId],
@@ -1829,6 +2143,7 @@ export default function TemplateDesignerPage() {
 
 	useEffect(() => {
 		const KEYBOARD_NUDGE_SAVE_DEBOUNCE_MS = 220;
+		const clampZoom = (value: number) => Math.max(0.5, Math.min(3, value));
 
 		function isEditableTarget(target: EventTarget | null): boolean {
 			if (!(target instanceof HTMLElement)) return false;
@@ -1847,32 +2162,24 @@ export default function TemplateDesignerPage() {
 			const sourceElements = draftRef.current ?? currentTemplateRef.current?.elements ?? [];
 			if (!sourceElements.length) return;
 
-			let changed = false;
-			const next = sourceElements.map((element) => {
-				if (!selectedIds.includes(element.id)) return element;
-
-				const targetX = element.x + dx;
-				const targetY = element.y + dy;
-				const minX = printableBounds.left;
-				const minY = printableBounds.top;
-				const maxX = Math.max(minX, printableBounds.right - element.width);
-				const maxY = Math.max(minY, printableBounds.bottom - element.height);
-				const x = Math.min(Math.max(minX, targetX), maxX);
-				const y = Math.min(Math.max(minY, targetY), maxY);
-
-				if (x === element.x && y === element.y) {
-					return element;
-				}
-
-				changed = true;
-				return {
-					...element,
-					x,
-					y,
-				};
+			const next = moveSelection(
+				sourceElements,
+				selectedIds,
+				dx,
+				dy,
+				getCommandBounds()
+			);
+			const changed = next.some((element, index) => {
+				const prev = sourceElements[index];
+				return element.x !== prev.x || element.y !== prev.y;
 			});
 
 			if (!changed) return;
+
+			if (!keyboardNudgeHistoryOpenRef.current) {
+				pushUndoHistory(sourceElements);
+				keyboardNudgeHistoryOpenRef.current = true;
+			}
 
 			draftRef.current = next;
 			setDraftElements(next);
@@ -1887,6 +2194,7 @@ export default function TemplateDesignerPage() {
 					saveMutation.mutate({ elements: latestElements });
 				}
 				keyboardNudgeSaveTimerRef.current = null;
+				keyboardNudgeHistoryOpenRef.current = false;
 			}, KEYBOARD_NUDGE_SAVE_DEBOUNCE_MS);
 		}
 
@@ -1909,20 +2217,273 @@ export default function TemplateDesignerPage() {
 		}
 
 		function handleKeyDown(event: KeyboardEvent) {
-			if (isEditableTarget(event.target)) return;
+			const isEditable = isEditableTarget(event.target);
+			const key = event.key;
+			const lowerKey = key.toLowerCase();
+			const hasMeta = event.metaKey || event.ctrlKey;
+			const hasShift = event.shiftKey;
 
-			if (event.key === "Escape") {
-				if ((selectedElementIdsRef.current?.length ?? 0) > 0) {
+			if (!isEditable && event.code === "Space") {
+				isSpacePressedRef.current = true;
+				event.preventDefault();
+			}
+
+			const selectedIds = selectedElementIdsRef.current ?? [];
+			const sourceElements = getWorkingElements();
+			const selectedElements = sourceElements.filter((el) => selectedIds.includes(el.id));
+			const selectedTextElement = selectedElements.length === 1 && selectedElements[0].type === "text"
+				? (selectedElements[0] as Extract<TemplateElement, { type: "text" }>)
+				: null;
+			const isEditingText = Boolean(state.editingTextElementId);
+
+			if (isEditable && !isEditingText) return;
+
+			if (isEditingText) {
+				if (key === "Escape") {
 					event.preventDefault();
-					setState((s) => ({ ...s, selectedElementIds: [] }));
+					setState((s) => ({ ...s, editingTextElementId: undefined }));
+					return;
+				}
+				if (hasMeta && lowerKey === "b") {
+					event.preventDefault();
+					if (selectedTextElement && !selectedTextElement.locked) {
+						const nextWeight =
+							selectedTextElement.typography.fontWeight === "bold" ? "normal" : "bold";
+						updateSelected({
+							typography: {
+								...selectedTextElement.typography,
+								fontWeight: nextWeight,
+							},
+						} as Partial<TemplateElement>);
+					}
+					return;
+				}
+				if (hasMeta && lowerKey === "i") {
+					event.preventDefault();
+					if (selectedTextElement && !selectedTextElement.locked) {
+						const nextStyle =
+							selectedTextElement.typography.fontStyle === "italic" ? "normal" : "italic";
+						updateSelected({
+							typography: {
+								...selectedTextElement.typography,
+								fontStyle: nextStyle,
+							},
+						} as Partial<TemplateElement>);
+					}
+					return;
 				}
 				return;
 			}
 
-			if (drag) return;
-			if (event.metaKey || event.ctrlKey) return;
-			if ((selectedElementIdsRef.current?.length ?? 0) === 0) return;
+			if (key === "Escape") {
+				if ((selectedElementIdsRef.current?.length ?? 0) > 0 || state.editingTextElementId) {
+					event.preventDefault();
+					selectedElementIdsRef.current = [];
+					setState((s) => ({ ...s, selectedElementIds: [], editingTextElementId: undefined }));
+				}
+				return;
+			}
 
+			if (key === "Enter" && selectedTextElement && !selectedTextElement.locked) {
+				event.preventDefault();
+				setState((s) => ({ ...s, editingTextElementId: selectedTextElement.id }));
+				return;
+			}
+
+			if (hasMeta && lowerKey === "z") {
+				event.preventDefault();
+				if (hasShift) {
+					redo();
+				} else {
+					undo();
+				}
+				return;
+			}
+			if (event.ctrlKey && lowerKey === "y") {
+				event.preventDefault();
+				redo();
+				return;
+			}
+
+			if (hasMeta && lowerKey === "c") {
+				event.preventDefault();
+				copySelectedToClipboard();
+				return;
+			}
+			if (hasMeta && lowerKey === "v") {
+				event.preventDefault();
+				pasteFromClipboard(lastCursorCanvasPointRef.current);
+				return;
+			}
+			if (hasMeta && lowerKey === "d") {
+				event.preventDefault();
+				duplicateSelectedElements();
+				return;
+			}
+			if (hasMeta && lowerKey === "g") {
+				event.preventDefault();
+				if (hasShift) {
+					ungroupSelected();
+				} else {
+					groupSelected();
+				}
+				return;
+			}
+			if (hasMeta && lowerKey === "l") {
+				event.preventDefault();
+				if (hasShift) {
+					lockSelection(false);
+				} else {
+					lockSelection(true);
+				}
+				return;
+			}
+
+			if (hasMeta && hasShift) {
+				if (lowerKey === "l") {
+					event.preventDefault();
+					alignSelected("left");
+					return;
+				}
+				if (lowerKey === "r") {
+					event.preventDefault();
+					alignSelected("right");
+					return;
+				}
+				if (lowerKey === "t") {
+					event.preventDefault();
+					alignSelected("top");
+					return;
+				}
+				if (lowerKey === "b") {
+					event.preventDefault();
+					alignSelected("bottom");
+					return;
+				}
+				if (lowerKey === "c") {
+					event.preventDefault();
+					alignSelected("center-horizontal");
+					return;
+				}
+				if (lowerKey === "m") {
+					event.preventDefault();
+					alignSelected("center-vertical");
+					return;
+				}
+			}
+
+			if (hasMeta && key === "]") {
+				event.preventDefault();
+				reorderSelectedLayer(hasShift ? "front" : "forward");
+				return;
+			}
+			if (hasMeta && key === "[") {
+				event.preventDefault();
+				reorderSelectedLayer(hasShift ? "back" : "backward");
+				return;
+			}
+
+			if (hasMeta && (key === "'" || event.code === "Quote")) {
+				event.preventDefault();
+				setState((s) => ({ ...s, snapEnabled: s.snapEnabled === false ? true : false }));
+				return;
+			}
+
+			if (hasMeta && (key === "+" || key === "=")) {
+				event.preventDefault();
+				setState((s) => ({ ...s, zoom: clampZoom(s.zoom + 0.1) }));
+				return;
+			}
+			if (hasMeta && key === "-") {
+				event.preventDefault();
+				setState((s) => ({ ...s, zoom: clampZoom(s.zoom - 0.1) }));
+				return;
+			}
+			if (hasMeta && key === "0") {
+				event.preventDefault();
+				setState((s) => ({ ...s, zoom: 1 }));
+				return;
+			}
+
+			if (key === "Tab") {
+				event.preventDefault();
+				const nextSelected = cycleSelection(sourceElements, selectedIds, hasShift);
+				selectedElementIdsRef.current = nextSelected;
+				setState((s) => ({ ...s, selectedElementIds: nextSelected }));
+				return;
+			}
+
+			if (key === "g" || key === "G") {
+				event.preventDefault();
+				setState((s) => ({ ...s, showGrid: s.showGrid === false ? true : false }));
+				return;
+			}
+
+			if ((key === "Delete" || key === "Backspace") && !isEditable) {
+				event.preventDefault();
+				deleteSelectedElements();
+				return;
+			}
+
+			if (drag?.mode === "resize" && key.startsWith("Arrow")) {
+				const step = hasShift ? 10 : 1;
+				let dw = 0;
+				let dh = 0;
+				if (key === "ArrowLeft") dw = -step;
+				if (key === "ArrowRight") dw = step;
+				if (key === "ArrowUp") dh = -step;
+				if (key === "ArrowDown") dh = step;
+				const nextElements = resizeSelectionByKeyboard(
+					sourceElements,
+					selectedIds,
+					dw,
+					dh,
+					getCommandBounds()
+				);
+				applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+				event.preventDefault();
+				return;
+			}
+
+			if (hasMeta && hasShift && key.startsWith("Arrow")) {
+				event.preventDefault();
+				const resizeStep = 10;
+				let dw = 0;
+				let dh = 0;
+				if (key === "ArrowLeft") dw = -resizeStep;
+				if (key === "ArrowRight") dw = resizeStep;
+				if (key === "ArrowUp") dh = -resizeStep;
+				if (key === "ArrowDown") dh = resizeStep;
+				const nextElements = resizeSelectionByKeyboard(
+					sourceElements,
+					selectedIds,
+					dw,
+					dh,
+					getCommandBounds()
+				);
+				applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+				return;
+			}
+
+			if (hasMeta && key.startsWith("Arrow")) {
+				event.preventDefault();
+				let nextElements = sourceElements;
+				if (key === "ArrowLeft") {
+					nextElements = jumpSelectionToEdge(sourceElements, selectedIds, "left", getCommandBounds());
+				} else if (key === "ArrowRight") {
+					nextElements = jumpSelectionToEdge(sourceElements, selectedIds, "right", getCommandBounds());
+				} else if (key === "ArrowUp") {
+					nextElements = jumpSelectionToEdge(sourceElements, selectedIds, "top", getCommandBounds());
+				} else if (key === "ArrowDown") {
+					nextElements = jumpSelectionToEdge(sourceElements, selectedIds, "bottom", getCommandBounds());
+				}
+				applyCommandResult({ nextElements, nextSelectedIds: selectedIds });
+				return;
+			}
+
+			if (drag) return;
+			if (hasMeta) return;
+			if ((selectedElementIdsRef.current?.length ?? 0) === 0) return;
 			const step = event.shiftKey ? 10 : event.altKey ? 0.5 : 1;
 			switch (event.key) {
 				case "ArrowUp":
@@ -1944,17 +2505,27 @@ export default function TemplateDesignerPage() {
 			}
 		}
 
+		function handleKeyUp(event: KeyboardEvent) {
+			if (event.code === "Space") {
+				isSpacePressedRef.current = false;
+			}
+		}
+
 		window.addEventListener("keydown", handleKeyDown);
+		window.addEventListener("keyup", handleKeyUp);
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown);
+			window.removeEventListener("keyup", handleKeyUp);
 			if (keyboardNudgeRafRef.current != null) {
 				cancelAnimationFrame(keyboardNudgeRafRef.current);
 				keyboardNudgeRafRef.current = null;
 				keyboardNudgeDeltaRef.current = { dx: 0, dy: 0 };
 			}
+			keyboardNudgeHistoryOpenRef.current = false;
 		};
 	}, [
 		drag,
+		state.editingTextElementId,
 		printableBounds.bottom,
 		printableBounds.left,
 		printableBounds.right,
@@ -2033,48 +2604,41 @@ export default function TemplateDesignerPage() {
 	};
 
 	function deleteElement(id: string) {
-		if (!currentTemplate) return;
-		const next = (currentTemplate.elements ?? []).filter(
-			(e) => e.id !== id
-		);
-		draftRef.current = next;
-		setDraftElements(next);
-		// Don't save automatically - user will save via properties panel
-		setState((s: DesignerState) => ({
-			...s,
-			selectedElementIds: [],
-		}));
+		const elements = getWorkingElements();
+		const { elements: nextElements, removedIds } = deleteSelection(elements, [id]);
+		if (removedIds.length === 0) return;
+		const removedRequired = elements.find((el) => el.id === id);
+		if (removedRequired) {
+			const binding =
+				removedRequired.type === "text" || removedRequired.type === "input" || removedRequired.type === "image" || removedRequired.type === "currency"
+					? removedRequired.binding
+					: removedRequired.type === "table"
+						? removedRequired.itemsBinding
+						: undefined;
+			if (isRequired(binding)) {
+				toast.warning(t("designer.toast.requiredDeleteWarning", "Deleted required compliance fields. Template marked as non-compliant."));
+			}
+		}
+		applyCommandResult({
+			nextElements,
+			nextSelectedIds: [],
+			clearEditing: true,
+		});
 	}
 
 	function duplicateElement(id: string) {
-		if (!currentTemplate) return;
-		const elementToDuplicate = (currentTemplate.elements ?? []).find(
-			(e) => e.id === id
+		const { elements: nextElements, newIds } = duplicateSelection(
+			getWorkingElements(),
+			[id],
+			getCommandBounds(),
+			{ clearBindings: true, offsetX: 20, offsetY: 20 }
 		);
-		if (!elementToDuplicate) return;
-
-		// Create a deep copy with a new ID and offset position
-		// Clear binding to prevent duplicates
-		const duplicated: TemplateElement = {
-			...elementToDuplicate,
-			id: crypto.randomUUID(),
-			x: elementToDuplicate.x + 20,
-			y: elementToDuplicate.y + 20,
-			// Clear binding for elements that have bindings
-			...(elementToDuplicate.type === "text" && { binding: undefined }),
-			...(elementToDuplicate.type === "input" && { binding: undefined }),
-			...(elementToDuplicate.type === "image" && { binding: undefined }),
-			...(elementToDuplicate.type === "table" && { itemsBinding: undefined }),
-		};
-
-		const next = [...(currentTemplate.elements ?? []), duplicated];
-		draftRef.current = next;
-		setDraftElements(next);
-		// Don't save automatically - user will save via properties panel
-		setState((s: DesignerState) => ({
-			...s,
-			selectedElementIds: [duplicated.id],
-		}));
+		if (newIds.length === 0) return;
+		applyCommandResult({
+			nextElements,
+			nextSelectedIds: newIds,
+			clearEditing: true,
+		});
 		toast.success(t('designer.duplicateSuccess'));
 	}
 
@@ -2110,8 +2674,10 @@ export default function TemplateDesignerPage() {
 			zIndex: zIndexById.get(el.id) ?? (el.zIndex ?? 0),
 		}));
 
-		draftRef.current = next;
-		setDraftElements(next);
+		applyCommandResult({
+			nextElements: next,
+			nextSelectedIds: selectedElementIdsRef.current ?? [],
+		});
 	}
 
 	// Global pointer handlers during drag

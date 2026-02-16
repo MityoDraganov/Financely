@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
+import { Plus, Info } from "lucide-react";
+import { useState } from "react";
 import {
 	Select,
 	SelectContent,
@@ -7,10 +8,19 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { Template } from "@/core";
 import { EnhancedPresenceIndicator } from "./enhanced-presence-indicator";
 import type { DesignerState } from "./designer-types";
 import type { UserPresence } from "@/services/presence/presence-service";
+import { Button } from "@/components/ui/button";
 
 type CanvasHeaderProps = {
 	templates: Template[];
@@ -35,6 +45,8 @@ export function CanvasHeader({
 	isMobile = false,
 }: CanvasHeaderProps) {
 	const { t } = useTranslation();
+	const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+
 	return (
 		<div className="px-3 py-2 border-b flex items-center gap-2 flex-shrink-0">
 			{/* Template selector - hidden on mobile (shown in layout header) */}
@@ -83,8 +95,90 @@ export function CanvasHeader({
 						</SelectContent>
 					</Select>
 				)}
+				<Dialog open={cheatSheetOpen} onOpenChange={setCheatSheetOpen}>
+					<DialogTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-8 w-8">
+							<Info className="h-4 w-4" />
+						</Button>
+					</DialogTrigger>
+					<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+						<DialogHeader>
+							<DialogTitle>{t('designer.cheatSheet.title', 'Keyboard Shortcuts')}</DialogTitle>
+							<DialogDescription>
+								{t('designer.cheatSheet.description', 'Quick reference for all keyboard shortcuts')}
+							</DialogDescription>
+						</DialogHeader>
+						<div className="space-y-6 mt-4">
+							{/* Navigation & Selection */}
+							<div>
+								<h3 className="font-semibold text-sm mb-3 text-foreground">
+									{t('designer.cheatSheet.navigation', 'Navigation & Selection')}
+								</h3>
+								<div className="space-y-2">
+									<ShortcutRow
+										keys={['Esc']}
+										description={t('designer.cheatSheet.deselect', 'Deselect all elements')}
+									/>
+								</div>
+							</div>
+
+							{/* Movement */}
+							<div>
+								<h3 className="font-semibold text-sm mb-3 text-foreground">
+									{t('designer.cheatSheet.movement', 'Movement')}
+								</h3>
+								<div className="space-y-2">
+									<ShortcutRow
+										keys={['↑', '↓', '←', '→']}
+										description={t('designer.cheatSheet.nudge', 'Nudge selected element by 1px')}
+									/>
+									<ShortcutRow
+										keys={['Shift', '+', '↑', '↓', '←', '→']}
+										description={t('designer.cheatSheet.nudgeLarge', 'Nudge selected element by 10px')}
+									/>
+									<ShortcutRow
+										keys={['Alt', '+', '↑', '↓', '←', '→']}
+										description={t('designer.cheatSheet.nudgeSmall', 'Nudge selected element by 0.5px')}
+									/>
+								</div>
+							</div>
+
+							{/* Context Menu Actions */}
+							<div>
+								<h3 className="font-semibold text-sm mb-3 text-foreground">
+									{t('designer.cheatSheet.contextActions', 'Context Menu Actions')}
+								</h3>
+								<div className="space-y-2">
+									<ShortcutRow
+										keys={['Right Click']}
+										description={t('designer.cheatSheet.contextMenu', 'Open context menu (Duplicate, Delete, etc.)')}
+									/>
+								</div>
+							</div>
+						</div>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</div>
 	);
 }
 
+function ShortcutRow({ keys, description }: { keys: string[]; description: string }) {
+	return (
+		<div className="flex items-center justify-between py-1.5">
+			<span className="text-sm text-muted-foreground">{description}</span>
+			<div className="flex items-center gap-1">
+				{keys.map((key, index) => (
+					<span key={index} className="flex items-center gap-1">
+						{index > 0 && key !== '+' && <span className="text-muted-foreground text-xs">+</span>}
+						{key !== '+' && (
+							<kbd className="px-2 py-1 bg-muted rounded text-xs font-mono min-w-[28px] text-center">
+								{key}
+							</kbd>
+						)}
+					</span>
+				))}
+			</div>
+		</div>
+	);
+}

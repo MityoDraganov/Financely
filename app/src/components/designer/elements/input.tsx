@@ -21,18 +21,20 @@ interface InputElementProps {
 
 export default function InputElement({ element }: InputElementProps) {
 	const inp = element;
-	
+
 	return (
-		<div className="w-full h-full grid place-items-center text-muted-foreground">
+		<div className="w-full h-full">
 			<input
 				type={inp.variant}
 				placeholder={inp.placeholder}
-				className="w-[95%] h-[80%] border border-border rounded px-2 text-[10px] bg-background text-foreground placeholder:text-muted-foreground"
+				className="w-full h-full border border-border rounded px-2 text-[10px] bg-background text-foreground placeholder:text-muted-foreground"
 				style={{
 					textAlign: inp.align as React.CSSProperties["textAlign"],
 					fontFamily: inp.fontFamily || "Inter",
 				}}
 				readOnly
+				tabIndex={-1}
+				onFocus={(e) => e.target.blur()}
 			/>
 		</div>
 	);
