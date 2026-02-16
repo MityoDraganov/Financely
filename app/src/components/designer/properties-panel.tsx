@@ -26,6 +26,7 @@ import {
 	IconProperties,
 	TableProperties,
 	InputProperties,
+	PathProperties,
 } from "@/components/designer/elements";
 import { CurrencyProperties } from "@/components/designer/elements/currency";
 import type { Organization } from "@/core";
@@ -815,6 +816,15 @@ function ElementProperties({
 				element={curr}
 				onChange={onChange}
 				allElements={allElements}
+			/>
+		);
+	}
+
+	if (element.type === "path") {
+		return (
+			<PathProperties
+				element={element as Extract<TemplateElement, { type: "path" }>}
+				onChange={onChange}
 			/>
 		);
 	}

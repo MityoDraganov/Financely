@@ -113,6 +113,9 @@ export function TemplateCardPreview({ template }: TemplateCardPreviewProps) {
             position: "relative",
             overflow: "hidden",
             borderRadius: "8px",
+            willChange: "transform",
+            backfaceVisibility: "hidden",
+            WebkitFontSmoothing: "antialiased",
           }}
         >
           <div
@@ -125,6 +128,9 @@ export function TemplateCardPreview({ template }: TemplateCardPreviewProps) {
               transformOrigin: "top left",
               overflow: "hidden",
               borderRadius: `${8 / scale}px`,
+              willChange: "transform",
+              backfaceVisibility: "hidden",
+              WebkitFontSmoothing: "antialiased",
             }}
             className="bg-white dark:bg-neutral-900"
           >

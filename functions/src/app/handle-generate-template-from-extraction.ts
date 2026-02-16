@@ -226,10 +226,18 @@ const ONE_SHOT_VISION_SCHEMA: JSONSchema = {
           borderColor: { type: "string" },
           borderWidth: { type: "number" },
           fill: { type: "string" },
+          fillGradient: { type: "object" },
           stroke: { type: "string" },
           strokeWidth: { type: "number" },
+          strokeStyle: { type: "string" },
+          strokeLinecap: { type: "string" },
+          strokeLinejoin: { type: "string" },
           x2: { type: "number" },
           y2: { type: "number" },
+          pathData: { type: "string" },
+          fillRule: { type: "string" },
+          opacity: { type: "number" },
+          blendMode: { type: "string" },
         },
       },
     },
@@ -255,20 +263,28 @@ OUTPUT REQUIREMENTS
 - Include icons in elements[] with type="icon" and a valid iconName.
 - Include all visible image/logo regions in elements[] with type="image".
 - Include table, totals, footer, and section labels as separate elements.
+- For curved/organic shapes, use type="path" with SVG path data (d attribute).
 4. Preserve spatial fidelity with x/y/width/height.
 - Coordinates may be normalized [0..1] or absolute px, but must be internally consistent.
 5. Prefer dynamic field types:
 - Use input for editable text/date/number values.
 - Use currency for monetary values.
 - Use text for static labels.
+- Use path for curved decorative elements, waves, organic shapes.
 6. Detect ALL visual assets:
 - icons: UI glyphs/symbols that should become icon blocks.
 - images: logos/photos/seals that should become image blocks.
+- paths: curved shapes, waves, organic decorative elements (use SVG path syntax).
 7. Use normalized coordinates for all asset bounds (x, y, width, height in [0..1], relative to page).
 8. For image assets:
 - If direct sourceUrl is known, include it.
 - If sourceUrl is not known, still include the image entry (placeholder candidate) with bounds and styles.
 - Never drop a detected image region.
+9. For curved shapes and decorative elements:
+- Detect curves, arcs, and organic shapes that cannot be represented with simple boxes.
+- Use type="path" with pathData containing SVG path commands (M, L, C, Q, A, Z).
+- Preserve fill colors, gradients, and visual styling.
+- Path coordinates should be relative to the element's bounding box (0,0 to width,height).
 
 RULES
 - Do not hallucinate table columns.
@@ -276,7 +292,8 @@ RULES
 - For icons, iconName must be selected from the provided icon catalog.
 - Text-bearing elements (text/input/currency/table headers/cells) must be sized to fit visible content.
 - Do not place text-bearing elements so they overlap each other; keep clear vertical separation.
-- Overlap is acceptable only for intentional background layers (e.g., box behind content).
+- Overlap is acceptable only for intentional background layers (e.g., box behind content, decorative paths).
+- For complex curved designs: decompose into multiple path elements rather than trying to fit into rectangular boxes.
 `;
 
 function buildOneShotVisionPrompt(input: {
@@ -1310,6 +1327,38 @@ function normalizeVisionElements(
         strokeWidth: Math.max(0, safeNumber(entry.strokeWidth, 0)),
         radius: Math.max(0, safeNumber(entry.radius, 0)),
         opacity: clamp01(safeNumber(entry.opacity, 1)),
+      } satisfies TemplateElement);
+      continue;
+    }
+
+    if (type === "path") {
+      const pathData = asString(entry.pathData, "M 0,0 L 100,0 L 50,100 Z");
+      const fillGradient = isRecord(entry.fillGradient)
+        ? {
+            type: (entry.fillGradient.type === "linear" || entry.fillGradient.type === "radial"
+              ? entry.fillGradient.type
+              : "linear") as "linear" | "radial",
+            colors: Array.isArray(entry.fillGradient.colors)
+              ? entry.fillGradient.colors.filter((c): c is string => typeof c === "string").slice(0, 4)
+              : ["#3b82f6", "#8b5cf6"],
+            angle: safeNumber(entry.fillGradient.angle, 90),
+          }
+        : undefined;
+
+      out.push({
+        ...base,
+        type: "path",
+        pathData,
+        fill: normalizeHexColor(entry.fill, style.primaryColor),
+        ...(fillGradient ? { fillGradient } : {}),
+        ...(asString(entry.stroke, "") ? { stroke: normalizeHexColor(entry.stroke, "#000000") } : {}),
+        strokeWidth: Math.max(0, safeNumber(entry.strokeWidth, 0)),
+        ...(asString(entry.strokeStyle, "") ? { strokeStyle: entry.strokeStyle as "solid" | "dashed" | "dotted" } : {}),
+        ...(asString(entry.strokeLinecap, "") ? { strokeLinecap: entry.strokeLinecap as "butt" | "round" | "square" } : {}),
+        ...(asString(entry.strokeLinejoin, "") ? { strokeLinejoin: entry.strokeLinejoin as "miter" | "round" | "bevel" } : {}),
+        fillRule: (entry.fillRule === "evenodd" ? "evenodd" : "nonzero") as "nonzero" | "evenodd",
+        opacity: clamp01(safeNumber(entry.opacity, 1)),
+        ...(asString(entry.blendMode, "") ? { blendMode: entry.blendMode as any } : {}),
       } satisfies TemplateElement);
       continue;
     }

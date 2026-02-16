@@ -1932,6 +1932,22 @@ export default function TemplateDesignerPage() {
 												effect: "stamped",
 												pattern: "diagonal-lines",
 											}
+									: kind === "path"
+										? {
+												id: crypto.randomUUID(),
+												type: "path",
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 200,
+												height: 150,
+												rotation: 0,
+												zIndex: 1,
+												visible: true,
+												pathData: "M 0,75 Q 50,25 100,75 T 200,75",
+												fill: "#3b82f6",
+												opacity: 0.8,
+												strokeWidth: 0,
+											}
 									: {
 											id: crypto.randomUUID(),
 											type: "line",

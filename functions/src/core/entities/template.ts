@@ -18,6 +18,7 @@ export const templateElementBaseSchema = z.object({
     "barcode",
     "signature",
     "stamp",
+    "path", // SVG path for curved/complex shapes
   ]),
   x: z.number().min(0),
   y: z.number().min(0),
@@ -365,6 +366,32 @@ export const stampElementSchema = templateElementBaseSchema.extend({
   pattern: z.enum(["diagonal-lines", "dots", "none"]).default("none"),
 });
 
+export const pathElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("path"),
+  // SVG path data (d attribute) - supports all SVG path commands (M, L, C, Q, A, Z, etc.)
+  pathData: z.string().min(1),
+  // Fill color (supports gradients via fillGradient)
+  fill: z.string().default("#3b82f6"),
+  fillGradient: z.object({
+    type: z.enum(["linear", "radial"]).default("linear"),
+    colors: z.array(z.string()).min(2).max(4),
+    angle: z.number().min(0).max(360).default(90),
+  }).optional(),
+  // Stroke properties
+  stroke: z.string().optional(),
+  strokeWidth: z.number().min(0).max(20).default(0),
+  strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+  strokeLinecap: z.enum(["butt", "round", "square"]).optional(),
+  strokeLinejoin: z.enum(["miter", "round", "bevel"]).optional(),
+  // Path-specific styling
+  opacity: z.number().min(0).max(1).default(1),
+  fillRule: z.enum(["nonzero", "evenodd"]).default("nonzero"),
+  // Shadow support
+  shadow: shadowSchema.optional(),
+  // Blend mode for layering effects
+  blendMode: z.enum(["normal", "multiply", "screen", "overlay", "darken", "lighten"]).optional(),
+});
+
 export const templateElementSchema = z.discriminatedUnion("type", [
   textElementSchema,
   imageElementSchema,
@@ -380,6 +407,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   barcodeElementSchema,
   signatureElementSchema,
   stampElementSchema,
+  pathElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;

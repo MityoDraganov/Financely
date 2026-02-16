@@ -21,6 +21,7 @@ import {
 	Sparkles,
 	StickyNote,
 	GripVertical,
+	Waves,
 } from "lucide-react";
 import { Template, TemplateElement } from "@/core";
 import { toast } from "sonner";
@@ -370,6 +371,23 @@ export function TemplateSidebar({
 							<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
 							<span className="font-medium">{t('designer.sidebar.currency')}</span>
 						</Button>
+					<Button
+						variant="secondary"
+						onClick={() => {
+							onAddElement("path");
+							toast.success(t('designer.sidebar.pathAdded', 'Path added'), { duration: 1500 });
+						}}
+						draggable
+						onDragStart={(e) => {
+							e.dataTransfer.setData("application/x-template-element", "path");
+							e.dataTransfer.setData("text/plain", "path");
+							e.dataTransfer.effectAllowed = "copy";
+						}}
+						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+					>
+						<Waves className="h-4 w-4 mr-2 text-blue-600" />
+						<span className="font-medium">{t('designer.sidebar.path', 'Path')}</span>
+					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => onAddElement("spacer")}

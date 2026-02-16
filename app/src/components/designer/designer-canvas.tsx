@@ -19,6 +19,7 @@ import {
 	IconElement,
 	InputElement,
 	TableElement,
+	PathElement,
 } from "@/components/designer/elements";
 import CurrencyElement from "@/components/designer/elements/currency";
 import type { DesignerState, DragState, SnapGuide } from "./designer-types";
@@ -710,6 +711,11 @@ export function DesignerCanvas({
 											</div>
 										);
 									})()}
+									{el.type === "path" && (
+										<PathElement
+											element={el as Extract<TemplateElement, { type: "path" }>}
+										/>
+									)}
 								</div>
 							</ContextMenuTrigger>
 							<ContextMenuContent>
