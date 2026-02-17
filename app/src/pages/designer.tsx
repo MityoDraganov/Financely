@@ -1480,10 +1480,10 @@ export default function TemplateDesignerPage() {
 				id: crypto.randomUUID(),
 				closed: false,
 				nodes: [
-					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w, y: h * 0.5, handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, type: "corner", handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, type: "corner", handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, type: "corner", handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w, y: h * 0.5, type: "corner", handleType: "corner", cornerRadius: 0 },
 				],
 			},
 		];
@@ -2384,7 +2384,7 @@ export default function TemplateDesignerPage() {
 		const handleOut = node.handleOut ? { ...node.handleOut } : null;
 		const defaultLength = 28;
 		if (type === "corner") {
-			return { ...node, handleType: type, handleIn, handleOut };
+			return { ...node, type, handleType: type, handleIn, handleOut };
 		}
 		let baseDirection = direction;
 		if (handleOut && Math.hypot(handleOut.x, handleOut.y) > 0) {
@@ -2397,6 +2397,7 @@ export default function TemplateDesignerPage() {
 		if (type === "smooth") {
 			return {
 				...node,
+				type: "smooth",
 				handleType: "smooth",
 				handleIn: { x: -baseDirection.x * inLength, y: -baseDirection.y * inLength },
 				handleOut: { x: baseDirection.x * outLength, y: baseDirection.y * outLength },
@@ -2405,6 +2406,7 @@ export default function TemplateDesignerPage() {
 		const symmetricLength = Math.max(defaultLength, inLength, outLength);
 		return {
 			...node,
+			type: "symmetric",
 			handleType: "symmetric",
 			handleIn: { x: -baseDirection.x * symmetricLength, y: -baseDirection.y * symmetricLength },
 			handleOut: { x: baseDirection.x * symmetricLength, y: baseDirection.y * symmetricLength },
@@ -2472,12 +2474,12 @@ export default function TemplateDesignerPage() {
 				{
 					id: newSubpathId,
 					closed: false,
-					nodes: [
-						{ id: firstNodeId, x: start.x, y: start.y, handleType: "corner" as const, cornerRadius: 0 },
-						{ id: secondNodeId, x: end.x, y: end.y, handleType: "corner" as const, cornerRadius: 0 },
-					],
-				},
-			];
+						nodes: [
+							{ id: firstNodeId, x: start.x, y: start.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
+							{ id: secondNodeId, x: end.x, y: end.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
+						],
+					},
+				];
 			return {
 				subpaths: nextSubpaths,
 				selectedNodeId: secondNodeId,
@@ -2529,8 +2531,8 @@ export default function TemplateDesignerPage() {
 						id: newSubpathId,
 						closed: false,
 						nodes: [
-							{ id: firstNodeId, x: clamped.x, y: clamped.y, handleType: "corner" as const, cornerRadius: 0 },
-							{ id: secondNodeId, x: secondPoint.x, y: secondPoint.y, handleType: "corner" as const, cornerRadius: 0 },
+							{ id: firstNodeId, x: clamped.x, y: clamped.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
+							{ id: secondNodeId, x: secondPoint.x, y: secondPoint.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
 						],
 					},
 				];
@@ -2561,7 +2563,7 @@ export default function TemplateDesignerPage() {
 				...target,
 				nodes: [
 					...target.nodes,
-					{ id: newNodeId, x: clamped.x, y: clamped.y, handleType: "corner" as const, cornerRadius: 0 },
+					{ id: newNodeId, x: clamped.x, y: clamped.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
 				],
 			};
 			const nextSubpaths = subpaths.map((subpath) =>
@@ -2599,6 +2601,7 @@ export default function TemplateDesignerPage() {
 				id: insertedNodeId,
 				x: clampedPoint.x,
 				y: clampedPoint.y,
+				type: "corner",
 				handleType: "corner",
 				cornerRadius: 0,
 			};
@@ -2625,6 +2628,7 @@ export default function TemplateDesignerPage() {
 					...insertedNode,
 					x: f.x,
 					y: f.y,
+					type: "smooth",
 					handleType: "smooth",
 					handleIn: { x: d.x - f.x, y: d.y - f.y },
 					handleOut: { x: e.x - f.x, y: e.y - f.y },
@@ -2750,6 +2754,7 @@ export default function TemplateDesignerPage() {
 					const nextType = finalHandleIn && finalHandleOut ? resolveHandleType(node) : "corner";
 					return {
 						...node,
+						type: nextType,
 						handleType: nextType,
 						handleIn: finalHandleIn,
 						handleOut: finalHandleOut,
@@ -2960,7 +2965,13 @@ export default function TemplateDesignerPage() {
 								}
 							}
 							const nextHandleType = breakHandles ? "corner" : handleTypeForNode;
-							return { ...node, handleType: nextHandleType, handleIn: nextHandleIn, handleOut: nextHandleOut };
+							return {
+								...node,
+								type: nextHandleType,
+								handleType: nextHandleType,
+								handleIn: nextHandleIn,
+								handleOut: nextHandleOut,
+							};
 							}
 							const nextPoint = clampPathPoint(startNodeX + dx, startNodeY + dy, pathEl.width, pathEl.height);
 							return { ...node, x: nextPoint.x, y: nextPoint.y };

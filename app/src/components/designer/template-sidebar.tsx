@@ -47,9 +47,135 @@ type TemplateSidebarProps = {
 		description?: string;
 		elementType: "text" | "input" | "table" | "currency";
 	}>;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
+	onAddRequiredElement: (
+		binding: string,
+		label: string,
+		elementType: "text" | "input" | "table" | "currency",
+	) => void;
 	isRequired: (binding: string | undefined) => boolean;
 };
+
+type PaletteItemConfig = {
+	type: TemplateElement["type"];
+	icon: React.ComponentType<{ className?: string }>;
+	iconClassName: string;
+	labelKey: string;
+	labelDefault?: string;
+	addedToastKey?: string;
+	addedToastDefault?: string;
+};
+
+const PALETTE_ITEMS: PaletteItemConfig[] = [
+	{
+		type: "text",
+		icon: TypeIcon,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.text",
+		addedToastKey: "designer.sidebar.textAdded",
+	},
+	{
+		type: "image",
+		icon: ImageIcon,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.image",
+		addedToastKey: "designer.sidebar.imageAdded",
+	},
+	{
+		type: "table",
+		icon: TableIcon,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.table",
+		addedToastKey: "designer.sidebar.tableAdded",
+	},
+	{
+		type: "input",
+		icon: TypeIcon,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.input",
+		addedToastKey: "designer.sidebar.inputAdded",
+	},
+	{
+		type: "box",
+		icon: Square,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.box",
+		addedToastKey: "designer.sidebar.boxAdded",
+	},
+	{
+		type: "line",
+		icon: Minus,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.line",
+		addedToastKey: "designer.sidebar.lineAdded",
+	},
+	{
+		type: "icon",
+		icon: StickyNote,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.icon",
+		labelDefault: "Icon",
+		addedToastKey: "designer.sidebar.iconAdded",
+		addedToastDefault: "Icon added",
+	},
+	{
+		type: "currency",
+		icon: CircleDollarSign,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.currency",
+		addedToastKey: "designer.sidebar.currencyAdded",
+	},
+	{
+		type: "path",
+		icon: Waves,
+		iconClassName: "text-blue-600",
+		labelKey: "designer.sidebar.path",
+		labelDefault: "Path",
+		addedToastKey: "designer.sidebar.pathAdded",
+		addedToastDefault: "Path added",
+	},
+	{
+		type: "spacer",
+		icon: Minus,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.spacer",
+		labelDefault: "Spacer",
+	},
+	{
+		type: "pageBreak",
+		icon: Minus,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.pageBreak",
+		labelDefault: "Page Break",
+	},
+	{
+		type: "qrCode",
+		icon: Square,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.qrCode",
+		labelDefault: "QR Code",
+	},
+	{
+		type: "barcode",
+		icon: Minus,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.barcode",
+		labelDefault: "Barcode",
+	},
+	{
+		type: "signature",
+		icon: TypeIcon,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.signature",
+		labelDefault: "Signature",
+	},
+	{
+		type: "stamp",
+		icon: StickyNote,
+		iconClassName: "text-muted-foreground",
+		labelKey: "designer.sidebar.stamp",
+		labelDefault: "Stamp",
+	},
+];
 
 export function TemplateSidebar({
 	templates,
@@ -69,7 +195,9 @@ export function TemplateSidebar({
 	isRequired,
 }: TemplateSidebarProps) {
 	const { t } = useTranslation();
-	const [draggedElementId, setDraggedElementId] = useState<string | null>(null);
+	const [draggedElementId, setDraggedElementId] = useState<string | null>(
+		null,
+	);
 	const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 	const dragIndexRef = useRef<number | null>(null);
 	const lastReorderRef = useRef<{ from: number; to: number } | null>(null);
@@ -88,7 +216,11 @@ export function TemplateSidebar({
 		})
 		.map(({ el }) => el);
 
-	const handleDragStart = (e: React.DragEvent, elementId: string, index: number) => {
+	const handleDragStart = (
+		e: React.DragEvent,
+		elementId: string,
+		index: number,
+	) => {
 		setDraggedElementId(elementId);
 		dragIndexRef.current = index;
 		lastReorderRef.current = null;
@@ -96,7 +228,10 @@ export function TemplateSidebar({
 		lastDragActionAtRef.current = Date.now();
 		e.dataTransfer.effectAllowed = "move";
 		e.dataTransfer.setData("text/plain", elementId);
-		e.dataTransfer.setData("application/json", JSON.stringify({ elementId, index }));
+		e.dataTransfer.setData(
+			"application/json",
+			JSON.stringify({ elementId, index }),
+		);
 	};
 
 	const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -108,7 +243,8 @@ export function TemplateSidebar({
 		const mouseY = e.clientY;
 		const centerY = rect.top + rect.height / 2;
 		const targetIndex = mouseY < centerY ? index : index + 1;
-		const adjustedTargetIndex = dragIndex < targetIndex ? targetIndex - 1 : targetIndex;
+		const adjustedTargetIndex =
+			dragIndex < targetIndex ? targetIndex - 1 : targetIndex;
 
 		if (
 			dragIndex !== adjustedTargetIndex &&
@@ -116,7 +252,10 @@ export function TemplateSidebar({
 				lastReorderRef.current.from !== dragIndex ||
 				lastReorderRef.current.to !== adjustedTargetIndex)
 		) {
-			lastReorderRef.current = { from: dragIndex, to: adjustedTargetIndex };
+			lastReorderRef.current = {
+				from: dragIndex,
+				to: adjustedTargetIndex,
+			};
 			onReorderElements(dragIndex, adjustedTargetIndex);
 			dragIndexRef.current = adjustedTargetIndex;
 		}
@@ -124,11 +263,13 @@ export function TemplateSidebar({
 	};
 
 	const handleContainerDragOver = (e: React.DragEvent) => {
-		if (dragIndexRef.current === null || !elementsContainerRef.current) return;
+		if (dragIndexRef.current === null || !elementsContainerRef.current)
+			return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
 
-		const containerRect = elementsContainerRef.current.getBoundingClientRect();
+		const containerRect =
+			elementsContainerRef.current.getBoundingClientRect();
 		const mouseY = e.clientY;
 		const dragIndex = dragIndexRef.current;
 
@@ -165,10 +306,33 @@ export function TemplateSidebar({
 		}, DRAG_CLICK_SUPPRESS_MS);
 	};
 
+	const paletteButtonClassName =
+		"w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]";
+
+	const handlePaletteItemClick = (item: PaletteItemConfig) => {
+		onAddElement(item.type);
+		if (item.addedToastKey) {
+			toast.success(t(item.addedToastKey, item.addedToastDefault), {
+				duration: 1500,
+			});
+		}
+	};
+
+	const handlePaletteItemDragStart = (
+		e: React.DragEvent,
+		type: TemplateElement["type"],
+	) => {
+		e.dataTransfer.setData("application/x-template-element", type);
+		e.dataTransfer.setData("text/plain", type);
+		e.dataTransfer.effectAllowed = "copy";
+	};
+
 	return (
 		<div className="h-full p-4 border-r bg-background overflow-y-auto">
 			<div className="flex items-center justify-between mb-4">
-				<div className="font-semibold text-base text-foreground">{t('designer.sidebar.templates')}</div>
+				<div className="font-semibold text-base text-foreground">
+					{t("designer.sidebar.templates")}
+				</div>
 			</div>
 			<div className="mb-4 space-y-2.5">
 				<Button
@@ -178,7 +342,9 @@ export function TemplateSidebar({
 					onClick={onOpenAIBuilder}
 				>
 					<Sparkles className="h-4 w-4 mr-2 animate-pulse" />
-					<span className="font-medium">{t('designer.sidebar.aiBuilder')}</span>
+					<span className="font-medium">
+						{t("designer.sidebar.aiBuilder")}
+					</span>
 				</Button>
 				<Button
 					variant="outline"
@@ -187,13 +353,13 @@ export function TemplateSidebar({
 					onClick={onCreateNewTemplate}
 				>
 					<Plus className="h-4 w-4 mr-2" />
-					{t('designer.sidebar.newTemplate')}
+					{t("designer.sidebar.newTemplate")}
 				</Button>
 			</div>
 			<div className="space-y-2">
 				{templates.length === 0 && (
 					<div className="text-xs text-muted-foreground">
-						{t('designer.sidebar.noTemplates')}
+						{t("designer.sidebar.noTemplates")}
 					</div>
 				)}
 			</div>
@@ -201,7 +367,7 @@ export function TemplateSidebar({
 				<div className="mt-5 mb-5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 shadow-sm">
 					<div className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1.5">
 						<Lock className="h-3.5 w-3.5" />
-						{t('designer.sidebar.requiredFields')}
+						{t("designer.sidebar.requiredFields")}
 					</div>
 					<div className="space-y-2">
 						{missingRequiredFields.map((field) => (
@@ -210,16 +376,29 @@ export function TemplateSidebar({
 								variant="outline"
 								size="sm"
 								onClick={() => {
-									onAddRequiredElement(field.binding, field.label, field.elementType);
-									toast.success(t('designer.sidebar.addedField', { label: field.label }), { duration: 2000 });
+									onAddRequiredElement(
+										field.binding,
+										field.label,
+										field.elementType,
+									);
+									toast.success(
+										t("designer.sidebar.addedField", {
+											label: field.label,
+										}),
+										{ duration: 2000 },
+									);
 								}}
 								className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 dark:hover:border-amber-600 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
 							>
 								<Plus className="h-3.5 w-3.5 mr-2 text-amber-600 dark:text-amber-400" />
 								<span className="text-left flex-1">
-									<div className="font-semibold text-amber-900 dark:text-amber-200">{field.label}</div>
+									<div className="font-semibold text-amber-900 dark:text-amber-200">
+										{field.label}
+									</div>
 									{field.description && (
-										<div className="text-xs text-amber-700/70 dark:text-amber-400/70 font-normal mt-0.5">{field.description}</div>
+										<div className="text-xs text-amber-700/70 dark:text-amber-400/70 font-normal mt-0.5">
+											{field.description}
+										</div>
 									)}
 								</span>
 							</Button>
@@ -230,254 +409,39 @@ export function TemplateSidebar({
 			<div className="mt-5">
 				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
-					<span>{t('designer.sidebar.palette')}</span>
+					<span>{t("designer.sidebar.palette")}</span>
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
 				<div className="grid grid-cols-1 gap-2.5">
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("text");
-							toast.success(t('designer.sidebar.textAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "text");
-							e.dataTransfer.setData("text/plain", "text");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.text')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("image");
-							toast.success(t('designer.sidebar.imageAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "image");
-							e.dataTransfer.setData("text/plain", "image");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<ImageIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.image')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("table");
-							toast.success(t('designer.sidebar.tableAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "table");
-							e.dataTransfer.setData("text/plain", "table");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<TableIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.table')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("input");
-							toast.success(t('designer.sidebar.inputAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "input");
-							e.dataTransfer.setData("text/plain", "input");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.input')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("box");
-							toast.success(t('designer.sidebar.boxAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "box");
-							e.dataTransfer.setData("text/plain", "box");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Square className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.box')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("line");
-							toast.success(t('designer.sidebar.lineAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "line");
-							e.dataTransfer.setData("text/plain", "line");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.line')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("icon");
-							toast.success(t('designer.sidebar.iconAdded', 'Icon added'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "icon");
-							e.dataTransfer.setData("text/plain", "icon");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<StickyNote className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.icon', 'Icon')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("currency");
-							toast.success(t('designer.sidebar.currencyAdded'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "currency");
-							e.dataTransfer.setData("text/plain", "currency");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-						>
-							<CircleDollarSign className="h-4 w-4 mr-2 text-neutral-600" />
-							<span className="font-medium">{t('designer.sidebar.currency')}</span>
-						</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							onAddElement("path");
-							toast.success(t('designer.sidebar.pathAdded', 'Path added'), { duration: 1500 });
-						}}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "path");
-							e.dataTransfer.setData("text/plain", "path");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Waves className="h-4 w-4 mr-2 text-blue-600" />
-						<span className="font-medium">{t('designer.sidebar.path', 'Path')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("spacer")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "spacer");
-							e.dataTransfer.setData("text/plain", "spacer");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.spacer', 'Spacer')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("pageBreak")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "pageBreak");
-							e.dataTransfer.setData("text/plain", "pageBreak");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.pageBreak', 'Page Break')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("qrCode")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "qrCode");
-							e.dataTransfer.setData("text/plain", "qrCode");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Square className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.qrCode', 'QR Code')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("barcode")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "barcode");
-							e.dataTransfer.setData("text/plain", "barcode");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<Minus className="h-4 w-4 mr-2 text-neutral-600" />
-						<span className="font-medium">{t('designer.sidebar.barcode', 'Barcode')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("signature")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "signature");
-							e.dataTransfer.setData("text/plain", "signature");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<TypeIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.signature', 'Signature')}</span>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => onAddElement("stamp")}
-						draggable
-						onDragStart={(e) => {
-							e.dataTransfer.setData("application/x-template-element", "stamp");
-							e.dataTransfer.setData("text/plain", "stamp");
-							e.dataTransfer.effectAllowed = "copy";
-						}}
-						className="w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-					>
-						<StickyNote className="h-4 w-4 mr-2 text-muted-foreground" />
-						<span className="font-medium">{t('designer.sidebar.stamp', 'Stamp')}</span>
-					</Button>
-					</div>
-				<div className="mt-5">
-				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
-					<span>{t('designer.elements')}</span>
-					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
+					{PALETTE_ITEMS.map((item) => {
+						const Icon = item.icon;
+						return (
+							<Button
+								key={item.type}
+								variant="secondary"
+								onClick={() => handlePaletteItemClick(item)}
+								draggable
+								onDragStart={(e) =>
+									handlePaletteItemDragStart(e, item.type)
+								}
+								className={paletteButtonClassName}
+							>
+								<Icon
+									className={`h-4 w-4 mr-2 ${item.iconClassName}`}
+								/>
+								<span className="font-medium">
+									{t(item.labelKey, item.labelDefault)}
+								</span>
+							</Button>
+						);
+					})}
 				</div>
+				<div className="mt-5">
+					<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
+						<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
+						<span>{t("designer.elements")}</span>
+						<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
+					</div>
 					<div
 						ref={elementsContainerRef}
 						className="grid grid-cols-1 gap-2"
@@ -491,10 +455,16 @@ export function TemplateSidebar({
 							<div className="h-0.5 bg-primary rounded-full animate-pulse" />
 						)}
 						{orderedElements.map((el, index) => {
-							const binding = el.type === "text" ? el.binding :
-								el.type === "input" ? el.binding :
-								el.type === "image" ? el.binding :
-								el.type === "table" ? el.itemsBinding : undefined;
+							const binding =
+								el.type === "text"
+									? el.binding
+									: el.type === "input"
+										? el.binding
+										: el.type === "image"
+											? el.binding
+											: el.type === "table"
+												? el.itemsBinding
+												: undefined;
 							const isRequiredField = isRequired(binding);
 							const isDragging = draggedElementId === el.id;
 							const isDragOver = dragOverIndex === index;
@@ -508,34 +478,56 @@ export function TemplateSidebar({
 										<ContextMenuTrigger asChild>
 											<div
 												draggable
-												onDragStart={(e) => handleDragStart(e, el.id, index)}
-												onDragOver={(e) => handleDragOver(e, index)}
+												onDragStart={(e) =>
+													handleDragStart(
+														e,
+														el.id,
+														index,
+													)
+												}
+												onDragOver={(e) =>
+													handleDragOver(e, index)
+												}
 												onDrop={(e) => {
 													e.preventDefault();
 													resetDragState();
 												}}
 												onDragEnd={resetDragState}
 												className={`px-3 py-2.5 min-w-0 w-full text-xs sm:text-sm rounded-sm cursor-move truncate transition-all duration-200 ${
-													state.selectedElementIds?.includes(el.id)
+													state.selectedElementIds?.includes(
+														el.id,
+													)
 														? "bg-primary/10 dark:bg-primary/20 text-primary border-2 border-primary/30 dark:border-primary/50 shadow-md"
-														: hoveredElementId === el.id
+														: hoveredElementId ===
+															  el.id
 															? "bg-primary/5 dark:bg-primary/10 border border-primary/30 dark:border-primary/40"
 															: "hover:bg-accent hover:shadow-sm border border-transparent hover:border-border"
 												} ${isRequiredField ? "ring-1 ring-amber-400/50 dark:ring-amber-500/50" : ""} ${
-													isDragging ? "opacity-50" : ""
+													isDragging
+														? "opacity-50"
+														: ""
 												} ${isDragOver && !isDragging ? "border-primary/80 bg-primary/5" : ""}`}
 												onClick={(e) => {
 													const isWithinSuppressionWindow =
-														Date.now() - lastDragActionAtRef.current < DRAG_CLICK_SUPPRESS_MS;
-													if (suppressClickRef.current || isWithinSuppressionWindow) {
+														Date.now() -
+															lastDragActionAtRef.current <
+														DRAG_CLICK_SUPPRESS_MS;
+													if (
+														suppressClickRef.current ||
+														isWithinSuppressionWindow
+													) {
 														e.preventDefault();
 														e.stopPropagation();
 														return;
 													}
 													onSelectElement(el.id, e);
 												}}
-												onMouseEnter={() => onHoverElement?.(el.id)}
-												onMouseLeave={() => onHoverElement?.(null)}
+												onMouseEnter={() =>
+													onHoverElement?.(el.id)
+												}
+												onMouseLeave={() =>
+													onHoverElement?.(null)
+												}
 											>
 												<div className="flex items-center gap-2">
 													<GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
@@ -543,172 +535,352 @@ export function TemplateSidebar({
 														<Lock className="h-3 w-3 text-amber-500 shrink-0" />
 													)}
 													{el.type === "text" && (
-														<TypeIcon className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<TypeIcon
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "image" && (
-														<ImageIcon className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<ImageIcon
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "table" && (
-														<TableIcon className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<TableIcon
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "input" && (
-														<TypeIcon className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<TypeIcon
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "currency" && (
-														<CircleDollarSign className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<CircleDollarSign
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "box" && (
-														<Square className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Square
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "line" && (
-														<Minus className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Minus
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "icon" && (
-														<StickyNote className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<StickyNote
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "path" && (
-														<Waves className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Waves
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "spacer" && (
-														<Minus className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Minus
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
-													{el.type === "pageBreak" && (
-														<Minus className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+													{el.type ===
+														"pageBreak" && (
+														<Minus
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "qrCode" && (
-														<Square className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Square
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "barcode" && (
-														<Minus className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<Minus
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
-													{el.type === "signature" && (
-														<TypeIcon className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+													{el.type ===
+														"signature" && (
+														<TypeIcon
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													{el.type === "stamp" && (
-														<StickyNote className={`h-4 w-4 shrink-0 ${
-															state.selectedElementIds?.includes(el.id)
-																? "text-primary"
-																: "text-muted-foreground"
-														}`} />
+														<StickyNote
+															className={`h-4 w-4 shrink-0 ${
+																state.selectedElementIds?.includes(
+																	el.id,
+																)
+																	? "text-primary"
+																	: "text-muted-foreground"
+															}`}
+														/>
 													)}
 													<span className="truncate flex-1 text-sm text-foreground">
 														{(() => {
-															if (el.type === "text") {
-																return (el as Extract<TemplateElement, { type: "text" }>).text ?? t('designer.sidebar.text');
-															} else if (el.type === "table") {
-																return t('designer.sidebar.itemsTable');
-															} else if (el.type === "image") {
-																return t('designer.sidebar.image');
-															} else if (el.type === "input") {
-																return t('designer.sidebar.inputField');
-															} else if (el.type === "currency") {
-																return t('designer.sidebar.currencyField');
-															} else if (el.type === "box") {
-																return t('designer.sidebar.box');
-															} else if (el.type === "line") {
-																return t('designer.sidebar.line');
-															} else if (el.type === "icon") {
-																return t('designer.sidebar.icon', 'Icon');
-															} else if (el.type === "path") {
-																return t('designer.sidebar.path', 'Path');
-															} else if (el.type === "spacer") {
-																return t('designer.sidebar.spacer', 'Spacer');
-															} else if (el.type === "pageBreak") {
-																return t('designer.sidebar.pageBreak', 'Page Break');
-																} else if (el.type === "qrCode") {
-																	return t('designer.sidebar.qrCode', 'QR Code');
-																} else if (el.type === "barcode") {
-																	return t('designer.sidebar.barcode', 'Barcode');
-																} else if (el.type === "signature") {
-																	return t('designer.sidebar.signature', 'Signature');
-																} else if (el.type === "stamp") {
-																	return t('designer.sidebar.stamp', 'Stamp');
-																}
+															if (
+																el.type ===
+																"text"
+															) {
+																return (
+																	(
+																		el as Extract<
+																			TemplateElement,
+																			{
+																				type: "text";
+																			}
+																		>
+																	).text ??
+																	t(
+																		"designer.sidebar.text",
+																	)
+																);
+															} else if (
+																el.type ===
+																"table"
+															) {
+																return t(
+																	"designer.sidebar.itemsTable",
+																);
+															} else if (
+																el.type ===
+																"image"
+															) {
+																return t(
+																	"designer.sidebar.image",
+																);
+															} else if (
+																el.type ===
+																"input"
+															) {
+																return t(
+																	"designer.sidebar.inputField",
+																);
+															} else if (
+																el.type ===
+																"currency"
+															) {
+																return t(
+																	"designer.sidebar.currencyField",
+																);
+															} else if (
+																el.type ===
+																"box"
+															) {
+																return t(
+																	"designer.sidebar.box",
+																);
+															} else if (
+																el.type ===
+																"line"
+															) {
+																return t(
+																	"designer.sidebar.line",
+																);
+															} else if (
+																el.type ===
+																"icon"
+															) {
+																return t(
+																	"designer.sidebar.icon",
+																	"Icon",
+																);
+															} else if (
+																el.type ===
+																"path"
+															) {
+																return t(
+																	"designer.sidebar.path",
+																	"Path",
+																);
+															} else if (
+																el.type ===
+																"spacer"
+															) {
+																return t(
+																	"designer.sidebar.spacer",
+																	"Spacer",
+																);
+															} else if (
+																el.type ===
+																"pageBreak"
+															) {
+																return t(
+																	"designer.sidebar.pageBreak",
+																	"Page Break",
+																);
+															} else if (
+																el.type ===
+																"qrCode"
+															) {
+																return t(
+																	"designer.sidebar.qrCode",
+																	"QR Code",
+																);
+															} else if (
+																el.type ===
+																"barcode"
+															) {
+																return t(
+																	"designer.sidebar.barcode",
+																	"Barcode",
+																);
+															} else if (
+																el.type ===
+																"signature"
+															) {
+																return t(
+																	"designer.sidebar.signature",
+																	"Signature",
+																);
+															} else if (
+																el.type ===
+																"stamp"
+															) {
+																return t(
+																	"designer.sidebar.stamp",
+																	"Stamp",
+																);
+															}
 															// Fallback for any other element type
-															const element = el as TemplateElement;
-															return t('designer.sidebar.element', { id: element.id.slice(0, 6) });
+															const element =
+																el as TemplateElement;
+															return t(
+																"designer.sidebar.element",
+																{
+																	id: element.id.slice(
+																		0,
+																		6,
+																	),
+																},
+															);
 														})()}
 													</span>
 												</div>
 											</div>
 										</ContextMenuTrigger>
 										<ContextMenuContent>
-											<ContextMenuItem onClick={() => onSelectElement(el.id)}>
-												{t('designer.sidebar.select')}
+											<ContextMenuItem
+												onClick={() =>
+													onSelectElement(el.id)
+												}
+											>
+												{t("designer.sidebar.select")}
 											</ContextMenuItem>
 											<ContextMenuSeparator />
-											<ContextMenuItem onClick={() => onDuplicateElement(el.id)}>
+											<ContextMenuItem
+												onClick={() =>
+													onDuplicateElement(el.id)
+												}
+											>
 												<Copy className="mr-2 h-4 w-4" />
-												{t('designer.sidebar.duplicate')}
+												{t(
+													"designer.sidebar.duplicate",
+												)}
 											</ContextMenuItem>
 											<ContextMenuSeparator />
-											<ContextMenuItem onClick={() => onDeleteElement(el.id)} variant="destructive">
-												{t('designer.sidebar.delete')}
+											<ContextMenuItem
+												onClick={() =>
+													onDeleteElement(el.id)
+												}
+												variant="destructive"
+											>
+												{t("designer.sidebar.delete")}
 											</ContextMenuItem>
 										</ContextMenuContent>
 									</ContextMenu>
 								</div>
 							);
 						})}
-						{dragOverIndex === orderedElements.length && draggedElementId && (
-							<div className="h-0.5 bg-primary rounded-full animate-pulse" />
-						)}
+						{dragOverIndex === orderedElements.length &&
+							draggedElementId && (
+								<div className="h-0.5 bg-primary rounded-full animate-pulse" />
+							)}
 					</div>
 				</div>
 			</div>
