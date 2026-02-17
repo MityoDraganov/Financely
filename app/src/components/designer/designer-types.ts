@@ -7,6 +7,8 @@ export type DesignerState = {
 	editingTextElementId?: string;
 	editingPathElementId?: string; // Path element in edit mode
 	activeTool?: "select" | "pen"; // Active tool for path editing
+	selectedPathNodeId?: string;
+	selectedPathSubpathId?: string;
 };
 
 export type DragMode = "move" | "resize";
@@ -40,19 +42,21 @@ export type SnapGuide = {
 };
 
 // Path node editing types
-export type PathNodeType = "corner" | "smooth";
+export type PathNodeType = "corner" | "smooth" | "symmetric";
 
 export type PathNode = {
 	id: string;
 	x: number; // Local coordinates (0 to element.width)
 	y: number; // Local coordinates (0 to element.height)
-	type: PathNodeType;
+	handleType: PathNodeType;
 	handleIn?: { x: number; y: number } | null; // Relative to node position
 	handleOut?: { x: number; y: number } | null; // Relative to node position
+	cornerRadius?: number;
 };
 
 export type PathNodeDragState = {
 	elementId: string;
+	subpathId?: string;
 	nodeId: string;
 	handleType?: "in" | "out"; // Undefined = dragging node itself
 	startClientX: number;
@@ -61,5 +65,5 @@ export type PathNodeDragState = {
 	startNodeY: number;
 	startHandleX?: number;
 	startHandleY?: number;
-	symmetricHandles?: boolean; // Tracks if Alt key was pressed (breaks symmetry)
+	breakHandles?: boolean; // Alt/Option breaks handle constraints
 };

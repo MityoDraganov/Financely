@@ -197,7 +197,6 @@ export function TemplateSidebar({
 					</div>
 				)}
 			</div>
-			{/* Required Fields Section */}
 			{missingRequiredFields.length > 0 && currentTemplate && (
 				<div className="mt-5 mb-5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 shadow-sm">
 					<div className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1.5">
@@ -599,6 +598,13 @@ export function TemplateSidebar({
 																: "text-muted-foreground"
 														}`} />
 													)}
+													{el.type === "path" && (
+														<Waves className={`h-4 w-4 shrink-0 ${
+															state.selectedElementIds?.includes(el.id)
+																? "text-primary"
+																: "text-muted-foreground"
+														}`} />
+													)}
 													{el.type === "spacer" && (
 														<Minus className={`h-4 w-4 shrink-0 ${
 															state.selectedElementIds?.includes(el.id)
@@ -657,12 +663,14 @@ export function TemplateSidebar({
 																return t('designer.sidebar.box');
 															} else if (el.type === "line") {
 																return t('designer.sidebar.line');
-																} else if (el.type === "icon") {
-																	return t('designer.sidebar.icon', 'Icon');
-																} else if (el.type === "spacer") {
-																	return t('designer.sidebar.spacer', 'Spacer');
-																} else if (el.type === "pageBreak") {
-																	return t('designer.sidebar.pageBreak', 'Page Break');
+															} else if (el.type === "icon") {
+																return t('designer.sidebar.icon', 'Icon');
+															} else if (el.type === "path") {
+																return t('designer.sidebar.path', 'Path');
+															} else if (el.type === "spacer") {
+																return t('designer.sidebar.spacer', 'Spacer');
+															} else if (el.type === "pageBreak") {
+																return t('designer.sidebar.pageBreak', 'Page Break');
 																} else if (el.type === "qrCode") {
 																	return t('designer.sidebar.qrCode', 'QR Code');
 																} else if (el.type === "barcode") {

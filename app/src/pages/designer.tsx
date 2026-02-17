@@ -1356,33 +1356,105 @@ export default function TemplateDesignerPage() {
 	}
 
 	type PathElement = Extract<TemplateElement, { type: "path" }>;
+	type PathSubpath = NonNullable<PathElement["subpaths"]>[number];
+	type PathNode = PathSubpath["nodes"][number];
+
+	type PathPoint = { x: number; y: number };
+
+	function resolveHandleType(node: PathNode): "corner" | "smooth" | "symmetric" {
+		if ("handleType" in node && node.handleType) return node.handleType;
+		if ("type" in node && node.type) return node.type;
+		return "corner";
+	}
+
+	function computeRoundedCorner(
+		prev: PathNode | undefined,
+		current: PathNode,
+		next: PathNode | undefined
+	): { entry: PathPoint; exit: PathPoint; c1: PathPoint; c2: PathPoint } | null {
+		const radius = Math.max(0, current.cornerRadius ?? 0);
+		if (!prev || !next || radius === 0) return null;
+		if (current.handleIn || current.handleOut) return null;
+		const inVec = { x: prev.x - current.x, y: prev.y - current.y };
+		const outVec = { x: next.x - current.x, y: next.y - current.y };
+		const inLen = Math.hypot(inVec.x, inVec.y);
+		const outLen = Math.hypot(outVec.x, outVec.y);
+		if (inLen === 0 || outLen === 0) return null;
+		const inUnit = { x: inVec.x / inLen, y: inVec.y / inLen };
+		const outUnit = { x: outVec.x / outLen, y: outVec.y / outLen };
+		const dot = Math.max(-1, Math.min(1, inUnit.x * outUnit.x + inUnit.y * outUnit.y));
+		const angle = Math.acos(dot);
+		if (!Number.isFinite(angle) || angle === 0) return null;
+		const tangent = Math.tan(angle / 2);
+		if (!Number.isFinite(tangent) || tangent === 0) return null;
+		const offset = Math.min(radius * tangent, inLen * 0.5, outLen * 0.5);
+		const effectiveRadius = offset / tangent;
+		const entry = { x: current.x + inUnit.x * offset, y: current.y + inUnit.y * offset };
+		const exit = { x: current.x + outUnit.x * offset, y: current.y + outUnit.y * offset };
+		const k = (4 / 3) * Math.tan(angle / 4);
+		const controlDist = k * effectiveRadius;
+		const c1 = { x: entry.x - inUnit.x * controlDist, y: entry.y - inUnit.y * controlDist };
+		const c2 = { x: exit.x - outUnit.x * controlDist, y: exit.y - outUnit.y * controlDist };
+		return { entry, exit, c1, c2 };
+	}
+
 	function buildPathDataFromSubpaths(subpaths: NonNullable<PathElement["subpaths"]>): string {
 		return subpaths
 			.map((subpath) => {
 				const nodes = subpath.nodes;
 				if (nodes.length === 0) return "";
+				const isClosed = subpath.closed && nodes.length > 2;
+				const roundedById = new Map<string, { entry: PathPoint; exit: PathPoint; c1: PathPoint; c2: PathPoint }>();
+				nodes.forEach((node, index) => {
+					const prev = isClosed
+						? nodes[(index - 1 + nodes.length) % nodes.length]
+						: index > 0
+							? nodes[index - 1]
+							: undefined;
+					const next = isClosed
+						? nodes[(index + 1) % nodes.length]
+						: index < nodes.length - 1
+							? nodes[index + 1]
+							: undefined;
+					const rounded = computeRoundedCorner(prev, node, next);
+					if (rounded) roundedById.set(node.id, rounded);
+				});
 				const segments: string[] = [];
 				const start = nodes[0];
-				segments.push(`M ${start.x} ${start.y}`);
-				for (let i = 1; i < nodes.length; i += 1) {
-					const prev = nodes[i - 1];
+				const startRound = roundedById.get(start.id);
+				const startPoint = startRound ? startRound.entry : { x: start.x, y: start.y };
+				segments.push(`M ${startPoint.x} ${startPoint.y}`);
+				if (startRound && !isClosed) {
+					segments.push(`C ${startRound.c1.x} ${startRound.c1.y} ${startRound.c2.x} ${startRound.c2.y} ${startRound.exit.x} ${startRound.exit.y}`);
+				}
+				let startRoundHandled = Boolean(startRound && !isClosed);
+				for (let i = 0; i < nodes.length; i += 1) {
+					if (!isClosed && i === nodes.length - 1) break;
 					const current = nodes[i];
-					const hasHandles = prev.handleOut || current.handleIn;
+					const next = nodes[(i + 1) % nodes.length];
+					const currentRound = roundedById.get(current.id);
+					const nextRound = roundedById.get(next.id);
+					const endPoint = nextRound ? nextRound.entry : { x: next.x, y: next.y };
+					const hasHandles = !currentRound && !nextRound && (current.handleOut || next.handleIn);
 					if (hasHandles) {
-						const h1 = prev.handleOut
-							? { x: prev.x + prev.handleOut.x, y: prev.y + prev.handleOut.y }
-							: { x: prev.x, y: prev.y };
-						const h2 = current.handleIn
-							? { x: current.x + current.handleIn.x, y: current.y + current.handleIn.y }
+						const h1 = current.handleOut
+							? { x: current.x + current.handleOut.x, y: current.y + current.handleOut.y }
 							: { x: current.x, y: current.y };
-						segments.push(`C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${current.x} ${current.y}`);
+						const h2 = next.handleIn
+							? { x: next.x + next.handleIn.x, y: next.y + next.handleIn.y }
+							: { x: next.x, y: next.y };
+						segments.push(`C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${endPoint.x} ${endPoint.y}`);
 					} else {
-						segments.push(`L ${current.x} ${current.y}`);
+						segments.push(`L ${endPoint.x} ${endPoint.y}`);
+					}
+					if (nextRound) {
+						if (!(isClosed && next.id === start.id && startRoundHandled)) {
+							segments.push(`C ${nextRound.c1.x} ${nextRound.c1.y} ${nextRound.c2.x} ${nextRound.c2.y} ${nextRound.exit.x} ${nextRound.exit.y}`);
+							if (isClosed && next.id === start.id) startRoundHandled = true;
+						}
 					}
 				}
-				if (subpath.closed) {
-					segments.push("Z");
-				}
+				if (isClosed) segments.push("Z");
 				return segments.join(" ");
 			})
 			.filter((segment) => segment.length > 0)
@@ -1408,10 +1480,10 @@ export default function TemplateDesignerPage() {
 				id: crypto.randomUUID(),
 				closed: false,
 				nodes: [
-					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, type: "corner" },
-					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, type: "corner" },
-					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, type: "corner" },
-					{ id: crypto.randomUUID(), x: w, y: h * 0.5, type: "corner" },
+					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, handleType: "corner", cornerRadius: 0 },
+					{ id: crypto.randomUUID(), x: w, y: h * 0.5, handleType: "corner", cornerRadius: 0 },
 				],
 			},
 		];
@@ -1480,6 +1552,8 @@ export default function TemplateDesignerPage() {
 			showGrid: entry.showGrid,
 			snapEnabled: entry.snapEnabled,
 			editingTextElementId: entry.editingTextElementId,
+			selectedPathNodeId: undefined,
+			selectedPathSubpathId: undefined,
 		}));
 	}
 
@@ -1993,24 +2067,27 @@ export default function TemplateDesignerPage() {
 												pattern: "diagonal-lines",
 											}
 									: kind === "path"
-										? {
-												id: crypto.randomUUID(),
-												type: "path",
-												x: at?.x ?? 60,
-												y: at?.y ?? 80,
-												width: 200,
-												height: 150,
-												rotation: 0,
-												zIndex: 1,
-												visible: true,
-												subpaths: createDefaultPathSubpaths(200, 150),
-												pathData: buildPathDataFromSubpaths(createDefaultPathSubpaths(200, 150)),
-												fill: "#3b82f6",
-												opacity: 0.8,
-												strokeWidth: 0,
-												fillRule: "nonzero",
-												scaleStroke: false,
-											}
+										? (() => {
+												const defaultSubpaths = createDefaultPathSubpaths(200, 150);
+												return {
+													id: crypto.randomUUID(),
+													type: "path",
+													x: at?.x ?? 60,
+													y: at?.y ?? 80,
+													width: 200,
+													height: 150,
+													rotation: 0,
+													zIndex: 1,
+													visible: true,
+													subpaths: defaultSubpaths,
+													pathData: buildPathDataFromSubpaths(defaultSubpaths),
+													fill: "#3b82f6",
+													opacity: 0.8,
+													strokeWidth: 0,
+													fillRule: "nonzero",
+													scaleStroke: false,
+												};
+											})()
 									: {
 											id: crypto.randomUUID(),
 											type: "line",
@@ -2062,7 +2139,13 @@ export default function TemplateDesignerPage() {
 	const handleSelectElement = (elementId: string, event?: React.MouseEvent | React.PointerEvent) => {
 		if (!elementId) {
 			selectedElementIdsRef.current = [];
-			setState((s) => ({ ...s, selectedElementIds: [], editingTextElementId: undefined }));
+			setState((s) => ({
+				...s,
+				selectedElementIds: [],
+				editingTextElementId: undefined,
+				selectedPathNodeId: undefined,
+				selectedPathSubpathId: undefined,
+			}));
 			return;
 		}
 		const isShiftPressed = Boolean(event?.shiftKey);
@@ -2079,6 +2162,8 @@ export default function TemplateDesignerPage() {
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
+					selectedPathNodeId: newSelected.includes(s.editingPathElementId ?? "") ? s.selectedPathNodeId : undefined,
+					selectedPathSubpathId: newSelected.includes(s.editingPathElementId ?? "") ? s.selectedPathSubpathId : undefined,
 				}));
 			} else {
 				const newSelected = [...currentSelected, elementId];
@@ -2087,6 +2172,8 @@ export default function TemplateDesignerPage() {
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
+					selectedPathNodeId: s.editingPathElementId === elementId ? s.selectedPathNodeId : undefined,
+					selectedPathSubpathId: s.editingPathElementId === elementId ? s.selectedPathSubpathId : undefined,
 				}));
 			}
 		} else {
@@ -2096,6 +2183,8 @@ export default function TemplateDesignerPage() {
 			setState((s) => ({
 				...s,
 				selectedElementIds: [elementId],
+				selectedPathNodeId: s.editingPathElementId === elementId ? s.selectedPathNodeId : undefined,
+				selectedPathSubpathId: s.editingPathElementId === elementId ? s.selectedPathSubpathId : undefined,
 			}));
 		}
 	};
@@ -2221,51 +2310,525 @@ export default function TemplateDesignerPage() {
 	}
 
 	function setPathEditMode(elementId: string, enabled: boolean) {
-		setState((s) => ({
-			...s,
-			editingPathElementId: enabled ? elementId : undefined,
-			activeTool: enabled ? s.activeTool ?? "select" : "select",
-		}));
+		const pathElement = getWorkingElements().find(
+			(el) => el.id === elementId && el.type === "path"
+		) as PathElement | undefined;
+		const firstSubpathId = pathElement?.subpaths?.[0]?.id;
+		setState((s) => {
+			const keepSubpath =
+				enabled &&
+				s.selectedPathSubpathId &&
+				Boolean(pathElement?.subpaths?.some((subpath) => subpath.id === s.selectedPathSubpathId))
+					? s.selectedPathSubpathId
+					: firstSubpathId;
+			return {
+				...s,
+				editingPathElementId: enabled ? elementId : undefined,
+				activeTool: enabled ? s.activeTool ?? "select" : "select",
+				selectedPathNodeId: undefined,
+				selectedPathSubpathId: enabled ? keepSubpath : undefined,
+			};
+		});
 	}
 
 	function setPathTool(tool: "select" | "pen") {
 		setState((s) => ({ ...s, activeTool: tool }));
 	}
 
-	function handleAddPathNode(elementId: string, point: { x: number; y: number }) {
+	function ensurePathSubpaths(pathEl: PathElement): NonNullable<PathElement["subpaths"]> {
+		const source = pathEl.subpaths && pathEl.subpaths.length > 0
+			? pathEl.subpaths
+			: createDefaultPathSubpaths(pathEl.width, pathEl.height);
+		return clonePathSubpaths(source);
+	}
+
+	function normalizeVector(vector: { x: number; y: number } | null | undefined): { x: number; y: number } {
+		if (!vector) return { x: 1, y: 0 };
+		const length = Math.hypot(vector.x, vector.y);
+		if (length === 0) return { x: 1, y: 0 };
+		return { x: vector.x / length, y: vector.y / length };
+	}
+
+	function getNodeTangentDirection(subpath: PathSubpath, index: number): { x: number; y: number } {
+		const nodes = subpath.nodes;
+		const node = nodes[index];
+		const isClosed = subpath.closed && nodes.length > 2;
+		const prev = isClosed
+			? nodes[(index - 1 + nodes.length) % nodes.length]
+			: index > 0
+				? nodes[index - 1]
+				: undefined;
+		const next = isClosed
+			? nodes[(index + 1) % nodes.length]
+			: index < nodes.length - 1
+				? nodes[index + 1]
+				: undefined;
+		if (prev && next) {
+			return normalizeVector({ x: next.x - prev.x, y: next.y - prev.y });
+		}
+		if (next) {
+			return normalizeVector({ x: next.x - node.x, y: next.y - node.y });
+		}
+		if (prev) {
+			return normalizeVector({ x: node.x - prev.x, y: node.y - prev.y });
+		}
+		return { x: 1, y: 0 };
+	}
+
+	function convertNodeHandleType(
+		node: PathNode,
+		type: "corner" | "smooth" | "symmetric",
+		direction: { x: number; y: number }
+	): PathNode {
+		const handleIn = node.handleIn ? { ...node.handleIn } : null;
+		const handleOut = node.handleOut ? { ...node.handleOut } : null;
+		const defaultLength = 28;
+		if (type === "corner") {
+			return { ...node, handleType: type, handleIn, handleOut };
+		}
+		let baseDirection = direction;
+		if (handleOut && Math.hypot(handleOut.x, handleOut.y) > 0) {
+			baseDirection = normalizeVector(handleOut);
+		} else if (handleIn && Math.hypot(handleIn.x, handleIn.y) > 0) {
+			baseDirection = normalizeVector({ x: -handleIn.x, y: -handleIn.y });
+		}
+		const inLength = handleIn ? Math.max(1, Math.hypot(handleIn.x, handleIn.y)) : defaultLength;
+		const outLength = handleOut ? Math.max(1, Math.hypot(handleOut.x, handleOut.y)) : defaultLength;
+		if (type === "smooth") {
+			return {
+				...node,
+				handleType: "smooth",
+				handleIn: { x: -baseDirection.x * inLength, y: -baseDirection.y * inLength },
+				handleOut: { x: baseDirection.x * outLength, y: baseDirection.y * outLength },
+			};
+		}
+		const symmetricLength = Math.max(defaultLength, inLength, outLength);
+		return {
+			...node,
+			handleType: "symmetric",
+			handleIn: { x: -baseDirection.x * symmetricLength, y: -baseDirection.y * symmetricLength },
+			handleOut: { x: baseDirection.x * symmetricLength, y: baseDirection.y * symmetricLength },
+		};
+	}
+
+	type PathMutationResult = {
+		subpaths: NonNullable<PathElement["subpaths"]>;
+		selectedNodeId?: string | null;
+		selectedSubpathId?: string | null;
+	};
+
+	function commitPathMutation(
+		elementId: string,
+		mutate: (pathEl: PathElement, subpaths: NonNullable<PathElement["subpaths"]>) => PathMutationResult | null
+	) {
 		const elements = getWorkingElements();
+		let nextSelectionNodeId: string | null | undefined;
+		let nextSelectionSubpathId: string | null | undefined;
+		let updated = false;
 		const nextElements = elements.map((el) => {
 			if (el.id !== elementId || el.type !== "path") return el;
 			const pathEl = el as PathElement;
-			const baseSubpaths = pathEl.subpaths && pathEl.subpaths.length > 0
-				? clonePathSubpaths(pathEl.subpaths)
-				: createDefaultPathSubpaths(pathEl.width, pathEl.height);
-			const clamped = clampPathPoint(point.x, point.y, pathEl.width, pathEl.height);
-			const first = baseSubpaths[0];
-			const nextNodes = [
-				...first.nodes,
-				{ id: crypto.randomUUID(), x: clamped.x, y: clamped.y, type: "corner" as const },
-			];
-			const updatedSubpaths = [
-				{ ...first, nodes: nextNodes },
-				...baseSubpaths.slice(1),
-			];
+			const subpaths = ensurePathSubpaths(pathEl);
+			const result = mutate(pathEl, subpaths);
+			if (!result) return pathEl;
+			updated = true;
+			nextSelectionNodeId = result.selectedNodeId;
+			nextSelectionSubpathId = result.selectedSubpathId;
 			return {
 				...pathEl,
-				subpaths: updatedSubpaths,
-				pathData: buildPathDataFromSubpaths(updatedSubpaths),
+				subpaths: result.subpaths,
+				pathData: buildPathDataFromSubpaths(result.subpaths),
 			};
 		});
+		if (!updated) return;
 		applyCommandResult({ nextElements, nextSelectedIds: [elementId], clearEditing: false });
+		setState((s) => ({
+			...s,
+			selectedPathNodeId: nextSelectionNodeId === undefined ? s.selectedPathNodeId : nextSelectionNodeId ?? undefined,
+			selectedPathSubpathId:
+				nextSelectionSubpathId === undefined ? s.selectedPathSubpathId : nextSelectionSubpathId ?? undefined,
+		}));
+	}
+
+	function handleSelectPathNode(options: { elementId: string; subpathId: string; nodeId: string }) {
+		selectedElementIdsRef.current = [options.elementId];
+		setState((s) => ({
+			...s,
+			selectedElementIds: [options.elementId],
+			selectedPathNodeId: options.nodeId,
+			selectedPathSubpathId: options.subpathId,
+		}));
+	}
+
+	function handleCreatePathSubpath(elementId: string) {
+		commitPathMutation(elementId, (pathEl, subpaths) => {
+			const start = clampPathPoint(pathEl.width * 0.25, pathEl.height * 0.5, pathEl.width, pathEl.height);
+			const end = clampPathPoint(start.x + Math.min(70, Math.max(30, pathEl.width * 0.2)), start.y, pathEl.width, pathEl.height);
+			const firstNodeId = crypto.randomUUID();
+			const secondNodeId = crypto.randomUUID();
+			const newSubpathId = crypto.randomUUID();
+			const nextSubpaths = [
+				...subpaths,
+				{
+					id: newSubpathId,
+					closed: false,
+					nodes: [
+						{ id: firstNodeId, x: start.x, y: start.y, handleType: "corner" as const, cornerRadius: 0 },
+						{ id: secondNodeId, x: end.x, y: end.y, handleType: "corner" as const, cornerRadius: 0 },
+					],
+				},
+			];
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: secondNodeId,
+				selectedSubpathId: newSubpathId,
+			};
+		});
+	}
+
+	function handleTogglePathSubpathClosed(elementId: string, subpathId: string, closed: boolean) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			const target = subpaths.find((item) => item.id === subpathId);
+			if (!target) return null;
+			const nextClosed = closed && target.nodes.length > 2;
+			const nextSubpaths = subpaths.map((subpath) =>
+				subpath.id === subpathId ? { ...subpath, closed: nextClosed } : subpath
+			);
+			return {
+				subpaths: nextSubpaths,
+				selectedSubpathId: subpathId,
+			};
+		});
+	}
+
+	function handleAddPathNode(elementId: string, point: { x: number; y: number }) {
+		commitPathMutation(elementId, (pathEl, subpaths) => {
+			const clamped = clampPathPoint(point.x, point.y, pathEl.width, pathEl.height);
+			const activeSubpathId = state.selectedPathSubpathId;
+			const preferred = activeSubpathId
+				? subpaths.find((subpath) => subpath.id === activeSubpathId)
+				: undefined;
+			const target = preferred ?? [...subpaths].reverse().find((subpath) => !subpath.closed) ?? subpaths[0];
+			if (!target) return null;
+			const targetIndex = subpaths.findIndex((subpath) => subpath.id === target.id);
+			if (targetIndex === -1) return null;
+
+			if (target.closed) {
+				const newSubpathId = crypto.randomUUID();
+				const firstNodeId = crypto.randomUUID();
+				const secondNodeId = crypto.randomUUID();
+				const secondPoint = clampPathPoint(
+					clamped.x + Math.min(60, Math.max(24, pathEl.width * 0.16)),
+					clamped.y,
+					pathEl.width,
+					pathEl.height
+				);
+				const nextSubpaths = [
+					...subpaths,
+					{
+						id: newSubpathId,
+						closed: false,
+						nodes: [
+							{ id: firstNodeId, x: clamped.x, y: clamped.y, handleType: "corner" as const, cornerRadius: 0 },
+							{ id: secondNodeId, x: secondPoint.x, y: secondPoint.y, handleType: "corner" as const, cornerRadius: 0 },
+						],
+					},
+				];
+				return {
+					subpaths: nextSubpaths,
+					selectedNodeId: secondNodeId,
+					selectedSubpathId: newSubpathId,
+				};
+			}
+
+			const firstNode = target.nodes[0];
+			if (firstNode && target.nodes.length > 2) {
+				const dist = Math.hypot(firstNode.x - clamped.x, firstNode.y - clamped.y);
+				if (dist <= 10) {
+					const nextSubpaths = subpaths.map((subpath) =>
+						subpath.id === target.id ? { ...subpath, closed: true } : subpath
+					);
+					return {
+						subpaths: nextSubpaths,
+						selectedNodeId: firstNode.id,
+						selectedSubpathId: target.id,
+					};
+				}
+			}
+
+			const newNodeId = crypto.randomUUID();
+			const updatedTarget = {
+				...target,
+				nodes: [
+					...target.nodes,
+					{ id: newNodeId, x: clamped.x, y: clamped.y, handleType: "corner" as const, cornerRadius: 0 },
+				],
+			};
+			const nextSubpaths = subpaths.map((subpath) =>
+				subpath.id === target.id ? updatedTarget : subpath
+			);
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: newNodeId,
+				selectedSubpathId: target.id,
+			};
+		});
+	}
+
+	function handleInsertPathNodeOnSegment(options: {
+		elementId: string;
+		subpathId: string;
+		segmentStartNodeId: string;
+		point: { x: number; y: number };
+		t?: number;
+	}) {
+		commitPathMutation(options.elementId, (pathEl, subpaths) => {
+			const subpathIndex = subpaths.findIndex((subpath) => subpath.id === options.subpathId);
+			if (subpathIndex === -1) return null;
+			const targetSubpath = subpaths[subpathIndex];
+			const startIndex = targetSubpath.nodes.findIndex((node) => node.id === options.segmentStartNodeId);
+			if (startIndex === -1) return null;
+			const isClosed = targetSubpath.closed && targetSubpath.nodes.length > 2;
+			if (!isClosed && startIndex >= targetSubpath.nodes.length - 1) return null;
+			const nextIndex = (startIndex + 1) % targetSubpath.nodes.length;
+			const current = targetSubpath.nodes[startIndex];
+			const nextNode = targetSubpath.nodes[nextIndex];
+			const clampedPoint = clampPathPoint(options.point.x, options.point.y, pathEl.width, pathEl.height);
+			const insertedNodeId = crypto.randomUUID();
+			let insertedNode: PathNode = {
+				id: insertedNodeId,
+				x: clampedPoint.x,
+				y: clampedPoint.y,
+				handleType: "corner",
+				cornerRadius: 0,
+			};
+			let updatedCurrent = current;
+			let updatedNext = nextNode;
+			const hasCurve = Boolean(current.handleOut || nextNode.handleIn);
+			const t = Math.max(0.001, Math.min(0.999, options.t ?? 0.5));
+			if (hasCurve) {
+				const p0 = { x: current.x, y: current.y };
+				const p1 = current.handleOut
+					? { x: current.x + current.handleOut.x, y: current.y + current.handleOut.y }
+					: p0;
+				const p3 = { x: nextNode.x, y: nextNode.y };
+				const p2 = nextNode.handleIn
+					? { x: nextNode.x + nextNode.handleIn.x, y: nextNode.y + nextNode.handleIn.y }
+					: p3;
+				const a = { x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t };
+				const b = { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
+				const c = { x: p2.x + (p3.x - p2.x) * t, y: p2.y + (p3.y - p2.y) * t };
+				const d = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+				const e = { x: b.x + (c.x - b.x) * t, y: b.y + (c.y - b.y) * t };
+				const f = { x: d.x + (e.x - d.x) * t, y: d.y + (e.y - d.y) * t };
+				insertedNode = {
+					...insertedNode,
+					x: f.x,
+					y: f.y,
+					handleType: "smooth",
+					handleIn: { x: d.x - f.x, y: d.y - f.y },
+					handleOut: { x: e.x - f.x, y: e.y - f.y },
+				};
+				updatedCurrent = {
+					...current,
+					handleOut: { x: a.x - current.x, y: a.y - current.y },
+				};
+				updatedNext = {
+					...nextNode,
+					handleIn: { x: c.x - nextNode.x, y: c.y - nextNode.y },
+				};
+			}
+			const nextNodes = targetSubpath.nodes.map((node, index) => {
+				if (index === startIndex) return updatedCurrent;
+				if (index === nextIndex) return updatedNext;
+				return node;
+			});
+			nextNodes.splice(startIndex + 1, 0, insertedNode);
+			const nextSubpaths = subpaths.map((subpath, index) =>
+				index === subpathIndex ? { ...targetSubpath, nodes: nextNodes } : subpath
+			);
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: insertedNodeId,
+				selectedSubpathId: targetSubpath.id,
+			};
+		});
+	}
+
+	function handleSetPathNodeType(
+		elementId: string,
+		nodeId: string,
+		type: "corner" | "smooth" | "symmetric"
+	) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			let selectedSubpathId: string | undefined;
+			const nextSubpaths = subpaths.map((subpath) => {
+				const nodeIndex = subpath.nodes.findIndex((node) => node.id === nodeId);
+				if (nodeIndex === -1) return subpath;
+				selectedSubpathId = subpath.id;
+				const direction = getNodeTangentDirection(subpath, nodeIndex);
+				const nextNodes = subpath.nodes.map((node, index) =>
+					index === nodeIndex ? convertNodeHandleType(node, type, direction) : node
+				);
+				return { ...subpath, nodes: nextNodes };
+			});
+			if (!selectedSubpathId) return null;
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: nodeId,
+				selectedSubpathId,
+			};
+		});
+	}
+
+	function handleAddPathNodeHandles(elementId: string, nodeId: string) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			let selectedSubpathId: string | undefined;
+			const nextSubpaths = subpaths.map((subpath) => {
+				const nodeIndex = subpath.nodes.findIndex((node) => node.id === nodeId);
+				if (nodeIndex === -1) return subpath;
+				selectedSubpathId = subpath.id;
+				const direction = getNodeTangentDirection(subpath, nodeIndex);
+				const defaultLength = 28;
+				const nextNodes = subpath.nodes.map((node, index) => {
+					if (index !== nodeIndex) return node;
+					const currentType = resolveHandleType(node);
+					const hasIn = Boolean(node.handleIn);
+					const hasOut = Boolean(node.handleOut);
+					if (hasIn && hasOut) return node;
+					const inLength = node.handleIn ? Math.max(1, Math.hypot(node.handleIn.x, node.handleIn.y)) : defaultLength;
+					const outLength = node.handleOut ? Math.max(1, Math.hypot(node.handleOut.x, node.handleOut.y)) : defaultLength;
+					let nextHandleIn = node.handleIn ? { ...node.handleIn } : null;
+					let nextHandleOut = node.handleOut ? { ...node.handleOut } : null;
+					if (!hasIn && !hasOut) {
+						nextHandleIn = { x: -direction.x * defaultLength, y: -direction.y * defaultLength };
+						nextHandleOut = { x: direction.x * defaultLength, y: direction.y * defaultLength };
+					} else if (!hasIn && nextHandleOut) {
+						const dir = normalizeVector(nextHandleOut);
+						const len = currentType === "symmetric" ? outLength : inLength;
+						nextHandleIn = { x: -dir.x * len, y: -dir.y * len };
+					} else if (!hasOut && nextHandleIn) {
+						const dir = normalizeVector({ x: -nextHandleIn.x, y: -nextHandleIn.y });
+						const len = currentType === "symmetric" ? inLength : outLength;
+						nextHandleOut = { x: dir.x * len, y: dir.y * len };
+					}
+					return {
+						...node,
+						handleIn: nextHandleIn,
+						handleOut: nextHandleOut,
+					};
+				});
+				return { ...subpath, nodes: nextNodes };
+			});
+			if (!selectedSubpathId) return null;
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: nodeId,
+				selectedSubpathId,
+			};
+		});
+	}
+
+	function handleRemovePathNodeHandles(
+		elementId: string,
+		nodeId: string,
+		handle: "in" | "out" | "both"
+	) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			let selectedSubpathId: string | undefined;
+			const nextSubpaths = subpaths.map((subpath) => {
+				const nodeIndex = subpath.nodes.findIndex((node) => node.id === nodeId);
+				if (nodeIndex === -1) return subpath;
+				selectedSubpathId = subpath.id;
+				const nextNodes = subpath.nodes.map((node, index) => {
+					if (index !== nodeIndex) return node;
+					const nextHandleIn = handle === "out" ? node.handleIn ?? null : handle === "in" ? null : null;
+					const nextHandleOut = handle === "in" ? node.handleOut ?? null : handle === "out" ? null : null;
+					const keepBoth = handle !== "both";
+					const finalHandleIn = keepBoth ? nextHandleIn : null;
+					const finalHandleOut = keepBoth ? nextHandleOut : null;
+					const nextType = finalHandleIn && finalHandleOut ? resolveHandleType(node) : "corner";
+					return {
+						...node,
+						handleType: nextType,
+						handleIn: finalHandleIn,
+						handleOut: finalHandleOut,
+					};
+				});
+				return { ...subpath, nodes: nextNodes };
+			});
+			if (!selectedSubpathId) return null;
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: nodeId,
+				selectedSubpathId,
+			};
+		});
+	}
+
+	function handleDeletePathNode(elementId: string, nodeId: string) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			let nextSelectedNodeId: string | undefined;
+			let nextSelectedSubpathId: string | undefined;
+			const nextSubpaths = subpaths
+				.map((subpath) => {
+					const index = subpath.nodes.findIndex((node) => node.id === nodeId);
+					if (index === -1) return subpath;
+					const nextNodes = subpath.nodes.filter((node) => node.id !== nodeId);
+					if (nextNodes.length > 0) {
+						const fallbackIndex = Math.max(0, Math.min(index - 1, nextNodes.length - 1));
+						nextSelectedNodeId = nextNodes[fallbackIndex]?.id;
+						nextSelectedSubpathId = subpath.id;
+					}
+					const nextClosed = nextNodes.length > 2 ? subpath.closed : false;
+					return { ...subpath, nodes: nextNodes, closed: nextClosed };
+				})
+				.filter((subpath) => subpath.nodes.length > 0);
+
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: nextSelectedNodeId ?? null,
+				selectedSubpathId: nextSelectedSubpathId ?? null,
+			};
+		});
+	}
+
+	function handlePathNodeCornerRadiusChange(
+		elementId: string,
+		nodeId: string,
+		cornerRadius: number
+	) {
+		commitPathMutation(elementId, (_pathEl, subpaths) => {
+			const clampedRadius = Math.max(0, Math.min(200, cornerRadius));
+			let selectedSubpathId: string | undefined;
+			const nextSubpaths = subpaths.map((subpath) => {
+				const hasNode = subpath.nodes.some((node) => node.id === nodeId);
+				if (!hasNode) return subpath;
+				selectedSubpathId = subpath.id;
+				return {
+					...subpath,
+					nodes: subpath.nodes.map((node) =>
+						node.id === nodeId ? { ...node, cornerRadius: clampedRadius } : node
+					),
+				};
+			});
+			if (!selectedSubpathId) return null;
+			return {
+				subpaths: nextSubpaths,
+				selectedNodeId: nodeId,
+				selectedSubpathId,
+			};
+		});
 	}
 
 	function handleStartPathNodeDrag(options: {
 		elementId: string;
 		nodeId: string;
+		subpathId?: string;
 		handleType?: "in" | "out";
 		clientX: number;
 		clientY: number;
-		symmetricHandles: boolean;
+		breakHandles: boolean;
 	}) {
 		const elements = getWorkingElements();
 		const element = elements.find((el) => el.id === options.elementId && el.type === "path") as PathElement | undefined;
@@ -2277,6 +2840,7 @@ export default function TemplateDesignerPage() {
 		const handle = options.handleType === "in" ? node.handleIn : options.handleType === "out" ? node.handleOut : undefined;
 		setPathNodeDrag({
 			elementId: options.elementId,
+			subpathId: options.subpathId,
 			nodeId: options.nodeId,
 			handleType: options.handleType,
 			startClientX: options.clientX,
@@ -2285,8 +2849,13 @@ export default function TemplateDesignerPage() {
 			startNodeY: node.y,
 			startHandleX: handle?.x ?? 0,
 			startHandleY: handle?.y ?? 0,
-			symmetricHandles: options.symmetricHandles,
+			breakHandles: options.breakHandles,
 		});
+		setState((s) => ({
+			...s,
+			selectedPathNodeId: options.nodeId,
+			selectedPathSubpathId: options.subpathId ?? s.selectedPathSubpathId,
+		}));
 	}
 
 	useEffect(() => {
@@ -2297,9 +2866,38 @@ export default function TemplateDesignerPage() {
 				...s,
 				editingPathElementId: undefined,
 				activeTool: "select",
+				selectedPathNodeId: undefined,
+				selectedPathSubpathId: undefined,
 			}));
 		}
 	}, [state.editingPathElementId, state.selectedElementIds]);
+
+	useEffect(() => {
+		if (!state.editingPathElementId) return;
+		const pathElement = (getWorkingElements().find(
+			(el) => el.id === state.editingPathElementId && el.type === "path"
+		) as PathElement | undefined);
+		if (!pathElement?.subpaths?.length) return;
+		const hasSelectedSubpath = state.selectedPathSubpathId
+			? pathElement.subpaths.some((subpath) => subpath.id === state.selectedPathSubpathId)
+			: false;
+		const allNodes = pathElement.subpaths.flatMap((subpath) => subpath.nodes);
+		const hasSelectedNode = state.selectedPathNodeId
+			? allNodes.some((node) => node.id === state.selectedPathNodeId)
+			: false;
+		if (hasSelectedSubpath && (state.selectedPathNodeId ? hasSelectedNode : true)) return;
+		setState((s) => ({
+			...s,
+			selectedPathSubpathId: hasSelectedSubpath ? s.selectedPathSubpathId : pathElement.subpaths?.[0]?.id,
+			selectedPathNodeId: s.selectedPathNodeId && hasSelectedNode ? s.selectedPathNodeId : undefined,
+		}));
+	}, [
+		currentTemplate?.elements,
+		draftElements,
+		state.editingPathElementId,
+		state.selectedPathNodeId,
+		state.selectedPathSubpathId,
+	]);
 
 	useEffect(() => {
 		if (!pathNodeDrag) return;
@@ -2313,7 +2911,7 @@ export default function TemplateDesignerPage() {
 			startNodeY,
 			startHandleX = 0,
 			startHandleY = 0,
-			symmetricHandles = false,
+			breakHandles = false,
 		} = pathNodeDrag;
 
 		function handlePointerMove(event: PointerEvent) {
@@ -2328,23 +2926,41 @@ export default function TemplateDesignerPage() {
 					const subpaths = clonePathSubpaths(pathEl.subpaths);
 					let updated = false;
 					const updatedSubpaths = subpaths.map((subpath) => {
-						const nodes = subpath.nodes.map((node) => {
+					const nodes = subpath.nodes.map((node) => {
 							if (node.id !== nodeId) return node;
 							updated = true;
 							if (handleType === "in" || handleType === "out") {
 								const nextHandle = { x: startHandleX + dx, y: startHandleY + dy };
-								let nextNode = handleType === "in"
-									? { ...node, handleIn: nextHandle }
-									: { ...node, handleOut: nextHandle };
-								if (symmetricHandles) {
-									if (handleType === "in" && node.handleOut) {
-										nextNode = { ...nextNode, handleOut: { x: -nextHandle.x, y: -nextHandle.y } };
+							const handleTypeForNode = resolveHandleType(node);
+							let nextHandleIn = handleType === "in" ? nextHandle : node.handleIn ?? null;
+							let nextHandleOut = handleType === "out" ? nextHandle : node.handleOut ?? null;
+							const shouldBreak = breakHandles || handleTypeForNode === "corner";
+							if (!shouldBreak) {
+								if (handleTypeForNode === "symmetric") {
+									if (handleType === "in") {
+										nextHandleOut = { x: -nextHandle.x, y: -nextHandle.y };
+									} else {
+										nextHandleIn = { x: -nextHandle.x, y: -nextHandle.y };
 									}
-									if (handleType === "out" && node.handleIn) {
-										nextNode = { ...nextNode, handleIn: { x: -nextHandle.x, y: -nextHandle.y } };
+								} else if (handleTypeForNode === "smooth") {
+									if (handleType === "in" && nextHandleOut) {
+										const length = Math.hypot(nextHandleOut.x, nextHandleOut.y);
+										if (length > 0) {
+											const angle = Math.atan2(nextHandle.y, nextHandle.x) + Math.PI;
+											nextHandleOut = { x: Math.cos(angle) * length, y: Math.sin(angle) * length };
+										}
+									}
+									if (handleType === "out" && nextHandleIn) {
+										const length = Math.hypot(nextHandleIn.x, nextHandleIn.y);
+										if (length > 0) {
+											const angle = Math.atan2(nextHandle.y, nextHandle.x) + Math.PI;
+											nextHandleIn = { x: Math.cos(angle) * length, y: Math.sin(angle) * length };
+										}
 									}
 								}
-								return nextNode;
+							}
+							const nextHandleType = breakHandles ? "corner" : handleTypeForNode;
+							return { ...node, handleType: nextHandleType, handleIn: nextHandleIn, handleOut: nextHandleOut };
 							}
 							const nextPoint = clampPathPoint(startNodeX + dx, startNodeY + dy, pathEl.width, pathEl.height);
 							return { ...node, x: nextPoint.x, y: nextPoint.y };
@@ -2513,10 +3129,24 @@ export default function TemplateDesignerPage() {
 			}
 
 			if (key === "Escape") {
+				if (state.editingPathElementId && state.selectedPathNodeId) {
+					event.preventDefault();
+					setState((s) => ({
+						...s,
+						selectedPathNodeId: undefined,
+					}));
+					return;
+				}
 				if ((selectedElementIdsRef.current?.length ?? 0) > 0 || state.editingTextElementId) {
 					event.preventDefault();
 					selectedElementIdsRef.current = [];
-					setState((s) => ({ ...s, selectedElementIds: [], editingTextElementId: undefined }));
+					setState((s) => ({
+						...s,
+						selectedElementIds: [],
+						editingTextElementId: undefined,
+						selectedPathNodeId: undefined,
+						selectedPathSubpathId: undefined,
+					}));
 				}
 				return;
 			}
@@ -2658,8 +3288,30 @@ export default function TemplateDesignerPage() {
 
 			if ((key === "Delete" || key === "Backspace") && !isEditable) {
 				event.preventDefault();
+				if (state.editingPathElementId && state.selectedPathNodeId) {
+					handleDeletePathNode(state.editingPathElementId, state.selectedPathNodeId);
+					return;
+				}
 				deleteSelectedElements();
 				return;
+			}
+
+			if (state.editingPathElementId && state.selectedPathNodeId && !hasMeta) {
+				if (key === "1") {
+					event.preventDefault();
+					handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, "corner");
+					return;
+				}
+				if (key === "2") {
+					event.preventDefault();
+					handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, "smooth");
+					return;
+				}
+				if (key === "3") {
+					event.preventDefault();
+					handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, "symmetric");
+					return;
+				}
 			}
 
 			if (drag?.mode === "resize" && key.startsWith("Arrow")) {
@@ -2763,6 +3415,8 @@ export default function TemplateDesignerPage() {
 	}, [
 		drag,
 		state.editingTextElementId,
+		state.editingPathElementId,
+		state.selectedPathNodeId,
 		printableBounds.bottom,
 		printableBounds.left,
 		printableBounds.right,
@@ -3278,6 +3932,33 @@ export default function TemplateDesignerPage() {
 		/>
 	);
 
+	const elementsForInspector = draftElements ?? currentTemplate?.elements ?? [];
+	const editingPathElement = state.editingPathElementId
+		? (elementsForInspector.find((el) => el.id === state.editingPathElementId && el.type === "path") as PathElement | undefined)
+		: undefined;
+	const activePathSubpath = editingPathElement?.subpaths?.find(
+		(subpath) => subpath.id === state.selectedPathSubpathId
+	) ?? editingPathElement?.subpaths?.[0];
+	const activePathNode = state.selectedPathNodeId
+		? editingPathElement?.subpaths?.flatMap((subpath) => subpath.nodes).find((node) => node.id === state.selectedPathNodeId)
+		: undefined;
+	const selectedPathNodeForInspector = activePathNode
+		? {
+				id: activePathNode.id,
+				handleType: resolveHandleType(activePathNode),
+				cornerRadius: activePathNode.cornerRadius ?? 0,
+				hasHandleIn: Boolean(activePathNode.handleIn),
+				hasHandleOut: Boolean(activePathNode.handleOut),
+			}
+		: undefined;
+	const activePathSubpathForInspector = activePathSubpath
+		? {
+				id: activePathSubpath.id,
+				closed: activePathSubpath.closed,
+				nodesCount: activePathSubpath.nodes.length,
+			}
+		: undefined;
+
 	const propertiesContent = (
 		<PropertiesPanel
 			template={currentTemplate}
@@ -3294,6 +3975,42 @@ export default function TemplateDesignerPage() {
 			activePathTool={state.activeTool}
 			onPathEditModeChange={setPathEditMode}
 			onPathToolChange={setPathTool}
+			selectedPathNode={selectedPathNodeForInspector}
+			activePathSubpath={activePathSubpathForInspector}
+			onPathNodeTypeChange={(type) => {
+				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+				handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, type);
+			}}
+			onDeletePathNode={() => {
+				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+				handleDeletePathNode(state.editingPathElementId, state.selectedPathNodeId);
+			}}
+			onAddPathNodeHandles={() => {
+				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+				handleAddPathNodeHandles(state.editingPathElementId, state.selectedPathNodeId);
+			}}
+			onRemovePathNodeHandles={(handle) => {
+				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+				handleRemovePathNodeHandles(state.editingPathElementId, state.selectedPathNodeId, handle);
+			}}
+			onPathNodeCornerRadiusChange={(radius) => {
+				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+				handlePathNodeCornerRadiusChange(state.editingPathElementId, state.selectedPathNodeId, radius);
+			}}
+			onTogglePathSubpathClosed={(closed) => {
+				if (!state.editingPathElementId || !activePathSubpathForInspector?.id) return;
+				handleTogglePathSubpathClosed(state.editingPathElementId, activePathSubpathForInspector.id, closed);
+			}}
+			onCreatePathSubpath={() => {
+				if (!state.editingPathElementId) return;
+				handleCreatePathSubpath(state.editingPathElementId);
+			}}
+			onClearPathNodeSelection={() =>
+				setState((s) => ({
+					...s,
+					selectedPathNodeId: undefined,
+				}))
+			}
 			templateId={templateId}
 			versions={versions}
 			currentVersion={currentVersion}
@@ -3424,6 +4141,23 @@ export default function TemplateDesignerPage() {
 					}}
 					onAddPathNode={handleAddPathNode}
 					onStartPathNodeDrag={handleStartPathNodeDrag}
+					onSelectPathNode={handleSelectPathNode}
+					onInsertPathNodeOnSegment={handleInsertPathNodeOnSegment}
+					onSetPathNodeType={({ elementId, nodeId, type }) =>
+						handleSetPathNodeType(elementId, nodeId, type)
+					}
+					onDeletePathNode={({ elementId, nodeId }) =>
+						handleDeletePathNode(elementId, nodeId)
+					}
+					onAddPathNodeHandles={({ elementId, nodeId }) =>
+						handleAddPathNodeHandles(elementId, nodeId)
+					}
+					onRemovePathNodeHandles={({ elementId, nodeId, handle }) =>
+						handleRemovePathNodeHandles(elementId, nodeId, handle)
+					}
+					onTogglePathSubpathClosed={({ elementId, subpathId, closed }) =>
+						handleTogglePathSubpathClosed(elementId, subpathId, closed)
+					}
 					onDuplicateElement={duplicateElement}
 					onDeleteElement={deleteElement}
 					onCreateTemplate={() => createMutation.mutate()}

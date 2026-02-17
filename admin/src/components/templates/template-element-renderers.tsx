@@ -19,6 +19,114 @@ type RenderContext = {
 };
 
 type ElementStyle = React.CSSProperties;
+type PathElement = Extract<TemplateElement, { type: "path" }>;
+type PathSubpath = NonNullable<PathElement["subpaths"]>[number];
+type PathNode = PathSubpath["nodes"][number];
+type PathPoint = { x: number; y: number };
+
+function computeRoundedCorner(
+  prev: PathNode | undefined,
+  current: PathNode,
+  next: PathNode | undefined
+): { entry: PathPoint; exit: PathPoint; c1: PathPoint; c2: PathPoint } | null {
+  const radius = Math.max(0, current.cornerRadius ?? 0);
+  if (!prev || !next || radius === 0) return null;
+  if (current.handleIn || current.handleOut) return null;
+  const inVec = { x: prev.x - current.x, y: prev.y - current.y };
+  const outVec = { x: next.x - current.x, y: next.y - current.y };
+  const inLen = Math.hypot(inVec.x, inVec.y);
+  const outLen = Math.hypot(outVec.x, outVec.y);
+  if (inLen === 0 || outLen === 0) return null;
+  const inUnit = { x: inVec.x / inLen, y: inVec.y / inLen };
+  const outUnit = { x: outVec.x / outLen, y: outVec.y / outLen };
+  const dot = Math.max(-1, Math.min(1, inUnit.x * outUnit.x + inUnit.y * outUnit.y));
+  const angle = Math.acos(dot);
+  if (!Number.isFinite(angle) || angle === 0) return null;
+  const tangent = Math.tan(angle / 2);
+  if (!Number.isFinite(tangent) || tangent === 0) return null;
+  const offset = Math.min(radius * tangent, inLen * 0.5, outLen * 0.5);
+  const effectiveRadius = offset / tangent;
+  const entry = { x: current.x + inUnit.x * offset, y: current.y + inUnit.y * offset };
+  const exit = { x: current.x + outUnit.x * offset, y: current.y + outUnit.y * offset };
+  const k = (4 / 3) * Math.tan(angle / 4);
+  const controlDist = k * effectiveRadius;
+  const c1 = { x: entry.x - inUnit.x * controlDist, y: entry.y - inUnit.y * controlDist };
+  const c2 = { x: exit.x - outUnit.x * controlDist, y: exit.y - outUnit.y * controlDist };
+  return { entry, exit, c1, c2 };
+}
+
+function buildPathDataFromSubpaths(subpaths: NonNullable<PathElement["subpaths"]>): string {
+  return subpaths
+    .map((subpath) => {
+      const nodes = subpath.nodes;
+      if (nodes.length === 0) return "";
+      const isClosed = subpath.closed && nodes.length > 2;
+      const roundedById = new Map<string, { entry: PathPoint; exit: PathPoint; c1: PathPoint; c2: PathPoint }>();
+      nodes.forEach((node, index) => {
+        const prev = isClosed
+          ? nodes[(index - 1 + nodes.length) % nodes.length]
+          : index > 0
+            ? nodes[index - 1]
+            : undefined;
+        const next = isClosed
+          ? nodes[(index + 1) % nodes.length]
+          : index < nodes.length - 1
+            ? nodes[index + 1]
+            : undefined;
+        const rounded = computeRoundedCorner(prev, node, next);
+        if (rounded) roundedById.set(node.id, rounded);
+      });
+      const segments: string[] = [];
+      const start = nodes[0];
+      const startRound = roundedById.get(start.id);
+      const startPoint = startRound ? startRound.entry : { x: start.x, y: start.y };
+      segments.push(`M ${startPoint.x} ${startPoint.y}`);
+      if (startRound && !isClosed) {
+        segments.push(`C ${startRound.c1.x} ${startRound.c1.y} ${startRound.c2.x} ${startRound.c2.y} ${startRound.exit.x} ${startRound.exit.y}`);
+      }
+      let startRoundHandled = Boolean(startRound && !isClosed);
+      for (let i = 0; i < nodes.length; i += 1) {
+        if (!isClosed && i === nodes.length - 1) break;
+        const current = nodes[i];
+        const next = nodes[(i + 1) % nodes.length];
+        const currentRound = roundedById.get(current.id);
+        const nextRound = roundedById.get(next.id);
+        const endPoint = nextRound ? nextRound.entry : { x: next.x, y: next.y };
+        const hasHandles = !currentRound && !nextRound && (current.handleOut || next.handleIn);
+        if (hasHandles) {
+          const h1 = current.handleOut
+            ? { x: current.x + current.handleOut.x, y: current.y + current.handleOut.y }
+            : { x: current.x, y: current.y };
+          const h2 = next.handleIn
+            ? { x: next.x + next.handleIn.x, y: next.y + next.handleIn.y }
+            : { x: next.x, y: next.y };
+          segments.push(`C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${endPoint.x} ${endPoint.y}`);
+        } else {
+          segments.push(`L ${endPoint.x} ${endPoint.y}`);
+        }
+        if (nextRound) {
+          if (!(isClosed && next.id === start.id && startRoundHandled)) {
+            segments.push(`C ${nextRound.c1.x} ${nextRound.c1.y} ${nextRound.c2.x} ${nextRound.c2.y} ${nextRound.exit.x} ${nextRound.exit.y}`);
+            if (isClosed && next.id === start.id) startRoundHandled = true;
+          }
+        }
+      }
+      if (isClosed) segments.push("Z");
+      return segments.join(" ");
+    })
+    .filter((segment) => segment.length > 0)
+    .join(" ");
+}
+
+function resolvePathData(element: Extract<TemplateElement, { type: "path" }>): string {
+  if (element.subpaths && element.subpaths.length > 0) {
+    const fromSubpaths = buildPathDataFromSubpaths(element.subpaths);
+    if (fromSubpaths.trim().length > 0) {
+      return fromSubpaths;
+    }
+  }
+  return element.pathData;
+}
 
 function calculateElementStyle(
   el: TemplateElement,
@@ -163,6 +271,77 @@ function renderLineElement(el: Extract<TemplateElement, { type: "line" }>, style
   return (
     <div key={el.id} style={style}>
       <div style={{ borderTop: `${el.strokeWidth}px solid ${el.stroke}`, position: "absolute", left: 0, right: 0, top: "50%" }} />
+    </div>
+  );
+}
+
+function renderPathElement(
+  el: Extract<TemplateElement, { type: "path" }>,
+  style: ElementStyle
+): React.ReactNode {
+  const gradient = el.fillGradient;
+  const fill = gradient ? `url(#gradient-${el.id})` : el.fill;
+  const strokeDasharray =
+    el.strokeStyle === "dashed"
+      ? `${(el.strokeWidth || 1) * 4},${(el.strokeWidth || 1) * 2}`
+      : el.strokeStyle === "dotted"
+        ? `${el.strokeWidth || 1},${(el.strokeWidth || 1) * 2}`
+        : undefined;
+  const shadowStyle = el.shadow?.enabled
+    ? `drop-shadow(${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.color})`
+    : undefined;
+  const pathData = resolvePathData(el);
+
+  return (
+    <div key={el.id} style={style}>
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${el.width} ${el.height}`}
+        preserveAspectRatio="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{
+          opacity: el.opacity ?? 1,
+          mixBlendMode: el.blendMode || "normal",
+          filter: shadowStyle,
+        }}
+      >
+        {gradient && (
+          <defs>
+            {gradient.type === "linear" ? (
+              <linearGradient id={`gradient-${el.id}`} gradientTransform={`rotate(${gradient.angle})`}>
+                {gradient.colors.map((color, idx) => (
+                  <stop
+                    key={idx}
+                    offset={`${(idx / (gradient.colors.length - 1)) * 100}%`}
+                    stopColor={color}
+                  />
+                ))}
+              </linearGradient>
+            ) : (
+              <radialGradient id={`gradient-${el.id}`}>
+                {gradient.colors.map((color, idx) => (
+                  <stop
+                    key={idx}
+                    offset={`${(idx / (gradient.colors.length - 1)) * 100}%`}
+                    stopColor={color}
+                  />
+                ))}
+              </radialGradient>
+            )}
+          </defs>
+        )}
+        <path
+          d={pathData}
+          fill={fill}
+          fillRule={el.fillRule || "nonzero"}
+          stroke={el.stroke}
+          strokeWidth={el.strokeWidth || 0}
+          strokeLinecap={el.strokeLinecap || "butt"}
+          strokeLinejoin={el.strokeLinejoin || "miter"}
+          strokeDasharray={strokeDasharray}
+        />
+      </svg>
     </div>
   );
 }
@@ -393,6 +572,8 @@ export function renderTemplateElement(el: TemplateElement, renderContext: Render
       return renderBoxElement(el, style);
     case "line":
       return renderLineElement(el, style);
+    case "path":
+      return renderPathElement(el, style);
     case "input":
       return renderInputElement(el, style, context);
     case "currency":

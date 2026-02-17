@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
 	Select,
 	SelectContent,
@@ -100,6 +101,26 @@ interface PathPropertiesProps {
 	activeTool?: "select" | "pen";
 	onEditToggle?: (enabled: boolean) => void;
 	onToolChange?: (tool: "select" | "pen") => void;
+	selectedNode?: {
+		id: string;
+		handleType: "corner" | "smooth" | "symmetric";
+		cornerRadius: number;
+		hasHandleIn: boolean;
+		hasHandleOut: boolean;
+	};
+	activeSubpath?: {
+		id: string;
+		closed: boolean;
+		nodesCount: number;
+	};
+	onNodeTypeChange?: (type: "corner" | "smooth" | "symmetric") => void;
+	onDeleteNode?: () => void;
+	onAddHandles?: () => void;
+	onRemoveHandles?: (handle: "in" | "out" | "both") => void;
+	onCornerRadiusChange?: (radius: number) => void;
+	onToggleSubpathClosed?: (closed: boolean) => void;
+	onCreateSubpath?: () => void;
+	onClearNodeSelection?: () => void;
 }
 
 export function PathProperties({
@@ -110,6 +131,16 @@ export function PathProperties({
 	activeTool,
 	onEditToggle,
 	onToolChange,
+	selectedNode,
+	activeSubpath,
+	onNodeTypeChange,
+	onDeleteNode,
+	onAddHandles,
+	onRemoveHandles,
+	onCornerRadiusChange,
+	onToggleSubpathClosed,
+	onCreateSubpath,
+	onClearNodeSelection,
 }: PathPropertiesProps) {
 	const { t } = useTranslation();
 
@@ -190,6 +221,157 @@ export function PathProperties({
 						</Select>
 					</div>
 				)}
+				{isEditing && (
+					<div className={`${components.card} ${spacing.fieldGroupGap}`}>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>Active Subpath</Label>
+							{activeSubpath ? (
+								<div className={`${typography.helperText} flex items-center justify-between`}>
+									<span>{activeSubpath.nodesCount} nodes</span>
+									<span>{activeSubpath.closed ? "Closed" : "Open"}</span>
+								</div>
+							) : (
+								<div className={typography.helperText}>No subpath selected</div>
+							)}
+						</div>
+						<div className="flex gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="flex-1"
+								onClick={() => onToggleSubpathClosed?.(!(activeSubpath?.closed ?? false))}
+								disabled={!activeSubpath || (activeSubpath.nodesCount < 3 && !activeSubpath.closed)}
+							>
+								{activeSubpath?.closed ? "Open Path" : "Close Path"}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="flex-1"
+								onClick={() => onCreateSubpath?.()}
+							>
+								New Subpath
+							</Button>
+						</div>
+					</div>
+				)}
+				{isEditing && (
+					<div className={`${components.card} ${spacing.fieldGroupGap}`}>
+						<div className="flex items-center justify-between">
+							<Label className={typography.fieldLabel}>Selected Node</Label>
+							{selectedNode && (
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-7 px-2"
+									onClick={() => onClearNodeSelection?.()}
+								>
+									Clear
+								</Button>
+							)}
+						</div>
+						{selectedNode ? (
+							<>
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Node Type</Label>
+									<div className="grid grid-cols-3 gap-2">
+										<Button
+											type="button"
+											variant={selectedNode.handleType === "corner" ? "default" : "outline"}
+											size="sm"
+											onClick={() => onNodeTypeChange?.("corner")}
+										>
+											Corner
+										</Button>
+										<Button
+											type="button"
+											variant={selectedNode.handleType === "smooth" ? "default" : "outline"}
+											size="sm"
+											onClick={() => onNodeTypeChange?.("smooth")}
+										>
+											Smooth
+										</Button>
+										<Button
+											type="button"
+											variant={selectedNode.handleType === "symmetric" ? "default" : "outline"}
+											size="sm"
+											onClick={() => onNodeTypeChange?.("symmetric")}
+										>
+											Symmetric
+										</Button>
+									</div>
+								</div>
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Handles</Label>
+									<div className="grid grid-cols-2 gap-2">
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => onAddHandles?.()}
+											disabled={selectedNode.hasHandleIn && selectedNode.hasHandleOut}
+										>
+											Add Handles
+										</Button>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => onRemoveHandles?.("both")}
+											disabled={!selectedNode.hasHandleIn && !selectedNode.hasHandleOut}
+										>
+											Remove Handles
+										</Button>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => onRemoveHandles?.("in")}
+											disabled={!selectedNode.hasHandleIn}
+										>
+											Remove In
+										</Button>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => onRemoveHandles?.("out")}
+											disabled={!selectedNode.hasHandleOut}
+										>
+											Remove Out
+										</Button>
+									</div>
+								</div>
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Corner Radius</Label>
+									<Input
+										type="number"
+										min={0}
+										max={200}
+										value={selectedNode.cornerRadius}
+										onChange={(event) => onCornerRadiusChange?.(Math.max(0, Number(event.target.value) || 0))}
+										className={components.inputHeight}
+									/>
+								</div>
+								<Button
+									type="button"
+									variant="destructive"
+									size="sm"
+									onClick={() => onDeleteNode?.()}
+								>
+									Delete Node
+								</Button>
+							</>
+						) : (
+							<div className={typography.helperText}>
+								Select an anchor node on canvas to edit it.
+							</div>
+						)}
+					</div>
+				)}
 			</section>
 
 			{/* Path Data */}
@@ -199,7 +381,7 @@ export function PathProperties({
 					<Label className={typography.fieldLabel}>
 						SVG Path (d attribute)
 						<span className={`${typography.helperText} ml-2`}>
-							Supports M, L, C, Q, A, Z commands
+							Use cubic paths: M, L, C, Z
 						</span>
 					</Label>
 					<Textarea

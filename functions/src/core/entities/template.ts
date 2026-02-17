@@ -63,10 +63,15 @@ const pathNodeSchema = z.object({
   id: z.string().min(1),
   x: z.number(),
   y: z.number(),
-  type: z.enum(["corner", "smooth"]).default("corner"),
+  type: z.enum(["corner", "smooth", "symmetric"]).optional(),
+  handleType: z.enum(["corner", "smooth", "symmetric"]).optional(),
   handleIn: pathNodeHandleSchema.nullable().optional(),
   handleOut: pathNodeHandleSchema.nullable().optional(),
-});
+  cornerRadius: z.number().min(0).max(200).default(0),
+}).transform((node) => ({
+  ...node,
+  handleType: node.handleType ?? node.type ?? "corner",
+}));
 
 const pathSubpathSchema = z.object({
   id: z.string().min(1),
