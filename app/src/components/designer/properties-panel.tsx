@@ -63,30 +63,6 @@ type PropertiesPanelProps = {
 	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
 	onOpenImagePicker?: (elementId: string) => void;
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
-	editingPathElementId?: string;
-	activePathTool?: "select" | "pen";
-	onPathEditModeChange?: (elementId: string, enabled: boolean) => void;
-	onPathToolChange?: (tool: "select" | "pen") => void;
-	selectedPathNode?: {
-		id: string;
-		handleType: "corner" | "smooth" | "symmetric";
-		cornerRadius: number;
-		hasHandleIn: boolean;
-		hasHandleOut: boolean;
-	};
-	activePathSubpath?: {
-		id: string;
-		closed: boolean;
-		nodesCount: number;
-	};
-	onPathNodeTypeChange?: (type: "corner" | "smooth" | "symmetric") => void;
-	onDeletePathNode?: () => void;
-	onAddPathNodeHandles?: () => void;
-	onRemovePathNodeHandles?: (handle: "in" | "out" | "both") => void;
-	onPathNodeCornerRadiusChange?: (radius: number) => void;
-	onTogglePathSubpathClosed?: (closed: boolean) => void;
-	onCreatePathSubpath?: () => void;
-	onClearPathNodeSelection?: () => void;
 	// Version history props
 	templateId?: string;
 	versions?: TemplateVersion[];
@@ -110,20 +86,6 @@ export function PropertiesPanel({
 	determineElementTypeForBinding,
 	onOpenImagePicker,
 	onPropsNarrowChange,
-	editingPathElementId,
-	activePathTool,
-	onPathEditModeChange,
-	onPathToolChange,
-	selectedPathNode,
-	activePathSubpath,
-	onPathNodeTypeChange,
-	onDeletePathNode,
-	onAddPathNodeHandles,
-	onRemovePathNodeHandles,
-	onPathNodeCornerRadiusChange,
-	onTogglePathSubpathClosed,
-	onCreatePathSubpath,
-	onClearPathNodeSelection,
 	templateId,
 	versions = [],
 	currentVersion,
@@ -583,20 +545,6 @@ export function PropertiesPanel({
 					onChange={onUpdateElement}
 					allElements={elements}
 					onOpenImagePicker={onOpenImagePicker}
-					editingPathElementId={editingPathElementId}
-					activePathTool={activePathTool}
-					onPathEditModeChange={onPathEditModeChange}
-					onPathToolChange={onPathToolChange}
-					selectedPathNode={selectedPathNode}
-					activePathSubpath={activePathSubpath}
-					onPathNodeTypeChange={onPathNodeTypeChange}
-					onDeletePathNode={onDeletePathNode}
-					onAddPathNodeHandles={onAddPathNodeHandles}
-					onRemovePathNodeHandles={onRemovePathNodeHandles}
-					onPathNodeCornerRadiusChange={onPathNodeCornerRadiusChange}
-					onTogglePathSubpathClosed={onTogglePathSubpathClosed}
-					onCreatePathSubpath={onCreatePathSubpath}
-					onClearPathNodeSelection={onClearPathNodeSelection}
 				/>
 			</div>
 		</div>
@@ -795,49 +743,11 @@ function ElementProperties({
 	onChange,
 	allElements,
 	onOpenImagePicker,
-	editingPathElementId,
-	activePathTool,
-	onPathEditModeChange,
-	onPathToolChange,
-	selectedPathNode,
-	activePathSubpath,
-	onPathNodeTypeChange,
-	onDeletePathNode,
-	onAddPathNodeHandles,
-	onRemovePathNodeHandles,
-	onPathNodeCornerRadiusChange,
-	onTogglePathSubpathClosed,
-	onCreatePathSubpath,
-	onClearPathNodeSelection,
 }: {
 	element: TemplateElement;
 	onChange: (partial: Partial<TemplateElement>) => void;
 	allElements?: TemplateElement[];
 	onOpenImagePicker?: (elementId: string) => void;
-	editingPathElementId?: string;
-	activePathTool?: "select" | "pen";
-	onPathEditModeChange?: (elementId: string, enabled: boolean) => void;
-	onPathToolChange?: (tool: "select" | "pen") => void;
-	selectedPathNode?: {
-		id: string;
-		handleType: "corner" | "smooth" | "symmetric";
-		cornerRadius: number;
-		hasHandleIn: boolean;
-		hasHandleOut: boolean;
-	};
-	activePathSubpath?: {
-		id: string;
-		closed: boolean;
-		nodesCount: number;
-	};
-	onPathNodeTypeChange?: (type: "corner" | "smooth" | "symmetric") => void;
-	onDeletePathNode?: () => void;
-	onAddPathNodeHandles?: () => void;
-	onRemovePathNodeHandles?: (handle: "in" | "out" | "both") => void;
-	onPathNodeCornerRadiusChange?: (radius: number) => void;
-	onTogglePathSubpathClosed?: (closed: boolean) => void;
-	onCreatePathSubpath?: () => void;
-	onClearPathNodeSelection?: () => void;
 }) {
 	if (element.type === "text") {
 		const t = element as Extract<TemplateElement, { type: "text" }>;
@@ -915,20 +825,6 @@ function ElementProperties({
 			<PathProperties
 				element={element as Extract<TemplateElement, { type: "path" }>}
 				onChange={onChange}
-				isEditing={editingPathElementId === element.id}
-				activeTool={activePathTool}
-				onEditToggle={(enabled: boolean) => onPathEditModeChange?.(element.id, enabled)}
-				onToolChange={onPathToolChange}
-				selectedNode={selectedPathNode}
-				activeSubpath={activePathSubpath}
-				onNodeTypeChange={onPathNodeTypeChange}
-				onDeleteNode={onDeletePathNode}
-				onAddHandles={onAddPathNodeHandles}
-				onRemoveHandles={onRemovePathNodeHandles}
-				onCornerRadiusChange={onPathNodeCornerRadiusChange}
-				onToggleSubpathClosed={onTogglePathSubpathClosed}
-				onCreateSubpath={onCreatePathSubpath}
-				onClearNodeSelection={onClearPathNodeSelection}
 			/>
 		);
 	}

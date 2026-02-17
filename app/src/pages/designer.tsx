@@ -66,6 +66,11 @@ import {
 	type Bounds,
 	type ClipboardPayload,
 } from "@/components/designer/editor-commands";
+import {
+	PathEditingProvider,
+	type PathEditingContextValue,
+	type PathEditorTool,
+} from "@/components/designer/path-editor/path-editing-context";
 
 const DEBUG_DESIGNER = false;
 const debugLog = (...args: unknown[]) => {
@@ -101,6 +106,7 @@ export default function TemplateDesignerPage() {
 	const draftRef = useRef<TemplateElement[] | null>(null);
 	const currentTemplateRef = useRef<Template | null>(null);
 	const pageRef = useRef<HTMLDivElement | null>(null);
+	const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 	const isCreatingTemplateRef = useRef<boolean>(false);
 	const dragStartedRef = useRef<boolean>(false); // Track if drag actually started (movement detected)
 	const lastCursorCanvasPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -1361,6 +1367,17 @@ export default function TemplateDesignerPage() {
 
 	type PathPoint = { x: number; y: number };
 
+	function createCornerPathNode(id: string, x: number, y: number): PathNode {
+		return {
+			id,
+			x,
+			y,
+			type: "corner",
+			handleType: "corner",
+			cornerRadius: 0,
+		};
+	}
+
 	function resolveHandleType(node: PathNode): "corner" | "smooth" | "symmetric" {
 		if ("handleType" in node && node.handleType) return node.handleType;
 		if ("type" in node && node.type) return node.type;
@@ -1480,10 +1497,10 @@ export default function TemplateDesignerPage() {
 				id: crypto.randomUUID(),
 				closed: false,
 				nodes: [
-					{ id: crypto.randomUUID(), x: 0, y: h * 0.5, type: "corner", handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w * 0.33, y: h * 0.2, type: "corner", handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w * 0.66, y: h * 0.8, type: "corner", handleType: "corner", cornerRadius: 0 },
-					{ id: crypto.randomUUID(), x: w, y: h * 0.5, type: "corner", handleType: "corner", cornerRadius: 0 },
+					createCornerPathNode(crypto.randomUUID(), 0, h * 0.5),
+					createCornerPathNode(crypto.randomUUID(), w * 0.33, h * 0.2),
+					createCornerPathNode(crypto.randomUUID(), w * 0.66, h * 0.8),
+					createCornerPathNode(crypto.randomUUID(), w, h * 0.5),
 				],
 			},
 		];
@@ -2137,12 +2154,17 @@ export default function TemplateDesignerPage() {
 
 	// Helper function to handle multi-select with Shift+click
 	const handleSelectElement = (elementId: string, event?: React.MouseEvent | React.PointerEvent) => {
+		const resolvePathElement = (id: string): PathElement | undefined =>
+			getWorkingElements().find((el) => el.id === id && el.type === "path") as PathElement | undefined;
+
 		if (!elementId) {
 			selectedElementIdsRef.current = [];
 			setState((s) => ({
 				...s,
 				selectedElementIds: [],
 				editingTextElementId: undefined,
+				editingPathElementId: undefined,
+				activeTool: "select",
 				selectedPathNodeId: undefined,
 				selectedPathSubpathId: undefined,
 			}));
@@ -2158,33 +2180,51 @@ export default function TemplateDesignerPage() {
 			if (currentSelected.includes(elementId)) {
 				const newSelected = currentSelected.filter((id) => id !== elementId);
 				debugLog('[SELECT] Removing from selection:', newSelected);
+				const singleSelectedPath = newSelected.length === 1 ? resolvePathElement(newSelected[0]) : undefined;
 				selectedElementIdsRef.current = newSelected;
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
-					selectedPathNodeId: newSelected.includes(s.editingPathElementId ?? "") ? s.selectedPathNodeId : undefined,
-					selectedPathSubpathId: newSelected.includes(s.editingPathElementId ?? "") ? s.selectedPathSubpathId : undefined,
+					editingPathElementId: singleSelectedPath?.id,
+					activeTool:
+						singleSelectedPath && s.editingPathElementId !== singleSelectedPath.id
+							? "select"
+							: s.activeTool,
+					selectedPathNodeId: undefined,
+					selectedPathSubpathId: singleSelectedPath?.subpaths?.[0]?.id,
 				}));
 			} else {
 				const newSelected = [...currentSelected, elementId];
 				debugLog('[SELECT] Adding to selection:', newSelected);
+				const singleSelectedPath = newSelected.length === 1 ? resolvePathElement(newSelected[0]) : undefined;
 				selectedElementIdsRef.current = newSelected;
 				setState((s) => ({
 					...s,
 					selectedElementIds: newSelected,
-					selectedPathNodeId: s.editingPathElementId === elementId ? s.selectedPathNodeId : undefined,
-					selectedPathSubpathId: s.editingPathElementId === elementId ? s.selectedPathSubpathId : undefined,
+					editingPathElementId: singleSelectedPath?.id,
+					activeTool:
+						singleSelectedPath && s.editingPathElementId !== singleSelectedPath.id
+							? "select"
+							: s.activeTool,
+					selectedPathNodeId: undefined,
+					selectedPathSubpathId: singleSelectedPath?.subpaths?.[0]?.id,
 				}));
 			}
 		} else {
 			// Single select: replace selection
 			debugLog('[SELECT] Single select:', [elementId]);
+			const selectedPath = resolvePathElement(elementId);
 			selectedElementIdsRef.current = [elementId];
 			setState((s) => ({
 				...s,
 				selectedElementIds: [elementId],
-				selectedPathNodeId: s.editingPathElementId === elementId ? s.selectedPathNodeId : undefined,
-				selectedPathSubpathId: s.editingPathElementId === elementId ? s.selectedPathSubpathId : undefined,
+				editingPathElementId: selectedPath?.id,
+				activeTool:
+					selectedPath && s.editingPathElementId !== selectedPath.id
+						? "select"
+						: s.activeTool,
+				selectedPathNodeId: undefined,
+				selectedPathSubpathId: selectedPath?.subpaths?.[0]?.id,
 			}));
 		}
 	};
@@ -2331,7 +2371,7 @@ export default function TemplateDesignerPage() {
 		});
 	}
 
-	function setPathTool(tool: "select" | "pen") {
+	function setPathTool(tool: PathEditorTool) {
 		setState((s) => ({ ...s, activeTool: tool }));
 	}
 
@@ -2384,7 +2424,8 @@ export default function TemplateDesignerPage() {
 		const handleOut = node.handleOut ? { ...node.handleOut } : null;
 		const defaultLength = 28;
 		if (type === "corner") {
-			return { ...node, type, handleType: type, handleIn, handleOut };
+			// Converting back to corner should restore a sharp node by default.
+			return { ...node, type, handleType: type, handleIn: null, handleOut: null };
 		}
 		let baseDirection = direction;
 		if (handleOut && Math.hypot(handleOut.x, handleOut.y) > 0) {
@@ -2462,6 +2503,37 @@ export default function TemplateDesignerPage() {
 		}));
 	}
 
+	function handleSelectPathSubpath(options: { elementId: string; subpathId: string }) {
+		selectedElementIdsRef.current = [options.elementId];
+		setState((s) => ({
+			...s,
+			selectedElementIds: [options.elementId],
+			selectedPathSubpathId: options.subpathId,
+			selectedPathNodeId: undefined,
+		}));
+	}
+
+	function handleCyclePathSubpath(elementId: string, direction: 1 | -1) {
+		const pathElement = (getWorkingElements().find(
+			(el) => el.id === elementId && el.type === "path"
+		) as PathElement | undefined);
+		const subpaths = pathElement?.subpaths ?? [];
+		if (subpaths.length <= 1) return;
+		const currentIndex = Math.max(
+			0,
+			subpaths.findIndex((subpath) => subpath.id === state.selectedPathSubpathId)
+		);
+		const nextIndex = (currentIndex + direction + subpaths.length) % subpaths.length;
+		const nextSubpath = subpaths[nextIndex];
+		if (!nextSubpath) return;
+		setState((s) => ({
+			...s,
+			selectedPathSubpathId: nextSubpath.id,
+			selectedPathNodeId: undefined,
+			selectedElementIds: [elementId],
+		}));
+	}
+
 	function handleCreatePathSubpath(elementId: string) {
 		commitPathMutation(elementId, (pathEl, subpaths) => {
 			const start = clampPathPoint(pathEl.width * 0.25, pathEl.height * 0.5, pathEl.width, pathEl.height);
@@ -2474,12 +2546,12 @@ export default function TemplateDesignerPage() {
 				{
 					id: newSubpathId,
 					closed: false,
-						nodes: [
-							{ id: firstNodeId, x: start.x, y: start.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
-							{ id: secondNodeId, x: end.x, y: end.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
-						],
-					},
-				];
+					nodes: [
+						createCornerPathNode(firstNodeId, start.x, start.y),
+						createCornerPathNode(secondNodeId, end.x, end.y),
+					],
+				},
+			];
 			return {
 				subpaths: nextSubpaths,
 				selectedNodeId: secondNodeId,
@@ -2531,8 +2603,8 @@ export default function TemplateDesignerPage() {
 						id: newSubpathId,
 						closed: false,
 						nodes: [
-							{ id: firstNodeId, x: clamped.x, y: clamped.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
-							{ id: secondNodeId, x: secondPoint.x, y: secondPoint.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
+							createCornerPathNode(firstNodeId, clamped.x, clamped.y),
+							createCornerPathNode(secondNodeId, secondPoint.x, secondPoint.y),
 						],
 					},
 				];
@@ -2563,7 +2635,7 @@ export default function TemplateDesignerPage() {
 				...target,
 				nodes: [
 					...target.nodes,
-					{ id: newNodeId, x: clamped.x, y: clamped.y, type: "corner", handleType: "corner" as const, cornerRadius: 0 },
+					createCornerPathNode(newNodeId, clamped.x, clamped.y),
 				],
 			};
 			const nextSubpaths = subpaths.map((subpath) =>
@@ -3307,6 +3379,37 @@ export default function TemplateDesignerPage() {
 				return;
 			}
 
+			if (state.editingPathElementId && !hasMeta) {
+				if (lowerKey === "v") {
+					event.preventDefault();
+					setPathTool("select");
+					return;
+				}
+				if (lowerKey === "a") {
+					event.preventDefault();
+					setPathTool("node");
+					return;
+				}
+				if (lowerKey === "p") {
+					event.preventDefault();
+					setPathTool("pen");
+					return;
+				}
+				if (hasShift && lowerKey === "c" && state.selectedPathNodeId) {
+					event.preventDefault();
+					const editingPathElement = sourceElements.find(
+						(el) => el.id === state.editingPathElementId && el.type === "path"
+					) as PathElement | undefined;
+					const selectedNode = editingPathElement?.subpaths
+						?.flatMap((subpath) => subpath.nodes)
+						.find((node) => node.id === state.selectedPathNodeId);
+					if (!selectedNode) return;
+					const nextType = resolveHandleType(selectedNode) === "corner" ? "smooth" : "corner";
+					handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, nextType);
+					return;
+				}
+			}
+
 			if (state.editingPathElementId && state.selectedPathNodeId && !hasMeta) {
 				if (key === "1") {
 					event.preventDefault();
@@ -3947,13 +4050,14 @@ export default function TemplateDesignerPage() {
 	const editingPathElement = state.editingPathElementId
 		? (elementsForInspector.find((el) => el.id === state.editingPathElementId && el.type === "path") as PathElement | undefined)
 		: undefined;
+	const editingSubpaths = editingPathElement?.subpaths ?? [];
 	const activePathSubpath = editingPathElement?.subpaths?.find(
 		(subpath) => subpath.id === state.selectedPathSubpathId
 	) ?? editingPathElement?.subpaths?.[0];
 	const activePathNode = state.selectedPathNodeId
 		? editingPathElement?.subpaths?.flatMap((subpath) => subpath.nodes).find((node) => node.id === state.selectedPathNodeId)
 		: undefined;
-	const selectedPathNodeForInspector = activePathNode
+	const selectedPathNodeForContext = activePathNode
 		? {
 				id: activePathNode.id,
 				handleType: resolveHandleType(activePathNode),
@@ -3962,13 +4066,81 @@ export default function TemplateDesignerPage() {
 				hasHandleOut: Boolean(activePathNode.handleOut),
 			}
 		: undefined;
-	const activePathSubpathForInspector = activePathSubpath
+	const activeSubpathIndex = activePathSubpath
+		? editingSubpaths.findIndex((subpath) => subpath.id === activePathSubpath.id)
+		: -1;
+	const activePathSubpathForContext = activePathSubpath
 		? {
 				id: activePathSubpath.id,
 				closed: activePathSubpath.closed,
 				nodesCount: activePathSubpath.nodes.length,
+				index: activeSubpathIndex < 0 ? 0 : activeSubpathIndex,
+				total: editingSubpaths.length,
 			}
 		: undefined;
+	const pathEditingContextValue: PathEditingContextValue = {
+		editingPathElementId: state.editingPathElementId,
+		activeTool: state.activeTool ?? "node",
+		selectedNodeId: state.selectedPathNodeId,
+		selectedSubpathId: state.selectedPathSubpathId,
+		selectedNode: selectedPathNodeForContext,
+		activeSubpath: activePathSubpathForContext,
+		enterEditMode: (elementId: string) => setPathEditMode(elementId, true),
+		exitEditMode: () => {
+			if (!state.editingPathElementId) return;
+			setPathEditMode(state.editingPathElementId, false);
+		},
+		setTool: setPathTool,
+		selectNode: handleSelectPathNode,
+		selectSubpath: handleSelectPathSubpath,
+		cycleSubpath: handleCyclePathSubpath,
+		addPenNode: handleAddPathNode,
+		createSubpath: handleCreatePathSubpath,
+		createSubpathForEditingPath: () => {
+			if (!state.editingPathElementId) return;
+			handleCreatePathSubpath(state.editingPathElementId);
+		},
+		toggleSubpathClosed: ({ elementId, subpathId, closed }) =>
+			handleTogglePathSubpathClosed(elementId, subpathId, closed),
+		toggleActiveSubpathClosed: (closed: boolean) => {
+			if (!state.editingPathElementId || !activePathSubpathForContext?.id) return;
+			handleTogglePathSubpathClosed(state.editingPathElementId, activePathSubpathForContext.id, closed);
+		},
+		insertNodeOnSegment: handleInsertPathNodeOnSegment,
+		startNodeDrag: handleStartPathNodeDrag,
+		setNodeType: ({ elementId, nodeId, type }) => handleSetPathNodeType(elementId, nodeId, type),
+		setSelectedNodeType: (type) => {
+			if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+			handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, type);
+		},
+		toggleConvertSelectedNode: () => {
+			if (!state.editingPathElementId || !activePathNode) return;
+			const nextType = resolveHandleType(activePathNode) === "corner" ? "smooth" : "corner";
+			handleSetPathNodeType(state.editingPathElementId, activePathNode.id, nextType);
+		},
+		deleteNode: ({ elementId, nodeId }) => handleDeletePathNode(elementId, nodeId),
+		deleteSelectedNode: () => {
+			if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+			handleDeletePathNode(state.editingPathElementId, state.selectedPathNodeId);
+		},
+		addNodeHandles: ({ elementId, nodeId }) => handleAddPathNodeHandles(elementId, nodeId),
+		addHandlesToSelectedNode: () => {
+			if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+			handleAddPathNodeHandles(state.editingPathElementId, state.selectedPathNodeId);
+		},
+		removeNodeHandles: ({ elementId, nodeId, handle }) =>
+			handleRemovePathNodeHandles(elementId, nodeId, handle),
+		removeHandlesFromSelectedNode: (handle) => {
+			if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+			handleRemovePathNodeHandles(state.editingPathElementId, state.selectedPathNodeId, handle);
+		},
+		setNodeCornerRadius: ({ elementId, nodeId, radius }) =>
+			handlePathNodeCornerRadiusChange(elementId, nodeId, radius),
+		setSelectedNodeCornerRadius: (radius) => {
+			if (!state.editingPathElementId || !state.selectedPathNodeId) return;
+			handlePathNodeCornerRadiusChange(state.editingPathElementId, state.selectedPathNodeId, radius);
+		},
+	};
 
 	const propertiesContent = (
 		<PropertiesPanel
@@ -3982,46 +4154,6 @@ export default function TemplateDesignerPage() {
 			onAddRequiredElement={addRequiredElement}
 			determineElementTypeForBinding={determineElementTypeForBinding}
 			onOpenImagePicker={handleOpenImagePicker}
-			editingPathElementId={state.editingPathElementId}
-			activePathTool={state.activeTool}
-			onPathEditModeChange={setPathEditMode}
-			onPathToolChange={setPathTool}
-			selectedPathNode={selectedPathNodeForInspector}
-			activePathSubpath={activePathSubpathForInspector}
-			onPathNodeTypeChange={(type) => {
-				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
-				handleSetPathNodeType(state.editingPathElementId, state.selectedPathNodeId, type);
-			}}
-			onDeletePathNode={() => {
-				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
-				handleDeletePathNode(state.editingPathElementId, state.selectedPathNodeId);
-			}}
-			onAddPathNodeHandles={() => {
-				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
-				handleAddPathNodeHandles(state.editingPathElementId, state.selectedPathNodeId);
-			}}
-			onRemovePathNodeHandles={(handle) => {
-				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
-				handleRemovePathNodeHandles(state.editingPathElementId, state.selectedPathNodeId, handle);
-			}}
-			onPathNodeCornerRadiusChange={(radius) => {
-				if (!state.editingPathElementId || !state.selectedPathNodeId) return;
-				handlePathNodeCornerRadiusChange(state.editingPathElementId, state.selectedPathNodeId, radius);
-			}}
-			onTogglePathSubpathClosed={(closed) => {
-				if (!state.editingPathElementId || !activePathSubpathForInspector?.id) return;
-				handleTogglePathSubpathClosed(state.editingPathElementId, activePathSubpathForInspector.id, closed);
-			}}
-			onCreatePathSubpath={() => {
-				if (!state.editingPathElementId) return;
-				handleCreatePathSubpath(state.editingPathElementId);
-			}}
-			onClearPathNodeSelection={() =>
-				setState((s) => ({
-					...s,
-					selectedPathNodeId: undefined,
-				}))
-			}
 			templateId={templateId}
 			versions={versions}
 			currentVersion={currentVersion}
@@ -4057,7 +4189,7 @@ export default function TemplateDesignerPage() {
 				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
 				isMobile={isMobile}
 			/>
-			<div className="flex-1 overflow-auto pb-16">
+			<div ref={canvasViewportRef} className="flex-1 overflow-auto">
 				<DesignerCanvas
 					template={currentTemplate}
 					draftElements={draftElements}
@@ -4150,25 +4282,6 @@ export default function TemplateDesignerPage() {
 							startHeight: el.height,
 						});
 					}}
-					onAddPathNode={handleAddPathNode}
-					onStartPathNodeDrag={handleStartPathNodeDrag}
-					onSelectPathNode={handleSelectPathNode}
-					onInsertPathNodeOnSegment={handleInsertPathNodeOnSegment}
-					onSetPathNodeType={({ elementId, nodeId, type }) =>
-						handleSetPathNodeType(elementId, nodeId, type)
-					}
-					onDeletePathNode={({ elementId, nodeId }) =>
-						handleDeletePathNode(elementId, nodeId)
-					}
-					onAddPathNodeHandles={({ elementId, nodeId }) =>
-						handleAddPathNodeHandles(elementId, nodeId)
-					}
-					onRemovePathNodeHandles={({ elementId, nodeId, handle }) =>
-						handleRemovePathNodeHandles(elementId, nodeId, handle)
-					}
-					onTogglePathSubpathClosed={({ elementId, subpathId, closed }) =>
-						handleTogglePathSubpathClosed(elementId, subpathId, closed)
-					}
 					onDuplicateElement={duplicateElement}
 					onDeleteElement={deleteElement}
 					onCreateTemplate={() => createMutation.mutate()}
@@ -4194,8 +4307,6 @@ export default function TemplateDesignerPage() {
 						// This ensures table header changes are saved like other property changes
 						updateSelected({ ...tbl, columns: next } as Partial<TemplateElement>);
 					}}
-					currentTemplateRef={currentTemplateRef}
-					saveMutation={saveMutation}
 					dragStartedRef={dragStartedRef}
 				/>
 			</div>
@@ -4203,7 +4314,8 @@ export default function TemplateDesignerPage() {
 	);
 
 	return (
-		<div className="flex h-screen overflow-hidden">
+		<PathEditingProvider value={pathEditingContextValue}>
+			<div className="flex h-screen overflow-hidden">
 			{isMobile ? (
 				<>
 					<div className="flex-1 flex flex-col overflow-hidden min-w-0 pb-16">
@@ -4332,10 +4444,10 @@ export default function TemplateDesignerPage() {
 			isUploading={fileUpload.isUploading}
 			uploadState={uploadState}
 		/>
-		<AIBuilderDialog
-			open={aiBuilderOpen}
-			onOpenChange={setAiBuilderOpen}
-			currentOrg={currentOrg ?? undefined}
+			<AIBuilderDialog
+				open={aiBuilderOpen}
+				onOpenChange={setAiBuilderOpen}
+				currentOrg={currentOrg ?? undefined}
 				currentTemplate={currentTemplate}
 				templates={templates}
 				generateTemplate={generateTemplate}
@@ -4343,6 +4455,7 @@ export default function TemplateDesignerPage() {
 					setState((s) => ({ ...s, currentTemplateId: templateId }));
 				}}
 			/>
-		</div>
+			</div>
+		</PathEditingProvider>
 	);
 }

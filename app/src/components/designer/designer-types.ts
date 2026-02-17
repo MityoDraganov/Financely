@@ -6,7 +6,7 @@ export type DesignerState = {
 	snapEnabled?: boolean;
 	editingTextElementId?: string;
 	editingPathElementId?: string; // Path element in edit mode
-	activeTool?: "select" | "pen"; // Active tool for path editing
+	activeTool?: "select" | "node" | "pen"; // Active tool for path editing
 	selectedPathNodeId?: string;
 	selectedPathSubpathId?: string;
 };

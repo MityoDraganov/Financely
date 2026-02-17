@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 import { Template, TemplateElement } from "@/core";
 import { toast } from "sonner";
+import {
+	MissingRequiredFieldsPanel,
+	type MissingRequiredField,
+} from "./missing-required-fields-panel";
 import type { DesignerState } from "./designer-types";
 
 type TemplateSidebarProps = {
@@ -41,12 +45,7 @@ type TemplateSidebarProps = {
 	onDuplicateElement: (id: string) => void;
 	onDeleteElement: (id: string) => void;
 	onReorderElements: (fromIndex: number, toIndex: number) => void;
-	missingRequiredFields: Array<{
-		binding: string;
-		label: string;
-		description?: string;
-		elementType: "text" | "input" | "table" | "currency";
-	}>;
+	missingRequiredFields: MissingRequiredField[];
 	onAddRequiredElement: (
 		binding: string,
 		label: string,
@@ -309,12 +308,18 @@ export function TemplateSidebar({
 	const paletteButtonClassName =
 		"w-full justify-start hover:bg-accent hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]";
 
+	const tWithOptionalDefault = (key: string, defaultValue?: string) =>
+		defaultValue ? t(key, defaultValue) : t(key);
+
 	const handlePaletteItemClick = (item: PaletteItemConfig) => {
 		onAddElement(item.type);
 		if (item.addedToastKey) {
-			toast.success(t(item.addedToastKey, item.addedToastDefault), {
-				duration: 1500,
-			});
+			toast.success(
+				tWithOptionalDefault(item.addedToastKey, item.addedToastDefault),
+				{
+					duration: 1500,
+				},
+			);
 		}
 	};
 
@@ -363,48 +368,11 @@ export function TemplateSidebar({
 					</div>
 				)}
 			</div>
-			{missingRequiredFields.length > 0 && currentTemplate && (
-				<div className="mt-5 mb-5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 shadow-sm">
-					<div className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1.5">
-						<Lock className="h-3.5 w-3.5" />
-						{t("designer.sidebar.requiredFields")}
-					</div>
-					<div className="space-y-2">
-						{missingRequiredFields.map((field) => (
-							<Button
-								key={field.binding}
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									onAddRequiredElement(
-										field.binding,
-										field.label,
-										field.elementType,
-									);
-									toast.success(
-										t("designer.sidebar.addedField", {
-											label: field.label,
-										}),
-										{ duration: 2000 },
-									);
-								}}
-								className="w-full justify-start text-xs h-auto py-2.5 px-3 border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 dark:hover:border-amber-600 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
-							>
-								<Plus className="h-3.5 w-3.5 mr-2 text-amber-600 dark:text-amber-400" />
-								<span className="text-left flex-1">
-									<div className="font-semibold text-amber-900 dark:text-amber-200">
-										{field.label}
-									</div>
-									{field.description && (
-										<div className="text-xs text-amber-700/70 dark:text-amber-400/70 font-normal mt-0.5">
-											{field.description}
-										</div>
-									)}
-								</span>
-							</Button>
-						))}
-					</div>
-				</div>
+			{currentTemplate && (
+				<MissingRequiredFieldsPanel
+					fields={missingRequiredFields}
+					onAddRequiredElement={onAddRequiredElement}
+				/>
 			)}
 			<div className="mt-5">
 				<div className="text-xs font-semibold uppercase text-muted-foreground mb-3 flex items-center gap-2">
@@ -430,7 +398,10 @@ export function TemplateSidebar({
 									className={`h-4 w-4 mr-2 ${item.iconClassName}`}
 								/>
 								<span className="font-medium">
-									{t(item.labelKey, item.labelDefault)}
+									{tWithOptionalDefault(
+										item.labelKey,
+										item.labelDefault,
+									)}
 								</span>
 							</Button>
 						);

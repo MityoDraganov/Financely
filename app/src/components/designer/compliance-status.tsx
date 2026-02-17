@@ -1,9 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertCircle, Plus } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import { getFieldMetadata } from "@/utils/invoice-compliance";
 import type { Template } from "@/core";
+import {
+	MissingRequiredFieldsPanel,
+	type MissingRequiredField,
+} from "./missing-required-fields-panel";
 
 type ComplianceStatusProps = {
 	complianceStatus: {
@@ -24,6 +27,24 @@ export function ComplianceStatus({
 }: ComplianceStatusProps) {
 	const { t } = useTranslation();
 	if (!complianceStatus || !template) return null;
+	const missingRequiredFields: MissingRequiredField[] =
+		!complianceStatus.valid && complianceStatus.missingBindings.length > 0
+			? complianceStatus.missingBindings.map((binding) => {
+					const fieldMetadata = getFieldMetadata(
+						complianceStatus.region as "US" | "EU" | "CA" | "AU" | "UK",
+						binding,
+					);
+					const elementType = fieldMetadata
+						? determineElementTypeForBinding(binding, fieldMetadata.format)
+						: "text";
+					return {
+						binding,
+						label: fieldMetadata?.label || binding,
+						description: fieldMetadata?.description,
+						elementType,
+					};
+				})
+			: [];
 
 	return (
 		<Alert className={`transition-all duration-300 ${
@@ -57,48 +78,17 @@ export function ComplianceStatus({
 				</div>
 				{!complianceStatus.valid && complianceStatus.missingBindings.length > 0 && (
 					<div className="mt-2">
-						<div className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">{t('designer.compliance.missingFieldsList')}</div>
-						<div className="space-y-1.5">
-							{complianceStatus.missingBindings.map((binding) => {
-								const fieldMetadata = getFieldMetadata(complianceStatus.region as "US" | "EU" | "CA" | "AU" | "UK", binding);
-								const elementType = fieldMetadata
-									? determineElementTypeForBinding(binding, fieldMetadata.format)
-									: "text";
-								return (
-									<div key={binding} className="flex items-center justify-between gap-2 p-2.5 bg-background/80 dark:bg-background rounded-lg border border-amber-200/60 dark:border-amber-800/60 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
-										<div className="flex-1 min-w-0">
-											<div className="text-xs font-semibold text-amber-900 dark:text-amber-200 truncate">
-												{fieldMetadata?.label || binding}
-											</div>
-											{fieldMetadata?.description && (
-												<div className="text-xs text-amber-700/70 dark:text-amber-400/70 truncate mt-0.5">
-													{fieldMetadata.description}
-												</div>
-											)}
-										</div>
-										<Button
-											size="sm"
-											variant="outline"
-											className="h-7 px-3 text-xs border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 shrink-0 shadow-sm hover:shadow transition-all duration-200 hover:scale-105 active:scale-95"
-											onClick={() => {
-												onAddRequiredElement(
-													binding,
-													fieldMetadata?.label || binding,
-													elementType
-												);
-											}}
-										>
-											<Plus className="h-3.5 w-3.5 mr-1.5" />
-											{t('designer.compliance.add')}
-										</Button>
-									</div>
-								);
-							})}
-						</div>
+						<MissingRequiredFieldsPanel
+							fields={missingRequiredFields}
+							onAddRequiredElement={onAddRequiredElement}
+							title={t("designer.compliance.missingFieldsList")}
+							showIcon={false}
+							showToast={false}
+							variant="embedded"
+						/>
 					</div>
 				)}
 			</AlertDescription>
 		</Alert>
 	);
 }
-
