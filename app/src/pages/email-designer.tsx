@@ -972,28 +972,6 @@ export default function EmailDesignerPage() {
 		handleDraftChange(updates);
 	};
 
-	const handleAddNestedBlock = (parentBlockId: string, blockType: EmailTemplateBlock["type"], columnId?: string) => {
-		if (!draftTemplate) return;
-		const parentBlock = draftTemplate.blocks.find(b => b.id === parentBlockId);
-		if (!parentBlock) return;
-
-		const newBlock = createBlock(blockType, parentBlock.section || "body");
-		
-		if (parentBlock.type === "columns" && columnId) {
-			const colsBlock = parentBlock as Extract<EmailTemplateBlock, { type: "columns" }>;
-			const updatedColumns = colsBlock.columns.map(col => 
-				col.id === columnId 
-					? { ...col, blocks: [...(col.blocks || []), newBlock] }
-					: col
-			);
-			handleUpdateBlock(parentBlockId, { ...parentBlock, columns: updatedColumns } as EmailTemplateBlock);
-		} else if (parentBlock.type === "container") {
-			const containerBlock = parentBlock as Extract<EmailTemplateBlock, { type: "container" }>;
-			handleUpdateBlock(parentBlockId, { ...containerBlock, blocks: [...(containerBlock.blocks || []), newBlock] } as EmailTemplateBlock);
-		}
-		handleSelectBlock(newBlock.id);
-	};
-
 	const handleDeleteBlock = (blockId: string) => {
 		if (!draftTemplate) return;
 		
@@ -1085,6 +1063,41 @@ export default function EmailDesignerPage() {
 		const [moved] = blocks.splice(fromIndex, 1);
 		blocks.splice(toIndex, 0, moved);
 		handleDraftChange({ blocks });
+	};
+
+	const handleMoveBlockToContainer = (blockId: string, containerId: string) => {
+		if (!draftTemplate || blockId === containerId) return;
+
+		// Prevent moving a block into itself or its own descendants.
+		if (blockContainsId(draftTemplate.blocks, blockId, containerId)) return;
+
+		const { blocks: blocksWithoutMoved, removedBlock } = removeBlockFromTree(
+			draftTemplate.blocks,
+			blockId,
+		);
+		if (!removedBlock) return;
+
+		const target = findBlockById(blocksWithoutMoved, containerId);
+		if (!target || target.type !== "container") return;
+
+		const containerBlock = target as Extract<EmailTemplateBlock, { type: "container" }>;
+		const movedBlock: EmailTemplateBlock = {
+			...removedBlock,
+			section: containerBlock.section || removedBlock.section || "body",
+		};
+		const updatedContainer: EmailTemplateBlock = {
+			...containerBlock,
+			blocks: [...(containerBlock.blocks || []), movedBlock],
+		};
+		const { blocks: nextBlocks, updated } = updateBlockTree(
+			blocksWithoutMoved,
+			containerId,
+			updatedContainer,
+		);
+		if (!updated) return;
+
+		handleDraftChange({ blocks: nextBlocks });
+		handleSelectBlock(movedBlock.id);
 	};
 
 	const handleSaveVersion = async () => {
@@ -1336,6 +1349,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 			onReorderEnd={() => setIsReorderingBlocks(false)}
 			onDuplicateBlock={handleDuplicateBlock}
 			onDeleteBlock={handleDeleteBlock}
+			onMoveBlockToContainer={handleMoveBlockToContainer}
 			currentSection={currentSection}
 			onSectionChange={setCurrentSection}
 		/>
@@ -1353,14 +1367,13 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 			
 			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
 			{selectedBlock ? (
-			<EmailBlockProperties
-				block={selectedBlock}
-				onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
-				onDelete={handleDeleteBlock}
-				onAddNestedBlock={handleAddNestedBlock}
-				onOpenImagePicker={handleOpenImagePicker}
-				placeholders={placeholders}
-				invalidPlaceholders={invalidPlaceholders}
+				<EmailBlockProperties
+					block={selectedBlock}
+					onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
+					onDelete={handleDeleteBlock}
+					onOpenImagePicker={handleOpenImagePicker}
+					placeholders={placeholders}
+					invalidPlaceholders={invalidPlaceholders}
 				onAddPlaceholder={handleAddPlaceholder}
 			/>
 			) : (
@@ -1874,6 +1887,10 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			section: section,
 			maxWidth: 600,
 			align: "center",
+			layoutDirection: "vertical",
+			contentAlign: "left",
+			justifyContent: "start",
+			gap: 16,
 			padding: "md",
 			blocks: [],
 		};
@@ -2009,4 +2026,78 @@ function updateBlockTree(
 	});
 
 	return { blocks: hasUpdated ? nextBlocks : blocks, updated: hasUpdated };
+}
+
+function blockContainsId(
+	blocks: EmailTemplateBlock[],
+	parentBlockId: string,
+	targetBlockId: string,
+): boolean {
+	const parent = findBlockById(blocks, parentBlockId);
+	if (!parent) return false;
+
+	const walk = (block: EmailTemplateBlock): boolean => {
+		if (block.id === targetBlockId) return true;
+		if (block.type === "columns") {
+			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+			return colsBlock.columns?.some((column) => (column.blocks || []).some(walk)) || false;
+		}
+		if (block.type === "container") {
+			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+			return (containerBlock.blocks || []).some(walk);
+		}
+		return false;
+	};
+
+	return walk(parent);
+}
+
+function removeBlockFromTree(
+	blocks: EmailTemplateBlock[],
+	blockId: string,
+): { blocks: EmailTemplateBlock[]; removedBlock: EmailTemplateBlock | null } {
+	let removedBlock: EmailTemplateBlock | null = null;
+
+	const nextBlocks: EmailTemplateBlock[] = [];
+	for (const block of blocks) {
+		if (block.id === blockId) {
+			removedBlock = block;
+			continue;
+		}
+
+		if (block.type === "columns") {
+			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+			let hasColumnChange = false;
+			const nextColumns = colsBlock.columns.map((column) => {
+				const result = removeBlockFromTree(column.blocks || [], blockId);
+				if (result.removedBlock) {
+					removedBlock = result.removedBlock;
+					hasColumnChange = true;
+					return { ...column, blocks: result.blocks };
+				}
+				return column;
+			});
+			if (hasColumnChange) {
+				nextBlocks.push({ ...colsBlock, columns: nextColumns } as EmailTemplateBlock);
+				continue;
+			}
+		}
+
+		if (block.type === "container") {
+			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+			const result = removeBlockFromTree(containerBlock.blocks || [], blockId);
+			if (result.removedBlock) {
+				removedBlock = result.removedBlock;
+				nextBlocks.push({
+					...containerBlock,
+					blocks: result.blocks,
+				} as EmailTemplateBlock);
+				continue;
+			}
+		}
+
+		nextBlocks.push(block);
+	}
+
+	return { blocks: nextBlocks, removedBlock };
 }

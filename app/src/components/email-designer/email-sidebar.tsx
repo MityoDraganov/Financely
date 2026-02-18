@@ -30,6 +30,7 @@ import {
 	Sparkles,
 	Table,
 	Database,
+	CornerDownRight,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ type EmailSidebarProps = {
 	onReorderEnd?: () => void;
 	onDuplicateBlock?: (blockId: string) => void;
 	onDeleteBlock?: (blockId: string) => void;
+	onMoveBlockToContainer?: (blockId: string, containerId: string) => void;
 	currentSection?: EmailSection;
 	onSectionChange?: (section: EmailSection) => void;
 };
@@ -248,12 +250,14 @@ export function EmailSidebar({
 	onReorderEnd,
 	onDuplicateBlock,
 	onDeleteBlock,
+	onMoveBlockToContainer,
 	currentSection = "body",
 	onSectionChange,
 }: EmailSidebarProps) {
 	const { t } = useTranslation();
 	const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
 	const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+	const [dropTargetContainerId, setDropTargetContainerId] = useState<string | null>(null);
 	const dragIndexRef = useRef<number | null>(null);
 	const lastReorderRef = useRef<{ from: number; to: number } | null>(null);
 	const reorderActiveRef = useRef(false);
@@ -308,38 +312,18 @@ export function EmailSidebar({
 
 	// Helper to count nested blocks
 	const countNestedBlocks = (block: EmailTemplateBlock): number => {
+		const countTree = (nestedBlocks: EmailTemplateBlock[] = []): number =>
+			nestedBlocks.reduce((sum, nestedBlock) => sum + 1 + countNestedBlocks(nestedBlock), 0);
+
 		if (block.type === "columns") {
 			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
-			return colsBlock.columns?.reduce((sum, col) => sum + (col.blocks?.length || 0), 0) || 0;
+			return colsBlock.columns?.reduce((sum, col) => sum + countTree(col.blocks || []), 0) || 0;
 		}
 		if (block.type === "container") {
 			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
-			return containerBlock.blocks?.length || 0;
+			return countTree(containerBlock.blocks || []);
 		}
 		return 0;
-	};
-
-	// Helper to check if any nested block (recursively) is selected
-	const hasSelectedNestedBlock = (block: EmailTemplateBlock, selectedId: string | undefined): boolean => {
-		if (!selectedId) return false;
-		
-		if (block.type === "columns") {
-			const colsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
-			return colsBlock.columns?.some(col => 
-				col.blocks?.some(nested => 
-					nested.id === selectedId || hasSelectedNestedBlock(nested, selectedId)
-				)
-			) || false;
-		}
-		
-		if (block.type === "container") {
-			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
-			return containerBlock.blocks?.some(nested => 
-				nested.id === selectedId || hasSelectedNestedBlock(nested, selectedId)
-			) || false;
-		}
-		
-		return false;
 	};
 
 	const handleDragStart = (e: React.DragEvent, blockId: string, index: number) => {
@@ -443,6 +427,7 @@ export function EmailSidebar({
 	const finishDrag = () => {
 		setDraggedBlockId(null);
 		setDragOverIndex(null);
+		setDropTargetContainerId(null);
 		dragIndexRef.current = null;
 		lastReorderRef.current = null;
 		if (reorderActiveRef.current) {
@@ -456,9 +441,160 @@ export function EmailSidebar({
 		finishDrag();
 	};
 
+	const handleBlockDragOver = (e: React.DragEvent, block: EmailTemplateBlock, index: number) => {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
+
+		if (!draggedBlockId || draggedBlockId === block.id) {
+			setDropTargetContainerId(null);
+			return;
+		}
+
+		if (block.type === "container" && onMoveBlockToContainer) {
+			const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+			const relativeY = e.clientY - rect.top;
+			const middleStart = rect.height * 0.3;
+			const middleEnd = rect.height * 0.7;
+
+			// Treat middle area as "drop into container". Top/bottom still supports reorder.
+			if (relativeY >= middleStart && relativeY <= middleEnd) {
+				setDropTargetContainerId(block.id);
+				setDragOverIndex(null);
+				return;
+			}
+		}
+
+		if (dropTargetContainerId) {
+			setDropTargetContainerId(null);
+		}
+		handleDragOver(e, index);
+	};
+
+	const handleBlockDrop = (e: React.DragEvent, block: EmailTemplateBlock) => {
+		e.preventDefault();
+		e.stopPropagation();
+		if (
+			block.type === "container" &&
+			onMoveBlockToContainer &&
+			draggedBlockId &&
+			draggedBlockId !== block.id &&
+			dropTargetContainerId === block.id
+		) {
+			onMoveBlockToContainer(draggedBlockId, block.id);
+		}
+		finishDrag();
+	};
+
 	const handleDragEnd = () => {
 		finishDrag();
 	};
+
+	const TREE_INDENT_PX = 12;
+
+	const renderNestedChildren = (parentBlock: EmailTemplateBlock, level: number) => {
+		if (parentBlock.type === "columns") {
+			const colsBlock = parentBlock as Extract<EmailTemplateBlock, { type: "columns" }>;
+			return colsBlock.columns?.map((column, colIdx) => (
+				<div key={`${parentBlock.id}-${column.id}-${colIdx}`} className="space-y-1">
+					<div className="space-y-1">
+						{column.blocks?.map((child) => renderNestedBlockNode(child, level + 1))}
+					</div>
+				</div>
+			));
+		}
+
+		if (parentBlock.type === "container") {
+			const containerBlock = parentBlock as Extract<EmailTemplateBlock, { type: "container" }>;
+			return (
+				<div className="space-y-1">
+					{containerBlock.blocks?.map((child) => renderNestedBlockNode(child, level + 1))}
+				</div>
+			);
+		}
+
+		return null;
+	};
+
+	const renderNestedBlockNode = (nestedBlock: EmailTemplateBlock, level: number) => {
+		const NestedIcon = getBlockIcon(nestedBlock.type);
+		const isNestedSelected = nestedBlock.id === selectedBlockId;
+		const nestedDynamicKeys = extractDynamicKeysFromBlock(nestedBlock);
+		const nestedCount = countNestedBlocks(nestedBlock);
+		const hasNested = nestedCount > 0;
+
+		return (
+			<div key={nestedBlock.id} className="space-y-1">
+				<ContextMenu>
+						<ContextMenuTrigger asChild>
+							<div
+									className={cn(
+										"flex items-center gap-2 rounded-md border text-left transition-all text-xs shadow-sm",
+										level > 0 && "border-l border-border/50 pl-2",
+										isNestedSelected
+											? "border-primary/60 bg-primary/10"
+											: "border-border/70 hover:border-primary/40 bg-background/85",
+									)}
+									style={{ marginLeft: `${level * TREE_INDENT_PX}px` }}
+								>
+									<button
+										type="button"
+										onClick={() => onSelectBlock?.(nestedBlock.id)}
+										className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 text-left"
+									>
+										{level > 0 && (
+											<CornerDownRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+										)}
+										<NestedIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+									<span className="truncate flex-1">{getBlockLabel(nestedBlock, t)}</span>
+								{nestedDynamicKeys.length > 0 && (
+									<span
+										className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
+										title={
+											nestedDynamicKeys.length > 1
+												? `${nestedDynamicKeys.length} dynamic sources`
+												: `Dynamic source: ${nestedDynamicKeys[0]}`
+										}
+									>
+										<Database className="h-2.5 w-2.5" />
+										{nestedDynamicKeys[0]}
+									</span>
+								)}
+								{hasNested && (
+									<span className="shrink-0 text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted/70">
+										{nestedCount}
+									</span>
+								)}
+							</button>
+						</div>
+					</ContextMenuTrigger>
+					<ContextMenuContent>
+						<ContextMenuItem onClick={() => onSelectBlock?.(nestedBlock.id)}>
+							{t("emailDesigner.sidebar.select")}
+						</ContextMenuItem>
+						<ContextMenuSeparator />
+						{onDuplicateBlock && (
+							<ContextMenuItem onClick={() => onDuplicateBlock(nestedBlock.id)}>
+								<Copy className="mr-2 h-4 w-4" />
+								{t("emailDesigner.sidebar.duplicate")}
+							</ContextMenuItem>
+						)}
+						{onDuplicateBlock && <ContextMenuSeparator />}
+						{onDeleteBlock && (
+							<ContextMenuItem
+								onClick={() => onDeleteBlock(nestedBlock.id)}
+								variant="destructive"
+							>
+								<Trash2 className="mr-2 h-4 w-4" />
+								{t("emailDesigner.sidebar.delete")}
+							</ContextMenuItem>
+						)}
+					</ContextMenuContent>
+					</ContextMenu>
+
+					{hasNested && renderNestedChildren(nestedBlock, level + 1)}
+				</div>
+			);
+		};
 
 	return (
 		<div className="h-full flex flex-col bg-muted/20 border-r border-border/70 overflow-hidden">
@@ -532,17 +668,20 @@ export function EmailSidebar({
 							No blocks in this section yet.
 						</div>
 					)}
-							{sectionBlocks.map((block, index) => {
-								const actualIndex = blocks.findIndex(b => b.id === block.id);
-								const Icon = getBlockIcon(block.type);
-								const isSelected = block.id === selectedBlockId;
-								const isDragging = draggedBlockId === block.id;
+								{sectionBlocks.map((block, index) => {
+									const actualIndex = blocks.findIndex(b => b.id === block.id);
+									const Icon = getBlockIcon(block.type);
+									const isSelected = block.id === selectedBlockId;
+									const isDragging = draggedBlockId === block.id;
 								const isDragOver = dragOverIndex === index;
+								const isContainerDropTarget =
+									block.type === "container" &&
+									dropTargetContainerId === block.id &&
+									draggedBlockId !== block.id;
 								const nestedCount = countNestedBlocks(block);
 								const dynamicKeys = extractDynamicKeysFromBlock(block);
 								const hasNested = nestedCount > 0;
-								// Expand if this block is selected OR if any of its nested children are selected
-								const isExpanded = hasNested && (isSelected || hasSelectedNestedBlock(block, selectedBlockId));
+								const isExpanded = hasNested;
 
 								return (
 									<div key={block.id} className="relative">
@@ -552,33 +691,34 @@ export function EmailSidebar({
 										)}
 										<ContextMenu>
 											<ContextMenuTrigger asChild>
-												<div
-													draggable
-													onDragStart={(e) => handleDragStart(e, block.id, actualIndex)}
-													onDragOver={(e) => handleDragOver(e, actualIndex)}
-													onDragLeave={handleDragLeave}
-													onDrop={handleDrop}
-													onDragEnd={handleDragEnd}
-													className={cn(
-														"flex items-center gap-1 rounded-lg border transition-all cursor-move relative group shadow-sm",
-														isSelected
-															? "border-primary/60 bg-primary/10"
-															: "border-border/70 hover:border-primary/40 bg-background",
-														isDragging && "opacity-50",
-														isDragOver && !isDragging && "border-primary/80 bg-primary/5"
-													)}
-												>
+													<div
+														draggable
+														onDragStart={(e) => handleDragStart(e, block.id, actualIndex)}
+														onDragOver={(e) => handleBlockDragOver(e, block, actualIndex)}
+														onDragLeave={handleDragLeave}
+														onDrop={(e) => handleBlockDrop(e, block)}
+														onDragEnd={handleDragEnd}
+														className={cn(
+															"flex items-center gap-1 rounded-lg border transition-all cursor-move relative group shadow-sm",
+															isSelected
+																? "border-primary/60 bg-primary/10"
+																: "border-border/70 hover:border-primary/40 bg-background",
+															isDragging && "opacity-50",
+															isDragOver && !isDragging && "border-primary/80 bg-primary/5",
+															isContainerDropTarget && "border-primary ring-2 ring-primary/30 bg-primary/5"
+														)}
+													>
 													<button
 														type="button"
 														onClick={() => onSelectBlock?.(block.id)}
 														className="flex-1 flex items-center gap-2.5 px-2.5 py-2 text-left min-w-0"
 													>
-														<GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing opacity-60 group-hover:opacity-100 transition-opacity" />
-														<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-														<span className="text-sm truncate flex-1">
-															{getBlockLabel(block, t)}
+															<GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing opacity-60 group-hover:opacity-100 transition-opacity" />
+															<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+															<span className="text-sm truncate flex-1">
+																{getBlockLabel(block, t)}
 														</span>
-														{dynamicKeys.length > 0 && (
+															{dynamicKeys.length > 0 && (
 															<span
 																className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
 																title={
@@ -591,27 +731,31 @@ export function EmailSidebar({
 																{dynamicKeys[0]}
 																{dynamicKeys.length > 1 && ` +${dynamicKeys.length - 1}`}
 															</span>
+															)}
+															{hasNested && (
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<span className="shrink-0 text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted/70 cursor-default">
+																			{nestedCount}
+																		</span>
+																	</TooltipTrigger>
+																	<TooltipContent>
+																		<p>
+																			{nestedCount === 1
+																				? t("emailDesigner.sidebar.nestedBlockSingular")
+																				: t("emailDesigner.sidebar.nestedBlocksPlural", { count: nestedCount })}
+																		</p>
+																	</TooltipContent>
+																</Tooltip>
+															)}
+														</button>
+														{isContainerDropTarget && (
+															<div className="px-2 py-1 text-[10px] font-medium text-primary shrink-0">
+																{t("emailDesigner.sidebar.dropToNest")}
+															</div>
 														)}
-														{hasNested && !isExpanded && (
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<span className="shrink-0 text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted/70 cursor-default">
-																		+{nestedCount}
-																	</span>
-																</TooltipTrigger>
-																<TooltipContent>
-																	<p>
-																		{nestedCount === 1 
-																			? t("emailDesigner.sidebar.nestedBlockSingular")
-																			: t("emailDesigner.sidebar.nestedBlocksPlural", { count: nestedCount })
-																		}
-																	</p>
-																</TooltipContent>
-															</Tooltip>
-														)}
-													</button>
-												</div>
-											</ContextMenuTrigger>
+													</div>
+												</ContextMenuTrigger>
 											<ContextMenuContent>
 												<ContextMenuItem onClick={() => onSelectBlock?.(block.id)}>
 													{t("emailDesigner.sidebar.select")}
@@ -636,140 +780,10 @@ export function EmailSidebar({
 											</ContextMenuContent>
 										</ContextMenu>
 										
-										{/* Nested blocks */}
-										{isExpanded && hasNested && (
-											<div className="ml-4 mt-1 space-y-1 border-l-2 border-border/70 pl-2.5">
-												{block.type === "columns" && (block as Extract<EmailTemplateBlock, { type: "columns" }>).columns?.map((column, colIdx) => (
-													<div key={column.id} className="space-y-1">
-														<div className="text-xs font-medium text-muted-foreground px-2 py-0.5">
-															{t("emailDesigner.sidebar.column")} {colIdx + 1} ({column.blocks?.length || 0})
-														</div>
-														{column.blocks?.map((nestedBlock) => {
-															const NestedIcon = getBlockIcon(nestedBlock.type);
-															const isNestedSelected = nestedBlock.id === selectedBlockId;
-															const nestedDynamicKeys = extractDynamicKeysFromBlock(nestedBlock);
-															return (
-																<ContextMenu key={nestedBlock.id}>
-																	<ContextMenuTrigger asChild>
-																		<button
-																			type="button"
-																			onClick={() => onSelectBlock?.(nestedBlock.id)}
-																			className={cn(
-																				"w-full flex items-center gap-2 px-2.5 py-2 rounded-md border text-left transition-all text-xs shadow-sm",
-																				isNestedSelected
-																					? "border-primary/60 bg-primary/10"
-																					: "border-border/70 hover:border-primary/40 bg-background/85"
-																			)}
-																		>
-																			<NestedIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-																			<span className="truncate flex-1">
-																				{getBlockLabel(nestedBlock, t)}
-																			</span>
-																			{nestedDynamicKeys.length > 0 && (
-																				<span
-																					className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
-																					title={
-																						nestedDynamicKeys.length > 1
-																							? `${nestedDynamicKeys.length} dynamic sources`
-																							: `Dynamic source: ${nestedDynamicKeys[0]}`
-																					}
-																				>
-																					<Database className="h-2.5 w-2.5" />
-																					{nestedDynamicKeys[0]}
-																				</span>
-																			)}
-																		</button>
-																	</ContextMenuTrigger>
-																	<ContextMenuContent>
-																		<ContextMenuItem onClick={() => onSelectBlock?.(nestedBlock.id)}>
-																			{t("emailDesigner.sidebar.select")}
-																		</ContextMenuItem>
-																		<ContextMenuSeparator />
-																		{onDuplicateBlock && (
-																			<ContextMenuItem onClick={() => onDuplicateBlock(nestedBlock.id)}>
-																				<Copy className="mr-2 h-4 w-4" />
-																				{t("emailDesigner.sidebar.duplicate")}
-																			</ContextMenuItem>
-																		)}
-																		{onDuplicateBlock && <ContextMenuSeparator />}
-																		{onDeleteBlock && (
-																			<ContextMenuItem 
-																				onClick={() => onDeleteBlock(nestedBlock.id)} 
-																				variant="destructive"
-																			>
-																				<Trash2 className="mr-2 h-4 w-4" />
-																				{t("emailDesigner.sidebar.delete")}
-																			</ContextMenuItem>
-																		)}
-																	</ContextMenuContent>
-																</ContextMenu>
-															);
-														})}
-													</div>
-												))}
-												{block.type === "container" && (block as Extract<EmailTemplateBlock, { type: "container" }>).blocks?.map((nestedBlock) => {
-													const NestedIcon = getBlockIcon(nestedBlock.type);
-													const isNestedSelected = nestedBlock.id === selectedBlockId;
-													const nestedDynamicKeys = extractDynamicKeysFromBlock(nestedBlock);
-													return (
-														<ContextMenu key={nestedBlock.id}>
-															<ContextMenuTrigger asChild>
-																<button
-																	type="button"
-																	onClick={() => onSelectBlock?.(nestedBlock.id)}
-																	className={cn(
-																		"w-full flex items-center gap-2 px-2.5 py-2 rounded-md border text-left transition-all text-xs shadow-sm",
-																		isNestedSelected
-																			? "border-primary/60 bg-primary/10"
-																			: "border-border/70 hover:border-primary/40 bg-background/85"
-																	)}
-																>
-																	<NestedIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-																		<span className="truncate flex-1">
-																			{getBlockLabel(nestedBlock, t)}
-																		</span>
-																		{nestedDynamicKeys.length > 0 && (
-																			<span
-																				className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
-																				title={
-																					nestedDynamicKeys.length > 1
-																						? `${nestedDynamicKeys.length} dynamic sources`
-																						: `Dynamic source: ${nestedDynamicKeys[0]}`
-																				}
-																			>
-																				<Database className="h-2.5 w-2.5" />
-																				{nestedDynamicKeys[0]}
-																			</span>
-																		)}
-																	</button>
-															</ContextMenuTrigger>
-															<ContextMenuContent>
-																<ContextMenuItem onClick={() => onSelectBlock?.(nestedBlock.id)}>
-																	{t("emailDesigner.sidebar.select")}
-																</ContextMenuItem>
-																<ContextMenuSeparator />
-																{onDuplicateBlock && (
-																	<ContextMenuItem onClick={() => onDuplicateBlock(nestedBlock.id)}>
-																		<Copy className="mr-2 h-4 w-4" />
-																		{t("emailDesigner.sidebar.duplicate")}
-																	</ContextMenuItem>
-																)}
-																{onDuplicateBlock && <ContextMenuSeparator />}
-																{onDeleteBlock && (
-																	<ContextMenuItem 
-																		onClick={() => onDeleteBlock(nestedBlock.id)} 
-																		variant="destructive"
-																	>
-																		<Trash2 className="mr-2 h-4 w-4" />
-																		{t("emailDesigner.sidebar.delete")}
-																	</ContextMenuItem>
-																)}
-															</ContextMenuContent>
-														</ContextMenu>
-													);
-												})}
-											</div>
-										)}
+											{/* Nested blocks */}
+											{isExpanded && hasNested && (
+												<div className="mt-1 space-y-1">{renderNestedChildren(block, 0)}</div>
+											)}
 									</div>
 								);
 							})}

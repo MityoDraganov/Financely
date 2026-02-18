@@ -188,25 +188,52 @@ function blockToHTML(
 			html += `${indentStr}</table>\n`;
 			return html;
 		}
-		case "container": {
-			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
-			const styles: Record<string, string> = {
-				margin: "16px 0",
-				backgroundColor: containerBlock.backgroundColor || "#f8faf8",
-				borderRadius: "12px",
-			};
-			const styleStr = Object.entries(styles).map(([k, v]) => `${k}:${v}`).join("; ");
-			let html = `${indentStr}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="${styleStr}">\n`;
-			for (const nestedBlock of containerBlock.blocks) {
-				html += `${indentStr}  <tr>\n`;
-				html += `${indentStr}    <td style="padding:12px 16px 4px 16px;">\n`;
-				html += blockToHTML(nestedBlock, designTokens, indent + 3);
-				html += `${indentStr}    </td>\n`;
-				html += `${indentStr}  </tr>\n`;
+			case "container": {
+				const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+				const paddingMap = {
+					none: 0,
+					xs: 8,
+					sm: 16,
+					md: 24,
+					lg: 32,
+				};
+				const padding = paddingMap[containerBlock.padding || "md"];
+				const gap = containerBlock.gap ?? 16;
+				const containerAlign = containerBlock.align || "center";
+				const contentAlign = containerBlock.contentAlign || "left";
+				const maxWidth = containerBlock.maxWidth || 600;
+				const direction = containerBlock.layoutDirection || "vertical";
+				const rowStyles: string[] = [
+					`margin:16px 0`,
+					`max-width:${maxWidth}px`,
+					`width:100%`,
+					`background-color:${containerBlock.backgroundColor || "#f8faf8"}`,
+				];
+				if (containerAlign === "center") rowStyles.push("margin-left:auto", "margin-right:auto");
+				if (containerAlign === "right") rowStyles.push("margin-left:auto");
+				if (containerAlign === "left") rowStyles.push("margin-right:auto");
+				let html = `${indentStr}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="${rowStyles.join("; ")}">\n`;
+				if (direction === "horizontal" && containerBlock.blocks.length > 0) {
+					html += `${indentStr}  <tr>\n`;
+					const width = Math.max(1, Math.floor(100 / containerBlock.blocks.length));
+					containerBlock.blocks.forEach((nestedBlock, index) => {
+						html += `${indentStr}    <td width="${width}%" valign="top" style="padding:${padding}px; text-align:${contentAlign};${index < containerBlock.blocks.length - 1 ? ` padding-right:${padding + gap}px;` : ""}">\n`;
+						html += blockToHTML(nestedBlock, designTokens, indent + 3);
+						html += `${indentStr}    </td>\n`;
+					});
+					html += `${indentStr}  </tr>\n`;
+				} else {
+					containerBlock.blocks.forEach((nestedBlock, index) => {
+						html += `${indentStr}  <tr>\n`;
+						html += `${indentStr}    <td style="padding:${padding}px; text-align:${contentAlign};${index < containerBlock.blocks.length - 1 ? ` padding-bottom:${padding + gap}px;` : ""}">\n`;
+						html += blockToHTML(nestedBlock, designTokens, indent + 3);
+						html += `${indentStr}    </td>\n`;
+						html += `${indentStr}  </tr>\n`;
+					});
+				}
+				html += `${indentStr}</table>\n`;
+				return html;
 			}
-			html += `${indentStr}</table>\n`;
-			return html;
-		}
 		case "rawHtml": {
 			const rawHtmlBlock = block as Extract<EmailTemplateBlock, { type: "rawHtml" }>;
 			return `${indentStr}${rawHtmlBlock.html || ""}\n`;
@@ -619,16 +646,20 @@ function parseTableLayout(table: Element): EmailTemplateBlock[] {
 				
 				// If nested table has background or styling, wrap in container
 				if (cellStyles.backgroundColor || nestedBlocks.length > 1) {
-					blocks.push({
-						id: crypto.randomUUID(),
-						type: "container",
-						section: currentSection,
-						maxWidth: 600,
-						align: "left",
-						padding: "md",
-						backgroundColor: cellStyles.backgroundColor || undefined,
-						blocks: nestedBlocks,
-					});
+						blocks.push({
+							id: crypto.randomUUID(),
+							type: "container",
+							section: currentSection,
+							maxWidth: 600,
+							align: "left",
+							layoutDirection: "vertical",
+							contentAlign: "left",
+							justifyContent: "start",
+							gap: 16,
+							padding: "md",
+							backgroundColor: cellStyles.backgroundColor || undefined,
+							blocks: nestedBlocks,
+						});
 				} else {
 					blocks.push(...nestedBlocks);
 				}
@@ -1107,23 +1138,27 @@ function elementToBlock(
 		};
 	}
 
-	if (tagName === "div" && element.classList.contains("container")) {
-		return {
-			id: crypto.randomUUID(),
-			type: "container",
-			section,
+		if (tagName === "div" && element.classList.contains("container")) {
+			return {
+				id: crypto.randomUUID(),
+				type: "container",
+				section,
 			maxWidth: (() => {
 				const width = parseInt(styles.maxWidth || "600");
 				const validWidths = [520, 600, 680, 800] as const;
 				const parsed = isNaN(width) ? 600 : width;
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				return (validWidths.includes(parsed as any) ? parsed : 600) as 520 | 600 | 680 | 800;
-			})(),
-			align: (styles.textAlign || "center") as "left" | "center" | "right",
-			padding: "md",
-			blocks: parseBlocksFromElement(element, section),
-		};
-	}
+				})(),
+				align: (styles.textAlign || "center") as "left" | "center" | "right",
+				layoutDirection: "vertical",
+				contentAlign: "left",
+				justifyContent: "start",
+				gap: parseInt(styles.gap || "16") || 16,
+				padding: "md",
+				blocks: parseBlocksFromElement(element, section),
+			};
+		}
 
 	if (tagName === "div" && !element.textContent?.trim()) {
 		// Empty div - treat as spacer
@@ -1149,23 +1184,27 @@ function elementToBlock(
 		                          styles.borderRadius ||
 		                          element.classList.length > 0;
 		
-		if (hasMeaningfulStyle && tagName === "div") {
-			return {
-				id: crypto.randomUUID(),
-				type: "container",
-				section,
+			if (hasMeaningfulStyle && tagName === "div") {
+				return {
+					id: crypto.randomUUID(),
+					type: "container",
+					section,
 				maxWidth: (() => {
 					const width = parseInt(styles.maxWidth || "600");
 					const validWidths = [520, 600, 680, 800] as const;
 					const parsed = isNaN(width) ? 600 : width;
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					return (validWidths.includes(parsed as any) ? parsed : 600) as 520 | 600 | 680 | 800;
-				})(),
-				align: (styles.textAlign || "center") as "left" | "center" | "right",
-				padding: "md",
-				blocks: nestedBlocks,
-			};
-		}
+					})(),
+					align: (styles.textAlign || "center") as "left" | "center" | "right",
+					layoutDirection: "vertical",
+					contentAlign: "left",
+					justifyContent: "start",
+					gap: parseInt(styles.gap || "16") || 16,
+					padding: "md",
+					blocks: nestedBlocks,
+				};
+			}
 		
 		// For other elements, just return nested blocks directly
 		// This prevents unnecessary container wrapping

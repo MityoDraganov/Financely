@@ -30,7 +30,6 @@ type EmailBlockPropertiesProps = {
   block?: EmailTemplateBlock;
   onChange: (updatedBlock: EmailTemplateBlock) => void;
   onDelete: (blockId: string) => void;
-  onAddNestedBlock?: (parentBlockId: string, blockType: EmailTemplateBlock["type"], columnId?: string) => void;
 	onOpenImagePicker?: (blockId: string) => void;
 	placeholders: EmailTemplatePlaceholder[];
 	invalidPlaceholders?: string[];
@@ -747,7 +746,7 @@ const PlaceholderInputField = ({
 	);
 };
 
-export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlock, onOpenImagePicker, placeholders, invalidPlaceholders, onAddPlaceholder }: EmailBlockPropertiesProps) {
+export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePicker, placeholders, invalidPlaceholders, onAddPlaceholder }: EmailBlockPropertiesProps) {
   const { t } = useTranslation();
 
   if (!block) {
@@ -2202,37 +2201,18 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                 <Separator />
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold">{t("emailDesigner.properties.columns")}</Label>
-                  {(block as Extract<EmailTemplateBlock, { type: "columns" }>).columns.map((column, colIdx) => (
-                    <div key={column.id} className="p-3 border rounded-md space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">{t("emailDesigner.properties.column")} {colIdx + 1}</Label>
-                        <span className="text-xs text-muted-foreground">{column.blocks?.length || 0} {t("emailDesigner.properties.blocks")}</span>
-                      </div>
-                      {onAddNestedBlock && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 text-xs h-7"
-                            onClick={() => onAddNestedBlock(block.id, "text", column.id)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            {t("emailDesigner.properties.addText")}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 text-xs h-7"
-                            onClick={() => onAddNestedBlock(block.id, "image", column.id)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            {t("emailDesigner.properties.addImage")}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+	                  {(block as Extract<EmailTemplateBlock, { type: "columns" }>).columns.map((column, colIdx) => (
+	                    <div key={column.id} className="p-3 border rounded-md space-y-2">
+	                      <div className="flex items-center justify-between">
+	                        <Label className="text-xs">{t("emailDesigner.properties.column")} {colIdx + 1}</Label>
+	                        <span className="text-xs text-muted-foreground">{column.blocks?.length || 0} {t("emailDesigner.properties.blocks")}</span>
+	                      </div>
+	                      <p className="text-[11px] text-muted-foreground">
+	                        {t("emailDesigner.properties.nestedViaSidebar")}
+	                      </p>
+	                    </div>
+	                  ))}
+	                </div>
                 <Separator />
                 {renderBackgroundColorControls()}
                 <Separator />
@@ -2242,11 +2222,28 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
               </>
             )}
 
-            {block.type === "container" && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>{t("emailDesigner.properties.maxWidth")}</Label>
+	            {block.type === "container" && (
+	              <>
+	                <div className="space-y-2">
+	                  <Label>{t("emailDesigner.properties.direction")}</Label>
+	                  <Select
+	                    value={(block as Extract<EmailTemplateBlock, { type: "container" }>).layoutDirection || "vertical"}
+	                    onValueChange={(value: "vertical" | "horizontal") =>
+	                      onChange({ ...block, layoutDirection: value } as EmailTemplateBlock)
+	                    }
+	                  >
+	                    <SelectTrigger>
+	                      <SelectValue />
+	                    </SelectTrigger>
+	                    <SelectContent>
+	                      <SelectItem value="vertical">{t("emailDesigner.properties.directionVertical")}</SelectItem>
+	                      <SelectItem value="horizontal">{t("emailDesigner.properties.directionHorizontal")}</SelectItem>
+	                    </SelectContent>
+	                  </Select>
+	                </div>
+	                <div className="grid grid-cols-2 gap-3">
+	                  <div className="space-y-2">
+	                    <Label>{t("emailDesigner.properties.maxWidth")}</Label>
                     <Select
                       value={String((block as Extract<EmailTemplateBlock, { type: "container" }>).maxWidth || 600)}
                       onValueChange={(value) =>
@@ -2262,13 +2259,13 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                         <SelectItem value="680">680px</SelectItem>
                         <SelectItem value="800">800px</SelectItem>
                       </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t("emailDesigner.properties.alignment")}</Label>
-                    <Select
-                      value={(block as Extract<EmailTemplateBlock, { type: "container" }>).align || "center"}
-                      onValueChange={(value: "left" | "center" | "right") =>
+	                    </Select>
+	                  </div>
+	                  <div className="space-y-2">
+	                    <Label>{t("emailDesigner.properties.position")}</Label>
+	                    <Select
+	                      value={(block as Extract<EmailTemplateBlock, { type: "container" }>).align || "center"}
+	                      onValueChange={(value: "left" | "center" | "right") =>
                         onChange({ ...block, align: value } as EmailTemplateBlock)
                       }
                     >
@@ -2280,12 +2277,64 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                         <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
                         <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
                       </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("emailDesigner.properties.padding")}</Label>
-                  <Select
+	                    </Select>
+	                  </div>
+	                </div>
+	                <div className="grid grid-cols-2 gap-3">
+	                  <div className="space-y-2">
+	                    <Label>{t("emailDesigner.properties.alignment")}</Label>
+	                    <Select
+	                      value={(block as Extract<EmailTemplateBlock, { type: "container" }>).contentAlign || "left"}
+	                      onValueChange={(value: "left" | "center" | "right") =>
+	                        onChange({ ...block, contentAlign: value } as EmailTemplateBlock)
+	                      }
+	                    >
+	                      <SelectTrigger>
+	                        <SelectValue />
+	                      </SelectTrigger>
+	                      <SelectContent>
+	                        <SelectItem value="left">{t("emailDesigner.properties.alignLeft")}</SelectItem>
+	                        <SelectItem value="center">{t("emailDesigner.properties.alignCenter")}</SelectItem>
+	                        <SelectItem value="right">{t("emailDesigner.properties.alignRight")}</SelectItem>
+	                      </SelectContent>
+	                    </Select>
+	                  </div>
+	                  <div className="space-y-2">
+	                    <Label>{t("emailDesigner.properties.justify")}</Label>
+	                    <Select
+	                      value={(block as Extract<EmailTemplateBlock, { type: "container" }>).justifyContent || "start"}
+	                      onValueChange={(value: "start" | "center" | "end" | "space-between") =>
+	                        onChange({ ...block, justifyContent: value } as EmailTemplateBlock)
+	                      }
+	                    >
+	                      <SelectTrigger>
+	                        <SelectValue />
+	                      </SelectTrigger>
+	                      <SelectContent>
+	                        <SelectItem value="start">{t("emailDesigner.properties.justifyStart")}</SelectItem>
+	                        <SelectItem value="center">{t("emailDesigner.properties.justifyCenter")}</SelectItem>
+	                        <SelectItem value="end">{t("emailDesigner.properties.justifyEnd")}</SelectItem>
+	                        <SelectItem value="space-between">{t("emailDesigner.properties.justifySpaceBetween")}</SelectItem>
+	                      </SelectContent>
+	                    </Select>
+	                  </div>
+	                </div>
+	                <div className="space-y-2">
+	                  <Label>
+	                    {t("emailDesigner.properties.gap")}:{" "}
+	                    {(block as Extract<EmailTemplateBlock, { type: "container" }>).gap ?? 16}px
+	                  </Label>
+	                  <Slider
+	                    min={0}
+	                    max={48}
+	                    step={2}
+	                    value={[(block as Extract<EmailTemplateBlock, { type: "container" }>).gap ?? 16]}
+	                    onValueChange={([value]) => onChange({ ...block, gap: value } as EmailTemplateBlock)}
+	                  />
+	                </div>
+	                <div className="space-y-2">
+	                  <Label>{t("emailDesigner.properties.padding")}</Label>
+	                  <Select
                     value={(block as Extract<EmailTemplateBlock, { type: "container" }>).padding || "md"}
                     onValueChange={(value: "none" | "xs" | "sm" | "md" | "lg") =>
                       onChange({ ...block, padding: value } as EmailTemplateBlock)
@@ -2306,54 +2355,17 @@ export function EmailBlockProperties({ block, onChange, onDelete, onAddNestedBlo
                 <Separator />
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold">{t("emailDesigner.properties.nestedBlocks")}</Label>
-                  <div className="p-3 border rounded-md space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {(block as Extract<EmailTemplateBlock, { type: "container" }>).blocks?.length || 0} {t("emailDesigner.properties.blocks")}
-                      </span>
-                    </div>
-                    {onAddNestedBlock && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => onAddNestedBlock(block.id, "text")}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {t("emailDesigner.properties.addText")}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => onAddNestedBlock(block.id, "image")}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {t("emailDesigner.properties.addImage")}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => onAddNestedBlock(block.id, "button")}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {t("emailDesigner.properties.addButton")}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => onAddNestedBlock(block.id, "divider")}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {t("emailDesigner.properties.addDivider")}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+	                  <div className="p-3 border rounded-md space-y-2">
+	                    <div className="flex items-center justify-between">
+	                      <span className="text-xs text-muted-foreground">
+	                        {(block as Extract<EmailTemplateBlock, { type: "container" }>).blocks?.length || 0} {t("emailDesigner.properties.blocks")}
+	                      </span>
+	                    </div>
+	                    <p className="text-[11px] text-muted-foreground">
+	                      {t("emailDesigner.properties.nestedViaSidebar")}
+	                    </p>
+	                  </div>
+	                </div>
                 <Separator />
                 {renderBackgroundColorControls()}
                 <Separator />

@@ -207,6 +207,10 @@ export const emailContainerBlockSchema = emailBlockBaseSchema.extend({
   type: z.literal("container"),
   maxWidth: z.union([z.literal(520), z.literal(600), z.literal(680), z.literal(800)]).default(600),
   align: z.enum(["left", "center", "right"]).default("center"),
+  layoutDirection: z.enum(["vertical", "horizontal"]).default("vertical"),
+  contentAlign: z.enum(["left", "center", "right"]).default("left"),
+  justifyContent: z.enum(["start", "center", "end", "space-between"]).default("start"),
+  gap: z.number().min(0).max(64).default(16),
   padding: z.enum(["none", "xs", "sm", "md", "lg"]).default("md"),
   blocks: z.array(z.any()).default([]), // Nested blocks
   spacing: emailSpacingSchema.optional(),
@@ -432,4 +436,3 @@ export const emailTemplateVersionDataSchema = z.object({
 export type EmailTemplateVersionData = z.infer<typeof emailTemplateVersionDataSchema>;
 export const emailTemplateVersionSchema = baseEntitySchema.merge(emailTemplateVersionDataSchema);
 export type EmailTemplateVersion = z.infer<typeof emailTemplateVersionSchema>;
-

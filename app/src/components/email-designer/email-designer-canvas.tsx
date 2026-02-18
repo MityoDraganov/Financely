@@ -1465,25 +1465,37 @@ function BlockPreview({
         </div>
       );
     }
-    case "container": {
-			const containerBlock = block as Extract<
-				EmailTemplateBlock,
-				{ type: "container" }
-			>;
-      const spacing = (containerBlock.spacing || {}) as EmailSpacing;
-      const border = (containerBlock.border || {}) as EmailBorder;
-      const paddingMap = {
-        none: 0,
-        xs: 8,
-        sm: 16,
-        md: 24,
-        lg: 32,
-      };
-      const padding = paddingMap[containerBlock.padding || "md"];
-      
-      return (
-        <div
-          style={{
+	    case "container": {
+				const containerBlock = block as Extract<
+					EmailTemplateBlock,
+					{ type: "container" }
+				>;
+	      const spacing = (containerBlock.spacing || {}) as EmailSpacing;
+	      const border = (containerBlock.border || {}) as EmailBorder;
+	      const contentAlignMap = {
+	        left: "flex-start",
+	        center: "center",
+	        right: "flex-end",
+	      } as const;
+	      const justifyContentMap = {
+	        start: "flex-start",
+	        center: "center",
+	        end: "flex-end",
+	        "space-between": "space-between",
+	      } as const;
+	      const paddingMap = {
+	        none: 0,
+	        xs: 8,
+	        sm: 16,
+	        md: 24,
+	        lg: 32,
+	      };
+	      const padding = paddingMap[containerBlock.padding || "md"];
+	      const layoutDirection = containerBlock.layoutDirection || "vertical";
+	      
+	      return (
+	        <div
+	          style={{
             maxWidth: `${containerBlock.maxWidth || 600}px`,
 						marginLeft:
 							containerBlock.align === "center"
@@ -1529,26 +1541,41 @@ function BlockPreview({
 							: undefined,
             borderColor: border.borderColor || "transparent",
             borderStyle: border.borderStyle || "solid",
-						borderRadius: border.borderRadius
-							? `${border.borderRadius}px`
-							: undefined,
-          }}
-        >
-					{containerBlock.blocks &&
-					containerBlock.blocks.length > 0 ? (
-            <div className="space-y-4">
-							{containerBlock.blocks.map(
-								(nestedBlock: EmailTemplateBlock) => (
-                <BlockPreview
-                  key={nestedBlock.id}
-                  block={nestedBlock}
-                  designTokens={designTokens}
-                  resolveDynamicValue={resolveDynamicValue}
-                />
-								)
-							)}
-            </div>
-          ) : (
+							borderRadius: border.borderRadius
+								? `${border.borderRadius}px`
+								: undefined,
+	          }}
+	        >
+						{containerBlock.blocks &&
+						containerBlock.blocks.length > 0 ? (
+	            <div
+	              style={{
+	                display: "flex",
+	                flexDirection: layoutDirection === "horizontal" ? "row" : "column",
+	                gap: `${containerBlock.gap ?? 16}px`,
+	                alignItems: contentAlignMap[containerBlock.contentAlign || "left"],
+	                justifyContent: justifyContentMap[containerBlock.justifyContent || "start"],
+	              }}
+	            >
+								{containerBlock.blocks.map(
+									(nestedBlock: EmailTemplateBlock) => (
+	                <div
+	                  key={nestedBlock.id}
+	                  style={{
+	                    width: layoutDirection === "horizontal" ? "100%" : undefined,
+	                    flex: layoutDirection === "horizontal" ? "1 1 0px" : undefined,
+	                  }}
+	                >
+	                  <BlockPreview
+	                    block={nestedBlock}
+	                    designTokens={designTokens}
+	                    resolveDynamicValue={resolveDynamicValue}
+	                  />
+	                </div>
+									)
+								)}
+	            </div>
+	          ) : (
             <div className="text-xs text-muted-foreground text-center py-8 px-4 border border-dashed rounded">
               {t("emailDesigner.preview.emptyContainer")}
             </div>
