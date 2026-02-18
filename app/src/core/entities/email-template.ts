@@ -420,4 +420,16 @@ export type EmailTemplateData = z.infer<typeof emailTemplateDataSchema>;
 export const emailTemplateSchema = baseEntitySchema.merge(emailTemplateDataSchema);
 export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
 
+export const emailTemplateVersionDataSchema = z.object({
+  templateId: z.string().min(1),
+  version: z.number().int().min(1),
+  data: emailTemplateDataSchema,
+  publishedAt: z.string().min(1),
+  createdBy: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export type EmailTemplateVersionData = z.infer<typeof emailTemplateVersionDataSchema>;
+export const emailTemplateVersionSchema = baseEntitySchema.merge(emailTemplateVersionDataSchema);
+export type EmailTemplateVersion = z.infer<typeof emailTemplateVersionSchema>;
 

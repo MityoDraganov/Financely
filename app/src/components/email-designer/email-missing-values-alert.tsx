@@ -180,6 +180,8 @@ export function EmailMissingValuesAlert({
 	if (missingValues.length === 0) {
 		return null;
 	}
+	const visibleMissingValues = missingValues.slice(0, 4);
+	const hiddenCount = Math.max(0, missingValues.length - visibleMissingValues.length);
 
 	const getIcon = (type: MissingValue["type"]) => {
 		switch (type) {
@@ -197,26 +199,29 @@ export function EmailMissingValuesAlert({
 	};
 
 	return (
-		<Alert className="mb-4 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+		<Alert className="mb-1 border-amber-300/70 bg-amber-50/90 shadow-sm dark:border-amber-800 dark:bg-amber-950">
 			<AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-			<AlertTitle className="text-amber-900 dark:text-amber-100">
-				{t("emailDesigner.missingValues.title")}
+			<AlertTitle className="text-amber-900 dark:text-amber-100 flex items-center justify-between gap-2">
+				<span>{t("emailDesigner.missingValues.title")}</span>
+				<span className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-amber-300/80 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-300">
+					{missingValues.length} open
+				</span>
 			</AlertTitle>
-			<AlertDescription className="mt-2 space-y-2">
-				<p className="text-sm text-amber-800 dark:text-amber-200">
+			<AlertDescription className="mt-2 space-y-2.5">
+				<p className="text-xs text-amber-800 dark:text-amber-200">
 					{t("emailDesigner.missingValues.description", { count: missingValues.length })}
 				</p>
 				<div className="space-y-1.5">
-					{missingValues.map((missing) => (
+					{visibleMissingValues.map((missing) => (
 						<Button
 							key={missing.id}
 							variant="ghost"
 							size="sm"
 							className={cn(
-								"w-full justify-start text-left h-auto py-2 px-3",
+								"w-full justify-start text-left h-auto py-2 px-2.5 rounded-md",
 								"text-amber-900 dark:text-amber-100",
-								"hover:bg-amber-100 dark:hover:bg-amber-900",
-								"border border-amber-200 dark:border-amber-800"
+								"hover:bg-amber-100/80 dark:hover:bg-amber-900",
+								"border border-amber-200/90 dark:border-amber-800"
 							)}
 							onClick={() => {
 								onNavigateToField(missing.blockId, missing.field);
@@ -224,16 +229,20 @@ export function EmailMissingValuesAlert({
 						>
 							<div className="flex items-start gap-2 w-full">
 								{getIcon(missing.type)}
-								<span className="text-xs flex-1">{missing.label}</span>
+								<span className="text-xs leading-4 flex-1">{missing.label}</span>
 							</div>
 						</Button>
 					))}
+					{hiddenCount > 0 && (
+						<p className="text-[11px] text-amber-700/90 dark:text-amber-300">
+							+{hiddenCount} more items. Select a block to resolve them.
+						</p>
+					)}
 				</div>
 			</AlertDescription>
 		</Alert>
 	);
 }
-
 
 
 

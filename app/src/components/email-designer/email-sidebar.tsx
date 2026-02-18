@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,8 +29,10 @@ import {
 	Code2,
 	Sparkles,
 	Table,
+	Database,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,8 @@ type EmailSidebarProps = {
 	selectedBlockId?: string;
 	onSelectBlock?: (blockId: string) => void;
 	onReorderBlocks?: (fromIndex: number, toIndex: number) => void;
+	onReorderStart?: () => void;
+	onReorderEnd?: () => void;
 	onDuplicateBlock?: (blockId: string) => void;
 	onDeleteBlock?: (blockId: string) => void;
 	currentSection?: EmailSection;
@@ -121,14 +125,83 @@ const getBlockIcon = (type: EmailTemplateBlock["type"]) => {
 	}
 };
 
+const createDynamicTokenRegex = () => /\{\{([A-Za-z0-9_-]+)\}\}/g;
+
+const summarizeTextWithDynamicTokens = (value: string | undefined, maxLength = 34): string => {
+	if (!value) return "";
+	const normalized = value
+		.replace(createDynamicTokenRegex(), "[$1]")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (normalized.length <= maxLength) {
+		return normalized;
+	}
+	return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+};
+
+const extractDynamicKeysFromText = (value?: string): string[] => {
+	if (!value) return [];
+	const keys: string[] = [];
+	const seen = new Set<string>();
+	for (const match of value.matchAll(createDynamicTokenRegex())) {
+		const key = match[1];
+		if (!seen.has(key)) {
+			seen.add(key);
+			keys.push(key);
+		}
+	}
+	return keys;
+};
+
+const extractDynamicKeysFromBlock = (block: EmailTemplateBlock): string[] => {
+	const keys = new Set<string>();
+
+	const pushKeys = (values: Array<string | undefined>) => {
+		values.forEach((value) => {
+			extractDynamicKeysFromText(value).forEach((key) => keys.add(key));
+		});
+	};
+
+	const walk = (target: EmailTemplateBlock) => {
+		switch (target.type) {
+			case "subject":
+			case "preheader":
+			case "text":
+			case "footerText":
+				pushKeys([target.content]);
+				break;
+			case "button":
+				pushKeys([target.label, target.url]);
+				break;
+			case "navigation":
+				target.links?.forEach((link) => pushKeys([link.label, link.url]));
+				break;
+			case "unsubscribe":
+				pushKeys([target.text, target.url]);
+				break;
+			case "columns":
+				target.columns?.forEach((col) => col.blocks?.forEach(walk));
+				break;
+			case "container":
+				target.blocks?.forEach(walk);
+				break;
+			default:
+				break;
+		}
+	};
+
+	walk(block);
+	return Array.from(keys);
+};
+
 const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): string => {
 	if (block.type === "subject") {
 		const subjectBlock = block as Extract<EmailTemplateBlock, { type: "subject" }>;
-		return subjectBlock.content?.slice(0, 30) || t("emailDesigner.blocks.subject");
+		return summarizeTextWithDynamicTokens(subjectBlock.content) || t("emailDesigner.blocks.subject");
 	}
 	if (block.type === "preheader") {
 		const preheaderBlock = block as Extract<EmailTemplateBlock, { type: "preheader" }>;
-		return preheaderBlock.content?.slice(0, 30) || t("emailDesigner.blocks.preheader");
+		return summarizeTextWithDynamicTokens(preheaderBlock.content) || t("emailDesigner.blocks.preheader");
 	}
 	if (block.type === "logo") {
 		return t("emailDesigner.blocks.logo");
@@ -141,15 +214,15 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 	}
 	if (block.type === "text") {
 		const textBlock = block as Extract<EmailTemplateBlock, { type: "text" }>;
-		return textBlock.content?.slice(0, 30) || t("emailDesigner.blocks.text");
+		return summarizeTextWithDynamicTokens(textBlock.content) || t("emailDesigner.blocks.text");
 	}
 	if (block.type === "button") {
 		const buttonBlock = block as Extract<EmailTemplateBlock, { type: "button" }>;
-		return buttonBlock.label || t("emailDesigner.blocks.button");
+		return summarizeTextWithDynamicTokens(buttonBlock.label) || t("emailDesigner.blocks.button");
 	}
 	if (block.type === "footerText") {
 		const footerBlock = block as Extract<EmailTemplateBlock, { type: "footerText" }>;
-		return footerBlock.content?.slice(0, 30) || t("emailDesigner.blocks.footerText");
+		return summarizeTextWithDynamicTokens(footerBlock.content) || t("emailDesigner.blocks.footerText");
 	}
 	if (block.type === "socialLinks") {
 		const socialBlock = block as Extract<EmailTemplateBlock, { type: "socialLinks" }>;
@@ -159,7 +232,7 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 	}
 	if (block.type === "unsubscribe") {
 		const unsubscribeBlock = block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>;
-		return unsubscribeBlock.text || t("emailDesigner.blocks.unsubscribe");
+		return summarizeTextWithDynamicTokens(unsubscribeBlock.text) || t("emailDesigner.blocks.unsubscribe");
 	}
 	return t(`emailDesigner.blocks.${block.type}` as const);
 };
@@ -171,6 +244,8 @@ export function EmailSidebar({
 	selectedBlockId,
 	onSelectBlock,
 	onReorderBlocks,
+	onReorderStart,
+	onReorderEnd,
 	onDuplicateBlock,
 	onDeleteBlock,
 	currentSection = "body",
@@ -181,9 +256,11 @@ export function EmailSidebar({
 	const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 	const dragIndexRef = useRef<number | null>(null);
 	const lastReorderRef = useRef<{ from: number; to: number } | null>(null);
+	const reorderActiveRef = useRef(false);
 	const blocksContainerRef = useRef<HTMLDivElement | null>(null);
 	const sectionSelectorRef = useRef<HTMLDivElement | null>(null);
 	const [shouldUseColumnLayout, setShouldUseColumnLayout] = useState(false);
+	const [blockQuery, setBlockQuery] = useState("");
 
 	// Check if buttons can fit in a row
 	useEffect(() => {
@@ -223,6 +300,11 @@ export function EmailSidebar({
 	// Filter blocks by current section (default to "body" if section is missing)
 	const sectionBlocks = blocks.filter(block => (block.section || "body") === currentSection);
 	const availableBlocks = getBlocksForSection(currentSection);
+	const filteredAvailableBlocks = useMemo(() => {
+		const query = blockQuery.trim().toLowerCase();
+		if (!query) return availableBlocks;
+		return availableBlocks.filter((block) => block.label.toLowerCase().includes(query));
+	}, [availableBlocks, blockQuery]);
 
 	// Helper to count nested blocks
 	const countNestedBlocks = (block: EmailTemplateBlock): number => {
@@ -264,6 +346,10 @@ export function EmailSidebar({
 		setDraggedBlockId(blockId);
 		dragIndexRef.current = index;
 		lastReorderRef.current = null;
+		if (!reorderActiveRef.current) {
+			reorderActiveRef.current = true;
+			onReorderStart?.();
+		}
 		e.dataTransfer.effectAllowed = "move";
 		e.dataTransfer.setData("text/plain", blockId);
 		e.dataTransfer.setData("application/json", JSON.stringify({ blockId, index }));
@@ -354,34 +440,45 @@ export function EmailSidebar({
 		}
 	};
 
-	const handleDrop = (e: React.DragEvent) => {
-		e.preventDefault();
+	const finishDrag = () => {
 		setDraggedBlockId(null);
 		setDragOverIndex(null);
 		dragIndexRef.current = null;
 		lastReorderRef.current = null;
+		if (reorderActiveRef.current) {
+			reorderActiveRef.current = false;
+			onReorderEnd?.();
+		}
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		finishDrag();
 	};
 
 	const handleDragEnd = () => {
-		setDraggedBlockId(null);
-		setDragOverIndex(null);
-		dragIndexRef.current = null;
-		lastReorderRef.current = null;
+		finishDrag();
 	};
 
 	return (
-		<div className="h-full flex flex-col bg-background border-r overflow-hidden">
+		<div className="h-full flex flex-col bg-muted/20 border-r border-border/70 overflow-hidden">
 			{/* Section Selector - Fixed at top */}
 			{onSectionChange && (
-				<div className="p-2 border-b shrink-0 bg-muted/30">
+				<div className="p-3 border-b border-border/70 shrink-0 bg-background/80">
 					<div 
 						ref={sectionSelectorRef}
-						className={`flex gap-1 ${shouldUseColumnLayout ? "flex-col" : "flex-row"}`}
+						className={cn(
+							"grid gap-1 rounded-lg border border-border/70 bg-muted/40 p-1",
+							shouldUseColumnLayout ? "grid-cols-1" : "grid-cols-3"
+						)}
 					>
 						<Button
 							variant={currentSection === "header" ? "secondary" : "ghost"}
 							size="sm"
-							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
+							className={cn(
+								"text-sm h-8 px-2",
+								currentSection === "header" && "shadow-sm"
+							)}
 							onClick={() => onSectionChange("header")}
 						>
 							{t("emailDesigner.sections.header")}
@@ -389,7 +486,10 @@ export function EmailSidebar({
 						<Button
 							variant={currentSection === "body" ? "secondary" : "ghost"}
 							size="sm"
-							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
+							className={cn(
+								"text-sm h-8 px-2",
+								currentSection === "body" && "shadow-sm"
+							)}
 							onClick={() => onSectionChange("body")}
 						>
 							{t("emailDesigner.sections.body")}
@@ -397,7 +497,10 @@ export function EmailSidebar({
 						<Button
 							variant={currentSection === "footer" ? "secondary" : "ghost"}
 							size="sm"
-							className={`text-xs h-8 py-1.5 ${shouldUseColumnLayout ? "w-full" : "flex-1"}`}
+							className={cn(
+								"text-sm h-8 px-2",
+								currentSection === "footer" && "shadow-sm"
+							)}
 							onClick={() => onSectionChange("footer")}
 						>
 							{t("emailDesigner.sections.footer")}
@@ -409,23 +512,26 @@ export function EmailSidebar({
 			{/* Scrollable Content Area */}
 			<div className="flex-1 min-h-0 overflow-y-auto">
 				{/* Current Blocks Section */}
-				{sectionBlocks.length > 0 && (
-					<>
-						<div className="p-3 border-b shrink-0">
-							<h3 className="text-sm font-semibold text-foreground">
-								{t("emailDesigner.blocks.currentBlocks")} ({sectionBlocks.length})
-							</h3>
+				<div className="p-3 border-b border-border/70 shrink-0 bg-background/70">
+					<h3 className="text-sm font-semibold text-foreground">
+						{t("emailDesigner.blocks.currentBlocks")} ({sectionBlocks.length})
+					</h3>
+				</div>
+				<div
+					ref={blocksContainerRef}
+					className="p-2.5 flex flex-col gap-1.5"
+					onDragOver={handleContainerDragOver}
+					onDrop={handleDrop}
+				>
+					{/* Drop indicator above first element */}
+					{dragOverIndex === -1 && draggedBlockId && (
+						<div className="h-0.5 bg-primary rounded-full mb-1 animate-pulse" />
+					)}
+					{sectionBlocks.length === 0 && (
+						<div className="rounded-lg border border-dashed border-border/70 bg-background/70 px-3 py-8 text-center text-xs text-muted-foreground">
+							No blocks in this section yet.
 						</div>
-						<div
-							ref={blocksContainerRef}
-							className="p-2 flex flex-col gap-1"
-							onDragOver={handleContainerDragOver}
-							onDrop={handleDrop}
-						>
-							{/* Drop indicator above first element */}
-							{dragOverIndex === -1 && draggedBlockId && (
-								<div className="h-0.5 bg-primary rounded-full mb-1 animate-pulse" />
-							)}
+					)}
 							{sectionBlocks.map((block, index) => {
 								const actualIndex = blocks.findIndex(b => b.id === block.id);
 								const Icon = getBlockIcon(block.type);
@@ -433,6 +539,7 @@ export function EmailSidebar({
 								const isDragging = draggedBlockId === block.id;
 								const isDragOver = dragOverIndex === index;
 								const nestedCount = countNestedBlocks(block);
+								const dynamicKeys = extractDynamicKeysFromBlock(block);
 								const hasNested = nestedCount > 0;
 								// Expand if this block is selected OR if any of its nested children are selected
 								const isExpanded = hasNested && (isSelected || hasSelectedNestedBlock(block, selectedBlockId));
@@ -453,10 +560,10 @@ export function EmailSidebar({
 													onDrop={handleDrop}
 													onDragEnd={handleDragEnd}
 													className={cn(
-														"flex items-center gap-1 rounded-md border transition-all cursor-move relative group",
+														"flex items-center gap-1 rounded-lg border transition-all cursor-move relative group shadow-sm",
 														isSelected
-															? "border-primary bg-primary/10"
-															: "border-border hover:border-primary/50 bg-background",
+															? "border-primary/60 bg-primary/10"
+															: "border-border/70 hover:border-primary/40 bg-background",
 														isDragging && "opacity-50",
 														isDragOver && !isDragging && "border-primary/80 bg-primary/5"
 													)}
@@ -464,17 +571,31 @@ export function EmailSidebar({
 													<button
 														type="button"
 														onClick={() => onSelectBlock?.(block.id)}
-														className="flex-1 flex items-center gap-2 px-2 py-1.5 text-left min-w-0"
+														className="flex-1 flex items-center gap-2.5 px-2.5 py-2 text-left min-w-0"
 													>
-														<GripVertical className="h-3 w-3 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
-														<Icon className="h-3 w-3 text-muted-foreground shrink-0" />
-														<span className="text-xs truncate flex-1">
+														<GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing opacity-60 group-hover:opacity-100 transition-opacity" />
+														<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+														<span className="text-sm truncate flex-1">
 															{getBlockLabel(block, t)}
 														</span>
+														{dynamicKeys.length > 0 && (
+															<span
+																className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
+																title={
+																	dynamicKeys.length > 1
+																		? `${dynamicKeys.length} dynamic sources`
+																		: `Dynamic source: ${dynamicKeys[0]}`
+																}
+															>
+																<Database className="h-2.5 w-2.5" />
+																{dynamicKeys[0]}
+																{dynamicKeys.length > 1 && ` +${dynamicKeys.length - 1}`}
+															</span>
+														)}
 														{hasNested && !isExpanded && (
 															<Tooltip>
 																<TooltipTrigger asChild>
-																	<span className="shrink-0 text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted/50 cursor-default">
+																	<span className="shrink-0 text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted/70 cursor-default">
 																		+{nestedCount}
 																	</span>
 																</TooltipTrigger>
@@ -517,7 +638,7 @@ export function EmailSidebar({
 										
 										{/* Nested blocks */}
 										{isExpanded && hasNested && (
-											<div className="ml-4 mt-1 space-y-1 border-l-2 border-muted pl-2">
+											<div className="ml-4 mt-1 space-y-1 border-l-2 border-border/70 pl-2.5">
 												{block.type === "columns" && (block as Extract<EmailTemplateBlock, { type: "columns" }>).columns?.map((column, colIdx) => (
 													<div key={column.id} className="space-y-1">
 														<div className="text-xs font-medium text-muted-foreground px-2 py-0.5">
@@ -526,6 +647,7 @@ export function EmailSidebar({
 														{column.blocks?.map((nestedBlock) => {
 															const NestedIcon = getBlockIcon(nestedBlock.type);
 															const isNestedSelected = nestedBlock.id === selectedBlockId;
+															const nestedDynamicKeys = extractDynamicKeysFromBlock(nestedBlock);
 															return (
 																<ContextMenu key={nestedBlock.id}>
 																	<ContextMenuTrigger asChild>
@@ -533,16 +655,29 @@ export function EmailSidebar({
 																			type="button"
 																			onClick={() => onSelectBlock?.(nestedBlock.id)}
 																			className={cn(
-																				"w-full flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all text-xs",
+																				"w-full flex items-center gap-2 px-2.5 py-2 rounded-md border text-left transition-all text-xs shadow-sm",
 																				isNestedSelected
-																					? "border-primary bg-primary/10"
-																					: "border-border hover:border-primary/50 bg-muted/30"
+																					? "border-primary/60 bg-primary/10"
+																					: "border-border/70 hover:border-primary/40 bg-background/85"
 																			)}
 																		>
 																			<NestedIcon className="h-3 w-3 text-muted-foreground shrink-0" />
 																			<span className="truncate flex-1">
 																				{getBlockLabel(nestedBlock, t)}
 																			</span>
+																			{nestedDynamicKeys.length > 0 && (
+																				<span
+																					className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
+																					title={
+																						nestedDynamicKeys.length > 1
+																							? `${nestedDynamicKeys.length} dynamic sources`
+																							: `Dynamic source: ${nestedDynamicKeys[0]}`
+																					}
+																				>
+																					<Database className="h-2.5 w-2.5" />
+																					{nestedDynamicKeys[0]}
+																				</span>
+																			)}
 																		</button>
 																	</ContextMenuTrigger>
 																	<ContextMenuContent>
@@ -575,6 +710,7 @@ export function EmailSidebar({
 												{block.type === "container" && (block as Extract<EmailTemplateBlock, { type: "container" }>).blocks?.map((nestedBlock) => {
 													const NestedIcon = getBlockIcon(nestedBlock.type);
 													const isNestedSelected = nestedBlock.id === selectedBlockId;
+													const nestedDynamicKeys = extractDynamicKeysFromBlock(nestedBlock);
 													return (
 														<ContextMenu key={nestedBlock.id}>
 															<ContextMenuTrigger asChild>
@@ -582,17 +718,30 @@ export function EmailSidebar({
 																	type="button"
 																	onClick={() => onSelectBlock?.(nestedBlock.id)}
 																	className={cn(
-																		"w-full flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all text-xs",
+																		"w-full flex items-center gap-2 px-2.5 py-2 rounded-md border text-left transition-all text-xs shadow-sm",
 																		isNestedSelected
-																			? "border-primary bg-primary/10"
-																			: "border-border hover:border-primary/50 bg-muted/30"
+																			? "border-primary/60 bg-primary/10"
+																			: "border-border/70 hover:border-primary/40 bg-background/85"
 																	)}
 																>
 																	<NestedIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-																	<span className="truncate flex-1">
-																		{getBlockLabel(nestedBlock, t)}
-																	</span>
-																</button>
+																		<span className="truncate flex-1">
+																			{getBlockLabel(nestedBlock, t)}
+																		</span>
+																		{nestedDynamicKeys.length > 0 && (
+																			<span
+																				className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 shrink-0"
+																				title={
+																					nestedDynamicKeys.length > 1
+																						? `${nestedDynamicKeys.length} dynamic sources`
+																						: `Dynamic source: ${nestedDynamicKeys[0]}`
+																				}
+																			>
+																				<Database className="h-2.5 w-2.5" />
+																				{nestedDynamicKeys[0]}
+																			</span>
+																		)}
+																	</button>
 															</ContextMenuTrigger>
 															<ContextMenuContent>
 																<ContextMenuItem onClick={() => onSelectBlock?.(nestedBlock.id)}>
@@ -624,26 +773,24 @@ export function EmailSidebar({
 									</div>
 								);
 							})}
-							{/* Drop indicator below last element */}
-							{dragOverIndex === sectionBlocks.length && draggedBlockId && (
-								<div className="h-0.5 bg-primary rounded-full mt-1 animate-pulse" />
-							)}
-						</div>
-						<Separator />
-					</>
-				)}
+					{/* Drop indicator below last element */}
+					{dragOverIndex === sectionBlocks.length && draggedBlockId && (
+						<div className="h-0.5 bg-primary rounded-full mt-1 animate-pulse" />
+					)}
+				</div>
+				<Separator />
 
 				{/* AI Builder Section */}
 				{onOpenAIBuilder && (
-					<div className="shrink-0 p-3 border-b">
+					<div className="shrink-0 p-3 border-b border-border/70 bg-background/80">
 						<Button
 							variant="default"
 							size="sm"
-							className="w-full bg-linear-to-r from-purple-600 via-purple-600 to-purple-700 hover:from-purple-700 hover:via-purple-700 hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5 px-2.5"
+							className="w-full bg-linear-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 px-3"
 							onClick={onOpenAIBuilder}
 						>
-							<Sparkles className="h-3.5 w-3.5 animate-pulse shrink-0" />
-							<span className="font-medium text-xs leading-tight">{t("emailDesigner.aiBuilder.buttonLabel")}</span>
+							<Sparkles className="h-3.5 w-3.5 shrink-0" />
+							<span className="font-medium text-sm leading-tight">{t("emailDesigner.aiBuilder.buttonLabel")}</span>
 						</Button>
 					</div>
 				)}
@@ -651,23 +798,34 @@ export function EmailSidebar({
 
 				{/* Add Blocks Section */}
 				<div className="shrink-0">
-					<div className="p-3 border-b shrink-0">
+					<div className="p-3 border-b border-border/70 shrink-0 bg-background/70">
 						<h3 className="text-sm font-semibold text-foreground">
 							{t("emailDesigner.blocks.addBlocks")} - {t(`emailDesigner.sections.${currentSection}`)}
 						</h3>
 					</div>
-					<div className="p-3 flex flex-col gap-2">
-						{availableBlocks.map((option) => {
+					<div className="p-3 flex flex-col gap-2.5">
+						<Input
+							value={blockQuery}
+							onChange={(e) => setBlockQuery(e.target.value)}
+							placeholder="Search blocks"
+							className="h-8 text-xs bg-background"
+						/>
+						{filteredAvailableBlocks.length === 0 && (
+							<div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+								No matching blocks
+							</div>
+						)}
+						{filteredAvailableBlocks.map((option) => {
 							const Icon = option.icon;
 							return (
 								<Button
 									key={option.type}
 									variant="outline"
-									className="justify-start gap-2 h-9"
+									className="justify-start gap-2 h-9 bg-background shadow-sm hover:bg-muted/50"
 									onClick={() => onAddBlock(option.type, currentSection)}
 								>
 									<Icon className="h-4 w-4" />
-									<span className="text-xs">
+									<span className="text-sm">
 										{option.label || t(`emailDesigner.blocks.${option.type}` as const)}
 									</span>
 								</Button>
@@ -679,4 +837,3 @@ export function EmailSidebar({
 		</div>
 	);
 }
-

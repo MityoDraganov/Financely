@@ -3,11 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-	ResizableHandle,
-	ResizablePanel,
-	ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import {
 	Drawer,
 	DrawerContent,
 } from "@/components/ui/drawer";
@@ -19,7 +14,7 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
+import { ChevronLeft, Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
 	EmailTemplate,
@@ -49,6 +44,11 @@ import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { useGenerateEmailTemplate } from "@/hooks/service-hooks/use-email-template-generation";
 import { AIEmailBuilderDialog } from "@/components/email-designer/ai-email-builder-dialog";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
+import {
+	useEmailTemplateVersions,
+	useRestoreEmailTemplateVersion,
+	useSaveEmailTemplateVersion,
+} from "@/hooks/repository-hooks/use-email-template-versions";
 
 type BrandAssets = {
 	logo?: string;
@@ -84,8 +84,10 @@ export default function EmailDesignerPage() {
 	const emailDesignerContext = useEmailDesignerTemplate();
 	const createTemplate = useCreateEmailTemplate();
 	const isMobile = useMediaQuery("(max-width: 768px)");
+	const isWideLayout = useMediaQuery("(min-width: 1600px)");
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const [mobilePanelTab, setMobilePanelTab] = useState<"blocks" | "preview" | "properties">("blocks");
+	const [isReorderingBlocks, setIsReorderingBlocks] = useState(false);
 	const [imagePickerOpen, setImagePickerOpen] = useState(false);
 	const [imagePickerTargetBlockId, setImagePickerTargetBlockId] = useState<string | null>(null);
 	const [brandAssets, setBrandAssets] = useState<BrandAssets>({ gallery: [] });
@@ -349,6 +351,27 @@ export default function EmailDesignerPage() {
 			preheader: overrides.preheader ?? normalizedBaseTemplate.preheader,
 		};
 	}, [normalizedBaseTemplate, draftOverrides]);
+	const templateId = baseTemplate?.id;
+	const { data: versions = [] } = useEmailTemplateVersions(templateId);
+	const saveVersion = useSaveEmailTemplateVersion();
+	const restoreVersion = useRestoreEmailTemplateVersion();
+	const currentVersion = versions.length > 0
+		? versions.reduce((max, item) => Math.max(max, item.version), 0)
+		: null;
+	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const lastVersionSignatureRef = useRef<string>("");
+	const getVersionSignature = useCallback((template: EmailTemplate) => {
+		return JSON.stringify({
+			name: template.name,
+			subject: template.subject,
+			preheader: template.preheader,
+			htmlContent: template.htmlContent ?? "",
+			designTokens: template.designTokens ?? defaultDesignTokens,
+			placeholders: template.placeholders ?? [],
+			blocks: template.blocks ?? [],
+			sections: template.sections ?? {},
+		});
+	}, []);
 
 	// Track last processed content to avoid duplicate processing
 	const lastProcessedContentRef = useRef<string>("");
@@ -369,7 +392,21 @@ export default function EmailDesignerPage() {
 		lastProcessedContentRef.current = "";
 		lastSavedHtmlRef.current = ""; // Reset saved HTML when template changes
 		isSavingRef.current = false; // Reset saving flag
+		lastVersionSignatureRef.current = "";
+		if (versionCreationTimerRef.current) {
+			clearTimeout(versionCreationTimerRef.current);
+			versionCreationTimerRef.current = null;
+		}
 	}, [baseTemplate?.id]);
+
+	useEffect(() => {
+		return () => {
+			if (versionCreationTimerRef.current) {
+				clearTimeout(versionCreationTimerRef.current);
+				versionCreationTimerRef.current = null;
+			}
+		};
+	}, []);
 
 	const { activeUsers, updateSelection, updateCursor } = usePresence(baseTemplate?.id);
 
@@ -607,6 +644,29 @@ export default function EmailDesignerPage() {
 			// Invalidate queries to trigger refetch
 			// The real-time subscription will update baseTemplate automatically
 			queryClient.invalidateQueries({ queryKey: ["email-templates", orgId] });
+
+			// Auto-create version snapshots for meaningful changes
+			if (draftTemplate?.id) {
+				const signature = getVersionSignature(draftTemplate);
+				if (signature !== lastVersionSignatureRef.current) {
+					lastVersionSignatureRef.current = signature;
+					if (versionCreationTimerRef.current) {
+						clearTimeout(versionCreationTimerRef.current);
+					}
+					versionCreationTimerRef.current = setTimeout(async () => {
+						try {
+							await saveVersion.mutateAsync({
+								templateId: draftTemplate.id,
+								userId: authUser?.uid,
+								description: "Auto-saved version",
+								silent: true,
+							});
+						} catch (error) {
+							console.error("Failed to auto-create email template version:", error);
+						}
+					}, 2000);
+				}
+			}
 			toast.success(t("emailDesigner.toast.saved"));
 		},
 		onError: (error) => {
@@ -644,6 +704,10 @@ export default function EmailDesignerPage() {
 		}
 
 		if (!hasChanges) {
+			return;
+		}
+
+		if (isReorderingBlocks) {
 			return;
 		}
 
@@ -693,7 +757,7 @@ export default function EmailDesignerPage() {
 				autoSaveTimerRef.current = null;
 			}
 		};
-	}, [draftTemplate, normalizedBaseTemplate, hasChanges, isSavePending, autoSaveMutate]);
+	}, [draftTemplate, normalizedBaseTemplate, hasChanges, isSavePending, autoSaveMutate, isReorderingBlocks]);
 
 	const handleDraftChange = useCallback((updates: Partial<EmailTemplate>) => {
 		setDraftOverrides((prev) => ({
@@ -1023,6 +1087,25 @@ export default function EmailDesignerPage() {
 		handleDraftChange({ blocks });
 	};
 
+	const handleSaveVersion = async () => {
+		if (!templateId) return;
+		await saveVersion.mutateAsync({
+			templateId,
+			userId: authUser?.uid,
+			description: "Manual snapshot",
+		});
+	};
+
+	const handleRestoreVersion = async (version: number) => {
+		if (!templateId) return;
+		await restoreVersion.mutateAsync({
+			templateId,
+			version,
+		});
+		setDraftOverrides(null);
+		setSelectedBlockId(undefined);
+	};
+
 	// Auto-register placeholders found in content but not in registry
 	useEffect(() => {
 		if (!draftTemplate?.blocks) return;
@@ -1249,6 +1332,8 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 			selectedBlockId={selectedBlockId}
 			onSelectBlock={handleSelectBlock}
 			onReorderBlocks={handleReorderBlocks}
+			onReorderStart={() => setIsReorderingBlocks(true)}
+			onReorderEnd={() => setIsReorderingBlocks(false)}
 			onDuplicateBlock={handleDuplicateBlock}
 			onDeleteBlock={handleDeleteBlock}
 			currentSection={currentSection}
@@ -1257,7 +1342,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 	);
 
 	const propertiesContent = (
-		<div className="h-full flex flex-col overflow-hidden">
+		<div className="h-full min-h-0 min-w-0 flex flex-col overflow-hidden bg-background">
 			{/* Missing Values Alert - Top Priority */}
 			<div className="p-3 border-b shrink-0">
 				<EmailMissingValuesAlert
@@ -1266,7 +1351,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 				/>
 			</div>
 			
-			<div className="flex-1 min-h-0 overflow-y-auto">
+			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
 			{selectedBlock ? (
 			<EmailBlockProperties
 				block={selectedBlock}
@@ -1281,6 +1366,13 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 			) : (
 					<EmailTemplateSettings
 						name={draftTemplate.name ?? ""}
+						versions={versions}
+						currentVersion={currentVersion}
+						onSaveVersion={handleSaveVersion}
+						onRestoreVersion={handleRestoreVersion}
+						isSavingVersion={saveVersion.isPending}
+						isRestoringVersion={restoreVersion.isPending}
+						currentUserId={authUser?.uid}
 						designTokens={draftTemplate.designTokens ?? {
 							background: "#ffffff",
 							surface: "#f8fafc",
@@ -1310,7 +1402,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 	);
 
 	const canvasContent = (
-		<div className="flex flex-col">
+		<div className="flex flex-col h-full min-h-0 bg-muted/10">
 			<EmailCanvasHeader
 				templates={safeTemplates}
 				currentTemplate={baseTemplate}
@@ -1323,10 +1415,13 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 				isMobile={isMobile}
 				isLive={isSubscribed}
 				activeUsers={activeUsers}
+				hasChanges={hasChanges}
+				isSaving={isSavePending}
 			/>
-			<div>
+			<div className="flex-1 min-h-0 overflow-auto">
 				<EmailDesignerCanvas
 					blocks={draftTemplate.blocks ?? []}
+					placeholders={placeholders}
 					selectedBlockId={selectedBlockId}
 					onSelectBlock={(id) => {
 						handleSelectBlock(id);
@@ -1379,16 +1474,10 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 
 	return (
 		<>
-		<div className="flex min-h-screen">
+		<div className="flex h-screen overflow-hidden bg-muted/10">
 			{isMobile ? (
 				<>
 					<div className="flex-1 flex flex-col min-w-0 pb-16">
-						{/* Mobile Header */}
-						<div className="flex items-center justify-between p-4 border-b">
-							<h1 className="text-xl font-semibold text-foreground">
-								{draftTemplate?.name || t("emailDesigner.title")}
-							</h1>
-						</div>
 						{canvasContent}
 					</div>
 					{/* Mobile Bottom Navigation */}
@@ -1490,6 +1579,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 									>
 											<EmailDesignerCanvas
 											blocks={draftTemplate.blocks ?? []}
+											placeholders={placeholders}
 												selectedBlockId={selectedBlockId}
 												onSelectBlock={(id) => {
 													handleSelectBlock(id);
@@ -1547,20 +1637,51 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 						</DrawerContent>
 					</Drawer>
 				</>
-			) : (
-				<ResizablePanelGroup direction="horizontal" className="w-full">
-					<ResizablePanel defaultSize={18} minSize={16} maxSize={25} className="overflow-hidden">
+			) : isWideLayout ? (
+				<div className="flex min-h-0 w-full flex-1 overflow-hidden border-t border-border/70">
+					<aside className="w-80 shrink-0 overflow-y-auto border-r bg-background">
 						{sidebarContent}
-					</ResizablePanel>
-					<ResizableHandle withHandle />
-					<ResizablePanel minSize={40}>
+					</aside>
+					<main className="min-h-0 min-w-0 flex-1 overflow-hidden">
 						{canvasContent}
-					</ResizablePanel>
-					<ResizableHandle withHandle />
-					<ResizablePanel defaultSize={22} minSize={18} maxSize={30} className="overflow-hidden">
+					</main>
+					<aside className="w-[22rem] shrink-0 overflow-y-auto overflow-x-auto border-l bg-background">
 						{propertiesContent}
-					</ResizablePanel>
-				</ResizablePanelGroup>
+					</aside>
+				</div>
+			) : (
+				<div className="flex min-h-0 w-full flex-1 overflow-hidden border-t border-border/70">
+					<aside
+						className={[
+							"shrink-0 min-w-0 flex flex-col overflow-hidden border-r bg-background",
+							selectedBlockId ? "w-[22rem]" : "w-80",
+						].join(" ")}
+					>
+						{selectedBlockId ? (
+							<>
+								<div className="shrink-0 flex items-center gap-2 border-b bg-background px-3 py-2">
+									<Button
+										variant="ghost"
+										size="sm"
+										className="-ml-1"
+										onClick={() => setSelectedBlockId(undefined)}
+									>
+										<ChevronLeft className="h-4 w-4 mr-1" />
+										{t("designer.back", "Back")}
+									</Button>
+								</div>
+								<div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto pr-3">
+									{propertiesContent}
+								</div>
+							</>
+						) : (
+							sidebarContent
+						)}
+					</aside>
+					<main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+						{canvasContent}
+					</main>
+				</div>
 			)}
 		</div>
 		<BrandImagePickerDialog
@@ -1889,5 +2010,3 @@ function updateBlockTree(
 
 	return { blocks: hasUpdated ? nextBlocks : blocks, updated: hasUpdated };
 }
-
-

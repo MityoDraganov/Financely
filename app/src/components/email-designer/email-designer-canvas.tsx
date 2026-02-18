@@ -3,6 +3,7 @@ import type { MouseEvent } from "react";
 import {
 	EmailTemplateBlock,
 	EmailTemplateDesignTokens,
+	EmailTemplatePlaceholder,
 	EmailTypography,
 	EmailSpacing,
 	EmailBorder,
@@ -54,6 +55,7 @@ function getAspectRatioStyle(
 
 type CanvasProps = {
   blocks: EmailTemplateBlock[];
+	placeholders?: EmailTemplatePlaceholder[];
   selectedBlockId?: string;
   onSelectBlock: (blockId: string) => void;
   designTokens: EmailTemplateDesignTokens;
@@ -69,8 +71,27 @@ function getUserColor(uid: string): string {
 	return `hsl(${hue}, 70%, 50%)`;
 }
 
+function formatPlaceholderPreviewValue(key: string): string {
+	const cleaned = key.replace(/[_-]+/g, " ").trim();
+	if (!cleaned) return key;
+	return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function resolveDynamicText(
+	text: string,
+	placeholderValues: Map<string, string>
+): string {
+	if (!text) return text;
+	const dynamicPlaceholderRegex = /\{\{([A-Za-z0-9_-]+)\}\}/g;
+	return text.replace(dynamicPlaceholderRegex, (_, key: string) => {
+		const mapped = placeholderValues.get(key.toLowerCase());
+		return mapped && mapped.trim() ? mapped : formatPlaceholderPreviewValue(key);
+	});
+}
+
 export function EmailDesignerCanvas({
   blocks,
+	placeholders = [],
   selectedBlockId,
   onSelectBlock,
   designTokens,
@@ -83,6 +104,19 @@ export function EmailDesignerCanvas({
 	const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
 	const editingBlock = editingBlockId ? blocks.find(b => b.id === editingBlockId) : null;
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const placeholderValues = useMemo(() => {
+		const values = new Map<string, string>();
+		placeholders.forEach((placeholder) => {
+			const mappedValue =
+				placeholder.label?.trim() ||
+				placeholder.description?.trim() ||
+				formatPlaceholderPreviewValue(placeholder.key);
+			values.set(placeholder.key.toLowerCase(), mappedValue);
+		});
+		return values;
+	}, [placeholders]);
+	const resolveDynamicValue = (value: string) =>
+		resolveDynamicText(value, placeholderValues);
 
 	// Get other users' selections (exclude current user)
 	const otherUsersSelections = useMemo(() => {
@@ -123,8 +157,8 @@ export function EmailDesignerCanvas({
 		onCursorMove({ x, y });
 	};
 
-  return (
-		<div className="w-full">
+	return (
+		<div className="w-full px-4 py-6 md:px-8 md:py-8 bg-[radial-gradient(ellipse_at_top,rgba(148,163,184,0.16),transparent_55%)]">
 			{editingBlock && editingBlock.type === "rawHtml" && (
 				<CustomHtmlEditorModal
 					isOpen={true}
@@ -133,21 +167,27 @@ export function EmailDesignerCanvas({
 					onSave={handleSaveCustomHtml}
 				/>
 			)}
-            <div
-						ref={containerRef}
-						className="relative max-w-5xl mx-auto border shadow-sm rounded-xl overflow-hidden"
-              style={{
-                backgroundColor: designTokens.background,
-                fontFamily: designTokens.fontFamily,
-              }}
-							onMouseMove={handleMouseMove}
-            >
+			<div
+				ref={containerRef}
+				className="relative max-w-[760px] mx-auto border border-border/70 shadow-[0_26px_70px_-34px_rgba(15,23,42,0.55)] rounded-2xl overflow-hidden"
+				style={{
+					backgroundColor: designTokens.surface,
+					fontFamily: designTokens.fontFamily,
+				}}
+				onMouseMove={handleMouseMove}
+			>
 							{activeUsers
 								.filter((user) => user.uid !== currentUserId && user.cursor)
 								.map((user) => (
 									<LiveCursor key={user.uid} user={user} zoom={1} />
 								))}
-              <div className="px-6 py-8" style={{ color: designTokens.text }}>
+				<div
+					className="px-6 py-8 md:px-8 md:py-10"
+					style={{
+						color: designTokens.text,
+						backgroundColor: designTokens.background,
+					}}
+				>
                 {/* Header Section */}
                 {(() => {
 					const headerBlocks = blocks.filter(
@@ -158,10 +198,13 @@ export function EmailDesignerCanvas({
                       {headerBlocks.length > 0 && (
                         <div className="relative mb-4">
                           <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border/30"></div>
+                            <div className="w-full border-t border-border/50"></div>
                           </div>
                           <div className="relative flex justify-start">
-                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                            <span
+								className="px-2.5 text-[11px] font-semibold text-muted-foreground/75 uppercase tracking-[0.14em]"
+								style={{ backgroundColor: designTokens.background }}
+							>
                               {t("emailDesigner.sections.header")}
                             </span>
                           </div>
@@ -186,12 +229,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full text-left transition-colors relative",
+													"w-full text-left transition-all duration-150 relative rounded-lg border border-transparent hover:border-border/70 hover:bg-muted/25",
 													isSelectedByCurrentUser &&
-														"ring-2 ring-primary/50 bg-primary/5 rounded",
+														"ring-2 ring-primary/55 bg-primary/8 border-primary/40 shadow-sm",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"ring-2 rounded"
+														"ring-2 rounded-lg"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -214,6 +257,7 @@ export function EmailDesignerCanvas({
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													resolveDynamicValue={resolveDynamicValue}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -238,7 +282,7 @@ export function EmailDesignerCanvas({
 									);
 								})}
                         {headerBlocks.length === 0 && (
-                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                          <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border/70 bg-muted/20 rounded-xl">
 										{t(
 											"emailDesigner.preview.emptySection"
 										)}
@@ -259,10 +303,13 @@ export function EmailDesignerCanvas({
                       {bodyBlocks.length > 0 && (
                         <div className="relative mb-4">
                           <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border/30"></div>
+                            <div className="w-full border-t border-border/50"></div>
                           </div>
                           <div className="relative flex justify-start">
-                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                            <span
+								className="px-2.5 text-[11px] font-semibold text-muted-foreground/75 uppercase tracking-[0.14em]"
+								style={{ backgroundColor: designTokens.background }}
+							>
                               {t("emailDesigner.sections.body")}
                             </span>
                           </div>
@@ -287,12 +334,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full text-left transition-colors relative",
+													"w-full text-left transition-all duration-150 relative rounded-lg border border-transparent hover:border-border/70 hover:bg-muted/25",
 													isSelectedByCurrentUser &&
-														"ring-2 ring-primary/50 bg-primary/5 rounded",
+														"ring-2 ring-primary/55 bg-primary/8 border-primary/40 shadow-sm",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"ring-2 rounded"
+														"ring-2 rounded-lg"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -315,6 +362,7 @@ export function EmailDesignerCanvas({
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													resolveDynamicValue={resolveDynamicValue}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -339,7 +387,7 @@ export function EmailDesignerCanvas({
 									);
 								})}
                         {bodyBlocks.length === 0 && (
-                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                          <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border/70 bg-muted/20 rounded-xl">
                             {t("emailDesigner.preview.emptySection")}
                           </div>
                         )}
@@ -358,10 +406,13 @@ export function EmailDesignerCanvas({
                       {footerBlocks.length > 0 && (
                         <div className="relative mb-4">
                           <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border/30"></div>
+                            <div className="w-full border-t border-border/50"></div>
                           </div>
                           <div className="relative flex justify-start">
-                            <span className="px-2 text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider bg-background">
+                            <span
+								className="px-2.5 text-[11px] font-semibold text-muted-foreground/75 uppercase tracking-[0.14em]"
+								style={{ backgroundColor: designTokens.background }}
+							>
                               {t("emailDesigner.sections.footer")}
                             </span>
                           </div>
@@ -386,12 +437,12 @@ export function EmailDesignerCanvas({
 											<button
                             type="button"
                             className={cn(
-													"w-full text-left transition-colors relative",
+													"w-full text-left transition-all duration-150 relative rounded-lg border border-transparent hover:border-border/70 hover:bg-muted/25",
 													isSelectedByCurrentUser &&
-														"ring-2 ring-primary/50 bg-primary/5 rounded",
+														"ring-2 ring-primary/55 bg-primary/8 border-primary/40 shadow-sm",
 													!isSelectedByCurrentUser &&
 														otherUsers.length > 0 &&
-														"ring-2 rounded"
+														"ring-2 rounded-lg"
 												)}
 												style={{
 													...(otherUsers.length > 0 &&
@@ -414,6 +465,7 @@ export function EmailDesignerCanvas({
 												<BlockPreview
 													block={block}
 													designTokens={designTokens}
+													resolveDynamicValue={resolveDynamicValue}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -438,7 +490,7 @@ export function EmailDesignerCanvas({
 									);
 								})}
                         {footerBlocks.length === 0 && (
-                          <div className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                          <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border/70 bg-muted/20 rounded-xl">
 										{t(
 											"emailDesigner.preview.emptySection"
 										)}
@@ -457,10 +509,12 @@ export function EmailDesignerCanvas({
 function BlockPreview({
   block,
   designTokens,
+	resolveDynamicValue,
   onEditCustomHtml,
 }: {
   block: EmailTemplateBlock;
   designTokens: EmailTemplateDesignTokens;
+	resolveDynamicValue: (value: string) => string;
   onEditCustomHtml?: () => void;
 }) {
   const { t } = useTranslation();
@@ -484,6 +538,7 @@ function BlockPreview({
             color: typography.color || designTokens.text,
             fontStyle: typography.fontStyle || "normal",
             textDecoration: typography.textDecoration || "none",
+            whiteSpace: "pre-wrap",
             backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
@@ -519,7 +574,7 @@ function BlockPreview({
 							: undefined,
           }}
         >
-					{block.content || ""}
+					{resolveDynamicValue(block.content || "")}
         </div>
       );
     }
@@ -542,6 +597,7 @@ function BlockPreview({
             color: typography.color || designTokens.text,
             fontStyle: typography.fontStyle || "normal",
             textDecoration: typography.textDecoration || "none",
+            whiteSpace: "pre-wrap",
             backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
@@ -577,7 +633,7 @@ function BlockPreview({
 							: undefined,
           }}
         >
-          {block.content || "Email preheader"}
+          {resolveDynamicValue(block.content || "Email preheader")}
         </div>
       );
     }
@@ -603,6 +659,7 @@ function BlockPreview({
             color: typography.color || designTokens.text,
             fontStyle: typography.fontStyle || "normal",
             textDecoration: typography.textDecoration || "none",
+            whiteSpace: "pre-wrap",
             backgroundColor: block.backgroundColor || "transparent",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
@@ -638,7 +695,7 @@ function BlockPreview({
 							: undefined,
           }}
         >
-					{block.content || ""}
+					{resolveDynamicValue(block.content || "")}
         </div>
       );
     }
@@ -718,7 +775,7 @@ function BlockPreview({
 									: "8px",
             }}
           >
-            {block.label}
+            {resolveDynamicValue(block.label)}
           </span>
         </div>
       );
@@ -1079,7 +1136,7 @@ function BlockPreview({
                   }}
                   className="px-2"
                 >
-                  {link.label}
+                  {resolveDynamicValue(link.label)}
                 </span>
 								)
 							)
@@ -1152,10 +1209,12 @@ function BlockPreview({
 							? `${border.borderRadius}px`
 							: undefined,
           }}
-          {...(footerBlock.content && /<[a-z][\s\S]*>/i.test(footerBlock.content)
-            ? { dangerouslySetInnerHTML: { __html: sanitizeEmailHtml(footerBlock.content) } }
-            : { children: footerBlock.content || "Footer text" }
-          )}
+          {...(() => {
+            const resolvedContent = resolveDynamicValue(footerBlock.content || "");
+            return resolvedContent && /<[a-z][\s\S]*>/i.test(resolvedContent)
+              ? { dangerouslySetInnerHTML: { __html: sanitizeEmailHtml(resolvedContent) } }
+              : { children: resolvedContent || "Footer text" };
+          })()}
         />
       );
     }
@@ -1267,6 +1326,7 @@ function BlockPreview({
             fontStyle: typography.fontStyle || "normal",
 						textDecoration:
 							typography.textDecoration || "underline",
+						whiteSpace: "pre-wrap",
 						paddingTop: spacing.paddingTop
 							? `${spacing.paddingTop}px`
 							: undefined,
@@ -1303,7 +1363,7 @@ function BlockPreview({
 							: undefined,
           }}
         >
-          {unsubscribeBlock.text || "Unsubscribe"}
+          {resolveDynamicValue(unsubscribeBlock.text || "Unsubscribe")}
         </div>
       );
     }
@@ -1385,6 +1445,7 @@ function BlockPreview({
                         key={nestedBlock.id}
                         block={nestedBlock}
                         designTokens={designTokens}
+                        resolveDynamicValue={resolveDynamicValue}
                       />
 											)
 										)}
@@ -1482,6 +1543,7 @@ function BlockPreview({
                   key={nestedBlock.id}
                   block={nestedBlock}
                   designTokens={designTokens}
+                  resolveDynamicValue={resolveDynamicValue}
                 />
 								)
 							)}
@@ -1546,7 +1608,7 @@ function BlockPreview({
 					<div
 						className="min-h-[60px] border border-dashed rounded p-4"
 						dangerouslySetInnerHTML={{
-							__html: sanitizeEmailHtml(rawHtmlBlock.html),
+							__html: sanitizeEmailHtml(resolveDynamicValue(rawHtmlBlock.html)),
 						}}
 					/>
 					{/* Show indicator and edit button */}

@@ -1,17 +1,16 @@
-import { useRef, useMemo } from "react";
-import type { ReactNode } from "react";
+import { useRef, useMemo, useCallback, useEffect, useLayoutEffect } from "react";
+import type { ClipboardEvent, FormEvent, KeyboardEvent, MutableRefObject, ReactNode } from "react";
 import { EmailTemplateBlock, EmailTemplatePlaceholder, EmailTypography, EmailBorder } from "@/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Database } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Braces, Trash2 } from "lucide-react";
@@ -21,6 +20,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -66,25 +68,474 @@ const getDefaultBorder = () => ({
   borderRadius: 0,
 });
 
-const insertTokenAtCursor = (
-	field: HTMLInputElement | HTMLTextAreaElement | null,
-	currentValue: string,
-	onChange: (value: string) => void,
-	placeholderKey: string,
+const getDynamicTokenString = (key: string) => `{{${key}}}`;
+
+const formatDynamicLabel = (
+	key: string,
+	placeholders: EmailTemplatePlaceholder[]
 ) => {
-	if (!field) return;
-	const token = `{{${placeholderKey}}}`;
-	const selectionStart = field.selectionStart ?? currentValue.length;
-	const selectionEnd = field.selectionEnd ?? currentValue.length;
-	const nextValue =
-		currentValue.slice(0, selectionStart) + token + currentValue.slice(selectionEnd);
-	onChange(nextValue);
-	requestAnimationFrame(() => {
-		field.focus();
-		const cursorPosition = selectionStart + token.length;
-		field.selectionStart = cursorPosition;
-		field.selectionEnd = cursorPosition;
+	const match = placeholders.find(
+		(placeholder) => placeholder.key.toLowerCase() === key.toLowerCase()
+	);
+	return match?.label?.trim() || key;
+};
+
+const removeDynamicTokenAt = (
+	value: string,
+	key: string,
+	startIndex: number
+) => {
+	const token = getDynamicTokenString(key);
+	if (startIndex >= 0) {
+		return value.slice(0, startIndex) + value.slice(startIndex + token.length);
+	}
+	return value.replace(token, "");
+};
+
+const replaceDynamicTokenAt = (
+	value: string,
+	fromKey: string,
+	toKey: string,
+	startIndex: number
+) => {
+	const fromToken = getDynamicTokenString(fromKey);
+	const toToken = getDynamicTokenString(toKey);
+	if (startIndex >= 0) {
+		return value.slice(0, startIndex) + toToken + value.slice(startIndex + fromToken.length);
+	}
+	return value.replace(fromToken, toToken);
+};
+
+const getNodeLogicalLength = (node: Node): number => {
+	if (node.nodeType === Node.TEXT_NODE) {
+		return node.textContent?.length ?? 0;
+	}
+	if (node.nodeType !== Node.ELEMENT_NODE) {
+		return 0;
+	}
+	const element = node as HTMLElement;
+	const tokenKey = element.dataset.dynamicTokenKey;
+	if (tokenKey) {
+		return getDynamicTokenString(tokenKey).length;
+	}
+	if (element.tagName === "BR") {
+		return 1;
+	}
+	let total = 0;
+	element.childNodes.forEach((child) => {
+		total += getNodeLogicalLength(child);
 	});
+	return total;
+};
+
+const getLogicalOffsetForBoundary = (
+	root: HTMLElement,
+	boundaryContainer: Node,
+	boundaryOffset: number,
+): number | null => {
+	let total = 0;
+	let found = false;
+
+	const walk = (node: Node): boolean => {
+		if (node === boundaryContainer) {
+			if (node.nodeType === Node.TEXT_NODE) {
+				const textLength = node.textContent?.length ?? 0;
+				total += Math.min(boundaryOffset, textLength);
+			} else {
+				const childNodes = node.childNodes;
+				const maxOffset = Math.min(boundaryOffset, childNodes.length);
+				for (let i = 0; i < maxOffset; i += 1) {
+					total += getNodeLogicalLength(childNodes[i]);
+				}
+			}
+			found = true;
+			return true;
+		}
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			total += node.textContent?.length ?? 0;
+			return false;
+		}
+
+		if (node.nodeType === Node.ELEMENT_NODE) {
+			const element = node as HTMLElement;
+			const tokenKey = element.dataset.dynamicTokenKey;
+			if (tokenKey) {
+				total += getDynamicTokenString(tokenKey).length;
+				return false;
+			}
+			for (const child of Array.from(node.childNodes)) {
+				if (walk(child)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	};
+
+	walk(root);
+	return found ? total : null;
+};
+
+const getLogicalSelectionRange = (root: HTMLElement) => {
+	const selection = window.getSelection();
+	if (!selection || selection.rangeCount === 0) {
+		return null;
+	}
+	const range = selection.getRangeAt(0);
+	if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+		return null;
+	}
+
+	const start = getLogicalOffsetForBoundary(
+		root,
+		range.startContainer,
+		range.startOffset,
+	);
+	const end = getLogicalOffsetForBoundary(root, range.endContainer, range.endOffset);
+	if (start === null || end === null) {
+		return null;
+	}
+	return {
+		start: Math.min(start, end),
+		end: Math.max(start, end),
+	};
+};
+
+const setLogicalCaretOffset = (root: HTMLElement, offset: number) => {
+	const selection = window.getSelection();
+	if (!selection) return;
+	const range = document.createRange();
+	let remaining = Math.max(0, offset);
+
+	const placeAtEnd = () => {
+		range.selectNodeContents(root);
+		range.collapse(false);
+		selection.removeAllRanges();
+		selection.addRange(range);
+	};
+
+	const walk = (node: Node): boolean => {
+		if (node.nodeType === Node.TEXT_NODE) {
+			const length = node.textContent?.length ?? 0;
+			if (remaining <= length) {
+				range.setStart(node, remaining);
+				range.collapse(true);
+				selection.removeAllRanges();
+				selection.addRange(range);
+				return true;
+			}
+			remaining -= length;
+			return false;
+		}
+
+		if (node.nodeType !== Node.ELEMENT_NODE) {
+			return false;
+		}
+
+		const element = node as HTMLElement;
+		const tokenKey = element.dataset.dynamicTokenKey;
+		if (tokenKey) {
+			const tokenLength = getDynamicTokenString(tokenKey).length;
+			if (remaining <= tokenLength) {
+				const parent = element.parentNode;
+				if (!parent) return false;
+				const tokenIndex = Array.prototype.indexOf.call(parent.childNodes, element);
+				range.setStart(parent, remaining === 0 ? tokenIndex : tokenIndex + 1);
+				range.collapse(true);
+				selection.removeAllRanges();
+				selection.addRange(range);
+				return true;
+			}
+			remaining -= tokenLength;
+			return false;
+		}
+
+		for (const child of Array.from(element.childNodes)) {
+			if (walk(child)) {
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	if (!walk(root)) {
+		placeAtEnd();
+	}
+};
+
+const serializeEditorValue = (root: HTMLElement): string => {
+	const walk = (node: Node): string => {
+		if (node.nodeType === Node.TEXT_NODE) {
+			return node.textContent ?? "";
+		}
+		if (node.nodeType !== Node.ELEMENT_NODE) {
+			return "";
+		}
+		const element = node as HTMLElement;
+		const tokenKey = element.dataset.dynamicTokenKey;
+		if (tokenKey) {
+			return getDynamicTokenString(tokenKey);
+		}
+		if (element.tagName === "BR") {
+			return "\n";
+		}
+		return Array.from(element.childNodes).map(walk).join("");
+	};
+
+	return Array.from(root.childNodes)
+		.map(walk)
+		.join("")
+		.replace(/\u00a0/g, " ")
+		.replace(/\u200b/g, "");
+};
+
+const normalizeEditorValue = (value: string, multiline: boolean) => {
+	if (multiline) return value;
+	return value.replace(/\r?\n/g, " ");
+};
+
+const DynamicTokenizedEditor = ({
+	value,
+	placeholders,
+	multiline = false,
+	placeholder,
+	rows = 3,
+	onCreatePlaceholder,
+	onChange,
+	insertTokenHandlerRef,
+}: {
+	value: string;
+	placeholders: EmailTemplatePlaceholder[];
+	multiline?: boolean;
+	placeholder?: string;
+	rows?: number;
+	onCreatePlaceholder: () => EmailTemplatePlaceholder | null;
+	onChange: (value: string) => void;
+	insertTokenHandlerRef?: MutableRefObject<((key: string) => void) | null>;
+}) => {
+	const editorRef = useRef<HTMLDivElement | null>(null);
+	const pendingCaretOffsetRef = useRef<number | null>(null);
+
+	const handleSetValue = useCallback((nextValue: string, nextCaretOffset?: number) => {
+		pendingCaretOffsetRef.current = nextCaretOffset ?? null;
+		onChange(normalizeEditorValue(nextValue, multiline));
+	}, [onChange, multiline]);
+
+	useEffect(() => {
+		if (!insertTokenHandlerRef) return;
+		insertTokenHandlerRef.current = (key: string) => {
+			const root = editorRef.current;
+			const token = getDynamicTokenString(key);
+			const selection = root ? getLogicalSelectionRange(root) : null;
+			const start = selection?.start ?? value.length;
+			const end = selection?.end ?? start;
+			const nextValue = value.slice(0, start) + token + value.slice(end);
+			handleSetValue(nextValue, start + token.length);
+			requestAnimationFrame(() => {
+				const editor = editorRef.current;
+				if (!editor) return;
+				editor.focus();
+				if (pendingCaretOffsetRef.current !== null) {
+					setLogicalCaretOffset(editor, pendingCaretOffsetRef.current);
+				}
+			});
+		};
+		return () => {
+			insertTokenHandlerRef.current = null;
+		};
+	}, [insertTokenHandlerRef, value, handleSetValue]);
+
+	useLayoutEffect(() => {
+		const editor = editorRef.current;
+		if (!editor) return;
+		const pendingOffset = pendingCaretOffsetRef.current;
+		if (pendingOffset === null) return;
+		if (document.activeElement !== editor) return;
+		setLogicalCaretOffset(editor, pendingOffset);
+		pendingCaretOffsetRef.current = null;
+	}, [value]);
+
+	const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
+		const root = event.currentTarget;
+		const selection = getLogicalSelectionRange(root);
+		const nextValue = serializeEditorValue(root);
+		handleSetValue(nextValue, selection?.end ?? nextValue.length);
+	}, [handleSetValue]);
+
+	const handlePaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		const pastedText = event.clipboardData.getData("text/plain") ?? "";
+		const root = editorRef.current;
+		const selection = root ? getLogicalSelectionRange(root) : null;
+		const start = selection?.start ?? value.length;
+		const end = selection?.end ?? start;
+		const nextValue = value.slice(0, start) + pastedText + value.slice(end);
+		handleSetValue(nextValue, start + pastedText.length);
+	}, [value, handleSetValue]);
+
+	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key !== "Enter") return;
+		event.preventDefault();
+		if (!multiline) return;
+		const root = editorRef.current;
+		const selection = root ? getLogicalSelectionRange(root) : null;
+		const start = selection?.start ?? value.length;
+		const end = selection?.end ?? start;
+		const nextValue = value.slice(0, start) + "\n" + value.slice(end);
+		handleSetValue(nextValue, start + 1);
+	}, [value, multiline, handleSetValue]);
+
+	const parts = useMemo(() => {
+		const parsed: ReactNode[] = [];
+		let lastIndex = 0;
+		const regex = /\{\{([A-Za-z0-9_-]+)\}\}/g;
+
+		for (const match of value.matchAll(regex)) {
+			const startIndex = match.index ?? 0;
+			if (startIndex > lastIndex) {
+				parsed.push(
+					<span
+						key={`text-${startIndex}`}
+						className={multiline ? "whitespace-pre-wrap break-words" : "whitespace-pre"}
+					>
+						{value.slice(lastIndex, startIndex)}
+					</span>
+				);
+			}
+
+			const key = match[1];
+			const sourceLabel = formatDynamicLabel(key, placeholders);
+			parsed.push(
+				<span
+					key={`token-${key}-${startIndex}`}
+					contentEditable={false}
+					data-dynamic-token-key={key}
+					className="inline-flex align-middle mx-0.5"
+				>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-900 hover:bg-sky-200/60"
+								onMouseDown={(event) => event.preventDefault()}
+								title={`Dynamic source: ${key}`}
+							>
+								<Database className="h-3 w-3" />
+								{sourceLabel}
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" sideOffset={8} className="w-[280px] rounded-2xl p-0 overflow-hidden">
+							<div className="px-4 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35">
+								<span>Dynamic source › {sourceLabel}</span>
+							</div>
+							<div className="p-1.5">
+								<DropdownMenuSub>
+									<DropdownMenuSubTrigger className="h-11 rounded-xl text-base">
+										<Database className="h-4 w-4" />
+										Edit value
+									</DropdownMenuSubTrigger>
+									<DropdownMenuSubContent className="w-[300px] rounded-2xl p-0 overflow-hidden">
+										<div className="px-4 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35">
+											Choose dynamic source
+										</div>
+										<div className="p-1.5 max-h-64 overflow-y-auto">
+											{placeholders.map((placeholder) => {
+												const optionLabel = placeholder.label?.trim() || placeholder.key;
+												return (
+													<DropdownMenuItem
+														key={placeholder.id}
+														className="h-10 rounded-xl text-sm"
+														onSelect={(event) => {
+															event.preventDefault();
+															const nextValue = replaceDynamicTokenAt(value, key, placeholder.key, startIndex);
+															const nextOffset = startIndex + getDynamicTokenString(placeholder.key).length;
+															handleSetValue(nextValue, nextOffset);
+														}}
+													>
+														<Database className="h-4 w-4" />
+														{optionLabel}
+													</DropdownMenuItem>
+												);
+											})}
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												className="h-10 rounded-xl text-sm"
+												onSelect={(event) => {
+													event.preventDefault();
+													const created = onCreatePlaceholder();
+													if (created) {
+														const nextValue = replaceDynamicTokenAt(value, key, created.key, startIndex);
+														const nextOffset = startIndex + getDynamicTokenString(created.key).length;
+														handleSetValue(nextValue, nextOffset);
+													}
+												}}
+											>
+												<Plus className="h-4 w-4" />
+												Create dynamic source
+											</DropdownMenuItem>
+										</div>
+									</DropdownMenuSubContent>
+								</DropdownMenuSub>
+								<DropdownMenuItem
+									variant="destructive"
+									className="h-11 rounded-xl text-base"
+									onSelect={(event) => {
+										event.preventDefault();
+										const nextValue = removeDynamicTokenAt(value, key, startIndex);
+										handleSetValue(nextValue, startIndex);
+									}}
+								>
+									<Trash2 className="h-4 w-4" />
+									Remove dynamic source
+								</DropdownMenuItem>
+							</div>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</span>
+			);
+			lastIndex = startIndex + match[0].length;
+		}
+
+		if (lastIndex < value.length) {
+			parsed.push(
+				<span
+					key="text-tail"
+					className={multiline ? "whitespace-pre-wrap break-words" : "whitespace-pre"}
+				>
+					{value.slice(lastIndex)}
+				</span>
+			);
+		}
+
+		return parsed;
+	}, [value, placeholders, multiline, onCreatePlaceholder, handleSetValue]);
+
+	return (
+		<div
+			ref={editorRef}
+			contentEditable
+			suppressContentEditableWarning
+			data-placeholder={placeholder ?? ""}
+			className={[
+				"w-full rounded-md border border-input bg-background px-3 py-2 text-left text-sm leading-5 outline-none ring-offset-background",
+				"focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+				"empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none",
+				multiline ? "min-h-20 whitespace-pre-wrap" : "min-h-9 whitespace-pre flex flex-wrap items-center",
+			].join(" ")}
+			style={multiline ? { minHeight: `${Math.max(rows, 3) * 1.4}rem` } : undefined}
+			onInput={handleInput}
+			onPaste={handlePaste}
+			onKeyDown={handleKeyDown}
+			onBlur={() => {
+				pendingCaretOffsetRef.current = null;
+			}}
+		>
+			{parts.length > 0 ? parts : null}
+		</div>
+	);
 };
 
 type PlaceholderInsertButtonProps = {
@@ -170,9 +621,13 @@ const PlaceholderTextareaField = ({
 	invalidPlaceholders,
 	onAddPlaceholder,
 }: PlaceholderTextareaFieldProps) => {
-	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const insertTokenHandlerRef = useRef<((key: string) => void) | null>(null);
 	const handleInsert = (key: string) => {
-		insertTokenAtCursor(textareaRef.current, value, onChange, key);
+		if (insertTokenHandlerRef.current) {
+			insertTokenHandlerRef.current(key);
+			return;
+		}
+		onChange(`${value}${getDynamicTokenString(key)}`);
 	};
 	return (
 		<div className="space-y-2">
@@ -207,11 +662,14 @@ const PlaceholderTextareaField = ({
 					onInsert={handleInsert}
 				/>
 			</div>
-			<Textarea
-				ref={textareaRef}
+			<DynamicTokenizedEditor
 				value={value}
-				onChange={(e) => onChange(e.target.value)}
+				placeholders={placeholders}
+				multiline
 				rows={rows}
+				onCreatePlaceholder={onAddPlaceholder}
+				onChange={onChange}
+				insertTokenHandlerRef={insertTokenHandlerRef}
 			/>
 		</div>
 	);
@@ -221,7 +679,6 @@ type PlaceholderInputFieldProps = {
 	label: ReactNode;
 	value: string;
 	onChange: (value: string) => void;
-	type?: string;
 	placeholders: EmailTemplatePlaceholder[];
 	invalidPlaceholders?: string[];
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
@@ -232,15 +689,18 @@ const PlaceholderInputField = ({
 	label,
 	value,
 	onChange,
-	type = "text",
 	placeholders,
 	invalidPlaceholders,
 	onAddPlaceholder,
 	placeholder: inputPlaceholder,
 }: PlaceholderInputFieldProps) => {
-	const inputRef = useRef<HTMLInputElement | null>(null);
+	const insertTokenHandlerRef = useRef<((key: string) => void) | null>(null);
 	const handleInsert = (key: string) => {
-		insertTokenAtCursor(inputRef.current, value, onChange, key);
+		if (insertTokenHandlerRef.current) {
+			insertTokenHandlerRef.current(key);
+			return;
+		}
+		onChange(`${value}${getDynamicTokenString(key)}`);
 	};
 	return (
 		<div className="space-y-2">
@@ -275,12 +735,13 @@ const PlaceholderInputField = ({
 					onInsert={handleInsert}
 				/>
 			</div>
-			<Input
-				ref={inputRef}
-				type={type}
+			<DynamicTokenizedEditor
 				value={value}
-				onChange={(e) => onChange(e.target.value)}
+				placeholders={placeholders}
 				placeholder={inputPlaceholder}
+				onCreatePlaceholder={onAddPlaceholder}
+				onChange={onChange}
+				insertTokenHandlerRef={insertTokenHandlerRef}
 			/>
 		</div>
 	);
