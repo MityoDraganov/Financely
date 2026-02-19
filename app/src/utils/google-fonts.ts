@@ -105,6 +105,7 @@ export function loadGoogleFonts(families: string[]): void {
 	if (typeof document === "undefined") return;
 
 	const pending = families
+		.filter((family): family is string => typeof family === "string")
 		.map((family) => family.trim())
 		.filter((family) => family.length > 0 && !loadedFamilies.has(family));
 	if (pending.length === 0) return;
