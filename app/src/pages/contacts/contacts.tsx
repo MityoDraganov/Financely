@@ -1,6 +1,21 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Edit, Trash2, Mail, Phone, Building, MoreHorizontal, User, Users, Download } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Mail,
+  Phone,
+  Building,
+  MoreHorizontal,
+  User,
+  Users,
+  Download,
+  Database,
+  ChevronLeft,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +29,20 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useContactsByOrg, useCreateContact, useUpdateContact, useDeleteContact, useSearchContacts } from "@/hooks/repository-hooks/use-contacts";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
-import { ContactData, Contact } from "@/core";
+import {
+  ContactData,
+  CreateContactMetafieldDefinitionInput,
+  UpdateContactMetafieldDefinitionInput,
+} from "@/core";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ExportDialog } from "@/components/export-import/export-dialog";
+import {
+  useContactMetafieldDefinitions,
+  useDeleteContactMetafieldDefinition,
+} from "@/hooks/repository-hooks/use-contact-metafields";
+import { useCreateContactMetafieldDefinition } from "@/hooks/service-hooks/use-contact-metafield-functions";
+import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 
 interface ContactFormData {
   firstName: string;
@@ -51,22 +76,26 @@ interface ContactFormData {
 
 export default function ContactsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isManagingMetafields, setIsManagingMetafields] = useState(false);
+  const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
 
   // Queries
   const { data: contacts = [], isLoading: isLoadingContacts } = useContactsByOrg(currentOrganization?.id);
   const { data: searchResults = [] } = useSearchContacts(currentOrganization?.id, searchTerm);
+  const { data: metafieldDefinitions = [] } = useContactMetafieldDefinitions(currentOrganization?.id);
   
   // Mutations
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();
   const deleteContactMutation = useDeleteContact();
+  const createMetafieldDefinition = useCreateContactMetafieldDefinition();
+  const deleteMetafieldDefinition = useDeleteContactMetafieldDefinition();
 
   // Form handling
   const form = useForm<ContactFormData>({
@@ -187,53 +216,6 @@ export default function ContactsPage() {
     }
   };
 
-  const handleUpdateContact = async (data: ContactFormData) => {
-    if (!editingContact?.id) return;
-
-    // Get existing phone numbers
-    const existingContactData = editingContact.data || editingContact;
-    const existingPhones = Array.isArray(existingContactData.phone)
-      ? existingContactData.phone
-      : existingContactData.phone
-      ? [existingContactData.phone]
-      : [];
-
-    // If new phone is provided and different, add it to the list
-    const newPhone = data.phone?.trim();
-    const updatedPhones = [...existingPhones];
-    if (newPhone && !existingPhones.includes(newPhone)) {
-      updatedPhones.push(newPhone);
-    }
-
-    try {
-      await updateContactMutation.mutateAsync({
-        id: editingContact.id,
-        data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          phone: updatedPhones.length > 0 ? updatedPhones : [],
-          company: data.company,
-          jobTitle: data.jobTitle,
-          address: data.address,
-          tags: data.tags,
-          notes: data.notes,
-          status: data.status,
-          preferences: data.preferences,
-          socialMedia: data.socialMedia,
-          organizationId: currentOrganization?.id || "",
-        },
-      });
-      setIsEditDialogOpen(false);
-      setEditingContact(null);
-      form.reset();
-      toast.success(t('contacts.messages.contactUpdated'));
-    } catch (error) {
-      console.error("Failed to update contact:", error);
-      toast.error(t('contacts.messages.updateFailed'));
-    }
-  };
-
   const handleDeleteContact = async () => {
     if (!deleteContactId) return;
 
@@ -245,45 +227,6 @@ export default function ContactsPage() {
     }
   };
 
-  const openEditDialog = (contact: Contact) => {
-    setEditingContact(contact);
-    // Handle both direct data structure and nested data structure
-    const contactData = contact.data || contact;
-    
-    form.reset({
-      firstName: contactData.firstName || "",
-      lastName: contactData.lastName || "",
-      email: contactData.email || "",
-      phone: Array.isArray(contactData.phone)
-        ? contactData.phone[0] || ""
-        : contactData.phone || "",
-      company: contactData.company || "",
-      jobTitle: contactData.jobTitle || "",
-      address: contactData.address || {
-        street: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
-      },
-      tags: contactData.tags || [],
-      notes: contactData.notes || "",
-      status: contactData.status || "lead",
-      preferences: contactData.preferences || {
-        preferredContactMethod: "email",
-        marketingOptIn: false,
-        newsletterOptIn: false,
-      },
-      socialMedia: contactData.socialMedia || {
-        linkedin: "",
-        twitter: "",
-        facebook: "",
-        instagram: "",
-      },
-    });
-    setIsEditDialogOpen(true);
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active": return "bg-green-100 text-green-800";
@@ -292,6 +235,40 @@ export default function ContactsPage() {
       case "lead": return "bg-purple-100 text-purple-800";
       case "inactive": return "bg-gray-100 text-gray-800";
       default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const handleCreateMetafieldDefinition = async (data: CreateContactMetafieldDefinitionInput | UpdateContactMetafieldDefinitionInput) => {
+    if (!currentOrganization?.id) {
+      toast.error("Organization is required");
+      return;
+    }
+
+    try {
+      if ("organizationId" in data) {
+        await createMetafieldDefinition.mutateAsync(data as CreateContactMetafieldDefinitionInput);
+      } else {
+        throw new Error("Update not supported in this context");
+      }
+      toast.success("Contact metafield definition created successfully");
+      setIsCreatingMetafield(false);
+    } catch (error) {
+      console.error("Failed to create contact metafield definition:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to create contact metafield definition: ${errorMessage}`);
+    }
+  };
+
+  const handleDeleteMetafieldDefinition = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this metafield definition?")) {
+      return;
+    }
+
+    try {
+      await deleteMetafieldDefinition.mutateAsync(id);
+      toast.success("Metafield definition deleted successfully");
+    } catch {
+      toast.error("Failed to delete metafield definition");
     }
   };
 
@@ -311,6 +288,106 @@ export default function ContactsPage() {
     );
   }
 
+  if (isCreatingMetafield) {
+    return (
+      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsCreatingMetafield(false)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold">Add contact metafield definition</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Define a new metafield that can be added to contacts
+            </p>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-6">
+            <MetafieldDefinitionForm
+              onSubmit={handleCreateMetafieldDefinition}
+              onCancel={() => setIsCreatingMetafield(false)}
+              isPending={createMetafieldDefinition.isPending}
+              organizationId={currentOrganization?.id || ""}
+              showCategories={false}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isManagingMetafields) {
+    return (
+      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsManagingMetafields(false)}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold">Contact metafield definitions</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage custom fields that can be added to contacts
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setIsCreatingMetafield(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add metafield definition
+          </Button>
+        </div>
+
+        {metafieldDefinitions.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Database className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No metafield definitions found</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {metafieldDefinitions.map((def) => (
+              <Card key={def.id}>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-lg">{def.name}</h3>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteMetafieldDefinition(def.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {def.description && (
+                    <p className="text-sm text-muted-foreground mb-4">{def.description}</p>
+                  )}
+                  {def.options?.storefrontApiAccess && (
+                    <Badge variant="outline" className="text-xs">
+                      Storefront API
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
@@ -320,6 +397,10 @@ export default function ContactsPage() {
           <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsManagingMetafields(true)}>
+            <Database className="mr-2 h-4 w-4" />
+            Metafields
+          </Button>
           <Button variant="outline" onClick={() => setShowExportDialog(true)}>
             <Download className="mr-2 h-4 w-4" />
             Export
@@ -493,7 +574,11 @@ export default function ContactsPage() {
                       }
                       
                       return (
-                        <TableRow key={contact.id}>
+                        <TableRow
+                          key={contact.id}
+                          className="cursor-pointer"
+                          onClick={() => navigate(`/contacts/${contact.id}`)}
+                        >
                           <TableCell className="font-medium">
                             {contactData.firstName || ''} {contactData.lastName || ''}
                           </TableCell>
@@ -535,7 +620,7 @@ export default function ContactsPage() {
                               ) : null;
                             })()}
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm">
@@ -543,12 +628,12 @@ export default function ContactsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditDialog(contact)}>
+                                <DropdownMenuItem onClick={() => navigate(`/contacts/${contact.id}`)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   {t('contacts.actions.edit')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   onClick={() => setDeleteContactId(contact.id)}
                                   className="text-red-600"
                                 >
@@ -583,7 +668,11 @@ export default function ContactsPage() {
                 : [];
 
               return (
-                <Card key={contact.id} className="p-3">
+                <Card
+                  key={contact.id}
+                  className="p-3 cursor-pointer"
+                  onClick={() => navigate(`/contacts/${contact.id}`)}
+                >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
@@ -596,27 +685,29 @@ export default function ContactsPage() {
                           </p>
                         )}
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(contact)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            {t('contacts.actions.edit')}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            onClick={() => setDeleteContactId(contact.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {t('contacts.actions.delete')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => navigate(`/contacts/${contact.id}`)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              {t('contacts.actions.edit')}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteContactId(contact.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t('contacts.actions.delete')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
 
                     <div className="space-y-2 text-xs">
@@ -637,14 +728,17 @@ export default function ContactsPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t">
+                    <div
+                      className="flex items-center justify-between pt-2 border-t"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Badge className={getStatusColor(contactData.status || 'lead')} variant="outline">
                         {t(`contacts.status.${contactData.status || 'lead'}`)}
                       </Badge>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => openEditDialog(contact)}
+                        onClick={() => navigate(`/contacts/${contact.id}`)}
                         className="h-7 text-xs"
                       >
                         <Edit className="h-3.5 w-3.5 mr-1.5" />
@@ -658,108 +752,6 @@ export default function ContactsPage() {
           </div>
         </>
       )}
-
-      {/* Edit Contact Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('contacts.editTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('contacts.editDescription')}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit(handleUpdateContact)} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-firstName">{t('contacts.form.firstName')}</Label>
-                <Input
-                  id="edit-firstName"
-                  {...form.register("firstName", { required: t('contacts.form.firstNameRequired') })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-lastName">{t('contacts.form.lastName')}</Label>
-                <Input
-                  id="edit-lastName"
-                  {...form.register("lastName", { required: t('contacts.form.lastNameRequired') })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">{t('contacts.form.email')}</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  {...form.register("email", { required: t('contacts.form.emailRequired') })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-phone">{t('contacts.form.phone')}</Label>
-                <Input
-                  id="edit-phone"
-                  {...form.register("phone")}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-company">{t('contacts.form.company')}</Label>
-                <Input
-                  id="edit-company"
-                  {...form.register("company")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-jobTitle">{t('contacts.form.jobTitle')}</Label>
-                <Input
-                  id="edit-jobTitle"
-                  {...form.register("jobTitle")}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">{t('contacts.form.status')}</Label>
-              <Select
-                value={form.watch("status")}
-                onValueChange={(value) => form.setValue("status", value as ContactFormData["status"])}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('contacts.form.statusPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lead">{t('contacts.status.lead')}</SelectItem>
-                  <SelectItem value="prospect">{t('contacts.status.prospect')}</SelectItem>
-                  <SelectItem value="customer">{t('contacts.status.customer')}</SelectItem>
-                  <SelectItem value="active">{t('contacts.status.active')}</SelectItem>
-                  <SelectItem value="inactive">{t('contacts.status.inactive')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">{t('contacts.form.notes')}</Label>
-              <Textarea
-                id="edit-notes"
-                rows={3}
-                {...form.register("notes")}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                {t('contacts.actions.cancel')}
-              </Button>
-              <Button type="submit" disabled={updateContactMutation.isPending}>
-                {updateContactMutation.isPending ? t('contacts.actions.updating') : t('contacts.actions.update')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteContactId} onOpenChange={() => setDeleteContactId(null)}>

@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { ChevronLeft, Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
@@ -44,6 +51,17 @@ import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { useGenerateEmailTemplate } from "@/hooks/service-hooks/use-email-template-generation";
 import { AIEmailBuilderDialog } from "@/components/email-designer/ai-email-builder-dialog";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
+import { useContactsByOrg } from "@/hooks/repository-hooks/use-contacts";
+import {
+	getEntityDynamicSourceFields,
+	getEntityDynamicSourceMapByPlaceholderKey,
+} from "@/utils/dynamic-sources";
+import {
+	buildPreviewPlaceholderValues,
+	chooseDefaultPreviewRecordIds,
+	formatContactPreviewLabel,
+	formatProductPreviewLabel,
+} from "@/utils/email-preview-context";
 import {
 	useEmailTemplateVersions,
 	useRestoreEmailTemplateVersion,
@@ -67,6 +85,7 @@ const defaultDesignTokens: EmailTemplateDesignTokens = {
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
 const PLACEHOLDER_KEY_REGEX = /^[A-Za-z0-9_-]+$/;
+const AUTO_PREVIEW_VALUE = "__auto_preview__";
 
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
@@ -97,7 +116,24 @@ export default function EmailDesignerPage() {
 	const authUser = useFirebaseAuthUser();
 	const generateEmailTemplate = useGenerateEmailTemplate();
 	const { data: products = [] } = useProductsByOrg(orgId);
+	const { data: contacts = [] } = useContactsByOrg(orgId);
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
+	const [previewOverrides, setPreviewOverrides] = useState<{
+		productId?: string;
+		contactId?: string;
+	}>({});
+	const [previewOverrideMode, setPreviewOverrideMode] = useState<{
+		product: "auto" | "manual";
+		contact: "auto" | "manual";
+	}>({
+		product: "auto",
+		contact: "auto",
+	});
+	const dynamicSources = useMemo(() => getEntityDynamicSourceFields(), []);
+	const dynamicSourceByPlaceholderKey = useMemo(
+		() => getEntityDynamicSourceMapByPlaceholderKey(),
+		[],
+	);
 	
 	// Use context values with safe defaults
 	const safeTemplates = useMemo(() => {
@@ -1148,12 +1184,37 @@ export default function EmailDesignerPage() {
 
 		// Only update if there are changes
 		if (missingKeys.length > 0 || unusedKeys.length > 0) {
-			const newPlaceholders: EmailTemplatePlaceholder[] = missingKeys.map(key => ({
-				id: crypto.randomUUID(),
-				key,
-				label: undefined,
-				description: undefined,
-			}));
+			const buildDynamicSourceMetadata = (key: string) => {
+				const source = dynamicSourceByPlaceholderKey[key.toLowerCase()];
+				if (!source) {
+					return {
+						label: undefined,
+						description: undefined,
+						source: undefined,
+					};
+				}
+				return {
+					label: source.label,
+					description: source.description,
+					source: {
+						type: "entity_field" as const,
+						entity: source.entity,
+						path: source.path,
+						valueType: source.valueType,
+					},
+				};
+			};
+
+			const newPlaceholders: EmailTemplatePlaceholder[] = missingKeys.map((key) => {
+				const dynamicSourceMetadata = buildDynamicSourceMetadata(key);
+				return {
+					id: crypto.randomUUID(),
+					key,
+					label: dynamicSourceMetadata.label,
+					description: dynamicSourceMetadata.description,
+					source: dynamicSourceMetadata.source,
+				};
+			});
 
 			// Use functional update to ensure we merge with latest placeholders
 			setDraftOverrides((prev) => {
@@ -1165,12 +1226,31 @@ export default function EmailDesignerPage() {
 				const filteredPlaceholders = currentPlaceholders.filter(p => 
 					contentKeysSet.has(p.key.toLowerCase())
 				);
+				const enrichedPlaceholders = filteredPlaceholders.map((placeholder) => {
+					const dynamicSourceMetadata = buildDynamicSourceMetadata(placeholder.key);
+					if (!dynamicSourceMetadata.source) {
+						return placeholder;
+					}
+					return {
+						...placeholder,
+						label: placeholder.label?.trim() || dynamicSourceMetadata.label,
+						description:
+							placeholder.description?.trim() || dynamicSourceMetadata.description,
+						source: placeholder.source ?? dynamicSourceMetadata.source,
+					};
+				});
 				
 				// Add new placeholders
-				const updatedPlaceholders = [...filteredPlaceholders, ...trulyMissing];
+				const updatedPlaceholders = [...enrichedPlaceholders, ...trulyMissing];
 				
 				// Only update if there are actual changes
-				if (trulyMissing.length === 0 && filteredPlaceholders.length === currentPlaceholders.length) {
+				const didEnrichExisting =
+					JSON.stringify(filteredPlaceholders) !== JSON.stringify(enrichedPlaceholders);
+				if (
+					trulyMissing.length === 0 &&
+					filteredPlaceholders.length === currentPlaceholders.length &&
+					!didEnrichExisting
+				) {
 					return prev;
 				}
 
@@ -1186,7 +1266,157 @@ export default function EmailDesignerPage() {
 		// We intentionally exclude draftTemplate.placeholders from deps to avoid infinite loops
 		// since this effect updates placeholders. We read placeholders inside the effect.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [draftTemplate?.blocks, draftTemplate?.subject, draftTemplate?.preheader, extractPlaceholderKeysFromContent, normalizedBaseTemplate?.placeholders]);
+	}, [
+		draftTemplate?.blocks,
+		draftTemplate?.subject,
+		draftTemplate?.preheader,
+		extractPlaceholderKeysFromContent,
+		normalizedBaseTemplate?.placeholders,
+		dynamicSourceByPlaceholderKey,
+	]);
+
+	const placeholders = useMemo(
+		() => draftTemplate?.placeholders ?? normalizedBaseTemplate?.placeholders ?? [],
+		[draftTemplate?.placeholders, normalizedBaseTemplate?.placeholders],
+	);
+	const draftBlocks = draftTemplate?.blocks;
+	const draftSubject = draftTemplate?.subject;
+	const draftPreheader = draftTemplate?.preheader;
+	const usedPlaceholderKeys = useMemo(
+		() => {
+			if (!draftBlocks?.length && !draftSubject && !draftPreheader) {
+				return new Set<string>();
+			}
+			return extractPlaceholderKeysFromContent(
+				draftBlocks ?? [],
+				draftSubject,
+				draftPreheader,
+			);
+		},
+		[
+			draftBlocks,
+			draftSubject,
+			draftPreheader,
+			extractPlaceholderKeysFromContent,
+		],
+	);
+	const defaultPreviewRecordIds = useMemo(
+		() =>
+			chooseDefaultPreviewRecordIds({
+				placeholders,
+				usedPlaceholderKeys,
+				products,
+				contacts,
+				dynamicSourceByPlaceholderKey,
+			}),
+		[
+			placeholders,
+			usedPlaceholderKeys,
+			products,
+			contacts,
+			dynamicSourceByPlaceholderKey,
+		],
+	);
+	const selectedProductId =
+		previewOverrideMode.product === "manual"
+			? previewOverrides.productId
+			: defaultPreviewRecordIds.productId;
+	const selectedContactId =
+		previewOverrideMode.contact === "manual"
+			? previewOverrides.contactId
+			: defaultPreviewRecordIds.contactId;
+	const selectedProduct = useMemo(
+		() => products.find((product) => product.id === selectedProductId),
+		[products, selectedProductId],
+	);
+	const autoSelectedProduct = useMemo(
+		() => products.find((product) => product.id === defaultPreviewRecordIds.productId),
+		[products, defaultPreviewRecordIds.productId],
+	);
+	const selectedContact = useMemo(
+		() => contacts.find((contact) => contact.id === selectedContactId),
+		[contacts, selectedContactId],
+	);
+	const autoSelectedContact = useMemo(
+		() => contacts.find((contact) => contact.id === defaultPreviewRecordIds.contactId),
+		[contacts, defaultPreviewRecordIds.contactId],
+	);
+	const previewPlaceholderValues = useMemo(
+		() =>
+			buildPreviewPlaceholderValues({
+				placeholders,
+				usedPlaceholderKeys,
+				selectedProduct,
+				selectedContact,
+				dynamicSourceByPlaceholderKey,
+			}),
+		[
+			placeholders,
+			usedPlaceholderKeys,
+			selectedProduct,
+			selectedContact,
+			dynamicSourceByPlaceholderKey,
+		],
+	);
+	const hasPreviewableDynamicSources = useMemo(() => {
+		const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
+		return placeholders.some((placeholder) => {
+			if (!usedKeysLower.has(placeholder.key.toLowerCase())) {
+				return false;
+			}
+			if (placeholder.source?.type === "entity_field") {
+				return true;
+			}
+			return Boolean(dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]);
+		});
+	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
+	const usesProductSources = useMemo(() => {
+		const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
+		return placeholders.some((placeholder) => {
+			if (!usedKeysLower.has(placeholder.key.toLowerCase())) return false;
+			if (placeholder.source?.type === "entity_field") return placeholder.source.entity === "product";
+			return dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]?.entity === "product";
+		});
+	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
+	const usesContactSources = useMemo(() => {
+		const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
+		return placeholders.some((placeholder) => {
+			if (!usedKeysLower.has(placeholder.key.toLowerCase())) return false;
+			if (placeholder.source?.type === "entity_field") return placeholder.source.entity === "contact";
+			return dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]?.entity === "contact";
+		});
+	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
+	const previewProductOptions = useMemo(
+		() =>
+			products.map((product) => ({
+				id: product.id,
+				label: formatProductPreviewLabel(product),
+			})),
+		[products],
+	);
+	const previewContactOptions = useMemo(
+		() =>
+			contacts.map((contact) => ({
+				id: contact.id,
+				label: formatContactPreviewLabel(contact),
+			})),
+		[contacts],
+	);
+	const defaultProductLabel = autoSelectedProduct
+		? formatProductPreviewLabel(autoSelectedProduct)
+		: "No matching product";
+	const defaultContactLabel = autoSelectedContact
+		? formatContactPreviewLabel(autoSelectedContact)
+		: "No matching contact";
+
+	useEffect(() => {
+		if (!draftTemplate?.id) return;
+		setPreviewOverrides({});
+		setPreviewOverrideMode({
+			product: "auto",
+			contact: "auto",
+		});
+	}, [draftTemplate?.id]);
 
 	if (isLoadingTemplates) {
 		return (
@@ -1243,16 +1473,14 @@ export default function EmailDesignerPage() {
 		);
 	}
 
-if (!draftTemplate || !normalizedBaseTemplate) {
-	return (
-		<div className="py-6 pr-6 space-y-4">
-			<Skeleton className="h-10 w-64" />
-			<Skeleton className="h-[600px] w-full" />
-		</div>
-	);
-}
-
-	const placeholders = draftTemplate.placeholders ?? [];
+	if (!draftTemplate || !normalizedBaseTemplate) {
+		return (
+			<div className="py-6 pr-6 space-y-4">
+				<Skeleton className="h-10 w-64" />
+				<Skeleton className="h-[600px] w-full" />
+			</div>
+		);
+	}
 
 	// Detect invalid placeholder patterns in content
 	const invalidPlaceholders = draftTemplate?.blocks
@@ -1313,6 +1541,67 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 		return newPlaceholder;
 	};
 
+	const handlePreviewProductChange = (value: string) => {
+		if (value === AUTO_PREVIEW_VALUE) {
+			setPreviewOverrideMode((prev) => ({ ...prev, product: "auto" }));
+			setPreviewOverrides((prev) => ({ ...prev, productId: undefined }));
+			return;
+		}
+		setPreviewOverrideMode((prev) => ({ ...prev, product: "manual" }));
+		setPreviewOverrides((prev) => ({ ...prev, productId: value }));
+	};
+
+	const handlePreviewContactChange = (value: string) => {
+		if (value === AUTO_PREVIEW_VALUE) {
+			setPreviewOverrideMode((prev) => ({ ...prev, contact: "auto" }));
+			setPreviewOverrides((prev) => ({ ...prev, contactId: undefined }));
+			return;
+		}
+		setPreviewOverrideMode((prev) => ({ ...prev, contact: "manual" }));
+		setPreviewOverrides((prev) => ({ ...prev, contactId: value }));
+	};
+
+	const handleSelectDynamicSource = (source: (typeof dynamicSources)[number]): EmailTemplatePlaceholder => {
+		const existingPlaceholder = placeholders.find(
+			(placeholder) => placeholder.key.toLowerCase() === source.placeholderKey.toLowerCase(),
+		);
+		const sourceMetadata = {
+			type: "entity_field" as const,
+			entity: source.entity,
+			path: source.path,
+			valueType: source.valueType,
+		};
+
+		if (existingPlaceholder) {
+			const enrichedPlaceholder: EmailTemplatePlaceholder = {
+				...existingPlaceholder,
+				label: existingPlaceholder.label?.trim() || source.label,
+				description: existingPlaceholder.description?.trim() || source.description,
+				source: existingPlaceholder.source ?? sourceMetadata,
+			};
+			if (JSON.stringify(existingPlaceholder) !== JSON.stringify(enrichedPlaceholder)) {
+				handleDraftChange({
+					placeholders: placeholders.map((placeholder) =>
+						placeholder.id === existingPlaceholder.id ? enrichedPlaceholder : placeholder,
+					),
+				});
+			}
+			return enrichedPlaceholder;
+		}
+
+		const newPlaceholder: EmailTemplatePlaceholder = {
+			id: crypto.randomUUID(),
+			key: source.placeholderKey,
+			label: source.label,
+			description: source.description,
+			source: sourceMetadata,
+		};
+		handleDraftChange({
+			placeholders: [...placeholders, newPlaceholder],
+		});
+		return newPlaceholder;
+	};
+
 	const handleNavigateToField = (blockId: string, field: string) => {
 		// Select the block first (this will automatically switch section via handleSelectBlock)
 		handleSelectBlock(blockId);
@@ -1357,7 +1646,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 
 	const propertiesContent = (
 		<div className="h-full min-h-0 min-w-0 flex flex-col overflow-hidden bg-background">
-			{/* Missing Values Alert - Top Priority */}
+				{/* Missing Values Alert - Top Priority */}
 			<div className="p-3 border-b shrink-0">
 				<EmailMissingValuesAlert
 					blocks={draftTemplate.blocks ?? []}
@@ -1366,20 +1655,22 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 			</div>
 			
 			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-			{selectedBlock ? (
-				<EmailBlockProperties
-					block={selectedBlock}
-					onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
-					onDelete={handleDeleteBlock}
-					onOpenImagePicker={handleOpenImagePicker}
-					placeholders={placeholders}
-					invalidPlaceholders={invalidPlaceholders}
-				onAddPlaceholder={handleAddPlaceholder}
-			/>
-			) : (
-					<EmailTemplateSettings
-						name={draftTemplate.name ?? ""}
-						versions={versions}
+				{selectedBlock ? (
+					<EmailBlockProperties
+						block={selectedBlock}
+						onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
+						onDelete={handleDeleteBlock}
+						onOpenImagePicker={handleOpenImagePicker}
+						placeholders={placeholders}
+						dynamicSources={dynamicSources}
+						onSelectDynamicSource={handleSelectDynamicSource}
+						invalidPlaceholders={invalidPlaceholders}
+						onAddPlaceholder={handleAddPlaceholder}
+					/>
+				) : (
+						<EmailTemplateSettings
+							name={draftTemplate.name ?? ""}
+							versions={versions}
 						currentVersion={currentVersion}
 						onSaveVersion={handleSaveVersion}
 						onRestoreVersion={handleRestoreVersion}
@@ -1409,7 +1700,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 							});
 						}}
 					/>
-			)}
+				)}
 			</div>
 		</div>
 	);
@@ -1431,10 +1722,69 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 				hasChanges={hasChanges}
 				isSaving={isSavePending}
 			/>
+			{hasPreviewableDynamicSources && (
+				<div className="shrink-0 border-b border-border/70 bg-background px-4 py-2 flex items-center gap-3">
+					<div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+						<Eye className="h-3.5 w-3.5" />
+						<span className="font-medium">Preview with</span>
+					</div>
+					<div className="flex items-center gap-2 flex-wrap">
+						{usesProductSources && (
+							<Select
+								value={
+									previewOverrideMode.product === "manual" && previewOverrides.productId
+										? previewOverrides.productId
+										: AUTO_PREVIEW_VALUE
+								}
+								onValueChange={handlePreviewProductChange}
+							>
+								<SelectTrigger className="h-7 text-xs w-52 bg-background">
+									<SelectValue placeholder="Product" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
+										<span className="text-muted-foreground">Auto:</span>{" "}{defaultProductLabel}
+									</SelectItem>
+									{previewProductOptions.map((option) => (
+										<SelectItem key={option.id} value={option.id} className="text-xs">
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+						{usesContactSources && (
+							<Select
+								value={
+									previewOverrideMode.contact === "manual" && previewOverrides.contactId
+										? previewOverrides.contactId
+										: AUTO_PREVIEW_VALUE
+								}
+								onValueChange={handlePreviewContactChange}
+							>
+								<SelectTrigger className="h-7 text-xs w-52 bg-background">
+									<SelectValue placeholder="Contact" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
+										<span className="text-muted-foreground">Auto:</span>{" "}{defaultContactLabel}
+									</SelectItem>
+									{previewContactOptions.map((option) => (
+										<SelectItem key={option.id} value={option.id} className="text-xs">
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					</div>
+				</div>
+			)}
 			<div className="flex-1 min-h-0 overflow-auto">
 				<EmailDesignerCanvas
 					blocks={draftTemplate.blocks ?? []}
 					placeholders={placeholders}
+					previewPlaceholderValues={previewPlaceholderValues}
 					selectedBlockId={selectedBlockId}
 					onSelectBlock={(id) => {
 						handleSelectBlock(id);
@@ -1593,6 +1943,7 @@ if (!draftTemplate || !normalizedBaseTemplate) {
 											<EmailDesignerCanvas
 											blocks={draftTemplate.blocks ?? []}
 											placeholders={placeholders}
+											previewPlaceholderValues={previewPlaceholderValues}
 												selectedBlockId={selectedBlockId}
 												onSelectBlock={(id) => {
 													handleSelectBlock(id);

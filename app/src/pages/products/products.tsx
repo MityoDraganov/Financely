@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Package, Eye, Plus, Edit, Trash2, Download, Database, Image as ImageIcon, Tag, Star, ChevronLeft } from "lucide-react";
+import { Search, Package, Plus, Edit, Trash2, Download, Database, Image as ImageIcon, Tag, Star, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useProductsByOrg, useDeleteProduct, useUpdateProduct } from "@/hooks";
+import { useProductsByOrg, useDeleteProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { CreateProductInput, CreateProductMetafieldDefinitionInput, UpdateProductMetafieldDefinitionInput } from "@/core";
@@ -23,17 +24,17 @@ import {
 } from "@/hooks/repository-hooks/use-product-metafields";
 import { useCreateProductMetafieldDefinition } from "@/hooks/service-hooks/use-product-metafield-functions";
 import { ProductForm } from "@/components/products/product-form";
-import { MetafieldDisplay } from "@/components/products/metafield-display";
-import { ProductMetafieldDefinitionForm } from "@/components/products/product-metafield-definition-form";
+import { MetafieldDisplay } from "@/components/metafields/metafield-display";
+import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 
 export default function ProductsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { formatDateTable, formatDateTime } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<{ id: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isManagingMetafields, setIsManagingMetafields] = useState(false);
@@ -44,14 +45,11 @@ export default function ProductsPage() {
   console.log(products);
   
   const createProductMutation = useCreateProduct();
-  const updateProductMutation = useUpdateProduct();
   const deleteProductMutation = useDeleteProduct();
   
-  const selectedProductData = selectedProduct 
+  const selectedProductData = selectedProduct
     ? products.find((p) => p.id === selectedProduct.id)
     : null;
-  
-  const editingProduct = editingId ? products.find((p) => p.id === editingId) : undefined;
 
   // Filter products - memoized to prevent recalculation on every render
   const filteredProducts = useMemo(() => {
@@ -123,27 +121,9 @@ export default function ProductsPage() {
   };
 
   const handleEditProduct = (productId: string) => {
-    setEditingId(productId);
+    navigate(`/products/${productId}`);
   };
 
-  const handleUpdateProduct = async (data: Partial<CreateProductInput>) => {
-    if (!editingId || !currentOrganization?.id) {
-      toast.error(t('products.messages.orgIdRequired'));
-      return;
-    }
-
-    try {
-      await updateProductMutation.mutateAsync({
-        id: editingId,
-        data,
-      });
-
-      toast.success(t('products.messages.productUpdated'));
-      setEditingId(null);
-    } catch (error) {
-      toast.error(t('products.messages.updateFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
-    }
-  };
 
   const { data: metafieldDefinitions = [], error: metafieldDefinitionsError } = useProductMetafieldDefinitions(currentOrganization?.id);
   if (metafieldDefinitionsError) {
@@ -229,18 +209,6 @@ export default function ProductsPage() {
     );
   }
 
-  if (editingProduct && currentOrganization?.id) {
-    return (
-      <ProductForm
-        initialData={editingProduct}
-        onSubmit={handleUpdateProduct}
-        onCancel={() => setEditingId(null)}
-        isPending={updateProductMutation.isPending}
-        organizationId={currentOrganization.id}
-      />
-    );
-  }
-
   if (isCreatingMetafield) {
     return (
       <div className="p-4 sm:p-6 space-y-6">
@@ -262,7 +230,7 @@ export default function ProductsPage() {
 
         <Card>
           <CardContent className="p-6">
-            <ProductMetafieldDefinitionForm
+            <MetafieldDefinitionForm
               onSubmit={handleCreateMetafieldDefinition}
               onCancel={() => setIsCreatingMetafield(false)}
               isPending={createMetafieldDefinition.isPending}
@@ -454,7 +422,11 @@ export default function ProductsPage() {
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
                       {filteredProducts.map((product) => (
-                        <tr key={product.id} className="hover:bg-neutral-100/50 border-b transition-colors">
+                        <tr
+                          key={product.id}
+                          className="hover:bg-neutral-100/50 border-b transition-colors cursor-pointer"
+                          onClick={() => navigate(`/products/${product.id}`)}
+                        >
                           <td className="p-3 align-top font-medium">
                             <div className="flex items-start gap-2">
                               {product.images && product.images.length > 0 ? (
@@ -526,17 +498,8 @@ export default function ProductsPage() {
                                 : t('products.details.na')}
                             </span>
                           </td>
-                          <td className="p-3 align-top">
+                          <td className="p-3 align-top" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1 flex-wrap">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title={t('products.actions.viewDetails')}
-                                onClick={() => setSelectedProduct({ id: product.id })}
-                                className="h-8 w-8 p-0 shrink-0"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -581,7 +544,8 @@ export default function ProductsPage() {
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="rounded-lg border bg-card p-4 shadow-sm"
+                    className="rounded-lg border bg-card p-4 shadow-sm cursor-pointer"
+                    onClick={() => navigate(`/products/${product.id}`)}
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
@@ -653,15 +617,10 @@ export default function ProductsPage() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-end space-x-2 pt-2 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedProduct({ id: product.id })}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          {t('products.actions.view')}
-                        </Button>
+                      <div
+                        className="flex items-center justify-end space-x-2 pt-2 border-t"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <Button
                           variant="ghost"
                           size="sm"
@@ -888,4 +847,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-

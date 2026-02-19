@@ -6,17 +6,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldTypeSelector } from "@/components/content/field-type-selector";
-import { ProductMetafieldDefinition, CreateProductMetafieldDefinitionInput, UpdateProductMetafieldDefinitionInput } from "@/core";
+import { CreateMetafieldDefinitionInput, MetafieldDefinition, UpdateMetafieldDefinitionInput } from "@/core";
 import { useMetaobjectDefinitions } from "@/hooks/repository-hooks/use-metaobjects";
 
 interface ProductMetafieldDefinitionFormProps {
-  initialData?: ProductMetafieldDefinition;
-  onSubmit: (data: CreateProductMetafieldDefinitionInput | UpdateProductMetafieldDefinitionInput) => Promise<void>;
+  initialData?: MetafieldDefinition;
+  onSubmit: (data: CreateMetafieldDefinitionInput | UpdateMetafieldDefinitionInput) => Promise<void>;
   onCancel: () => void;
   isPending?: boolean;
   organizationId: string;
   availableCategories?: string[];
   currentCategory?: string | null;
+  showCategories?: boolean;
 }
 
 export function ProductMetafieldDefinitionForm({
@@ -27,10 +28,11 @@ export function ProductMetafieldDefinitionForm({
   organizationId,
   availableCategories = [],
   currentCategory,
+  showCategories = true,
 }: ProductMetafieldDefinitionFormProps) {
   const isEditMode = !!initialData;
 
-  const [formData, setFormData] = useState<Partial<CreateProductMetafieldDefinitionInput>>({
+  const [formData, setFormData] = useState<Partial<CreateMetafieldDefinitionInput>>({
     name: initialData?.name || "",
     type: initialData?.type || "single_line_text_field",
     description: initialData?.description || "",
@@ -64,7 +66,7 @@ export function ProductMetafieldDefinitionForm({
     }
 
     if (isEditMode) {
-      const updateData: UpdateProductMetafieldDefinitionInput = {
+      const updateData: UpdateMetafieldDefinitionInput = {
         name: formData.name,
         type: formData.type,
         description: formData.description,
@@ -74,7 +76,7 @@ export function ProductMetafieldDefinitionForm({
       };
       await onSubmit(updateData);
     } else {
-      const createData: CreateProductMetafieldDefinitionInput = {
+      const createData: CreateMetafieldDefinitionInput = {
         organizationId,
         name: formData.name,
         type: formData.type!,
@@ -101,9 +103,9 @@ export function ProductMetafieldDefinitionForm({
       <div>
         <Label htmlFor="metafield-type">Type *</Label>
         <FieldTypeSelector
-          value={formData.type as Exclude<ProductMetafieldDefinition["type"], `list.${string}`>}
+          value={formData.type as Exclude<MetafieldDefinition["type"], `list.${string}`>}
           onSelect={(type) => {
-            const newType = type as ProductMetafieldDefinition["type"];
+            const newType = type as MetafieldDefinition["type"];
             setFormData({ 
               ...formData, 
               type: newType,
@@ -149,43 +151,45 @@ export function ProductMetafieldDefinitionForm({
           rows={3}
         />
       </div>
-      <div>
-        <Label>Category assignments</Label>
-        <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-          {availableCategories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No categories found. Create products with categories first.</p>
-          ) : (
-            availableCategories.map((category) => (
-              <div key={category} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id={`category-${category}`}
-                  checked={formData.categoryAssignments?.includes(category) || false}
-                  onChange={(e) => {
-                    const current = formData.categoryAssignments || [];
-                    if (e.target.checked) {
-                      setFormData({
-                        ...formData,
-                        categoryAssignments: [...current, category],
-                      });
-                    } else {
-                      setFormData({
-                        ...formData,
-                        categoryAssignments: current.filter((c) => c !== category),
-                      });
-                    }
-                  }}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor={`category-${category}`} className="text-sm font-normal cursor-pointer">
-                  {category}
-                </Label>
-              </div>
-            ))
-          )}
+      {showCategories && (
+        <div>
+          <Label>Category assignments</Label>
+          <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+            {availableCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No categories found. Create products with categories first.</p>
+            ) : (
+              availableCategories.map((category) => (
+                <div key={category} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`category-${category}`}
+                    checked={formData.categoryAssignments?.includes(category) || false}
+                    onChange={(e) => {
+                      const current = formData.categoryAssignments || [];
+                      if (e.target.checked) {
+                        setFormData({
+                          ...formData,
+                          categoryAssignments: [...current, category],
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          categoryAssignments: current.filter((c) => c !== category),
+                        });
+                      }
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor={`category-${category}`} className="text-sm font-normal cursor-pointer">
+                    {category}
+                  </Label>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
-      {currentCategory && (
+      )}
+      {showCategories && currentCategory && (
         <div className="flex items-center space-x-2 p-4 border rounded-lg">
           <input
             type="checkbox"
@@ -214,9 +218,9 @@ export function ProductMetafieldDefinitionForm({
       )}
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div>
-          <Label htmlFor="storefront-api" className="cursor-pointer">Storefront API access</Label>
+          <Label htmlFor="storefront-api" className="cursor-pointer">API access</Label>
           <p className="text-xs text-muted-foreground mt-1">
-            Allow this metafield to be accessed via the Storefront API
+            Allow this metafield to be accessed via the API
           </p>
         </div>
         <Switch

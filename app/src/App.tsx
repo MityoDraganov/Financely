@@ -19,10 +19,12 @@ import InvoiceDetailPage from "./pages/invoices/invoice-detail";
 import UploadInvoicePage from "./pages/invoices/upload-invoice";
 import InvoiceUploadFlowPage from "./pages/invoice-upload-flow";
 import ContactsPage from "./pages/contacts/contacts";
+import ContactDetailPage from "./pages/contacts/contact-detail";
 import LeadsPage from "./pages/leads/leads";
 import ProposalsPage from "./pages/proposals/proposals";
 import ProposalDetailPage from "./pages/proposals/proposal-detail";
 import ProductsPage from "./pages/products/products";
+import ProductDetailPage from "./pages/products/product-detail";
 import SettingsLayout from "./pages/settings/layout";
 import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
@@ -229,6 +231,16 @@ function App() {
 												}
 											/>
 											<Route
+												path="/contacts/:id"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<ContactDetailPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
 												path="/leads"
 												element={
 													<ProtectedRoute>
@@ -264,6 +276,16 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<ProductsPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/products/:id"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<ProductDetailPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

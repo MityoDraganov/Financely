@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import { ProductMetafieldDefinition } from "@/core";
+import { MetafieldDefinition } from "@/core";
 import { useMetaobjects, useMetaobjectDefinitions, useCreateMetaobject } from "@/hooks/repository-hooks/use-metaobjects";
 import { toast } from "sonner";
 import { CreateMetaobjectEntryDialog } from "./create-metaobject-entry-dialog";
 import { SelectFileDialog } from "./select-file-dialog";
 
 interface MetafieldInputProps {
-  definition: ProductMetafieldDefinition;
+  definition: MetafieldDefinition;
   value: unknown;
   onChange: (value: unknown) => void;
   error?: string;
@@ -895,4 +895,3 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
     </>
   );
 }
-

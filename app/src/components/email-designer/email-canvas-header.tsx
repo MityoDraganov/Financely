@@ -35,7 +35,7 @@ export function EmailCanvasHeader({
 	isSaving = false,
 }: EmailCanvasHeaderProps) {
 	const { t } = useTranslation();
-	
+
 	const handleTemplateChange = (id: string) => {
 		if (id === "new") {
 			onCreateNewTemplate();

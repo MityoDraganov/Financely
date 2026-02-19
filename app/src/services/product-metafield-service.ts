@@ -1,6 +1,8 @@
 import {
   ProductMetafieldDefinition,
+  ProductMetafieldDefinitionData,
   ProductMetafield,
+  ProductMetafieldData,
   CreateProductMetafieldDefinitionInput,
   UpdateProductMetafieldDefinitionInput,
   CreateProductMetafieldInput,
@@ -8,9 +10,20 @@ import {
 } from "@/core";
 import { getProductMetafieldDefinitionRepository, getProductMetafieldRepository } from "@/repositories/product-metafield-repository";
 import { databaseService } from "./database/database-service";
+import { createEntityMetafieldService } from "./entity-metafield-service-factory";
 
 const productMetafieldDefinitionRepository = getProductMetafieldDefinitionRepository(databaseService);
 const productMetafieldRepository = getProductMetafieldRepository(databaseService);
+const baseEntityMetafieldService = createEntityMetafieldService<
+  ProductMetafieldDefinition,
+  ProductMetafieldDefinitionData,
+  ProductMetafield,
+  ProductMetafieldData
+>({
+  definitionRepository: productMetafieldDefinitionRepository,
+  metafieldRepository: productMetafieldRepository,
+  entityIdField: "productId",
+});
 
 export type ProductMetafieldService = {
   // Product Metafield Definition operations
@@ -30,69 +43,42 @@ export type ProductMetafieldService = {
 
 export const productMetafieldService: ProductMetafieldService = {
   async createProductMetafieldDefinition(data) {
-    const result = await productMetafieldDefinitionRepository.create({
-      data,
-    });
-    return result;
+    return baseEntityMetafieldService.createMetafieldDefinition(data);
   },
 
   async getProductMetafieldDefinition(id) {
-    return productMetafieldDefinitionRepository.get({ id });
+    return baseEntityMetafieldService.getMetafieldDefinition(id);
   },
 
   async listProductMetafieldDefinitions(orgId) {
-    const result = await productMetafieldDefinitionRepository.getAll({
-      queryConstraints: [{ field: "organizationId", operator: "==" as const, value: orgId }],
-    });
-    return result || [];
+    return baseEntityMetafieldService.listMetafieldDefinitions(orgId);
   },
 
   async updateProductMetafieldDefinition(id, data) {
-    await productMetafieldDefinitionRepository.update({
-      id,
-      data,
-    });
+    await baseEntityMetafieldService.updateMetafieldDefinition(id, data);
   },
 
   async deleteProductMetafieldDefinition(id) {
-    await productMetafieldDefinitionRepository.delete({ id });
+    await baseEntityMetafieldService.deleteMetafieldDefinition(id);
   },
 
   async createProductMetafield(data) {
-    const result = await productMetafieldRepository.create({
-      data,
-    });
-    return result;
+    return baseEntityMetafieldService.createMetafield(data);
   },
 
   async getProductMetafield(id) {
-    return productMetafieldRepository.get({ id });
+    return baseEntityMetafieldService.getMetafield(id);
   },
 
   async listProductMetafields(orgId, productId, definitionId) {
-    const constraints: import("@/core").QueryConstraint[] = [
-      { field: "organizationId", operator: "==" as const, value: orgId }
-    ];
-    if (productId) {
-      constraints.push({ field: "productId", operator: "==" as const, value: productId });
-    }
-    if (definitionId) {
-      constraints.push({ field: "definitionId", operator: "==" as const, value: definitionId });
-    }
-    const result = await productMetafieldRepository.getAll({
-      queryConstraints: constraints,
-    });
-    return result || [];
+    return baseEntityMetafieldService.listMetafields(orgId, productId, definitionId);
   },
 
   async updateProductMetafield(id, data) {
-    await productMetafieldRepository.update({
-      id,
-      data,
-    });
+    await baseEntityMetafieldService.updateMetafield(id, data);
   },
 
   async deleteProductMetafield(id) {
-    await productMetafieldRepository.delete({ id });
+    await baseEntityMetafieldService.deleteMetafield(id);
   },
 };

@@ -56,6 +56,7 @@ function getAspectRatioStyle(
 type CanvasProps = {
   blocks: EmailTemplateBlock[];
 	placeholders?: EmailTemplatePlaceholder[];
+	previewPlaceholderValues?: Record<string, string>;
   selectedBlockId?: string;
   onSelectBlock: (blockId: string) => void;
   designTokens: EmailTemplateDesignTokens;
@@ -92,6 +93,7 @@ function resolveDynamicText(
 export function EmailDesignerCanvas({
   blocks,
 	placeholders = [],
+	previewPlaceholderValues = {},
   selectedBlockId,
   onSelectBlock,
   designTokens,
@@ -113,8 +115,12 @@ export function EmailDesignerCanvas({
 				formatPlaceholderPreviewValue(placeholder.key);
 			values.set(placeholder.key.toLowerCase(), mappedValue);
 		});
+		Object.entries(previewPlaceholderValues).forEach(([key, value]) => {
+			if (!value?.trim()) return;
+			values.set(key.toLowerCase(), value);
+		});
 		return values;
-	}, [placeholders]);
+	}, [placeholders, previewPlaceholderValues]);
 	const resolveDynamicValue = (value: string) =>
 		resolveDynamicText(value, placeholderValues);
 

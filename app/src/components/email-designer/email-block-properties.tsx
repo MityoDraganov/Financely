@@ -1,6 +1,12 @@
 import { useRef, useMemo, useCallback, useEffect, useLayoutEffect } from "react";
 import type { ClipboardEvent, FormEvent, KeyboardEvent, MutableRefObject, ReactNode } from "react";
 import { EmailTemplateBlock, EmailTemplatePlaceholder, EmailTypography, EmailBorder } from "@/core";
+import type { DynamicSourceField } from "@/utils/dynamic-sources";
+import {
+	DynamicSourceInsertMenu,
+	DynamicSourceTokenMenu,
+	type DynamicSourceOption,
+} from "@/components/email-designer/dynamic-source-token-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -10,21 +16,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Database } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Braces, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { parseNumber } from "@/lib/field-formatting";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 type EmailBlockPropertiesProps = {
   block?: EmailTemplateBlock;
@@ -32,6 +28,8 @@ type EmailBlockPropertiesProps = {
   onDelete: (blockId: string) => void;
 	onOpenImagePicker?: (blockId: string) => void;
 	placeholders: EmailTemplatePlaceholder[];
+	dynamicSources: DynamicSourceField[];
+	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
 	invalidPlaceholders?: string[];
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
 };
@@ -71,12 +69,63 @@ const getDynamicTokenString = (key: string) => `{{${key}}}`;
 
 const formatDynamicLabel = (
 	key: string,
-	placeholders: EmailTemplatePlaceholder[]
+	placeholders: EmailTemplatePlaceholder[],
+	dynamicSourcesByKey: Map<string, DynamicSourceField>
 ) => {
 	const match = placeholders.find(
 		(placeholder) => placeholder.key.toLowerCase() === key.toLowerCase()
 	);
-	return match?.label?.trim() || key;
+	if (match?.label?.trim()) {
+		return match.label.trim();
+	}
+	const dynamicSource = dynamicSourcesByKey.get(key.toLowerCase());
+	return dynamicSource?.label ?? key;
+};
+
+const buildAvailableDynamicSourceOptions = (
+	dynamicSources: DynamicSourceField[],
+	placeholders: EmailTemplatePlaceholder[],
+): DynamicSourceOption[] => {
+	const sourceByKey = new Map<string, DynamicSourceField | null>();
+	dynamicSources.forEach((source) => {
+		sourceByKey.set(source.placeholderKey.toLowerCase(), source);
+	});
+	placeholders.forEach((placeholder) => {
+		const key = placeholder.key.toLowerCase();
+		if (!sourceByKey.has(key)) {
+			sourceByKey.set(key, null);
+		}
+	});
+
+	return Array.from(sourceByKey.entries()).map(([key, dynamicSource]) => {
+		if (dynamicSource) {
+			return {
+				key: dynamicSource.placeholderKey,
+				label: dynamicSource.label,
+				description: dynamicSource.description,
+				dynamicSource,
+				categoryKey: dynamicSource.entity,
+				categoryLabel: dynamicSource.entityLabel,
+			};
+		}
+		const placeholderEntry = placeholders.find(
+			(placeholder) => placeholder.key.toLowerCase() === key
+		);
+		const sourceEntity = placeholderEntry?.source?.type === "entity_field"
+			? placeholderEntry.source.entity
+			: undefined;
+		const sourceEntityLabel = sourceEntity
+			? sourceEntity.charAt(0).toUpperCase() + sourceEntity.slice(1)
+			: "Custom";
+		return {
+			key: placeholderEntry?.key ?? key,
+			label: placeholderEntry?.label?.trim() || placeholderEntry?.key || key,
+			description: placeholderEntry?.description,
+			dynamicSource: null,
+			categoryKey: sourceEntity || "custom",
+			categoryLabel: sourceEntityLabel,
+		};
+	});
 };
 
 const removeDynamicTokenAt = (
@@ -299,24 +348,38 @@ const normalizeEditorValue = (value: string, multiline: boolean) => {
 const DynamicTokenizedEditor = ({
 	value,
 	placeholders,
+	dynamicSources,
 	multiline = false,
 	placeholder,
 	rows = 3,
+	onSelectDynamicSource,
 	onCreatePlaceholder,
 	onChange,
 	insertTokenHandlerRef,
 }: {
 	value: string;
 	placeholders: EmailTemplatePlaceholder[];
+	dynamicSources: DynamicSourceField[];
 	multiline?: boolean;
 	placeholder?: string;
 	rows?: number;
+	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
 	onCreatePlaceholder: () => EmailTemplatePlaceholder | null;
 	onChange: (value: string) => void;
 	insertTokenHandlerRef?: MutableRefObject<((key: string) => void) | null>;
 }) => {
 	const editorRef = useRef<HTMLDivElement | null>(null);
 	const pendingCaretOffsetRef = useRef<number | null>(null);
+	const dynamicSourcesByKey = useMemo(() => {
+		const lookup = new Map<string, DynamicSourceField>();
+		dynamicSources.forEach((source) => {
+			lookup.set(source.placeholderKey.toLowerCase(), source);
+		});
+		return lookup;
+	}, [dynamicSources]);
+	const availableSources = useMemo<DynamicSourceOption[]>(() => {
+		return buildAvailableDynamicSourceOptions(dynamicSources, placeholders);
+	}, [dynamicSources, placeholders]);
 
 	const handleSetValue = useCallback((nextValue: string, nextCaretOffset?: number) => {
 		pendingCaretOffsetRef.current = nextCaretOffset ?? null;
@@ -406,94 +469,34 @@ const DynamicTokenizedEditor = ({
 			}
 
 			const key = match[1];
-			const sourceLabel = formatDynamicLabel(key, placeholders);
+			const sourceLabel = formatDynamicLabel(key, placeholders, dynamicSourcesByKey);
 			parsed.push(
-				<span
+				<DynamicSourceTokenMenu
 					key={`token-${key}-${startIndex}`}
-					contentEditable={false}
-					data-dynamic-token-key={key}
-					className="inline-flex align-middle mx-0.5"
-				>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-900 hover:bg-sky-200/60"
-								onMouseDown={(event) => event.preventDefault()}
-								title={`Dynamic source: ${key}`}
-							>
-								<Database className="h-3 w-3" />
-								{sourceLabel}
-							</button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start" sideOffset={8} className="w-[280px] rounded-2xl p-0 overflow-hidden">
-							<div className="px-4 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35">
-								<span>Dynamic source › {sourceLabel}</span>
-							</div>
-							<div className="p-1.5">
-								<DropdownMenuSub>
-									<DropdownMenuSubTrigger className="h-11 rounded-xl text-base">
-										<Database className="h-4 w-4" />
-										Edit value
-									</DropdownMenuSubTrigger>
-									<DropdownMenuSubContent className="w-[300px] rounded-2xl p-0 overflow-hidden">
-										<div className="px-4 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35">
-											Choose dynamic source
-										</div>
-										<div className="p-1.5 max-h-64 overflow-y-auto">
-											{placeholders.map((placeholder) => {
-												const optionLabel = placeholder.label?.trim() || placeholder.key;
-												return (
-													<DropdownMenuItem
-														key={placeholder.id}
-														className="h-10 rounded-xl text-sm"
-														onSelect={(event) => {
-															event.preventDefault();
-															const nextValue = replaceDynamicTokenAt(value, key, placeholder.key, startIndex);
-															const nextOffset = startIndex + getDynamicTokenString(placeholder.key).length;
-															handleSetValue(nextValue, nextOffset);
-														}}
-													>
-														<Database className="h-4 w-4" />
-														{optionLabel}
-													</DropdownMenuItem>
-												);
-											})}
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="h-10 rounded-xl text-sm"
-												onSelect={(event) => {
-													event.preventDefault();
-													const created = onCreatePlaceholder();
-													if (created) {
-														const nextValue = replaceDynamicTokenAt(value, key, created.key, startIndex);
-														const nextOffset = startIndex + getDynamicTokenString(created.key).length;
-														handleSetValue(nextValue, nextOffset);
-													}
-												}}
-											>
-												<Plus className="h-4 w-4" />
-												Create dynamic source
-											</DropdownMenuItem>
-										</div>
-									</DropdownMenuSubContent>
-								</DropdownMenuSub>
-								<DropdownMenuItem
-									variant="destructive"
-									className="h-11 rounded-xl text-base"
-									onSelect={(event) => {
-										event.preventDefault();
-										const nextValue = removeDynamicTokenAt(value, key, startIndex);
-										handleSetValue(nextValue, startIndex);
-									}}
-								>
-									<Trash2 className="h-4 w-4" />
-									Remove dynamic source
-								</DropdownMenuItem>
-							</div>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</span>
+					tokenKey={key}
+					sourceLabel={sourceLabel}
+					availableSources={availableSources}
+					onSelectSource={(source) => {
+						const selectedKey = source.key;
+						if (source.dynamicSource) {
+							onSelectDynamicSource(source.dynamicSource);
+						}
+						const nextValue = replaceDynamicTokenAt(value, key, selectedKey, startIndex);
+						const nextOffset = startIndex + getDynamicTokenString(selectedKey).length;
+						handleSetValue(nextValue, nextOffset);
+					}}
+					onCreateSource={() => {
+						const created = onCreatePlaceholder();
+						if (!created) return;
+						const nextValue = replaceDynamicTokenAt(value, key, created.key, startIndex);
+						const nextOffset = startIndex + getDynamicTokenString(created.key).length;
+						handleSetValue(nextValue, nextOffset);
+					}}
+					onRemoveSource={() => {
+						const nextValue = removeDynamicTokenAt(value, key, startIndex);
+						handleSetValue(nextValue, startIndex);
+					}}
+				/>
 			);
 			lastIndex = startIndex + match[0].length;
 		}
@@ -510,7 +513,16 @@ const DynamicTokenizedEditor = ({
 		}
 
 		return parsed;
-	}, [value, placeholders, multiline, onCreatePlaceholder, handleSetValue]);
+	}, [
+		value,
+		placeholders,
+		dynamicSourcesByKey,
+		availableSources,
+		multiline,
+		onCreatePlaceholder,
+		onSelectDynamicSource,
+		handleSetValue,
+	]);
 
 	return (
 		<div
@@ -539,65 +551,45 @@ const DynamicTokenizedEditor = ({
 
 type PlaceholderInsertButtonProps = {
 	placeholders: EmailTemplatePlaceholder[];
+	dynamicSources: DynamicSourceField[];
+	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
 	onInsert: (key: string) => void;
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
 };
 
 const PlaceholderInsertButton = ({
 	placeholders,
+	dynamicSources,
+	onSelectDynamicSource,
 	onInsert,
 	onAddPlaceholder,
 }: PlaceholderInsertButtonProps) => {
-	const handleInsert = (key: string) => {
+	const handleInsert = useCallback((key: string) => {
 		onInsert(key);
-	};
-
-	// Memoize menu items to ensure they update when placeholders change
-	const menuItems = useMemo(() => {
-		if (placeholders.length === 0) {
-			return (
-				<DropdownMenuItem disabled>
-					No placeholders yet
-				</DropdownMenuItem>
-			);
-		}
-		return placeholders.map((placeholder) => (
-			<DropdownMenuItem
-				key={placeholder.id}
-				onSelect={(event) => {
-					event.preventDefault();
-					handleInsert(placeholder.key);
-				}}
-			>
-				{placeholder.key}
-			</DropdownMenuItem>
-		));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [placeholders]);
+	}, [onInsert]);
+	const availableSources = useMemo<DynamicSourceOption[]>(() => {
+		return buildAvailableDynamicSourceOptions(dynamicSources, placeholders);
+	}, [dynamicSources, placeholders]);
 
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="icon" title="Insert placeholder">
-					<Braces className="h-4 w-4" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-48">
-				{menuItems}
-				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					onSelect={(event) => {
-						event.preventDefault();
-						const created = onAddPlaceholder();
-						if (created) {
-							handleInsert(created.key);
-						}
-					}}
-				>
-					+ Create placeholder
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<DynamicSourceInsertMenu
+			availableSources={availableSources}
+			placeholders={placeholders.map((placeholder) => ({
+				id: placeholder.id,
+				key: placeholder.key,
+				label: placeholder.label,
+			}))}
+			onSelectSource={(source) => {
+				if (source.dynamicSource) {
+					const placeholder = onSelectDynamicSource(source.dynamicSource);
+					handleInsert(placeholder.key);
+					return;
+				}
+				handleInsert(source.key);
+			}}
+			onInsertPlaceholder={handleInsert}
+			onCreatePlaceholder={onAddPlaceholder}
+		/>
 	);
 };
 
@@ -607,6 +599,8 @@ type PlaceholderTextareaFieldProps = {
 	onChange: (value: string) => void;
 	rows?: number;
 	placeholders: EmailTemplatePlaceholder[];
+	dynamicSources: DynamicSourceField[];
+	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
 	invalidPlaceholders?: string[];
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
 };
@@ -617,6 +611,8 @@ const PlaceholderTextareaField = ({
 	onChange,
 	rows = 3,
 	placeholders,
+	dynamicSources,
+	onSelectDynamicSource,
 	invalidPlaceholders,
 	onAddPlaceholder,
 }: PlaceholderTextareaFieldProps) => {
@@ -657,6 +653,8 @@ const PlaceholderTextareaField = ({
 				<Label>{label}</Label>
 				<PlaceholderInsertButton
 					placeholders={placeholders}
+					dynamicSources={dynamicSources}
+					onSelectDynamicSource={onSelectDynamicSource}
 					onAddPlaceholder={onAddPlaceholder}
 					onInsert={handleInsert}
 				/>
@@ -664,8 +662,10 @@ const PlaceholderTextareaField = ({
 			<DynamicTokenizedEditor
 				value={value}
 				placeholders={placeholders}
+				dynamicSources={dynamicSources}
 				multiline
 				rows={rows}
+				onSelectDynamicSource={onSelectDynamicSource}
 				onCreatePlaceholder={onAddPlaceholder}
 				onChange={onChange}
 				insertTokenHandlerRef={insertTokenHandlerRef}
@@ -679,6 +679,8 @@ type PlaceholderInputFieldProps = {
 	value: string;
 	onChange: (value: string) => void;
 	placeholders: EmailTemplatePlaceholder[];
+	dynamicSources: DynamicSourceField[];
+	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
 	invalidPlaceholders?: string[];
 	onAddPlaceholder: () => EmailTemplatePlaceholder | null;
 	placeholder?: string;
@@ -689,6 +691,8 @@ const PlaceholderInputField = ({
 	value,
 	onChange,
 	placeholders,
+	dynamicSources,
+	onSelectDynamicSource,
 	invalidPlaceholders,
 	onAddPlaceholder,
 	placeholder: inputPlaceholder,
@@ -730,6 +734,8 @@ const PlaceholderInputField = ({
 				<Label>{label}</Label>
 				<PlaceholderInsertButton
 					placeholders={placeholders}
+					dynamicSources={dynamicSources}
+					onSelectDynamicSource={onSelectDynamicSource}
 					onAddPlaceholder={onAddPlaceholder}
 					onInsert={handleInsert}
 				/>
@@ -737,7 +743,9 @@ const PlaceholderInputField = ({
 			<DynamicTokenizedEditor
 				value={value}
 				placeholders={placeholders}
+				dynamicSources={dynamicSources}
 				placeholder={inputPlaceholder}
+				onSelectDynamicSource={onSelectDynamicSource}
 				onCreatePlaceholder={onAddPlaceholder}
 				onChange={onChange}
 				insertTokenHandlerRef={insertTokenHandlerRef}
@@ -746,7 +754,17 @@ const PlaceholderInputField = ({
 	);
 };
 
-export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePicker, placeholders, invalidPlaceholders, onAddPlaceholder }: EmailBlockPropertiesProps) {
+export function EmailBlockProperties({
+	block,
+	onChange,
+	onDelete,
+	onOpenImagePicker,
+	placeholders,
+	dynamicSources,
+	onSelectDynamicSource,
+	invalidPlaceholders,
+	onAddPlaceholder,
+}: EmailBlockPropertiesProps) {
   const { t } = useTranslation();
 
   if (!block) {
@@ -1238,6 +1256,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 									onChange={(value) => onChange({ ...block, content: value })}
 									rows={3}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -1274,6 +1294,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 									onChange={(value) => onChange({ ...block, content: value })}
 									rows={4}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -1337,6 +1359,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 									value={block.label}
 									onChange={(value) => onChange({ ...block, label: value })}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -1345,6 +1369,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 									value={block.url}
 									onChange={(value) => onChange({ ...block, url: value })}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -1915,6 +1941,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 									}
 									rows={4}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -2080,6 +2108,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 										onChange({ ...block, text: value } as EmailTemplateBlock)
 									}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -2090,6 +2120,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
 										onChange({ ...block, url: value } as EmailTemplateBlock)
 									}
 									placeholders={placeholders}
+									dynamicSources={dynamicSources}
+									onSelectDynamicSource={onSelectDynamicSource}
 									invalidPlaceholders={invalidPlaceholders}
 									onAddPlaceholder={onAddPlaceholder}
 								/>
@@ -2386,6 +2418,8 @@ export function EmailBlockProperties({ block, onChange, onDelete, onOpenImagePic
                       onChange({ ...block, dataSource: value } as EmailTemplateBlock)
                     }
                     placeholders={placeholders}
+                    dynamicSources={dynamicSources}
+                    onSelectDynamicSource={onSelectDynamicSource}
                     invalidPlaceholders={invalidPlaceholders}
                     onAddPlaceholder={onAddPlaceholder}
                     placeholder={t("emailDesigner.properties.dataSourcePlaceholder")}

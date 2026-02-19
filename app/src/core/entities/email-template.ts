@@ -370,11 +370,23 @@ export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
 
 export type EmailTemplateBlock = z.infer<typeof emailTemplateBlockSchema>;
 
+export const emailTemplatePlaceholderSourceSchema = z.object({
+  type: z.literal("entity_field"),
+  entity: z.enum(["product", "contact"]),
+  path: z.string().min(1),
+  valueType: z
+    .enum(["string", "number", "boolean", "date", "array", "object", "unknown"])
+    .optional(),
+});
+
+export type EmailTemplatePlaceholderSource = z.infer<typeof emailTemplatePlaceholderSourceSchema>;
+
 export const emailTemplatePlaceholderSchema = z.object({
   id: z.string().min(1),
   key: z.string().min(1),
   label: z.string().optional(),
   description: z.string().optional(),
+  source: emailTemplatePlaceholderSourceSchema.optional(),
 });
 
 export type EmailTemplatePlaceholder = z.infer<typeof emailTemplatePlaceholderSchema>;

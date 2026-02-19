@@ -1271,6 +1271,19 @@ export interface FunctionsService {
     type: string;
     description?: string;
     categoryAssignments?: string[];
+    metaobjectDefinitionId?: string;
+    options?: {
+      storefrontApiAccess?: boolean;
+    };
+  }): Promise<{ id: string }>;
+
+  createContactMetafieldDefinition(payload: {
+    organizationId: string;
+    name: string;
+    type: string;
+    description?: string;
+    categoryAssignments?: string[];
+    metaobjectDefinitionId?: string;
     options?: {
       storefrontApiAccess?: boolean;
     };

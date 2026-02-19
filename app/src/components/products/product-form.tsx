@@ -14,8 +14,8 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { useProductMetafieldDefinitions, useProductMetafields, useCreateProductMetafield, useUpdateProductMetafield, useDeleteProductMetafield } from "@/hooks/repository-hooks/use-product-metafields";
 import { useCreateProductMetafieldDefinition } from "@/hooks/service-hooks/use-product-metafield-functions";
 import { useCreateProduct } from "@/hooks";
-import { MetafieldInput } from "./metafield-input";
-import { ProductMetafieldDefinitionForm } from "./product-metafield-definition-form";
+import { MetafieldInput } from "@/components/metafields/metafield-input";
+import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 import { toast } from "sonner";
 
 interface ProductFormProps {
@@ -571,7 +571,7 @@ export function ProductForm({
               Create a new metafield definition that can be used across products
             </DialogDescription>
           </DialogHeader>
-          <ProductMetafieldDefinitionForm
+          <MetafieldDefinitionForm
             onSubmit={handleCreateMetafieldDefinition}
             onCancel={() => setIsCreatingMetafieldDefinition(false)}
             isPending={createMetafieldDefinitionMutation.isPending}

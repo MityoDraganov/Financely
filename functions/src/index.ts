@@ -152,6 +152,7 @@ export { createMetaobjectDefinition } from "./functions/create-metaobject-defini
 export { createMetaobject } from "./functions/create-metaobject";
 export { createContentFile } from "./functions/create-content-file";
 export { createProductMetafieldDefinition } from "./functions/create-product-metafield-definition";
+export { createContactMetafieldDefinition } from "./functions/create-contact-metafield-definition";
 
 // File upload functions
 export { uploadFile } from "./functions/upload-file";

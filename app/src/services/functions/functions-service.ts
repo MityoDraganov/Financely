@@ -867,6 +867,15 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async createContactMetafieldDefinition(payload) {
+    type CreateContactMetafieldDefinitionPayload = Parameters<FunctionsService["createContactMetafieldDefinition"]>[0];
+    const result = await httpsCallable<CreateContactMetafieldDefinitionPayload, { id: string }>(
+      firebase.functions,
+      "createContactMetafieldDefinition",
+    )(payload);
+    return result.data;
+  },
+
   async createCheckoutSession(payload) {
     type CreateCheckoutSessionPayload = Parameters<FunctionsService["createCheckoutSession"]>[0];
     const result = await httpsCallable<

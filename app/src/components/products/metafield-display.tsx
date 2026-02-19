@@ -1,16 +1,19 @@
-import { ProductMetafield, ProductMetafieldDefinition } from "@/core";
+import { MetafieldDefinition } from "@/core";
 import { useMetaobject } from "@/hooks/repository-hooks/use-metaobjects";
 
 interface MetafieldDisplayProps {
-  metafield: ProductMetafield;
-  definition: ProductMetafieldDefinition;
+  metafield: {
+    id: string;
+    value?: unknown;
+  };
+  definition: MetafieldDefinition;
 }
 
 export function MetafieldDisplay({ metafield, definition }: MetafieldDisplayProps) {
   const metaobjectId = definition.type === "metaobject_reference" && typeof metafield.value === "string" ? metafield.value : undefined;
   const { data: metaobject } = useMetaobject(metaobjectId);
 
-  const formatValue = (value: unknown, type: ProductMetafieldDefinition["type"]): string => {
+  const formatValue = (value: unknown, type: MetafieldDefinition["type"]): string => {
     if (value === null || value === undefined) {
       return "—";
     }
