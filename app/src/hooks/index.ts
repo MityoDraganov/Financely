@@ -20,6 +20,7 @@ export * from "./service-hooks/use-generate-widget";
 export * from "./service-hooks/use-convert-proposal-to-invoice";
 export * from "./service-hooks/use-invoice-template-generation";
 export * from "./service-hooks/use-widget-versioning";
+export * from "./service-hooks/use-widget-definition-functions";
 
 // Utility hooks
 export * from "./use-onboarding";

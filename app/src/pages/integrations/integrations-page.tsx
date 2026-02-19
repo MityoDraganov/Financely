@@ -1,15 +1,14 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Sparkles, Plus, Layout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useDeleteWidgetDefinition } from "@/hooks/service-hooks/use-widget-definition-functions";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { WidgetBuilderProvider, useWidgetBuilderContext } from "@/contexts/widget-builder-context";
-import { functionsService } from "@/services/functions/functions-service";
 import { projectId } from "@/infrastructure/firebase";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
 import {
@@ -22,26 +21,29 @@ import {
 	type TabValue,
 } from "@/components/integrations";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function DesignAreaContent({
 	showBuilder,
 	showPropertiesPanel,
 	activeTab,
 	effectiveWidgetId,
+	organizationId,
 	getEmbedScript,
 }: {
 	showBuilder: boolean;
 	showPropertiesPanel: boolean;
 	activeTab: TabValue;
 	effectiveWidgetId: string | undefined;
+	organizationId: string;
 	getEmbedScript: () => string;
 }) {
 	const { t } = useTranslation();
 	const widgetDesigner = useWidgetDesigner();
-	const { data: organization } = useCurrentOrganization();
 	const ctx = useWidgetBuilderContext();
 	const noWidgetSelected = activeTab === "design" && !effectiveWidgetId;
 	const definitions = widgetDesigner?.definitions ?? [];
+	const isLoadingDefinitions = widgetDesigner?.isLoadingDefinitions ?? false;
 	const onWidgetChange = widgetDesigner?.onWidgetChange ?? (() => {});
 	const onCreateNewWidget = widgetDesigner?.onCreateNewWidget ?? (() => {});
 	const isCreatingNewWidget = widgetDesigner?.isCreatingNewWidget ?? false;
@@ -179,56 +181,78 @@ function DesignAreaContent({
 							</p>
 						</div>
 						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-							<button
-								type="button"
-								onClick={() => void onCreateNewWidget()}
-								disabled={isCreatingNewWidget}
-								className="group flex flex-col items-center justify-center min-h-[180px] rounded-xl border-2 border-dashed border-border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all duration-200 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70 disabled:pointer-events-none"
-							>
-								<div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/15 transition-colors mb-4">
-									{isCreatingNewWidget ? (
-										<Loader2 className="h-7 w-7 animate-spin" />
-									) : (
-										<Plus className="h-7 w-7" />
-									)}
-								</div>
-								<span className="text-base font-semibold">
-									{isCreatingNewWidget
-										? t("siteBuilder.widgets.creating", "Creating…")
-										: t("siteBuilder.widgets.createNew", "Create New")}
-								</span>
-							</button>
-							{definitions.map((d) => (
-								<button
-									key={d.id}
-									type="button"
-									onClick={() => onWidgetChange(d.id)}
-									className="group flex flex-col items-stretch min-h-[180px] rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:shadow-md hover:border-primary/25 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-								>
-									<div className="flex items-start gap-3 min-w-0">
-										<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/10 transition-colors">
-											<Layout className="h-5 w-5 text-muted-foreground" />
+							{isLoadingDefinitions ? (
+								Array.from({ length: 8 }).map((_, index) => (
+									<div
+										key={`widget-skeleton-${index}`}
+										className="flex flex-col min-h-[180px] rounded-xl border border-border bg-card p-5"
+									>
+										<div className="flex items-start gap-3 min-w-0">
+											<Skeleton className="h-10 w-10 rounded-lg shrink-0" />
+											<div className="min-w-0 flex-1 space-y-2">
+												<Skeleton className="h-4 w-3/4" />
+												<Skeleton className="h-4 w-1/2" />
+											</div>
 										</div>
-										<div className="min-w-0 flex-1">
-											<span className="block text-base font-semibold text-foreground truncate">
-												{d.name}
-											</span>
+										<div className="mt-auto pt-4">
+											<Skeleton className="h-3 w-20" />
 										</div>
 									</div>
-									<div className="mt-auto pt-4 flex items-center justify-between gap-2">
-										<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-											<span
-												className={d.status === "published"
-													? "h-1.5 w-1.5 rounded-full bg-primary"
-													: "h-1.5 w-1.5 rounded-full bg-amber-500"}
-											/>
-											{d.status === "published"
-												? t("siteBuilder.widgetStatus.published", "Published")
-												: t("siteBuilder.widgetStatus.draft", "Draft")}
+								))
+							) : (
+								<>
+									<button
+										type="button"
+										onClick={() => void onCreateNewWidget()}
+										disabled={isCreatingNewWidget}
+										className="group flex flex-col items-center justify-center min-h-[180px] rounded-xl border-2 border-dashed border-border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all duration-200 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70 disabled:pointer-events-none"
+									>
+										<div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/15 transition-colors mb-4">
+											{isCreatingNewWidget ? (
+												<Loader2 className="h-7 w-7 animate-spin" />
+											) : (
+												<Plus className="h-7 w-7" />
+											)}
+										</div>
+										<span className="text-base font-semibold">
+											{isCreatingNewWidget
+												? t("siteBuilder.widgets.creating", "Creating…")
+												: t("siteBuilder.widgets.createNew", "Create New")}
 										</span>
-									</div>
-								</button>
-							))}
+									</button>
+									{definitions.map((d) => (
+										<button
+											key={d.id}
+											type="button"
+											onClick={() => onWidgetChange(d.id)}
+											className="group flex flex-col items-stretch min-h-[180px] rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:shadow-md hover:border-primary/25 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+										>
+											<div className="flex items-start gap-3 min-w-0">
+												<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/10 transition-colors">
+													<Layout className="h-5 w-5 text-muted-foreground" />
+												</div>
+												<div className="min-w-0 flex-1">
+													<span className="block text-base font-semibold text-foreground truncate">
+														{d.name}
+													</span>
+												</div>
+											</div>
+											<div className="mt-auto pt-4 flex items-center justify-between gap-2">
+												<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+													<span
+														className={d.status === "published"
+															? "h-1.5 w-1.5 rounded-full bg-primary"
+															: "h-1.5 w-1.5 rounded-full bg-amber-500"}
+													/>
+													{d.status === "published"
+														? t("siteBuilder.widgetStatus.published", "Published")
+														: t("siteBuilder.widgetStatus.draft", "Draft")}
+												</span>
+											</div>
+										</button>
+									))}
+								</>
+							)}
 						</div>
 					</div>
 				) : (
@@ -236,7 +260,7 @@ function DesignAreaContent({
 						{activeTab === "share" && (
 							<ShareEmbedSection
 								embedScript={getEmbedScript()}
-								organizationId={organization?.id || ""}
+								organizationId={organizationId}
 								widgetDefinitions={
 									widgetDesigner?.definitions?.map(
 										(d) => ({
@@ -261,15 +285,13 @@ function DesignAreaContent({
 
 export default function IntegrationsPage() {
 	const { t } = useTranslation();
-	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { data: organization, isLoading } = useCurrentOrganization();
+	const deleteWidgetDefinition = useDeleteWidgetDefinition();
 
 	const [activeTab, setActiveTab] = useState<TabValue>("design");
-	const { widgetId: currentWidgetId } = useParams<{ widgetId?: string }>();
 	const widgetDesigner = useWidgetDesigner();
-	const effectiveWidgetId =
-		widgetDesigner?.currentWidgetId ?? currentWidgetId;
+	const effectiveWidgetId = widgetDesigner?.currentWidgetId;
 
 	const definitions = widgetDesigner?.definitions ?? [];
 	const widgetBelongsToOrg = definitions.some(
@@ -280,12 +302,9 @@ export default function IntegrationsPage() {
 		async (widgetId: string) => {
 			if (!organization?.id) return;
 			try {
-				await functionsService.deleteWidgetDefinition({
+				await deleteWidgetDefinition.mutateAsync({
 					organizationId: organization.id,
 					widgetId,
-				});
-				queryClient.invalidateQueries({
-					queryKey: ["widget-definitions", organization.id],
 				});
 				if (effectiveWidgetId === widgetId) {
 					navigate("/integrations", { replace: true });
@@ -302,7 +321,7 @@ export default function IntegrationsPage() {
 				);
 			}
 		},
-		[organization?.id, effectiveWidgetId, queryClient, navigate, t],
+		[organization?.id, effectiveWidgetId, deleteWidgetDefinition, navigate, t],
 	);
 
 	const getEmbedScript = useCallback(() => {
@@ -354,6 +373,7 @@ export default function IntegrationsPage() {
 						showPropertiesPanel={showPropertiesPanel}
 						activeTab={activeTab}
 						effectiveWidgetId={effectiveWidgetId}
+						organizationId={organization?.id ?? ""}
 						getEmbedScript={getEmbedScript}
 					/>
 				</div>
