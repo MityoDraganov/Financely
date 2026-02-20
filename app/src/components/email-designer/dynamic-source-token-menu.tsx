@@ -65,7 +65,7 @@ const DynamicSourceMenuHeader = ({
 	title,
 	onGoBack,
 }: DynamicSourceMenuHeaderProps) => (
-	<div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35">
+	<div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35 min-w-0">
 		{isNested ? (
 			<button
 				type="button"
@@ -76,7 +76,7 @@ const DynamicSourceMenuHeader = ({
 				<ChevronLeft className="h-4 w-4" />
 			</button>
 		) : null}
-		<span>{title}</span>
+		<span className="truncate">{title}</span>
 	</div>
 );
 
@@ -89,7 +89,7 @@ const DynamicSourceCategoryList = ({
 	categories,
 	onSelectCategory,
 }: DynamicSourceCategoryListProps) => (
-	<div className="max-h-64 overflow-y-auto">
+	<div className="max-h-64 overflow-y-auto overflow-x-hidden">
 		{categories.length === 0 ? (
 			<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
 				No categories available
@@ -104,11 +104,11 @@ const DynamicSourceCategoryList = ({
 					onSelectCategory(category.key);
 				}}
 			>
-				<span className="inline-flex items-center gap-2">
-					<Database className="h-4 w-4" />
-					{category.label}
+				<span className="inline-flex items-center gap-2 min-w-0">
+					<Database className="h-4 w-4 shrink-0" />
+					<span className="truncate">{category.label}</span>
 				</span>
-				<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+				<span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
 					{category.sources.length}
 					<ChevronRight className="h-4 w-4" />
 				</span>
@@ -132,7 +132,7 @@ const DynamicSourceList = ({
 	createLabel = "Create dynamic source",
 	emptyLabel = "No dynamic sources in this category",
 }: DynamicSourceListProps) => (
-	<div className="max-h-64 overflow-y-auto">
+	<div className="max-h-64 overflow-y-auto overflow-x-hidden">
 		{sources.length === 0 ? (
 			<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
 				{emptyLabel}
@@ -147,11 +147,11 @@ const DynamicSourceList = ({
 					onSelectSource(source);
 				}}
 			>
-				<Database className="h-4 w-4" />
-				<div className="flex flex-col gap-0.5">
-					<span>{source.label}</span>
+				<Database className="h-4 w-4 shrink-0" />
+				<div className="flex min-w-0 flex-col gap-0.5">
+					<span className="truncate">{source.label}</span>
 					{source.description && (
-						<span className="text-[11px] text-muted-foreground">
+						<span className="truncate text-[11px] text-muted-foreground">
 							{source.description}
 						</span>
 					)}
@@ -168,8 +168,8 @@ const DynamicSourceList = ({
 						onCreateSource();
 					}}
 				>
-					<Plus className="h-4 w-4" />
-					{createLabel}
+					<Plus className="h-4 w-4 shrink-0" />
+					<span className="truncate">{createLabel}</span>
 				</DropdownMenuItem>
 			</>
 		) : null}
@@ -181,7 +181,6 @@ type DynamicSourceTokenMenuProps = {
 	sourceLabel: string;
 	availableSources: DynamicSourceOption[];
 	onSelectSource: (source: DynamicSourceOption) => void;
-	onCreateSource: () => void;
 	onRemoveSource: () => void;
 };
 
@@ -190,7 +189,6 @@ export function DynamicSourceTokenMenu({
 	sourceLabel,
 	availableSources,
 	onSelectSource,
-	onCreateSource,
 	onRemoveSource,
 }: DynamicSourceTokenMenuProps) {
 	const [open, setOpen] = useState(false);
@@ -250,10 +248,10 @@ export function DynamicSourceTokenMenu({
 				<DropdownMenuContent
 					align="start"
 					sideOffset={8}
-					className="w-[280px] rounded-2xl p-0 overflow-hidden"
+					className="w-[280px] rounded-2xl p-0 overflow-x-hidden overflow-y-hidden"
 				>
 					<DynamicSourceMenuHeader isNested={isNested} title={title} onGoBack={goBack} />
-					<div className="p-1.5">
+					<div className="p-1.5 overflow-x-hidden">
 						{currentPage === "root" ? (
 							<>
 								<DropdownMenuItem
@@ -292,7 +290,6 @@ export function DynamicSourceTokenMenu({
 							<DynamicSourceList
 								sources={visibleSources}
 								onSelectSource={onSelectSource}
-								onCreateSource={onCreateSource}
 							/>
 						)}
 					</div>
@@ -308,6 +305,7 @@ type DynamicSourceInsertMenuProps = {
 	onSelectSource: (source: DynamicSourceOption) => void;
 	onInsertPlaceholder: (placeholderKey: string) => void;
 	onCreatePlaceholder: () => PlaceholderOption | null;
+	startAtCategoryList?: boolean;
 };
 
 export function DynamicSourceInsertMenu({
@@ -316,9 +314,11 @@ export function DynamicSourceInsertMenu({
 	onSelectSource,
 	onInsertPlaceholder,
 	onCreatePlaceholder,
+	startAtCategoryList = true,
 }: DynamicSourceInsertMenuProps) {
+	const initialState: MenuState = startAtCategoryList ? { page: "category-list" } : ROOT_PAGE;
 	const [open, setOpen] = useState(false);
-	const [pageStack, setPageStack] = useState<MenuState[]>([ROOT_PAGE]);
+	const [pageStack, setPageStack] = useState<MenuState[]>([initialState]);
 	const categorizedSources = useMemo(
 		() => buildCategoryBuckets(availableSources),
 		[availableSources],
@@ -333,13 +333,13 @@ export function DynamicSourceInsertMenu({
 
 	const closeMenu = () => {
 		setOpen(false);
-		setPageStack([ROOT_PAGE]);
+		setPageStack([initialState]);
 	};
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		setOpen(nextOpen);
 		if (!nextOpen) {
-			setPageStack([ROOT_PAGE]);
+			setPageStack([initialState]);
 		}
 	};
 
@@ -356,9 +356,7 @@ export function DynamicSourceInsertMenu({
 			? "Choose category"
 			: currentPage === "source-list"
 				? activeCategory?.label || "Choose dynamic source"
-				: currentPage === "placeholder-list"
-					? "Template placeholders"
-					: "Insert placeholder";
+				: "Insert placeholder";
 
 	return (
 		<DropdownMenu open={open} onOpenChange={handleOpenChange}>
@@ -369,7 +367,7 @@ export function DynamicSourceInsertMenu({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80 rounded-2xl p-0 overflow-hidden">
 				<DynamicSourceMenuHeader isNested={isNested} title={title} onGoBack={goBack} />
-				<div className="p-1.5">
+				<div className="p-1.5 overflow-x-hidden">
 					{currentPage === "root" ? (
 						<>
 							<DropdownMenuItem
@@ -382,19 +380,6 @@ export function DynamicSourceInsertMenu({
 								<span className="inline-flex items-center gap-2">
 									<Database className="h-4 w-4" />
 									Dynamic sources
-								</span>
-								<ChevronRight className="h-4 w-4 text-muted-foreground" />
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								className="h-11 rounded-xl text-base flex items-center justify-between"
-								onSelect={(event) => {
-									event.preventDefault();
-									goToPage({ page: "placeholder-list" });
-								}}
-							>
-								<span className="inline-flex items-center gap-2">
-									<Braces className="h-4 w-4" />
-									Template placeholders
 								</span>
 								<ChevronRight className="h-4 w-4 text-muted-foreground" />
 							</DropdownMenuItem>
@@ -415,7 +400,7 @@ export function DynamicSourceInsertMenu({
 							}}
 						/>
 					) : (
-						<div className="max-h-64 overflow-y-auto">
+						<div className="max-h-64 overflow-y-auto overflow-x-hidden">
 							{placeholders.length === 0 ? (
 								<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
 									No placeholders yet
@@ -431,7 +416,9 @@ export function DynamicSourceInsertMenu({
 										closeMenu();
 									}}
 								>
-									{placeholder.label?.trim() || placeholder.key}
+									<span className="truncate">
+										{placeholder.label?.trim() || placeholder.key}
+									</span>
 								</DropdownMenuItem>
 							))}
 							<DropdownMenuSeparator />
@@ -445,8 +432,8 @@ export function DynamicSourceInsertMenu({
 									closeMenu();
 								}}
 							>
-								<Plus className="h-4 w-4" />
-								Create placeholder
+								<Plus className="h-4 w-4 shrink-0" />
+								<span className="truncate">Create placeholder</span>
 							</DropdownMenuItem>
 						</div>
 					)}

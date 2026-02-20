@@ -1,8 +1,8 @@
-import type { Contact, EmailTemplatePlaceholder, Product } from "@/core";
-import type { DynamicSourceField } from "@/utils/dynamic-sources";
+import type { Contact, EmailTemplatePlaceholder, Invoice, Product, Proposal } from "@/core";
+import type { DynamicSourceEntity, DynamicSourceField } from "@/utils/dynamic-sources";
 
 type DynamicPlaceholderSource = {
-	entity: "product" | "contact";
+	entity: DynamicSourceEntity;
 	path: string;
 };
 
@@ -11,12 +11,16 @@ type PreviewDefaultsInput = {
 	usedPlaceholderKeys: Set<string>;
 	products: Product[];
 	contacts: Contact[];
+	invoices: Invoice[];
+	proposals: Proposal[];
 	dynamicSourceByPlaceholderKey: Record<string, DynamicSourceField>;
 };
 
 type PreviewDefaultsResult = {
 	productId?: string;
 	contactId?: string;
+	invoiceId?: string;
+	proposalId?: string;
 };
 
 type PreviewValueInput = {
@@ -24,6 +28,8 @@ type PreviewValueInput = {
 	usedPlaceholderKeys: Set<string>;
 	selectedProduct?: Product;
 	selectedContact?: Contact;
+	selectedInvoice?: Invoice;
+	selectedProposal?: Proposal;
 	dynamicSourceByPlaceholderKey: Record<string, DynamicSourceField>;
 };
 
@@ -47,6 +53,38 @@ const CONTACT_HEURISTIC_FIELDS = [
 	"address.city",
 ];
 
+const INVOICE_HEURISTIC_FIELDS = [
+	"status",
+	"invoiceNumber",
+	"number",
+	"issueDate",
+	"dueDate",
+	"buyer.name",
+	"seller.name",
+	"total",
+	"currency",
+];
+
+const PROPOSAL_HEURISTIC_FIELDS = [
+	"title",
+	"description",
+	"status",
+	"items",
+	"subtotal",
+	"taxTotal",
+	"total",
+	"currency",
+];
+
+const INVOICE_AMOUNT_FIELDS = [
+	"grossTotal",
+	"total",
+	"totalAmount",
+	"grandTotal",
+	"amount",
+	"netAmount",
+];
+
 const toTimeValue = (value?: string) => {
 	if (!value) return 0;
 	const parsed = Date.parse(value);
@@ -54,7 +92,11 @@ const toTimeValue = (value?: string) => {
 };
 
 const toSentenceCase = (value: string) =>
-	value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+	value
+		.split(/[_\s-]+/)
+		.filter(Boolean)
+		.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+		.join(" ");
 
 const toDisplayString = (value: unknown): string => {
 	if (value === null || value === undefined) return "";
@@ -89,7 +131,36 @@ const getRecordFieldAsString = (value: unknown): string => {
 		const firstString = value.find((entry) => typeof entry === "string");
 		return typeof firstString === "string" ? firstString.trim() : "";
 	}
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
 	return "";
+};
+
+const toNumberValue = (value: unknown): number | undefined => {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "string" && value.trim()) {
+		const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+		if (Number.isFinite(parsed)) {
+			return parsed;
+		}
+	}
+	return undefined;
+};
+
+const formatCurrencyAmount = (amount: number, currency?: string): string => {
+	const resolvedCurrency = currency?.trim().toUpperCase() || "USD";
+	try {
+		return new Intl.NumberFormat(undefined, {
+			style: "currency",
+			currency: resolvedCurrency,
+			maximumFractionDigits: 2,
+		}).format(amount);
+	} catch {
+		return `${amount} ${resolvedCurrency}`;
+	}
 };
 
 const getContactRecordData = (contact?: Contact): Record<string, unknown> => {
@@ -136,6 +207,38 @@ const getNestedValue = (source: unknown, path: string): unknown => {
 	return current;
 };
 
+const getInvoiceValueByPath = (invoice: Invoice | undefined, path: string): unknown => {
+	if (!invoice || !path) return undefined;
+
+	if (path.startsWith("data.")) {
+		return getNestedValue(invoice.data, path.slice(5));
+	}
+
+	const directValue = getNestedValue(invoice, path);
+	if (directValue !== undefined) {
+		return directValue;
+	}
+
+	return getNestedValue(invoice.data, path);
+};
+
+const getInvoiceCurrency = (invoice: Invoice): string => {
+	const value =
+		getRecordFieldAsString(getInvoiceValueByPath(invoice, "currency")) ||
+		getRecordFieldAsString(getInvoiceValueByPath(invoice, "data.currency"));
+	return value.trim().toUpperCase() || "USD";
+};
+
+const getInvoiceAmount = (invoice: Invoice): number | undefined => {
+	for (const field of INVOICE_AMOUNT_FIELDS) {
+		const parsed = toNumberValue(getInvoiceValueByPath(invoice, field));
+		if (parsed !== undefined) {
+			return parsed;
+		}
+	}
+	return undefined;
+};
+
 const isPopulated = (value: unknown) => {
 	if (value === null || value === undefined) return false;
 	if (typeof value === "string") return value.trim().length > 0;
@@ -171,8 +274,12 @@ const collectRequiredPaths = (
 	usedPlaceholderKeys: Set<string>,
 	dynamicSourceByPlaceholderKey: Record<string, DynamicSourceField>,
 ) => {
-	const productPaths = new Set<string>();
-	const contactPaths = new Set<string>();
+	const requiredPathsByEntity: Record<DynamicSourceEntity, Set<string>> = {
+		product: new Set<string>(),
+		contact: new Set<string>(),
+		invoice: new Set<string>(),
+		proposal: new Set<string>(),
+	};
 	const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
 
 	placeholders.forEach((placeholder) => {
@@ -181,17 +288,14 @@ const collectRequiredPaths = (
 		}
 		const source = getPlaceholderSource(placeholder, dynamicSourceByPlaceholderKey);
 		if (!source) return;
-		if (source.entity === "product") {
-			productPaths.add(source.path);
-		}
-		if (source.entity === "contact") {
-			contactPaths.add(source.path);
-		}
+		requiredPathsByEntity[source.entity].add(source.path);
 	});
 
 	return {
-		productPaths: Array.from(productPaths),
-		contactPaths: Array.from(contactPaths),
+		productPaths: Array.from(requiredPathsByEntity.product),
+		contactPaths: Array.from(requiredPathsByEntity.contact),
+		invoicePaths: Array.from(requiredPathsByEntity.invoice),
+		proposalPaths: Array.from(requiredPathsByEntity.proposal),
 	};
 };
 
@@ -237,6 +341,56 @@ const scoreContact = (contact: Contact, requiredPaths: string[]) => {
 	return score;
 };
 
+const scoreInvoice = (invoice: Invoice, requiredPaths: string[]) => {
+	let score = 0;
+	requiredPaths.forEach((path) => {
+		score += isPopulated(getInvoiceValueByPath(invoice, path)) ? 8 : -3;
+	});
+
+	INVOICE_HEURISTIC_FIELDS.forEach((path) => {
+		score += isPopulated(getInvoiceValueByPath(invoice, path)) ? 2 : 0;
+	});
+
+	if (invoice.status === "paid") {
+		score += 4;
+	} else if (invoice.status === "sent") {
+		score += 2;
+	}
+
+	if ((getInvoiceAmount(invoice) ?? 0) > 0) {
+		score += 2;
+	}
+
+	return score;
+};
+
+const scoreProposal = (proposal: Proposal, requiredPaths: string[]) => {
+	let score = 0;
+	requiredPaths.forEach((path) => {
+		score += isPopulated(getNestedValue(proposal, path)) ? 8 : -3;
+	});
+
+	PROPOSAL_HEURISTIC_FIELDS.forEach((path) => {
+		score += isPopulated(getNestedValue(proposal, path)) ? 2 : 0;
+	});
+
+	if (proposal.status === "ACCEPTED") {
+		score += 4;
+	} else if (proposal.status === "SENT") {
+		score += 2;
+	}
+
+	if ((proposal.items?.length ?? 0) > 0) {
+		score += 2;
+	}
+
+	if ((proposal.total ?? 0) > 0) {
+		score += 2;
+	}
+
+	return score;
+};
+
 const pickBestProduct = (products: Product[], requiredPaths: string[]) => {
 	if (products.length === 0) return undefined;
 	return [...products].sort((left, right) => {
@@ -271,14 +425,44 @@ const pickBestContact = (contacts: Contact[], requiredPaths: string[]) => {
 	})[0];
 };
 
+const pickBestInvoice = (invoices: Invoice[], requiredPaths: string[]) => {
+	if (invoices.length === 0) return undefined;
+	return [...invoices].sort((left, right) => {
+		const scoreDiff = scoreInvoice(right, requiredPaths) - scoreInvoice(left, requiredPaths);
+		if (scoreDiff !== 0) return scoreDiff;
+		const recencyDiff =
+			toTimeValue(right.updatedAt) + toTimeValue(right.createdAt) -
+			(toTimeValue(left.updatedAt) + toTimeValue(left.createdAt));
+		if (recencyDiff !== 0) return recencyDiff;
+		const rightLabel = getRecordFieldAsString(getInvoiceValueByPath(right, "invoiceNumber"));
+		const leftLabel = getRecordFieldAsString(getInvoiceValueByPath(left, "invoiceNumber"));
+		return rightLabel.localeCompare(leftLabel);
+	})[0];
+};
+
+const pickBestProposal = (proposals: Proposal[], requiredPaths: string[]) => {
+	if (proposals.length === 0) return undefined;
+	return [...proposals].sort((left, right) => {
+		const scoreDiff = scoreProposal(right, requiredPaths) - scoreProposal(left, requiredPaths);
+		if (scoreDiff !== 0) return scoreDiff;
+		const recencyDiff =
+			toTimeValue(right.updatedAt) + toTimeValue(right.createdAt) -
+			(toTimeValue(left.updatedAt) + toTimeValue(left.createdAt));
+		if (recencyDiff !== 0) return recencyDiff;
+		return (right.title || "").localeCompare(left.title || "");
+	})[0];
+};
+
 export function chooseDefaultPreviewRecordIds({
 	placeholders,
 	usedPlaceholderKeys,
 	products,
 	contacts,
+	invoices,
+	proposals,
 	dynamicSourceByPlaceholderKey,
 }: PreviewDefaultsInput): PreviewDefaultsResult {
-	const { productPaths, contactPaths } = collectRequiredPaths(
+	const { productPaths, contactPaths, invoicePaths, proposalPaths } = collectRequiredPaths(
 		placeholders,
 		usedPlaceholderKeys,
 		dynamicSourceByPlaceholderKey,
@@ -286,10 +470,14 @@ export function chooseDefaultPreviewRecordIds({
 
 	const bestProduct = pickBestProduct(products, productPaths);
 	const bestContact = pickBestContact(contacts, contactPaths);
+	const bestInvoice = pickBestInvoice(invoices, invoicePaths);
+	const bestProposal = pickBestProposal(proposals, proposalPaths);
 
 	return {
 		productId: bestProduct?.id,
 		contactId: bestContact?.id,
+		invoiceId: bestInvoice?.id,
+		proposalId: bestProposal?.id,
 	};
 }
 
@@ -298,6 +486,8 @@ export function buildPreviewPlaceholderValues({
 	usedPlaceholderKeys,
 	selectedProduct,
 	selectedContact,
+	selectedInvoice,
+	selectedProposal,
 	dynamicSourceByPlaceholderKey,
 }: PreviewValueInput): Record<string, string> {
 	const values: Record<string, string> = {};
@@ -319,6 +509,12 @@ export function buildPreviewPlaceholderValues({
 		if (source.entity === "contact") {
 			rawValue = getNestedValue(getContactRecordData(selectedContact), source.path);
 		}
+		if (source.entity === "invoice") {
+			rawValue = getInvoiceValueByPath(selectedInvoice, source.path);
+		}
+		if (source.entity === "proposal") {
+			rawValue = getNestedValue(selectedProposal, source.path);
+		}
 
 		const formatted = toDisplayString(rawValue);
 		if (!formatted.trim()) return;
@@ -336,17 +532,7 @@ export const formatProductPreviewLabel = (product: Product) => {
 	}
 	if (typeof product.price === "number") {
 		const currency = product.currency?.trim().toUpperCase() || "USD";
-		try {
-			parts.push(
-				new Intl.NumberFormat(undefined, {
-					style: "currency",
-					currency,
-					maximumFractionDigits: 2,
-				}).format(product.price),
-			);
-		} catch {
-			parts.push(`${product.price} ${currency}`);
-		}
+		parts.push(formatCurrencyAmount(product.price, currency));
 	}
 	if (product.status) {
 		parts.push(toSentenceCase(product.status));
@@ -372,4 +558,39 @@ export const formatContactPreviewLabel = (contact: Contact) => {
 		parts.push(company);
 	}
 	return parts.filter(Boolean).join(" • ") || contact.id;
+};
+
+export const formatInvoicePreviewLabel = (invoice: Invoice) => {
+	const invoiceNumber =
+		getRecordFieldAsString(getInvoiceValueByPath(invoice, "invoiceNumber")) ||
+		getRecordFieldAsString(getInvoiceValueByPath(invoice, "number"));
+	const amount = getInvoiceAmount(invoice);
+	const currency = getInvoiceCurrency(invoice);
+	const parts: string[] = [];
+
+	if (invoiceNumber) {
+		parts.push(invoiceNumber);
+	}
+	if (amount !== undefined) {
+		parts.push(formatCurrencyAmount(amount, currency));
+	}
+	if (invoice.status) {
+		parts.push(toSentenceCase(invoice.status));
+	}
+
+	return parts.filter(Boolean).join(" • ") || invoice.id;
+};
+
+export const formatProposalPreviewLabel = (proposal: Proposal) => {
+	const parts: string[] = [];
+	if (proposal.title?.trim()) {
+		parts.push(proposal.title.trim());
+	}
+	if (typeof proposal.total === "number") {
+		parts.push(formatCurrencyAmount(proposal.total, proposal.currency));
+	}
+	if (proposal.status) {
+		parts.push(toSentenceCase(proposal.status));
+	}
+	return parts.filter(Boolean).join(" • ") || proposal.id;
 };

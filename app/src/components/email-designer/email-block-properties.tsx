@@ -353,7 +353,6 @@ const DynamicTokenizedEditor = ({
 	placeholder,
 	rows = 3,
 	onSelectDynamicSource,
-	onCreatePlaceholder,
 	onChange,
 	insertTokenHandlerRef,
 }: {
@@ -364,7 +363,6 @@ const DynamicTokenizedEditor = ({
 	placeholder?: string;
 	rows?: number;
 	onSelectDynamicSource: (source: DynamicSourceField) => EmailTemplatePlaceholder;
-	onCreatePlaceholder: () => EmailTemplatePlaceholder | null;
 	onChange: (value: string) => void;
 	insertTokenHandlerRef?: MutableRefObject<((key: string) => void) | null>;
 }) => {
@@ -485,13 +483,6 @@ const DynamicTokenizedEditor = ({
 						const nextOffset = startIndex + getDynamicTokenString(selectedKey).length;
 						handleSetValue(nextValue, nextOffset);
 					}}
-					onCreateSource={() => {
-						const created = onCreatePlaceholder();
-						if (!created) return;
-						const nextValue = replaceDynamicTokenAt(value, key, created.key, startIndex);
-						const nextOffset = startIndex + getDynamicTokenString(created.key).length;
-						handleSetValue(nextValue, nextOffset);
-					}}
 					onRemoveSource={() => {
 						const nextValue = removeDynamicTokenAt(value, key, startIndex);
 						handleSetValue(nextValue, startIndex);
@@ -519,7 +510,6 @@ const DynamicTokenizedEditor = ({
 		dynamicSourcesByKey,
 		availableSources,
 		multiline,
-		onCreatePlaceholder,
 		onSelectDynamicSource,
 		handleSetValue,
 	]);
@@ -579,6 +569,7 @@ const PlaceholderInsertButton = ({
 				key: placeholder.key,
 				label: placeholder.label,
 			}))}
+			startAtCategoryList
 			onSelectSource={(source) => {
 				if (source.dynamicSource) {
 					const placeholder = onSelectDynamicSource(source.dynamicSource);
@@ -632,20 +623,6 @@ const PlaceholderTextareaField = ({
 					<AlertTitle className="text-xs font-semibold">Invalid placeholder patterns detected</AlertTitle>
 					<AlertDescription className="text-xs">
 						<p className="mb-1.5">The template contains empty placeholder patterns like <code className="rounded bg-background px-1 py-0.5 text-[10px]">{"{{}}"}</code> that must be fixed before saving.</p>
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-7 text-xs"
-							onClick={() => {
-								const created = onAddPlaceholder();
-								if (created) {
-									handleInsert(created.key);
-								}
-							}}
-						>
-							<Plus className="h-3 w-3 mr-1" />
-							Add placeholder key
-						</Button>
 					</AlertDescription>
 				</Alert>
 			)}
@@ -666,7 +643,6 @@ const PlaceholderTextareaField = ({
 				multiline
 				rows={rows}
 				onSelectDynamicSource={onSelectDynamicSource}
-				onCreatePlaceholder={onAddPlaceholder}
 				onChange={onChange}
 				insertTokenHandlerRef={insertTokenHandlerRef}
 			/>
@@ -713,20 +689,6 @@ const PlaceholderInputField = ({
 					<AlertTitle className="text-xs font-semibold">Invalid placeholder patterns detected</AlertTitle>
 					<AlertDescription className="text-xs">
 						<p className="mb-1.5">The template contains empty placeholder patterns like <code className="rounded bg-background px-1 py-0.5 text-[10px]">{"{{}}"}</code> that must be fixed before saving.</p>
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-7 text-xs"
-							onClick={() => {
-								const created = onAddPlaceholder();
-								if (created) {
-									handleInsert(created.key);
-								}
-							}}
-						>
-							<Plus className="h-3 w-3 mr-1" />
-							Add placeholder key
-						</Button>
 					</AlertDescription>
 				</Alert>
 			)}
@@ -746,7 +708,6 @@ const PlaceholderInputField = ({
 				dynamicSources={dynamicSources}
 				placeholder={inputPlaceholder}
 				onSelectDynamicSource={onSelectDynamicSource}
-				onCreatePlaceholder={onAddPlaceholder}
 				onChange={onChange}
 				insertTokenHandlerRef={insertTokenHandlerRef}
 			/>

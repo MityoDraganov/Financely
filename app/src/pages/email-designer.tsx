@@ -52,6 +52,8 @@ import { useGenerateEmailTemplate } from "@/hooks/service-hooks/use-email-templa
 import { AIEmailBuilderDialog } from "@/components/email-designer/ai-email-builder-dialog";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { useContactsByOrg } from "@/hooks/repository-hooks/use-contacts";
+import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
+import { useProposalsByOrg } from "@/hooks/repository-hooks/use-proposals";
 import {
 	getEntityDynamicSourceFields,
 	getEntityDynamicSourceMapByPlaceholderKey,
@@ -60,7 +62,9 @@ import {
 	buildPreviewPlaceholderValues,
 	chooseDefaultPreviewRecordIds,
 	formatContactPreviewLabel,
+	formatInvoicePreviewLabel,
 	formatProductPreviewLabel,
+	formatProposalPreviewLabel,
 } from "@/utils/email-preview-context";
 import {
 	useEmailTemplateVersions,
@@ -84,8 +88,18 @@ const defaultDesignTokens: EmailTemplateDesignTokens = {
 };
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
-const PLACEHOLDER_KEY_REGEX = /^[A-Za-z0-9_-]+$/;
 const AUTO_PREVIEW_VALUE = "__auto_preview__";
+const LEGACY_ARTIFACT_PLACEHOLDER_KEY_REGEX = /^key_\d+$/i;
+
+const isLegacyArtifactPlaceholderKey = (key: string | undefined): boolean =>
+	Boolean(key && LEGACY_ARTIFACT_PLACEHOLDER_KEY_REGEX.test(key.trim()));
+
+const sanitizePlaceholders = (
+	placeholders: EmailTemplatePlaceholder[] | undefined,
+): EmailTemplatePlaceholder[] =>
+	(placeholders ?? []).filter(
+		(placeholder) => !isLegacyArtifactPlaceholderKey(placeholder.key),
+	);
 
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
@@ -117,17 +131,25 @@ export default function EmailDesignerPage() {
 	const generateEmailTemplate = useGenerateEmailTemplate();
 	const { data: products = [] } = useProductsByOrg(orgId);
 	const { data: contacts = [] } = useContactsByOrg(orgId);
+	const { data: invoices = [] } = useInvoices(orgId);
+	const { data: proposals = [] } = useProposalsByOrg(orgId);
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	const [previewOverrides, setPreviewOverrides] = useState<{
 		productId?: string;
 		contactId?: string;
+		invoiceId?: string;
+		proposalId?: string;
 	}>({});
 	const [previewOverrideMode, setPreviewOverrideMode] = useState<{
 		product: "auto" | "manual";
 		contact: "auto" | "manual";
+		invoice: "auto" | "manual";
+		proposal: "auto" | "manual";
 	}>({
 		product: "auto",
 		contact: "auto",
+		invoice: "auto",
+		proposal: "auto",
 	});
 	const dynamicSources = useMemo(() => getEntityDynamicSourceFields(), []);
 	const dynamicSourceByPlaceholderKey = useMemo(
@@ -169,6 +191,7 @@ export default function EmailDesignerPage() {
 		if (!Array.isArray(cloned.placeholders)) {
 			cloned.placeholders = [];
 		}
+		cloned.placeholders = sanitizePlaceholders(cloned.placeholders);
 		
 		// CRITICAL: If template has blocks already with proper sections structure, use them directly
 		// This is especially important for AI-generated templates that come with structured blocks
@@ -646,7 +669,7 @@ export default function EmailDesignerPage() {
 				blocks: blocks, // Always an array (can be empty if HTML can't be parsed)
 				designTokens: template.designTokens ?? defaultDesignTokens,
 				sections: template.sections,
-				placeholders: template.placeholders ?? [], // Save placeholders
+				placeholders: sanitizePlaceholders(template.placeholders), // Save placeholders
 			});
 			
 			console.log("[EMAIL-DESIGNER] Saving HTML:", {
@@ -1171,13 +1194,17 @@ export default function EmailDesignerPage() {
 			return;
 		}
 
-		const placeholders = draftTemplate.placeholders ?? [];
+		const placeholders = sanitizePlaceholders(draftTemplate.placeholders);
 		const contentKeys = extractPlaceholderKeysFromContent(draftTemplate.blocks, draftTemplate.subject, draftTemplate.preheader);
 		const contentKeysSet = new Set(Array.from(contentKeys).map(k => k.toLowerCase()));
 		const registeredKeys = new Set(placeholders.map(p => p.key.toLowerCase()));
 		
 		// Find missing keys (in content but not registered)
-		const missingKeys = Array.from(contentKeys).filter(key => !registeredKeys.has(key.toLowerCase()));
+		const missingKeys = Array.from(contentKeys).filter(
+			(key) =>
+				!registeredKeys.has(key.toLowerCase()) &&
+				!isLegacyArtifactPlaceholderKey(key),
+		);
 		
 		// Find unused keys (registered but not in content)
 		const unusedKeys = placeholders.filter(p => !contentKeysSet.has(p.key.toLowerCase()));
@@ -1218,7 +1245,9 @@ export default function EmailDesignerPage() {
 
 			// Use functional update to ensure we merge with latest placeholders
 			setDraftOverrides((prev) => {
-				const currentPlaceholders = prev?.placeholders ?? normalizedBaseTemplate?.placeholders ?? [];
+				const currentPlaceholders = sanitizePlaceholders(
+					prev?.placeholders ?? normalizedBaseTemplate?.placeholders,
+				);
 				const existingKeys = new Set(currentPlaceholders.map(p => p.key.toLowerCase()));
 				const trulyMissing = newPlaceholders.filter(p => !existingKeys.has(p.key.toLowerCase()));
 				
@@ -1276,7 +1305,7 @@ export default function EmailDesignerPage() {
 	]);
 
 	const placeholders = useMemo(
-		() => draftTemplate?.placeholders ?? normalizedBaseTemplate?.placeholders ?? [],
+		() => sanitizePlaceholders(draftTemplate?.placeholders ?? normalizedBaseTemplate?.placeholders),
 		[draftTemplate?.placeholders, normalizedBaseTemplate?.placeholders],
 	);
 	const draftBlocks = draftTemplate?.blocks;
@@ -1307,6 +1336,8 @@ export default function EmailDesignerPage() {
 				usedPlaceholderKeys,
 				products,
 				contacts,
+				invoices,
+				proposals,
 				dynamicSourceByPlaceholderKey,
 			}),
 		[
@@ -1314,6 +1345,8 @@ export default function EmailDesignerPage() {
 			usedPlaceholderKeys,
 			products,
 			contacts,
+			invoices,
+			proposals,
 			dynamicSourceByPlaceholderKey,
 		],
 	);
@@ -1325,6 +1358,14 @@ export default function EmailDesignerPage() {
 		previewOverrideMode.contact === "manual"
 			? previewOverrides.contactId
 			: defaultPreviewRecordIds.contactId;
+	const selectedInvoiceId =
+		previewOverrideMode.invoice === "manual"
+			? previewOverrides.invoiceId
+			: defaultPreviewRecordIds.invoiceId;
+	const selectedProposalId =
+		previewOverrideMode.proposal === "manual"
+			? previewOverrides.proposalId
+			: defaultPreviewRecordIds.proposalId;
 	const selectedProduct = useMemo(
 		() => products.find((product) => product.id === selectedProductId),
 		[products, selectedProductId],
@@ -1341,6 +1382,22 @@ export default function EmailDesignerPage() {
 		() => contacts.find((contact) => contact.id === defaultPreviewRecordIds.contactId),
 		[contacts, defaultPreviewRecordIds.contactId],
 	);
+	const selectedInvoice = useMemo(
+		() => invoices.find((invoice) => invoice.id === selectedInvoiceId),
+		[invoices, selectedInvoiceId],
+	);
+	const autoSelectedInvoice = useMemo(
+		() => invoices.find((invoice) => invoice.id === defaultPreviewRecordIds.invoiceId),
+		[invoices, defaultPreviewRecordIds.invoiceId],
+	);
+	const selectedProposal = useMemo(
+		() => proposals.find((proposal) => proposal.id === selectedProposalId),
+		[proposals, selectedProposalId],
+	);
+	const autoSelectedProposal = useMemo(
+		() => proposals.find((proposal) => proposal.id === defaultPreviewRecordIds.proposalId),
+		[proposals, defaultPreviewRecordIds.proposalId],
+	);
 	const previewPlaceholderValues = useMemo(
 		() =>
 			buildPreviewPlaceholderValues({
@@ -1348,6 +1405,8 @@ export default function EmailDesignerPage() {
 				usedPlaceholderKeys,
 				selectedProduct,
 				selectedContact,
+				selectedInvoice,
+				selectedProposal,
 				dynamicSourceByPlaceholderKey,
 			}),
 		[
@@ -1355,6 +1414,8 @@ export default function EmailDesignerPage() {
 			usedPlaceholderKeys,
 			selectedProduct,
 			selectedContact,
+			selectedInvoice,
+			selectedProposal,
 			dynamicSourceByPlaceholderKey,
 		],
 	);
@@ -1386,6 +1447,22 @@ export default function EmailDesignerPage() {
 			return dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]?.entity === "contact";
 		});
 	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
+	const usesInvoiceSources = useMemo(() => {
+		const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
+		return placeholders.some((placeholder) => {
+			if (!usedKeysLower.has(placeholder.key.toLowerCase())) return false;
+			if (placeholder.source?.type === "entity_field") return placeholder.source.entity === "invoice";
+			return dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]?.entity === "invoice";
+		});
+	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
+	const usesProposalSources = useMemo(() => {
+		const usedKeysLower = new Set(Array.from(usedPlaceholderKeys).map((key) => key.toLowerCase()));
+		return placeholders.some((placeholder) => {
+			if (!usedKeysLower.has(placeholder.key.toLowerCase())) return false;
+			if (placeholder.source?.type === "entity_field") return placeholder.source.entity === "proposal";
+			return dynamicSourceByPlaceholderKey[placeholder.key.toLowerCase()]?.entity === "proposal";
+		});
+	}, [placeholders, usedPlaceholderKeys, dynamicSourceByPlaceholderKey]);
 	const previewProductOptions = useMemo(
 		() =>
 			products.map((product) => ({
@@ -1402,12 +1479,34 @@ export default function EmailDesignerPage() {
 			})),
 		[contacts],
 	);
+	const previewInvoiceOptions = useMemo(
+		() =>
+			invoices.map((invoice) => ({
+				id: invoice.id,
+				label: formatInvoicePreviewLabel(invoice),
+			})),
+		[invoices],
+	);
+	const previewProposalOptions = useMemo(
+		() =>
+			proposals.map((proposal) => ({
+				id: proposal.id,
+				label: formatProposalPreviewLabel(proposal),
+			})),
+		[proposals],
+	);
 	const defaultProductLabel = autoSelectedProduct
 		? formatProductPreviewLabel(autoSelectedProduct)
 		: "No matching product";
 	const defaultContactLabel = autoSelectedContact
 		? formatContactPreviewLabel(autoSelectedContact)
 		: "No matching contact";
+	const defaultInvoiceLabel = autoSelectedInvoice
+		? formatInvoicePreviewLabel(autoSelectedInvoice)
+		: "No matching invoice";
+	const defaultProposalLabel = autoSelectedProposal
+		? formatProposalPreviewLabel(autoSelectedProposal)
+		: "No matching proposal";
 
 	useEffect(() => {
 		if (!draftTemplate?.id) return;
@@ -1415,6 +1514,8 @@ export default function EmailDesignerPage() {
 		setPreviewOverrideMode({
 			product: "auto",
 			contact: "auto",
+			invoice: "auto",
+			proposal: "auto",
 		});
 	}, [draftTemplate?.id]);
 
@@ -1491,54 +1592,9 @@ export default function EmailDesignerPage() {
 			)
 		: [];
 
-	const validatePlaceholderKey = (key: string, currentId?: string): string | null => {
-		const trimmed = key?.trim() || "";
-		if (!trimmed) {
-			return "Placeholders cannot be empty. Example: {{key_1}}.";
-		}
-		if (!PLACEHOLDER_KEY_REGEX.test(trimmed)) {
-			return "Use only English letters, numbers, underscores (_) or hyphens (-). No spaces allowed.";
-		}
-		const isDuplicate = placeholders.some(
-			(placeholder) =>
-				placeholder.key.toLowerCase() === trimmed.toLowerCase() &&
-				placeholder.id !== currentId,
-		);
-		if (isDuplicate) {
-			return "This key already exists in this template. Choose a unique name.";
-		}
-		return null;
-	};
-
-	const getNextPlaceholderKey = () => {
-		let index = placeholders.length + 1;
-		let candidate = `key_${index}`;
-		const existing = new Set(placeholders.map((p) => p.key.toLowerCase()));
-		while (existing.has(candidate.toLowerCase())) {
-			index += 1;
-			candidate = `key_${index}`;
-		}
-		return candidate;
-	};
-
 	const handleAddPlaceholder = (): EmailTemplatePlaceholder | null => {
-		const newKey = getNextPlaceholderKey();
-		const validationError = validatePlaceholderKey(newKey);
-		if (validationError) {
-			toast.error(validationError);
-			return null;
-		}
-
-		const newPlaceholder: EmailTemplatePlaceholder = {
-			id: crypto.randomUUID(),
-			key: newKey,
-			label: undefined,
-			description: undefined,
-		};
-		handleDraftChange({
-			placeholders: [...placeholders, newPlaceholder],
-		});
-		return newPlaceholder;
+		toast.error("Manual placeholder keys are no longer supported.");
+		return null;
 	};
 
 	const handlePreviewProductChange = (value: string) => {
@@ -1559,6 +1615,26 @@ export default function EmailDesignerPage() {
 		}
 		setPreviewOverrideMode((prev) => ({ ...prev, contact: "manual" }));
 		setPreviewOverrides((prev) => ({ ...prev, contactId: value }));
+	};
+
+	const handlePreviewInvoiceChange = (value: string) => {
+		if (value === AUTO_PREVIEW_VALUE) {
+			setPreviewOverrideMode((prev) => ({ ...prev, invoice: "auto" }));
+			setPreviewOverrides((prev) => ({ ...prev, invoiceId: undefined }));
+			return;
+		}
+		setPreviewOverrideMode((prev) => ({ ...prev, invoice: "manual" }));
+		setPreviewOverrides((prev) => ({ ...prev, invoiceId: value }));
+	};
+
+	const handlePreviewProposalChange = (value: string) => {
+		if (value === AUTO_PREVIEW_VALUE) {
+			setPreviewOverrideMode((prev) => ({ ...prev, proposal: "auto" }));
+			setPreviewOverrides((prev) => ({ ...prev, proposalId: undefined }));
+			return;
+		}
+		setPreviewOverrideMode((prev) => ({ ...prev, proposal: "manual" }));
+		setPreviewOverrides((prev) => ({ ...prev, proposalId: value }));
 	};
 
 	const handleSelectDynamicSource = (source: (typeof dynamicSources)[number]): EmailTemplatePlaceholder => {
@@ -1770,6 +1846,54 @@ export default function EmailDesignerPage() {
 										<span className="text-muted-foreground">Auto:</span>{" "}{defaultContactLabel}
 									</SelectItem>
 									{previewContactOptions.map((option) => (
+										<SelectItem key={option.id} value={option.id} className="text-xs">
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+						{usesInvoiceSources && (
+							<Select
+								value={
+									previewOverrideMode.invoice === "manual" && previewOverrides.invoiceId
+										? previewOverrides.invoiceId
+										: AUTO_PREVIEW_VALUE
+								}
+								onValueChange={handlePreviewInvoiceChange}
+							>
+								<SelectTrigger className="h-7 text-xs w-52 bg-background">
+									<SelectValue placeholder="Invoice" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
+										<span className="text-muted-foreground">Auto:</span>{" "}{defaultInvoiceLabel}
+									</SelectItem>
+									{previewInvoiceOptions.map((option) => (
+										<SelectItem key={option.id} value={option.id} className="text-xs">
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+						{usesProposalSources && (
+							<Select
+								value={
+									previewOverrideMode.proposal === "manual" && previewOverrides.proposalId
+										? previewOverrides.proposalId
+										: AUTO_PREVIEW_VALUE
+								}
+								onValueChange={handlePreviewProposalChange}
+							>
+								<SelectTrigger className="h-7 text-xs w-52 bg-background">
+									<SelectValue placeholder="Proposal" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
+										<span className="text-muted-foreground">Auto:</span>{" "}{defaultProposalLabel}
+									</SelectItem>
+									{previewProposalOptions.map((option) => (
 										<SelectItem key={option.id} value={option.id} className="text-xs">
 											{option.label}
 										</SelectItem>

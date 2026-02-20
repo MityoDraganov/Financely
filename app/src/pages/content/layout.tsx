@@ -7,7 +7,7 @@ export default function ContentLayout() {
 
   const tabs = [
     {
-      title: "Metaobjects",
+      title: "Metaobjects & Metafields",
       href: "/content/metaobjects",
       icon: Database,
     },
@@ -20,38 +20,50 @@ export default function ContentLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Content</h1>
-            <p className="text-sm text-muted-foreground">Manage your metaobjects and files</p>
+      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-0 w-full overflow-x-hidden">
+        {/* Page header */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pb-5 sm:pb-6">
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Content</h1>
+            <p className="text-sm text-muted-foreground">Manage custom data structures and assets</p>
           </div>
         </div>
 
-        <div className="border-b">
-          <nav className="flex space-x-8">
+        {/* Tab navigation */}
+        <div className="border-b border-border">
+          <nav className="-mb-px flex gap-1">
             {tabs.map((tab) => {
-              const isActive = location.pathname === tab.href;
+              const isActive =
+                location.pathname === tab.href ||
+                (location.pathname === "/content" && tab.href === "/content/metaobjects");
               return (
                 <Link
                   key={tab.href}
                   to={tab.href}
                   className={cn(
-                    "flex items-center space-x-2 pb-4 px-1 border-b-2 transition-colors",
+                    "group inline-flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 transition-all duration-150",
                     isActive
                       ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                   )}
                 >
-                  <tab.icon className="h-4 w-4" />
-                  <span className="font-medium">{tab.title}</span>
+                  <tab.icon
+                    className={cn(
+                      "h-3.5 w-3.5 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                  {tab.title}
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        <Outlet />
+        {/* Content */}
+        <div className="pt-5 sm:pt-6">
+          <Outlet />
+        </div>
       </div>
     </div>
   );

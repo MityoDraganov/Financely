@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { contactDataSchema } from "@/core/entities/contact";
+import { invoiceDataSchema } from "@/core/entities/invoice";
 import { productDataSchema } from "@/core/entities/product";
+import { proposalDataSchema } from "@/core/entities/proposal";
 
-export type DynamicSourceEntity = "product" | "contact";
+export type DynamicSourceEntity = "product" | "contact" | "invoice" | "proposal";
 
 export type DynamicSourceValueType =
   | "string"
@@ -25,10 +27,19 @@ export interface DynamicSourceField {
   required: boolean;
 }
 
+type AdditionalDynamicField = {
+  path: string;
+  valueType?: DynamicSourceValueType;
+  required?: boolean;
+  label?: string;
+  description?: string;
+};
+
 type EntitySchemaConfig = {
   entity: DynamicSourceEntity;
   entityLabel: string;
   schema: z.ZodObject<z.ZodRawShape>;
+  additionalFields?: AdditionalDynamicField[];
 };
 
 const ENTITY_SCHEMAS: EntitySchemaConfig[] = [
@@ -41,6 +52,34 @@ const ENTITY_SCHEMAS: EntitySchemaConfig[] = [
     entity: "contact",
     entityLabel: "Contact",
     schema: contactDataSchema,
+  },
+  {
+    entity: "invoice",
+    entityLabel: "Invoice",
+    schema: invoiceDataSchema,
+    additionalFields: [
+      { path: "invoiceNumber", valueType: "string" },
+      { path: "number", valueType: "string" },
+      { path: "issueDate", valueType: "string" },
+      { path: "invoiceDate", valueType: "string" },
+      { path: "dueDate", valueType: "string" },
+      { path: "currency", valueType: "string" },
+      { path: "seller.name", valueType: "string" },
+      { path: "buyer.name", valueType: "string" },
+      { path: "customer.name", valueType: "string" },
+      { path: "client.name", valueType: "string" },
+      { path: "subtotal", valueType: "number" },
+      { path: "taxTotal", valueType: "number" },
+      { path: "vatTotal", valueType: "number" },
+      { path: "netAmount", valueType: "number" },
+      { path: "total", valueType: "number" },
+      { path: "grossTotal", valueType: "number" },
+    ],
+  },
+  {
+    entity: "proposal",
+    entityLabel: "Proposal",
+    schema: proposalDataSchema,
   },
 ];
 
@@ -169,6 +208,7 @@ const collectFieldsForSchema = ({
   entity,
   entityLabel,
   schema,
+  additionalFields,
 }: EntitySchemaConfig): DynamicSourceField[] => {
   const collected: DynamicSourceField[] = [];
 
@@ -209,6 +249,26 @@ const collectFieldsForSchema = ({
   };
 
   walkSchema(schema, [], true);
+
+  const existingPaths = new Set(collected.map((field) => field.path.toLowerCase()));
+  (additionalFields ?? []).forEach((field) => {
+    if (existingPaths.has(field.path.toLowerCase())) {
+      return;
+    }
+    const pathLabel = field.label ?? getPathLabel(field.path);
+    collected.push({
+      id: `${entity}:${field.path}`,
+      entity,
+      entityLabel,
+      path: field.path,
+      placeholderKey: toPlaceholderKey(entity, field.path),
+      label: pathLabel,
+      description: field.description ?? `${entityLabel} ${pathLabel}`,
+      valueType: field.valueType ?? "unknown",
+      required: field.required ?? false,
+    });
+  });
+
   return collected;
 };
 

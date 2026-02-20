@@ -372,7 +372,7 @@ export type EmailTemplateBlock = z.infer<typeof emailTemplateBlockSchema>;
 
 export const emailTemplatePlaceholderSourceSchema = z.object({
   type: z.literal("entity_field"),
-  entity: z.enum(["product", "contact"]),
+  entity: z.enum(["product", "contact", "invoice", "proposal"]),
   path: z.string().min(1),
   valueType: z
     .enum(["string", "number", "boolean", "date", "array", "object", "unknown"])
