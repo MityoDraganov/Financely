@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,22 +15,48 @@ import { Plus, Trash2 } from "lucide-react";
 import { WorkflowAction } from "@/core";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
+import {
+	isTemplateCompatibleWithContext,
+	resolveWorkflowTemplateContext,
+} from "@/utils/email-template-compatibility";
 
 interface EmailActionConfigProps {
   action: WorkflowAction;
+  workflowTriggerType?: string;
   onUpdateConfig: (config: any) => void;
 }
 
-export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigProps) {
+export function EmailActionConfig({
+  action,
+  workflowTriggerType,
+  onUpdateConfig,
+}: EmailActionConfigProps) {
   const { t } = useTranslation();
   const { currentOrganization } = useOrganizationContext();
   const { data: emailTemplates = [] } = useEmailTemplates(currentOrganization?.id || "");
   const config = action.config as any;
   const mode = (config.mode as "manual" | "template" | undefined) ?? "manual";
+  const workflowTemplateContext = resolveWorkflowTemplateContext(workflowTriggerType);
+  const compatibleEmailTemplates = emailTemplates.filter((template) =>
+    isTemplateCompatibleWithContext(template, workflowTemplateContext),
+  );
 
   const updateConfig = (updates: any) => {
     onUpdateConfig({ ...config, ...updates });
   };
+
+  useEffect(() => {
+    if (mode !== "template") return;
+    const selectedTemplateId = config.emailTemplateId as string | undefined;
+    if (!selectedTemplateId) return;
+
+    const isStillCompatible = compatibleEmailTemplates.some(
+      (template) => template.id === selectedTemplateId,
+    );
+    if (!isStillCompatible) {
+      updateConfig({ emailTemplateId: undefined });
+    }
+  }, [compatibleEmailTemplates, config.emailTemplateId, mode, updateConfig]);
 
   const updateRecipients = (recipients: string[]) => {
     updateConfig({ recipients });
@@ -108,11 +135,16 @@ export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigP
               <SelectValue placeholder="Select email template" />
             </SelectTrigger>
             <SelectContent>
-              {emailTemplates.map((template) => (
+              {compatibleEmailTemplates.map((template) => (
                 <SelectItem key={template.id} value={template.id}>
                   {template.name}
                 </SelectItem>
               ))}
+              {compatibleEmailTemplates.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No compatible templates found
+                </div>
+              )}
             </SelectContent>
           </Select>
         </div>

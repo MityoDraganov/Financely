@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -34,10 +34,17 @@ import { WorkflowStep, WorkflowActionType, WorkflowAction } from "@/core";
 import { ConditionalBranchEditor } from "./conditional-branch-editor";
 import { EmailRecipientsInput } from "./email-recipients-input";
 import { validateUrlForSSRF } from "@/utils/url-validation";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
+import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
+import {
+  isTemplateCompatibleWithContext,
+  resolveWorkflowTemplateContext,
+} from "@/utils/email-template-compatibility";
 
 interface StepEditorDialogProps {
   step: WorkflowStep | null;
   open: boolean;
+  workflowTriggerType?: string;
   onOpenChange: (open: boolean) => void;
   onSave: (step: WorkflowStep) => void;
 }
@@ -55,17 +62,66 @@ const actionTypes: Array<{ value: WorkflowActionType; label: string; icon: typeo
 export function StepEditorDialog({
   step,
   open,
+  workflowTriggerType,
   onOpenChange,
   onSave,
 }: StepEditorDialogProps) {
   const { t } = useTranslation();
+  const { currentOrganization } = useOrganizationContext();
+  const { data: emailTemplates = [] } = useEmailTemplates(currentOrganization?.id || "");
   const [editedStep, setEditedStep] = useState<WorkflowStep | null>(null);
+  const workflowTemplateContext = useMemo(
+    () => resolveWorkflowTemplateContext(workflowTriggerType),
+    [workflowTriggerType],
+  );
+  const compatibleEmailTemplates = useMemo(
+    () =>
+      emailTemplates.filter((template) =>
+        isTemplateCompatibleWithContext(template, workflowTemplateContext),
+      ),
+    [emailTemplates, workflowTemplateContext],
+  );
 
   useEffect(() => {
     if (step) {
       setEditedStep({ ...step });
     }
   }, [step, open]);
+
+  useEffect(() => {
+    setEditedStep((prevStep) => {
+      if (!prevStep) return prevStep;
+
+      let changed = false;
+      const updatedActions = prevStep.actions.map((action) => {
+        if (action.type !== "send.email") return action;
+        const config = action.config as { mode?: "manual" | "template"; emailTemplateId?: string };
+        const mode = config.mode ?? "manual";
+        if (mode !== "template") return action;
+        if (!config.emailTemplateId) return action;
+
+        const isStillCompatible = compatibleEmailTemplates.some(
+          (template) => template.id === config.emailTemplateId,
+        );
+
+        if (isStillCompatible) return action;
+        changed = true;
+        return {
+          ...action,
+          config: {
+            ...action.config,
+            emailTemplateId: "",
+          },
+        };
+      });
+
+      if (!changed) return prevStep;
+      return {
+        ...prevStep,
+        actions: updatedActions,
+      };
+    });
+  }, [compatibleEmailTemplates]);
 
   if (!editedStep) return null;
 
@@ -377,10 +433,10 @@ export function StepEditorDialog({
                           />
                           {((action.config.mode as "manual" | "template" | undefined) ?? "manual") === "template" ? (
                             <>
-                              <Label>Email template ID</Label>
-                              <Input
+                              <Label>Email template</Label>
+                              <Select
                                 value={action.config.emailTemplateId || ""}
-                                onChange={(e) =>
+                                onValueChange={(value) =>
                                   handleUpdateAction(index, (currentAction) => {
                                     if (currentAction.type !== "send.email") {
                                       return currentAction;
@@ -390,13 +446,28 @@ export function StepEditorDialog({
                                       ...currentAction,
                                       config: {
                                         ...currentAction.config,
-                                        emailTemplateId: e.target.value,
+                                        emailTemplateId: value,
                                       },
                                     };
                                   })
                                 }
-                                placeholder="Enter email template ID"
-                              />
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select email template" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {compatibleEmailTemplates.map((template) => (
+                                    <SelectItem key={template.id} value={template.id}>
+                                      {template.name}
+                                    </SelectItem>
+                                  ))}
+                                  {compatibleEmailTemplates.length === 0 && (
+                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                      No compatible templates found
+                                    </div>
+                                  )}
+                                </SelectContent>
+                              </Select>
                             </>
                           ) : (
                             <>

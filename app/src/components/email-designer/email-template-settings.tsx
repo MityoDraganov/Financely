@@ -4,36 +4,49 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import { EmailTemplateVersionHistory } from "./email-template-version-history";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
+	EMAIL_TEMPLATE_TYPE_DEFINITIONS,
+	allowedContextsForTemplateType,
+	inferTemplateTypeFromAllowedContexts,
+	type EmailTemplateTypeId,
+} from "@/utils/email-template-compatibility";
 
 type EmailTemplateSettingsProps = {
 	name: string;
 	designTokens: EmailTemplateDesignTokens;
+	allowedContexts?: string[];
 	versions?: EmailTemplateVersion[];
 	currentVersion?: number | null;
-	onSaveVersion?: () => Promise<void>;
 	onRestoreVersion?: (version: number) => Promise<void>;
-	isSavingVersion?: boolean;
 	isRestoringVersion?: boolean;
 	currentUserId?: string;
 	onChange: (updates: Partial<{
 		name: string;
 		designTokens: EmailTemplateDesignTokens;
+		allowedContexts: string[];
 	}>) => void;
 };
 
 export function EmailTemplateSettings({
 	name,
 	designTokens,
+	allowedContexts = [],
 	versions = [],
 	currentVersion = null,
-	onSaveVersion,
 	onRestoreVersion,
-	isSavingVersion = false,
 	isRestoringVersion = false,
 	currentUserId,
 	onChange,
 }: EmailTemplateSettingsProps) {
 	const { t } = useTranslation();
+	const selectedTemplateType = inferTemplateTypeFromAllowedContexts(allowedContexts);
 
 	const updateDesignTokens = (updates: Partial<EmailTemplateDesignTokens>) => {
 		onChange({
@@ -41,6 +54,12 @@ export function EmailTemplateSettings({
 				...designTokens,
 				...updates,
 			},
+		});
+	};
+
+	const handleTemplateTypeSelect = (templateType: EmailTemplateTypeId) => {
+		onChange({
+			allowedContexts: allowedContextsForTemplateType(templateType),
 		});
 	};
 
@@ -61,12 +80,25 @@ export function EmailTemplateSettings({
 						/>
 					</div>
 
-					<div className="text-sm text-muted-foreground p-3.5 bg-muted/45 border border-border/60 rounded-lg">
-						<p className="font-medium text-foreground mb-1">
-							{t("emailDesigner.settings.subject")} & {t("emailDesigner.settings.preheader")}
-						</p>
-						<p className="text-xs">Add Subject and Preheader blocks from the blocks list to edit them.</p>
+					<div className="space-y-1.5">
+						<Label className="text-xs text-muted-foreground">Template type</Label>
+						<Select
+							value={selectedTemplateType}
+							onValueChange={(value) => handleTemplateTypeSelect(value as EmailTemplateTypeId)}
+						>
+							<SelectTrigger className="h-8 text-xs bg-background">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{EMAIL_TEMPLATE_TYPE_DEFINITIONS.map((templateType) => (
+									<SelectItem key={templateType.id} value={templateType.id} className="text-xs">
+										{templateType.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
+
 
 					<div className="space-y-3">
 						<ColorTokenControl
@@ -137,13 +169,11 @@ export function EmailTemplateSettings({
 					</div>
 				</CardContent>
 			</Card>
-			{onSaveVersion && onRestoreVersion && (
+			{onRestoreVersion && (
 				<EmailTemplateVersionHistory
 					versions={versions}
 					currentVersion={currentVersion}
-					onSaveVersion={onSaveVersion}
 					onRestoreVersion={onRestoreVersion}
-					isSavingVersion={isSavingVersion}
 					isRestoringVersion={isRestoringVersion}
 					currentUserId={currentUserId}
 				/>

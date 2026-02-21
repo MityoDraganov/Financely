@@ -16,6 +16,11 @@ import {
 } from "./components/workflow-templates";
 import { ExecutionPreview } from "./components/execution-preview";
 import { StepEditorDialog } from "./components/step-editor-dialog";
+import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
+import {
+	isTemplateCompatibleWithContext,
+	resolveWorkflowTemplateContext,
+} from "@/utils/email-template-compatibility";
 import {
 	Dialog,
 	DialogContent,
@@ -27,6 +32,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 	const { t } = useTranslation();
 	const { editingWorkflow, onCancelEdit, onPreview } = props;
 	const { currentOrganization } = useOrganizationContext();
+	const { data: emailTemplates = [] } = useEmailTemplates(currentOrganization?.id || "");
 	const createWorkflow = useCreateWorkflow();
 	const updateWorkflow = useUpdateWorkflow();
 
@@ -144,6 +150,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 		}
 
 		// Validate workflow actions before saving
+		const workflowTemplateContext = resolveWorkflowTemplateContext(workflow.trigger?.type);
 		for (const step of workflow.steps || []) {
 			for (const action of step.actions || []) {
 				if (action.type === "send.email") {
@@ -162,6 +169,19 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 					if (emailMode === "template") {
 						if (!emailConfig.emailTemplateId || emailConfig.emailTemplateId.trim().length === 0) {
 							toast.error("Email template is required in template mode");
+							return;
+						}
+						const selectedTemplate = emailTemplates.find(
+							(template) => template.id === emailConfig.emailTemplateId,
+						);
+						if (!selectedTemplate) {
+							toast.error("Selected email template was not found");
+							return;
+						}
+						if (!isTemplateCompatibleWithContext(selectedTemplate, workflowTemplateContext)) {
+							toast.error(
+								`Template "${selectedTemplate.name}" is not compatible with trigger "${workflow.trigger?.type ?? "manual.trigger"}"`,
+							);
 							return;
 						}
 					} else {
@@ -703,6 +723,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
       <StepEditorDialog
         step={editingStep}
         open={showStepEditor}
+        workflowTriggerType={workflow.trigger?.type}
         onOpenChange={setShowStepEditor}
         onSave={handleSaveStep}
       />

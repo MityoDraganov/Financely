@@ -9,6 +9,11 @@ import {
   mergeMappings,
   renderTemplate,
 } from "../utils/email-template-rendering";
+import {
+  type EmailTemplateEntity,
+  extractRequiredTemplateEntities,
+  hasAllRequiredEntities,
+} from "../utils/email-template-compatibility";
 
 export interface EmailExecutorConfig {
   mode?: "manual" | "template";
@@ -142,6 +147,14 @@ export class EmailExecutor implements ActionExecutor {
         const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
         const mappings = mergeMappings(undefined, sourceMappings);
         const renderData = this.buildTemplateRenderData(context);
+        const requiredEntities = extractRequiredTemplateEntities(emailTemplate.placeholders);
+        const availableEntities = this.getAvailableTemplateEntities(renderData);
+        if (!hasAllRequiredEntities(requiredEntities, availableEntities)) {
+          const missingEntities = requiredEntities.filter((entity) => !availableEntities.has(entity));
+          throw new Error(
+            `Email template requires unavailable entities for this workflow run: ${missingEntities.join(", ")}`,
+          );
+        }
         const rendered = renderTemplate(emailTemplate, mappings, renderData, {
           escapeHtml: true,
           enableLogging: true,
@@ -311,6 +324,25 @@ export class EmailExecutor implements ActionExecutor {
         organization: organizationFromDataContext,
       },
     );
+  }
+
+  private getAvailableTemplateEntities(renderData: Record<string, unknown>): Set<EmailTemplateEntity> {
+    const available = new Set<EmailTemplateEntity>();
+
+    if (this.toRecord(renderData.invoice)) {
+      available.add("invoice");
+    }
+    if (this.toRecord(renderData.proposal)) {
+      available.add("proposal");
+    }
+    if (this.toRecord(renderData.product)) {
+      available.add("product");
+    }
+    if (this.toRecord(renderData.contact) || this.toRecord(renderData.customer)) {
+      available.add("contact");
+    }
+
+    return available;
   }
 
   /**

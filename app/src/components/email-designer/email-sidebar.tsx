@@ -648,7 +648,7 @@ export function EmailSidebar({
 			{/* Scrollable Content Area */}
 			<div className="flex-1 min-h-0 overflow-y-auto">
 				{/* Current Blocks Section */}
-				<div className="p-3 border-b border-border/70 shrink-0 bg-background/70">
+				<div className="p-3 shrink-0 bg-background/70">
 					<h3 className="text-sm font-semibold text-foreground">
 						{t("emailDesigner.blocks.currentBlocks")} ({sectionBlocks.length})
 					</h3>
@@ -812,7 +812,7 @@ export function EmailSidebar({
 
 				{/* Add Blocks Section */}
 				<div className="shrink-0">
-					<div className="p-3 border-b border-border/70 shrink-0 bg-background/70">
+					<div className="p-3 shrink-0 bg-background/70">
 						<h3 className="text-sm font-semibold text-foreground">
 							{t("emailDesigner.blocks.addBlocks")} - {t(`emailDesigner.sections.${currentSection}`)}
 						</h3>

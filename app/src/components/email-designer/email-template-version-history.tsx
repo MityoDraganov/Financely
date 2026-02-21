@@ -4,15 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { History, Loader2, RotateCcw, Save } from "lucide-react";
+import { History, Loader2, RotateCcw } from "lucide-react";
 import { EmailTemplateVersion } from "@/core";
 
 type EmailTemplateVersionHistoryProps = {
 	versions: EmailTemplateVersion[];
 	currentVersion: number | null;
-	onSaveVersion: () => Promise<void>;
 	onRestoreVersion: (version: number) => Promise<void>;
-	isSavingVersion?: boolean;
 	isRestoringVersion?: boolean;
 	currentUserId?: string;
 };
@@ -20,9 +18,7 @@ type EmailTemplateVersionHistoryProps = {
 export function EmailTemplateVersionHistory({
 	versions,
 	currentVersion,
-	onSaveVersion,
 	onRestoreVersion,
-	isSavingVersion = false,
 	isRestoringVersion = false,
 	currentUserId,
 }: EmailTemplateVersionHistoryProps) {
@@ -57,27 +53,10 @@ export function EmailTemplateVersionHistory({
 	return (
 		<Card className="border border-border/70 bg-background shadow-sm">
 			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between gap-2">
-					<CardTitle className="text-base font-semibold flex items-center gap-2">
-						<History className="h-4 w-4" />
-						{t("emailDesigner.versionHistory.title", "Version history")}
-					</CardTitle>
-					<Button
-						type="button"
-						size="sm"
-						variant="outline"
-						className="gap-1.5"
-						onClick={() => void onSaveVersion()}
-						disabled={isSavingVersion}
-					>
-						{isSavingVersion ? (
-							<Loader2 className="h-3.5 w-3.5 animate-spin" />
-						) : (
-							<Save className="h-3.5 w-3.5" />
-						)}
-						{t("emailDesigner.versionHistory.saveSnapshot", "Save snapshot")}
-					</Button>
-				</div>
+				<CardTitle className="text-base font-semibold flex items-center gap-2">
+					<History className="h-4 w-4" />
+					{t("emailDesigner.versionHistory.title", "Version history")}
+				</CardTitle>
 				<p className="text-xs text-muted-foreground">
 					{t("emailDesigner.versionHistory.subtitle", "View previous versions and restore when needed.")}
 				</p>

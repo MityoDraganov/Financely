@@ -138,6 +138,7 @@ export interface WorkflowBuilderProps {
 export interface WorkflowStepProps {
   step: WorkflowStep;
   stepIndex: number;
+  workflowTriggerType?: WorkflowTriggerType;
   onUpdateStep: (stepId: string, updates: Partial<WorkflowStep>) => void;
   onDeleteStep: (stepId: string) => void;
 }
@@ -146,6 +147,7 @@ export interface WorkflowActionProps {
   action: WorkflowAction;
   actionIndex: number;
   stepId: string;
+  workflowTriggerType?: WorkflowTriggerType;
   onUpdateAction: (stepId: string, actionIndex: number, updates: Partial<WorkflowAction>) => void;
   onDeleteAction: (stepId: string, actionIndex: number) => void;
 }
@@ -177,4 +179,3 @@ export interface WorkflowActionsProps {
   onPreview?: (workflow: Workflow) => void;
   isSaving: boolean;
 }
-

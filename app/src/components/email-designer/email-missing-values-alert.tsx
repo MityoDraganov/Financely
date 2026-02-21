@@ -20,6 +20,103 @@ interface EmailMissingValuesAlertProps {
 	onNavigateToField: (blockId: string, field: string) => void;
 }
 
+export const hasEmailMissingValues = (blocks: EmailTemplateBlock[]): boolean => {
+	let found = false;
+
+	const checkBlock = (block: EmailTemplateBlock) => {
+		if (found) return;
+
+		if (block.type === "button") {
+			const buttonBlock = block as Extract<EmailTemplateBlock, { type: "button" }>;
+			if (
+				buttonBlock.url === "#" ||
+				buttonBlock.url === "https://example.com" ||
+				buttonBlock.url === "" ||
+				!buttonBlock.url ||
+				buttonBlock.url.startsWith("https://example")
+			) {
+				found = true;
+				return;
+			}
+		}
+
+		if (block.type === "logo") {
+			const logoBlock = block as Extract<EmailTemplateBlock, { type: "logo" }>;
+			if (logoBlock.link === "#" || logoBlock.link === "https://example.com") {
+				found = true;
+				return;
+			}
+		}
+
+		if (block.type === "navigation") {
+			const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
+			const hasInvalidNavLink = navBlock.links?.some(
+				(link) =>
+					link.url === "#" ||
+					link.url === "https://example.com" ||
+					link.url === "" ||
+					!link.url ||
+					link.url.startsWith("https://example"),
+			);
+			if (hasInvalidNavLink) {
+				found = true;
+				return;
+			}
+		}
+
+		if (block.type === "unsubscribe") {
+			const unsubscribeBlock = block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>;
+			if (
+				unsubscribeBlock.url === "#unsubscribe" ||
+				unsubscribeBlock.url === "#" ||
+				unsubscribeBlock.url === "https://example.com" ||
+				unsubscribeBlock.url === "" ||
+				!unsubscribeBlock.url ||
+				unsubscribeBlock.url.startsWith("https://example")
+			) {
+				found = true;
+				return;
+			}
+		}
+
+		if (block.type === "footerText") {
+			const footerTextBlock = block as Extract<EmailTemplateBlock, { type: "footerText" }>;
+			const content = footerTextBlock.content || "";
+			if (
+				content.includes("email@example.com") ||
+				content.includes("mailto:#") ||
+				content.includes("+1 234 567 8900") ||
+				content.includes("phone: #")
+			) {
+				found = true;
+				return;
+			}
+		}
+
+		if (block.type === "columns") {
+			const columnsBlock = block as Extract<EmailTemplateBlock, { type: "columns" }>;
+			columnsBlock.columns?.forEach((column) => {
+				column.blocks?.forEach((nestedBlock) => {
+					checkBlock(nestedBlock);
+				});
+			});
+		}
+
+		if (block.type === "container") {
+			const containerBlock = block as Extract<EmailTemplateBlock, { type: "container" }>;
+			containerBlock.blocks?.forEach((nestedBlock) => {
+				checkBlock(nestedBlock);
+			});
+		}
+	};
+
+	blocks.forEach((block) => {
+		checkBlock(block);
+	});
+
+	return found;
+};
+
 export function EmailMissingValuesAlert({
 	blocks,
 	onNavigateToField,
@@ -243,7 +340,6 @@ export function EmailMissingValuesAlert({
 		</Alert>
 	);
 }
-
 
 
 

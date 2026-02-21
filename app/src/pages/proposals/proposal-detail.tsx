@@ -32,6 +32,7 @@ import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { getBindingValue, setBindingValue } from "@/core/entities/invoice";
 import { useUpdateProposal } from "@/hooks/repository-hooks/use-proposals";
 import { extractTemplateBindings } from "@/utils/invoice-compliance";
+import { isTemplateCompatibleWithContext } from "@/utils/email-template-compatibility";
 
 export default function ProposalDetailPage() {
   const { t } = useTranslation();
@@ -75,6 +76,25 @@ export default function ProposalDetailPage() {
       setProposalRecipientEmail(defaultProposalRecipientEmail);
     }
   }, [defaultProposalRecipientEmail, proposalRecipientEmail]);
+
+  const compatibleProposalEmailTemplates = useMemo(
+    () =>
+      emailTemplates.filter((template) =>
+        isTemplateCompatibleWithContext(template, "proposal_send"),
+      ),
+    [emailTemplates],
+  );
+
+  useEffect(() => {
+    if (selectedProposalEmailTemplateId === "__none__") return;
+
+    const isStillCompatible = compatibleProposalEmailTemplates.some(
+      (template) => template.id === selectedProposalEmailTemplateId,
+    );
+    if (!isStillCompatible) {
+      setSelectedProposalEmailTemplateId("__none__");
+    }
+  }, [compatibleProposalEmailTemplates, selectedProposalEmailTemplateId]);
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -543,12 +563,27 @@ export default function ProposalDetailPage() {
 
                     {/* Additional form fields not already shown */}
                     {(() => {
-                      const shownKeys = ['name', 'fullName', 'full_name', 'firstName', 'lastName', 'email', 'phone', 'company', 'jobtitle', 'message',
-                        'address', 'street', 'city', 'state', 'zipcode', 'country'];
+                      const shownKeys = [
+                        "name",
+                        "fullname",
+                        "firstname",
+                        "lastname",
+                        "email",
+                        "phone",
+                        "company",
+                        "jobtitle",
+                        "message",
+                        "address",
+                        "street",
+                        "city",
+                        "state",
+                        "zipcode",
+                        "country",
+                      ];
                       const extraFields = Object.entries(clientFormData).filter(([key, value]) => {
-                        const lowerKey = key.toLowerCase();
-                        return !shownKeys.includes(lowerKey)
-                          && !['_id', 'id', 'createdat', 'updatedat'].includes(lowerKey)
+                        const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+                        return !shownKeys.includes(normalizedKey)
+                          && !['_id', 'id', 'createdat', 'updatedat'].includes(normalizedKey)
                           && value !== null && value !== undefined && value !== ''
                           && (typeof value !== 'object' || (Array.isArray(value) && (value as unknown[]).length > 0));
                       });
@@ -621,11 +656,16 @@ export default function ProposalDetailPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Default proposal email</SelectItem>
-                      {emailTemplates.map((template) => (
+                      {compatibleProposalEmailTemplates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name || template.id}
                         </SelectItem>
                       ))}
+                      {compatibleProposalEmailTemplates.length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                          No compatible templates found
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 )}

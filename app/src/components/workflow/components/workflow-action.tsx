@@ -12,6 +12,7 @@ export function WorkflowActionComponent({
   action, 
   actionIndex, 
   stepId, 
+  workflowTriggerType,
   onUpdateAction, 
   onDeleteAction 
 }: WorkflowActionProps) {
@@ -56,7 +57,11 @@ export function WorkflowActionComponent({
         )}
 
         {action.type === "send.email" && (
-          <EmailActionConfig action={action} onUpdateConfig={handleUpdateConfig} />
+          <EmailActionConfig
+            action={action}
+            workflowTriggerType={workflowTriggerType}
+            onUpdateConfig={handleUpdateConfig}
+          />
         )}
       </div>
     </div>

@@ -25,6 +25,7 @@ import {
   mergeMappings,
   renderTemplate,
 } from "../utils/email-template-rendering";
+import { evaluateTemplateCompatibility } from "../utils/email-template-compatibility";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -234,70 +235,82 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
 
       // Check if custom email template is provided
       if (emailTemplateId && invoice.templateId) {
+        const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
+          "emailTemplates",
+          emailTemplateId,
+        );
+
+        if (!emailTemplate) {
+          throw new HttpsError("failed-precondition", "Selected email template was not found");
+        }
+
+        if (emailTemplate.orgId && emailTemplate.orgId !== invoice.orgId) {
+          throw new HttpsError(
+            "permission-denied",
+            "Selected email template does not belong to this organization",
+          );
+        }
+
+        const compatibility = evaluateTemplateCompatibility(emailTemplate, "invoice_send");
+        if (!compatibility.compatible) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected email template is not compatible with invoice emails",
+          );
+        }
+
         try {
-          // Fetch email template from Realtime Database
-          const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
-            "emailTemplates",
-            emailTemplateId
+          // Fetch email template mapping from Firestore
+          const emailTemplateMappingRepository = getGenericRepository<EmailTemplateMapping, Omit<EmailTemplateMapping, "id">>(
+            () => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS,
+            databaseService
           );
 
-          if (emailTemplate) {
-            // Fetch email template mapping from Firestore
-            const emailTemplateMappingRepository = getGenericRepository<EmailTemplateMapping, Omit<EmailTemplateMapping, "id">>(
-              () => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS,
-              databaseService
+          const mappings = await emailTemplateMappingRepository.getAll({
+            queryConstraints: [
+              { field: "orgId", operator: "==", value: invoice.orgId },
+              { field: "emailTemplateId", operator: "==", value: emailTemplateId },
+              { field: "entityTemplateId", operator: "==", value: invoice.templateId },
+              { field: "entityType", operator: "==", value: "invoice" },
+            ],
+          });
+
+          const mapping = Array.isArray(mappings) ? mappings[0] : null;
+
+          if (mapping && mapping.mappings) {
+            const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
+            const mergedMappings = mergeMappings(mapping.mappings, sourceMappings);
+            const buyerData = toRecord(invoiceData.buyer);
+            const customerData = toRecord(invoiceData.customer) ?? buyerData;
+
+            const renderData = buildRenderDataWithAliases(
+              {
+                ...invoiceData,
+              },
+              {
+                invoice: invoiceData as Record<string, unknown>,
+                buyer: buyerData,
+                customer: customerData,
+                organization: toRecord(organization),
+              },
             );
 
-            const mappings = await emailTemplateMappingRepository.getAll({
-              queryConstraints: [
-                { field: "orgId", operator: "==", value: invoice.orgId },
-                { field: "emailTemplateId", operator: "==", value: emailTemplateId },
-                { field: "entityTemplateId", operator: "==", value: invoice.templateId },
-                { field: "entityType", operator: "==", value: "invoice" },
-              ],
+            const rendered = renderTemplate(emailTemplate, mergedMappings, renderData, {
+              escapeHtml: true,
+              enableLogging: true,
             });
 
-            const mapping = Array.isArray(mappings) ? mappings[0] : null;
-
-            if (mapping && mapping.mappings) {
-              const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
-              const mergedMappings = mergeMappings(mapping.mappings, sourceMappings);
-              const buyerData = toRecord(invoiceData.buyer);
-              const customerData = toRecord(invoiceData.customer) ?? buyerData;
-
-              const renderData = buildRenderDataWithAliases(
-                {
-                  ...invoiceData,
-                },
-                {
-                  invoice: invoiceData as Record<string, unknown>,
-                  buyer: buyerData,
-                  customer: customerData,
-                  organization: toRecord(organization),
-                },
-              );
-
-              const rendered = renderTemplate(emailTemplate, mergedMappings, renderData, {
-                escapeHtml: true,
-                enableLogging: true,
-              });
-
-              subject = rendered.subject || `Invoice #${invoiceNumber}`;
-              html = rendered.html;
-              text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
-            } else {
-              // Template exists but no mapping found, fall through to default
-              logger.warn("Email template found but no mapping configured", {
-                emailTemplateId,
-                invoiceId,
-                templateId: invoice.templateId,
-              });
-              throw new Error("Email template mapping not found");
-            }
+            subject = rendered.subject || `Invoice #${invoiceNumber}`;
+            html = rendered.html;
+            text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
           } else {
-            // Template not found, fall through to default
-            logger.warn("Email template not found", { emailTemplateId });
-            throw new Error("Email template not found");
+            // Template exists but no mapping found, fall through to default
+            logger.warn("Email template found but no mapping configured", {
+              emailTemplateId,
+              invoiceId,
+              templateId: invoice.templateId,
+            });
+            throw new Error("Email template mapping not found");
           }
         } catch (error) {
           // Fall through to default template if custom template fails

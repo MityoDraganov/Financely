@@ -343,6 +343,7 @@ export default function InvoiceDetailPage() {
                                         orgId={currentOrg.id}
                                         entityTemplateId={invoice.templateId}
                                         entityType="invoice"
+                                        compatibilityContext="invoice_send"
                                         availableBindings={availableBindings}
                                         selectedTemplateId={selectedEmailTemplateId}
                                         entityData={invoice.data}
@@ -375,7 +376,6 @@ export default function InvoiceDetailPage() {
         </div>
     );
 }
-
 
 
 

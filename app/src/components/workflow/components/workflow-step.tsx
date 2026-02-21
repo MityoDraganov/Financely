@@ -12,6 +12,7 @@ import { WorkflowActionComponent } from "./workflow-action";
 export function WorkflowStepComponent({ 
   step, 
   stepIndex, 
+  workflowTriggerType,
   onUpdateStep, 
   onDeleteStep 
 }: WorkflowStepProps) {
@@ -126,6 +127,7 @@ export function WorkflowStepComponent({
               action={action}
               actionIndex={actionIndex}
               stepId={step.id}
+              workflowTriggerType={workflowTriggerType}
               onUpdateAction={(_stepId, actionIndex, updates) => handleUpdateAction(actionIndex, updates)}
               onDeleteAction={(_stepId, actionIndex) => handleDeleteAction(actionIndex)}
             />

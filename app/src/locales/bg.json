@@ -3322,5 +3322,29 @@
 			"success": "Успешно изтрит {{count}} шаблон",
 			"success_plural": "Успешно изтрити {{count}} шаблона"
 		}
+	},
+	"common": {
+		"cancel": "Отказ",
+		"save": "Запази",
+		"understand": "Разбирам",
+		"processing": "Обработване...",
+		"yes": "Да",
+		"no": "Не",
+		"copy": "Копирай",
+		"copied": "Копирано",
+		"copyLink": "Копирай връзка",
+		"optional": "По избор",
+		"required": "Задължително",
+		"enabled": "Активно",
+		"current": "Текущо",
+		"connected": "Свързано",
+		"notConnected": "Не е свързано",
+		"needsAttention": "Изисква внимание",
+		"recommended": "Препоръчано",
+		"comingSoon": "Очаквайте скоро",
+		"viewDocs": "Документация",
+		"previous": "Предишна",
+		"next": "Следваща",
+		"page": "Страница"
 	}
 }

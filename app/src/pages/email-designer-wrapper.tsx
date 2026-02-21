@@ -9,6 +9,11 @@ import AppLayout from "@/components/layout";
 import type { EmailTemplateData, EmailTemplateDesignTokens } from "@/core";
 import { useTranslation } from "react-i18next";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { CreateEmailTemplateDialog } from "@/components/email-designer/create-email-template-dialog";
+import {
+	allowedContextsForTemplateType,
+	type EmailTemplateTypeId,
+} from "@/utils/email-template-compatibility";
 
 const defaultTokens: EmailTemplateDesignTokens = {
 	background: "#ffffff",
@@ -34,8 +39,13 @@ export default function EmailDesignerWrapper() {
 	const createTemplate = useCreateEmailTemplate();
 	const [currentTemplateId, setCurrentTemplateId] = useState<string | undefined>(templateIdFromUrl);
 	const hasHandledCreateActionRef = useRef(false);
-	
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [createDialogOrigin, setCreateDialogOrigin] = useState<"route" | "designer">("designer");
+	const [selectedTemplateType, setSelectedTemplateType] = useState<EmailTemplateTypeId>("all");
+	const createDialogResolverRef = useRef<((created: boolean) => void) | null>(null);
+
 	const locationState = (location.state as { templateId?: string; action?: "create" } | null) || null;
+	const isRouteCreationWizard = createDialogOpen && createDialogOrigin === "route" && !templateIdFromUrl;
 
 	// Sync with URL param
 	useEffect(() => {
@@ -60,7 +70,7 @@ export default function EmailDesignerWrapper() {
 	const brandDesignTokens = useMemo(() => {
 		const brandColors = currentOrg?.settings?.brandColors;
 		if (!brandColors) return defaultTokens;
-		
+
 		return {
 			...defaultTokens,
 			primary: brandColors.primary || defaultTokens.primary,
@@ -70,37 +80,78 @@ export default function EmailDesignerWrapper() {
 		};
 	}, [currentOrg?.settings?.brandColors]);
 
+	const resolveCreateDialog = useCallback((created: boolean) => {
+		if (!createDialogResolverRef.current) return;
+		createDialogResolverRef.current(created);
+		createDialogResolverRef.current = null;
+	}, []);
+
+	const openCreateTemplateWizard = useCallback(
+		(origin: "route" | "designer") => {
+			if (createDialogResolverRef.current) {
+				return Promise.resolve(false);
+			}
+			setCreateDialogOrigin(origin);
+			setSelectedTemplateType("all");
+			setCreateDialogOpen(true);
+			return new Promise<boolean>((resolve) => {
+				createDialogResolverRef.current = resolve;
+			});
+		},
+		[],
+	);
+
 	const handleCreateNewTemplate = useCallback(async () => {
 		if (!orgId) return;
-		
+		await openCreateTemplateWizard("designer");
+	}, [orgId, openCreateTemplateWizard]);
+
+	const handleCancelCreateTemplate = useCallback(() => {
+		setCreateDialogOpen(false);
+		resolveCreateDialog(false);
+		if (createDialogOrigin === "route" && !templateIdFromUrl) {
+			navigate("/templates", { replace: true });
+		}
+	}, [createDialogOrigin, navigate, resolveCreateDialog, templateIdFromUrl]);
+
+	const handleConfirmCreateTemplate = useCallback(async () => {
+		if (!orgId) return;
+
 		const uniqueName = `New Email Template ${templates.length + 1}`;
-		
-		// Create blank template - no default content
-		// Users can add blocks as needed, no generic placeholder text
 		const templateData: EmailTemplateData = {
 			orgId,
 			name: uniqueName,
-			subject: "", // Empty subject - user can set it
-			preheader: "", // Empty preheader - user can set it
+			subject: "",
+			preheader: "",
 			status: "draft",
 			version: 1,
 			isLocked: false,
 			isSystemDefault: false,
-			allowedContexts: ["organization", "invoice", "proposal"],
-			htmlContent: "", // Empty HTML - blank template
-			blocks: [], // Empty blocks - no default content
+			allowedContexts: allowedContextsForTemplateType(selectedTemplateType),
+			htmlContent: "",
+			blocks: [],
 			designTokens: brandDesignTokens,
 			placeholders: [],
 		};
-		
+
 		try {
 			const newTemplateId = await createTemplate.mutateAsync(templateData);
 			setCurrentTemplateId(newTemplateId);
+			setCreateDialogOpen(false);
+			resolveCreateDialog(true);
 			navigate(`/email-designer/${newTemplateId}`, { replace: true });
 		} catch (error) {
 			console.error("Failed to create email template:", error);
 		}
-	}, [orgId, templates, createTemplate, navigate, t, brandDesignTokens]);
+	}, [
+		orgId,
+		templates.length,
+		createTemplate,
+		selectedTemplateType,
+		brandDesignTokens,
+		resolveCreateDialog,
+		navigate,
+	]);
 
 	const onTemplateChange = useCallback(async (id: string) => {
 		if (id === "new") {
@@ -114,14 +165,12 @@ export default function EmailDesignerWrapper() {
 	// Auto-create if location state says so (only once)
 	useEffect(() => {
 		if (
-			locationState?.action === "create" && 
-			!createTemplate.isPending && 
-			!createTemplate.isSuccess &&
-			templates.length === 0 &&
+			locationState?.action === "create" &&
+			!createTemplate.isPending &&
 			!hasHandledCreateActionRef.current
 		) {
 			hasHandledCreateActionRef.current = true;
-			handleCreateNewTemplate().finally(() => {
+			openCreateTemplateWizard("route").finally(() => {
 				// Clear location state after handling to prevent re-triggering
 				window.history.replaceState({}, '', location.pathname);
 			});
@@ -130,7 +179,7 @@ export default function EmailDesignerWrapper() {
 		if (!locationState?.action || createTemplate.isSuccess) {
 			hasHandledCreateActionRef.current = false;
 		}
-	}, [locationState?.action, createTemplate.isPending, createTemplate.isSuccess, templates.length, handleCreateNewTemplate, location.pathname]);
+	}, [locationState?.action, createTemplate.isPending, createTemplate.isSuccess, openCreateTemplateWizard, location.pathname]);
 
 	return (
 		<ErrorBoundary>
@@ -145,10 +194,35 @@ export default function EmailDesignerWrapper() {
 				isSubscribed={isSubscribed}
 			>
 				<AppLayout>
-					<EmailDesignerPage />
+					<>
+						{isRouteCreationWizard ? (
+							<div className="py-10 px-6">
+								<p className="text-sm text-muted-foreground">
+									Select a template type to start creating your email template.
+								</p>
+							</div>
+						) : (
+							<EmailDesignerPage />
+						)}
+						<CreateEmailTemplateDialog
+							open={createDialogOpen}
+							isPending={createTemplate.isPending}
+							selectedTemplateType={selectedTemplateType}
+							onSelectedTemplateTypeChange={setSelectedTemplateType}
+							onOpenChange={(open) => {
+								if (createTemplate.isPending) return;
+								if (!open) {
+									handleCancelCreateTemplate();
+									return;
+								}
+								setCreateDialogOpen(true);
+							}}
+							onConfirm={handleConfirmCreateTemplate}
+							onCancel={handleCancelCreateTemplate}
+						/>
+					</>
 				</AppLayout>
 			</EmailDesignerTemplateProvider>
 		</ErrorBoundary>
 	);
 }
-

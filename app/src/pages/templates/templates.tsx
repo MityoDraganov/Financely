@@ -32,6 +32,7 @@ import { useBulkDeleteTemplates } from "@/hooks/repository-hooks/use-bulk-delete
 import { useDeleteEmailTemplate } from "@/hooks/repository-hooks/use-delete-email-template";
 import { useBulkDeleteEmailTemplates } from "@/hooks/repository-hooks/use-bulk-delete-email-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useCreateEmailTemplate } from "@/hooks/repository-hooks/use-create-email-template";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -47,8 +48,13 @@ import { toast } from "sonner";
 import { ExportDialog } from "@/components/export-import/export-dialog";
 import { TemplateCardPreview } from "@/components/templates/template-card-preview";
 import { EmailTemplateCardPreview } from "@/components/templates/email-template-card-preview";
+import { CreateEmailTemplateDialog } from "@/components/email-designer/create-email-template-dialog";
 import type { Template } from "@/core/entities/template";
 import type { EmailTemplate } from "@/core/entities/email-template";
+import {
+	allowedContextsForTemplateType,
+	type EmailTemplateTypeId,
+} from "@/utils/email-template-compatibility";
 
 export default function TemplatesPage() {
 	const { t } = useTranslation();
@@ -87,6 +93,9 @@ export default function TemplatesPage() {
 	const [bulkDeleteEmailDialogOpen, setBulkDeleteEmailDialogOpen] =
 		useState(false);
 	const [showExportDialog, setShowExportDialog] = useState(false);
+	const [createEmailDialogOpen, setCreateEmailDialogOpen] = useState(false);
+	const [selectedTemplateType, setSelectedTemplateType] = useState<EmailTemplateTypeId>("all");
+	const createEmailTemplate = useCreateEmailTemplate();
 
 	const handleDelete = (template: { id: string; name: string }) => {
 		setTemplateToDelete(template);
@@ -132,7 +141,40 @@ export default function TemplatesPage() {
 	};
 
 	const handleCreateEmailTemplate = () => {
-		navigate("/email-designer", { state: { action: "create" } });
+		setSelectedTemplateType("all");
+		setCreateEmailDialogOpen(true);
+	};
+
+	const handleConfirmCreateEmailTemplate = async () => {
+		if (!currentOrganization?.id) return;
+		try {
+			const newTemplateId = await createEmailTemplate.mutateAsync({
+				orgId: currentOrganization.id,
+				name: `New Email Template ${emailTemplates.length + 1}`,
+				subject: "",
+				preheader: "",
+				status: "draft",
+				version: 1,
+				isLocked: false,
+				isSystemDefault: false,
+				allowedContexts: allowedContextsForTemplateType(selectedTemplateType),
+				htmlContent: "",
+				blocks: [],
+				designTokens: {
+					background: "#ffffff",
+					surface: "#f8fafc",
+					text: "#0f172a",
+					primary: "#2563eb",
+					fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+					borderRadius: 12,
+				},
+				placeholders: [],
+			});
+			setCreateEmailDialogOpen(false);
+			navigate(`/email-designer/${newTemplateId}`);
+		} catch {
+			// Error handled by mutation
+		}
 	};
 
 	const handleUploadInvoice = () => {
@@ -1222,6 +1264,19 @@ export default function TemplatesPage() {
 				open={showExportDialog}
 				onOpenChange={setShowExportDialog}
 				defaultEntityTypes={["templates"]}
+			/>
+
+			<CreateEmailTemplateDialog
+				open={createEmailDialogOpen}
+				isPending={createEmailTemplate.isPending}
+				selectedTemplateType={selectedTemplateType}
+				onSelectedTemplateTypeChange={setSelectedTemplateType}
+				onOpenChange={(open) => {
+					if (createEmailTemplate.isPending) return;
+					setCreateEmailDialogOpen(open);
+				}}
+				onConfirm={handleConfirmCreateEmailTemplate}
+				onCancel={() => setCreateEmailDialogOpen(false)}
 			/>
 		</div>
 	);

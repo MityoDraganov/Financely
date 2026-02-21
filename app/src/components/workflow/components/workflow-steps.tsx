@@ -95,6 +95,7 @@ export function WorkflowSteps({
             key={step.id}
             step={step}
             stepIndex={index}
+            workflowTriggerType={workflow?.trigger?.type}
             onUpdateStep={onUpdateStep}
             onDeleteStep={onDeleteStep}
           />

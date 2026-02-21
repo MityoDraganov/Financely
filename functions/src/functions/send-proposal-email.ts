@@ -16,6 +16,7 @@ import {
   mergeMappings,
   renderTemplate,
 } from "../utils/email-template-rendering";
+import { evaluateTemplateCompatibility } from "../utils/email-template-compatibility";
 import {
   generateBrandedEmailHTML,
   getEmailBrandingConfig,
@@ -180,20 +181,31 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
       let text = `${proposalTitle} (${proposalStatus}) - ${formattedTotal}`;
 
       if (emailTemplateId) {
-        try {
-          const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
-            "emailTemplates",
-            emailTemplateId,
+        const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
+          "emailTemplates",
+          emailTemplateId,
+        );
+
+        if (!emailTemplate) {
+          throw new HttpsError("failed-precondition", "Selected email template was not found");
+        }
+
+        if (emailTemplate.orgId && emailTemplate.orgId !== orgId) {
+          throw new HttpsError(
+            "permission-denied",
+            "Selected email template does not belong to this organization",
           );
+        }
 
-          if (!emailTemplate) {
-            throw new Error("Email template not found");
-          }
+        const compatibility = evaluateTemplateCompatibility(emailTemplate, "proposal_send");
+        if (!compatibility.compatible) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected email template is not compatible with proposal emails",
+          );
+        }
 
-          if (emailTemplate.orgId && emailTemplate.orgId !== orgId) {
-            throw new Error("Email template does not belong to this organization");
-          }
-
+        try {
           const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
           const mappings = mergeMappings(undefined, sourceMappings);
           const renderData = buildRenderDataWithAliases(

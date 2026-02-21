@@ -3344,7 +3344,26 @@
 	},
 	"common": {
 		"cancel": "Cancel",
+		"save": "Save",
 		"understand": "I Understand",
-		"processing": "Processing..."
+		"processing": "Processing...",
+		"yes": "Yes",
+		"no": "No",
+		"copy": "Copy",
+		"copied": "Copied",
+		"copyLink": "Copy Link",
+		"optional": "Optional",
+		"required": "Required",
+		"enabled": "Enabled",
+		"current": "Current",
+		"connected": "Connected",
+		"notConnected": "Not connected",
+		"needsAttention": "Needs attention",
+		"recommended": "Recommended",
+		"comingSoon": "Coming Soon",
+		"viewDocs": "View Docs",
+		"previous": "Previous",
+		"next": "Next",
+		"page": "Page"
 	}
 }

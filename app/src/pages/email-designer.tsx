@@ -40,7 +40,10 @@ import { EmailCanvasHeader } from "@/components/email-designer/email-canvas-head
 import { EmailDesignerCanvas } from "@/components/email-designer/email-designer-canvas";
 import { EmailBlockProperties } from "@/components/email-designer/email-block-properties";
 import { EmailTemplateSettings } from "@/components/email-designer/email-template-settings";
-import { EmailMissingValuesAlert } from "@/components/email-designer/email-missing-values-alert";
+import {
+	EmailMissingValuesAlert,
+	hasEmailMissingValues,
+} from "@/components/email-designer/email-missing-values-alert";
 import { BrandImagePickerDialog } from "@/components/brand-image-picker-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,6 +69,7 @@ import {
 	getEntityDynamicSourceFields,
 	getEntityDynamicSourceMapByPlaceholderKey,
 } from "@/utils/dynamic-sources";
+import { getCompatibleTemplateContexts } from "@/utils/email-template-compatibility";
 import {
 	buildPreviewPlaceholderValues,
 	chooseDefaultPreviewRecordIds,
@@ -77,7 +81,6 @@ import {
 import {
 	useEmailTemplateVersions,
 	useRestoreEmailTemplateVersion,
-	useSaveEmailTemplateVersion,
 } from "@/hooks/repository-hooks/use-email-template-versions";
 
 type BrandAssets = {
@@ -382,6 +385,12 @@ export default function EmailDesignerPage() {
 		if (overrides.placeholders && JSON.stringify(overrides.placeholders) !== JSON.stringify(base.placeholders ?? [])) {
 			return false;
 		}
+		if (
+			overrides.allowedContexts &&
+			JSON.stringify(overrides.allowedContexts) !== JSON.stringify(base.allowedContexts ?? [])
+		) {
+			return false;
+		}
 		return true;
 	};
 	
@@ -429,29 +438,16 @@ export default function EmailDesignerPage() {
 			name: overrides.name ?? normalizedBaseTemplate.name,
 			subject: overrides.subject ?? normalizedBaseTemplate.subject,
 			preheader: overrides.preheader ?? normalizedBaseTemplate.preheader,
+			allowedContexts:
+				overrides.allowedContexts ?? normalizedBaseTemplate.allowedContexts ?? [],
 		};
 	}, [normalizedBaseTemplate, draftOverrides]);
 	const templateId = baseTemplate?.id;
 	const { data: versions = [] } = useEmailTemplateVersions(templateId);
-	const saveVersion = useSaveEmailTemplateVersion();
 	const restoreVersion = useRestoreEmailTemplateVersion();
 	const currentVersion = versions.length > 0
 		? versions.reduce((max, item) => Math.max(max, item.version), 0)
 		: null;
-	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
-	const lastVersionSignatureRef = useRef<string>("");
-	const getVersionSignature = useCallback((template: EmailTemplate) => {
-		return JSON.stringify({
-			name: template.name,
-			subject: template.subject,
-			preheader: template.preheader,
-			htmlContent: template.htmlContent ?? "",
-			designTokens: template.designTokens ?? defaultDesignTokens,
-			placeholders: template.placeholders ?? [],
-			blocks: template.blocks ?? [],
-			sections: template.sections ?? {},
-		});
-	}, []);
 
 	// Track last processed content to avoid duplicate processing
 	const lastProcessedContentRef = useRef<string>("");
@@ -472,21 +468,8 @@ export default function EmailDesignerPage() {
 		lastProcessedContentRef.current = "";
 		lastSavedHtmlRef.current = ""; // Reset saved HTML when template changes
 		isSavingRef.current = false; // Reset saving flag
-		lastVersionSignatureRef.current = "";
-		if (versionCreationTimerRef.current) {
-			clearTimeout(versionCreationTimerRef.current);
-			versionCreationTimerRef.current = null;
-		}
 	}, [baseTemplate?.id]);
 
-	useEffect(() => {
-		return () => {
-			if (versionCreationTimerRef.current) {
-				clearTimeout(versionCreationTimerRef.current);
-				versionCreationTimerRef.current = null;
-			}
-		};
-	}, []);
 
 	const { activeUsers, updateSelection, updateCursor } = usePresence(baseTemplate?.id);
 
@@ -636,7 +619,7 @@ export default function EmailDesignerPage() {
 					console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
 					throw new Error(errorMessage);
 				}
-				
+
 				const timestamp = new Date().toISOString();
 				console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
 					timestamp,
@@ -686,6 +669,7 @@ export default function EmailDesignerPage() {
 				name: template.name,
 				subject: template.subject || "Email", // Ensure subject is never empty
 				preheader: template.preheader,
+				allowedContexts: template.allowedContexts ?? [],
 				htmlContent: htmlContent, // Save HTML as source of truth
 				blocks: blocks, // Always an array (can be empty if HTML can't be parsed)
 				designTokens: template.designTokens ?? defaultDesignTokens,
@@ -725,28 +709,6 @@ export default function EmailDesignerPage() {
 			// The real-time subscription will update baseTemplate automatically
 			queryClient.invalidateQueries({ queryKey: ["email-templates", orgId] });
 
-			// Auto-create version snapshots for meaningful changes
-			if (draftTemplate?.id) {
-				const signature = getVersionSignature(draftTemplate);
-				if (signature !== lastVersionSignatureRef.current) {
-					lastVersionSignatureRef.current = signature;
-					if (versionCreationTimerRef.current) {
-						clearTimeout(versionCreationTimerRef.current);
-					}
-					versionCreationTimerRef.current = setTimeout(async () => {
-						try {
-							await saveVersion.mutateAsync({
-								templateId: draftTemplate.id,
-								userId: authUser?.uid,
-								description: "Auto-saved version",
-								silent: true,
-							});
-						} catch (error) {
-							console.error("Failed to auto-create email template version:", error);
-						}
-					}, 2000);
-				}
-			}
 			toast.success(t("emailDesigner.toast.saved"));
 		},
 		onError: (error) => {
@@ -1180,15 +1142,6 @@ export default function EmailDesignerPage() {
 		handleSelectBlock(movedBlock.id);
 	};
 
-	const handleSaveVersion = async () => {
-		if (!templateId) return;
-		await saveVersion.mutateAsync({
-			templateId,
-			userId: authUser?.uid,
-			description: "Manual snapshot",
-		});
-	};
-
 	const handleRestoreVersion = async (version: number) => {
 		if (!templateId) return;
 		await restoreVersion.mutateAsync({
@@ -1329,6 +1282,38 @@ export default function EmailDesignerPage() {
 		() => sanitizePlaceholders(draftTemplate?.placeholders ?? normalizedBaseTemplate?.placeholders),
 		[draftTemplate?.placeholders, normalizedBaseTemplate?.placeholders],
 	);
+	const templateAllowedContexts = useMemo(
+		() => draftTemplate?.allowedContexts ?? normalizedBaseTemplate?.allowedContexts ?? [],
+		[draftTemplate?.allowedContexts, normalizedBaseTemplate?.allowedContexts],
+	);
+	const insertableDynamicSources = useMemo(() => {
+		return dynamicSources.filter((source) => {
+			const placeholderKey = source.placeholderKey.toLowerCase();
+			if (placeholders.some((placeholder) => placeholder.key.toLowerCase() === placeholderKey)) {
+				return true;
+			}
+
+			const candidatePlaceholder: EmailTemplatePlaceholder = {
+				id: "__candidate__",
+				key: source.placeholderKey,
+				label: source.label,
+				description: source.description,
+				source: {
+					type: "entity_field",
+					entity: source.entity,
+					path: source.path,
+					valueType: source.valueType,
+				},
+			};
+
+			return (
+				getCompatibleTemplateContexts({
+					allowedContexts: templateAllowedContexts,
+					placeholders: [...placeholders, candidatePlaceholder],
+				}).length > 0
+			);
+		});
+	}, [dynamicSources, placeholders, templateAllowedContexts]);
 	const draftBlocks = draftTemplate?.blocks;
 	const draftSubject = draftTemplate?.subject;
 	const draftPreheader = draftTemplate?.preheader;
@@ -1770,22 +1755,25 @@ export default function EmailDesignerPage() {
 	const propertiesContent = (
 		<div className="h-full min-h-0 min-w-0 flex flex-col overflow-hidden bg-background">
 				{/* Missing Values Alert - Top Priority */}
-			<div className="p-3 border-b shrink-0">
-				<EmailMissingValuesAlert
-					blocks={draftTemplate.blocks ?? []}
-					onNavigateToField={handleNavigateToField}
-				/>
-			</div>
+			{hasEmailMissingValues(draftTemplate.blocks ?? []) && (
+				<div className="p-3 border-b shrink-0">
+					<EmailMissingValuesAlert
+						blocks={draftTemplate.blocks ?? []}
+						onNavigateToField={handleNavigateToField}
+					/>
+				</div>
+			)}
 			
 			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
 				{selectedBlock ? (
 					<EmailBlockProperties
+						key={selectedBlock.id}
 						block={selectedBlock}
 						onChange={(updatedBlock) => handleUpdateBlock(updatedBlock.id, updatedBlock)}
 						onDelete={handleDeleteBlock}
 						onOpenImagePicker={handleOpenImagePicker}
 						placeholders={placeholders}
-						dynamicSources={dynamicSources}
+						dynamicSources={insertableDynamicSources}
 						onSelectDynamicSource={handleSelectDynamicSource}
 						invalidPlaceholders={invalidPlaceholders}
 						onAddPlaceholder={handleAddPlaceholder}
@@ -1795,19 +1783,18 @@ export default function EmailDesignerPage() {
 							name={draftTemplate.name ?? ""}
 							versions={versions}
 						currentVersion={currentVersion}
-						onSaveVersion={handleSaveVersion}
-						onRestoreVersion={handleRestoreVersion}
-						isSavingVersion={saveVersion.isPending}
+							onRestoreVersion={handleRestoreVersion}
 						isRestoringVersion={restoreVersion.isPending}
 						currentUserId={authUser?.uid}
-						designTokens={draftTemplate.designTokens ?? {
-							background: "#ffffff",
-							surface: "#f8fafc",
-							text: "#0f172a",
-							primary: "#2563eb",
-							fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-							borderRadius: 12,
-						}}
+							designTokens={draftTemplate.designTokens ?? {
+								background: "#ffffff",
+								surface: "#f8fafc",
+								text: "#0f172a",
+								primary: "#2563eb",
+								fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+								borderRadius: 12,
+							}}
+							allowedContexts={draftTemplate.allowedContexts ?? []}
 						onChange={(updates) => {
 							const nextTokens = updates.designTokens ?? draftTemplate.designTokens ?? {
 								background: "#ffffff",
@@ -1820,6 +1807,8 @@ export default function EmailDesignerPage() {
 							handleDraftChange({
 								name: updates.name ?? draftTemplate.name ?? "",
 								designTokens: nextTokens,
+								allowedContexts:
+									updates.allowedContexts ?? draftTemplate.allowedContexts ?? [],
 							});
 						}}
 					/>

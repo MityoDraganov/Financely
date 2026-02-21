@@ -437,15 +437,49 @@ const DynamicTokenizedEditor = ({
 	}, [value, handleSetValue]);
 
 	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-		if (event.key !== "Enter") return;
-		event.preventDefault();
-		if (!multiline) return;
 		const root = editorRef.current;
 		const selection = root ? getLogicalSelectionRange(root) : null;
 		const start = selection?.start ?? value.length;
 		const end = selection?.end ?? start;
-		const nextValue = value.slice(0, start) + "\n" + value.slice(end);
-		handleSetValue(nextValue, start + 1);
+		const hasSelection = start !== end;
+
+		if (event.key === "Enter") {
+			event.preventDefault();
+			if (!multiline) return;
+			const nextValue = value.slice(0, start) + "\n" + value.slice(end);
+			handleSetValue(nextValue, start + 1);
+			return;
+		}
+
+		// When there's a selection, always intercept Delete/Backspace and handle in React-space.
+		// Letting the browser natively delete React-managed token <span> nodes causes a
+		// removeChild reconciliation crash because React still holds refs to those DOM nodes.
+		if ((event.key === "Delete" || event.key === "Backspace") && hasSelection) {
+			event.preventDefault();
+			handleSetValue(value.slice(0, start) + value.slice(end), start);
+			return;
+		}
+
+		// No selection: intercept to ensure whole tokens are deleted atomically.
+		if (event.key === "Delete" && !hasSelection) {
+			event.preventDefault();
+			if (start >= value.length) return;
+			const tokenMatch = /^\{\{[A-Za-z0-9_-]+\}\}/.exec(value.slice(start));
+			const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
+			handleSetValue(value.slice(0, start) + value.slice(start + deleteCount), start);
+			return;
+		}
+
+		if (event.key === "Backspace" && !hasSelection) {
+			event.preventDefault();
+			if (start === 0) return;
+			const before = value.slice(0, start);
+			const tokenMatch = /\{\{[A-Za-z0-9_-]+\}\}$/.exec(before);
+			const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
+			const newPos = start - deleteCount;
+			handleSetValue(value.slice(0, newPos) + value.slice(start), newPos);
+			return;
+		}
 	}, [value, multiline, handleSetValue]);
 
 	const parts = useMemo(() => {
@@ -1196,8 +1230,8 @@ export function EmailBlockProperties({
   };
 
   return (
-    <Card className="h-full border-none bg-card/80 shadow-none flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 shrink-0">
+    <Card className="h-full border-none bg-card/80 shadow-none flex flex-col py-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 shrink-0 px-6 py-3">
         <CardTitle className="text-lg font-semibold">
           {t(`emailDesigner.blocks.${block.type}` as const)}
         </CardTitle>

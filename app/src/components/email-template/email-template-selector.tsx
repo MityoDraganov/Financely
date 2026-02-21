@@ -15,6 +15,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { serviceHost } from "@/services";
 import { getEmailTemplateRealtimeRepository } from "@/repositories/email-template-realtime-repository";
 import { getEmailTemplateMappingRepository } from "@/repositories/email-template-mapping-repository";
+import {
+	type EmailTemplateCompatibilityContext,
+	isTemplateCompatibleWithContext,
+} from "@/utils/email-template-compatibility";
 
 const databaseService = serviceHost.getDatabaseService();
 const emailTemplateRepository = getEmailTemplateRealtimeRepository();
@@ -32,6 +36,7 @@ type EmailTemplateSelectorProps = {
 	orgId: string;
 	entityTemplateId: string;
 	entityType: string;
+	compatibilityContext: EmailTemplateCompatibilityContext;
 	availableBindings: BindingField[];
 	selectedTemplateId?: string;
 	entityData?: Record<string, InvoiceDataValue>;
@@ -42,6 +47,7 @@ export function EmailTemplateSelector({
 	orgId,
 	entityTemplateId,
 	entityType,
+	compatibilityContext,
 	availableBindings,
 	selectedTemplateId,
 	entityData,
@@ -64,12 +70,29 @@ export function EmailTemplateSelector({
 	});
 
 	const templates: EmailTemplate[] = useMemo(() => emailTemplates || [], [emailTemplates]);
+	const compatibleTemplates: EmailTemplate[] = useMemo(
+		() =>
+			templates.filter((template) =>
+				isTemplateCompatibleWithContext(template, compatibilityContext),
+			),
+		[templates, compatibilityContext],
+	);
+
+	useEffect(() => {
+		if (!selectedTemplateId) return;
+		const isStillCompatible = compatibleTemplates.some(
+			(template) => template.id === selectedTemplateId,
+		);
+		if (!isStillCompatible) {
+			onTemplateChange(undefined);
+		}
+	}, [selectedTemplateId, compatibleTemplates, onTemplateChange]);
 
 	// Fetch selected template
 	const selectedTemplate = useMemo(() => {
 		if (!selectedTemplateId) return undefined;
-		return templates.find((t: EmailTemplate) => t.id === selectedTemplateId);
-	}, [selectedTemplateId, templates]);
+		return compatibleTemplates.find((t: EmailTemplate) => t.id === selectedTemplateId);
+	}, [selectedTemplateId, compatibleTemplates]);
 
 	// Fetch existing mapping
 	const { data: existingMapping, error: initialMappingsError, isLoading: isLoadingMapping } = useQuery({
@@ -222,11 +245,16 @@ export function EmailTemplateSelector({
 					<SelectValue placeholder={t("emailTemplateSelector.placeholder", "Select email template")} />
 				</SelectTrigger>
 				<SelectContent>
-					{templates.map((template: EmailTemplate) => (
+					{compatibleTemplates.map((template: EmailTemplate) => (
 						<SelectItem key={template.id} value={template.id}>
 							{template.name}
 						</SelectItem>
 					))}
+					{compatibleTemplates.length === 0 && (
+						<div className="px-2 py-1.5 text-xs text-muted-foreground">
+							No compatible templates found
+						</div>
+					)}
 				</SelectContent>
 			</Select>
 
@@ -288,4 +316,3 @@ export function EmailTemplateSelector({
 		</div>
 	);
 }
-
