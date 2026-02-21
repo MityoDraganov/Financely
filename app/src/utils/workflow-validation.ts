@@ -32,15 +32,28 @@ export function validateAction(action: WorkflowAction): string[] {
   // Validate action-specific configs
   switch (action.type) {
     case "send.email": {
-      const config = action.config as { recipients?: string[]; subject?: string; body?: string };
+      const config = action.config as {
+        mode?: "manual" | "template";
+        recipients?: string[];
+        subject?: string;
+        body?: string;
+        emailTemplateId?: string;
+      };
       if (!config.recipients || config.recipients.length === 0) {
         errors.push("Email recipients are required");
       }
-      if (!config.subject || config.subject.trim() === "") {
-        errors.push("Email subject is required");
-      }
-      if (!config.body || config.body.trim() === "") {
-        errors.push("Email body is required");
+      const mode = config.mode ?? "manual";
+      if (mode === "template") {
+        if (!config.emailTemplateId || config.emailTemplateId.trim() === "") {
+          errors.push("Email template is required in template mode");
+        }
+      } else {
+        if (!config.subject || config.subject.trim() === "") {
+          errors.push("Email subject is required");
+        }
+        if (!config.body || config.body.trim() === "") {
+          errors.push("Email body is required");
+        }
       }
       break;
     }
@@ -272,4 +285,3 @@ export function getStepErrors(
 ): string[] {
   return validationResult.stepErrors[stepId] || [];
 }
-

@@ -60,6 +60,7 @@ export default function WorkflowsPage() {
               id: "action1",
               name: "",
               config: {
+                mode: "manual",
                 recipients: [],
                 subject: "",
                 body: "",

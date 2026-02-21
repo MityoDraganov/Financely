@@ -13,6 +13,7 @@ export { renderInvoicePdf } from "./functions/render-invoice-pdf";
 export { mapProductToInvoiceFields } from "./functions/map-product-to-invoice-fields";
 export { generateProductTableConfig } from "./functions/generate-product-table-config";
 export { sendInvoiceEmail } from "./functions/send-invoice-email";
+export { sendProposalEmail } from "./functions/send-proposal-email";
 export { generateInvoiceShareLink } from "./functions/generate-invoice-share-link";
 
 // Invoice extraction (single callable with action: upload | extract | generateTemplate)

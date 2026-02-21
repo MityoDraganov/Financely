@@ -154,10 +154,12 @@ export const workflowActionSchema = z.object({
     }),
     // Email configuration (for send.email)
     z.object({
+      mode: z.enum(["manual", "template"]).default("manual"),
       recipients: z.array(z.string().email()),
-      subject: z.string(),
-      body: z.string(),
+      subject: z.string().optional(),
+      body: z.string().optional(),
       isHtml: z.boolean().default(false),
+      emailTemplateId: z.string().optional(),
       cc: z.array(z.string().email()).optional(),
       bcc: z.array(z.string().email()).optional(),
       replyTo: z.string().email().optional(),
@@ -166,6 +168,32 @@ export const workflowActionSchema = z.object({
         content: z.string(), // Base64 encoded content
         contentType: z.string(),
       })).optional(),
+    }).superRefine((config, validationContext) => {
+      if (config.mode === "template") {
+        if (!config.emailTemplateId || config.emailTemplateId.trim() === "") {
+          validationContext.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "emailTemplateId is required in template mode",
+            path: ["emailTemplateId"],
+          });
+        }
+        return;
+      }
+
+      if (!config.subject || config.subject.trim() === "") {
+        validationContext.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "subject is required in manual mode",
+          path: ["subject"],
+        });
+      }
+      if (!config.body || config.body.trim() === "") {
+        validationContext.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "body is required in manual mode",
+          path: ["body"],
+        });
+      }
     }),
     // Slack configuration (for send.slack)
     z.object({

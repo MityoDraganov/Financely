@@ -35,6 +35,7 @@ const stepTemplates: StepTemplate[] = [
         type: "send.email" as WorkflowActionType,
         name: "Send Email",
         config: {
+          mode: "manual",
           recipients: [],
           subject: "",
           body: "",
@@ -193,4 +194,3 @@ export function StepTemplates({ onSelectTemplate, className }: StepTemplatesProp
     </Card>
   );
 }
-

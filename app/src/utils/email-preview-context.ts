@@ -30,7 +30,19 @@ type PreviewValueInput = {
 	selectedContact?: Contact;
 	selectedInvoice?: Invoice;
 	selectedProposal?: Proposal;
+	selectedProductMetafieldsByDefinitionId?: Record<string, unknown>;
+	selectedContactMetafieldsByDefinitionId?: Record<string, unknown>;
 	dynamicSourceByPlaceholderKey: Record<string, DynamicSourceField>;
+};
+
+const METAFIELD_PATH_PREFIX = "metafields.";
+
+const getMetafieldDefinitionIdFromPath = (path: string): string | null => {
+	if (!path.startsWith(METAFIELD_PATH_PREFIX)) {
+		return null;
+	}
+	const definitionId = path.slice(METAFIELD_PATH_PREFIX.length).trim();
+	return definitionId.length > 0 ? definitionId : null;
 };
 
 const PRODUCT_HEURISTIC_FIELDS = [
@@ -288,6 +300,9 @@ const collectRequiredPaths = (
 		}
 		const source = getPlaceholderSource(placeholder, dynamicSourceByPlaceholderKey);
 		if (!source) return;
+		if (source.path.startsWith(METAFIELD_PATH_PREFIX)) {
+			return;
+		}
 		requiredPathsByEntity[source.entity].add(source.path);
 	});
 
@@ -488,6 +503,8 @@ export function buildPreviewPlaceholderValues({
 	selectedContact,
 	selectedInvoice,
 	selectedProposal,
+	selectedProductMetafieldsByDefinitionId,
+	selectedContactMetafieldsByDefinitionId,
 	dynamicSourceByPlaceholderKey,
 }: PreviewValueInput): Record<string, string> {
 	const values: Record<string, string> = {};
@@ -504,10 +521,20 @@ export function buildPreviewPlaceholderValues({
 
 		let rawValue: unknown;
 		if (source.entity === "product") {
-			rawValue = getNestedValue(selectedProduct, source.path);
+			const metafieldDefinitionId = getMetafieldDefinitionIdFromPath(source.path);
+			if (metafieldDefinitionId) {
+				rawValue = selectedProductMetafieldsByDefinitionId?.[metafieldDefinitionId];
+			} else {
+				rawValue = getNestedValue(selectedProduct, source.path);
+			}
 		}
 		if (source.entity === "contact") {
-			rawValue = getNestedValue(getContactRecordData(selectedContact), source.path);
+			const metafieldDefinitionId = getMetafieldDefinitionIdFromPath(source.path);
+			if (metafieldDefinitionId) {
+				rawValue = selectedContactMetafieldsByDefinitionId?.[metafieldDefinitionId];
+			} else {
+				rawValue = getNestedValue(getContactRecordData(selectedContact), source.path);
+			}
 		}
 		if (source.entity === "invoice") {
 			rawValue = getInvoiceValueByPath(selectedInvoice, source.path);

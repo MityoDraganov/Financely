@@ -73,6 +73,14 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async sendProposalEmail(payload) {
+    const result = await httpsCallable<typeof payload, { sent: boolean }>(
+      firebase.functions,
+      "sendProposalEmail",
+    )(payload);
+    return result.data;
+  },
+
   async generateInvoiceShareLink(payload) {
     const result = await httpsCallable<typeof payload, { url: string }>(
       firebase.functions,

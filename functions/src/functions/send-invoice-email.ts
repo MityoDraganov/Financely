@@ -18,8 +18,13 @@ import { realtimeDatabaseService } from "../infrastructure/realtime-database-ser
 import { getGenericRepository } from "../repositories/generic-repository";
 import { DatabaseCollection } from "../repositories/config";
 import type { InvoiceDataValue } from "../core";
-import { processEmailTemplate } from "../utils/email-template-processor";
 import { extractUserContextFromRequest } from "../utils/request-context";
+import {
+  buildRenderDataWithAliases,
+  buildSourceMappingsFromPlaceholders,
+  mergeMappings,
+  renderTemplate,
+} from "../utils/email-template-rendering";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -29,7 +34,17 @@ interface EmailTemplate {
   subject: string;
   preheader?: string;
   htmlContent: string;
-  placeholders?: Array<{ id: string; key: string; label?: string; description?: string }>;
+  placeholders?: Array<{
+    id: string;
+    key: string;
+    label?: string;
+    description?: string;
+    source?: {
+      type?: string;
+      entity?: string;
+      path?: string;
+    };
+  }>;
 }
 
 // Email template mapping types (from Firestore)
@@ -52,6 +67,13 @@ interface SendInvoiceEmailPayload {
   toEmail: string;
   emailTemplateId?: string;
 }
+
+const toRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+};
 
 
 /**
@@ -221,7 +243,6 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
 
           if (emailTemplate) {
             // Fetch email template mapping from Firestore
-            const databaseService = getDatabaseService();
             const emailTemplateMappingRepository = getGenericRepository<EmailTemplateMapping, Omit<EmailTemplateMapping, "id">>(
               () => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS,
               databaseService
@@ -239,29 +260,31 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
             const mapping = Array.isArray(mappings) ? mappings[0] : null;
 
             if (mapping && mapping.mappings) {
-              // Use custom email template with mappings
-              const templateHtml = emailTemplate.htmlContent || "";
-              const templateSubject = emailTemplate.subject || `Invoice #${invoiceNumber}`;
-              const templatePreheader = emailTemplate.preheader || "";
+              const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
+              const mergedMappings = mergeMappings(mapping.mappings, sourceMappings);
+              const buyerData = toRecord(invoiceData.buyer);
+              const customerData = toRecord(invoiceData.customer) ?? buyerData;
 
-              // Use centralized email template processor
-              const processed = processEmailTemplate(
+              const renderData = buildRenderDataWithAliases(
                 {
-                  html: templateHtml,
-                  subject: templateSubject,
-                  preheader: templatePreheader,
+                  ...invoiceData,
                 },
-                mapping.mappings,
-                invoiceData as Record<string, unknown>,
                 {
-                  escapeHtml: true,
-                  enableLogging: true,
-                }
+                  invoice: invoiceData as Record<string, unknown>,
+                  buyer: buyerData,
+                  customer: customerData,
+                  organization: toRecord(organization),
+                },
               );
 
-              subject = processed.subject;
-              html = processed.html;
-              text = processed.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
+              const rendered = renderTemplate(emailTemplate, mergedMappings, renderData, {
+                escapeHtml: true,
+                enableLogging: true,
+              });
+
+              subject = rendered.subject || `Invoice #${invoiceNumber}`;
+              html = rendered.html;
+              text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
             } else {
               // Template exists but no mapping found, fall through to default
               logger.warn("Email template found but no mapping configured", {
@@ -390,4 +413,3 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
     }
   }
 );
-

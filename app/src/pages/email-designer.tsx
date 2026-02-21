@@ -55,6 +55,14 @@ import { useContactsByOrg } from "@/hooks/repository-hooks/use-contacts";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { useProposalsByOrg } from "@/hooks/repository-hooks/use-proposals";
 import {
+	useContactMetafieldDefinitions,
+	useContactMetafields,
+} from "@/hooks/repository-hooks/use-contact-metafields";
+import {
+	useProductMetafieldDefinitions,
+	useProductMetafields,
+} from "@/hooks/repository-hooks/use-product-metafields";
+import {
 	getEntityDynamicSourceFields,
 	getEntityDynamicSourceMapByPlaceholderKey,
 } from "@/utils/dynamic-sources";
@@ -89,6 +97,7 @@ const defaultDesignTokens: EmailTemplateDesignTokens = {
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
 const AUTO_PREVIEW_VALUE = "__auto_preview__";
+const EMPTY_PREVIEW_ENTITY_ID = "__preview_none__";
 const LEGACY_ARTIFACT_PLACEHOLDER_KEY_REGEX = /^key_\d+$/i;
 
 const isLegacyArtifactPlaceholderKey = (key: string | undefined): boolean =>
@@ -133,6 +142,8 @@ export default function EmailDesignerPage() {
 	const { data: contacts = [] } = useContactsByOrg(orgId);
 	const { data: invoices = [] } = useInvoices(orgId);
 	const { data: proposals = [] } = useProposalsByOrg(orgId);
+	const { data: productMetafieldDefinitions = [] } = useProductMetafieldDefinitions(orgId);
+	const { data: contactMetafieldDefinitions = [] } = useContactMetafieldDefinitions(orgId);
 	const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
 	const [previewOverrides, setPreviewOverrides] = useState<{
 		productId?: string;
@@ -151,10 +162,20 @@ export default function EmailDesignerPage() {
 		invoice: "auto",
 		proposal: "auto",
 	});
-	const dynamicSources = useMemo(() => getEntityDynamicSourceFields(), []);
+	const dynamicSourceRuntimeOptions = useMemo(
+		() => ({
+			productMetafieldDefinitions,
+			contactMetafieldDefinitions,
+		}),
+		[productMetafieldDefinitions, contactMetafieldDefinitions],
+	);
+	const dynamicSources = useMemo(
+		() => getEntityDynamicSourceFields(dynamicSourceRuntimeOptions),
+		[dynamicSourceRuntimeOptions],
+	);
 	const dynamicSourceByPlaceholderKey = useMemo(
-		() => getEntityDynamicSourceMapByPlaceholderKey(),
-		[],
+		() => getEntityDynamicSourceMapByPlaceholderKey(dynamicSourceRuntimeOptions),
+		[dynamicSourceRuntimeOptions],
 	);
 	
 	// Use context values with safe defaults
@@ -1366,6 +1387,28 @@ export default function EmailDesignerPage() {
 		previewOverrideMode.proposal === "manual"
 			? previewOverrides.proposalId
 			: defaultPreviewRecordIds.proposalId;
+	const { data: selectedProductMetafields = [] } = useProductMetafields(
+		orgId,
+		selectedProductId ?? EMPTY_PREVIEW_ENTITY_ID,
+	);
+	const { data: selectedContactMetafields = [] } = useContactMetafields(
+		orgId,
+		selectedContactId ?? EMPTY_PREVIEW_ENTITY_ID,
+	);
+	const selectedProductMetafieldsByDefinitionId = useMemo(() => {
+		const lookup: Record<string, unknown> = {};
+		selectedProductMetafields.forEach((metafield) => {
+			lookup[metafield.definitionId] = metafield.value;
+		});
+		return lookup;
+	}, [selectedProductMetafields]);
+	const selectedContactMetafieldsByDefinitionId = useMemo(() => {
+		const lookup: Record<string, unknown> = {};
+		selectedContactMetafields.forEach((metafield) => {
+			lookup[metafield.definitionId] = metafield.value;
+		});
+		return lookup;
+	}, [selectedContactMetafields]);
 	const selectedProduct = useMemo(
 		() => products.find((product) => product.id === selectedProductId),
 		[products, selectedProductId],
@@ -1407,6 +1450,8 @@ export default function EmailDesignerPage() {
 				selectedContact,
 				selectedInvoice,
 				selectedProposal,
+				selectedProductMetafieldsByDefinitionId,
+				selectedContactMetafieldsByDefinitionId,
 				dynamicSourceByPlaceholderKey,
 			}),
 		[
@@ -1416,6 +1461,8 @@ export default function EmailDesignerPage() {
 			selectedContact,
 			selectedInvoice,
 			selectedProposal,
+			selectedProductMetafieldsByDefinitionId,
+			selectedContactMetafieldsByDefinitionId,
 			dynamicSourceByPlaceholderKey,
 		],
 	);

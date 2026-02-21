@@ -138,6 +138,12 @@ export interface FunctionsService {
     emailTemplateId?: string;
   }): Promise<{ sent: boolean }>;
 
+  sendProposalEmail(payload: {
+    proposalId: string;
+    toEmail: string;
+    emailTemplateId?: string;
+  }): Promise<{ sent: boolean }>;
+
   generateInvoiceShareLink(payload: {
     invoiceId: string;
   }): Promise<{ url: string }>;

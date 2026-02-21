@@ -2,12 +2,21 @@ import { logger } from "firebase-functions";
 import { ActionExecutor } from "../core/entities/workflow-execution";
 import { ResendEmailService } from "../services/resend-email-service";
 import { EmailSendOptions } from "../services/email-service-types";
+import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
+import {
+  buildRenderDataWithAliases,
+  buildSourceMappingsFromPlaceholders,
+  mergeMappings,
+  renderTemplate,
+} from "../utils/email-template-rendering";
 
 export interface EmailExecutorConfig {
+  mode?: "manual" | "template";
   recipients: string[];
-  subject: string;
-  body: string;
+  subject?: string;
+  body?: string;
   isHtml?: boolean;
+  emailTemplateId?: string;
   cc?: string[];
   bcc?: string[];
   replyTo?: string;
@@ -101,16 +110,58 @@ export class EmailExecutor implements ActionExecutor {
       
       // Use filtered recipients
       config.recipients = validRecipients;
-      if (!config.subject) {
-        throw new Error("Email subject is required");
-      }
-      if (!config.body) {
-        throw new Error("Email body is required");
+
+      const mode = config.mode ?? "manual";
+      let resolvedSubject = "";
+      let resolvedBody = "";
+
+      if (mode === "template") {
+        if (!config.emailTemplateId || config.emailTemplateId.trim().length === 0) {
+          throw new Error("Email template is required in template mode");
+        }
+
+        const emailTemplate = await realtimeDatabaseService.get<{
+          id: string;
+          subject?: string;
+          preheader?: string;
+          htmlContent?: string;
+          placeholders?: Array<{
+            key?: string;
+            source?: {
+              type?: string;
+              entity?: string;
+              path?: string;
+            };
+          }>;
+        }>("emailTemplates", config.emailTemplateId);
+
+        if (!emailTemplate) {
+          throw new Error(`Email template not found: ${config.emailTemplateId}`);
+        }
+
+        const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
+        const mappings = mergeMappings(undefined, sourceMappings);
+        const renderData = this.buildTemplateRenderData(context);
+        const rendered = renderTemplate(emailTemplate, mappings, renderData, {
+          escapeHtml: true,
+          enableLogging: true,
+        });
+
+        resolvedSubject = rendered.subject;
+        resolvedBody = rendered.html;
+      } else {
+        if (!config.subject || config.subject.trim().length === 0) {
+          throw new Error("Email subject is required");
+        }
+        if (!config.body || config.body.trim().length === 0) {
+          throw new Error("Email body is required");
+        }
+
+        // Resolve template variables in manual content mode
+        resolvedSubject = this.resolveTemplate(config.subject, context);
+        resolvedBody = this.resolveTemplate(config.body, context);
       }
 
-      // Resolve template variables in email content
-      const resolvedSubject = this.resolveTemplate(config.subject, context);
-      const resolvedBody = this.resolveTemplate(config.body, context);
       const resolvedRecipients = config.recipients.map(email => this.resolveTemplate(email, context));
       const resolvedCc = config.cc?.map(email => this.resolveTemplate(email, context)) || [];
       const resolvedBcc = config.bcc?.map(email => this.resolveTemplate(email, context)) || [];
@@ -126,8 +177,8 @@ export class EmailExecutor implements ActionExecutor {
         },
         subject: resolvedSubject,
         // Always provide both html and text for better email client compatibility
-        html: config.isHtml ? resolvedBody : undefined,
-        text: config.isHtml ? this.stripHtml(resolvedBody) : resolvedBody,
+        html: mode === "template" || config.isHtml ? resolvedBody : undefined,
+        text: mode === "template" || config.isHtml ? this.stripHtml(resolvedBody) : resolvedBody,
         cc: resolvedCc.length > 0 ? resolvedCc.map(email => ({ email })) : undefined,
         bcc: resolvedBcc.length > 0 ? resolvedBcc.map(email => ({ email })) : undefined,
         replyTo: resolvedReplyTo ? { email: resolvedReplyTo } : undefined,
@@ -175,6 +226,8 @@ export class EmailExecutor implements ActionExecutor {
         messageId: emailResult.messageId,
         recipients: resolvedRecipients,
         subject: resolvedSubject,
+        mode,
+        emailTemplateId: config.emailTemplateId,
         sentAt: new Date().toISOString(),
       };
 
@@ -217,6 +270,47 @@ export class EmailExecutor implements ActionExecutor {
       }
       return undefined;
     }, obj);
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private buildTemplateRenderData(context: Record<string, unknown>): Record<string, unknown> {
+    const dataContext = this.toRecord(context._dataContext);
+    const invoiceFromDataContext = this.toRecord(this.toRecord(dataContext?.invoice)?.data);
+    const customerFromDataContext = this.toRecord(dataContext?.customer);
+    const organizationFromDataContext = this.toRecord(dataContext?.organization);
+
+    const invoiceAlias =
+      invoiceFromDataContext ||
+      this.toRecord(context.invoice) ||
+      this.toRecord(context.data);
+    const contactAlias =
+      customerFromDataContext ||
+      this.toRecord(context.contact) ||
+      this.toRecord(context.customer) ||
+      this.toRecord(context.data);
+    const proposalAlias = this.toRecord(context.proposal);
+    const productAlias = this.toRecord(context.product);
+
+    return buildRenderDataWithAliases(
+      {
+        ...context,
+        ...(invoiceAlias ?? {}),
+      },
+      {
+        invoice: invoiceAlias,
+        contact: contactAlias,
+        customer: contactAlias,
+        proposal: proposalAlias,
+        product: productAlias,
+        organization: organizationFromDataContext,
+      },
+    );
   }
 
   /**

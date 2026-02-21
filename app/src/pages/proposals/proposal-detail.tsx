@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2, MessageSquare, Sparkles, Loader2, AlertTriangle, MapPin, Tag } from "lucide-react";
+import {
+  ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2,
+  MessageSquare, Sparkles, Loader2, AlertTriangle, MapPin, Tag,
+  ChevronRight, Send, Receipt, Globe, Linkedin, Twitter
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +20,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useGenerateInvoiceFromProposal } from "@/hooks/service-hooks/use-generate-invoice-from-proposal";
-import { useCreateInvoice } from "@/hooks";
+import { useCreateInvoice, useSendProposalEmail } from "@/hooks";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,21 +40,41 @@ export default function ProposalDetailPage() {
   const navigate = useNavigate();
   const { data: proposal, isLoading } = useProposal(id);
   const { data: lead, isLoading: isLeadLoading } = useLead(proposal?.leadId);
-  const { data: contact, isLoading: isContactLoading } = useContact(lead?.data?.contactId);
+  
+  const { data: contact, isLoading: isContactLoading } = useContact(lead?.contactId);
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
+  const { data: emailTemplates = [], isLoading: isEmailTemplatesLoading } = useEmailTemplates(currentOrganization?.id || "");
   const generateInvoice = useGenerateInvoiceFromProposal();
   const createInvoice = useCreateInvoice();
+  const sendProposalEmail = useSendProposalEmail();
   const updateProposal = useUpdateProposal();
-  
+
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [proposalRecipientEmail, setProposalRecipientEmail] = useState<string>("");
+  const [selectedProposalEmailTemplateId, setSelectedProposalEmailTemplateId] = useState<string>("__none__");
   const [generatedInvoiceData, setGeneratedInvoiceData] = useState<{
     invoiceData: Record<string, InvoiceDataValue>;
     invoiceNumber?: string;
     templateId: string;
   } | null>(null);
+
+  const defaultProposalRecipientEmail = useMemo(() => {
+    const formData =
+      lead?.formData && typeof lead.formData === "object" && lead.formData !== null
+        ? (lead.formData as Record<string, unknown>)
+        : {};
+    const emailCandidate = lead?.email || formData.email || contact?.email;
+    return typeof emailCandidate === "string" ? emailCandidate : "";
+  }, [lead, contact]);
+
+  useEffect(() => {
+    if (!proposalRecipientEmail && defaultProposalRecipientEmail) {
+      setProposalRecipientEmail(defaultProposalRecipientEmail);
+    }
+  }, [defaultProposalRecipientEmail, proposalRecipientEmail]);
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -58,21 +83,50 @@ export default function ProposalDetailPage() {
     }).format(amount);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
       case PROPOSAL_STATUSES.DRAFT:
-        return "bg-gray-100 text-gray-800";
+        return { className: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-400" };
       case PROPOSAL_STATUSES.SENT:
-        return "bg-blue-100 text-blue-800";
+        return { className: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" };
       case PROPOSAL_STATUSES.ACCEPTED:
-        return "bg-green-100 text-green-800";
+        return { className: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" };
       case PROPOSAL_STATUSES.REJECTED:
-        return "bg-red-100 text-red-800";
+        return { className: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" };
       case PROPOSAL_STATUSES.EXPIRED:
-        return "bg-yellow-100 text-yellow-800";
+        return { className: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" };
       default:
-        return "bg-gray-100 text-gray-800";
+        return { className: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-400" };
     }
+  };
+
+  const handleSendProposalEmail = () => {
+    if (!proposalRecipientEmail.trim()) {
+      toast.error("Recipient email is required");
+      return;
+    }
+    if (!proposal) {
+      toast.error("Proposal not found");
+      return;
+    }
+    sendProposalEmail.mutate(
+      {
+        proposalId: proposal.id,
+        toEmail: proposalRecipientEmail.trim(),
+        emailTemplateId:
+          selectedProposalEmailTemplateId !== "__none__"
+            ? selectedProposalEmailTemplateId
+            : undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Proposal email sent to ${proposalRecipientEmail.trim()}`);
+        },
+        onError: (error) => {
+          toast.error(`Failed to send proposal email: ${error.message}`);
+        },
+      },
+    );
   };
 
   if (isLoading) {
@@ -87,12 +141,12 @@ export default function ProposalDetailPage() {
   if (!proposal) {
     return (
       <div className="py-6 pr-6">
-        <div className="text-center py-12">
-          <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+        <div className="text-center py-24">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-muted mb-4">
+            <FileText className="h-8 w-8 text-muted-foreground" />
+          </div>
           <h3 className="mt-2 text-sm font-semibold text-gray-900">{t('proposalDetail.notFound.title')}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('proposalDetail.notFound.description')}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('proposalDetail.notFound.description')}</p>
           <Button className="mt-4" onClick={() => navigate("/proposals")}>
             {t('proposalDetail.notFound.backButton')}
           </Button>
@@ -101,541 +155,513 @@ export default function ProposalDetailPage() {
     );
   }
 
+  const statusConfig = getStatusConfig(proposal.status);
+
+  // Extract client information
+  const clientFormData = lead?.formData && typeof lead.formData === 'object' && lead.formData !== null
+    ? lead.formData as Record<string, unknown>
+    : {};
+
+  const clientFirstName = contact?.firstName || lead?.firstName || clientFormData.firstName;
+  const clientLastName = contact?.lastName || lead?.lastName || clientFormData.lastName;
+  // Also support formData.name as a combined full-name fallback (e.g. "Test Finalov")
+  const clientFullName = [clientFirstName, clientLastName].filter(Boolean).join(" ")
+    || (typeof clientFormData.name === 'string' ? clientFormData.name : "");
+  const clientEmail = contact?.email || lead?.email || (typeof clientFormData.email === 'string' ? clientFormData.email : "");
+  const clientPhone = contact?.phone?.[0] || lead?.phone || (typeof clientFormData.phone === 'string' ? clientFormData.phone : "");
+  const clientCompany = contact?.company || lead?.company || (typeof clientFormData.company === 'string' ? clientFormData.company : "");
+  const clientJobTitle = contact?.jobTitle || lead?.jobTitle || (typeof clientFormData.jobTitle === 'string' ? clientFormData.jobTitle : "");
+  const clientAddress = contact?.address;
+
   return (
     <div className="py-6 pr-6 space-y-6">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/proposals")}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/proposals")} className="mt-1 shrink-0">
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t('proposalDetail.back')}
           </Button>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{proposal.title}</h1>
-              <div className="flex items-center space-x-2">
-                <Badge className={getStatusColor(proposal.status)}>
-                  {t(`proposals.status.${proposal.status}`)}
-                </Badge>
-                {proposal.createdAt && (
-                  <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      {t('proposalDetail.created', { date: formatDateTable(proposal.createdAt) })}
-                    </span>
-                  </div>
-                )}
-              </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight leading-tight">{proposal.title}</h1>
+            <div className="flex items-center gap-3 mt-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusConfig.className}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
+                {t(`proposals.status.${proposal.status}`)}
+              </span>
+              {proposal.createdAt && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  {t('proposalDetail.created', { date: formatDateTable(proposal.createdAt) })}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Incomplete Proposal Warning */}
-        {proposal.isIncomplete && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t('proposalDetail.incomplete.title')}</AlertTitle>
-            <AlertDescription>
-              {t('proposalDetail.incomplete.description')}
-              {proposal.incompleteItems && proposal.incompleteItems.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  <p className="font-medium">{t('proposalDetail.incomplete.missingProducts')}</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {proposal.incompleteItems.map((item: { description: string; reason: string; suggestedProductId?: string }, idx: number) => (
-                      <li key={idx}>
-                        <span className="font-medium">{item.description}</span>
-                        {item.reason && <span className="text-muted-foreground"> - {item.reason}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <p className="mt-2 text-sm">
-                {t('proposalDetail.incomplete.reviewItems')}
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Quick Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!proposal.invoiceId && (
+            <Button onClick={() => setConvertDialogOpen(true)} size="sm">
+              <Sparkles className="h-4 w-4 mr-2" />
+              {t('proposalDetail.sections.convertToInvoice')}
+            </Button>
+          )}
+          {proposal.invoiceId && (
+            <Button variant="outline" size="sm" onClick={() => navigate(`/invoices/${proposal.invoiceId}`)}>
+              <Receipt className="h-4 w-4 mr-2" />
+              View Invoice
+              <ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+          )}
+        </div>
+      </div>
 
-        {/* Proposal Details */}
-        <div className="
-        ">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
-            {proposal.description && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t('proposalDetail.sections.description')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{proposal.description}</p>
-                </CardContent>
-              </Card>
+      {/* Incomplete Warning */}
+      {proposal.isIncomplete && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t('proposalDetail.incomplete.title')}</AlertTitle>
+          <AlertDescription>
+            {t('proposalDetail.incomplete.description')}
+            {proposal.incompleteItems && proposal.incompleteItems.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <p className="font-medium">{t('proposalDetail.incomplete.missingProducts')}</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {proposal.incompleteItems.map((item: { description: string; reason: string; suggestedProductId?: string }, idx: number) => (
+                    <li key={idx}>
+                      <span className="font-medium">{item.description}</span>
+                      {item.reason && <span className="text-muted-foreground"> - {item.reason}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
+            <p className="mt-2 text-sm">{t('proposalDetail.incomplete.reviewItems')}</p>
+          </AlertDescription>
+        </Alert>
+      )}
 
-            {/* Items */}
+      {/* Main Layout: 2 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        {/* Left column: proposal content */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Description */}
+          {proposal.description && (
             <Card>
-              <CardHeader>
-                <CardTitle>{t('proposalDetail.sections.items')}</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t('proposalDetail.sections.description')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed">{proposal.description}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Items */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t('proposalDetail.sections.items')}</CardTitle>
+                <CardDescription className="text-xs">
                   {proposal.items.length === 1
                     ? t('proposalDetail.sections.itemsCount', { count: proposal.items.length })
                     : t('proposalDetail.sections.itemsCountPlural', { count: proposal.items.length })}
                 </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {proposal.items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">{item.description}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.qty} × {formatCurrency(item.unitPrice, proposal.currency)}
-                          {item.taxPct && item.taxPct > 0 && (
-                            <span className="ml-2">{t('proposalDetail.labels.tax', { tax: item.taxPct })}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">
-                          {formatCurrency(
-                            item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100),
-                            proposal.currency
-                          )}
-                        </p>
-                      </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {proposal.items.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {item.qty} × {formatCurrency(item.unitPrice, proposal.currency)}
+                        {item.taxPct && item.taxPct > 0 && (
+                          <span className="ml-2 text-muted-foreground/70">{t('proposalDetail.labels.tax', { tax: item.taxPct })}</span>
+                        )}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="text-right ml-4 shrink-0">
+                      <p className="font-semibold text-sm">
+                        {formatCurrency(item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100), proposal.currency)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-            {/* Terms and Notes */}
-            {(proposal.terms || proposal.notes) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t('proposalDetail.sections.additionalInfo')}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {proposal.terms && (
-                    <div>
-                      <h4 className="font-medium mb-2">{t('proposalDetail.sections.paymentTerms')}</h4>
-                      <p className="text-sm text-muted-foreground">{proposal.terms}</p>
-                    </div>
-                  )}
-                  {proposal.notes && (
-                    <div>
-                      <h4 className="font-medium mb-2">{t('proposalDetail.sections.notes')}</h4>
-                      <p className="text-sm text-muted-foreground">{proposal.notes}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('proposalDetail.sections.summary')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t('proposalDetail.sections.subtotal')}</span>
-                  <span className="font-medium">
-                    {formatCurrency(proposal.subtotal, proposal.currency)}
-                  </span>
+              {/* Totals */}
+              <div className="border-t bg-muted/20 px-6 py-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t('proposalDetail.sections.subtotal')}</span>
+                  <span>{formatCurrency(proposal.subtotal, proposal.currency)}</span>
                 </div>
                 {proposal.taxTotal > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('proposalDetail.sections.tax')}</span>
-                    <span className="font-medium">
-                      {formatCurrency(proposal.taxTotal, proposal.currency)}
-                    </span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{t('proposalDetail.sections.tax')}</span>
+                    <span>{formatCurrency(proposal.taxTotal, proposal.currency)}</span>
                   </div>
                 )}
-                <div className="border-t pt-4 flex items-center justify-between">
-                  <span className="font-semibold">{t('proposalDetail.sections.total')}</span>
-                  <span className="text-lg font-bold">
-                    {formatCurrency(proposal.total, proposal.currency)}
-                  </span>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="font-semibold text-sm">{t('proposalDetail.sections.total')}</span>
+                  <span className="text-lg font-bold">{formatCurrency(proposal.total, proposal.currency)}</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Terms and Notes */}
+          {(proposal.terms || proposal.notes) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t('proposalDetail.sections.additionalInfo')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {proposal.terms && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                      {t('proposalDetail.sections.paymentTerms')}
+                    </h4>
+                    <p className="text-sm leading-relaxed">{proposal.terms}</p>
+                  </div>
+                )}
+                {proposal.notes && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                      {t('proposalDetail.sections.notes')}
+                    </h4>
+                    <p className="text-sm leading-relaxed">{proposal.notes}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
+          )}
+        </div>
 
-            {/* Lead/Client Information */}
-            {proposal.leadId && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
+        {/* Right column: sidebar */}
+        <div className="space-y-4">
+
+          {/* Proposal Meta */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{t('proposalDetail.sections.details')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t('proposalDetail.sections.currency')}</span>
+                <span className="font-medium">{proposal.currency}</span>
+              </div>
+              {proposal.leadId && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t('proposalDetail.sections.leadId')}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{proposal.leadId.slice(0, 8)}…</span>
+                </div>
+              )}
+              {proposal.invoiceId && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t('proposalDetail.sections.invoiceId')}</span>
+                  <button
+                    onClick={() => navigate(`/invoices/${proposal.invoiceId}`)}
+                    className="font-mono text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {proposal.invoiceId.slice(0, 8)}…
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Client Information */}
+          {proposal.leadId && lead && (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" />
                     {t('proposalDetail.sections.clientInfo')}
                   </CardTitle>
-                  <CardDescription>
-                    {isLeadLoading ? t('proposalDetail.sections.loading') : lead ? (
-                      <span className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {t('proposalDetail.sections.originalLead')}
-                        </Badge>
-                        {lead.createdAt && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatDateTable(lead.createdAt)}
-                          </span>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-xs py-0 h-5">
+                      {t(`leads.status.${lead.status || "new"}`)}
+                    </Badge>
+                    {lead.widgetType && (
+                      <Badge variant="secondary" className="text-xs py-0 h-5 capitalize">
+                        {t(`leads.widgetType.${lead.widgetType}`)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {(isLeadLoading || isContactLoading) ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                ) : lead ? (
+                  <div className="space-y-3">
+
+                    {/* Name + job */}
+                    {clientFullName && (
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold leading-tight">{clientFullName}</p>
+                          {clientJobTitle && (
+                            <p className="text-xs text-muted-foreground">{String(clientJobTitle)}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Company */}
+                    {clientCompany && (
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{String(clientCompany)}</p>
+                      </div>
+                    )}
+
+                    {/* Email */}
+                    {clientEmail && (
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`mailto:${clientEmail}`}
+                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline truncate"
+                        >
+                          {clientEmail}
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Phone */}
+                    {clientPhone && (
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <a
+                          href={`tel:${String(clientPhone)}`}
+                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {String(clientPhone)}
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Address */}
+                    {clientAddress && (clientAddress.street || clientAddress.city || clientAddress.country) && (
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="text-sm text-muted-foreground space-y-0.5">
+                          {clientAddress.street && <p>{clientAddress.street}</p>}
+                          <p>
+                            {[clientAddress.city, clientAddress.state, clientAddress.zipCode]
+                              .filter(Boolean).join(", ")}
+                          </p>
+                          {clientAddress.country && <p>{clientAddress.country}</p>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social media */}
+                    {contact?.socialMedia && (
+                      <div className="flex items-center gap-2 pt-1">
+                        {contact.socialMedia.linkedin && (
+                          <a href={contact.socialMedia.linkedin} target="_blank" rel="noreferrer"
+                            className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+                            <Linkedin className="h-3.5 w-3.5 text-muted-foreground" />
+                          </a>
                         )}
-                      </span>
-                    ) : t('proposalDetail.sections.leadNotFound')}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLeadLoading || isContactLoading ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-3/4" />
-                    </div>
-                  ) : lead ? (
-                    <div className="space-y-4">
-                      {(() => {
-                        // Extract data from formData if available
-                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
-                          ? lead.data.formData as Record<string, unknown>
-                          : {};
-                        
-                        // Get values from lead.data first, then formData, then contact
-                        const firstName = lead.data?.firstName || formData.firstName || contact?.data?.firstName;
-                        const lastName = lead.data?.lastName || formData.lastName || contact?.data?.lastName;
-                        const company = lead.data?.company || formData.company || contact?.data?.company;
-                        const jobTitle = lead.data?.jobTitle || formData.jobTitle || contact?.data?.jobTitle;
-                        
-                        return (
-                          <>
-                            {/* Contact Name */}
-                            {(firstName || lastName || contact?.data?.firstName || contact?.data?.lastName) && (
-                              <div className="flex items-start gap-3">
-                                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium">
-                                    {contact?.data 
-                                      ? [contact.data.firstName, contact.data.lastName].filter(Boolean).join(" ") 
-                                      : [firstName, lastName].filter(Boolean).join(" ") || t('proposalDetail.labels.unknown')}
-                                  </p>
-                                  {jobTitle && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {String(jobTitle)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Company */}
-                            {company && (
-                              <div className="flex items-start gap-3">
-                                <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium">
-                                    {String(company)}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                      
-                      {/* Address */}
-                      {(contact?.data?.address || (lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null)) && (
-                        <div className="flex items-start gap-3">
-                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div className="flex-1 space-y-1">
-                            {contact?.data?.address ? (
-                              <div className="text-sm">
-                                {contact.data.address.street && (
-                                  <p className="font-medium">{contact.data.address.street}</p>
-                                )}
-                                <p className="text-muted-foreground">
-                                  {[
-                                    contact.data.address.city,
-                                    contact.data.address.state,
-                                    contact.data.address.zipCode
-                                  ].filter(Boolean).join(", ")}
-                                </p>
-                                {contact.data.address.country && (
-                                  <p className="text-muted-foreground">{contact.data.address.country}</p>
-                                )}
-                              </div>
-                            ) : (
-                              // Try to extract address from formData
-                              (() => {
-                                const formData = lead.data.formData as Record<string, unknown>;
-                                const addressParts = [
-                                  formData.address,
-                                  formData.street,
-                                  formData.city,
-                                  formData.state,
-                                  formData.zipCode,
-                                  formData.country
-                                ].filter(Boolean);
-                                if (addressParts.length > 0) {
-                                  return (
-                                    <div className="text-sm text-muted-foreground">
-                                      {addressParts.map((part, idx) => (
-                                        <span key={idx}>
-                                          {String(part)}
-                                          {idx < addressParts.length - 1 && ", "}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()
-                            )}
-                          </div>
+                        {contact.socialMedia.twitter && (
+                          <a href={contact.socialMedia.twitter} target="_blank" rel="noreferrer"
+                            className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+                            <Twitter className="h-3.5 w-3.5 text-muted-foreground" />
+                          </a>
+                        )}
+                        {(contact.socialMedia.facebook || contact.socialMedia.instagram) && (
+                          <a href={contact.socialMedia.facebook || contact.socialMedia.instagram} target="_blank" rel="noreferrer"
+                            className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+                            <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tags */}
+                    {lead.tags && lead.tags.length > 0 && (
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
-                      )}
-                      
-                      {/* Email */}
-                      {(() => {
-                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
-                          ? lead.data.formData as Record<string, unknown>
-                          : {};
-                        const emailValue = lead.data?.email || formData.email || contact?.data?.email;
-                        return emailValue ? (
-                          <div className="flex items-start gap-3">
-                            <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                            <div className="flex-1">
-                              <a 
-                                href={`mailto:${String(emailValue)}`}
-                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                {String(emailValue)}
-                              </a>
-                            </div>
-                          </div>
-                        ) : null;
-                      })()}
-                      
-                      {/* Phone */}
-                      {(() => {
-                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
-                          ? lead.data.formData as Record<string, unknown>
-                          : {};
-                        const phoneValue = contact?.data?.phone || lead.data?.phone || formData.phone;
-                        const phoneStr = Array.isArray(phoneValue) ? phoneValue[0] : phoneValue ? String(phoneValue) : null;
-                        return phoneStr ? (
-                          <div className="flex items-start gap-3">
-                            <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                            <div className="flex-1">
-                              <a 
-                                href={`tel:${phoneStr}`}
-                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                {phoneStr}
-                              </a>
-                            </div>
-                          </div>
-                        ) : null;
-                      })()}
-                      
-                      {/* Tags */}
-                      {(lead.data?.tags && lead.data.tags.length > 0) && (
-                        <div className="flex items-start gap-3">
-                          <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div className="flex-1 flex flex-wrap gap-1">
-                            {lead.data.tags.map((tag, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
+                        <div className="flex flex-wrap gap-1">
+                          {lead.tags.map((tag, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs py-0 px-2">
+                              {tag}
+                            </Badge>
+                          ))}
                         </div>
-                      )}
-                      
-                      {/* Message */}
-                      {(() => {
-                        const formData = lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null
-                          ? lead.data.formData as Record<string, unknown>
-                          : {};
-                        const message = lead.data?.message || formData.message;
-                        return message ? (
-                          <div className="flex items-start gap-3 pt-2 border-t">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">{t('proposalDetail.sections.message')}</p>
-                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      </div>
+                    )}
+
+                    {/* Message */}
+                    {(() => {
+                      const message = lead.message || clientFormData.message;
+                      return message ? (
+                        <div className="pt-3 border-t">
+                          <div className="flex items-start gap-3">
+                            <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+                              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                                {t('proposalDetail.sections.message')}
+                              </p>
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
                                 {String(message)}
                               </p>
                             </div>
                           </div>
-                        ) : null;
-                      })()}
-                      
-                      {/* All Form Data - Show everything from formData */}
-                      {lead.data?.formData && typeof lead.data.formData === 'object' && lead.data.formData !== null && (
-                        (() => {
-                          const formData = lead.data.formData as Record<string, unknown>;
-                          // Show all formData fields that have values
-                          const allFields = Object.entries(formData).filter(([key, value]) => {
-                            // Exclude internal/system fields
-                            const excludedKeys = ['_id', 'id', 'createdAt', 'updatedAt'];
-                            return !excludedKeys.includes(key) && 
-                              value !== null && 
-                              value !== undefined && 
-                              value !== '' &&
-                              (typeof value !== 'object' || (Array.isArray(value) && value.length > 0));
-                          });
-                          
-                          if (allFields.length > 0) {
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* Additional form fields not already shown */}
+                    {(() => {
+                      const shownKeys = ['name', 'fullName', 'full_name', 'firstName', 'lastName', 'email', 'phone', 'company', 'jobtitle', 'message',
+                        'address', 'street', 'city', 'state', 'zipcode', 'country'];
+                      const extraFields = Object.entries(clientFormData).filter(([key, value]) => {
+                        const lowerKey = key.toLowerCase();
+                        return !shownKeys.includes(lowerKey)
+                          && !['_id', 'id', 'createdat', 'updatedat'].includes(lowerKey)
+                          && value !== null && value !== undefined && value !== ''
+                          && (typeof value !== 'object' || (Array.isArray(value) && (value as unknown[]).length > 0));
+                      });
+
+                      if (extraFields.length === 0) return null;
+
+                      return (
+                        <div className="pt-3 border-t space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            Additional Info
+                          </p>
+                          {extraFields.map(([key, value]) => {
+                            let displayValue: string;
+                            if (Array.isArray(value)) {
+                              displayValue = value.join(", ");
+                            } else if (typeof value === 'object' && value !== null) {
+                              displayValue = JSON.stringify(value);
+                            } else {
+                              displayValue = String(value);
+                            }
+                            if (!displayValue) return null;
                             return (
-                              <div className="pt-2 border-t space-y-2">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">{t('proposalDetail.sections.additionalInfo')}</p>
-                                {allFields.map(([key, value]) => {
-                                  // Skip if we already displayed this field above
-                                  const alreadyShown = ['firstName', 'lastName', 'email', 'phone', 'company', 'jobTitle', 'message'].includes(key.toLowerCase());
-                                  if (alreadyShown) return null;
-                                  
-                                  let displayValue: string;
-                                  if (typeof value === 'object' && value !== null) {
-                                    if (Array.isArray(value)) {
-                                      displayValue = value.length > 0 ? value.join(", ") : "";
-                                    } else {
-                                      displayValue = JSON.stringify(value);
-                                    }
-                                  } else {
-                                    displayValue = String(value);
-                                  }
-                                  
-                                  if (!displayValue) return null;
-                                  
-                                  return (
-                                    <div key={key} className="flex items-start justify-between gap-2">
-                                      <span className="text-xs text-muted-foreground capitalize min-w-[100px]">
-                                        {key.replace(/([A-Z])/g, " $1").trim()}:
-                                      </span>
-                                      <span className="text-xs font-medium text-right flex-1 break-all">
-                                        {displayValue}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
+                              <div key={key} className="flex items-start justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground capitalize shrink-0">
+                                  {key.replace(/([A-Z])/g, " $1").trim()}
+                                </span>
+                                <span className="font-medium text-right break-all">{displayValue}</span>
                               </div>
                             );
-                          }
-                          return null;
-                        })()
-                      )}
-                      
-                      {/* Lead Metadata */}
-                      <div className="pt-2 border-t space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.leadStatus')}</span>
-                          <Badge variant="outline" className="text-xs capitalize">
-                            {t(`leads.status.${lead.data?.status || "new"}`)}
-                          </Badge>
+                          })}
                         </div>
-                        {lead.data?.widgetType && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.source')}</span>
-                            <Badge variant="secondary" className="text-xs capitalize">
-                              {t(`leads.widgetType.${lead.data.widgetType}`)}
-                            </Badge>
-                          </div>
-                        )}
-                        {lead.id && (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-muted-foreground">{t('proposalDetail.sections.leadId')}</span>
-                              <span className="text-xs font-mono">{lead.id}</span>
-                            </div>
-                            {/* Debug: Show all lead data */}
-                            {Object.keys(lead.data || {}).map((key) => {
-                              const value = (lead.data as Record<string, unknown>)[key];
-                              return (
-                                <div key={key} className="flex items-center justify-between mt-1">
-                                  <span className="text-xs text-muted-foreground capitalize">
-                                    {key.replace(/([A-Z])/g, " $1").trim()}:
-                                  </span>
-                                  <span className="text-xs font-medium text-right flex-1 break-all">
-                                    {typeof value === 'object' && value !== null 
-                                      ? JSON.stringify(value) 
-                                      : String(value || '')}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t('proposalDetail.sections.leadInfoNotAvailable')}</p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Metadata */}
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('proposalDetail.sections.details')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{t('proposalDetail.sections.currency')}</span>
-                  <span className="font-medium">{proposal.currency}</span>
-                </div>
-                {proposal.leadId && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t('proposalDetail.sections.leadId')}</span>
-                    <span className="font-medium font-mono text-xs">{proposal.leadId}</span>
+                      );
+                    })()}
                   </div>
-                )}
-                {proposal.invoiceId && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t('proposalDetail.sections.invoiceId')}</span>
-                    <span className="font-medium font-mono text-xs">{proposal.invoiceId}</span>
-                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('proposalDetail.sections.leadInfoNotAvailable')}</p>
                 )}
               </CardContent>
             </Card>
+          )}
 
-            {/* Convert to Invoice */}
-            {!proposal.invoiceId && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t('proposalDetail.sections.actions')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => setConvertDialogOpen(true)}
-                    className="w-full"
-                    variant="default"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {t('proposalDetail.sections.convertToInvoice')}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {/* Send Proposal Email */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                Send Proposal Email
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Recipient email</Label>
+                <Input
+                  type="email"
+                  value={proposalRecipientEmail}
+                  onChange={(e) => setProposalRecipientEmail(e.target.value)}
+                  placeholder="customer@example.com"
+                  className="h-9"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Email template (optional)</Label>
+                {isEmailTemplatesLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select value={selectedProposalEmailTemplateId} onValueChange={setSelectedProposalEmailTemplateId}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Use default proposal email" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Default proposal email</SelectItem>
+                      {emailTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name || template.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <Button
+                onClick={handleSendProposalEmail}
+                className="w-full h-9"
+                disabled={sendProposalEmail.isPending || !proposalRecipientEmail.trim()}
+              >
+                {sendProposalEmail.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Email
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
         </div>
+      </div>
 
-        {/* Convert to Invoice Dialog */}
-        <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+      {/* Convert to Invoice Dialog */}
+      <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
               {t('proposalDetail.convert.title')}
             </DialogTitle>
-            <DialogDescription>
-              {t('proposalDetail.convert.description')}
-            </DialogDescription>
+            <DialogDescription>{t('proposalDetail.convert.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -643,10 +669,7 @@ export default function ProposalDetailPage() {
               {isTemplatesLoading ? (
                 <Skeleton className="h-10 w-full" />
               ) : (
-                <Select
-                  value={selectedTemplateId}
-                  onValueChange={setSelectedTemplateId}
-                >
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('proposalDetail.convert.templatePlaceholder')} />
                   </SelectTrigger>
@@ -659,19 +682,13 @@ export default function ProposalDetailPage() {
                   </SelectContent>
                 </Select>
               )}
-              {templates && templates.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {t('proposalDetail.convert.noTemplates')}
-                </p>
-              ) : null}
+              {templates && templates.length === 0 && (
+                <p className="text-xs text-muted-foreground">{t('proposalDetail.convert.noTemplates')}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConvertDialogOpen(false)}
-              disabled={generateInvoice.isPending}
-            >
+            <Button variant="outline" onClick={() => setConvertDialogOpen(false)} disabled={generateInvoice.isPending}>
               {t('proposalDetail.convert.cancel')}
             </Button>
             <Button
@@ -688,16 +705,12 @@ export default function ProposalDetailPage() {
                   toast.error(t('proposalDetail.convert.orgNotFound'));
                   return;
                 }
-
                 try {
-                  // Generate invoice data (without creating it)
                   const result = await generateInvoice.mutateAsync({
                     proposalId: proposal.id,
                     templateId: selectedTemplateId,
                     organizationId: currentOrganization.id,
                   });
-                  
-                  // Store generated data and open review dialog
                   setGeneratedInvoiceData({
                     ...result,
                     invoiceData: result.invoiceData as Record<string, InvoiceDataValue>,
@@ -735,11 +748,9 @@ export default function ProposalDetailPage() {
               <Sparkles className="h-5 w-5 text-purple-500" />
               {t('proposalDetail.review.title')}
             </DialogTitle>
-            <DialogDescription>
-              {t('proposalDetail.review.description')}
-            </DialogDescription>
+            <DialogDescription>{t('proposalDetail.review.description')}</DialogDescription>
           </DialogHeader>
-          
+
           {generatedInvoiceData && (
             <ScrollArea className="max-h-[60vh] pr-4">
               <div className="space-y-6 py-4">
@@ -747,138 +758,80 @@ export default function ProposalDetailPage() {
                 {generatedInvoiceData.invoiceNumber && (
                   <div className="space-y-2">
                     <Label>{t('proposalDetail.review.invoiceNumber')}</Label>
-                    <Input
-                      value={generatedInvoiceData.invoiceNumber}
-                      readOnly
-                      className="bg-muted"
-                    />
+                    <Input value={generatedInvoiceData.invoiceNumber} readOnly className="bg-muted" />
                   </div>
                 )}
 
-                {/* Key Fields - Seller */}
+                {/* Seller Info */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.sellerInfo')}</h3>
                   {(() => {
-                    // Get the selected template
                     const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
-                    if (!selectedTemplate) {
-                      return <p className="text-sm text-muted-foreground">Template not found</p>;
-                    }
-                    
-                    // Extract all bindings from template
+                    if (!selectedTemplate) return <p className="text-sm text-muted-foreground">Template not found</p>;
+
                     const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
-                    
-                    // Filter seller/supplier bindings
-                    const sellerBindings = Array.from(allBindings).filter(binding => 
+                    const sellerBindings = Array.from(allBindings).filter(binding =>
                       binding.startsWith("seller.") || binding.startsWith("supplier.")
                     );
-                    
-                    if (sellerBindings.length === 0) {
-                      return <p className="text-sm text-muted-foreground">No seller/supplier fields found in template</p>;
-                    }
-                    
-                    // Group bindings by base path (e.g., "seller.address.street" -> "seller.address")
+                    if (sellerBindings.length === 0) return <p className="text-sm text-muted-foreground">No seller/supplier fields found in template</p>;
+
                     const fieldGroups = new Map<string, string[]>();
                     const simpleFields: string[] = [];
-                    
+
                     sellerBindings.forEach(binding => {
                       const parts = binding.split(".");
                       if (parts.length === 2) {
-                        // Simple field like "seller.name"
                         simpleFields.push(binding);
                       } else if (parts.length > 2) {
-                        // Nested field like "seller.address.street"
                         const basePath = parts.slice(0, -1).join(".");
                         const fieldName = parts[parts.length - 1];
-                        if (!fieldGroups.has(basePath)) {
-                          fieldGroups.set(basePath, []);
-                        }
+                        if (!fieldGroups.has(basePath)) fieldGroups.set(basePath, []);
                         fieldGroups.get(basePath)!.push(fieldName);
                       }
                     });
-                    
-                    // Check for simple fields that are actually objects (e.g., "seller.address" as object)
-                    // and convert them to grouped fields
+
                     simpleFields.forEach(binding => {
                       const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
                       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        // This is an object, treat it as a grouped field
                         const obj = value as Record<string, unknown>;
                         const fieldNames = Object.keys(obj);
-                        
-                        // Check if there are any nested bindings in the template that start with this binding
-                        const nestedBindings = sellerBindings.filter(b => 
-                          b.startsWith(`${binding}.`) && b.length > binding.length + 1
-                        );
-                        
-                        // Extract field names from nested bindings
+                        const nestedBindings = sellerBindings.filter(b => b.startsWith(`${binding}.`) && b.length > binding.length + 1);
                         const nestedFieldNames = nestedBindings.map(b => b.split(".").pop() || "").filter(Boolean);
-                        
-                        // For address fields, include standard address fields even if not in data
                         const isAddressField = binding.includes("address");
                         const standardAddressFields = ["street", "city", "state", "zipCode", "country", "full"];
-                        
-                        // Combine: data fields, nested binding fields, and standard address fields if applicable
                         let allFieldNames = Array.from(new Set([...fieldNames, ...nestedFieldNames]));
-                        if (isAddressField) {
-                          allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
-                        }
-                        
+                        if (isAddressField) allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
                         if (allFieldNames.length > 0) {
-                          // Remove from simple fields
                           const index = simpleFields.indexOf(binding);
-                          if (index > -1) {
-                            simpleFields.splice(index, 1);
-                          }
-                          // Merge with existing fieldGroups if it exists, otherwise create new
+                          if (index > -1) simpleFields.splice(index, 1);
                           if (fieldGroups.has(binding)) {
-                            const existingFields = fieldGroups.get(binding)!;
-                            // Merge arrays, keeping unique values
-                            const mergedFields = Array.from(new Set([...existingFields, ...allFieldNames]));
-                            fieldGroups.set(binding, mergedFields);
+                            fieldGroups.set(binding, Array.from(new Set([...fieldGroups.get(binding)!, ...allFieldNames])));
                           } else {
                             fieldGroups.set(binding, allFieldNames);
                           }
                         }
                       }
                     });
-                    
-                    // Also check for address fields that might not be in data but are in template
-                    // Look for bindings like "seller.address" that might not have nested bindings yet
+
                     sellerBindings.forEach(binding => {
                       const parts = binding.split(".");
-                      if (parts.length === 2 && parts[1] === "address") {
-                        // This is a simple "seller.address" binding
-                        // Check if it's not already in fieldGroups and ensure we show address fields
-                        if (!fieldGroups.has(binding)) {
-                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
-                          // If it's not an object (or doesn't exist), we should still show address fields
-                          // This ensures users can input address data even if AI didn't generate it
-                          if (!value || typeof value !== "object" || Array.isArray(value)) {
-                            fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
-                            // Remove from simpleFields if it's there
-                            const index = simpleFields.indexOf(binding);
-                            if (index > -1) {
-                              simpleFields.splice(index, 1);
-                            }
-                          }
+                      if (parts.length === 2 && parts[1] === "address" && !fieldGroups.has(binding)) {
+                        const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                        if (!value || typeof value !== "object" || Array.isArray(value)) {
+                          fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
+                          const index = simpleFields.indexOf(binding);
+                          if (index > -1) simpleFields.splice(index, 1);
                         }
                       }
                     });
-                    
-                    // Render simple fields
+
                     return (
                       <>
                         {simpleFields.map((binding) => {
                           const fieldName = binding.split(".").pop() || binding;
                           const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
                           const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
-                          
-                          // Skip if value is an object (should be handled as grouped field)
-                          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                            return null;
-                          }
-                          
+                          if (typeof value === "object" && value !== null && !Array.isArray(value)) return null;
                           return (
                             <div key={binding} className="space-y-2">
                               <Label>{label}</Label>
@@ -894,16 +847,11 @@ export default function ProposalDetailPage() {
                             </div>
                           );
                         })}
-                        
-                        {/* Render grouped fields (like address) */}
                         {Array.from(fieldGroups.entries()).map(([basePath, fields]) => {
                           const groupLabel = basePath.split(".").pop() || basePath;
                           const displayLabel = groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1).replace(/([A-Z])/g, " $1");
                           const groupValue = getBindingValue(generatedInvoiceData.invoiceData, basePath);
-                          const groupObj = (typeof groupValue === "object" && groupValue !== null 
-                            ? groupValue as Record<string, unknown> 
-                            : {}) || {};
-                          
+                          const groupObj = (typeof groupValue === "object" && groupValue !== null ? groupValue as Record<string, unknown> : {}) || {};
                           return (
                             <div key={basePath} className="space-y-2">
                               <Label>{displayLabel}</Label>
@@ -911,9 +859,7 @@ export default function ProposalDetailPage() {
                                 {fields.map((fieldName) => {
                                   const fullBinding = `${basePath}.${fieldName}`;
                                   const fieldValue = groupObj[fieldName] || "";
-                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" 
-                                    : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
-                                  
+                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
                                   return (
                                     <Input
                                       key={fullBinding}
@@ -921,10 +867,7 @@ export default function ProposalDetailPage() {
                                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                         const newData = { ...generatedInvoiceData.invoiceData };
                                         const currentGroup = (getBindingValue(newData, basePath) as Record<string, unknown>) || {};
-                                        setBindingValue(newData, basePath, { 
-                                          ...currentGroup, 
-                                          [fieldName]: e.target.value 
-                                        } as InvoiceDataValue);
+                                        setBindingValue(newData, basePath, { ...currentGroup, [fieldName]: e.target.value } as InvoiceDataValue);
                                         setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                       }}
                                       placeholder={`Enter ${fieldLabel.toLowerCase()}`}
@@ -942,130 +885,76 @@ export default function ProposalDetailPage() {
 
                 <Separator />
 
-                {/* Key Fields - Customer */}
+                {/* Customer Info */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.customerInfo')}</h3>
                   {(() => {
-                    // Get the selected template
                     const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
-                    if (!selectedTemplate) {
-                      return <p className="text-sm text-muted-foreground">Template not found</p>;
-                    }
-                    
-                    // Extract all bindings from template
+                    if (!selectedTemplate) return <p className="text-sm text-muted-foreground">Template not found</p>;
+
                     const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
-                    
-                    // Filter customer/buyer bindings
-                    const customerBindings = Array.from(allBindings).filter(binding => 
+                    const customerBindings = Array.from(allBindings).filter(binding =>
                       binding.startsWith("customer.") || binding.startsWith("buyer.")
                     );
-                    
-                    if (customerBindings.length === 0) {
-                      return <p className="text-sm text-muted-foreground">No customer/buyer fields found in template</p>;
-                    }
-                    
-                    // Group bindings by base path (e.g., "customer.address.street" -> "customer.address")
+                    if (customerBindings.length === 0) return <p className="text-sm text-muted-foreground">No customer/buyer fields found in template</p>;
+
                     const fieldGroups = new Map<string, string[]>();
                     const simpleFields: string[] = [];
-                    
+
                     customerBindings.forEach(binding => {
                       const parts = binding.split(".");
                       if (parts.length === 2) {
-                        // Simple field like "customer.name"
                         simpleFields.push(binding);
                       } else if (parts.length > 2) {
-                        // Nested field like "customer.address.street"
                         const basePath = parts.slice(0, -1).join(".");
                         const fieldName = parts[parts.length - 1];
-                        if (!fieldGroups.has(basePath)) {
-                          fieldGroups.set(basePath, []);
-                        }
+                        if (!fieldGroups.has(basePath)) fieldGroups.set(basePath, []);
                         fieldGroups.get(basePath)!.push(fieldName);
                       }
                     });
-                    
-                    // Check for simple fields that are actually objects (e.g., "customer.address" as object)
-                    // and convert them to grouped fields
+
                     simpleFields.forEach(binding => {
                       const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
                       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        // This is an object, treat it as a grouped field
                         const obj = value as Record<string, unknown>;
                         const fieldNames = Object.keys(obj);
-                        
-                        // Check if there are any nested bindings in the template that start with this binding
-                        const nestedBindings = customerBindings.filter(b => 
-                          b.startsWith(`${binding}.`) && b.length > binding.length + 1
-                        );
-                        
-                        // Extract field names from nested bindings
+                        const nestedBindings = customerBindings.filter(b => b.startsWith(`${binding}.`) && b.length > binding.length + 1);
                         const nestedFieldNames = nestedBindings.map(b => b.split(".").pop() || "").filter(Boolean);
-                        
-                        // For address fields, include standard address fields even if not in data
                         const isAddressField = binding.includes("address");
                         const standardAddressFields = ["street", "city", "state", "zipCode", "country", "full"];
-                        
-                        // Combine: data fields, nested binding fields, and standard address fields if applicable
                         let allFieldNames = Array.from(new Set([...fieldNames, ...nestedFieldNames]));
-                        if (isAddressField) {
-                          allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
-                        }
-                        
+                        if (isAddressField) allFieldNames = Array.from(new Set([...allFieldNames, ...standardAddressFields]));
                         if (allFieldNames.length > 0) {
-                          // Remove from simple fields
                           const index = simpleFields.indexOf(binding);
-                          if (index > -1) {
-                            simpleFields.splice(index, 1);
-                          }
-                          // Merge with existing fieldGroups if it exists, otherwise create new
+                          if (index > -1) simpleFields.splice(index, 1);
                           if (fieldGroups.has(binding)) {
-                            const existingFields = fieldGroups.get(binding)!;
-                            // Merge arrays, keeping unique values
-                            const mergedFields = Array.from(new Set([...existingFields, ...allFieldNames]));
-                            fieldGroups.set(binding, mergedFields);
+                            fieldGroups.set(binding, Array.from(new Set([...fieldGroups.get(binding)!, ...allFieldNames])));
                           } else {
                             fieldGroups.set(binding, allFieldNames);
                           }
                         }
                       }
                     });
-                    
-                    // Also check for address fields that might not be in data but are in template
-                    // Look for bindings like "customer.address" that might not have nested bindings yet
+
                     customerBindings.forEach(binding => {
                       const parts = binding.split(".");
-                      if (parts.length === 2 && parts[1] === "address") {
-                        // This is a simple "customer.address" binding
-                        // Check if it's not already in fieldGroups and ensure we show address fields
-                        if (!fieldGroups.has(binding)) {
-                          const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
-                          // If it's not an object (or doesn't exist), we should still show address fields
-                          // This ensures users can input address data even if AI didn't generate it
-                          if (!value || typeof value !== "object" || Array.isArray(value)) {
-                            fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
-                            // Remove from simpleFields if it's there
-                            const index = simpleFields.indexOf(binding);
-                            if (index > -1) {
-                              simpleFields.splice(index, 1);
-                            }
-                          }
+                      if (parts.length === 2 && parts[1] === "address" && !fieldGroups.has(binding)) {
+                        const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
+                        if (!value || typeof value !== "object" || Array.isArray(value)) {
+                          fieldGroups.set(binding, ["street", "city", "state", "zipCode", "country", "full"]);
+                          const index = simpleFields.indexOf(binding);
+                          if (index > -1) simpleFields.splice(index, 1);
                         }
                       }
                     });
-                    
-                    // Render simple fields
+
                     return (
                       <>
                         {simpleFields.map((binding) => {
                           const fieldName = binding.split(".").pop() || binding;
                           const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
                           const value = getBindingValue(generatedInvoiceData.invoiceData, binding);
-                          
-                          // Skip if value is an object (should be handled as grouped field)
-                          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-                            return null;
-                          }
-                          
+                          if (typeof value === "object" && value !== null && !Array.isArray(value)) return null;
                           return (
                             <div key={binding} className="space-y-2">
                               <Label>{label}</Label>
@@ -1081,16 +970,11 @@ export default function ProposalDetailPage() {
                             </div>
                           );
                         })}
-                        
-                        {/* Render grouped fields (like address) */}
                         {Array.from(fieldGroups.entries()).map(([basePath, fields]) => {
                           const groupLabel = basePath.split(".").pop() || basePath;
                           const displayLabel = groupLabel.charAt(0).toUpperCase() + groupLabel.slice(1).replace(/([A-Z])/g, " $1");
                           const groupValue = getBindingValue(generatedInvoiceData.invoiceData, basePath);
-                          const groupObj = (typeof groupValue === "object" && groupValue !== null 
-                            ? groupValue as Record<string, unknown> 
-                            : {}) || {};
-                          
+                          const groupObj = (typeof groupValue === "object" && groupValue !== null ? groupValue as Record<string, unknown> : {}) || {};
                           return (
                             <div key={basePath} className="space-y-2">
                               <Label>{displayLabel}</Label>
@@ -1098,9 +982,7 @@ export default function ProposalDetailPage() {
                                 {fields.map((fieldName) => {
                                   const fullBinding = `${basePath}.${fieldName}`;
                                   const fieldValue = groupObj[fieldName] || "";
-                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" 
-                                    : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
-                                  
+                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
                                   return (
                                     <Input
                                       key={fullBinding}
@@ -1108,10 +990,7 @@ export default function ProposalDetailPage() {
                                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                         const newData = { ...generatedInvoiceData.invoiceData };
                                         const currentGroup = (getBindingValue(newData, basePath) as Record<string, unknown>) || {};
-                                        setBindingValue(newData, basePath, { 
-                                          ...currentGroup, 
-                                          [fieldName]: e.target.value 
-                                        } as InvoiceDataValue);
+                                        setBindingValue(newData, basePath, { ...currentGroup, [fieldName]: e.target.value } as InvoiceDataValue);
                                         setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                       }}
                                       placeholder={`Enter ${fieldLabel.toLowerCase()}`}
@@ -1154,7 +1033,7 @@ export default function ProposalDetailPage() {
 
                 <Separator />
 
-                {/* Items Table Preview */}
+                {/* Items */}
                 {generatedInvoiceData.invoiceData.items && Array.isArray(generatedInvoiceData.invoiceData.items) && (
                   <div className="space-y-4">
                     <h3 className="font-semibold text-lg">{t('proposalDetail.review.items')}</h3>
@@ -1182,9 +1061,7 @@ export default function ProposalDetailPage() {
                         </table>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t('proposalDetail.review.itemsEditable')}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t('proposalDetail.review.itemsEditable')}</p>
                   </div>
                 )}
 
@@ -1232,7 +1109,6 @@ export default function ProposalDetailPage() {
                   toast.error(t('proposalDetail.review.missingData'));
                   return;
                 }
-
                 try {
                   const result = await createInvoice.mutateAsync({
                     orgId: currentOrganization.id,
@@ -1240,12 +1116,9 @@ export default function ProposalDetailPage() {
                     data: generatedInvoiceData.invoiceData,
                     status: "draft",
                   });
-                  
                   toast.success(t('proposalDetail.review.createSuccess'));
                   setReviewDialogOpen(false);
                   setGeneratedInvoiceData(null);
-                  
-                  // Update proposal to link to invoice
                   if (proposal) {
                     try {
                       await updateProposal.mutateAsync({
@@ -1253,11 +1126,9 @@ export default function ProposalDetailPage() {
                         data: { invoiceId: result.id },
                       });
                     } catch (error) {
-                      // Silently fail - invoice is already created
                       console.warn("Failed to link proposal to invoice:", error);
                     }
                   }
-                  
                   navigate(`/invoices/${result.id}`);
                 } catch (error) {
                   const message = error instanceof Error ? error.message : "Unknown error";
@@ -1281,7 +1152,6 @@ export default function ProposalDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
+    </div>
   );
 }
-

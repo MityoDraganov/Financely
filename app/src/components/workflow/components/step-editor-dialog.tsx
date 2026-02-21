@@ -89,6 +89,7 @@ export function StepEditorDialog({
           type: actionType,
           name: "Send Email", // Default name
           config: {
+            mode: "manual",
             recipients: [],
             subject: "",
             body: "",
@@ -327,6 +328,33 @@ export function StepEditorDialog({
                       {/* Action-specific configs */}
                       {action.type === "send.email" && "recipients" in action.config && (
                         <div className="space-y-2">
+                          <Label>Email mode</Label>
+                          <Select
+                            value={(action.config.mode as "manual" | "template" | undefined) ?? "manual"}
+                            onValueChange={(value: "manual" | "template") =>
+                              handleUpdateAction(index, (currentAction) => {
+                                if (currentAction.type !== "send.email") {
+                                  return currentAction;
+                                }
+
+                                return {
+                                  ...currentAction,
+                                  config: {
+                                    ...currentAction.config,
+                                    mode: value,
+                                  },
+                                };
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="manual">Manual</SelectItem>
+                              <SelectItem value="template">Template</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Label>{t('workflows.builder.stepEditor.actions.email.recipients')}</Label>
                           <EmailRecipientsInput
                             value={action.config.recipients || []}
@@ -347,47 +375,74 @@ export function StepEditorDialog({
                             }
                             placeholder={t('workflows.builder.stepEditor.actions.email.recipientsPlaceholder')}
                           />
-                          <Label>{t('workflows.builder.stepEditor.actions.email.subject')}</Label>
-                          <Input
-                            value={action.config.subject || ""}
-                            onChange={(e) =>
-                              handleUpdateAction(index, (currentAction) => {
-                                if (currentAction.type !== "send.email") {
-                                  return currentAction;
-                                }
+                          {((action.config.mode as "manual" | "template" | undefined) ?? "manual") === "template" ? (
+                            <>
+                              <Label>Email template ID</Label>
+                              <Input
+                                value={action.config.emailTemplateId || ""}
+                                onChange={(e) =>
+                                  handleUpdateAction(index, (currentAction) => {
+                                    if (currentAction.type !== "send.email") {
+                                      return currentAction;
+                                    }
 
-                                return {
-                                  ...currentAction,
-                                config: {
-                                    ...currentAction.config,
-                                  subject: e.target.value,
-                                  },
-                                };
-                              })
-                            }
-                            placeholder={t('workflows.builder.stepEditor.actions.email.subjectPlaceholder')}
-                          />
-                          <Label>{t('workflows.builder.stepEditor.actions.email.body')}</Label>
-                          <Textarea
-                            value={action.config.body || ""}
-                            onChange={(e) =>
-                              handleUpdateAction(index, (currentAction) => {
-                                if (currentAction.type !== "send.email") {
-                                  return currentAction;
+                                    return {
+                                      ...currentAction,
+                                      config: {
+                                        ...currentAction.config,
+                                        emailTemplateId: e.target.value,
+                                      },
+                                    };
+                                  })
                                 }
+                                placeholder="Enter email template ID"
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <Label>{t('workflows.builder.stepEditor.actions.email.subject')}</Label>
+                              <Input
+                                value={action.config.subject || ""}
+                                onChange={(e) =>
+                                  handleUpdateAction(index, (currentAction) => {
+                                    if (currentAction.type !== "send.email") {
+                                      return currentAction;
+                                    }
 
-                                return {
-                                  ...currentAction,
-                                config: {
-                                    ...currentAction.config,
-                                  body: e.target.value,
-                                  },
-                                };
-                              })
-                            }
-                            placeholder={t('workflows.builder.stepEditor.actions.email.bodyPlaceholder')}
-                            rows={4}
-                          />
+                                    return {
+                                      ...currentAction,
+                                      config: {
+                                        ...currentAction.config,
+                                        subject: e.target.value,
+                                      },
+                                    };
+                                  })
+                                }
+                                placeholder={t('workflows.builder.stepEditor.actions.email.subjectPlaceholder')}
+                              />
+                              <Label>{t('workflows.builder.stepEditor.actions.email.body')}</Label>
+                              <Textarea
+                                value={action.config.body || ""}
+                                onChange={(e) =>
+                                  handleUpdateAction(index, (currentAction) => {
+                                    if (currentAction.type !== "send.email") {
+                                      return currentAction;
+                                    }
+
+                                    return {
+                                      ...currentAction,
+                                      config: {
+                                        ...currentAction.config,
+                                        body: e.target.value,
+                                      },
+                                    };
+                                  })
+                                }
+                                placeholder={t('workflows.builder.stepEditor.actions.email.bodyPlaceholder')}
+                                rows={4}
+                              />
+                            </>
+                          )}
                           <div className="flex items-center gap-2">
                             <input
                               type="checkbox"
@@ -533,4 +588,3 @@ export function StepEditorDialog({
     </Dialog>
   );
 }
-

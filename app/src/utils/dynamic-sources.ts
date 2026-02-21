@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ContactMetafieldDefinition, ProductMetafieldDefinition } from "@/core";
 import { contactDataSchema } from "@/core/entities/contact";
 import { invoiceDataSchema } from "@/core/entities/invoice";
 import { productDataSchema } from "@/core/entities/product";
@@ -25,7 +26,19 @@ export interface DynamicSourceField {
   description: string;
   valueType: DynamicSourceValueType;
   required: boolean;
+  sourceKind?: "field" | "metafield";
+  metafieldDefinitionId?: string;
 }
+
+type RuntimeMetafieldDefinition = Pick<
+  ProductMetafieldDefinition | ContactMetafieldDefinition,
+  "id" | "name" | "type" | "description"
+>;
+
+export type DynamicSourceRuntimeOptions = {
+  productMetafieldDefinitions?: RuntimeMetafieldDefinition[];
+  contactMetafieldDefinitions?: RuntimeMetafieldDefinition[];
+};
 
 type AdditionalDynamicField = {
   path: string;
@@ -204,6 +217,36 @@ const toPlaceholderKey = (entity: DynamicSourceEntity, path: string): string =>
     .replace(/^_+|_+$/g, "")
     .toLowerCase();
 
+const toMetafieldPlaceholderKey = (
+  entity: Extract<DynamicSourceEntity, "product" | "contact">,
+  definitionId: string,
+): string =>
+  `${entity}_metafield_${definitionId}`
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+
+const toMetafieldValueType = (metafieldType: string): DynamicSourceValueType => {
+  if (metafieldType.startsWith("list.")) return "array";
+
+  if (metafieldType === "boolean") return "boolean";
+  if (metafieldType === "date" || metafieldType === "date_time") return "date";
+  if (
+    metafieldType === "number_integer" ||
+    metafieldType === "number_decimal" ||
+    metafieldType === "money" ||
+    metafieldType === "rating" ||
+    metafieldType === "weight" ||
+    metafieldType === "volume" ||
+    metafieldType === "dimension"
+  ) {
+    return "number";
+  }
+  if (metafieldType === "json") return "object";
+
+  return "string";
+};
+
 const collectFieldsForSchema = ({
   entity,
   entityLabel,
@@ -245,6 +288,7 @@ const collectFieldsForSchema = ({
       description: `${entityLabel} ${pathLabel}`,
       valueType: toValueType(baseSchema),
       required: isRequired,
+      sourceKind: "field",
     });
   };
 
@@ -266,21 +310,73 @@ const collectFieldsForSchema = ({
       description: field.description ?? `${entityLabel} ${pathLabel}`,
       valueType: field.valueType ?? "unknown",
       required: field.required ?? false,
+      sourceKind: "field",
     });
   });
 
   return collected;
 };
 
-const dynamicSourceFieldsCache: DynamicSourceField[] = ENTITY_SCHEMAS.flatMap((config) =>
+const baseDynamicSourceFieldsCache: DynamicSourceField[] = ENTITY_SCHEMAS.flatMap((config) =>
   collectFieldsForSchema(config),
 );
 
-export const getEntityDynamicSourceFields = (): DynamicSourceField[] =>
-  dynamicSourceFieldsCache;
+const buildMetafieldSourceFields = (
+  entity: Extract<DynamicSourceEntity, "product" | "contact">,
+  entityLabel: "Product" | "Contact",
+  definitions: RuntimeMetafieldDefinition[] | undefined,
+): DynamicSourceField[] => {
+  if (!definitions || definitions.length === 0) {
+    return [];
+  }
 
-export const getEntityDynamicSourceMapByPlaceholderKey = (): Record<string, DynamicSourceField> =>
-  dynamicSourceFieldsCache.reduce<Record<string, DynamicSourceField>>((acc, source) => {
+  const seenDefinitionIds = new Set<string>();
+  return definitions
+    .filter((definition) => {
+      if (!definition?.id || seenDefinitionIds.has(definition.id)) return false;
+      seenDefinitionIds.add(definition.id);
+      return true;
+    })
+    .map((definition) => ({
+      id: `${entity}:metafields.${definition.id}`,
+      entity,
+      entityLabel,
+      path: `metafields.${definition.id}`,
+      placeholderKey: toMetafieldPlaceholderKey(entity, definition.id),
+      label: `${definition.name} (Metafield)`,
+      description:
+        definition.description?.trim() || `${entityLabel} metafield ${definition.name}`,
+      valueType: toMetafieldValueType(definition.type),
+      required: false,
+      sourceKind: "metafield",
+      metafieldDefinitionId: definition.id,
+    }));
+};
+
+const buildDynamicSourceFields = (
+  options?: DynamicSourceRuntimeOptions,
+): DynamicSourceField[] => [
+  ...baseDynamicSourceFieldsCache,
+  ...buildMetafieldSourceFields(
+    "product",
+    "Product",
+    options?.productMetafieldDefinitions,
+  ),
+  ...buildMetafieldSourceFields(
+    "contact",
+    "Contact",
+    options?.contactMetafieldDefinitions,
+  ),
+];
+
+export const getEntityDynamicSourceFields = (
+  options?: DynamicSourceRuntimeOptions,
+): DynamicSourceField[] => buildDynamicSourceFields(options);
+
+export const getEntityDynamicSourceMapByPlaceholderKey = (
+  options?: DynamicSourceRuntimeOptions,
+): Record<string, DynamicSourceField> =>
+  buildDynamicSourceFields(options).reduce<Record<string, DynamicSourceField>>((acc, source) => {
     acc[source.placeholderKey.toLowerCase()] = source;
     return acc;
   }, {});

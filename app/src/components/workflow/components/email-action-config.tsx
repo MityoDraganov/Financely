@@ -3,8 +3,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { WorkflowAction } from "@/core";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
+import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
 
 interface EmailActionConfigProps {
   action: WorkflowAction;
@@ -13,7 +22,10 @@ interface EmailActionConfigProps {
 
 export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigProps) {
   const { t } = useTranslation();
+  const { currentOrganization } = useOrganizationContext();
+  const { data: emailTemplates = [] } = useEmailTemplates(currentOrganization?.id || "");
   const config = action.config as any;
+  const mode = (config.mode as "manual" | "template" | undefined) ?? "manual";
 
   const updateConfig = (updates: any) => {
     onUpdateConfig({ ...config, ...updates });
@@ -70,6 +82,43 @@ export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigP
       </div>
 
       <div>
+        <Label>Email mode</Label>
+        <Select
+          value={mode}
+          onValueChange={(value: "manual" | "template") => updateConfig({ mode: value })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="template">Template</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {mode === "template" ? (
+        <div>
+          <Label>Email template</Label>
+          <Select
+            value={config.emailTemplateId || undefined}
+            onValueChange={(value) => updateConfig({ emailTemplateId: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select email template" />
+            </SelectTrigger>
+            <SelectContent>
+              {emailTemplates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <>
+          <div>
         <Label>{t('workflows.emailAction.subject')}</Label>
         <Input
           placeholder={t('workflows.emailAction.subjectPlaceholder')}
@@ -87,6 +136,8 @@ export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigP
           rows={6}
         />
       </div>
+        </>
+      )}
 
       <div className="flex items-center space-x-2">
         <input
@@ -149,4 +200,3 @@ export function EmailActionConfig({ action, onUpdateConfig }: EmailActionConfigP
     </div>
   );
 }
-

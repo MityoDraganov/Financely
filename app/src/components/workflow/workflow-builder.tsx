@@ -148,6 +148,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 			for (const action of step.actions || []) {
 				if (action.type === "send.email") {
 					const emailConfig = action.config as any;
+					const emailMode = emailConfig.mode ?? "manual";
 					if (!emailConfig.recipients || emailConfig.recipients.length === 0) {
 						toast.error(t("workflows.builder.toast.emailNoRecipients", { stepName: step.name || "Step" }));
 						return;
@@ -158,13 +159,20 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 						toast.error(t("workflows.builder.toast.emailNoValidRecipients", { stepName: step.name || "Step" }));
 						return;
 					}
-					if (!emailConfig.subject || emailConfig.subject.trim().length === 0) {
-						toast.error(t("workflows.builder.toast.emailNoSubject", { stepName: step.name || "Step" }));
-						return;
-					}
-					if (!emailConfig.body || emailConfig.body.trim().length === 0) {
-						toast.error(t("workflows.builder.toast.emailNoBody", { stepName: step.name || "Step" }));
-						return;
+					if (emailMode === "template") {
+						if (!emailConfig.emailTemplateId || emailConfig.emailTemplateId.trim().length === 0) {
+							toast.error("Email template is required in template mode");
+							return;
+						}
+					} else {
+						if (!emailConfig.subject || emailConfig.subject.trim().length === 0) {
+							toast.error(t("workflows.builder.toast.emailNoSubject", { stepName: step.name || "Step" }));
+							return;
+						}
+						if (!emailConfig.body || emailConfig.body.trim().length === 0) {
+							toast.error(t("workflows.builder.toast.emailNoBody", { stepName: step.name || "Step" }));
+							return;
+						}
 					}
 				}
 			}
@@ -333,6 +341,7 @@ export default function WorkflowBuilder(props: WorkflowBuilderProps = {}) {
 						type: actionType,
 						name: "",
 						config: {
+							mode: "manual" as const,
 							recipients: [],
 							subject: "",
 							body: "",

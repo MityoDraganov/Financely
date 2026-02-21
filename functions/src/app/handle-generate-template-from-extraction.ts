@@ -1358,6 +1358,7 @@ function normalizeVisionElements(
         ...(asString(entry.strokeLinejoin, "") ? { strokeLinejoin: entry.strokeLinejoin as "miter" | "round" | "bevel" } : {}),
         fillRule: (entry.fillRule === "evenodd" ? "evenodd" : "nonzero") as "nonzero" | "evenodd",
         opacity: clamp01(safeNumber(entry.opacity, 1)),
+        scaleStroke: asBoolean(entry.scaleStroke, false),
         ...(asString(entry.blendMode, "") ? { blendMode: entry.blendMode as any } : {}),
       } satisfies TemplateElement);
       continue;

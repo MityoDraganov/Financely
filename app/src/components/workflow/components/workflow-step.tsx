@@ -53,6 +53,7 @@ export function WorkflowStepComponent({
       type: actionType,
       name: "Send Email", // Default name
       config: {
+        mode: "manual",
         recipients: [],
         subject: "",
         body: "",

@@ -10,6 +10,7 @@ export * from "./repository-hooks/use-analytics-config";
 
 // Service hooks
 export * from "./service-hooks/use-invoice-functions";
+export * from "./service-hooks/use-proposal-email-functions";
 export * from "./service-hooks/use-proposal-generation";
 export * from "./service-hooks/use-workflow-functions";
 export * from "./service-hooks/use-product-functions";
