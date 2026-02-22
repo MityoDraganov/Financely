@@ -9,7 +9,6 @@ import {
   Globe,
   UserCheck,
   FileText,
-  UserPlus,
   CreditCard,
   Database,
 } from "lucide-react";
@@ -69,12 +68,6 @@ export default function SettingsLayout() {
           href: "/settings/users",
           description: t('settings.users.allUsers.description'),
           icon: UserCheck,
-        },
-        {
-          title: t('settings.users.invites.title'),
-          href: "/settings/invites",
-          description: t('settings.users.invites.description'),
-          icon: UserPlus,
         },
       ],
     },

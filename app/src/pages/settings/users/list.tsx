@@ -1,23 +1,40 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Plus, MoreHorizontal, Mail, Shield, UserCheck, UserX } from "lucide-react";
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  Mail,
+  Shield,
+  UserCheck,
+  UserX,
+  Users,
+  Copy,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  RefreshCw,
+  Calendar,
+  UserPlus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
 import { useInvites } from "@/hooks/use-invites";
 import { InviteUserDialog } from "@/components/invite/invite-user-dialog";
-import { PendingInvites } from "@/components/invite/pending-invites";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +51,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useInvites as useInviteActions } from "@/hooks/useInvites";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 
 export default function UsersListPage() {
   const { t } = useTranslation();
@@ -41,40 +61,68 @@ export default function UsersListPage() {
   const { user: clerkUser } = useUser();
   const { data: dbUser } = useUserByClerkId(clerkUser?.id);
   const { data: organization } = useCurrentOrganization();
-  const { data: members = [], isLoading, error } = useOrganizationMembers(organization?.id);
-  if(error) {
+  const {
+    data: members = [],
+    isLoading,
+    error,
+  } = useOrganizationMembers(organization?.id);
+  if (error) {
     console.error("Error fetching organization members:", error);
   }
   const { data: invites = [] } = useInvites(organization?.id);
   const [searchTerm, setSearchTerm] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
-  const [memberToRevoke, setMemberToRevoke] = useState<{ id: string; name: string } | null>(null);
+  const [memberToRevoke, setMemberToRevoke] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [expirationDays, setExpirationDays] = useState(7);
   const queryClient = useQueryClient();
 
-  // Get current user's role in the organization
-  const currentUserRole = organization?.id && dbUser?.organizationRoles
-    ? dbUser.organizationRoles[organization.id]
-    : undefined;
+  const currentUserRole =
+    organization?.id && dbUser?.organizationRoles
+      ? dbUser.organizationRoles[organization.id]
+      : undefined;
   const isOwner = currentUserRole === ORGANIZATION_ROLES.OWNER;
 
-  // Revoke member mutation
+  const {
+    invites: codeInvites = [],
+    isLoading: invitesLoading,
+    createInvite,
+    revokeInvite,
+    copyToClipboard,
+    refetch: refetchInvites,
+    isCreating: creating,
+    isRevoking,
+  } = useInviteActions();
+
   const revokeMemberMutation = useMutation({
-    mutationFn: async ({ organizationId, memberId }: { organizationId: string; memberId: string }) => {
+    mutationFn: async ({
+      organizationId,
+      memberId,
+    }: {
+      organizationId: string;
+      memberId: string;
+    }) => {
       return await functionsService.revokeMember({ organizationId, memberId });
     },
     onSuccess: async () => {
-      toast.success(t('settings.users.allUsers.memberRevokedSuccess', { defaultValue: "Member access revoked successfully" }));
-      // Invalidate all related queries - use exact match for users query
+      toast.success(
+        t("settings.users.allUsers.memberRevokedSuccess", {
+          defaultValue: "Member access revoked successfully",
+        })
+      );
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
       queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
-      // Force refetch to update the UI immediately
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["users"] }),
         queryClient.refetchQueries({ queryKey: ["organizations"] }),
-        queryClient.refetchQueries({ queryKey: ["organization-members", organization?.id] }),
+        queryClient.refetchQueries({
+          queryKey: ["organization-members", organization?.id],
+        }),
       ]);
       setRevokeDialogOpen(false);
       setMemberToRevoke(null);
@@ -83,15 +131,27 @@ export default function UsersListPage() {
       console.error("Failed to revoke member:", error);
       toast.error(
         error.message.includes("permission-denied")
-          ? t('settings.users.allUsers.onlyOwnerCanRevoke', { defaultValue: "Only organization owners can revoke members" })
-          : t('settings.users.allUsers.revokeMemberError', { defaultValue: "Failed to revoke member access" })
+          ? t("settings.users.allUsers.onlyOwnerCanRevoke", {
+              defaultValue: "Only organization owners can revoke members",
+            })
+          : t("settings.users.allUsers.revokeMemberError", {
+              defaultValue: "Failed to revoke member access",
+            })
       );
     },
   });
 
-  const handleRevokeClick = (member: { id: string; name: string; role: string }) => {
+  const handleRevokeClick = (member: {
+    id: string;
+    name: string;
+    role: string;
+  }) => {
     if (member.role === ORGANIZATION_ROLES.OWNER) {
-      toast.error(t('settings.users.allUsers.cannotRevokeOwner', { defaultValue: "Cannot revoke another owner" }));
+      toast.error(
+        t("settings.users.allUsers.cannotRevokeOwner", {
+          defaultValue: "Cannot revoke another owner",
+        })
+      );
       return;
     }
     setMemberToRevoke({ id: member.id, name: member.name });
@@ -99,235 +159,486 @@ export default function UsersListPage() {
   };
 
   const handleConfirmRevoke = () => {
-    if (!memberToRevoke || !organization?.id) {
-      return;
-    }
+    if (!memberToRevoke || !organization?.id) return;
     revokeMemberMutation.mutate({
       organizationId: organization.id,
       memberId: memberToRevoke.id,
     });
   };
 
-  const filteredMembers = members.filter(member =>
-    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredMembers = members.filter(
+    (member) =>
+      member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getInitials = (name: string) =>
+    name
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case ORGANIZATION_ROLES.OWNER:
-        return "default";
+        return "default" as const;
       case ORGANIZATION_ROLES.ADMIN:
-        return "secondary";
-      case ORGANIZATION_ROLES.MEMBER:
-        return "outline";
-      case ORGANIZATION_ROLES.VIEWER:
-        return "outline";
+        return "secondary" as const;
       default:
-        return "outline";
+        return "outline" as const;
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map(word => word[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const getInviteStatusIcon = (status: string) => {
+    switch (status) {
+      case "active":
+      case "sent":
+        return <CheckCircle className="h-3.5 w-3.5 text-green-500" />;
+      case "used":
+        return <CheckCircle className="h-3.5 w-3.5 text-blue-500" />;
+      case "expired":
+        return <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+      case "revoked":
+        return <XCircle className="h-3.5 w-3.5 text-destructive" />;
+      default:
+        return <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />;
+    }
   };
+
+  const getInviteStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+      case "sent":
+        return (
+          <Badge className="bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300 border-0 text-xs">
+            {t("settings.users.invites.status.active")}
+          </Badge>
+        );
+      case "used":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-0 text-xs">
+            {t("settings.users.invites.status.used")}
+          </Badge>
+        );
+      case "expired":
+        return (
+          <Badge variant="secondary" className="text-xs">
+            {t("settings.users.invites.status.expired")}
+          </Badge>
+        );
+      case "revoked":
+        return (
+          <Badge variant="destructive" className="text-xs">
+            {t("settings.users.invites.status.revoked")}
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-xs">
+            {t("settings.users.invites.status.unknown")}
+          </Badge>
+        );
+    }
+  };
+
+  const isInviteExpired = (expiresAt: string) =>
+    new Date(expiresAt) <= new Date();
+
+  const activeMembers = members.filter((m) => m.status === "active").length;
+  const adminCount = members.filter(
+    (m) =>
+      m.role === ORGANIZATION_ROLES.ADMIN ||
+      m.role === ORGANIZATION_ROLES.OWNER
+  ).length;
 
   if (isLoading) {
     return (
-      <div className="space-y-4 sm:space-y-6">
-        <div className="h-8 bg-muted rounded animate-pulse" />
-        <div className="h-64 bg-muted rounded animate-pulse" />
+      <div className="space-y-4">
+        <div className="h-10 bg-muted rounded-lg animate-pulse" />
+        <div className="h-72 bg-muted rounded-lg animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b">
-        <div className="space-y-0.5">
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('settings.users.allUsers.pageTitle')}</h2>
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pb-4 border-b">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold tracking-tight">
+            {t("settings.users.allUsers.pageTitle")}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            {t('settings.users.allUsers.pageDescription')}
+            {t("settings.users.allUsers.pageDescription")}
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => setInviteDialogOpen(true)}
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto shrink-0"
         >
-          <Plus className="h-4 w-4 mr-2" />
-          {t('settings.users.allUsers.inviteMember')}
+          <UserPlus className="h-4 w-4 mr-2" />
+          {t("settings.users.allUsers.inviteMember")}
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="p-3">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border bg-card p-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-950 flex items-center justify-center shrink-0">
+            <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">{members.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("settings.users.allUsers.stats.active")}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-md bg-blue-100 dark:bg-blue-950 flex items-center justify-center shrink-0">
+            <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">{adminCount}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("settings.users.allUsers.stats.admins")}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-md bg-orange-100 dark:bg-orange-950 flex items-center justify-center shrink-0">
+            <Mail className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">{invites.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("settings.users.allUsers.stats.pending")}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-md bg-red-100 dark:bg-red-950 flex items-center justify-center shrink-0">
+            <UserX className="h-4 w-4 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">
+              {members.filter((m) => m.status === "suspended").length}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("settings.users.allUsers.stats.suspended")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="members">
+        <TabsList className="h-auto w-full bg-transparent p-0 border-b rounded-none justify-start gap-0">
+          <TabsTrigger
+            value="members"
+            className="relative h-10 rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 text-sm font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:bg-transparent hover:text-foreground transition-colors gap-2"
+          >
+            <UserCheck className="h-4 w-4" />
+            {t("settings.users.allUsers.title", { defaultValue: "Members" })}
+          </TabsTrigger>
+          <TabsTrigger
+            value="invites"
+            className="relative h-10 rounded-none border-0 border-b-2 border-transparent bg-transparent px-4 text-sm font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:bg-transparent hover:text-foreground transition-colors gap-2"
+          >
+            <Mail className="h-4 w-4" />
+            {t("settings.users.invites.title", { defaultValue: "Invites" })}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Members Tab */}
+        <TabsContent value="members" className="mt-2 space-y-3">
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder={t('settings.users.allUsers.searchPlaceholder')}
+              placeholder={t("settings.users.allUsers.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9"
+              className="pl-9"
             />
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Members List */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">{t('settings.users.allUsers.allMembers', { count: filteredMembers.length })}</CardTitle>
-          <CardDescription className="text-sm">
-            {t('settings.users.allUsers.allMembersDescription')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y">
-            {filteredMembers.map((member) => (
-              <div key={member.id} className="p-3 sm:p-4 hover:bg-muted/50 transition-colors">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Avatar className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
-                      <AvatarImage src={member.avatarUrl} alt={member.name} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-sm sm:text-base truncate">{member.name}</h3>
-                        <Badge variant={getRoleBadgeVariant(member.role)} className="text-xs capitalize">
-                          {member.role}
-                        </Badge>
-                      </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{member.email}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {t('settings.users.allUsers.joined', { date: formatDateTable(new Date(member.createdAt)) })}
-                      </p>
+          {/* Member List */}
+          <div className="rounded-lg border divide-y overflow-hidden">
+            {filteredMembers.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <UserCheck className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="font-medium text-sm mb-1">
+                  {searchTerm
+                    ? t("settings.users.allUsers.noMembersFound")
+                    : t("settings.users.allUsers.noTeamMembers")}
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {searchTerm
+                    ? t("settings.users.allUsers.tryAdjustingSearch")
+                    : t("settings.users.allUsers.inviteFirstMember")}
+                </p>
+                {!searchTerm && (
+                  <Button
+                    size="sm"
+                    onClick={() => setInviteDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {t("settings.users.allUsers.inviteMember")}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              filteredMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-card hover:bg-muted/40 transition-colors"
+                >
+                  <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarImage src={member.avatarUrl} alt={member.name} />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                      <span className="font-medium text-sm truncate">
+                        {member.name}
+                      </span>
+                      <Badge
+                        variant={getRoleBadgeVariant(member.role)}
+                        className="text-xs capitalize"
+                      >
+                        {member.role}
+                      </Badge>
                     </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {member.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {t("settings.users.allUsers.joined", {
+                        date: formatDateTable(new Date(member.createdAt)),
+                      })}
+                    </p>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950 rounded-md">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      <span className="text-xs font-medium text-green-700 dark:text-green-400">{t('settings.users.allUsers.active')}</span>
+                    <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-green-50 dark:bg-green-950 rounded-md">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                      <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                        {t("settings.users.allUsers.active")}
+                      </span>
                     </div>
-                    
-                    {/* Only show dropdown menu if current user is owner and member is not owner */}
-                    {isOwner && member.role !== "owner" && (
+
+                    {isOwner && member.role !== ORGANIZATION_ROLES.OWNER && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem 
-                            className="text-red-600"
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
                             onClick={() => handleRevokeClick(member)}
                           >
                             <UserX className="h-4 w-4 mr-2" />
-                            {t('settings.users.allUsers.removeMember', { defaultValue: "Remove Member" })}
+                            {t("settings.users.allUsers.removeMember", {
+                              defaultValue: "Remove Member",
+                            })}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-          
-          {filteredMembers.length === 0 && (
-            <div className="text-center py-8">
-              <UserCheck className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <h3 className="text-sm font-semibold mb-1.5">
-                {searchTerm ? t('settings.users.allUsers.noMembersFound') : t('settings.users.allUsers.noTeamMembers')}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {searchTerm 
-                  ? t('settings.users.allUsers.tryAdjustingSearch')
-                  : t('settings.users.allUsers.inviteFirstMember')
-                }
-              </p>
-              {!searchTerm && (
-                <Button onClick={() => setInviteDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('settings.users.allUsers.inviteMember')}
+        </TabsContent>
+
+        {/* Invites Tab */}
+        <TabsContent value="invites" className="mt-5 space-y-6">
+
+          {/* ── Section 1: Email invitations ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">
+                  {t("settings.users.invites.emailSection.title", { defaultValue: "Email invitations" })}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("settings.users.invites.emailSection.description", { defaultValue: "Invite someone directly by email address and role" })}
+                </p>
+              </div>
+              <Button size="sm" onClick={() => setInviteDialogOpen(true)}>
+                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                {t("settings.users.allUsers.inviteMember", { defaultValue: "Invite" })}
+              </Button>
+            </div>
+
+            {invites.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/20 py-8 text-center">
+                <Mail className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.users.invites.emailSection.empty", { defaultValue: "No pending email invitations" })}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border divide-y overflow-hidden">
+                {invites.map((invite: any) => (
+                  <div key={invite.id} className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarFallback className="bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 text-xs font-semibold">
+                        {invite.email.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{invite.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.users.invites.expires", { date: formatDateTable(new Date(invite.expiresAt)) })}
+                      </p>
+                    </div>
+                    {invite.role && (
+                      <Badge variant="outline" className="text-xs capitalize shrink-0">{invite.role}</Badge>
+                    )}
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-0 text-xs shrink-0">
+                      {t("settings.users.allUsers.stats.pending", { defaultValue: "Pending" })}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Divider ── */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-background px-3 text-xs text-muted-foreground uppercase tracking-wider">
+                {t("settings.users.invites.orDivider", { defaultValue: "or share a link" })}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Section 2: Invite links ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">
+                  {t("settings.users.invites.linkSection.title", { defaultValue: "Invite links" })}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("settings.users.invites.linkSection.description", { defaultValue: "Generate a link anyone can use to join your organization" })}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2 h-8">
+                  <Label htmlFor="expiration" className="text-xs text-muted-foreground whitespace-nowrap">
+                    {t("settings.users.invites.createNewInvite.expiresIn", { defaultValue: "Expires in" })}
+                  </Label>
+                  <Input
+                    id="expiration"
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={expirationDays}
+                    onChange={(e) => setExpirationDays(Number(e.target.value))}
+                    className="h-6 w-10 border-0 bg-transparent p-0 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {t("settings.users.invites.createNewInvite.days", { defaultValue: "days" })}
+                  </span>
+                </div>
+                <Button size="sm" onClick={() => createInvite(expirationDays)} disabled={creating}>
+                  {creating ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  {creating
+                    ? t("settings.users.invites.createNewInvite.creating", { defaultValue: "Creating…" })
+                    : t("settings.users.invites.createNewInvite.createInvite", { defaultValue: "New link" })}
                 </Button>
-              )}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <Card>
-          <CardContent className="p-2.5">
-            <div className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-green-600 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "active").length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.active')}</p>
+            {invitesLoading ? (
+              <div className="rounded-lg border divide-y overflow-hidden">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3">
+                    <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+                    <div className="ml-auto h-4 w-16 bg-muted rounded animate-pulse" />
+                  </div>
+                ))}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-2.5">
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-blue-600 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-base font-bold leading-tight">{members.filter(m => m.role === ORGANIZATION_ROLES.ADMIN || m.role === ORGANIZATION_ROLES.OWNER).length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.admins')}</p>
+            ) : codeInvites.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/20 py-8 text-center">
+                <UserPlus className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.users.invites.noInvites.title", { defaultValue: "No invite links yet" })}
+                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  {t("settings.users.invites.noInvites.description", { defaultValue: "Create one above to share with your team" })}
+                </p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-2.5">
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-orange-600 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-base font-bold leading-tight">{invites.length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.pending')}</p>
+            ) : (
+              <div className="rounded-lg border divide-y overflow-hidden">
+                {codeInvites.map((invite) => {
+                  const isActive = (invite.status === "active" || invite.status === "sent") && !isInviteExpired(invite.expiresAt);
+                  return (
+                    <div key={invite.id} className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
+                      <div className="flex-1 min-w-0 flex items-center gap-3">
+                        {getInviteStatusIcon(invite.status)}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <code className="font-mono text-xs bg-muted px-2 py-0.5 rounded truncate max-w-[180px]">
+                              {invite.code}
+                            </code>
+                            {getInviteStatusBadge(invite.status)}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            {t("settings.users.invites.expires", { date: formatDateTable(new Date(invite.expiresAt)) })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isActive && (
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(invite.code)} title={t("settings.users.invites.copy", { defaultValue: "Copy link" })}>
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {isActive && (
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => revokeInvite(invite.id)} disabled={isRevoking} title={t("settings.users.invites.revoke", { defaultValue: "Revoke" })}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-2.5">
-            <div className="flex items-center gap-2">
-              <UserX className="h-4 w-4 text-red-600 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-base font-bold leading-tight">{members.filter(m => m.status === "suspended").length}</p>
-                <p className="text-xs text-muted-foreground leading-tight">{t('settings.users.allUsers.stats.suspended')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Pending Invites Section */}
-      {invites.length > 0 && (
-        <PendingInvites invites={invites} />
-      )}
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Invite User Dialog */}
-      <InviteUserDialog 
-        open={inviteDialogOpen} 
-        onOpenChange={setInviteDialogOpen} 
+      <InviteUserDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
       />
 
       {/* Revoke Member Confirmation Dialog */}
@@ -335,28 +646,32 @@ export default function UsersListPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t('settings.users.allUsers.confirmRevokeTitle', { defaultValue: "Revoke Member Access" })}
+              {t("settings.users.allUsers.confirmRevokeTitle", {
+                defaultValue: "Revoke Member Access",
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t('settings.users.allUsers.confirmRevokeDescription', {
-                defaultValue: "Are you sure you want to revoke {{name}}'s access to this organization? This action cannot be undone.",
-                name: memberToRevoke?.name || "this member"
+              {t("settings.users.allUsers.confirmRevokeDescription", {
+                defaultValue:
+                  "Are you sure you want to revoke {{name}}'s access to this organization? This action cannot be undone.",
+                name: memberToRevoke?.name || "this member",
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={revokeMemberMutation.isPending}>
-              {t('common.cancel', { defaultValue: "Cancel" })}
+              {t("common.cancel", { defaultValue: "Cancel" })}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmRevoke}
               disabled={revokeMemberMutation.isPending}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {revokeMemberMutation.isPending
-                ? t('common.processing', { defaultValue: "Processing..." })
-                : t('settings.users.allUsers.revokeAccess', { defaultValue: "Revoke Access" })
-              }
+                ? t("common.processing", { defaultValue: "Processing..." })
+                : t("settings.users.allUsers.revokeAccess", {
+                    defaultValue: "Revoke Access",
+                  })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
