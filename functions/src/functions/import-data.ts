@@ -5,9 +5,8 @@ import { extractUserContextFromRequest } from "../utils/request-context";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { getDatabaseService } from "../services/database-service";
 import { importService } from "../services/import-service";
-import { getAuditLogRepository } from "../repositories/audit-log-repository";
-import { getAuditLogService } from "../services/audit-log-service";
 import type { ImportDataInput, ImportJobData } from "../core/entities/export-import";
+import { logAuditSuccessForRequest } from "../utils/audit-log-helper";
 
 /**
  * Firebase Cloud Function for importing data.
@@ -155,40 +154,27 @@ export const importData = onCall<ImportDataInput, Promise<{ jobId: string }>>(
           stats: result.stats,
         });
 
-        // Create audit log entry
-        try {
-          if (userContext) {
-            const databaseService = getDatabaseService();
-            const auditLogRepository = getAuditLogRepository(databaseService);
-            const auditLogService = getAuditLogService(auditLogRepository);
-
-            await auditLogService.logSuccess(
-              payload.orgId,
-              "data.imported",
-              userContext,
-              {
-                resource: {
-                  type: "import_job",
-                  id: jobId,
-                },
-                metadata: {
-                  source: "api",
-                  customFields: {
-                    entityType: payload.entityType,
-                    mode: payload.mode,
-                    stats: result.stats,
-                    fileName: payload.fileName,
-                    hasErrors: result.errorReportUrl ? true : false,
-                  },
-                },
-              },
-            );
-          }
-        } catch (auditError) {
-          loggerService.warn("Failed to create audit log for import", {
-            error: auditError instanceof Error ? auditError.message : String(auditError),
-          });
-        }
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "importData",
+          organizationId: payload.orgId,
+          action: "data.imported",
+          resource: {
+            type: "import_job",
+            id: jobId,
+          },
+          metadata: {
+            source: "api",
+            customFields: {
+              entityType: payload.entityType,
+              mode: payload.mode,
+              stats: result.stats,
+              fileName: payload.fileName,
+              hasErrors: result.errorReportUrl ? true : false,
+            },
+          },
+          fallbackUserContext: userContext,
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
 

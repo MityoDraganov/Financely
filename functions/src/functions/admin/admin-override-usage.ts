@@ -2,9 +2,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyAdminAuth } from "../../utils/admin-auth-utils";
 import { loggerService } from "../../services/logger-service";
-import { getDatabaseService } from "../../services/database-service";
-import { getAuditLogRepository } from "../../repositories/audit-log-repository";
 import { AuditLogService } from "../../services/audit-log-service";
+import { logAuditSuccessForRequest } from "../../utils/audit-log-helper";
 
 interface AdminOverrideUsageRequest {
   organizationId: string;
@@ -71,45 +70,44 @@ export const adminOverrideUsage = onCall<
       const afterDoc = await orgRef.get();
       const afterData = afterDoc.data();
 
-      // Create audit log
-      const databaseService = getDatabaseService();
-      const auditLogRepository = getAuditLogRepository(databaseService);
-      const auditLogService = new AuditLogService(auditLogRepository);
-
       const changes = Object.keys(usageOverrides).map((key) => ({
         field: `usage.${key}`,
         oldValue: currentUsage[key],
         newValue: updatedUsage[key],
       }));
 
-      await auditLogService.logSuccess(
-        organizationId,
-        "organization.updated",
+      const fallbackAuditUserContext = AuditLogService.buildUserContext(
+        adminAuth.userId,
+        adminAuth.userId,
+        request.auth?.token.email || `admin-${adminAuth.userId}@financely.local`,
+        request.auth?.token.name || "Admin",
         {
-          userId: adminAuth.userId,
-          clerkId: adminAuth.userId,
-          email: request.auth?.token.email || "",
-          name: request.auth?.token.name || "Admin",
           role: adminAuth.adminRole,
         },
-        {
-          resource: {
-            type: "organization",
-            id: organizationId,
-            name: afterData?.name || organizationId,
-          },
-          changes,
-          beforeSnapshot: { usage: currentUsage },
-          afterSnapshot: { usage: updatedUsage },
-          metadata: {
-            source: "system",
-            customFields: {
-              adminRole: adminAuth.adminRole,
-              action: "usage_override",
-            },
-          },
-        }
       );
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "adminOverrideUsage",
+        organizationId,
+        action: "organization.updated",
+        resource: {
+          type: "organization",
+          id: organizationId,
+          name: afterData?.name || organizationId,
+        },
+        changes,
+        beforeSnapshot: { usage: currentUsage },
+        afterSnapshot: { usage: updatedUsage },
+        metadata: {
+          source: "system",
+          customFields: {
+            adminRole: adminAuth.adminRole,
+            action: "usage_override",
+          },
+        },
+        fallbackUserContext: fallbackAuditUserContext,
+      });
 
       loggerService.info("Usage overridden by admin", {
         organizationId,
@@ -135,4 +133,3 @@ export const adminOverrideUsage = onCall<
     }
   }
 );
-

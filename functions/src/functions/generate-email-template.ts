@@ -25,6 +25,17 @@ interface GenerateEmailTemplatePayload {
       organizationSettings?: Record<string, unknown>;
       galleryImages?: string[];
     };
+    allowedContexts?: string[];
+    dynamicSources?: Array<{
+      placeholderKey: string;
+      entity: "product" | "contact" | "invoice" | "proposal";
+      path: string;
+      label?: string;
+      description?: string;
+      valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+      required?: boolean;
+      sourceKind?: "field" | "metafield";
+    }>;
     generateCustomHtml?: boolean;
     targetSection?: "header" | "body" | "footer" | "full";
   };
@@ -49,6 +60,8 @@ interface GenerateEmailTemplatePayload {
  *       organizationSettings?: Record<string, unknown>,
  *       galleryImages?: string[]
  *     },
+ *     allowedContexts?: string[],
+ *     dynamicSources?: Array<{ placeholderKey, entity, path, label?, description?, valueType?, required?, sourceKind? }>,
  *     generateCustomHtml?: boolean,
  *     targetSection?: "header" | "body" | "footer" | "full"
  *   }
@@ -82,6 +95,8 @@ export const generateEmailTemplate = onCall<GenerateEmailTemplatePayload>(
         imageCount: options?.images?.length || 0,
         targetSection: options?.targetSection || "full",
         generateCustomHtml: options?.generateCustomHtml || false,
+        allowedContextCount: options?.allowedContexts?.length || 0,
+        dynamicSourceCount: options?.dynamicSources?.length || 0,
       });
 
       const databaseService = getDatabaseService();
@@ -175,4 +190,3 @@ export const generateEmailTemplate = onCall<GenerateEmailTemplatePayload>(
     }
   },
 );
-

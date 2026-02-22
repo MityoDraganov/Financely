@@ -2,9 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
-import { extractUserContextFromRequest } from "../utils/request-context";
-import { getAuditLogRepository } from "../repositories/audit-log-repository";
-import { getAuditLogService } from "../services/audit-log-service";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface PageContentEntry {
   id: string;
@@ -93,6 +94,8 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
   },
   async (request) => {
     const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteName: string | undefined;
     try {
       const { brandSiteId, pages } = request.data;
 
@@ -126,6 +129,8 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
           "Brand site not found",
         );
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
 
       // TODO: Add authentication check to verify user owns the organization
       // const userContext = await extractUserContextFromRequest(request);
@@ -205,40 +210,25 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
         duration: Date.now() - startTime,
       });
 
-      // Create audit log entry
-      try {
-        const userContext = await extractUserContextFromRequest(request);
-        if (userContext) {
-          const auditLogRepository = getAuditLogRepository(databaseService);
-          const auditLogService = getAuditLogService(auditLogRepository);
-
-          await auditLogService.logSuccess(
-            brandSite.organizationId,
-            "site.pages.updated",
-            userContext,
-            {
-              resource: {
-                type: "brandSite",
-                id: brandSiteId,
-                name: brandSite.brandName,
-              },
-              durationMs: Date.now() - startTime,
-              metadata: {
-                source: "api",
-                sourceDetails: "updateBrandSitePages",
-                customFields: {
-                  pageCount: normalizedPages.length,
-                },
-              },
-            },
-          );
-        }
-      } catch (auditError) {
-        // Don't fail the operation if audit logging fails
-        logger.warn("Failed to create audit log for page update", {
-          error: auditError instanceof Error ? auditError.message : String(auditError),
-        });
-      }
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "updateBrandSitePages",
+        organizationId: brandSite.organizationId,
+        action: "site.pages.updated",
+        resource: {
+          type: "brandSite",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "updateBrandSitePages",
+          customFields: {
+            pageCount: normalizedPages.length,
+          },
+        },
+      });
 
       return { success: true, brandSiteId };
     } catch (error) {
@@ -247,39 +237,36 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
         data: request.data,
       });
 
-      // Log failure to audit log
-      try {
-        const userContext = await extractUserContextFromRequest(request);
-        const errorPayload = request.data as UpdateBrandSitePagesPayload;
-        if (userContext && errorPayload?.brandSiteId) {
-          const databaseService = getDatabaseService();
-          const brandSiteRepository = getBrandSiteRepository(databaseService);
-          const brandSite = await brandSiteRepository.get({ id: errorPayload.brandSiteId });
-          
-          if (brandSite) {
-            const auditLogRepository = getAuditLogRepository(databaseService);
-            const auditLogService = getAuditLogService(auditLogRepository);
+      const errorPayload = request.data as UpdateBrandSitePagesPayload;
+      let organizationId = auditOrganizationId;
+      let resourceName = auditBrandSiteName;
 
-            await auditLogService.logFailure(
-              brandSite.organizationId,
-              "site.pages.updated",
-              userContext,
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                metadata: {
-                  source: "api",
-                  sourceDetails: "updateBrandSitePages",
-                },
-              },
-            );
-          }
-        }
-      } catch (auditError) {
-        // Don't fail if audit logging fails
-        logger.warn("Failed to create audit log for page update failure", {
-          error: auditError instanceof Error ? auditError.message : String(auditError),
-        });
+      if (!organizationId && errorPayload?.brandSiteId) {
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+        const brandSite = await brandSiteRepository.get({ id: errorPayload.brandSiteId });
+        organizationId = brandSite?.organizationId;
+        resourceName = brandSite?.brandName;
       }
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "updateBrandSitePages",
+        organizationId,
+        action: "site.pages.updated",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.brandSiteId
+          ? {
+              type: "brandSite",
+              id: errorPayload.brandSiteId,
+              name: resourceName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "updateBrandSitePages",
+        },
+      });
 
       // Re-throw HttpsError as-is
       if (error instanceof HttpsError) {
@@ -294,4 +281,3 @@ export const updateBrandSitePages = onCall<UpdateBrandSitePagesPayload>(
     }
   },
 );
-

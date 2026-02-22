@@ -109,6 +109,7 @@ export const auditLogActionTypeSchema = z.enum([
   "site.version.restored",
   "site.domain.added",
   "site.domain.removed",
+  "site.pages.updated",
   
   // Analytics & Configuration
   "analytics.config.updated",
@@ -148,6 +149,204 @@ export const auditLogActionTypeSchema = z.enum([
 ]);
 
 export type AuditLogActionType = z.infer<typeof auditLogActionTypeSchema>;
+
+/**
+ * Grouped audit log action types for UI filtering and display
+ */
+export const AUDIT_LOG_ACTION_GROUPS = {
+  authentication: {
+    label: "Authentication",
+    actions: [
+      "user.login",
+      "user.logout",
+      "user.created",
+      "user.updated",
+      "user.deleted",
+      "user.suspended",
+      "user.reactivated",
+      "user.password_changed",
+      "user.email_changed",
+    ] as AuditLogActionType[],
+  },
+  organization: {
+    label: "Organization",
+    actions: [
+      "organization.created",
+      "organization.updated",
+      "organization.deleted",
+      "organization.settings.updated",
+      "organization.branding.updated",
+      "organization.billing.updated",
+      "organization.subscription.changed",
+    ] as AuditLogActionType[],
+  },
+  members: {
+    label: "Members & Invites",
+    actions: [
+      "member.added",
+      "member.removed",
+      "member.role_changed",
+      "invite.created",
+      "invite.sent",
+      "invite.accepted",
+      "invite.revoked",
+      "invite.expired",
+    ] as AuditLogActionType[],
+  },
+  invoices: {
+    label: "Invoices",
+    actions: [
+      "invoice.created",
+      "invoice.updated",
+      "invoice.deleted",
+      "invoice.sent",
+      "invoice.paid",
+      "invoice.overdue",
+      "invoice.cancelled",
+      "invoice.refunded",
+      "invoice.pdf.generated",
+      "invoice.pdf.downloaded",
+    ] as AuditLogActionType[],
+  },
+  proposals: {
+    label: "Proposals",
+    actions: [
+      "proposal.created",
+      "proposal.updated",
+      "proposal.deleted",
+      "proposal.sent",
+      "proposal.accepted",
+      "proposal.rejected",
+      "proposal.expired",
+      "proposal.converted_to_invoice",
+    ] as AuditLogActionType[],
+  },
+  products: {
+    label: "Products",
+    actions: [
+      "product.created",
+      "product.updated",
+      "product.deleted",
+      "product.archived",
+      "product.activated",
+    ] as AuditLogActionType[],
+  },
+  contacts: {
+    label: "Contacts",
+    actions: [
+      "contact.created",
+      "contact.updated",
+      "contact.deleted",
+      "contact.merged",
+      "contact.imported",
+    ] as AuditLogActionType[],
+  },
+  leads: {
+    label: "Leads",
+    actions: [
+      "lead.created",
+      "lead.updated",
+      "lead.deleted",
+      "lead.converted",
+      "lead.qualified",
+      "lead.disqualified",
+    ] as AuditLogActionType[],
+  },
+  templates: {
+    label: "Templates",
+    actions: [
+      "template.created",
+      "template.updated",
+      "template.deleted",
+      "template.published",
+      "template.archived",
+      "template.version.created",
+      "template.version.restored",
+    ] as AuditLogActionType[],
+  },
+  workflows: {
+    label: "Workflows",
+    actions: [
+      "workflow.created",
+      "workflow.updated",
+      "workflow.deleted",
+      "workflow.activated",
+      "workflow.paused",
+      "workflow.archived",
+      "workflow.executed",
+      "workflow.step.completed",
+      "workflow.step.failed",
+    ] as AuditLogActionType[],
+  },
+  sites: {
+    label: "Site Builder",
+    actions: [
+      "site.created",
+      "site.updated",
+      "site.deleted",
+      "site.published",
+      "site.deployed",
+      "site.version.created",
+      "site.version.restored",
+      "site.domain.added",
+      "site.domain.removed",
+      "site.pages.updated",
+    ] as AuditLogActionType[],
+  },
+  analytics: {
+    label: "Analytics",
+    actions: [
+      "analytics.config.updated",
+      "analytics.script.updated",
+      "analytics.event.tracked",
+    ] as AuditLogActionType[],
+  },
+  security: {
+    label: "Security & Access",
+    actions: [
+      "access.granted",
+      "access.revoked",
+      "permission.changed",
+      "api_key.created",
+      "api_key.revoked",
+      "api_key.rotated",
+      "session.created",
+      "session.terminated",
+    ] as AuditLogActionType[],
+  },
+  settings: {
+    label: "Settings",
+    actions: [
+      "settings.general.updated",
+      "settings.ai.updated",
+      "settings.security.updated",
+      "settings.integration.added",
+      "settings.integration.removed",
+      "settings.integration.updated",
+    ] as AuditLogActionType[],
+  },
+  data: {
+    label: "Data Operations",
+    actions: [
+      "data.exported",
+      "data.imported",
+      "data.backed_up",
+      "data.restored",
+      "data.deleted",
+    ] as AuditLogActionType[],
+  },
+  system: {
+    label: "System",
+    actions: [
+      "system.maintenance.started",
+      "system.maintenance.completed",
+      "system.error.occurred",
+      "system.warning.issued",
+    ] as AuditLogActionType[],
+  },
+} as const;
+
+export type AuditLogActionGroup = keyof typeof AUDIT_LOG_ACTION_GROUPS;
 
 /**
  * Audit log severity levels
@@ -287,4 +486,3 @@ export const auditLogQueryFiltersSchema = z.object({
 });
 
 export type AuditLogQueryFilters = z.infer<typeof auditLogQueryFiltersSchema>;
-

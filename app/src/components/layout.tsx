@@ -1,7 +1,6 @@
 import {
 	Sidebar,
 	SidebarContent,
-	SidebarFooter,
 	SidebarGroup,
 	SidebarHeader,
 	SidebarMenuButton,
@@ -395,7 +394,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						</SidebarGroup>
 					</div>
 				</SidebarContent>
-				<SidebarFooter />
 			</Sidebar>
 			<div
 				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? "pt-14" : ""}`}

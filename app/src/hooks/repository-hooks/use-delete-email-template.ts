@@ -7,7 +7,7 @@ export function useDeleteEmailTemplate(orgId?: string) {
 
 	return useMutation({
 		mutationFn: async (templateId: string) => {
-			await emailTemplateService.delete(templateId);
+			await emailTemplateService.delete(templateId, orgId);
 		},
 		onSuccess: () => {
 			if (orgId) {
@@ -21,5 +21,4 @@ export function useDeleteEmailTemplate(orgId?: string) {
 		},
 	});
 }
-
 

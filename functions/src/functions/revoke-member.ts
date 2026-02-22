@@ -2,6 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { isOwner, isValidRole } from "../core/roles";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface RevokeMemberPayload {
   organizationId: string;
@@ -25,8 +29,15 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
     region: "us-central1",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditMemberId: string | undefined;
+    let auditMemberName: string | undefined;
+    let auditMemberRole: string | undefined;
     try {
       const { organizationId, memberId } = request.data;
+      auditOrganizationId = organizationId;
+      auditMemberId = memberId;
       const auth = request.auth;
 
       if (!auth) {
@@ -49,7 +60,7 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
       const db = getFirestore();
 
       // Use a transaction to ensure atomicity
-      return await db.runTransaction(async (transaction) => {
+      const result = await db.runTransaction(async (transaction) => {
         // Get the requesting user's data
         const requestingUserRef = db.collection("users").doc(auth.uid);
         const requestingUserDoc = await transaction.get(requestingUserRef);
@@ -109,9 +120,11 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
         if (!memberUserData) {
           throw new HttpsError("not-found", "Member user data not found");
         }
+        auditMemberName = memberUserData.name || memberUserData.email || memberId;
 
         // Check if trying to revoke another owner (prevent this)
         const memberRoleValue = memberUserData.organizationRoles?.[organizationId];
+        auditMemberRole = memberRoleValue;
         if (memberRoleValue && isValidRole(memberRoleValue) && isOwner(memberRoleValue)) {
           throw new HttpsError(
             "failed-precondition",
@@ -146,8 +159,49 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
           message: "Member access revoked successfully",
         };
       });
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "revokeMember",
+        organizationId,
+        action: "member.removed",
+        resource: {
+          type: "member",
+          id: memberId,
+          name: auditMemberName || memberId,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "revokeMember",
+          customFields: {
+            removedMemberRole: auditMemberRole,
+          },
+        },
+      });
+
+      return result;
     } catch (error) {
       loggerService.error("Error revoking member", error);
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "revokeMember",
+        organizationId: auditOrganizationId,
+        action: "member.removed",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditMemberId
+          ? {
+              type: "member",
+              id: auditMemberId,
+              name: auditMemberName || auditMemberId,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "revokeMember",
+        },
+      });
 
       if (error instanceof HttpsError) {
         throw error;
@@ -160,4 +214,3 @@ export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResp
     }
   }
 );
-

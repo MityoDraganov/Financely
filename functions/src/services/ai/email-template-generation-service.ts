@@ -34,6 +34,12 @@ export interface EmailTemplateData {
     key: string;
     label?: string;
     description?: string;
+    source?: {
+      type: "entity_field";
+      entity: "product" | "contact" | "invoice" | "proposal";
+      path: string;
+      valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+    };
   }>;
   sections?: {
     header: string[];
@@ -41,6 +47,46 @@ export interface EmailTemplateData {
     footer: string[];
   };
 }
+
+type DynamicSourceValueType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "date"
+  | "array"
+  | "object"
+  | "unknown";
+
+type AIEmailDynamicSource = {
+  placeholderKey: string;
+  entity: "product" | "contact" | "invoice" | "proposal";
+  path: string;
+  label?: string;
+  description?: string;
+  valueType?: DynamicSourceValueType;
+  required?: boolean;
+  sourceKind?: "field" | "metafield";
+};
+
+type GenerateEmailTemplateOptions = {
+  style?: "modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional";
+  customPrompt?: string;
+  images?: Array<{
+    url: string;
+    purpose: "reference" | "use-in-template";
+    description?: string;
+  }>;
+  context?: {
+    products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
+    organizationName?: string;
+    organizationSettings?: Record<string, unknown>;
+    galleryImages?: string[];
+  };
+  allowedContexts?: string[];
+  dynamicSources?: AIEmailDynamicSource[];
+  generateCustomHtml?: boolean;
+  targetSection?: "header" | "body" | "footer" | "full";
+};
 
 /**
  * Service for generating email templates using AI
@@ -58,23 +104,7 @@ export class EmailTemplateGenerationService {
    */
   async generateEmailTemplate(
     organization: Organization,
-    options?: {
-      style?: "modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional";
-      customPrompt?: string;
-      images?: Array<{
-        url: string;
-        purpose: "reference" | "use-in-template";
-        description?: string;
-      }>;
-      context?: {
-        products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
-        organizationName?: string;
-        organizationSettings?: Record<string, unknown>;
-        galleryImages?: string[];
-      };
-      generateCustomHtml?: boolean;
-      targetSection?: "header" | "body" | "footer" | "full";
-    }
+    options?: GenerateEmailTemplateOptions,
   ): Promise<EmailTemplateData> {
     // Build context from organization data
     const context = this.buildOrganizationContext(organization, options?.context);
@@ -124,6 +154,36 @@ export class EmailTemplateGenerationService {
             borderRadius: { type: "number" as const },
           },
         },
+        placeholders: {
+          type: "array" as const,
+          description:
+            "Dynamic placeholders used in htmlContent/subject/preheader. Include only placeholders actually used.",
+          items: {
+            type: "object" as const,
+            properties: {
+              id: { type: "string" as const },
+              key: { type: "string" as const },
+              label: { type: "string" as const },
+              description: { type: "string" as const },
+              source: {
+                type: "object" as const,
+                properties: {
+                  type: { type: "string" as const, enum: ["entity_field"] },
+                  entity: {
+                    type: "string" as const,
+                    enum: ["product", "contact", "invoice", "proposal"],
+                  },
+                  path: { type: "string" as const },
+                  valueType: {
+                    type: "string" as const,
+                    enum: ["string", "number", "boolean", "date", "array", "object", "unknown"],
+                  },
+                },
+              },
+            },
+            required: ["key"],
+          },
+        },
       },
       required: ["name", "subject", "htmlContent", "blocks", "designTokens"],
     };
@@ -148,6 +208,18 @@ export class EmailTemplateGenerationService {
           fontFamily: string;
           borderRadius: number;
         };
+        placeholders?: Array<{
+          id?: string;
+          key: string;
+          label?: string;
+          description?: string;
+          source?: {
+            type: "entity_field";
+            entity: "product" | "contact" | "invoice" | "proposal";
+            path: string;
+            valueType?: DynamicSourceValueType;
+          };
+        }>;
       }>(prompt, schema, {
         temperature: 0.7,
         maxTokens: 32768, // Large token limit for full HTML email content
@@ -200,12 +272,20 @@ export class EmailTemplateGenerationService {
           fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
           borderRadius: 12,
         },
-        placeholders: [],
+        placeholders: (result.placeholders ?? [])
+          .filter((placeholder) => typeof placeholder?.key === "string" && placeholder.key.trim().length > 0)
+          .map((placeholder) => ({
+            id: placeholder.id || `placeholder-${placeholder.key.trim().toLowerCase()}`,
+            key: placeholder.key.trim(),
+            label: placeholder.label,
+            description: placeholder.description,
+            source: placeholder.source,
+          })),
         status: "draft",
         version: 1,
         isSystemDefault: false,
         isLocked: false,
-        allowedContexts: [],
+        allowedContexts: options?.allowedContexts ?? [],
         sections,
       };
       
@@ -310,27 +390,20 @@ export class EmailTemplateGenerationService {
   private buildEmailTemplatePrompt(
     context: string,
     organization: Organization,
-    options?: {
-      style?: "modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional";
-      customPrompt?: string;
-      images?: Array<{
-        url: string;
-        purpose: "reference" | "use-in-template";
-        description?: string;
-      }>;
-      context?: {
-        products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
-        organizationName?: string;
-        organizationSettings?: Record<string, unknown>;
-        galleryImages?: string[];
-      };
-      generateCustomHtml?: boolean;
-      targetSection?: "header" | "body" | "footer" | "full";
-    }
+    options?: GenerateEmailTemplateOptions,
   ): string {
     const style = options?.style || "modern";
     const targetSection = options?.targetSection || "full";
     const generateCustomHtml = options?.generateCustomHtml || false;
+    const allowedContexts = options?.allowedContexts ?? [];
+    const dynamicSources = (options?.dynamicSources ?? []).filter(
+      (source) =>
+        typeof source?.placeholderKey === "string" &&
+        source.placeholderKey.trim().length > 0 &&
+        typeof source?.entity === "string" &&
+        typeof source?.path === "string" &&
+        source.path.trim().length > 0,
+    );
     
     const logoUrl = organization.settings?.branding?.customLogo || organization.logoUrl;
     const brandColors = organization.settings?.brandColors || {
@@ -358,6 +431,21 @@ Brand Colors:
 - Primary: ${brandColors.primary}
 - Secondary: ${brandColors.secondary}
 - Accent: ${brandColors.accent}
+
+${allowedContexts.length > 0 ? `Template Compatibility Context:
+- Allowed Contexts: ${allowedContexts.join(", ")}
+- You MUST keep the generated dynamic placeholders and content compatible with these contexts.
+- Do not introduce placeholders that require entities outside what these contexts support.` : ""}
+
+${dynamicSources.length > 0 ? `Dynamic Source Contract (STRICT):
+- You may use ONLY these dynamic placeholder keys when generating dynamic content.
+- Placeholder syntax is exactly: {{placeholder_key}}
+- Do NOT invent new placeholder keys, entity names, or data paths.
+- If you use any dynamic placeholder in subject, preheader, or htmlContent, include it in the returned "placeholders" array with matching source metadata.
+- If no dynamic fields are used, return "placeholders": [].
+- Available dynamic sources (${dynamicSources.length} total):
+${dynamicSources.slice(0, 120).map((source, idx) => `  ${idx + 1}. {{${source.placeholderKey}}} -> ${source.entity}.${source.path}${source.valueType ? ` (${source.valueType})` : ""}${source.required ? " [required]" : ""}${source.label ? ` | ${source.label}` : ""}`).join("\n")}
+${dynamicSources.length > 120 ? `  ... and ${dynamicSources.length - 120} more sources` : ""}` : ""}
 
 📧 PROFESSIONAL EMAIL DESIGN PRINCIPLES (FOLLOW THESE):
 
@@ -539,6 +627,26 @@ AVAILABLE BLOCK TYPES AND THEIR EXACT HTML STRUCTURE:
    - Always set width:auto and height:auto to maintain aspect ratio
    - Example with ALL required styles: style="display:block; max-width:160px; width:auto; height:auto; max-height:80px;"
 
+7. CONTAINER BLOCK (nested layout group):
+   Structure: A grouped block that contains nested child blocks with explicit layout properties.
+   Required block fields:
+   {
+     "type": "container",
+     "section": "header|body|footer",
+     "maxWidth": 520 | 600 | 680 | 800,
+     "align": "left" | "center" | "right",
+     "layoutDirection": "vertical" | "horizontal",
+     "contentAlign": "left" | "center" | "right",
+     "justifyContent": "start" | "center" | "end" | "space-between",
+     "gap": number,
+     "padding": "none" | "xs" | "sm" | "md" | "lg",
+     "blocks": [nested blocks...]
+   }
+   Rules:
+   - Use containers to group related blocks and control nested layout.
+   - Container blocks may include text/image/button/divider/spacer/columns/container blocks.
+   - Keep nesting depth practical (max 3 levels total).
+
 🚫 FORBIDDEN STRUCTURES (when generateCustomHtml is false):
 - Complex nested tables with multiple levels
 - Tables with images AND text in the same cell (use columns block instead)
@@ -644,23 +752,25 @@ TYPOGRAPHY HIERARCHY - CRITICAL:
 - Headings should be noticeably larger than body text (at least 4-6px difference)
 
 KEY RULES - FOLLOW THESE EXACTLY:
-1. Each block type must be a SIMPLE, FLAT HTML structure - NO deep nesting
+1. Each block type must be a SIMPLE, PARSEABLE structure.
 2. Use COLUMNS blocks (simple table with <td> elements) for ANY side-by-side layouts:
    - Products (image + text)
    - Image galleries
    - Feature lists
    - Any content that needs to be side-by-side
-3. Each text element = separate <p> or <h1>-<h6> tag (one tag = one text block)
-4. Each image = separate <img> tag (one tag = one image block)
-5. Each button = separate <a> tag with button styling (background-color + padding)
-6. NO complex nesting - maximum 2 levels deep (outer table → inner table for columns)
-7. ${generateCustomHtml ? "You may use minimal custom HTML, but prefer standard blocks." : "🚫🚫🚫 ABSOLUTELY NO custom HTML - only use the block types listed above. If you generate custom HTML, the template will be uneditable in the visual builder. This is CRITICAL. 🚫🚫🚫"}
-8. For products: Use COLUMNS block with image in one column, text in another
-9. LOGO SIZING: Logos MUST have max-width: 120-160px, width:auto, height:auto, and max-height:80px to prevent oversized headers. Never let logos take more than 20% of email height. Header padding should be reasonable (20-32px).
-10. For galleries: Use COLUMNS block with multiple <td> elements, each containing one <img>
-10. Keep structure FLAT: outer wrapper table → section rows → simple content blocks
-11. DISTRIBUTE content across sections: header blocks in header, body blocks in body, footer blocks in footer
-12. DO NOT put everything in one section - use proper section distribution
+3. Use CONTAINER blocks to group related blocks and control nested layout (vertical/horizontal).
+4. Columns and containers may contain nested blocks, but keep nesting depth to max 3 levels total.
+5. Each text element = separate <p> or <h1>-<h6> tag (one tag = one text block)
+6. Each image = separate <img> tag (one tag = one image block)
+7. Each button = separate <a> tag with button styling (background-color + padding)
+8. ${generateCustomHtml ? "You may use minimal custom HTML, but prefer standard blocks." : "🚫🚫🚫 ABSOLUTELY NO custom HTML - only use the block types listed above. If you generate custom HTML, the template will be uneditable in the visual builder. This is CRITICAL. 🚫🚫🚫"}
+9. For products: Use COLUMNS block with image in one column, text in another
+10. LOGO SIZING: Logos MUST have max-width: 120-160px, width:auto, height:auto, and max-height:80px to prevent oversized headers. Never let logos take more than 20% of email height. Header padding should be reasonable (20-32px).
+11. For galleries: Use COLUMNS block with multiple <td> elements, each containing one <img>
+12. Keep structure clear: outer wrapper table -> section rows -> standard blocks/containers/columns
+13. DISTRIBUTE content across sections: header blocks in header, body blocks in body, footer blocks in footer
+14. DO NOT put everything in one section - use proper section distribution
+15. If dynamic placeholders are used, only use allowed placeholder keys from the Dynamic Source Contract.
 
 COMPLETE TEMPLATE STRUCTURE EXAMPLE (follow this pattern exactly):
 
@@ -967,6 +1077,7 @@ Return a JSON object with:
     "footer": [/* array of blocks for footer section */]
   }
   Each block must have: id (string), type (string), section (string: "header"|"body"|"footer"), and type-specific properties
+- placeholders: Array of dynamic placeholder definitions actually used in content
 - designTokens: Design token values used
 
 🚨 CRITICAL: The blocks object MUST have all three sections (header, body, footer) with blocks properly distributed.
@@ -1028,12 +1139,20 @@ Each block MUST have:
   - footerText: { content: string, align?: "left"|"center"|"right", ... }
   - unsubscribe: { text: string, url: string, align?: "left"|"center"|"right", ... }
   - columns: { columnCount: "2"|"3"|"4", columns: Array<{id: string, width: number, blocks: Array<...>}>, ... }
+  - container: { maxWidth: 520|600|680|800, align: "left"|"center"|"right", layoutDirection: "vertical"|"horizontal", contentAlign: "left"|"center"|"right", justifyContent: "start"|"center"|"end"|"space-between", gap: number, padding: "none"|"xs"|"sm"|"md"|"lg", blocks: Array<...> }
   - divider: { style: "solid"|"dashed"|"dotted", color: string, width: number, ... }
 
 DO NOT put all blocks in one section. You MUST distribute them:
 - Header: logo, navigation, tagline (1-3 blocks typically)
 - Body: main content, text, images, buttons (3-10 blocks typically)
 - Footer: contact info, unsubscribe, social links (2-4 blocks typically)
+
+The "placeholders" array rules:
+- Include one entry for each distinct dynamic placeholder key actually used in subject, preheader, or htmlContent.
+- Use only keys from the Dynamic Source Contract list when provided.
+- Each placeholder should include source metadata:
+  { "type": "entity_field", "entity": "...", "path": "...", "valueType": "..." }
+- If no placeholders are used, return [].
 
 This structured format ensures the visual builder can correctly display blocks in their proper sections.`;
 
@@ -1065,4 +1184,3 @@ export function getEmailTemplateGenerationService(): EmailTemplateGenerationServ
   }
   return emailTemplateGenerationServiceInstance;
 }
-

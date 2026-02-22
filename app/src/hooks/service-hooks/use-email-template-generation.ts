@@ -26,6 +26,17 @@ export const useGenerateEmailTemplate = () => {
           organizationSettings?: Record<string, unknown>;
           galleryImages?: string[];
         };
+        allowedContexts?: string[];
+        dynamicSources?: Array<{
+          placeholderKey: string;
+          entity: "product" | "contact" | "invoice" | "proposal";
+          path: string;
+          label?: string;
+          description?: string;
+          valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+          required?: boolean;
+          sourceKind?: "field" | "metafield";
+        }>;
         generateCustomHtml?: boolean;
         targetSection?: "header" | "body" | "footer" | "full";
       };
@@ -38,4 +49,3 @@ export const useGenerateEmailTemplate = () => {
     },
   });
 };
-

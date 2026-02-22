@@ -41,7 +41,10 @@ export default function UsersListPage() {
   const { user: clerkUser } = useUser();
   const { data: dbUser } = useUserByClerkId(clerkUser?.id);
   const { data: organization } = useCurrentOrganization();
-  const { data: members = [], isLoading } = useOrganizationMembers(organization?.id);
+  const { data: members = [], isLoading, error } = useOrganizationMembers(organization?.id);
+  if(error) {
+    console.error("Error fetching organization members:", error);
+  }
   const { data: invites = [] } = useInvites(organization?.id);
   const [searchTerm, setSearchTerm] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);

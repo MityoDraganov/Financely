@@ -2,6 +2,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { extractUserContextFromRequest } from "../utils/request-context";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface UploadFilePayload {
   organizationId: string;
@@ -139,6 +143,29 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         durationMs: Date.now() - startTime,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "uploadFile",
+        organizationId,
+        action: "data.imported",
+        resource: {
+          type: "file",
+          id: storagePath,
+          name: fileName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "uploadFile",
+          customFields: {
+            contentType,
+            fileSizeBytes: fileBuffer.length,
+            storagePath,
+            url,
+          },
+        },
+      });
+
       return { url };
     } catch (error) {
       logger.error("Failed to upload file", {
@@ -147,6 +174,29 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         fileName,
         contentType,
         durationMs: Date.now() - startTime,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "uploadFile",
+        organizationId,
+        action: "data.imported",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: organizationId
+          ? {
+              type: "file",
+              id: path || fileName || "unknown",
+              name: fileName || undefined,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "uploadFile",
+          customFields: {
+            contentType,
+            hasFileData: Boolean(fileData),
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -160,4 +210,3 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
     }
   },
 );
-

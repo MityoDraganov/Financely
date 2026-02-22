@@ -1,6 +1,12 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { handleRenderInvoicePdf } from "../app/handle-render-invoice-pdf";
 import { loggerService } from "../services/logger-service";
+import { getDatabaseService } from "../services/database-service";
+import { getInvoiceRepository } from "../repositories/invoice-repository";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 type RenderInvoicePdfPayload = {
   invoiceId: string;
@@ -39,6 +45,10 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
     memory: "1GiB",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInvoiceId: string | undefined;
+    let auditInvoiceName: string | undefined;
     try {
       // TODO: Add authentication check when Clerk is integrated
       // if (!request.auth) {
@@ -46,6 +56,7 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
       // }
 
       const { invoiceId } = request.data;
+      auditInvoiceId = invoiceId;
 
       // Validation
       if (!invoiceId || typeof invoiceId !== "string") {
@@ -57,21 +68,46 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
 
       loggerService.info("Rendering invoice PDF", { invoiceId });
 
+      const databaseService = getDatabaseService();
+      const invoiceRepository = getInvoiceRepository(databaseService);
+      const invoice = await invoiceRepository.get({ id: invoiceId });
+      if (invoice) {
+        auditOrganizationId = invoice.orgId;
+        const invoiceData = invoice.data as Record<string, unknown>;
+        auditInvoiceName = (invoiceData.invoiceNumber as string | undefined) || invoiceId;
+      }
+
       // Call application handler
       const url = await handleRenderInvoicePdf(invoiceId);
 
       loggerService.info("PDF rendered successfully", { invoiceId, url });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "renderInvoicePdf",
+        organizationId: auditOrganizationId,
+        action: "invoice.pdf.generated",
+        resource: auditInvoiceId
+          ? {
+              type: "invoice",
+              id: auditInvoiceId,
+              name: auditInvoiceName,
+            }
+          : undefined,
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "renderInvoicePdf",
+          customFields: {
+            url,
+          },
+        },
+      });
+
       // Record usage event
       try {
         const { recordUsageEvent } = await import("../usage");
         const { USAGE_FEATURES } = await import("../usage/usage-features");
-        const { getDatabaseService } = await import("../services/database-service");
-        const { getInvoiceRepository } = await import("../repositories/invoice-repository");
-        
-        const databaseService = getDatabaseService();
-        const invoiceRepository = getInvoiceRepository(databaseService);
-        const invoice = await invoiceRepository.get({ id: invoiceId });
         
         if (invoice?.orgId) {
           await recordUsageEvent({
@@ -101,6 +137,25 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
         stack: errorStack,
       });
 
+      await logAuditFailureForRequest({
+        request,
+        operationName: "renderInvoicePdf",
+        organizationId: auditOrganizationId,
+        action: "invoice.pdf.generated",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInvoiceId
+          ? {
+              type: "invoice",
+              id: auditInvoiceId,
+              name: auditInvoiceName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "renderInvoicePdf",
+        },
+      });
+
       // Re-throw HttpsError as-is
       if (error instanceof HttpsError) {
         throw error;
@@ -114,4 +169,3 @@ export const renderInvoicePdf = onCall<RenderInvoicePdfPayload, Promise<{ url: s
     }
   }
 );
-

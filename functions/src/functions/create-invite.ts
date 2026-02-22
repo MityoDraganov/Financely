@@ -3,6 +3,10 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { Invite } from "../core/entities/invite";
 import { isAdminOrOwner, isValidRole } from "../core/roles";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface CreateInvitePayload {
   organizationId: string;
@@ -20,8 +24,11 @@ export const createInvite = onCall<CreateInvitePayload, Promise<CreateInviteResp
     region: "us-central1"
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
     try {
       const { organizationId, expiresAt } = request.data;
+      auditOrganizationId = organizationId;
       const auth = request.auth;
 
       if (!auth) {
@@ -130,6 +137,23 @@ export const createInvite = onCall<CreateInvitePayload, Promise<CreateInviteResp
         invitedBy: invite.invitedBy,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "createInvite",
+        organizationId,
+        action: "invite.created",
+        resource: {
+          type: "invite",
+          id: invite.id,
+          name: invite.code,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "createInvite",
+        },
+      });
+
       return {
         success: true,
         invite,
@@ -137,6 +161,19 @@ export const createInvite = onCall<CreateInvitePayload, Promise<CreateInviteResp
       };
     } catch (error) {
       loggerService.error("Error creating invite", error);
+
+      const payload = request.data as CreateInvitePayload | undefined;
+      await logAuditFailureForRequest({
+        request,
+        operationName: "createInvite",
+        organizationId: payload?.organizationId || auditOrganizationId,
+        action: "invite.created",
+        error: error instanceof Error ? error : new Error(String(error)),
+        metadata: {
+          source: "api",
+          sourceDetails: "createInvite",
+        },
+      });
       
       if (error instanceof HttpsError) {
         throw error;

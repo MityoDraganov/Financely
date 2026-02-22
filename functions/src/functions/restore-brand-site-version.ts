@@ -4,6 +4,10 @@ import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { logger } from "firebase-functions";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
 
@@ -35,8 +39,13 @@ export const restoreBrandSiteVersion = onCall<RestoreVersionPayload>(
     secrets: [firebaseProjectId],
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteId: string | undefined;
+    let auditBrandSiteName: string | undefined;
     try {
       const { brandSiteId, version } = request.data;
+      auditBrandSiteId = brandSiteId;
 
       if (!brandSiteId) {
         throw new HttpsError("invalid-argument", "brandSiteId is required");
@@ -58,6 +67,8 @@ export const restoreBrandSiteVersion = onCall<RestoreVersionPayload>(
       if (!brandSite) {
         throw new HttpsError("not-found", "Brand site not found");
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
 
       // Find the version to restore
       const existingVersions = brandSite.versions || [];
@@ -171,6 +182,27 @@ export const restoreBrandSiteVersion = onCall<RestoreVersionPayload>(
         deployedUrl,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "restoreBrandSiteVersion",
+        organizationId: brandSite.organizationId,
+        action: "site.version.restored",
+        resource: {
+          type: "site",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "restoreBrandSiteVersion",
+          customFields: {
+            restoredVersion: version,
+            deployedUrl,
+          },
+        },
+      });
+
       return {
         success: true,
         brandSiteId,
@@ -180,6 +212,46 @@ export const restoreBrandSiteVersion = onCall<RestoreVersionPayload>(
       logger.error("Error restoring brand site version", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
+      });
+
+      const errorPayload = request.data as RestoreVersionPayload;
+      let organizationId = auditOrganizationId;
+      let resourceName = auditBrandSiteName;
+
+      if (!organizationId && errorPayload?.brandSiteId) {
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+        const brandSite = await brandSiteRepository.get({ id: errorPayload.brandSiteId });
+        organizationId = brandSite?.organizationId;
+        resourceName = brandSite?.brandName;
+      }
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "restoreBrandSiteVersion",
+        organizationId,
+        action: "site.version.restored",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.brandSiteId
+          ? {
+              type: "site",
+              id: errorPayload.brandSiteId,
+              name: resourceName,
+            }
+          : auditBrandSiteId
+            ? {
+                type: "site",
+                id: auditBrandSiteId,
+                name: auditBrandSiteName,
+              }
+            : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "restoreBrandSiteVersion",
+          customFields: {
+            requestedVersion: errorPayload?.version,
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -193,4 +265,3 @@ export const restoreBrandSiteVersion = onCall<RestoreVersionPayload>(
     }
   },
 );
-

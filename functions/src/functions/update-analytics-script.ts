@@ -9,6 +9,10 @@ import { getAnalyticsConfigRepository } from "../repositories/analytics-config-r
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const firebaseProjectId = defineSecret("FIREBASE_PROJECT_ID");
 // Cloudflare publisher secrets
@@ -36,8 +40,14 @@ export const updateAnalyticsScript = onCall(
     timeoutSeconds: 60,
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteId: string | undefined;
+    let auditBrandSiteName: string | undefined;
+    let auditHostingProvider: "firebase" | "cloudflare" | undefined;
     try {
       const { brandSiteId } = request.data;
+      auditBrandSiteId = brandSiteId;
 
       if (!brandSiteId) {
         throw new Error("brandSiteId is required");
@@ -53,6 +63,9 @@ export const updateAnalyticsScript = onCall(
       if (!brandSite) {
         throw new Error("Brand site not found");
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
+      auditHostingProvider = brandSite.hostingProvider || "firebase";
 
       // Get organization
       const organization = await organizationRepository.get({ id: brandSite.organizationId });
@@ -353,12 +366,75 @@ export const updateAnalyticsScript = onCall(
         }
       }
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "updateAnalyticsScript",
+        organizationId: brandSite.organizationId,
+        action: "analytics.script.updated",
+        resource: {
+          type: "site",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "updateAnalyticsScript",
+          customFields: {
+            hostingProvider,
+            analyticsEnabled: Boolean(analyticsConfig?.enabled),
+            redeployAttempted: Boolean(projectIdForDeployment && brandSite.status === "success"),
+          },
+        },
+      });
+
       return { success: true, brandSiteId };
     } catch (error) {
       logger.error("Error updating analytics script", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
       });
+
+      const errorPayload = request.data as { brandSiteId?: string };
+      let organizationId = auditOrganizationId;
+      let resourceName = auditBrandSiteName;
+
+      if (!organizationId && errorPayload?.brandSiteId) {
+        const databaseService = getDatabaseService();
+        const brandSiteRepository = getBrandSiteRepository(databaseService);
+        const brandSite = await brandSiteRepository.get({ id: errorPayload.brandSiteId });
+        organizationId = brandSite?.organizationId;
+        resourceName = brandSite?.brandName;
+      }
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "updateAnalyticsScript",
+        organizationId,
+        action: "analytics.script.updated",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.brandSiteId
+          ? {
+              type: "site",
+              id: errorPayload.brandSiteId,
+              name: resourceName,
+            }
+          : auditBrandSiteId
+            ? {
+                type: "site",
+                id: auditBrandSiteId,
+                name: auditBrandSiteName,
+              }
+            : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "updateAnalyticsScript",
+          customFields: {
+            hostingProvider: auditHostingProvider,
+          },
+        },
+      });
+
       throw error;
     }
   },
@@ -446,4 +522,3 @@ function generateAnalyticsScript(
 
   return `<script src="/analytics-loader.js" ${attributes.join(" ")}></script>`;
 }
-

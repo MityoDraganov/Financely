@@ -66,8 +66,8 @@ export default function TemplatesPage() {
 	);
 	const { data: emailTemplates = [], isLoading: isLoadingEmailTemplates } =
 		useEmailTemplates(currentOrganization?.id);
-	const deleteTemplate = useDeleteTemplate();
-	const bulkDeleteTemplates = useBulkDeleteTemplates();
+	const deleteTemplate = useDeleteTemplate(currentOrganization?.id);
+	const bulkDeleteTemplates = useBulkDeleteTemplates(currentOrganization?.id);
 	const deleteEmailTemplate = useDeleteEmailTemplate(currentOrganization?.id);
 	const bulkDeleteEmailTemplates = useBulkDeleteEmailTemplates(
 		currentOrganization?.id,

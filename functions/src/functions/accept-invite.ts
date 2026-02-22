@@ -4,6 +4,10 @@ import { loggerService } from "../services/logger-service";
 import { defineSecret } from "firebase-functions/params";
 import { ResendEmailService } from "../services/resend-email-service";
 import { ORGANIZATION_ROLES } from "../core/roles";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
@@ -25,6 +29,10 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
     secrets: [resendApiKey, resendFromEmail, resendFromName]
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInviteId: string | undefined;
+    let auditInviteCode: string | undefined;
     try {
       const { code } = request.data;
       const auth = request.auth;
@@ -45,7 +53,7 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
       });
 
       // Use a transaction to prevent race conditions
-      return await db.runTransaction(async (transaction) => {
+      const result = await db.runTransaction(async (transaction) => {
         // Get invite by code
         const inviteQuery = await db.collection("invites")
           .where("code", "==", code)
@@ -59,6 +67,9 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
         const inviteDoc = inviteQuery.docs[0];
         const inviteData = inviteDoc.data();
         const inviteId = inviteDoc.id;
+        auditOrganizationId = inviteData.organizationId;
+        auditInviteId = inviteId;
+        auditInviteCode = inviteData.code || code;
 
         // Check if invite is still valid
         // Accept invites with status "active" (created but email not sent) or "sent" (email sent)
@@ -82,6 +93,8 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
                   success: true,
                   organizationId: inviteData.organizationId,
                   message: "Invite already accepted",
+                  inviteId,
+                  inviteCode: inviteData.code || code,
                 };
               }
             }
@@ -138,6 +151,8 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
             success: true,
             organizationId: inviteData.organizationId,
             message: "User already in organization",
+            inviteId,
+            inviteCode: inviteData.code || code,
           };
         }
 
@@ -246,10 +261,54 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
           success: true,
           organizationId: inviteData.organizationId,
           message: "Invite accepted successfully",
+          inviteId,
+          inviteCode: inviteData.code || code,
         };
       });
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "acceptInvite",
+        organizationId: result.organizationId,
+        action: "invite.accepted",
+        resource: {
+          type: "invite",
+          id: result.inviteId,
+          name: result.inviteCode,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "acceptInvite",
+        },
+      });
+
+      return {
+        success: result.success,
+        organizationId: result.organizationId,
+        message: result.message,
+      };
     } catch (error) {
       loggerService.error("Error accepting invite", error);
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "acceptInvite",
+        organizationId: auditOrganizationId,
+        action: "invite.accepted",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInviteId
+          ? {
+              type: "invite",
+              id: auditInviteId,
+              name: auditInviteCode,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "acceptInvite",
+        },
+      });
       
       if (error instanceof HttpsError) {
         throw error;
@@ -259,4 +318,3 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
     }
   }
 );
-

@@ -7,6 +7,10 @@ import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "./use-users";
 import { firebase } from "@/infrastructure";
 import type { CreateOrganizationPayload } from "@/core/ports/services/functions-service";
+import {
+  logClientAuditFailure,
+  logClientAuditSuccess,
+} from "@/services/audit-log/audit-log-client-helper";
 
 const databaseService = serviceHost.getDatabaseService();
 const organizationRepository = repositoryHost.getOrganizationsRepository(databaseService);
@@ -181,7 +185,46 @@ export const useUpdateOrganization = () => {
       id: string;
       data: Partial<Organization>;
     }) => {
-      return organizationRepository.update({ id, data });
+      const startTime = Date.now();
+      try {
+        await organizationRepository.update({ id, data });
+
+        await logClientAuditSuccess({
+          organizationId: id,
+          action: data.settings ? "organization.settings.updated" : "organization.updated",
+          resource: {
+            type: "organization",
+            id,
+          },
+          durationMs: Date.now() - startTime,
+          metadata: {
+            sourceDetails: "useUpdateOrganization",
+            customFields: {
+              updatedFields: Object.keys(data || {}),
+              hasSettings: Boolean(data.settings),
+            },
+          },
+        });
+      } catch (error) {
+        await logClientAuditFailure({
+          organizationId: id,
+          action: data.settings ? "organization.settings.updated" : "organization.updated",
+          error,
+          durationMs: Date.now() - startTime,
+          resource: {
+            type: "organization",
+            id,
+          },
+          metadata: {
+            sourceDetails: "useUpdateOrganization",
+            customFields: {
+              updatedFields: Object.keys(data || {}),
+              hasSettings: Boolean(data.settings),
+            },
+          },
+        });
+        throw error;
+      }
     },
     onSuccess: (_, variables) => {
       // Invalidate the specific organization and all lists
@@ -266,4 +309,3 @@ export const useRemoveOrganizationMember = () => {
     },
   });
 };
-

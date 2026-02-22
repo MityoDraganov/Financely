@@ -6,6 +6,10 @@ import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
 import { logger } from "firebase-functions";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
 const cloudflareZoneId = defineSecret("CLOUDFLARE_ZONE_ID");
@@ -41,8 +45,14 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
     ],
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteId: string | undefined;
+    let auditBrandSiteName: string | undefined;
+    let auditDomain: string | undefined;
     try {
       const { brandSiteId, customDomain } = request.data;
+      auditBrandSiteId = brandSiteId;
 
       if (!brandSiteId || !customDomain) {
         throw new HttpsError(
@@ -55,6 +65,7 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
       let cleanDomain = customDomain.trim().toLowerCase();
       cleanDomain = cleanDomain.replace(/^https?:\/\//, "");
       cleanDomain = cleanDomain.replace(/\/$/, "");
+      auditDomain = cleanDomain;
 
       const databaseService = getDatabaseService();
       const brandSiteRepository = getBrandSiteRepository(databaseService);
@@ -70,6 +81,8 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
           "Custom domain does not match the brand site's custom domain",
         );
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
 
       const hostingProvider = brandSite.hostingProvider || "firebase";
       const siteId = `brand-${brandSiteId}`;
@@ -193,6 +206,27 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
         hostingProvider,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "removeCustomDomain",
+        organizationId: brandSite.organizationId,
+        action: "site.domain.removed",
+        resource: {
+          type: "site",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "removeCustomDomain",
+          customFields: {
+            domain: cleanDomain,
+            hostingProvider,
+          },
+        },
+      });
+
       return {
         success: true,
         message: "Custom domain removed successfully",
@@ -201,6 +235,28 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
       logger.error("Error removing custom domain", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "removeCustomDomain",
+        organizationId: auditOrganizationId,
+        action: "site.domain.removed",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditBrandSiteId
+          ? {
+              type: "site",
+              id: auditBrandSiteId,
+              name: auditBrandSiteName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "removeCustomDomain",
+          customFields: {
+            domain: auditDomain,
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -216,4 +272,3 @@ export const removeCustomDomain = onCall<RemoveCustomDomainPayload>(
     }
   },
 );
-

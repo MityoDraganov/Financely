@@ -6,6 +6,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface SaveWidgetVersionPayload {
   organizationId: string;
@@ -34,6 +38,7 @@ export const saveWidgetVersion = onCall<SaveWidgetVersionPayload>(
     memory: "512MiB",
   },
   async (request) => {
+    const startTime = Date.now();
     try {
       const { organizationId, widgetType = "all", description } = request.data;
 
@@ -107,6 +112,28 @@ export const saveWidgetVersion = onCall<SaveWidgetVersionPayload>(
         widgetType,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "saveWidgetVersion",
+        organizationId,
+        action: "template.version.created",
+        resource: {
+          type: "widget",
+          id: organizationId,
+          name: widgetType,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "saveWidgetVersion",
+          customFields: {
+            widgetType,
+            version: newVersion,
+            description: description || null,
+          },
+        },
+      });
+
       return {
         success: true,
         organizationId,
@@ -116,6 +143,29 @@ export const saveWidgetVersion = onCall<SaveWidgetVersionPayload>(
       logger.error("Error saving widget version", {
         error: error instanceof Error ? error.message : "Unknown error",
         organizationId: request.data?.organizationId,
+      });
+
+      const errorPayload = request.data as SaveWidgetVersionPayload;
+      await logAuditFailureForRequest({
+        request,
+        operationName: "saveWidgetVersion",
+        organizationId: errorPayload?.organizationId,
+        action: "template.version.created",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.organizationId
+          ? {
+              type: "widget",
+              id: errorPayload.organizationId,
+              name: errorPayload.widgetType || "all",
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "saveWidgetVersion",
+          customFields: {
+            widgetType: errorPayload?.widgetType || "all",
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -129,4 +179,3 @@ export const saveWidgetVersion = onCall<SaveWidgetVersionPayload>(
     }
   }
 );
-

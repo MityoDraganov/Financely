@@ -1,10 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
+import { templateService } from "@/services/template-service";
 import { toast } from "sonner";
 
-const templateRepository = getTemplateRealtimeRepository();
-
-export function useBulkDeleteTemplates() {
+export function useBulkDeleteTemplates(orgId?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -12,7 +10,7 @@ export function useBulkDeleteTemplates() {
       // Delete all templates in parallel for better performance
       await Promise.all(
         templateIds.map((templateId) =>
-          templateRepository.delete({ id: templateId })
+          templateService.delete(templateId, orgId)
         )
       );
     },
@@ -28,4 +26,3 @@ export function useBulkDeleteTemplates() {
     },
   });
 }
-

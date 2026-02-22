@@ -32,6 +32,7 @@ export const createAuditLog = onCall<CreateAuditLogInput, Promise<{ id: string }
   {
     region: "us-central1",
     cors: true,
+    invoker: "public",
   },
   async (request) => {
     try {
@@ -113,9 +114,12 @@ export const createAuditLog = onCall<CreateAuditLogInput, Promise<{ id: string }
       // Wrap other errors
       throw new HttpsError(
         "internal",
-        `Failed to create audit log: ${error.message}`
+        "Failed to create audit log",
+        {
+          reason: error?.message || "unknown_error",
+          name: error?.name,
+        }
       );
     }
   }
 );
-

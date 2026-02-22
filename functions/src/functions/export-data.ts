@@ -6,10 +6,9 @@ import { extractUserContextFromRequest } from "../utils/request-context";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { getDatabaseService } from "../services/database-service";
 import { exportService } from "../services/export-service";
-import { getAuditLogRepository } from "../repositories/audit-log-repository";
-import { getAuditLogService } from "../services/audit-log-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import type { ExportDataInput, ExportJobData } from "../core/entities/export-import";
+import { logAuditSuccessForRequest } from "../utils/audit-log-helper";
 
 // Define secrets for email service
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -207,39 +206,26 @@ This link will be valid for 7 days.
           }
         }
 
-        // Create audit log entry
-        try {
-          if (userContext) {
-            const databaseService = getDatabaseService();
-            const auditLogRepository = getAuditLogRepository(databaseService);
-            const auditLogService = getAuditLogService(auditLogRepository);
-
-            await auditLogService.logSuccess(
-              payload.orgId,
-              "data.exported",
-              userContext,
-              {
-                resource: {
-                  type: "export_job",
-                  id: jobId,
-                },
-                metadata: {
-                  source: "api",
-                  customFields: {
-                    entityTypes: payload.entityTypes,
-                    format: payload.format,
-                    stats: result.stats,
-                    fileSizeBytes: result.sizeBytes,
-                  },
-                },
-              },
-            );
-          }
-        } catch (auditError) {
-          loggerService.warn("Failed to create audit log for export", {
-            error: auditError instanceof Error ? auditError.message : String(auditError),
-          });
-        }
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "exportData",
+          organizationId: payload.orgId,
+          action: "data.exported",
+          resource: {
+            type: "export_job",
+            id: jobId,
+          },
+          metadata: {
+            source: "api",
+            customFields: {
+              entityTypes: payload.entityTypes,
+              format: payload.format,
+              stats: result.stats,
+              fileSizeBytes: result.sizeBytes,
+            },
+          },
+          fallbackUserContext: userContext,
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         

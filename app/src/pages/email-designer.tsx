@@ -2237,6 +2237,8 @@ export default function EmailDesignerPage() {
 				imageUrl: p.images?.[0],
 			}))}
 			galleryImages={brandAssets.gallery}
+			allowedContexts={draftTemplate.allowedContexts ?? []}
+			dynamicSources={insertableDynamicSources}
 		/>
 		</>
 	);

@@ -7,7 +7,11 @@ export function useBulkDeleteEmailTemplates(orgId?: string) {
 
 	return useMutation({
 		mutationFn: async (templateIds: string[]) => {
-			await Promise.all(templateIds.map((templateId) => emailTemplateService.delete(templateId)));
+			await Promise.all(
+				templateIds.map((templateId) =>
+					emailTemplateService.delete(templateId, orgId),
+				),
+			);
 		},
 		onSuccess: () => {
 			if (orgId) {
@@ -24,5 +28,4 @@ export function useBulkDeleteEmailTemplates(orgId?: string) {
 		},
 	});
 }
-
 

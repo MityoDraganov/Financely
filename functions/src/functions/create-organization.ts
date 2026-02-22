@@ -6,6 +6,11 @@ import { loggerService } from "../services/logger-service";
 import { ORGANIZATION_ROLES } from "../core/roles";
 import { OrganizationData } from "../core/entities/organization";
 import { DEFAULT_BRAND_COLORS, DEFAULT_ORGANIZATION_SETTINGS } from "../core/constants/organization-defaults";
+import { AuditLogService } from "../services/audit-log-service";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface CreateOrganizationPayload {
   name: string;
@@ -57,6 +62,8 @@ export const createOrganization = onCall<
     cors: true,
   },
   async (request) => {
+    const startTime = Date.now();
+    let createdOrganizationId: string | undefined;
     try {
       const payload = request.data;
       const auth = request.auth;
@@ -130,6 +137,7 @@ export const createOrganization = onCall<
 
       // Create organization
       const organizationId = await organizationRepo.create({ data: orgData });
+      createdOrganizationId = organizationId;
 
       // Update user's organizationRoles to set them as owner
       const currentRoles = user.organizationRoles || {};
@@ -148,6 +156,34 @@ export const createOrganization = onCall<
         userId: auth.uid,
       });
 
+      const fallbackAuditUserContext = AuditLogService.buildUserContext(
+        auth.uid,
+        auth.uid,
+        user.email || auth.token.email || `unknown-${auth.uid}@financely.local`,
+        user.name || user.email || "Unknown User",
+        {
+          role: ORGANIZATION_ROLES.OWNER,
+        },
+      );
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "createOrganization",
+        organizationId,
+        action: "organization.created",
+        resource: {
+          type: "organization",
+          id: organizationId,
+          name: payload.name.trim(),
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "createOrganization",
+        },
+        fallbackUserContext: fallbackAuditUserContext,
+      });
+
       return {
         success: true,
         organizationId,
@@ -158,6 +194,37 @@ export const createOrganization = onCall<
         error: error.message,
         stack: error.stack,
         userId: request.auth?.uid,
+      });
+
+      const fallbackAuditUserContext = request.auth
+        ? AuditLogService.buildUserContext(
+            request.auth.uid,
+            request.auth.uid,
+            request.auth.token.email || `unknown-${request.auth.uid}@financely.local`,
+            request.auth.token.name || "Unknown User",
+            {
+              role: ORGANIZATION_ROLES.OWNER,
+            },
+          )
+        : undefined;
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "createOrganization",
+        organizationId: createdOrganizationId,
+        action: "organization.created",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: createdOrganizationId
+          ? {
+              type: "organization",
+              id: createdOrganizationId,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "createOrganization",
+        },
+        fallbackUserContext: fallbackAuditUserContext,
       });
 
       if (error instanceof HttpsError) {

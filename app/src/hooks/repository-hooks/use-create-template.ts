@@ -1,8 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TemplateData } from "@/core";
-import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
-
-const templateRepository = getTemplateRealtimeRepository();
+import { templateService } from "@/services/template-service";
 
 /**
  * Hook to create a new template
@@ -12,7 +10,7 @@ export const useCreateTemplate = () => {
 
   return useMutation({
     mutationFn: async (data: TemplateData) => {
-      return templateRepository.create({ data });
+      return templateService.createDraft(data);
     },
     onSuccess: (_, variables) => {
       // Invalidate templates queries to refresh the list

@@ -5,6 +5,10 @@ import { loggerService } from "../services/logger-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { ORGANIZATION_ROLES } from "../core/roles";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 /**
  * Firebase Cloud Function for uploading an invoice file and creating an extraction job.
@@ -33,6 +37,7 @@ export const uploadInvoiceFile = onCall<CreateExtractionJobInput, Promise<{ jobI
     memory: "512MiB",
   },
   async (request) => {
+    const startTime = Date.now();
     try {
       const payload = request.data;
 
@@ -100,6 +105,28 @@ export const uploadInvoiceFile = onCall<CreateExtractionJobInput, Promise<{ jobI
         orgId: payload.orgId,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "uploadInvoiceFile",
+        organizationId: payload.orgId,
+        action: "data.imported",
+        resource: {
+          type: "invoice_extraction_job",
+          id: jobId,
+          name: payload.fileName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "uploadInvoiceFile",
+          customFields: {
+            fileType: payload.fileType,
+            fileSizeBytes: payload.fileSizeBytes,
+            fileName: payload.fileName,
+          },
+        },
+      });
+
       // Record usage event
       try {
         const userContext = await extractUserContextFromRequest(request);
@@ -131,6 +158,30 @@ export const uploadInvoiceFile = onCall<CreateExtractionJobInput, Promise<{ jobI
         stack: error.stack,
       });
 
+      const errorPayload = request.data as CreateExtractionJobInput;
+      await logAuditFailureForRequest({
+        request,
+        operationName: "uploadInvoiceFile",
+        organizationId: errorPayload?.orgId,
+        action: "data.imported",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.fileName
+          ? {
+              type: "invoice_file",
+              id: errorPayload.fileName,
+              name: errorPayload.fileName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "uploadInvoiceFile",
+          customFields: {
+            fileType: errorPayload?.fileType,
+            fileSizeBytes: errorPayload?.fileSizeBytes,
+          },
+        },
+      });
+
       // Re-throw HttpsError as-is
       if (error instanceof HttpsError) {
         throw error;
@@ -144,4 +195,3 @@ export const uploadInvoiceFile = onCall<CreateExtractionJobInput, Promise<{ jobI
     }
   }
 );
-

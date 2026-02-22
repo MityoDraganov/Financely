@@ -5,6 +5,10 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { getDatabaseService } from "../services/database-service";
 import { getBrandSiteRepository } from "../repositories/brand-site-repository";
 import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 // Cloudflare configuration secrets
 const cloudflareAccountId = defineSecret("CLOUDFLARE_ACCOUNT_ID");
@@ -60,9 +64,14 @@ export const publishBrandSite = onCall<PublishBrandSitePayload, Promise<PublishB
     ],
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteId: string | undefined;
+    let auditBrandSiteName: string | undefined;
     try {
       const { brandSiteId, html, assets = [], aiPrompt, notes, sourceType = "manual" } =
         request.data;
+      auditBrandSiteId = brandSiteId;
 
       if (!brandSiteId || typeof brandSiteId !== "string") {
         throw new HttpsError("invalid-argument", "brandSiteId is required");
@@ -93,6 +102,8 @@ export const publishBrandSite = onCall<PublishBrandSitePayload, Promise<PublishB
       if (!brandSite) {
         throw new HttpsError("not-found", "Brand site not found");
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
 
       // TODO: Add authorization check
       // Verify user has permission to publish this brand site
@@ -234,6 +245,28 @@ export const publishBrandSite = onCall<PublishBrandSitePayload, Promise<PublishB
         publishedDomains: domains,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "publishBrandSite",
+        organizationId: brandSite.organizationId,
+        action: "site.published",
+        resource: {
+          type: "site",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "publishBrandSite",
+          customFields: {
+            versionId,
+            sourceType,
+            publishedDomains: domains,
+          },
+        },
+      });
+
       return {
         success: true,
         brandSiteId,
@@ -245,6 +278,25 @@ export const publishBrandSite = onCall<PublishBrandSitePayload, Promise<PublishB
       logger.error("Error publishing brand site", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "publishBrandSite",
+        organizationId: auditOrganizationId,
+        action: "site.published",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditBrandSiteId
+          ? {
+              type: "site",
+              id: auditBrandSiteId,
+              name: auditBrandSiteName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "publishBrandSite",
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -260,4 +312,3 @@ export const publishBrandSite = onCall<PublishBrandSitePayload, Promise<PublishB
     }
   }
 );
-

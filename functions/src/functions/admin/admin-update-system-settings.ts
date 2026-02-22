@@ -2,9 +2,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyAdminAuth } from "../../utils/admin-auth-utils";
 import { loggerService } from "../../services/logger-service";
-import { getDatabaseService } from "../../services/database-service";
-import { getAuditLogRepository } from "../../repositories/audit-log-repository";
 import { AuditLogService } from "../../services/audit-log-service";
+import { logAuditSuccessForRequest } from "../../utils/audit-log-helper";
 
 interface SystemSettings {
   pricing: {
@@ -80,11 +79,6 @@ export const adminUpdateSystemSettings = onCall<
       const afterDoc = await settingsRef.get();
       const afterData = afterDoc.data();
 
-      // Create audit log (use a system organization ID or create a special one)
-      const databaseService = getDatabaseService();
-      const auditLogRepository = getAuditLogRepository(databaseService);
-      const auditLogService = new AuditLogService(auditLogRepository);
-
       const changes = Object.keys(settings).map((key) => ({
         field: key,
         oldValue: beforeData?.[key],
@@ -93,33 +87,37 @@ export const adminUpdateSystemSettings = onCall<
 
       // Use a system org ID for global settings
       const systemOrgId = "system";
-      await auditLogService.logSuccess(
-        systemOrgId,
-        "settings.general.updated",
+      const fallbackAuditUserContext = AuditLogService.buildUserContext(
+        adminAuth.userId,
+        adminAuth.userId,
+        request.auth?.token.email || `admin-${adminAuth.userId}@financely.local`,
+        request.auth?.token.name || "Admin",
         {
-          userId: adminAuth.userId,
-          clerkId: adminAuth.userId,
-          email: request.auth?.token.email || "",
-          name: request.auth?.token.name || "Admin",
           role: adminAuth.adminRole,
         },
-        {
-          resource: {
-            type: "systemSettings",
-            id: SYSTEM_SETTINGS_DOC_ID,
-            name: "System Settings",
-          },
-          changes,
-          beforeSnapshot: beforeData as Record<string, unknown>,
-          afterSnapshot: afterData as Record<string, unknown>,
-          metadata: {
-            source: "system",
-            customFields: {
-              adminRole: adminAuth.adminRole,
-            },
-          },
-        }
       );
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "adminUpdateSystemSettings",
+        organizationId: systemOrgId,
+        action: "settings.general.updated",
+        resource: {
+          type: "systemSettings",
+          id: SYSTEM_SETTINGS_DOC_ID,
+          name: "System Settings",
+        },
+        changes,
+        beforeSnapshot: beforeData as Record<string, unknown>,
+        afterSnapshot: afterData as Record<string, unknown>,
+        metadata: {
+          source: "system",
+          customFields: {
+            adminRole: adminAuth.adminRole,
+          },
+        },
+        fallbackUserContext: fallbackAuditUserContext,
+      });
 
       loggerService.info("System settings updated by admin", {
         adminUserId: adminAuth.userId,
@@ -181,4 +179,3 @@ export const adminGetSystemSettings = onCall<
     }
   }
 );
-

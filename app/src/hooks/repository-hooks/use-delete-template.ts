@@ -1,15 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
+import { templateService } from "@/services/template-service";
 import { toast } from "sonner";
 
-const templateRepository = getTemplateRealtimeRepository();
-
-export function useDeleteTemplate() {
+export function useDeleteTemplate(orgId?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (templateId: string) => {
-      await templateRepository.delete({ id: templateId });
+      await templateService.delete(templateId, orgId);
     },
     onSuccess: () => {
       // Invalidate templates query to refresh the list
@@ -22,4 +20,3 @@ export function useDeleteTemplate() {
     },
   });
 }
-

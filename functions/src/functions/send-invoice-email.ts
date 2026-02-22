@@ -20,6 +20,10 @@ import { DatabaseCollection } from "../repositories/config";
 import type { InvoiceDataValue } from "../core";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
+import {
   buildRenderDataWithAliases,
   buildSourceMappingsFromPlaceholders,
   mergeMappings,
@@ -106,8 +110,15 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
     memory: "1GiB",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInvoiceId: string | undefined;
+    let auditInvoiceNumber: string | undefined;
+    let auditToEmail: string | undefined;
     try {
       const { invoiceId, toEmail, emailTemplateId } = request.data;
+      auditInvoiceId = invoiceId;
+      auditToEmail = toEmail;
 
       // Validation
       if (!invoiceId) {
@@ -136,6 +147,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       if (!invoice.orgId) {
         throw new HttpsError("invalid-argument", "Invoice does not have an organization ID");
       }
+      auditOrganizationId = invoice.orgId;
       await verifyAuthAndOrgMembership(request, invoice.orgId, {
         requiredRole: ORGANIZATION_ROLES.MEMBER,
       });
@@ -206,6 +218,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       const buyer = (invoiceData.buyer || invoiceData.customer) as Record<string, InvoiceDataValue> | undefined;
       
       const invoiceNumber = invoiceData.invoiceNumber as string || invoice.id;
+      auditInvoiceNumber = invoiceNumber;
       const customerName = (buyer?.name as string) || "Customer";
       const dueDate = invoiceData.dueDate as string || "";
       const description = invoiceData.description as string || "";
@@ -409,6 +422,50 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         });
       }
 
+      if (result.success) {
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "sendInvoiceEmail",
+          organizationId: invoice.orgId,
+          action: "invoice.sent",
+          resource: {
+            type: "invoice",
+            id: invoiceId,
+            name: invoiceNumber,
+          },
+          durationMs: Date.now() - startTime,
+          metadata: {
+            source: "api",
+            sourceDetails: "sendInvoiceEmail",
+            customFields: {
+              toEmail,
+              emailTemplateId,
+            },
+          },
+        });
+      } else {
+        await logAuditFailureForRequest({
+          request,
+          operationName: "sendInvoiceEmail",
+          organizationId: invoice.orgId,
+          action: "invoice.sent",
+          error: new Error("Email service returned unsuccessful response"),
+          resource: {
+            type: "invoice",
+            id: invoiceId,
+            name: invoiceNumber,
+          },
+          metadata: {
+            source: "api",
+            sourceDetails: "sendInvoiceEmail",
+            customFields: {
+              toEmail,
+              emailTemplateId,
+            },
+          },
+        });
+      }
+
       return {
         sent: result.success,
       };
@@ -416,6 +473,29 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       logger.error("Error sending invoice email", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "sendInvoiceEmail",
+        organizationId: auditOrganizationId,
+        action: "invoice.sent",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInvoiceId
+          ? {
+              type: "invoice",
+              id: auditInvoiceId,
+              name: auditInvoiceNumber || auditInvoiceId,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "sendInvoiceEmail",
+          customFields: {
+            toEmail: auditToEmail,
+            emailTemplateId: request.data?.emailTemplateId,
+          },
+        },
       });
 
       if (error instanceof HttpsError) {

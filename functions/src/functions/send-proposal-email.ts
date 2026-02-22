@@ -22,6 +22,10 @@ import {
   getEmailBrandingConfig,
 } from "../utils/branding-email";
 import { extractUserContextFromRequest } from "../utils/request-context";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
@@ -84,8 +88,15 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
     memory: "512MiB",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditProposalId: string | undefined;
+    let auditProposalTitle: string | undefined;
+    let auditToEmail: string | undefined;
     try {
       const { proposalId, toEmail, emailTemplateId } = request.data;
+      auditProposalId = proposalId;
+      auditToEmail = toEmail;
 
       if (!proposalId) {
         throw new HttpsError("invalid-argument", "proposalId is required");
@@ -112,6 +123,7 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
 
       const proposalRecord = proposal as unknown as Record<string, unknown>;
       const orgId = toStringValue(proposalRecord.organizationId) || toStringValue(proposalRecord.orgId);
+      auditOrganizationId = orgId;
       if (!orgId) {
         throw new HttpsError("invalid-argument", "Proposal is missing organizationId");
       }
@@ -164,6 +176,7 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
         "Customer";
 
       const proposalTitle = toStringValue(proposalRecord.title) || proposalId;
+      auditProposalTitle = proposalTitle;
       const proposalStatus = toStringValue(proposalRecord.status) || "DRAFT";
       const proposalCurrency = toStringValue(proposalRecord.currency) || "USD";
       const proposalTotal =
@@ -307,6 +320,50 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
         });
       }
 
+      if (result.success) {
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "sendProposalEmail",
+          organizationId: orgId,
+          action: "proposal.sent",
+          resource: {
+            type: "proposal",
+            id: proposalId,
+            name: proposalTitle,
+          },
+          durationMs: Date.now() - startTime,
+          metadata: {
+            source: "api",
+            sourceDetails: "sendProposalEmail",
+            customFields: {
+              toEmail,
+              emailTemplateId,
+            },
+          },
+        });
+      } else {
+        await logAuditFailureForRequest({
+          request,
+          operationName: "sendProposalEmail",
+          organizationId: orgId,
+          action: "proposal.sent",
+          error: new Error("Email service returned unsuccessful response"),
+          resource: {
+            type: "proposal",
+            id: proposalId,
+            name: proposalTitle,
+          },
+          metadata: {
+            source: "api",
+            sourceDetails: "sendProposalEmail",
+            customFields: {
+              toEmail,
+              emailTemplateId,
+            },
+          },
+        });
+      }
+
       return {
         sent: result.success,
       };
@@ -314,6 +371,29 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
       logger.error("Error sending proposal email", {
         error: error instanceof Error ? error.message : "Unknown error",
         data: request.data,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "sendProposalEmail",
+        organizationId: auditOrganizationId,
+        action: "proposal.sent",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditProposalId
+          ? {
+              type: "proposal",
+              id: auditProposalId,
+              name: auditProposalTitle || auditProposalId,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "sendProposalEmail",
+          customFields: {
+            toEmail: auditToEmail,
+            emailTemplateId: request.data?.emailTemplateId,
+          },
+        },
       });
 
       if (error instanceof HttpsError) {

@@ -6,6 +6,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface RestoreWidgetVersionPayload {
   organizationId: string;
@@ -34,6 +38,7 @@ export const restoreWidgetVersion = onCall<RestoreWidgetVersionPayload>(
     memory: "512MiB",
   },
   async (request) => {
+    const startTime = Date.now();
     try {
       const { organizationId, version, widgetType = "all" } = request.data;
 
@@ -127,6 +132,28 @@ export const restoreWidgetVersion = onCall<RestoreWidgetVersionPayload>(
         widgetType,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "restoreWidgetVersion",
+        organizationId,
+        action: "template.version.restored",
+        resource: {
+          type: "widget",
+          id: organizationId,
+          name: widgetType,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "restoreWidgetVersion",
+          customFields: {
+            widgetType,
+            requestedVersion: version,
+            restoredVersion: versionToRestore.version,
+          },
+        },
+      });
+
       return {
         success: true,
         organizationId,
@@ -137,6 +164,30 @@ export const restoreWidgetVersion = onCall<RestoreWidgetVersionPayload>(
         error: error instanceof Error ? error.message : "Unknown error",
         organizationId: request.data?.organizationId,
         version: request.data?.version,
+      });
+
+      const errorPayload = request.data as RestoreWidgetVersionPayload;
+      await logAuditFailureForRequest({
+        request,
+        operationName: "restoreWidgetVersion",
+        organizationId: errorPayload?.organizationId,
+        action: "template.version.restored",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: errorPayload?.organizationId
+          ? {
+              type: "widget",
+              id: errorPayload.organizationId,
+              name: errorPayload.widgetType || "all",
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "restoreWidgetVersion",
+          customFields: {
+            requestedVersion: errorPayload?.version,
+            widgetType: errorPayload?.widgetType || "all",
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -150,5 +201,4 @@ export const restoreWidgetVersion = onCall<RestoreWidgetVersionPayload>(
     }
   }
 );
-
 

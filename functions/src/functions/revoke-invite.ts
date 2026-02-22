@@ -3,6 +3,10 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { Invite } from "../core/entities/invite";
 import { isAdminOrOwner, isValidRole } from "../core/roles";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 interface RevokeInvitePayload {
   inviteId: string;
@@ -19,6 +23,10 @@ export const revokeInvite = onCall<RevokeInvitePayload, Promise<RevokeInviteResp
     region: "us-central1"
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInviteId: string | undefined;
+    let auditInviteCode: string | undefined;
     try {
       const { inviteId } = request.data;
       const auth = request.auth;
@@ -43,6 +51,9 @@ export const revokeInvite = onCall<RevokeInvitePayload, Promise<RevokeInviteResp
       if (!inviteData) {
         throw new HttpsError("not-found", "Invite data not found");
       }
+      auditOrganizationId = inviteData.organizationId;
+      auditInviteId = inviteId;
+      auditInviteCode = inviteData.code;
 
       // Get user data
       const userDoc = await db.collection("users").doc(auth.uid).get();
@@ -98,6 +109,23 @@ export const revokeInvite = onCall<RevokeInvitePayload, Promise<RevokeInviteResp
         revokedBy: auth.uid,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "revokeInvite",
+        organizationId: invite.organizationId,
+        action: "invite.revoked",
+        resource: {
+          type: "invite",
+          id: invite.id,
+          name: invite.code,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "revokeInvite",
+        },
+      });
+
       return {
         success: true,
         invite,
@@ -105,6 +133,25 @@ export const revokeInvite = onCall<RevokeInvitePayload, Promise<RevokeInviteResp
       };
     } catch (error) {
       loggerService.error("Error revoking invite", error);
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "revokeInvite",
+        organizationId: auditOrganizationId,
+        action: "invite.revoked",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInviteId
+          ? {
+              type: "invite",
+              id: auditInviteId,
+              name: auditInviteCode,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "revokeInvite",
+        },
+      });
       
       if (error instanceof HttpsError) {
         throw error;

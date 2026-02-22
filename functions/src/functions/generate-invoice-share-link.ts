@@ -3,6 +3,10 @@ import { handleRenderInvoicePdf } from "../app/handle-render-invoice-pdf";
 import { loggerService } from "../services/logger-service";
 import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 type GenerateInvoiceShareLinkPayload = {
   invoiceId: string;
@@ -34,6 +38,10 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
     memory: "1GiB",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInvoiceId: string | undefined;
+    let auditInvoiceName: string | undefined;
     try {
       // TODO: Add authentication check when Clerk is integrated
       // if (!request.auth) {
@@ -41,6 +49,7 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
       // }
 
       const { invoiceId } = request.data;
+      auditInvoiceId = invoiceId;
 
       // Validation
       if (!invoiceId || typeof invoiceId !== "string") {
@@ -60,16 +69,40 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
       if (!invoice) {
         throw new HttpsError("not-found", `Invoice not found: ${invoiceId}`);
       }
+      auditOrganizationId = invoice.orgId;
 
       // Check if invoice already has a PDF URL stored
       const invoiceData = invoice.data as Record<string, unknown>;
       const existingPdfUrl = invoiceData.pdfUrl as string | undefined;
+      auditInvoiceName = (invoiceData.invoiceNumber as string | undefined) || invoiceId;
 
       if (existingPdfUrl) {
         loggerService.info("Using existing PDF URL for share link", {
           invoiceId,
           url: existingPdfUrl,
         });
+
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "generateInvoiceShareLink",
+          organizationId: invoice.orgId,
+          action: "access.granted",
+          resource: {
+            type: "invoice",
+            id: invoiceId,
+            name: auditInvoiceName,
+          },
+          durationMs: Date.now() - startTime,
+          metadata: {
+            source: "api",
+            sourceDetails: "generateInvoiceShareLink",
+            customFields: {
+              usedExistingPdf: true,
+              url: existingPdfUrl,
+            },
+          },
+        });
+
         return { url: existingPdfUrl };
       }
 
@@ -82,6 +115,27 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
         url: pdfUrl,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "generateInvoiceShareLink",
+        organizationId: invoice.orgId,
+        action: "access.granted",
+        resource: {
+          type: "invoice",
+          id: invoiceId,
+          name: auditInvoiceName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "generateInvoiceShareLink",
+          customFields: {
+            usedExistingPdf: false,
+            url: pdfUrl,
+          },
+        },
+      });
+
       return { url: pdfUrl };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -90,6 +144,25 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
       loggerService.error("Failed to generate invoice share link", {
         error: errorMessage,
         stack: errorStack,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "generateInvoiceShareLink",
+        organizationId: auditOrganizationId,
+        action: "access.granted",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInvoiceId
+          ? {
+              type: "invoice",
+              id: auditInvoiceId,
+              name: auditInvoiceName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "generateInvoiceShareLink",
+        },
       });
 
       // Re-throw HttpsError as-is
@@ -105,4 +178,3 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
     }
   }
 );
-

@@ -26,6 +26,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import { emailTemplateService } from "@/services/email-template-service";
 import { functionsService } from "@/services/functions/functions-service";
 import { cn } from "@/lib/utils";
+import type { DynamicSourceField } from "@/utils/dynamic-sources";
 
 type GenerateEmailTemplatePayload = {
 	organizationId: string;
@@ -43,6 +44,17 @@ type GenerateEmailTemplatePayload = {
 			organizationSettings?: Record<string, unknown>;
 			galleryImages?: string[];
 		};
+		allowedContexts?: string[];
+		dynamicSources?: Array<{
+			placeholderKey: string;
+			entity: "product" | "contact" | "invoice" | "proposal";
+			path: string;
+			label?: string;
+			description?: string;
+			valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+			required?: boolean;
+			sourceKind?: "field" | "metafield";
+		}>;
 		generateCustomHtml?: boolean;
 		targetSection?: "header" | "body" | "footer" | "full";
 	};
@@ -58,6 +70,8 @@ type AIEmailBuilderDialogProps = {
 	onTemplateCreated: (templateId: string) => void;
 	products?: Array<{ name: string; description?: string; price?: number; imageUrl?: string }>;
 	galleryImages?: string[];
+	allowedContexts?: string[];
+	dynamicSources?: DynamicSourceField[];
 	onProgress?: (progress: { stage: string; blocksAdded: number; totalBlocks: number }) => void;
 };
 
@@ -79,6 +93,8 @@ export function AIEmailBuilderDialog({
 	onTemplateCreated,
 	products = [],
 	galleryImages = [],
+	allowedContexts = [],
+	dynamicSources = [],
 }: AIEmailBuilderDialogProps) {
 	const { t } = useTranslation();
 	const [aiStyle, setAiStyle] = useState<"modern" | "classic" | "minimal" | "professional" | "newsletter" | "transactional">("modern");
@@ -235,6 +251,20 @@ export function AIEmailBuilderDialog({
 						organizationSettings: currentOrg.settings,
 						// DO NOT pass galleryImages - AI should only use explicitly selected images
 					},
+					allowedContexts: allowedContexts.length > 0 ? allowedContexts : undefined,
+					dynamicSources:
+						dynamicSources.length > 0
+							? dynamicSources.map((source) => ({
+									placeholderKey: source.placeholderKey,
+									entity: source.entity,
+									path: source.path,
+									label: source.label,
+									description: source.description,
+									valueType: source.valueType,
+									required: source.required,
+									sourceKind: source.sourceKind,
+							  }))
+							: undefined,
 					generateCustomHtml,
 					targetSection,
 				},
@@ -573,4 +603,3 @@ export function AIEmailBuilderDialog({
 		</Dialog>
 	);
 }
-

@@ -4,6 +4,11 @@ import { loggerService } from "../services/logger-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import { defineSecret } from "firebase-functions/params";
 import { ORGANIZATION_ROLES } from "../core/roles";
+import { AuditLogService } from "../services/audit-log-service";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -21,8 +26,17 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
     secrets: [resendApiKey, resendFromEmail, resendFromName]
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditInviteId: string | undefined;
+    let auditInviteCode: string | undefined;
+    let auditInviterId: string | undefined;
+    let auditInviterName: string | undefined;
+    let auditInviterEmail: string | undefined;
     try {
       const { inviteId, organizationId } = request.data;
+      auditOrganizationId = organizationId;
+      auditInviteId = inviteId;
 
       if (!inviteId || !organizationId) {
         throw new HttpsError("invalid-argument", "inviteId and organizationId are required");
@@ -40,6 +54,8 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       if (!inviteData) {
         throw new HttpsError("not-found", "Invite data not found");
       }
+      auditInviteCode = inviteData.code;
+      auditInviterId = inviteData.invitedBy;
 
       // Get organization data
       const orgDoc = await db.collection("organizations").doc(organizationId).get();
@@ -55,6 +71,8 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       // Get inviter data
       const inviterDoc = await db.collection("users").doc(inviteData.invitedBy).get();
       const inviterData = inviterDoc.exists ? inviterDoc.data() : null;
+      auditInviterName = inviterData?.name;
+      auditInviterEmail = inviterData?.email;
 
       // Initialize email service
       const emailService = new ResendEmailService({
@@ -114,12 +132,71 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         organizationName: orgData.name,
       });
 
+      const fallbackAuditUserContext = auditInviterId
+        ? AuditLogService.buildUserContext(
+            auditInviterId,
+            auditInviterId,
+            auditInviterEmail || `unknown-${auditInviterId}@financely.local`,
+            auditInviterName || "Unknown User",
+          )
+        : undefined;
+
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "sendInviteEmail",
+        organizationId,
+        action: "invite.sent",
+        resource: {
+          type: "invite",
+          id: inviteId,
+          name: inviteData.code,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "sendInviteEmail",
+          customFields: {
+            toEmail: inviteData.email,
+          },
+        },
+        fallbackUserContext: fallbackAuditUserContext,
+      });
+
       return {
         success: true,
         message: "Invite email sent successfully",
       };
     } catch (error) {
       loggerService.error("Error sending invite email", error);
+
+      const fallbackAuditUserContext = auditInviterId
+        ? AuditLogService.buildUserContext(
+            auditInviterId,
+            auditInviterId,
+            auditInviterEmail || `unknown-${auditInviterId}@financely.local`,
+            auditInviterName || "Unknown User",
+          )
+        : undefined;
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "sendInviteEmail",
+        organizationId: auditOrganizationId,
+        action: "invite.sent",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditInviteId
+          ? {
+              type: "invite",
+              id: auditInviteId,
+              name: auditInviteCode,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "sendInviteEmail",
+        },
+        fallbackUserContext: fallbackAuditUserContext,
+      });
       
       if (error instanceof HttpsError) {
         throw error;

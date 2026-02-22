@@ -2,9 +2,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { verifyAdminAuth } from "../../utils/admin-auth-utils";
 import { loggerService } from "../../services/logger-service";
-import { getDatabaseService } from "../../services/database-service";
-import { getAuditLogRepository } from "../../repositories/audit-log-repository";
 import { AuditLogService } from "../../services/audit-log-service";
+import { logAuditSuccessForRequest } from "../../utils/audit-log-helper";
 
 interface AdminUpdateUserRequest {
   userId: string;
@@ -80,43 +79,43 @@ export const adminUpdateUser = onCall<
 
       // Create audit log (use first org or system org)
       if (userOrgId) {
-        const databaseService = getDatabaseService();
-        const auditLogRepository = getAuditLogRepository(databaseService);
-        const auditLogService = new AuditLogService(auditLogRepository);
-
         const changes = Object.keys(updates).map((key) => ({
           field: key,
           oldValue: beforeData?.[key],
           newValue: afterData?.[key],
         }));
 
-        await auditLogService.logSuccess(
-          userOrgId,
-          "user.updated",
+        const fallbackAuditUserContext = AuditLogService.buildUserContext(
+          adminAuth.userId,
+          adminAuth.userId,
+          request.auth?.token.email || `admin-${adminAuth.userId}@financely.local`,
+          request.auth?.token.name || "Admin",
           {
-            userId: adminAuth.userId,
-            clerkId: adminAuth.userId,
-            email: request.auth?.token.email || "",
-            name: request.auth?.token.name || "Admin",
             role: adminAuth.adminRole,
           },
-          {
-            resource: {
-              type: "user",
-              id: userId,
-              name: afterData?.name || userId,
-            },
-            changes,
-            beforeSnapshot: beforeData as Record<string, unknown>,
-            afterSnapshot: afterData as Record<string, unknown>,
-            metadata: {
-              source: "system",
-              customFields: {
-                adminRole: adminAuth.adminRole,
-              },
-            },
-          }
         );
+
+        await logAuditSuccessForRequest({
+          request,
+          operationName: "adminUpdateUser",
+          organizationId: userOrgId,
+          action: "user.updated",
+          resource: {
+            type: "user",
+            id: userId,
+            name: afterData?.name || userId,
+          },
+          changes,
+          beforeSnapshot: beforeData as Record<string, unknown>,
+          afterSnapshot: afterData as Record<string, unknown>,
+          metadata: {
+            source: "system",
+            customFields: {
+              adminRole: adminAuth.adminRole,
+            },
+          },
+          fallbackUserContext: fallbackAuditUserContext,
+        });
       }
 
       loggerService.info("User updated by admin", {
@@ -143,4 +142,3 @@ export const adminUpdateUser = onCall<
     }
   }
 );
-

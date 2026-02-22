@@ -5,6 +5,7 @@ import { useAuthStore } from "@/hooks/service-hooks/auth/use-auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { firebase } from "@/infrastructure";
+import { setRuntimeAuditUserContext } from "@/services/audit-log/audit-log-runtime-context";
 
 export function ClerkAuthProvider({
   children,
@@ -59,6 +60,7 @@ export function ClerkAuthProvider({
     }
 
     if (!userId || !user) {
+      setRuntimeAuditUserContext(null);
       setAuthUser(null);
       // Sign out from Firebase if Clerk user is not available
       if (firebase.auth.currentUser) {
@@ -68,6 +70,12 @@ export function ClerkAuthProvider({
       }
       return;
     }
+
+    setRuntimeAuditUserContext({
+      clerkId: user.id,
+      email: user.primaryEmailAddress?.emailAddress || "",
+      name: user.fullName || "",
+    });
 
     // Check if already signed in to Firebase with correct user
     const currentUser = firebase.auth.currentUser;

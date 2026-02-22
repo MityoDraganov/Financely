@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { storageService } from "@/services/storage/storage-service";
+import { functionsService } from "@/services/functions/functions-service";
 
 export interface UseFileUploadResult {
   uploadFile: (file: File, path: string) => Promise<string | null>;
@@ -25,16 +26,47 @@ export function useFileUpload(): UseFileUploadResult {
 
       setUploadProgress(25);
 
-      const url = await storageService.uploadFile({
-        file,
-        path,
-        metadata: {
+      const organizationIdMatch = path.match(/organizations\/([^/]+)/);
+      const organizationId = organizationIdMatch?.[1];
+      let url: string;
+
+      if (organizationId) {
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result;
+            if (typeof result !== "string") {
+              reject(new Error("Failed to read file"));
+              return;
+            }
+            const raw = result.includes(",") ? result.split(",")[1] : result;
+            resolve(raw);
+          };
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+
+        setUploadProgress(60);
+        const response = await functionsService.uploadFile({
+          organizationId,
+          fileName: file.name,
+          fileData: base64Data,
           contentType: file.type,
-          customMetadata: {
-            uploadedAt: new Date().toISOString(),
+          path,
+        });
+        url = response.url;
+      } else {
+        url = await storageService.uploadFile({
+          file,
+          path,
+          metadata: {
+            contentType: file.type,
+            customMetadata: {
+              uploadedAt: new Date().toISOString(),
+            },
           },
-        },
-      });
+        });
+      }
 
       setUploadProgress(100);
       setIsUploading(false);
@@ -55,4 +87,3 @@ export function useFileUpload(): UseFileUploadResult {
     error,
   };
 }
-

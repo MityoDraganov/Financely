@@ -44,6 +44,7 @@ export const queryAuditLogs = onCall<QueryAuditLogsPayload, Promise<QueryAuditLo
   {
     region: "us-central1",
     cors: true,
+    invoker: "public",
   },
   async (request) => {
     try {
@@ -117,4 +118,3 @@ export const queryAuditLogs = onCall<QueryAuditLogsPayload, Promise<QueryAuditLo
     }
   }
 );
-

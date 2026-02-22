@@ -16,6 +16,10 @@ import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-ser
 import { invoiceDataSchema } from "../core/entities/invoice";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -43,8 +47,15 @@ export const convertProposalToInvoice = onCall<
     memory: "512MiB",
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditProposalId: string | undefined;
+    let auditInvoiceId: string | undefined;
+    let auditInvoiceNumber: string | undefined;
     try {
       const { proposalId, templateId, organizationId } = request.data;
+      auditOrganizationId = organizationId;
+      auditProposalId = proposalId;
 
       if (!proposalId) {
         throw new HttpsError("invalid-argument", "Proposal ID is required");
@@ -166,6 +177,7 @@ export const convertProposalToInvoice = onCall<
 
       // Create invoice
       const invoiceId = await invoiceRepository.create({ data: validatedData });
+      auditInvoiceId = invoiceId;
 
       if (!invoiceId) {
         throw new HttpsError("internal", "Failed to create invoice");
@@ -190,6 +202,7 @@ export const convertProposalToInvoice = onCall<
         proposalId,
         invoiceId,
       });
+      auditInvoiceNumber = conversionResult.invoiceNumber;
 
       // Record usage events
       try {
@@ -228,6 +241,28 @@ export const convertProposalToInvoice = onCall<
         });
       }
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "convertProposalToInvoice",
+        organizationId,
+        action: "proposal.converted_to_invoice",
+        resource: {
+          type: "proposal",
+          id: proposalId,
+          name: proposalId,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "convertProposalToInvoice",
+          customFields: {
+            templateId,
+            invoiceId,
+            invoiceNumber: conversionResult.invoiceNumber,
+          },
+        },
+      });
+
       return {
         invoiceId,
         invoiceNumber: conversionResult.invoiceNumber,
@@ -236,6 +271,29 @@ export const convertProposalToInvoice = onCall<
       loggerService.error("Failed to convert proposal to invoice", {
         error: error instanceof Error ? error.message : "Unknown error",
         proposalId: request.data?.proposalId,
+      });
+
+      await logAuditFailureForRequest({
+        request,
+        operationName: "convertProposalToInvoice",
+        organizationId: auditOrganizationId,
+        action: "proposal.converted_to_invoice",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditProposalId
+          ? {
+              type: "proposal",
+              id: auditProposalId,
+              name: auditProposalId,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "convertProposalToInvoice",
+          customFields: {
+            invoiceId: auditInvoiceId,
+            invoiceNumber: auditInvoiceNumber,
+          },
+        },
       });
 
       if (error instanceof HttpsError) {
@@ -249,4 +307,3 @@ export const convertProposalToInvoice = onCall<
     }
   }
 );
-

@@ -470,6 +470,17 @@ export interface FunctionsService {
         organizationSettings?: Record<string, unknown>;
         galleryImages?: string[];
       };
+      allowedContexts?: string[];
+      dynamicSources?: Array<{
+        placeholderKey: string;
+        entity: "product" | "contact" | "invoice" | "proposal";
+        path: string;
+        label?: string;
+        description?: string;
+        valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+        required?: boolean;
+        sourceKind?: "field" | "metafield";
+      }>;
       generateCustomHtml?: boolean;
       targetSection?: "header" | "body" | "footer" | "full";
     };
@@ -488,6 +499,24 @@ export interface FunctionsService {
       primary: string;
       fontFamily: string;
       borderRadius: number;
+    };
+    allowedContexts?: string[];
+    placeholders?: Array<{
+      id: string;
+      key: string;
+      label?: string;
+      description?: string;
+      source?: {
+        type: "entity_field";
+        entity: "product" | "contact" | "invoice" | "proposal";
+        path: string;
+        valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
+      };
+    }>;
+    sections?: {
+      header: string[];
+      body: string[];
+      footer: string[];
     };
     status: "draft" | "published";
   }>;

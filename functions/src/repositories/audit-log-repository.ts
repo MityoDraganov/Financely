@@ -8,6 +8,34 @@ import { AuditLogRepository } from "../core/ports/repositories/audit-log-reposit
 import { firestore } from "firebase-admin";
 import FieldPath = firestore.FieldPath;
 
+function stripUndefinedDeep<T>(value: T): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedDeep(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (nestedValue === undefined) {
+        continue;
+      }
+      const normalized = stripUndefinedDeep(nestedValue);
+      if (normalized !== undefined) {
+        output[key] = normalized;
+      }
+    }
+    return output as T;
+  }
+
+  return value;
+}
+
 /**
  * Factory for an `AuditLogRepository` backed by the provided `DatabaseService`.
  * Stores audit logs as subcollection documents: organizations/{orgId}/auditLogs/{logId}
@@ -23,10 +51,13 @@ export function getAuditLogRepository(
         .collection("auditLogs");
 
       const timestamp = data.timestamp || new Date().toISOString();
-      
-      const docRef = await collectionRef.add({
+      const sanitized = stripUndefinedDeep({
         ...data,
         timestamp,
+      });
+      
+      const docRef = await collectionRef.add({
+        ...(sanitized as Record<string, unknown>),
         createdAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
@@ -300,4 +331,3 @@ export function getAuditLogRepository(
     },
   };
 }
-

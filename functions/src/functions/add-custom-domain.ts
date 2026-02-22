@@ -6,6 +6,10 @@ import { CloudflareService } from "../services/cloudflare-service";
 import { FirebaseHostingService } from "../services/firebase-hosting-service";
 import { CloudflarePublisherService } from "../services/cloudflare-publisher-service";
 import { logger } from "firebase-functions";
+import {
+  logAuditFailureForRequest,
+  logAuditSuccessForRequest,
+} from "../utils/audit-log-helper";
 
 const cloudflareApiToken = defineSecret("CLOUDFLARE_API_TOKEN");
 const cloudflareZoneId = defineSecret("CLOUDFLARE_ZONE_ID");
@@ -79,8 +83,14 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
     ],
   },
   async (request) => {
+    const startTime = Date.now();
+    let auditOrganizationId: string | undefined;
+    let auditBrandSiteName: string | undefined;
+    let auditBrandSiteId: string | undefined;
+    let auditCustomDomain: string | undefined;
     try {
       const { brandSiteId, customDomain } = request.data;
+      auditBrandSiteId = brandSiteId;
 
       if (!brandSiteId || !customDomain) {
         throw new HttpsError(
@@ -102,6 +112,7 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
       let cleanDomain = customDomain.trim().toLowerCase();
       cleanDomain = cleanDomain.replace(/^https?:\/\//, "");
       cleanDomain = cleanDomain.replace(/\/$/, "");
+      auditCustomDomain = cleanDomain;
 
       const databaseService = getDatabaseService();
       const brandSiteRepository = getBrandSiteRepository(databaseService);
@@ -117,6 +128,8 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
           "Site must be deployed before adding custom domain",
         );
       }
+      auditOrganizationId = brandSite.organizationId;
+      auditBrandSiteName = brandSite.brandName;
 
       const hostingProvider = brandSite.hostingProvider || "firebase";
       const siteId = `brand-${brandSiteId}`;
@@ -349,6 +362,29 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
         domainStatus: domainStatus.status,
       });
 
+      await logAuditSuccessForRequest({
+        request,
+        operationName: "addCustomDomain",
+        organizationId: brandSite.organizationId,
+        action: "site.domain.added",
+        resource: {
+          type: "site",
+          id: brandSiteId,
+          name: brandSite.brandName,
+        },
+        durationMs: Date.now() - startTime,
+        metadata: {
+          source: "api",
+          sourceDetails: "addCustomDomain",
+          customFields: {
+            domain: cleanDomain,
+            hostingProvider,
+            dnsConfigured,
+            domainStatus: domainStatus.status,
+          },
+        },
+      });
+
       // For Cloudflare hosting with custom domains, always provide DNS instructions
       // because even if Cloudflare DNS is configured, the user may need to configure
       // DNS in their external provider, and they definitely need to configure Workers route
@@ -398,6 +434,28 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
         data: request.data,
       });
 
+      await logAuditFailureForRequest({
+        request,
+        operationName: "addCustomDomain",
+        organizationId: auditOrganizationId,
+        action: "site.domain.added",
+        error: error instanceof Error ? error : new Error(String(error)),
+        resource: auditBrandSiteId
+          ? {
+              type: "site",
+              id: auditBrandSiteId,
+              name: auditBrandSiteName,
+            }
+          : undefined,
+        metadata: {
+          source: "api",
+          sourceDetails: "addCustomDomain",
+          customFields: {
+            domain: auditCustomDomain,
+          },
+        },
+      });
+
       if (error instanceof HttpsError) {
         throw error;
       }
@@ -411,4 +469,3 @@ export const addCustomDomain = onCall<AddCustomDomainPayload>(
     }
   },
 );
-
