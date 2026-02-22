@@ -107,9 +107,85 @@ export const organizationDataSchema = z.object({
       ai: z
         .object({
           autoProposalSuggestions: z.boolean().default(false),
+          routing: z
+            .object({
+              default: z
+                .object({
+                  provider: z.enum(["auto", "gemini", "openai"]).default("auto"),
+                  model: z.string().default("auto"),
+                })
+                .default({
+                  provider: "auto",
+                  model: "auto",
+                }),
+              tasks: z
+                .record(
+                  z.string(),
+                  z.object({
+                    provider: z.enum(["auto", "gemini", "openai"]).default("auto"),
+                    model: z.string().default("auto"),
+                  }),
+                )
+                .default({}),
+            })
+            .default({
+              default: {
+                provider: "auto",
+                model: "auto",
+              },
+              tasks: {},
+            }),
+          providers: z
+            .object({
+              gemini: z
+                .object({
+                  enabled: z.boolean().default(true),
+                  model: z.string().default("auto"),
+                })
+                .default({
+                  enabled: true,
+                  model: "auto",
+                }),
+              openai: z
+                .object({
+                  enabled: z.boolean().default(true),
+                  model: z.string().default("auto"),
+                })
+                .default({
+                  enabled: true,
+                  model: "auto",
+                }),
+            })
+            .default({
+              gemini: {
+                enabled: true,
+                model: "auto",
+              },
+              openai: {
+                enabled: true,
+                model: "auto",
+              },
+            }),
         })
         .default({
           autoProposalSuggestions: false,
+          routing: {
+            default: {
+              provider: "auto",
+              model: "auto",
+            },
+            tasks: {},
+          },
+          providers: {
+            gemini: {
+              enabled: true,
+              model: "auto",
+            },
+            openai: {
+              enabled: true,
+              model: "auto",
+            },
+          },
         }),
       
       // Billing and subscription settings
@@ -344,6 +420,23 @@ export const organizationDataSchema = z.object({
       },
       ai: {
         autoProposalSuggestions: false,
+        routing: {
+          default: {
+            provider: "auto",
+            model: "auto",
+          },
+          tasks: {},
+        },
+        providers: {
+          gemini: {
+            enabled: true,
+            model: "auto",
+          },
+          openai: {
+            enabled: true,
+            model: "auto",
+          },
+        },
       },
     }),
   
@@ -404,4 +497,3 @@ export function isOrganizationMember(org: Organization, userId: string): boolean
 export function getMemberCount(org: Organization): number {
   return org.memberIds.length;
 }
-

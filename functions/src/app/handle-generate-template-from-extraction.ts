@@ -60,6 +60,11 @@ export async function handleGenerateTemplateFromExtraction(
   }
 
   const aiService = getAIService();
+  const providerNameRaw = aiService.getProvider()?.getName();
+  const providerName: "gemini" | "openai" | "unknown" =
+    providerNameRaw === "gemini" || providerNameRaw === "openai"
+      ? providerNameRaw
+      : "unknown";
   const startMs = Date.now();
   const image = await fetchFileAsInlineData(workingJob.fileUrl, workingJob.fileType);
 
@@ -107,7 +112,7 @@ export async function handleGenerateTemplateFromExtraction(
     data: {
       ...(editedData && Object.keys(editedData).length > 0 ? { correctedData: editedData } : {}),
       generatedTemplate: template as unknown as Record<string, unknown>,
-      aiModel: "gemini",
+      aiModel: providerName,
       quality,
       needsReview,
       reviewReasons,

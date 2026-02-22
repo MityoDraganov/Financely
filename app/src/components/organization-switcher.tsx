@@ -91,6 +91,23 @@ export function OrganizationSwitcher() {
           },
           ai: {
             autoProposalSuggestions: false,
+            routing: {
+              default: {
+                provider: "auto" as const,
+                model: "auto",
+              },
+              tasks: {},
+            },
+            providers: {
+              gemini: {
+                enabled: true,
+                model: "auto",
+              },
+              openai: {
+                enabled: true,
+                model: "auto",
+              },
+            },
           },
         },
         usage: {
@@ -287,4 +304,3 @@ export function OrganizationSwitcher() {
     </div>
   );
 }
-

@@ -1024,6 +1024,34 @@ export interface FunctionsService {
   }>;
 
   /**
+   * List available AI models from configured providers for an organization.
+   * Models are fetched dynamically from provider APIs.
+   */
+  listAiModels(payload: {
+    organizationId: string;
+    providers?: Array<"gemini" | "openai">;
+  }): Promise<{
+    models: Array<{
+      provider: "gemini" | "openai";
+      id: string;
+      displayName: string;
+    }>;
+    providers: {
+      gemini: {
+        available: boolean;
+        count: number;
+        error?: string;
+      };
+      openai: {
+        available: boolean;
+        count: number;
+        error?: string;
+      };
+    };
+    fetchedAt: string;
+  }>;
+
+  /**
    * Get usage history for billing dashboard grouped by billing periods
    * 
    * @param payload - The usage history payload

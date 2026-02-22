@@ -63,6 +63,7 @@ export default function AISettingsPage() {
           settings: {
             ...organization.settings,
             ai: {
+              ...organization.settings?.ai,
               autoProposalSuggestions: data.autoProposalSuggestions,
             },
           },
@@ -164,4 +165,3 @@ export default function AISettingsPage() {
     </div>
   );
 }
-

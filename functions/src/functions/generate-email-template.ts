@@ -1,13 +1,14 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
-import { getAIService } from "../services/ai/ai-service";
-import { GeminiProvider } from "../services/ai/gemini-provider";
 import { getEmailTemplateGenerationService } from "../services/ai/email-template-generation-service";
-
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+import {
+  AI_TASKS,
+  configureAIProviderForTask,
+  geminiApiKeySecret,
+  openAiApiKeySecret,
+} from "../services/ai/provider-routing";
 
 interface GenerateEmailTemplatePayload {
   organizationId: string;
@@ -73,7 +74,7 @@ export const generateEmailTemplate = onCall<GenerateEmailTemplatePayload>(
   {
     region: "us-central1",
     cors: true,
-    secrets: [geminiApiKey],
+    secrets: [geminiApiKeySecret, openAiApiKeySecret],
     timeoutSeconds: 540, // 9 minutes max for AI generation
     memory: "512MiB",
   },
@@ -113,26 +114,17 @@ export const generateEmailTemplate = onCall<GenerateEmailTemplatePayload>(
         );
       }
 
-      // Initialize AI service with Gemini provider
-      const aiService = getAIService();
-      const apiKey = geminiApiKey.value();
-      
-      if (!apiKey) {
-        throw new HttpsError(
-          "failed-precondition",
-          "GEMINI_API_KEY not configured",
-        );
-      }
-
-      // Register Gemini provider if not already registered
-      if (!aiService.getProvider("gemini")) {
-        const geminiProvider = new GeminiProvider({
-          apiKey,
-          model: "gemini-2.0-flash",
-        });
-        aiService.registerProvider(geminiProvider);
-        aiService.setDefaultProvider("gemini");
-      }
+      const aiConfig = configureAIProviderForTask({
+        organization,
+        task: AI_TASKS.emailTemplateGeneration,
+      });
+      logger.info("Email template AI config resolved", {
+        organizationId,
+        provider: aiConfig.provider,
+        model: aiConfig.model,
+        providerSource: aiConfig.providerSource,
+        modelSource: aiConfig.modelSource,
+      });
 
       // Generate email template
       const templateGenerationService = getEmailTemplateGenerationService();

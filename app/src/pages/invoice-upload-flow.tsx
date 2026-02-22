@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { 
   useExtractInvoiceData,
@@ -8,6 +9,7 @@ import { useGenerateTemplateFromExtraction } from "@/hooks/service-hooks/use-gen
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCreateInvoice } from "@/hooks/use-invoice";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { InvoiceFileUpload } from "@/components/invoice-extraction/invoice-file-upload";
 import { ExtractionJobStatus } from "@/components/invoice-extraction/extraction-job-status";
 import { ExtractionResultsPanel } from "@/components/invoice-extraction/extraction-results-panel";
@@ -16,15 +18,188 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Sparkles, Loader2, CheckCircle2, FileText } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ArrowLeft, Check, CheckCircle2, ChevronsUpDown, FileText, Loader2, Sparkles } from "lucide-react";
 import AppLayout from "@/components/layout";
+import { cn } from "@/lib/utils";
 import { findMatchingTemplates } from "@/utils/template-matching";
+import { functionsService } from "@/services/functions/functions-service";
 import { templateService } from "@/services/template-service";
 import { toast } from "sonner";
 import type { TemplateData, Template } from "@/core";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 
 type FlowType = "template" | "invoice";
+type ModelProvider = "gemini" | "openai";
+type RoutingProvider = "auto" | ModelProvider;
+
+type AiModel = {
+  provider: ModelProvider;
+  id: string;
+  displayName: string;
+};
+
+type TaskRoutingState = {
+  provider: RoutingProvider;
+  model: string;
+};
+
+function ModelSelector({
+  label,
+  value,
+  models,
+  loading,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: TaskRoutingState;
+  models: AiModel[];
+  loading: boolean;
+  disabled?: boolean;
+  onChange: (next: TaskRoutingState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const selectedModel = useMemo(
+    () => models.find((model) => model.provider === value.provider && model.id === value.model),
+    [models, value.model, value.provider],
+  );
+
+  const filteredModels = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return models;
+
+    return models.filter((model) => {
+      const haystack = `${model.provider} ${model.displayName} ${model.id}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [models, searchQuery]);
+
+  const geminiModels = filteredModels.filter((model) => model.provider === "gemini");
+  const openAiModels = filteredModels.filter((model) => model.provider === "openai");
+
+  const currentLabel =
+    value.provider === "auto" || value.model === "auto"
+      ? "Auto"
+      : selectedModel
+        ? `${selectedModel.displayName} (${selectedModel.provider})`
+        : `${value.provider}:${value.model}`;
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className="w-full justify-between"
+          >
+            <span className="truncate text-left">
+              {loading ? "Loading models..." : currentLabel}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search models..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+            />
+            <CommandList>
+              <CommandEmpty>No model found.</CommandEmpty>
+              <CommandGroup heading="Mode">
+                <CommandItem
+                  value="auto"
+                  onSelect={() => {
+                    onChange({ provider: "auto", model: "auto" });
+                    setOpen(false);
+                    setSearchQuery("");
+                  }}
+                >
+                  <span className="flex-1">Auto</span>
+                  <Check
+                    className={cn(
+                      "h-4 w-4",
+                      value.provider === "auto" || value.model === "auto"
+                        ? "opacity-100"
+                        : "opacity-0",
+                    )}
+                  />
+                </CommandItem>
+              </CommandGroup>
+              {geminiModels.length > 0 && (
+                <CommandGroup heading="Gemini">
+                  {geminiModels.map((model) => (
+                    <CommandItem
+                      key={`gemini:${model.id}`}
+                      value={`gemini ${model.displayName} ${model.id}`}
+                      onSelect={() => {
+                        onChange({ provider: "gemini", model: model.id });
+                        setOpen(false);
+                        setSearchQuery("");
+                      }}
+                    >
+                      <span className="flex-1 truncate">{model.displayName}</span>
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          value.provider === "gemini" && value.model === model.id
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {openAiModels.length > 0 && (
+                <CommandGroup heading="OpenAI">
+                  {openAiModels.map((model) => (
+                    <CommandItem
+                      key={`openai:${model.id}`}
+                      value={`openai ${model.displayName} ${model.id}`}
+                      onSelect={() => {
+                        onChange({ provider: "openai", model: model.id });
+                        setOpen(false);
+                        setSearchQuery("");
+                      }}
+                    >
+                      <span className="flex-1 truncate">{model.displayName}</span>
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          value.provider === "openai" && value.model === model.id
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function InvoiceUploadFlowPage() {
   const navigate = useNavigate();
@@ -37,6 +212,7 @@ export default function InvoiceUploadFlowPage() {
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates = [] } = useTemplates(currentOrganization?.id);
   const createInvoice = useCreateInvoice();
+  const updateOrganization = useUpdateOrganization();
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "extract" | "match" | "preview" | "complete">("upload");
@@ -48,12 +224,123 @@ export default function InvoiceUploadFlowPage() {
   const [templateReviewReasons, setTemplateReviewReasons] = useState<string[]>([]);
   const [updatedExtractedData, setUpdatedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
   const [editedExtractedData, setEditedExtractedData] = useState<Record<string, InvoiceDataValue> | undefined>(undefined);
+  const [extractionTaskConfig, setExtractionTaskConfig] = useState<TaskRoutingState>({
+    provider: "auto",
+    model: "auto",
+  });
+  const [templateTaskConfig, setTemplateTaskConfig] = useState<TaskRoutingState>({
+    provider: "auto",
+    model: "auto",
+  });
 
   const extractMutation = useExtractInvoiceData();
   const generateTemplate = useGenerateTemplateFromExtraction();
   const { data: job, isLoading: isLoadingJob } = useExtractionJob(jobId);
+  const {
+    data: aiModelsData,
+    isLoading: isAiModelsLoading,
+    isError: isAiModelsError,
+    refetch: refetchAiModels,
+  } = useQuery({
+    queryKey: ["ai-models", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) {
+        throw new Error("Organization not found");
+      }
+      return functionsService.listAiModels({
+        organizationId: currentOrganization.id,
+      });
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const isInitialLoading = isLoadingJob && jobId && !job;
+  const aiModels = aiModelsData?.models || [];
+
+  useEffect(() => {
+    if (!currentOrganization) return;
+    const ai = currentOrganization.settings?.ai;
+    const tasks = ai?.routing?.tasks || {};
+    const extractTask = tasks.invoice_data_extraction;
+    const templateTask = tasks.invoice_template_from_extraction_generation;
+    const defaultTask = ai?.routing?.default;
+
+    const extractProviderCandidate = extractTask?.provider || defaultTask?.provider || "auto";
+    const templateProviderCandidate = templateTask?.provider || defaultTask?.provider || "auto";
+
+    setExtractionTaskConfig({
+      provider:
+        extractProviderCandidate === "gemini" ||
+        extractProviderCandidate === "openai" ||
+        extractProviderCandidate === "auto"
+          ? extractProviderCandidate
+          : "auto",
+      model: extractTask?.model || "auto",
+    });
+    setTemplateTaskConfig({
+      provider:
+        templateProviderCandidate === "gemini" ||
+        templateProviderCandidate === "openai" ||
+        templateProviderCandidate === "auto"
+          ? templateProviderCandidate
+          : "auto",
+      model: templateTask?.model || "auto",
+    });
+  }, [currentOrganization]);
+
+  const handleSaveUploadFlowAiConfig = async () => {
+    if (!currentOrganization) return;
+
+    const normalizedExtractionModel =
+      extractionTaskConfig.provider === "auto"
+        ? "auto"
+        : extractionTaskConfig.model.trim() || "auto";
+    const normalizedTemplateModel =
+      templateTaskConfig.provider === "auto"
+        ? "auto"
+        : templateTaskConfig.model.trim() || "auto";
+
+    const existingAi = currentOrganization.settings?.ai || {};
+    const existingRouting = existingAi.routing || {};
+    const existingTasks = existingRouting.tasks || {};
+
+    try {
+      await updateOrganization.mutateAsync({
+        id: currentOrganization.id,
+        data: {
+          settings: {
+            ...currentOrganization.settings,
+            ai: {
+              ...existingAi,
+              routing: {
+                ...existingRouting,
+                tasks: {
+                  ...existingTasks,
+                  invoice_data_extraction: {
+                    ...(existingTasks.invoice_data_extraction || {}),
+                    provider: extractionTaskConfig.provider,
+                    model: normalizedExtractionModel,
+                  },
+                  invoice_template_from_extraction_generation: {
+                    ...(existingTasks.invoice_template_from_extraction_generation || {}),
+                    provider: templateTaskConfig.provider,
+                    model: normalizedTemplateModel,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      toast.success("Upload flow AI settings saved");
+    } catch (error) {
+      toast.error("Failed to save upload flow AI settings", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
 
   const handleUploadSuccess = (uploadedJobId: string) => {
     setJobId(uploadedJobId);
@@ -223,6 +510,65 @@ export default function InvoiceUploadFlowPage() {
             </p>
           </div>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">AI Provider for Upload Flow</CardTitle>
+            <CardDescription>
+              Select models for extraction and template generation. Models are loaded live from Gemini and OpenAI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ModelSelector
+                label="Extraction model"
+                value={extractionTaskConfig}
+                models={aiModels}
+                loading={isAiModelsLoading}
+                disabled={!currentOrganization}
+                onChange={setExtractionTaskConfig}
+              />
+              <ModelSelector
+                label="Template model"
+                value={templateTaskConfig}
+                models={aiModels}
+                loading={isAiModelsLoading}
+                disabled={!currentOrganization}
+                onChange={setTemplateTaskConfig}
+              />
+            </div>
+            {aiModelsData && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">
+                  Gemini: {aiModelsData.providers.gemini.available ? `${aiModelsData.providers.gemini.count} models` : "Unavailable"}
+                </Badge>
+                <Badge variant="outline">
+                  OpenAI: {aiModelsData.providers.openai.available ? `${aiModelsData.providers.openai.count} models` : "Unavailable"}
+                </Badge>
+              </div>
+            )}
+            {isAiModelsError && (
+              <Alert>
+                <AlertDescription className="flex items-center justify-between gap-3">
+                  <span>Could not load models. You can retry.</span>
+                  <Button variant="outline" size="sm" onClick={() => void refetchAiModels()}>
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => void handleSaveUploadFlowAiConfig()}
+                disabled={!currentOrganization || updateOrganization.isPending}
+              >
+                {updateOrganization.isPending ? "Saving..." : "Save AI Settings"}
+              </Button>
+              <Badge variant="outline">Tasks: extraction + template generation</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Step Indicator */}
         <div className="flex items-center gap-3 text-sm mb-8">

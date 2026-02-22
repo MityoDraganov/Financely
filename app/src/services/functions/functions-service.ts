@@ -762,6 +762,16 @@ export const functionsService: FunctionsService = {
     } as Response;
   },
 
+  async listAiModels(payload) {
+    type ListAiModelsPayload = Parameters<FunctionsService["listAiModels"]>[0];
+    type ListAiModelsResponse = Awaited<ReturnType<FunctionsService["listAiModels"]>>;
+    const result = await httpsCallable<
+      ListAiModelsPayload,
+      ListAiModelsResponse
+    >(firebase.functions, "listAiModels")(payload);
+    return result.data;
+  },
+
   async getUsageHistory(payload) {
     type GetUsageHistoryPayload = Parameters<FunctionsService["getUsageHistory"]>[0];
     type GetUsageHistoryResponse = Awaited<ReturnType<FunctionsService["getUsageHistory"]>>;

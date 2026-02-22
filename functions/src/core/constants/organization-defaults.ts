@@ -24,5 +24,22 @@ export const DEFAULT_ORGANIZATION_SETTINGS = {
   },
   ai: {
     autoProposalSuggestions: false,
+    routing: {
+      default: {
+        provider: "auto",
+        model: "auto",
+      },
+      tasks: {},
+    },
+    providers: {
+      gemini: {
+        enabled: true,
+        model: "auto",
+      },
+      openai: {
+        enabled: true,
+        model: "auto",
+      },
+    },
   },
 } as const;

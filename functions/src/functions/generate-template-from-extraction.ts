@@ -1,17 +1,19 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { handleGenerateTemplateFromExtraction } from "../app/handle-generate-template-from-extraction";
 import { loggerService } from "../services/logger-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getDatabaseService } from "../services/database-service";
 import { getExtractionJobRepository } from "../repositories/extraction-job-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { ORGANIZATION_ROLES } from "../core/roles";
-import { getAIService } from "../services/ai/ai-service";
-import { GeminiProvider } from "../services/ai/gemini-provider";
 import { TemplateData } from "../core/entities/template";
-
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+import {
+  AI_TASKS,
+  configureAIProviderForTask,
+  geminiApiKeySecret,
+  openAiApiKeySecret,
+} from "../services/ai/provider-routing";
 
 interface GenerateTemplateFromExtractionPayload {
   jobId: string;
@@ -51,7 +53,7 @@ export const generateTemplateFromExtraction = onCall<
   {
     region: "us-central1",
     cors: true,
-    secrets: [geminiApiKey],
+    secrets: [geminiApiKeySecret, openAiApiKeySecret],
     timeoutSeconds: 540, // 9 minutes max for AI generation
     memory: "512MiB",
   },
@@ -69,6 +71,7 @@ export const generateTemplateFromExtraction = onCall<
       // Get the extraction job to verify org membership
       const databaseService = getDatabaseService();
       const extractionJobRepository = getExtractionJobRepository(databaseService);
+      const organizationRepository = getOrganizationRepository(databaseService);
       const job = await extractionJobRepository.get({ id: jobId });
 
       if (!job) {
@@ -83,31 +86,23 @@ export const generateTemplateFromExtraction = onCall<
         requiredRole: ORGANIZATION_ROLES.MEMBER,
       });
 
-      // Initialize AI service with Gemini provider
-      const aiService = getAIService();
-      const apiKey = geminiApiKey.value();
-      
-      if (!apiKey) {
-        throw new HttpsError(
-          "failed-precondition",
-          "GEMINI_API_KEY not configured"
-        );
+      const organization = await organizationRepository.get({ id: job.orgId });
+      if (!organization) {
+        throw new HttpsError("not-found", `Organization not found: ${job.orgId}`);
       }
-
-      // Register Gemini provider if not already registered
-      if (!aiService.getProvider("gemini")) {
-        const geminiProvider = new GeminiProvider({
-          apiKey,
-          model: "gemini-2.5-flash",
-        });
-        aiService.registerProvider(geminiProvider);
-        aiService.setDefaultProvider("gemini");
-      }
+      const aiConfig = configureAIProviderForTask({
+        organization,
+        task: AI_TASKS.invoiceTemplateFromExtractionGeneration,
+      });
 
       loggerService.info("Starting template generation from extraction", {
         jobId,
         orgId: job.orgId,
         style: options?.style,
+        provider: aiConfig.provider,
+        model: aiConfig.model,
+        providerSource: aiConfig.providerSource,
+        modelSource: aiConfig.modelSource,
       });
 
       // Generate template

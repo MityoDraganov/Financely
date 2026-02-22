@@ -1,5 +1,4 @@
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { handleUploadInvoiceFile } from "../app/handle-upload-invoice-file";
 import { handleExtractInvoiceData } from "../app/handle-extract-invoice-data";
 import { handleGenerateTemplateFromExtraction } from "../app/handle-generate-template-from-extraction";
@@ -9,12 +8,15 @@ import { loggerService } from "../services/logger-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getDatabaseService } from "../services/database-service";
 import { getExtractionJobRepository } from "../repositories/extraction-job-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { ORGANIZATION_ROLES } from "../core/roles";
-import { getAIService } from "../services/ai/ai-service";
-import { GeminiProvider } from "../services/ai/gemini-provider";
-
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
+import {
+  AI_TASKS,
+  configureAIProviderForTask,
+  geminiApiKeySecret,
+  openAiApiKeySecret,
+} from "../services/ai/provider-routing";
 
 /** Payload for action "upload": create extraction job from file URL */
 type UploadPayload = CreateExtractionJobInput;
@@ -69,7 +71,7 @@ export const invoiceExtraction = onCall<
   {
     region: "us-central1",
     cors: true,
-    secrets: [geminiApiKey],
+    secrets: [geminiApiKeySecret, openAiApiKeySecret],
     timeoutSeconds: 540,
     memory: "1GiB",
   },
@@ -163,6 +165,7 @@ async function handleExtractAction(
 
   const databaseService = getDatabaseService();
   const extractionJobRepository = getExtractionJobRepository(databaseService);
+  const organizationRepository = getOrganizationRepository(databaseService);
   const job = await extractionJobRepository.get({ id: jobId });
   if (!job) {
     throw new HttpsError("not-found", `Extraction job not found: ${jobId}`);
@@ -171,18 +174,23 @@ async function handleExtractAction(
     requiredRole: ORGANIZATION_ROLES.MEMBER,
   });
 
-  if (!geminiApiKey.value()) {
-    throw new HttpsError("failed-precondition", "GEMINI_API_KEY not configured");
+  const organization = await organizationRepository.get({ id: job.orgId });
+  if (!organization) {
+    throw new HttpsError("not-found", `Organization not found: ${job.orgId}`);
   }
-  const aiService = getAIService();
-  if (!aiService.getProvider("gemini")) {
-    aiService.registerProvider(
-      new GeminiProvider({ apiKey: geminiApiKey.value()!, model: "gemini-2.5-flash" })
-    );
-    aiService.setDefaultProvider("gemini");
-  }
+  const aiConfig = configureAIProviderForTask({
+    organization,
+    task: AI_TASKS.invoiceDataExtraction,
+  });
 
-  loggerService.info("Invoice extraction: extract", { jobId, orgId: job.orgId });
+  loggerService.info("Invoice extraction: extract", {
+    jobId,
+    orgId: job.orgId,
+    provider: aiConfig.provider,
+    model: aiConfig.model,
+    providerSource: aiConfig.providerSource,
+    modelSource: aiConfig.modelSource,
+  });
   const updatedJob = await handleExtractInvoiceData(jobId);
 
   try {
@@ -222,6 +230,7 @@ async function handleGenerateTemplateAction(
 
   const databaseService = getDatabaseService();
   const extractionJobRepository = getExtractionJobRepository(databaseService);
+  const organizationRepository = getOrganizationRepository(databaseService);
   const job = await extractionJobRepository.get({ id: jobId });
   if (!job) {
     throw new HttpsError("not-found", `Extraction job not found: ${jobId}`);
@@ -230,22 +239,24 @@ async function handleGenerateTemplateAction(
     requiredRole: ORGANIZATION_ROLES.MEMBER,
   });
 
-  if (!geminiApiKey.value()) {
-    throw new HttpsError("failed-precondition", "GEMINI_API_KEY not configured");
+  const organization = await organizationRepository.get({ id: job.orgId });
+  if (!organization) {
+    throw new HttpsError("not-found", `Organization not found: ${job.orgId}`);
   }
-  const aiService = getAIService();
-  // Force a stronger vision-capable model for one-shot template cloning.
-  aiService.registerProvider(
-    new GeminiProvider({ apiKey: geminiApiKey.value()!, model: "gemini-2.5-pro" })
-  );
-  aiService.setDefaultProvider("gemini");
+  const aiConfig = configureAIProviderForTask({
+    organization,
+    task: AI_TASKS.invoiceTemplateFromExtractionGeneration,
+  });
 
   const normalizedOptions = normalizeGenerateTemplateOptions(payload);
 
   loggerService.info("Invoice extraction: generateTemplate", {
     jobId,
     orgId: job.orgId,
-    model: "gemini-2.5-pro",
+    provider: aiConfig.provider,
+    model: aiConfig.model,
+    providerSource: aiConfig.providerSource,
+    modelSource: aiConfig.modelSource,
     strategy: normalizedOptions.strategy,
     qualityTarget: normalizedOptions.qualityTarget,
   });

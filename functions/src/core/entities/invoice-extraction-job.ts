@@ -173,7 +173,7 @@ export const extractionJobDataSchema = z.object({
   
   // Processing configuration
   ocrProvider: z.enum(["google_vision"]).default("google_vision"),  // Using Google Cloud Vision API
-  aiModel: z.enum(["gemini"]).optional(),  // Using Google Gemini for structured extraction
+  aiModel: z.enum(["gemini", "openai", "unknown"]).optional(),  // AI provider used for structured extraction
   processingMode: z.enum(["cloud"]).default("cloud"),  // Cloud-only with Google Cloud Vision
   
   // Extraction results
