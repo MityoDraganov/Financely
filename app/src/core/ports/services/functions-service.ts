@@ -452,19 +452,66 @@ export interface FunctionsService {
   }>;
 
   /**
-   * Generate an invoice template from extracted invoice data
-   * Analyzes the extracted data structure and creates a matching template
+   * Generate an invoice template directly from the uploaded invoice file.
+   * Uses one-shot invoice vision analysis on the backend.
+   */
+  generateTemplateFromInvoiceFile(payload: {
+    jobId: string;
+    editedData?: Record<string, unknown>;
+    ai?: {
+      provider?: "auto" | "gemini" | "openai";
+      model?: string;
+    };
+    options?: {
+      style?: "modern" | "classic" | "minimal" | "professional";
+      templateName?: string;
+    };
+  }): Promise<{
+    template: {
+      orgId: string;
+      name: string;
+      description?: string;
+      pageSize: "A4" | "Letter";
+      brand: {
+        fonts: string[];
+        colors: { primary: string; secondary: string; accent: string };
+        margins: { top: number; right: number; bottom: number; left: number };
+      };
+      elements: Array<Record<string, unknown>>;
+      status: "draft" | "published";
+      compliance?: {
+        region?: "US" | "EU" | "CA" | "AU" | "UK";
+        requiredFields?: string[];
+        autoFooter?: boolean;
+        customFooter?: string;
+        complianceValidated?: boolean;
+        complianceValidatedAt?: string;
+      };
+    };
+    quality: {
+      overall: number;
+      layout: number;
+      text: number;
+      table: number;
+      font: number;
+    };
+    needsReview: boolean;
+    reviewReasons: string[];
+  }>;
+
+  /**
+   * @deprecated Use `generateTemplateFromInvoiceFile` instead.
    */
   generateTemplateFromExtraction(payload: {
     jobId: string;
     editedData?: Record<string, unknown>;
-    strategy?: "layout_fusion_v2" | "legacy";
-    qualityTarget?: "pixel";
+    ai?: {
+      provider?: "auto" | "gemini" | "openai";
+      model?: string;
+    };
     options?: {
       style?: "modern" | "classic" | "minimal" | "professional";
       templateName?: string;
-      strategy?: "layout_fusion_v2" | "legacy";
-      qualityTarget?: "pixel";
     };
   }): Promise<{
     template: {
@@ -995,6 +1042,10 @@ export interface FunctionsService {
    */
   extractInvoiceData(payload: {
     jobId: string;
+    ai?: {
+      provider?: "auto" | "gemini" | "openai";
+      model?: string;
+    };
   }): Promise<{
     job: {
       id: string;

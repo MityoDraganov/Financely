@@ -1,9 +1,10 @@
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { handleUploadInvoiceFile } from "../app/handle-upload-invoice-file";
 import { handleExtractInvoiceData } from "../app/handle-extract-invoice-data";
-import { handleGenerateTemplateFromExtraction } from "../app/handle-generate-template-from-extraction";
+import { handleGenerateTemplateFromInvoiceFile } from "../app/handle-generate-template-from-extraction";
 import { CreateExtractionJobInput } from "../core/entities/invoice-extraction-job";
 import { TemplateData } from "../core/entities/template";
+import { Organization } from "../core/entities/organization";
 import { loggerService } from "../services/logger-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getDatabaseService } from "../services/database-service";
@@ -22,26 +23,27 @@ import {
 type UploadPayload = CreateExtractionJobInput;
 
 /** Payload for action "extract": run OCR + AI on existing job */
-type ExtractPayload = { jobId: string };
+type RuntimeAiSelection = {
+  provider?: "auto" | "gemini" | "openai";
+  model?: string;
+};
 
-/** Payload for action "generateTemplate": build template from extracted job */
+type ExtractPayload = {
+  jobId: string;
+  ai?: RuntimeAiSelection;
+};
+
+/** Payload for action "generateTemplate": build template from uploaded invoice file */
 type GenerateTemplateOptions = {
   style?: "modern" | "classic" | "minimal" | "professional";
   templateName?: string;
-  strategy?: "layout_fusion_v2" | "legacy";
-  qualityTarget?: "pixel";
 };
 
 type GenerateTemplatePayload = {
   jobId: string;
   editedData?: Record<string, unknown>;
-  /**
-   * Backward-compatible options container used by current web clients.
-   * Prefer top-level strategy/qualityTarget for a simpler API.
-   */
   options?: GenerateTemplateOptions;
-  strategy?: "layout_fusion_v2" | "legacy";
-  qualityTarget?: "pixel";
+  ai?: RuntimeAiSelection;
 };
 
 type InvoiceExtractionPayload =
@@ -61,7 +63,7 @@ type InvoiceExtractionResponse =
     };
 
 /**
- * Single Cloud Function for the invoice extraction flow.
+ * Single Cloud Function for the invoice upload + extraction + template generation flow.
  * Dispatches to handlers by action for upload, extract, and generateTemplate.
  */
 export const invoiceExtraction = onCall<
@@ -178,8 +180,13 @@ async function handleExtractAction(
   if (!organization) {
     throw new HttpsError("not-found", `Organization not found: ${job.orgId}`);
   }
-  const aiConfig = configureAIProviderForTask({
+  const runtimeOrganization = withRuntimeAiSelection(
     organization,
+    AI_TASKS.invoiceDataExtraction,
+    payload.ai
+  );
+  const aiConfig = configureAIProviderForTask({
+    organization: runtimeOrganization,
     task: AI_TASKS.invoiceDataExtraction,
   });
 
@@ -243,8 +250,13 @@ async function handleGenerateTemplateAction(
   if (!organization) {
     throw new HttpsError("not-found", `Organization not found: ${job.orgId}`);
   }
-  const aiConfig = configureAIProviderForTask({
+  const runtimeOrganization = withRuntimeAiSelection(
     organization,
+    AI_TASKS.invoiceTemplateFromExtractionGeneration,
+    payload.ai
+  );
+  const aiConfig = configureAIProviderForTask({
+    organization: runtimeOrganization,
     task: AI_TASKS.invoiceTemplateFromExtractionGeneration,
   });
 
@@ -257,11 +269,9 @@ async function handleGenerateTemplateAction(
     model: aiConfig.model,
     providerSource: aiConfig.providerSource,
     modelSource: aiConfig.modelSource,
-    strategy: normalizedOptions.strategy,
-    qualityTarget: normalizedOptions.qualityTarget,
   });
 
-  const generated = await handleGenerateTemplateFromExtraction(
+  const generated = await handleGenerateTemplateFromInvoiceFile(
     jobId,
     normalizedOptions,
     editedData
@@ -302,19 +312,47 @@ async function handleGenerateTemplateAction(
 function normalizeGenerateTemplateOptions(
   payload: GenerateTemplatePayload
 ): GenerateTemplateOptions {
-  const envStrategy = process.env.INVOICE_TEMPLATE_PIPELINE === "legacy"
-    ? "legacy"
-    : "layout_fusion_v2";
+  return payload.options || {};
+}
 
-  const options = payload.options || {};
+function withRuntimeAiSelection(
+  organization: Organization,
+  task: string,
+  selection?: RuntimeAiSelection
+): Organization {
+  const provider = selection?.provider;
+  const model = typeof selection?.model === "string" ? selection.model.trim() : "";
+  const hasProvider =
+    provider === "auto" || provider === "gemini" || provider === "openai";
+  const hasModel = model.length > 0;
 
-  // Top-level fields are accepted for simpler callers and override nested options.
-  const strategy = payload.strategy ?? options.strategy ?? envStrategy;
-  const qualityTarget = payload.qualityTarget ?? options.qualityTarget ?? "pixel";
+  if (!hasProvider && !hasModel) {
+    return organization;
+  }
+
+  const existingAi = organization.settings?.ai || {};
+  const existingRouting = existingAi.routing || {};
+  const existingTasks = existingRouting.tasks || {};
+  const existingTaskRule = existingTasks[task] || {};
 
   return {
-    ...options,
-    strategy,
-    qualityTarget,
+    ...organization,
+    settings: {
+      ...organization.settings,
+      ai: {
+        ...existingAi,
+        routing: {
+          ...existingRouting,
+          tasks: {
+            ...existingTasks,
+            [task]: {
+              ...existingTaskRule,
+              ...(hasProvider ? { provider } : {}),
+              ...(hasModel ? { model } : {}),
+            },
+          },
+        },
+      },
+    },
   };
 }

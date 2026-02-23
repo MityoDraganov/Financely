@@ -1,5 +1,6 @@
 import { getDatabaseService } from "../services/database-service";
 import { getExtractionJobRepository } from "../repositories/extraction-job-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { type InvoiceBlock, type TemplateData, type TemplateElement, templateDataSchema } from "../core/entities/template";
 import { buildTemplateLlmManifest } from "../core/block-registry";
 import { loggerService } from "../services/logger-service";
@@ -10,7 +11,7 @@ import { compileInvoiceBlocksToElements } from "../services/template-compiler/in
 import { clampTemplateElementsToPrintableArea } from "../utils/template-printable-bounds";
 import { stabilizeTemplateLayout } from "../utils/template-layout-stability";
 
-export type GenerateTemplateFromExtractionResult = {
+export type GenerateTemplateFromInvoiceFileResult = {
   template: TemplateData;
   quality: TemplateQuality;
   needsReview: boolean;
@@ -18,21 +19,20 @@ export type GenerateTemplateFromExtractionResult = {
 };
 
 /**
- * Application handler for generating an invoice template from extracted invoice data.
+ * Application handler for generating an invoice template directly from the uploaded invoice file.
  * Supports editedData override and returns quality/review metadata for UI gating.
  */
-export async function handleGenerateTemplateFromExtraction(
+export async function handleGenerateTemplateFromInvoiceFile(
   jobId: string,
   options?: {
     style?: "modern" | "classic" | "minimal" | "professional";
     templateName?: string;
-    strategy?: "layout_fusion_v2" | "legacy";
-    qualityTarget?: "pixel";
   },
   editedData?: Record<string, unknown>
-): Promise<GenerateTemplateFromExtractionResult> {
+): Promise<GenerateTemplateFromInvoiceFileResult> {
   const databaseService = getDatabaseService();
   const extractionJobRepository = getExtractionJobRepository(databaseService);
+  const organizationRepository = getOrganizationRepository(databaseService);
 
   const job = await extractionJobRepository.get({ id: jobId });
   if (!job) {
@@ -40,6 +40,8 @@ export async function handleGenerateTemplateFromExtraction(
   }
 
   const workingJob = job;
+  const organization = await organizationRepository.get({ id: workingJob.orgId });
+  const organizationLogoUrl = resolveOrganizationLogoUrl(organization);
 
   if (
     !editedData &&
@@ -72,8 +74,6 @@ export async function handleGenerateTemplateFromExtraction(
     jobId,
     orgId: workingJob.orgId,
     fileType: workingJob.fileType,
-    strategy: options?.strategy || null,
-    qualityTarget: options?.qualityTarget || null,
   });
 
   const prompt = buildOneShotVisionPrompt({
@@ -99,6 +99,7 @@ export async function handleGenerateTemplateFromExtraction(
     fileUrl: workingJob.fileUrl,
     fileType: workingJob.fileType,
     documentPages: workingJob.documentPages,
+    organizationLogoUrl,
     templateName: options?.templateName,
     raw,
   });
@@ -123,6 +124,12 @@ export async function handleGenerateTemplateFromExtraction(
 
   return { template, quality, needsReview, reviewReasons };
 }
+
+/**
+ * Backward-compatible aliases during migration from extraction-centric naming.
+ */
+export type GenerateTemplateFromExtractionResult = GenerateTemplateFromInvoiceFileResult;
+export const handleGenerateTemplateFromExtraction = handleGenerateTemplateFromInvoiceFile;
 
 const CANVAS_WIDTH = 794;
 const CANVAS_HEIGHT = 1123;
@@ -416,6 +423,7 @@ async function buildTemplateFromVisionResult(input: {
   fileUrl: string;
   fileType: string;
   documentPages?: DocumentPage[];
+  organizationLogoUrl?: string;
   templateName?: string;
   raw: Record<string, unknown>;
 }): Promise<TemplateData> {
@@ -688,6 +696,7 @@ async function buildTemplateFromVisionResult(input: {
     fileUrl: input.fileUrl,
     fileType: input.fileType,
     documentPages: input.documentPages,
+    organizationLogoUrl: input.organizationLogoUrl,
     docWidthHint: safeNumber(vision.document?.pageWidth, 0),
     docHeightHint: safeNumber(vision.document?.pageHeight, 0),
     images: vision.assets?.images || [],
@@ -759,7 +768,10 @@ async function buildTemplateFromVisionResult(input: {
     {
       primaryColor,
       backgroundColor,
-    }
+    },
+    {
+      organizationLogoUrl: input.organizationLogoUrl,
+    },
   );
   const assetElements = compileInvoiceBlocksToElements({
     blocks: [...imageBlocks, ...iconBlocks],
@@ -957,6 +969,7 @@ async function buildImageBlocksFromVision(input: {
   fileUrl: string;
   fileType: string;
   documentPages?: DocumentPage[];
+  organizationLogoUrl?: string;
   docWidthHint?: number;
   docHeightHint?: number;
   images: VisionImageAsset[];
@@ -976,8 +989,11 @@ async function buildImageBlocksFromVision(input: {
 
   const directSrcById = new Map<string, string>();
   for (const image of normalized) {
-    if (isUsableImageSource(image.sourceUrl)) {
-      directSrcById.set(image.id, image.sourceUrl);
+    const resolvedSourceUrl = resolveTemplateImageSource(image.sourceUrl, {
+      organizationLogoUrl: input.organizationLogoUrl,
+    });
+    if (isUsableImageSource(resolvedSourceUrl)) {
+      directSrcById.set(image.id, resolvedSourceUrl);
     }
   }
 
@@ -1202,9 +1218,54 @@ function isUsableImageSource(value: string): boolean {
   return /^https?:\/\//i.test(value) || /^data:image\//i.test(value);
 }
 
+function resolveOrganizationLogoUrl(
+  organization:
+    | {
+        logoUrl?: string;
+        settings?: { branding?: { customLogo?: string } };
+      }
+    | null
+    | undefined
+): string {
+  const customLogo = organization?.settings?.branding?.customLogo?.trim();
+  if (customLogo) return customLogo;
+  const logoUrl = organization?.logoUrl?.trim();
+  if (logoUrl) return logoUrl;
+  return "";
+}
+
+const IMAGE_SOURCE_ALIASES = new Set([
+  "logo",
+  "brand_logo",
+  "brand-logo",
+  "company_logo",
+  "company-logo",
+  "org_logo",
+  "org-logo",
+  "organization_logo",
+  "organization-logo",
+]);
+
+function isImageSourceAlias(value: string): boolean {
+  return IMAGE_SOURCE_ALIASES.has(value.trim().toLowerCase());
+}
+
+function resolveTemplateImageSource(
+  rawSrc: unknown,
+  options?: { organizationLogoUrl?: string }
+): string {
+  const src = asString(rawSrc, "").trim();
+  if (!src) return FALLBACK_IMAGE_PLACEHOLDER_SRC;
+  if (!isImageSourceAlias(src)) return src;
+  const logoUrl = options?.organizationLogoUrl?.trim() || "";
+  if (isUsableImageSource(logoUrl)) return logoUrl;
+  return FALLBACK_IMAGE_PLACEHOLDER_SRC;
+}
+
 function normalizeVisionElements(
   rawElements: Array<Record<string, unknown>>,
-  style: { primaryColor: string; backgroundColor: string }
+  style: { primaryColor: string; backgroundColor: string },
+  options?: { organizationLogoUrl?: string }
 ): TemplateElement[] {
   const out: TemplateElement[] = [];
 
@@ -1284,7 +1345,7 @@ function normalizeVisionElements(
       out.push({
         ...base,
         type: "image",
-        src: asString(entry.src, FALLBACK_IMAGE_PLACEHOLDER_SRC),
+        src: resolveTemplateImageSource(entry.src, options),
         objectFit: normalizeImageObjectFit(entry.objectFit),
         ...(asString(entry.binding, "") ? { binding: asString(entry.binding, "") } : {}),
         ...(asString(entry.alt, "") ? { alt: asString(entry.alt, "") } : {}),

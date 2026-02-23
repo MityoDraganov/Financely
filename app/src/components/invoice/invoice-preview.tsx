@@ -2,8 +2,9 @@ import { FileText } from "lucide-react";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import type { Template } from "@/core";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 
 interface InvoicePreviewProps {
 	template: Template | undefined;
@@ -18,6 +19,17 @@ export function InvoicePreview({
 }: InvoicePreviewProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [zoom, setZoom] = useState(0.8);
+	const { data: organization } = useCurrentOrganization();
+	const previewContext = useMemo(() => {
+		const fallbackLogoUrl =
+			organization?.settings?.branding?.customLogo || organization?.logoUrl || "";
+		return {
+			...formData,
+			__brandLogoUrl: fallbackLogoUrl,
+			logoUrl: fallbackLogoUrl,
+			logo: fallbackLogoUrl,
+		};
+	}, [formData, organization]);
 
 	// Calculate zoom based on available width
 	useEffect(() => {
@@ -67,16 +79,16 @@ export function InvoicePreview({
 
 	return (
 		<div className="w-full space-y-2">
-			<div
-				ref={containerRef}
-				className="w-full flex justify-center"
-			>
-				<TemplatePreview
-					template={template}
-					context={formData}
-					zoom={zoom}
-				/>
-			</div>
+				<div
+					ref={containerRef}
+					className="w-full flex justify-center"
+				>
+					<TemplatePreview
+						template={template}
+						context={previewContext}
+						zoom={zoom}
+					/>
+				</div>
 		</div>
 	);
 }

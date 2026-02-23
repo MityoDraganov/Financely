@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { handleGenerateTemplateFromExtraction } from "../app/handle-generate-template-from-extraction";
+import { handleGenerateTemplateFromInvoiceFile } from "../app/handle-generate-template-from-extraction";
 import { loggerService } from "../services/logger-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import { getDatabaseService } from "../services/database-service";
@@ -15,24 +15,22 @@ import {
   openAiApiKeySecret,
 } from "../services/ai/provider-routing";
 
-interface GenerateTemplateFromExtractionPayload {
+interface GenerateTemplateFromInvoiceFilePayload {
   jobId: string;
   editedData?: Record<string, unknown>;
   options?: {
     style?: "modern" | "classic" | "minimal" | "professional";
     templateName?: string;
-    strategy?: "layout_fusion_v2" | "legacy";
-    qualityTarget?: "pixel";
   };
 }
 
 /**
- * Firebase Cloud Function for generating an invoice template from extracted invoice data.
+ * Firebase Cloud Function for generating an invoice template from an uploaded invoice file.
  *
  * This function:
  * 1. Retrieves the extraction job
- * 2. Analyzes the extracted data structure
- * 3. Generates a template with matching bindings
+ * 2. Runs one-shot vision analysis on the invoice file
+ * 3. Generates a template with matching bindings and visual structure
  * 4. Returns the template data
  *
  * Request payload:
@@ -47,7 +45,7 @@ interface GenerateTemplateFromExtractionPayload {
  * Response: TemplateData object
  */
 export const generateTemplateFromExtraction = onCall<
-  GenerateTemplateFromExtractionPayload,
+  GenerateTemplateFromInvoiceFilePayload,
   Promise<{ template: TemplateData }>
 >(
   {
@@ -95,7 +93,7 @@ export const generateTemplateFromExtraction = onCall<
         task: AI_TASKS.invoiceTemplateFromExtractionGeneration,
       });
 
-      loggerService.info("Starting template generation from extraction", {
+      loggerService.info("Starting template generation from invoice file", {
         jobId,
         orgId: job.orgId,
         style: options?.style,
@@ -106,7 +104,7 @@ export const generateTemplateFromExtraction = onCall<
       });
 
       // Generate template
-      const generated = await handleGenerateTemplateFromExtraction(jobId, options, editedData);
+      const generated = await handleGenerateTemplateFromInvoiceFile(jobId, options, editedData);
 
       // Note: Success log is already in the service layer, no need to duplicate
 
@@ -136,7 +134,7 @@ export const generateTemplateFromExtraction = onCall<
 
       return { template: generated.template };
     } catch (error: any) {
-      loggerService.error("Failed to generate template from extraction", {
+      loggerService.error("Failed to generate template from invoice file", {
         error: error.message,
         stack: error.stack,
       });
@@ -147,7 +145,7 @@ export const generateTemplateFromExtraction = onCall<
 
       throw new HttpsError(
         "internal",
-        `Failed to generate template from extraction: ${error.message}`
+        `Failed to generate template from invoice file: ${error.message}`
       );
     }
   }

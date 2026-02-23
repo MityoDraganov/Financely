@@ -37,7 +37,7 @@ export class OpenAIProvider implements AIProvider {
       messages: [{ role: "user", content: prompt }],
       temperature: options?.temperature ?? 0.7,
       top_p: options?.topP ?? 1,
-      max_tokens: options?.maxTokens ?? 8192,
+      ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       ...(options?.stopSequences && { stop: options.stopSequences }),
     });
 
@@ -66,7 +66,7 @@ export class OpenAIProvider implements AIProvider {
       messages: [{ role: "user", content: jsonPrompt }],
       temperature: options?.temperature ?? 0.7,
       top_p: options?.topP ?? 1,
-      max_tokens: options?.maxTokens ?? 8192,
+      ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       response_format: { type: "json_object" },
       ...(options?.stopSequences && { stop: options.stopSequences }),
     });
@@ -116,7 +116,7 @@ export class OpenAIProvider implements AIProvider {
       ],
       temperature: options?.temperature ?? 0.7,
       top_p: options?.topP ?? 1,
-      max_tokens: options?.maxTokens ?? 8192,
+      ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       response_format: { type: "json_object" },
       ...(options?.stopSequences && { stop: options.stopSequences }),
     });
@@ -169,6 +169,15 @@ export class OpenAIProvider implements AIProvider {
 
     return await response.json() as OpenAIChatCompletionResponse;
   }
+}
+
+/**
+ * Newer OpenAI models (o-series, gpt-5.x) require `max_completion_tokens` instead of `max_tokens`.
+ * Returns the appropriate parameter key for the given model.
+ */
+function maxTokensParam(model: string, value: number): Record<string, number> {
+  const usesCompletionTokens = /^o\d|^gpt-5/i.test(model);
+  return usesCompletionTokens ? { max_completion_tokens: value } : { max_tokens: value };
 }
 
 function extractTextFromMessage(content: string | Array<{ type?: string; text?: string }> | undefined): string {

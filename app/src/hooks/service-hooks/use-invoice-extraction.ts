@@ -83,10 +83,24 @@ export function useExtractInvoiceData() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (jobId: string) => {
-      return functionsService.extractInvoiceData({ jobId });
+    mutationFn: async (
+      payload:
+        | string
+        | {
+            jobId: string;
+            ai?: {
+              provider?: "auto" | "gemini" | "openai";
+              model?: string;
+            };
+          }
+    ) => {
+      if (typeof payload === "string") {
+        return functionsService.extractInvoiceData({ jobId: payload });
+      }
+      return functionsService.extractInvoiceData(payload);
     },
-    onSuccess: async (result, jobId) => {
+    onSuccess: async (result, payload) => {
+      const jobId = typeof payload === "string" ? payload : payload.jobId;
       // Immediately update the cache with the returned job data
       queryClient.setQueryData(["extraction-job", jobId], result.job);
       
@@ -196,4 +210,3 @@ export function useExtractionJob(jobId: string | null) {
 
   return query;
 }
-

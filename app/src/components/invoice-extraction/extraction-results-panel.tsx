@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, Sparkles, Loader2, Plus, Trash2, Key, FileText } from "lucide-react";
 import type { ExtractionJob } from "@/repositories/extraction-job-repository";
 import { cn } from "@/lib/utils";
-import { useGenerateTemplateFromExtraction } from "@/hooks/service-hooks/use-generate-template-from-extraction";
+import { useGenerateTemplateFromInvoiceFile } from "@/hooks/service-hooks/use-generate-template-from-extraction";
 
 type FlowType = "template" | "invoice";
 
@@ -33,7 +33,7 @@ export function ExtractionResultsPanel({
 		job.correctedData || job.extractedData || {}
 	);
 	const [editingKeys, setEditingKeys] = useState<Record<string, string>>({});
-	const generateTemplate = useGenerateTemplateFromExtraction();
+	const generateTemplate = useGenerateTemplateFromInvoiceFile();
 
 	// Update edited data when job.extractedData changes
 	useEffect(() => {
@@ -804,8 +804,6 @@ export function ExtractionResultsPanel({
 						options: {
 							style: "modern",
 							templateName: `Template from ${job.fileName}`,
-							strategy: "layout_fusion_v2",
-							qualityTarget: "pixel",
 						},
 						createTemplate: true,
 					});

@@ -5,11 +5,10 @@ import {
   useExtractInvoiceData,
   useExtractionJob 
 } from "@/hooks/service-hooks/use-invoice-extraction";
-import { useGenerateTemplateFromExtraction } from "@/hooks/service-hooks/use-generate-template-from-extraction";
+import { useGenerateTemplateFromInvoiceFile } from "@/hooks/service-hooks/use-generate-template-from-extraction";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCreateInvoice } from "@/hooks/use-invoice";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { InvoiceFileUpload } from "@/components/invoice-extraction/invoice-file-upload";
 import { ExtractionJobStatus } from "@/components/invoice-extraction/extraction-job-status";
 import { ExtractionResultsPanel } from "@/components/invoice-extraction/extraction-results-panel";
@@ -212,7 +211,6 @@ export default function InvoiceUploadFlowPage() {
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates = [] } = useTemplates(currentOrganization?.id);
   const createInvoice = useCreateInvoice();
-  const updateOrganization = useUpdateOrganization();
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "extract" | "match" | "preview" | "complete">("upload");
@@ -234,7 +232,7 @@ export default function InvoiceUploadFlowPage() {
   });
 
   const extractMutation = useExtractInvoiceData();
-  const generateTemplate = useGenerateTemplateFromExtraction();
+  const generateTemplateFromInvoiceFile = useGenerateTemplateFromInvoiceFile();
   const { data: job, isLoading: isLoadingJob } = useExtractionJob(jobId);
   const {
     data: aiModelsData,
@@ -258,89 +256,16 @@ export default function InvoiceUploadFlowPage() {
   const isInitialLoading = isLoadingJob && jobId && !job;
   const aiModels = aiModelsData?.models || [];
 
-  useEffect(() => {
-    if (!currentOrganization) return;
-    const ai = currentOrganization.settings?.ai;
-    const tasks = ai?.routing?.tasks || {};
-    const extractTask = tasks.invoice_data_extraction;
-    const templateTask = tasks.invoice_template_from_extraction_generation;
-    const defaultTask = ai?.routing?.default;
-
-    const extractProviderCandidate = extractTask?.provider || defaultTask?.provider || "auto";
-    const templateProviderCandidate = templateTask?.provider || defaultTask?.provider || "auto";
-
-    setExtractionTaskConfig({
-      provider:
-        extractProviderCandidate === "gemini" ||
-        extractProviderCandidate === "openai" ||
-        extractProviderCandidate === "auto"
-          ? extractProviderCandidate
-          : "auto",
-      model: extractTask?.model || "auto",
-    });
-    setTemplateTaskConfig({
-      provider:
-        templateProviderCandidate === "gemini" ||
-        templateProviderCandidate === "openai" ||
-        templateProviderCandidate === "auto"
-          ? templateProviderCandidate
-          : "auto",
-      model: templateTask?.model || "auto",
-    });
-  }, [currentOrganization]);
-
-  const handleSaveUploadFlowAiConfig = async () => {
-    if (!currentOrganization) return;
-
-    const normalizedExtractionModel =
-      extractionTaskConfig.provider === "auto"
+  const toRuntimeAiSelection = (taskConfig: TaskRoutingState): {
+    provider: RoutingProvider;
+    model: string;
+  } => ({
+    provider: taskConfig.provider,
+    model:
+      taskConfig.provider === "auto"
         ? "auto"
-        : extractionTaskConfig.model.trim() || "auto";
-    const normalizedTemplateModel =
-      templateTaskConfig.provider === "auto"
-        ? "auto"
-        : templateTaskConfig.model.trim() || "auto";
-
-    const existingAi = currentOrganization.settings?.ai || {};
-    const existingRouting = existingAi.routing || {};
-    const existingTasks = existingRouting.tasks || {};
-
-    try {
-      await updateOrganization.mutateAsync({
-        id: currentOrganization.id,
-        data: {
-          settings: {
-            ...currentOrganization.settings,
-            ai: {
-              ...existingAi,
-              routing: {
-                ...existingRouting,
-                tasks: {
-                  ...existingTasks,
-                  invoice_data_extraction: {
-                    ...(existingTasks.invoice_data_extraction || {}),
-                    provider: extractionTaskConfig.provider,
-                    model: normalizedExtractionModel,
-                  },
-                  invoice_template_from_extraction_generation: {
-                    ...(existingTasks.invoice_template_from_extraction_generation || {}),
-                    provider: templateTaskConfig.provider,
-                    model: normalizedTemplateModel,
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-
-      toast.success("Upload flow AI settings saved");
-    } catch (error) {
-      toast.error("Failed to save upload flow AI settings", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  };
+        : taskConfig.model.trim() || "auto",
+  });
 
   const handleUploadSuccess = (uploadedJobId: string) => {
     setJobId(uploadedJobId);
@@ -352,7 +277,10 @@ export default function InvoiceUploadFlowPage() {
 
     setStep("extract");
     setTimeout(() => {
-      extractMutation.mutate(uploadedJobId);
+      extractMutation.mutate({
+        jobId: uploadedJobId,
+        ai: toRuntimeAiSelection(extractionTaskConfig),
+      });
     }, 500);
   };
 
@@ -360,9 +288,12 @@ export default function InvoiceUploadFlowPage() {
   useEffect(() => {
     if (flowType !== "invoice") return;
     if (job && job.status === "pending" && !extractMutation.isPending && extractMutation.isIdle) {
-      extractMutation.mutate(job.id);
+      extractMutation.mutate({
+        jobId: job.id,
+        ai: toRuntimeAiSelection(extractionTaskConfig),
+      });
     }
-  }, [job, extractMutation, flowType]);
+  }, [job, extractMutation, flowType, extractionTaskConfig]);
 
   // Check for template matches when extraction completes
   useEffect(() => {
@@ -392,14 +323,13 @@ export default function InvoiceUploadFlowPage() {
     }
 
     try {
-      const result = await generateTemplate.mutateAsync({
+      const result = await generateTemplateFromInvoiceFile.mutateAsync({
         jobId: targetJobId,
         editedData,
+        ai: toRuntimeAiSelection(templateTaskConfig),
         options: {
           style: "modern",
           templateName: `Template from ${job?.fileName || "Invoice"}`,
-          strategy: "layout_fusion_v2",
-          qualityTarget: "pixel",
         },
         createTemplate: false, // Don't create yet, show preview first
       });
@@ -513,21 +443,27 @@ export default function InvoiceUploadFlowPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">AI Provider for Upload Flow</CardTitle>
+            <CardTitle className="text-base">
+              {flowType === "template" ? "AI Model for Template Generation" : "AI Models for Upload Flow"}
+            </CardTitle>
             <CardDescription>
-              Select models for extraction and template generation. Models are loaded live from Gemini and OpenAI.
+              {flowType === "template"
+                ? "Select the model used to generate templates from uploaded invoices. Models are loaded live from Gemini and OpenAI."
+                : "Select models for extraction and template generation. Models are loaded live from Gemini and OpenAI."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ModelSelector
-                label="Extraction model"
-                value={extractionTaskConfig}
-                models={aiModels}
-                loading={isAiModelsLoading}
-                disabled={!currentOrganization}
-                onChange={setExtractionTaskConfig}
-              />
+            <div className={`grid grid-cols-1 ${flowType === "invoice" ? "md:grid-cols-2" : ""} gap-4`}>
+              {flowType === "invoice" && (
+                <ModelSelector
+                  label="Extraction model"
+                  value={extractionTaskConfig}
+                  models={aiModels}
+                  loading={isAiModelsLoading}
+                  disabled={!currentOrganization}
+                  onChange={setExtractionTaskConfig}
+                />
+              )}
               <ModelSelector
                 label="Template model"
                 value={templateTaskConfig}
@@ -558,14 +494,12 @@ export default function InvoiceUploadFlowPage() {
               </Alert>
             )}
             <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => void handleSaveUploadFlowAiConfig()}
-                disabled={!currentOrganization || updateOrganization.isPending}
-              >
-                {updateOrganization.isPending ? "Saving..." : "Save AI Settings"}
-              </Button>
-              <Badge variant="outline">Tasks: extraction + template generation</Badge>
+              <Badge variant="outline">
+                {flowType === "template"
+                  ? "Task: template generation"
+                  : "Tasks: extraction + template generation"}
+              </Badge>
+              <Badge variant="secondary">Applied per request only</Badge>
             </div>
           </CardContent>
         </Card>
@@ -742,7 +676,7 @@ export default function InvoiceUploadFlowPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {generateTemplate.isPending ? (
+                {generateTemplateFromInvoiceFile.isPending ? (
                   <div className="flex items-center justify-center gap-3 py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
@@ -801,7 +735,7 @@ export default function InvoiceUploadFlowPage() {
                     job={job}
                     flowType={flowType}
                     onGenerateTemplate={handleGenerateTemplate}
-                    isGenerating={generateTemplate.isPending}
+                    isGenerating={generateTemplateFromInvoiceFile.isPending}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground text-center p-8">

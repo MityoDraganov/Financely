@@ -732,9 +732,9 @@ export const functionsService: FunctionsService = {
     return { job: (result.data as { job: unknown }).job } as Response;
   },
 
-  async generateTemplateFromExtraction(payload) {
-    type GenPayload = Parameters<FunctionsService["generateTemplateFromExtraction"]>[0];
-    type Response = Awaited<ReturnType<FunctionsService["generateTemplateFromExtraction"]>>;
+  async generateTemplateFromInvoiceFile(payload) {
+    type GenPayload = Parameters<FunctionsService["generateTemplateFromInvoiceFile"]>[0];
+    type Response = Awaited<ReturnType<FunctionsService["generateTemplateFromInvoiceFile"]>>;
     const result = await httpsCallable<
       { action: "generateTemplate" } & GenPayload,
       {
@@ -760,6 +760,10 @@ export const functionsService: FunctionsService = {
       needsReview: data.needsReview,
       reviewReasons: data.reviewReasons,
     } as Response;
+  },
+
+  async generateTemplateFromExtraction(payload) {
+    return functionsService.generateTemplateFromInvoiceFile(payload);
   },
 
   async listAiModels(payload) {

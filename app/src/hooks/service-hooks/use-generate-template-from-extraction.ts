@@ -7,9 +7,9 @@ import { toast } from "sonner";
 import { generateUniqueTemplateName } from "@/utils/template-naming";
 
 /**
- * Hook to generate an invoice template from extracted invoice data
+ * Hook to generate an invoice template directly from the uploaded invoice file.
  */
-export const useGenerateTemplateFromExtraction = () => {
+export const useGenerateTemplateFromInvoiceFile = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -17,16 +17,19 @@ export const useGenerateTemplateFromExtraction = () => {
     mutationFn: async ({
       jobId,
       editedData,
+      ai,
       options,
       createTemplate = true,
     }: {
       jobId: string;
       editedData?: Record<string, unknown>;
+      ai?: {
+        provider?: "auto" | "gemini" | "openai";
+        model?: string;
+      };
       options?: {
         style?: "modern" | "classic" | "minimal" | "professional";
         templateName?: string;
-        strategy?: "layout_fusion_v2" | "legacy";
-        qualityTarget?: "pixel";
       };
       createTemplate?: boolean;
     }): Promise<{
@@ -36,10 +39,10 @@ export const useGenerateTemplateFromExtraction = () => {
       needsReview: boolean;
       reviewReasons: string[];
     }> => {
-      // Generate template from extraction
-      const result = await functionsService.generateTemplateFromExtraction({
+      const result = await functionsService.generateTemplateFromInvoiceFile({
         jobId,
         editedData,
+        ai,
         options,
       });
 
@@ -54,7 +57,7 @@ export const useGenerateTemplateFromExtraction = () => {
         ]) || [];
 
         // Generate unique name
-        const baseName = options?.templateName || template.name || "Template from Extraction";
+        const baseName = options?.templateName || template.name || "Template from Invoice";
         const uniqueName = generateUniqueTemplateName(baseName, existingTemplates);
         template.name = uniqueName;
       }
@@ -85,9 +88,14 @@ export const useGenerateTemplateFromExtraction = () => {
       }
     },
     onError: (error: Error) => {
-      toast.error("Failed to generate template from extraction", {
+      toast.error("Failed to generate template from invoice", {
         description: error.message,
       });
     },
   });
 };
+
+/**
+ * Backward-compatible alias during migration from extraction-centric naming.
+ */
+export const useGenerateTemplateFromExtraction = useGenerateTemplateFromInvoiceFile;

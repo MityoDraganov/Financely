@@ -13,6 +13,7 @@ import { getElementBorderRadiusCss, getElementPaddingCss } from "@/utils/element
 import { getTableGridTemplateColumns } from "@/utils/table-column-width";
 import { getTableTextBehaviorStyles, normalizeTableTextBehavior } from "@/utils/table-text-behavior";
 import { loadGoogleFonts } from "@/utils/google-fonts";
+import { resolveTemplateImageSource } from "@/utils/template-image-source";
 
 type InvoicePreviewContext = unknown;
 
@@ -300,6 +301,7 @@ function renderImageElement(
 			imageSrc = boundValue;
 		}
 	}
+	imageSrc = resolveTemplateImageSource(imageSrc, context);
 	
 	return (
 		<div key={el.id} style={style}>

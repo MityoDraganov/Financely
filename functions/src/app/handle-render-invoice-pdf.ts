@@ -25,7 +25,13 @@ import { getTableTextBehaviorInlineCss, normalizeTableTextBehavior } from "../ut
 function generateInvoiceHTML(
   template: Template,
   invoice: Invoice,
-  organization: { settings?: { brandColors?: { primary?: string; secondary?: string; accent?: string }; branding?: { customLogo?: string } } } | null,
+  organization: {
+    logoUrl?: string;
+    settings?: {
+      brandColors?: { primary?: string; secondary?: string; accent?: string };
+      branding?: { customLogo?: string };
+    };
+  } | null,
   dataContext?: DataContext
 ): string {
   const { pageSize, brand, elements, pageSettings } = template;
@@ -91,6 +97,23 @@ function generateInvoiceHTML(
     backgroundImage: brand.backgroundImage,
   };
 
+  const organizationLogoUrl =
+    organization?.settings?.branding?.customLogo?.trim() ||
+    organization?.logoUrl?.trim() ||
+    "";
+
+  const imageSourceAliases = new Set([
+    "logo",
+    "brand_logo",
+    "brand-logo",
+    "company_logo",
+    "company-logo",
+    "org_logo",
+    "org-logo",
+    "organization_logo",
+    "organization-logo",
+  ]);
+
   // Page dimensions in pixels (at 96 DPI to match designer)
   // A4: 210mm x 297mm = 794px x 1123px at 96 DPI
   // Letter: 8.5in x 11in = 816px x 1056px at 96 DPI
@@ -152,6 +175,36 @@ function generateInvoiceHTML(
       }
     }
     return current;
+  }
+
+  function asNonEmptyString(value: unknown): string {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    return trimmed;
+  }
+
+  function resolveLogoFromContext(): string {
+    const candidates: unknown[] = [
+      organizationLogoUrl,
+      getValueFromContextOrData("organization.settings.branding.customLogo", dataContext, invoice.data),
+      getValueFromContextOrData("organization.logoUrl", dataContext, invoice.data),
+      getValueFromContextOrData("branding.customLogo", dataContext, invoice.data),
+      getValueFromContextOrData("logoUrl", dataContext, invoice.data),
+      getValueFromContextOrData("logo", dataContext, invoice.data),
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = asNonEmptyString(candidate);
+      if (normalized) return normalized;
+    }
+    return "";
+  }
+
+  function resolveImageSource(rawSrc: unknown): string {
+    const src = asNonEmptyString(rawSrc);
+    if (!src) return "";
+    if (!imageSourceAliases.has(src.toLowerCase())) return src;
+    return resolveLogoFromContext();
   }
 
   /**
@@ -354,16 +407,30 @@ function generateInvoiceHTML(
     }
 
     if (el.type === "image") {
+      const boundImageValue = el.binding
+        ? getValueFromContextOrData(el.binding, dataContext, invoice.data)
+        : undefined;
+      const imageSrc = resolveImageSource(
+        asNonEmptyString(boundImageValue) || el.src
+      );
       return `
         <div style="${commonStyle}">
-          <img src="${el.src}" alt="${el.alt || ""}" style="
+          ${
+            imageSrc
+              ? `<img src="${imageSrc}" alt="${el.alt || ""}" style="
             width: 100%;
             height: 100%;
             object-fit: ${el.objectFit};
             ${el.objectPosition ? `object-position: ${el.objectPosition};` : ""}
             opacity: ${el.opacity ?? 1};
             ${el.border ? `border: ${el.border.width}px ${el.border.style} ${el.border.color}; border-radius: ${el.border.radius}px;` : ""}
-          " />
+          " />`
+              : `<div style="
+            width: 100%;
+            height: 100%;
+            background: #f3f4f6;
+          "></div>`
+          }
         </div>
       `;
     }

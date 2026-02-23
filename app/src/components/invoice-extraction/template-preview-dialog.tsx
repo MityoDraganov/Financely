@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useRef, useEffect, useState, type ElementType } from "react";
+import { useRef, useEffect, useMemo, useState, type ElementType } from "react";
 import { cn } from "@/lib/utils";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
@@ -85,6 +85,17 @@ export function TemplatePreviewDialog({
   const [editableTemplate, setEditableTemplate] = useState<TemplateData>(template);
   
   const isTemplateOnly = flowType === "template";
+  const previewContext = useMemo(() => {
+    const fallbackLogoUrl =
+      organization?.settings?.branding?.customLogo || organization?.logoUrl || "";
+
+    return {
+      ...(editableData || {}),
+      __brandLogoUrl: fallbackLogoUrl,
+      logoUrl: fallbackLogoUrl,
+      logo: fallbackLogoUrl,
+    };
+  }, [editableData, organization]);
 
   const resolvePreviewSize = (data: TemplateData): { w: number; h: number } => {
     const baseSize =
@@ -1031,7 +1042,7 @@ export function TemplatePreviewDialog({
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
                       } as Template}
-                      context={editableData || {}}
+                      context={previewContext}
                       zoom={1}
                     />
                   </div>
@@ -1053,7 +1064,7 @@ export function TemplatePreviewDialog({
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
                     } as Template}
-                    context={editableData || {}}
+                    context={previewContext}
                     zoom={1}
                   />
                 </div>

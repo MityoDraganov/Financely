@@ -11,6 +11,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { TemplateElement } from "@/core";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { resolveTemplateImageSource } from "@/utils/template-image-source";
 import { AlertCircle, Check, Image as ImageIcon } from "lucide-react";
 import { typography, spacing, separators, components, colors } from "../design-system";
 
@@ -20,11 +22,17 @@ interface ImageElementProps {
 
 export default function ImageElement({ element }: ImageElementProps) {
 	const { t } = useTranslation();
+	const { data: organization } = useCurrentOrganization();
 	const img = element;
+	const resolvedSource = resolveTemplateImageSource(
+		img.src,
+		undefined,
+		organization?.settings?.branding?.customLogo || organization?.logoUrl
+	);
 	
-	return img.src ? (
+	return resolvedSource ? (
 		<img
-			src={img.src}
+			src={resolvedSource}
 			alt={img.alt ?? ""}
 			style={{ width: "100%", height: "100%", objectFit: img.objectFit }}
 		/>
