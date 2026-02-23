@@ -496,7 +496,9 @@ export class InvoiceTemplateGenerationService {
 
     return `Generate a valid invoice template that conforms to the attached schema. Use ONLY supported element types/properties from the schema. The elements array is REQUIRED and must not be empty.
 
-Rules: All monetary values use Currency elements (not Input). Table price columns use type="currency" with currency code. Fields with bindings must be Input or Currency; Text is for static labels only. Canvas 794×1123: every element must satisfy x+width≤794, y+height≤1123. Text-bearing elements must have enough height to avoid clipping/overflow. Do not overlap text/input/currency/table content elements; overlap is allowed only for intentional background layers like box elements. Use only organization data from context; do not invent data.
+Rules: All monetary values use Currency elements (not Input). Table price columns use type="currency" with currency code. Fields with bindings must be Input or Currency; Text is for static labels only. Canvas 794×1123: every element must satisfy x+width≤794, y+height≤1123. Text-bearing elements must have enough height to avoid clipping/overflow. Do not overlap text/input/currency/table content elements unless intentional. Use only organization data from context; do not invent data.
+
+Overlapping & z-index: Intentional overlapping is allowed and encouraged for decorative layers (box, path, line) placed behind or over content. Z-index rule: the lower an element appears in the elements array, the lower its z-index (renders behind later elements). To layer intentionally, place background elements earlier in the array and assign them a lower zIndex value (e.g. zIndex: 0), and place foreground elements later with a higher zIndex (e.g. zIndex: 1). Any element with a non-zero zIndex is treated as an intentional overlay and will not be moved by the layout engine.
 
 Schema capabilities:
 ${schemaGuidance}

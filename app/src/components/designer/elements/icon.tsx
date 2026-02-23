@@ -34,25 +34,32 @@ export default function IconElement({ element }: IconElementProps) {
 	const borderStyle = element.border
 		? `${element.border.width}px ${element.border.style} ${element.border.color}`
 		: undefined;
+	const containerStyle: React.CSSProperties = {
+		color: element.color,
+		backgroundColor: element.backgroundColor,
+		border: borderStyle,
+		borderRadius:
+			element.shape === "circle"
+				? "9999px"
+				: element.shape === "rounded"
+					? 8
+					: element.shape === "square"
+						? 0
+						: undefined,
+		boxSizing: "border-box",
+	};
 	return (
-		<div
-			className="w-full h-full flex items-center justify-center"
-			style={{
-				color: element.color,
-				backgroundColor: element.backgroundColor,
-				border: borderStyle,
-				borderRadius:
-					element.shape === "circle"
-						? "9999px"
-						: element.shape === "rounded"
-							? 8
-							: element.shape === "square"
-								? 0
-								: undefined,
-				boxSizing: "border-box",
-			}}
-		>
-			<DynamicIcon name={name} className="w-full h-full" style={{ minWidth: 16, minHeight: 16 }} />
+		<div className="w-full h-full flex items-center justify-center" style={containerStyle}>
+			{element.customIconUrl ? (
+				<img
+					src={element.customIconUrl}
+					alt={element.iconName}
+					draggable={false}
+					style={{ width: "100%", height: "100%", minWidth: 16, minHeight: 16, objectFit: "contain", pointerEvents: "none" }}
+				/>
+			) : (
+				<DynamicIcon name={name} className="w-full h-full" style={{ minWidth: 16, minHeight: 16 }} />
+			)}
 		</div>
 	);
 }

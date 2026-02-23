@@ -481,7 +481,15 @@ function renderIconElement(
 					color: el.color ?? "#111827",
 				}}
 			>
-				<DynamicIcon name={name} style={{ width: "100%", height: "100%", minWidth: 16, minHeight: 16 }} />
+				{el.customIconUrl ? (
+					<img
+						src={el.customIconUrl}
+						alt={el.iconName}
+						style={{ width: "100%", height: "100%", minWidth: 16, minHeight: 16, objectFit: "contain" }}
+					/>
+				) : (
+					<DynamicIcon name={name} style={{ width: "100%", height: "100%", minWidth: 16, minHeight: 16 }} />
+				)}
 			</div>
 		</div>
 	);

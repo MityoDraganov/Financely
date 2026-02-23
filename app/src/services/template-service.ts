@@ -224,14 +224,18 @@ export const templateService: TemplateService = {
         ...(productTableConfig !== undefined && { productTableConfig }),
       };
 
-      const versionData: TemplateVersionData = {
+      // Firestore rejects undefined field values — strip them recursively
+      const stripUndefined = <T>(obj: T): T =>
+        JSON.parse(JSON.stringify(obj, (_, v) => (v === undefined ? undefined : v)));
+
+      const versionData: TemplateVersionData = stripUndefined({
         templateId,
         version: nextVersionNumber,
         data: templateDataOnly,
         publishedAt: new Date().toISOString(),
         createdBy: userId,
         description,
-      };
+      });
 
       const versionId = await templateVersionRepository.create({ data: versionData });
 

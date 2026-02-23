@@ -86,12 +86,12 @@ export const textElementSchema = templateElementBaseSchema.extend({
   calc: z.string().optional(),
   typography: z.object({
     fontFamily: z.string().default("Inter"),
-    fontSize: z.number().min(6).max(96).default(12),
+    fontSize: z.number().min(6).max(200).default(12),
     fontWeight: z.enum(["normal", "medium", "semibold", "bold"]).default("normal"),
     fontStyle: z.enum(["normal", "italic"]).optional(),
-    lineHeight: z.number().min(0.8).max(2).default(1.2),
-    letterSpacing: z.number().min(-2).max(10).default(0),
-    wordSpacing: z.number().min(-2).max(20).optional(),
+    lineHeight: z.number().min(0.8).max(3).default(1.2),
+    letterSpacing: z.number().min(-2).max(30).default(0),
+    wordSpacing: z.number().min(-2).max(40).optional(),
     color: z.string().default("#111827"),
     align: z.enum(["left", "center", "right", "justify"]).default("left"),
     uppercase: z.boolean().default(false),
@@ -101,7 +101,7 @@ export const textElementSchema = templateElementBaseSchema.extend({
   }),
   // Enhanced styling options
   backgroundColor: z.string().optional(), // Background color for text element
-  padding: z.number().min(0).max(50).optional(), // Legacy text padding (deprecated; use paddingStyle)
+  padding: z.number().min(0).max(200).optional(), // Legacy text padding (deprecated; use paddingStyle)
   opacity: z.number().min(0).max(1).default(1), // Opacity (0-1)
   shadow: shadowSchema.optional(),
   format: z
@@ -154,8 +154,8 @@ export const boxElementSchema = templateElementBaseSchema.extend({
   }).optional(),
   stroke: z.string().default("#e5e7eb"),
   strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
-  strokeWidth: z.number().min(0).max(10).default(1),
-  radius: z.number().min(0).max(32).default(0),
+  strokeWidth: z.number().min(0).max(50).default(1),
+  radius: z.number().min(0).max(500).default(0),
   opacity: z.number().min(0).max(1).default(1), // Opacity (0-1)
   shadow: shadowSchema.optional(),
 });

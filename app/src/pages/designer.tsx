@@ -146,7 +146,10 @@ export default function TemplateDesignerPage() {
 	
 	// Version history hooks
 	const templateId = contextCurrentTemplateId ?? state.currentTemplateId;
-	const { data: versions = []} = useTemplateVersions(templateId);
+	const { data: versions = [], error: versionsError} = useTemplateVersions(templateId);
+	if(versionsError) {
+		console.error("Error fetching template versions:", versionsError);
+	}
 	//debugLog("versions", versions, "templateId", templateId, "error", versionsError, "isLoading", isLoadingVersions);
 	const saveVersion = useSaveTemplateVersion();
 	const restoreVersion = useRestoreTemplateVersion();
@@ -158,6 +161,10 @@ export default function TemplateDesignerPage() {
 		const role = dbUser.organizationRoles?.[currentOrg.id];
 		return role === "owner" || role === "admin" || role === "member";
 	}, [dbUser, currentOrg?.id]);
+	const canAutoCreateVersionRef = useRef(canAutoCreateVersion);
+	useEffect(() => {
+		canAutoCreateVersionRef.current = canAutoCreateVersion;
+	}, [canAutoCreateVersion]);
 
 	// Refs to avoid stale closures and track pending saves
 	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -987,7 +994,7 @@ export default function TemplateDesignerPage() {
 
 			// Auto-create version when elements are changed
 			const templateId = currentTemplateIdRef.current;
-			if (partial.elements && templateId && clerkUser?.id && canAutoCreateVersion) {
+			if (partial.elements && templateId && clerkUser?.id && canAutoCreateVersionRef.current) {
 				const elementsStr = JSON.stringify(partial.elements);
 				
 				// Only create version if elements actually changed

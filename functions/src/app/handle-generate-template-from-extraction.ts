@@ -1,12 +1,13 @@
 import { getDatabaseService } from "../services/database-service";
 import { getExtractionJobRepository } from "../repositories/extraction-job-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
-import { type InvoiceBlock, type TemplateData, type TemplateElement, templateDataSchema } from "../core/entities/template";
+import { type InvoiceBlock, type TemplateData, type TemplateElement, templateDataSchema, templateElementSchema } from "../core/entities/template";
 import { buildTemplateLlmManifest } from "../core/block-registry";
 import { loggerService } from "../services/logger-service";
 import { DEFAULT_TEMPLATE_QUALITY, type TemplateQuality, type DocumentPage, type VisionLayoutElement } from "../services/invoice-extraction/pipeline-types";
 import { getAIService, type JSONSchema } from "../services/ai/ai-service";
 import { getAssetCroppingService } from "../services/invoice-extraction/asset-cropping-service";
+import { looksLikeBrandIcon, fetchAndStoreBrandIcon } from "../services/invoice-extraction/brand-icon-service";
 import { compileInvoiceBlocksToElements } from "../services/template-compiler/invoice-block-compiler";
 import { clampTemplateElementsToPrintableArea } from "../utils/template-printable-bounds";
 import { stabilizeTemplateLayout } from "../utils/template-layout-stability";
@@ -285,6 +286,11 @@ OUTPUT REQUIREMENTS
 - Use path for curved decorative elements, waves, organic shapes.
 6. Detect ALL visual assets:
 - icons: UI glyphs/symbols that should become icon blocks.
+  For standard UI icons (mail, phone, calendar, etc.) use iconName from the provided icon catalog.
+  For BRAND icons (Facebook, Instagram, LinkedIn, Stripe, PayPal, etc.) set iconName to the brand
+  name in lowercase (e.g. "facebook", "instagram", "stripe") and set library="custom". The system
+  will automatically fetch the official brand SVG and attach it. Do NOT try to approximate brand
+  logos using generic Lucide icons — use the brand name directly.
 - images: logos/photos/seals that should become image blocks.
 - paths: curved shapes, waves, organic decorative elements (use SVG path syntax).
 7. Use normalized coordinates for all asset bounds (x, y, width, height in [0..1], relative to page).
@@ -292,18 +298,61 @@ OUTPUT REQUIREMENTS
 - If direct sourceUrl is known, include it.
 - If sourceUrl is not known, still include the image entry (placeholder candidate) with bounds and styles.
 - Never drop a detected image region.
+- Set confidence using this strict scale (this value controls whether the system crops and uploads the asset):
+    1.0  — The region is crystal-clear, fully visible, sharp, and tightly bounded. No ambiguity.
+    0.90 — Clearly visible and well-bounded. Minor imperfection (e.g., very slight edge clipping).
+    0.85 — Confidently identified but has a small issue (slight blur, 1-2px margin uncertainty).
+    0.70 — Probably correct but partially obscured, low contrast, or loosely bounded.
+    0.50 — Uncertain. Region may contain the asset but evidence is weak.
+    < 0.5 — Very uncertain. Likely wrong region or unidentifiable.
+  IMPORTANT: Only use confidence >= 0.85 when you are genuinely certain the region contains a clean,
+  usable asset. The system will attempt to crop and upload regions with confidence >= 0.85 as real
+  image URLs. Regions below 0.85 become placeholders the user fills in manually.
+  Do NOT inflate confidence — a false positive wastes a Storage upload on garbage pixels.
 9. For curved shapes and decorative elements:
 - Detect curves, arcs, and organic shapes that cannot be represented with simple boxes.
 - Use type="path" with pathData containing SVG path commands (M, L, C, Q, A, Z).
 - Preserve fill colors, gradients, and visual styling.
 - Path coordinates should be relative to the element's bounding box (0,0 to width,height).
 
+SPATIAL LAYOUT RULES — CRITICAL
+These rules prevent overlapping elements. Violations cause unreadable output.
+
+A) NO OVERLAP BETWEEN CONTENT ELEMENTS
+- Before placing each element, compute its occupied region: [x, x+width] × [y, y+height].
+- A content element (text, input, currency, table, icon) must NOT overlap ANY previously placed
+  content element, unless it is a decorative background (box/path with zIndex=0 placed first).
+- Two elements overlap if and only if BOTH of the following are true:
+    horizontally: element_A.x < element_B.x + element_B.width  AND  element_B.x < element_A.x + element_A.width
+    vertically:   element_A.y < element_B.y + element_B.height  AND  element_B.y < element_A.y + element_A.height
+- If both conditions hold, the elements collide. Move the later element down so its y >= earlier.y + earlier.height + 4.
+
+B) SIDE-BY-SIDE COLUMNS ARE ALLOWED
+- Elements that do NOT share horizontal span are in separate columns and must NOT push each other vertically.
+- Example: a label at x=40,width=120 and a value at x=200,width=150 are side-by-side — they can have the same y.
+- Only elements whose horizontal ranges overlap need vertical separation.
+
+C) TRACK YOUR OWN BOUNDING BOXES
+- Maintain a running mental list of all placed elements with their (x, y, width, height).
+- Before outputting each new element, verify it does not collide with any existing entry.
+- If it would collide, adjust its y downward until the collision is resolved.
+
+D) MINIMUM HEIGHTS
+- text element: height must be >= fontSize * lineHeight * estimatedLineCount (minimum 16px).
+- input element: height must be >= 28px.
+- currency element: height must be >= 28px.
+- table element: height must be >= headerHeight + (rowHeight * min(visibleRows, 5)).
+- Never assign height=0 or height below these minimums.
+
+E) VERTICAL PADDING BETWEEN ROWS
+- Consecutive content rows in the same horizontal column must have at least 4px of gap:
+  next_element.y >= previous_element.y + previous_element.height + 4
+
 RULES
 - Do not hallucinate table columns.
 - If table has no borders, explicitly set both booleans to false.
 - For icons, iconName must be selected from the provided icon catalog.
 - Text-bearing elements (text/input/currency/table headers/cells) must be sized to fit visible content.
-- Do not place text-bearing elements so they overlap each other; keep clear vertical separation.
 - Overlap is acceptable only for intentional background layers (e.g., box behind content, decorative paths).
 - For complex curved designs: decompose into multiple path elements rather than trying to fit into rectangular boxes.
 `;
@@ -415,6 +464,32 @@ type VisionResult = {
     pageHeight?: number;
   };
 };
+
+/**
+ * Validates each element individually against the schema.
+ * Invalid elements are dropped and logged rather than failing the whole template.
+ * This makes generation resilient to LLM fields that exceed schema bounds.
+ */
+function sanitizeElements(elements: unknown[], jobId: string): TemplateElement[] {
+  const valid: TemplateElement[] = [];
+  for (let i = 0; i < elements.length; i++) {
+    const result = templateElementSchema.safeParse(elements[i]);
+    if (result.success) {
+      valid.push(result.data);
+    } else {
+      loggerService.warn("Dropping invalid element from generated template", {
+        jobId,
+        elementIndex: i,
+        elementType: (elements[i] as Record<string, unknown>)?.type ?? "unknown",
+        errors: result.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+  }
+  return valid;
+}
 
 async function buildTemplateFromVisionResult(input: {
   orgId: string;
@@ -763,15 +838,13 @@ async function buildTemplateFromVisionResult(input: {
       repeating,
     },
   });
-  const normalizedVisionElements = normalizeVisionElements(
-    vision.elements || [],
-    {
-      primaryColor,
-      backgroundColor,
-    },
-    {
-      organizationLogoUrl: input.organizationLogoUrl,
-    },
+  const normalizedVisionElements = await resolveBrandIcons(
+    normalizeVisionElements(
+      vision.elements || [],
+      { primaryColor, backgroundColor },
+      { organizationLogoUrl: input.organizationLogoUrl },
+    ),
+    input.orgId,
   );
   const assetElements = compileInvoiceBlocksToElements({
     blocks: [...imageBlocks, ...iconBlocks],
@@ -822,9 +895,26 @@ async function buildTemplateFromVisionResult(input: {
     schemaVersion: 2,
   };
 
-  const parsed = templateDataSchema.safeParse(candidateTemplate);
+  const sanitizedElements = sanitizeElements(candidateTemplate.elements, input.jobId);
+  const parsed = templateDataSchema.safeParse({ ...candidateTemplate, elements: sanitizedElements });
   if (!parsed.success) {
-    throw new Error(`Generated template failed validation: ${parsed.error.message}`);
+    // Non-element fields failed (margins, theme, etc.) — log and fall back to scaffold.
+    loggerService.warn("Template outer schema validation failed, falling back to scaffold", {
+      jobId: input.jobId,
+      errors: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    });
+    const scaffoldParsed = templateDataSchema.safeParse({
+      ...candidateTemplate,
+      elements: sanitizedElements.length > 0 ? sanitizedElements : compileInvoiceBlocksToElements({
+        blocks: scaffoldBlocksV2,
+        template: { pageSettings, theme, repeating },
+      }),
+    });
+    if (!scaffoldParsed.success) {
+      throw new Error(`Template generation failed: ${scaffoldParsed.error.message}`);
+    }
+    const stabilized = stabilizeTemplateLayout(scaffoldParsed.data);
+    return clampTemplateElementsToPrintableArea(stabilized);
   }
   const stabilized = stabilizeTemplateLayout(parsed.data);
   return clampTemplateElementsToPrintableArea(stabilized);
@@ -1197,7 +1287,11 @@ function normalizeVisionIconName(iconName: string): string {
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .replace(/[_\s]+/g, "-")
     .toLowerCase();
+  // Valid Lucide icon — use it as-is.
   if (VISION_ICON_SET.has(normalized)) return normalized;
+  // Known brand name — preserve the raw slug so resolveBrandIcons can fetch it.
+  // Do NOT replace with the fallback here; the downstream pass handles it.
+  if (looksLikeBrandIcon(iconName)) return normalized;
   return VISION_ICON_FALLBACK;
 }
 
@@ -1390,8 +1484,8 @@ function normalizeVisionElements(
         type: "box",
         fill: normalizeHexColor(entry.fill ?? entry.backgroundColor, style.backgroundColor),
         stroke: normalizeHexColor(entry.stroke, "#d1d5db"),
-        strokeWidth: Math.max(0, safeNumber(entry.strokeWidth, 0)),
-        radius: Math.max(0, safeNumber(entry.radius, 0)),
+        strokeWidth: clampRange(safeNumber(entry.strokeWidth, 0), 0, 50),
+        radius: clampRange(safeNumber(entry.radius, 0), 0, 500),
         opacity: clamp01(safeNumber(entry.opacity, 1)),
       } satisfies TemplateElement);
       continue;
@@ -1455,11 +1549,11 @@ function normalizeVisionTypography(
 
   return {
     fontFamily: asString(typography.fontFamily, "Inter"),
-    fontSize: Math.max(8, Math.min(72, safeNumber(typography.fontSize, 12))),
+    fontSize: clampRange(safeNumber(typography.fontSize, 12), 6, 200),
     fontWeight,
     fontStyle: asString(typography.fontStyle, "normal") === "italic" ? "italic" : "normal",
-    lineHeight: Math.max(0.8, Math.min(2.4, safeNumber(typography.lineHeight, 1.2))),
-    letterSpacing: safeNumber(typography.letterSpacing, 0),
+    lineHeight: clampRange(safeNumber(typography.lineHeight, 1.2), 0.8, 3),
+    letterSpacing: clampRange(safeNumber(typography.letterSpacing, 0), -2, 30),
     color: normalizeHexColor(typography.color, fallbackColor),
     align,
     uppercase: asBoolean(typography.uppercase, false),
@@ -1553,6 +1647,35 @@ function normalizeColumnWidth(value: unknown, columnCount: number): string {
 	}
 	const fallbackPercent = 100 / Math.max(1, columnCount);
 	return `${Math.round(fallbackPercent * 100) / 100}%`;
+}
+
+/**
+ * Post-pass over normalized elements: for any icon whose iconName looks like a
+ * brand (Facebook, Instagram, Stripe, etc.) and isn't in the Lucide catalog,
+ * fetch the SVG from Simple Icons CDN, upload to Storage, and set customIconUrl.
+ * Icons that resolve successfully get library="custom"; failures are left as-is
+ * (they will render as the Lucide fallback "file-text").
+ */
+async function resolveBrandIcons(
+  elements: TemplateElement[],
+  orgId: string,
+): Promise<TemplateElement[]> {
+  const result = [...elements];
+  await Promise.all(
+    result.map(async (el, i) => {
+      if (el.type !== "icon") return;
+      // Already has a custom URL — nothing to do.
+      if (el.customIconUrl) return;
+      // Only attempt fetch for names that look like brands.
+      if (!looksLikeBrandIcon(el.iconName)) return;
+
+      const url = await fetchAndStoreBrandIcon(el.iconName, orgId, el.color);
+      if (url) {
+        result[i] = { ...el, customIconUrl: url, library: "custom" };
+      }
+    })
+  );
+  return result;
 }
 
 function mergeAssetElements(

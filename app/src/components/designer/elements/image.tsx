@@ -34,7 +34,8 @@ export default function ImageElement({ element }: ImageElementProps) {
 		<img
 			src={resolvedSource}
 			alt={img.alt ?? ""}
-			style={{ width: "100%", height: "100%", objectFit: img.objectFit }}
+			draggable={false}
+			style={{ width: "100%", height: "100%", objectFit: img.objectFit, pointerEvents: "none" }}
 		/>
 	) : (
 		<div className="w-full h-full bg-muted grid place-items-center text-muted-foreground">

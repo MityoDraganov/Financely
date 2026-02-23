@@ -25,11 +25,28 @@ export interface AssetCroppingService {
   cropAssets(input: AssetCroppingInput): Promise<CroppedAsset[]>;
 }
 
+/**
+ * Minimum confidence required for an asset to be cropped and uploaded to Storage.
+ *
+ * The LLM assigns confidence on this scale (enforced in the system prompt):
+ *   >= 0.85  — clearly visible, sharp, well-bounded region  → crop + upload
+ *   0.60–0.84 — partially obscured or near an edge          → placeholder
+ *   < 0.60   — uncertain / blurry / barely visible          → placeholder
+ *
+ * We gate at 0.85 so only high-certainty assets become real image URLs.
+ * Lower-confidence regions result in a placeholder the user can replace manually.
+ */
+const CROP_CONFIDENCE_THRESHOLD = 0.85;
+
 class DefaultAssetCroppingService implements AssetCroppingService {
   async cropAssets(input: AssetCroppingInput): Promise<CroppedAsset[]> {
     const maxAssets = Math.max(0, Math.min(input.maxAssets ?? 8, 20));
     const candidates = input.visionLayout.elements
-      .filter((element) => (element.kind === "logo" || element.kind === "image") && element.confidence >= 0.3)
+      .filter(
+        (element) =>
+          (element.kind === "logo" || element.kind === "image") &&
+          element.confidence >= CROP_CONFIDENCE_THRESHOLD
+      )
       .slice(0, maxAssets);
 
     if (candidates.length === 0) {
