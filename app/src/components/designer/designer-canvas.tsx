@@ -197,6 +197,7 @@ export function DesignerCanvas({
 		height: number;
 		append: boolean;
 	} | null>(null);
+	const lassoOccurredRef = useRef(false);
 	const pageDimensions = getPageDimensions(template);
 	const PAGE_WIDTH = pageDimensions.width;
 	const PAGE_HEIGHT = pageDimensions.height;
@@ -228,8 +229,16 @@ export function DesignerCanvas({
 
 	const startLasso = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
 		if (e.button !== 0) return;
-		if ((e.target as HTMLElement) !== e.currentTarget) return;
 		if (!onLassoSelect) return;
+		if (isPathMode) return;
+		// Bail out if the pointer landed on (or inside) an element wrapper — those handle their own drag.
+		let node: HTMLElement | null = e.target as HTMLElement;
+		while (node && node !== e.currentTarget) {
+			if (node.dataset.designerElement === "true") return;
+			node = node.parentElement;
+		}
+		// Prevent native text-selection while dragging
+		e.preventDefault();
 		const rect = e.currentTarget.getBoundingClientRect();
 		const startX = (e.clientX - rect.left) / state.zoom;
 		const startY = (e.clientY - rect.top) / state.zoom;
@@ -256,6 +265,7 @@ export function DesignerCanvas({
 		const handleUp = () => {
 			setLassoRect((current) => {
 				if (current && current.width > 1 && current.height > 1) {
+					lassoOccurredRef.current = true;
 					onLassoSelect(current, current.append);
 				}
 				return null;
@@ -266,7 +276,7 @@ export function DesignerCanvas({
 
 		window.addEventListener("pointermove", handleMove);
 		window.addEventListener("pointerup", handleUp);
-	}, [onLassoSelect, state.zoom]);
+	}, [onLassoSelect, state.zoom, isPathMode]);
 
 	return (
 		<div
@@ -310,6 +320,11 @@ export function DesignerCanvas({
 						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl isolate"
 						onClick={() => {
 							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
+							// Skip deselect if a lasso drag just completed (click always fires after pointerup)
+							if (lassoOccurredRef.current) {
+								lassoOccurredRef.current = false;
+								return;
+							}
 							onSelectElement("");
 						}}
 						style={{
@@ -409,12 +424,16 @@ export function DesignerCanvas({
 				))}
 				{lassoRect && (
 					<div
-						className="absolute pointer-events-none border border-primary bg-primary/10 z-[10000]"
+						className="absolute pointer-events-none z-[10000]"
 						style={{
 							left: lassoRect.x * state.zoom,
 							top: lassoRect.y * state.zoom,
 							width: lassoRect.width * state.zoom,
 							height: lassoRect.height * state.zoom,
+							background: "rgba(99,102,241,0.08)",
+							border: "1.5px dashed rgba(99,102,241,0.85)",
+							borderRadius: 2,
+							boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)",
 						}}
 					/>
 				)}
@@ -455,12 +474,20 @@ export function DesignerCanvas({
 					const activePathNode = activePathNodeId
 						? pathSubpaths.flatMap((subpath) => subpath.nodes).find((node) => node.id === activePathNodeId)
 						: undefined;
+						const isInLasso = lassoRect != null && (() => {
+							const rRight = lassoRect.x + lassoRect.width;
+							const rBottom = lassoRect.y + lassoRect.height;
+							// Use same height as renderer — table preview shows only headerHeight + rowHeight
+							const elHeight = el.type === "table" ? (el.headerHeight + el.rowHeight) : el.height;
+							return el.x < rRight && (el.x + el.width) > lassoRect.x && el.y < rBottom && (el.y + elHeight) > lassoRect.y;
+						})();
 					
 					return (
 						<ContextMenu key={el.id}>
 							<ContextMenuTrigger asChild>
 									<div
-									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${hoveredElementId === el.id && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""} ${isLocked ? "opacity-80" : ""}`}
+									data-designer-element="true"
+									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${(hoveredElementId === el.id || isInLasso) && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""} ${isLocked ? "opacity-80" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,

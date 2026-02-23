@@ -4234,6 +4234,29 @@ export default function TemplateDesignerPage() {
 							setMobilePanelOpen(true);
 						}
 					}}
+					onLassoSelect={(rect, append) => {
+						const elements = getWorkingElements();
+						const hitIds = elements
+							.filter((el) => {
+								if (el.visible === false) return false;
+								const elLeft   = el.x;
+								const elTop    = el.y;
+								const elRight  = el.x + el.width;
+								// Use same height as renderer — table preview shows only headerHeight + rowHeight
+								const elHeight = el.type === "table" ? (el.headerHeight + el.rowHeight) : el.height;
+								const elBottom = elTop + elHeight;
+								const rRight   = rect.x + rect.width;
+								const rBottom  = rect.y + rect.height;
+								// Intersection: element overlaps marquee on both axes
+								return elLeft < rRight && elRight > rect.x && elTop < rBottom && elBottom > rect.y;
+							})
+							.map((el) => el.id);
+						const newSelected = append
+							? Array.from(new Set([...selectedElementIdsRef.current, ...hitIds]))
+							: hitIds;
+						selectedElementIdsRef.current = newSelected;
+						setState((s) => ({ ...s, selectedElementIds: newSelected }));
+					}}
 					onStartDrag={(el, e) => {
 						if (e.button !== 0) return;
 						// Don't prevent default or stop propagation - we need click to fire for selection
