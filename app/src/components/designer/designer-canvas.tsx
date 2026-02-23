@@ -307,7 +307,7 @@ export function DesignerCanvas({
 				{template && (
 					<div
 						ref={pageRef}
-						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl"
+						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl isolate"
 						onClick={() => {
 							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
 							onSelectElement("");

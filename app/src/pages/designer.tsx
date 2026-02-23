@@ -2180,9 +2180,11 @@ export default function TemplateDesignerPage() {
 		const isShiftPressed = Boolean(event?.shiftKey);
 		const isMetaToggle = Boolean(event?.metaKey || event?.ctrlKey);
 		const isToggleSelection = isShiftPressed || isMetaToggle;
-		const currentSelected = state.selectedElementIds || [];
-		
 		if (isToggleSelection) {
+			// Use selectedElementIdsRef to avoid stale closure when reading current selection
+			const currentSelected = selectedElementIdsRef.current.length > 0
+				? selectedElementIdsRef.current
+				: (state.selectedElementIds || []);
 			// Toggle selection: add if not selected, remove if already selected
 			if (currentSelected.includes(elementId)) {
 				const newSelected = currentSelected.filter((id) => id !== elementId);
@@ -3951,36 +3953,37 @@ export default function TemplateDesignerPage() {
 							}));
 							debugLog("[CANVAS] Element not selected, selecting it first:", elementId);
 						}
-						
-						// Use updateSelected to trigger the same debounced save mechanism as property panel
-						// This ensures canvas drags/resizes save with the same 50ms debounce
-						// Pass only the properties that could have changed (position for move, size for resize)
-						const changes: Partial<TemplateElement> = {
-							x: changedElement.x,
-							y: changedElement.y,
-						};
-						
-						// If it was a resize, also include width/height
-						if (mode === "resize") {
-							changes.width = changedElement.width;
-							changes.height = changedElement.height;
-						}
-						
-						debugLog("[CANVAS] 🎯 Calling updateSelected from pointer up", {
-							elementId,
-							mode,
-							changes,
-							selectedIds: selectedElementIdsRef.current,
-							elementBefore: {
+
+						const isMultiMove = mode === "move" && selectedElementIdsRef.current.length > 1;
+
+						if (isMultiMove) {
+							// For multi-element moves, latestDraft already has correct per-element positions.
+							// Commit it directly instead of calling updateSelected, which would stamp
+							// the primary element's x/y onto every selected element.
+							draftRef.current = latestDraft;
+							setDraftElements(latestDraft);
+							selectedElementIdsRef.current.forEach((selId) => {
+								const existingTimer = elementSaveTimersRef.current.get(selId);
+								if (existingTimer) clearTimeout(existingTimer);
+								const timer = setTimeout(() => {
+									const els = draftRef.current;
+									if (els && els.length > 0) saveMutation.mutate({ elements: els });
+									elementSaveTimersRef.current.delete(selId);
+								}, 50);
+								elementSaveTimersRef.current.set(selId, timer);
+							});
+						} else {
+							// Single element move or resize — use updateSelected as before
+							const changes: Partial<TemplateElement> = {
 								x: changedElement.x,
 								y: changedElement.y,
-								width: changedElement.width,
-								height: changedElement.height,
-							},
-						});
-						
-						// Call updateSelected directly - it will use selectedElementIdsRef which we just updated
-						updateSelected(changes);
+							};
+							if (mode === "resize") {
+								changes.width = changedElement.width;
+								changes.height = changedElement.height;
+							}
+							updateSelected(changes);
+						}
 					} else {
 						debugWarn("[CANVAS] ⚠️ Changed element not found in latestDraft", { 
 							elementId, 
@@ -4170,6 +4173,12 @@ export default function TemplateDesignerPage() {
 					templateId,
 					version,
 				});
+				// Clear all draft/pending state so the restored template data is not overridden
+				elementSaveTimersRef.current.forEach((timer) => clearTimeout(timer));
+				elementSaveTimersRef.current.clear();
+				draftRef.current = null;
+				pendingSaveRef.current = null;
+				setDraftElements(null);
 			}}
 			isRestoringVersion={restoreVersion.isPending}
 			currentUserId={clerkUser?.id}
@@ -4231,7 +4240,8 @@ export default function TemplateDesignerPage() {
 						// Drag will only start if pointer moves (handled in pointer move handler)
 						// When starting drag, ensure this element is selected
 						const selectedIds = state.selectedElementIds || [];
-						if (!selectedIds.includes(el.id)) {
+						const isToggleModifier = e.shiftKey || e.metaKey || e.ctrlKey;
+						if (!selectedIds.includes(el.id) && !isToggleModifier) {
 							setState((s) => ({ ...s, selectedElementIds: [el.id] }));
 							// Update selectedIds for this drag operation
 							const newSelectedIds = [el.id];

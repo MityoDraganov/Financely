@@ -101,7 +101,7 @@ export const templateService: TemplateService = {
         brand,
         elements,
         status,
-        compliance,
+        ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),
       };
 
@@ -220,22 +220,18 @@ export const templateService: TemplateService = {
         brand,
         elements,
         status,
-        compliance,
+        ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),
       };
 
-      // Firestore rejects undefined field values — strip them recursively
-      const stripUndefined = <T>(obj: T): T =>
-        JSON.parse(JSON.stringify(obj, (_, v) => (v === undefined ? undefined : v)));
-
-      const versionData: TemplateVersionData = stripUndefined({
+      const versionData: TemplateVersionData = {
         templateId,
         version: nextVersionNumber,
         data: templateDataOnly,
         publishedAt: new Date().toISOString(),
-        createdBy: userId,
-        description,
-      });
+        ...(userId !== undefined && { createdBy: userId }),
+        ...(description !== undefined && { description }),
+      };
 
       const versionId = await templateVersionRepository.create({ data: versionData });
 
@@ -323,7 +319,7 @@ export const templateService: TemplateService = {
         brand,
         elements,
         status,
-        compliance,
+        ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),
       };
 
