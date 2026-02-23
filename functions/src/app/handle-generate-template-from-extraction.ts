@@ -321,7 +321,8 @@ These rules prevent overlapping elements. Violations cause unreadable output.
 A) NO OVERLAP BETWEEN CONTENT ELEMENTS
 - Before placing each element, compute its occupied region: [x, x+width] × [y, y+height].
 - A content element (text, input, currency, table, icon) must NOT overlap ANY previously placed
-  content element, unless it is a decorative background (box/path with zIndex=0 placed first).
+  content element. Only decorative backgrounds (box/path) may overlap with content because they
+  sit on a lower visual layer.
 - Two elements overlap if and only if BOTH of the following are true:
     horizontally: element_A.x < element_B.x + element_B.width  AND  element_B.x < element_A.x + element_A.width
     vertically:   element_A.y < element_B.y + element_B.height  AND  element_B.y < element_A.y + element_A.height
@@ -347,6 +348,18 @@ D) MINIMUM HEIGHTS
 E) VERTICAL PADDING BETWEEN ROWS
 - Consecutive content rows in the same horizontal column must have at least 4px of gap:
   next_element.y >= previous_element.y + previous_element.height + 4
+
+F) Z-INDEX STACKING — MANDATORY
+- Background/decorative elements (box, path) MUST have zIndex <= 5. They sit behind everything.
+- Separator elements (line, spacer) MUST have zIndex between 6 and 10.
+- Content elements (text, input, currency, image, icon, table) MUST have zIndex >= 20.
+- NEVER assign a box or path a zIndex >= 10 — it will cover content elements and make the template unreadable.
+- If multiple boxes are stacked (e.g. a card over a full-page background), use zIndex 1, 2, 3... (all still < 10).
+- Example correct assignment:
+    background box:   zIndex=1
+    card box:         zIndex=2
+    divider line:     zIndex=8
+    text/input/icon:  zIndex=20
 
 RULES
 - Do not hallucinate table columns.
@@ -2052,30 +2065,39 @@ function estimateQualityFromTemplate(template: TemplateData): TemplateQuality {
 
 function buildReviewReasons(template: TemplateData, raw: Record<string, unknown>): string[] {
   const reasons: string[] = [];
+
   const hasTable = template.elements.some((el) => el.type === "table");
-  const hasHeader = template.elements.some((el) => el.type === "text" && el.y < 180);
+
+  // "totals" detection: match binding paths like "total", "invoice.total",
+  // "totals.grandTotal", OR text content containing "total".
+  const TOTALS_BINDING_RE = /total/i;
   const hasTotals = template.elements.some(
     (el) =>
-      el.type === "text" &&
-      ((typeof el.binding === "string" && el.binding === "total") ||
-        (typeof el.text === "string" && el.text.toLowerCase().includes("total")))
+      (el.type === "text" || el.type === "currency") &&
+      ((typeof el.binding === "string" && TOTALS_BINDING_RE.test(el.binding)) ||
+        (el.type === "text" && typeof el.text === "string" && TOTALS_BINDING_RE.test(el.text)))
   );
+
   const unresolvedImageCount = template.elements.reduce((count, element) => {
     if (element.type !== "image") return count;
     return element.src ? count : count + 1;
   }, 0);
 
-  if (!hasHeader) {
-    reasons.push("Header could not be confidently detected from the source file.");
+  // Sparse detection: the model produced almost no usable content.
+  // raw.elements is the primary path; raw.blocks is the legacy path.
+  // Only flag sparse if BOTH the raw output AND the final template are thin.
+  const rawElementCount =
+    (Array.isArray(raw.elements) ? raw.elements.length : 0) +
+    (Array.isArray(raw.blocks) ? raw.blocks.length : 0);
+  if (rawElementCount < 5 && template.elements.length < 5) {
+    reasons.push("Model output was sparse and used fallback layout defaults.");
   }
+
   if (!hasTable) {
     reasons.push("Line items table was not confidently detected.");
   }
   if (!hasTotals) {
     reasons.push("Totals section may need manual alignment or binding adjustments.");
-  }
-  if (!Array.isArray(raw.blocks) || raw.blocks.length === 0) {
-    reasons.push("Model output was sparse and used fallback layout defaults.");
   }
   if (unresolvedImageCount > 0) {
     reasons.push(

@@ -906,9 +906,6 @@ export function TemplatePreviewDialog({
 
   // Handle accept with updated data and template
   const handleAccept = () => {
-    if (needsReview) {
-      return;
-    }
     onAccept(editableData, editableTemplate);
   };
 
@@ -948,11 +945,10 @@ export function TemplatePreviewDialog({
               <Badge variant="outline">Font {(quality.font * 100).toFixed(0)}%</Badge>
             </div>
           )}
-          {needsReview && (
+          {needsReview && reviewReasons.length > 0 && (
             <Alert className="mt-3 border-amber-500/50 bg-amber-50 dark:bg-amber-950/30">
               <AlertDescription className="text-xs">
-                This template is flagged for manual review and cannot be accepted directly.
-                {reviewReasons.length > 0 ? ` Reasons: ${reviewReasons.join("; ")}` : ""}
+                Some items may need your attention: {reviewReasons.join("; ")}
               </AlertDescription>
             </Alert>
           )}
@@ -1626,7 +1622,7 @@ export function TemplatePreviewDialog({
               <Edit className="h-4 w-4 mr-2" />
               Edit in Designer
             </Button>
-            <Button onClick={handleAccept} disabled={needsReview} title={needsReview ? "Manual review required before acceptance" : undefined}>
+            <Button onClick={handleAccept}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Accept Template
             </Button>
