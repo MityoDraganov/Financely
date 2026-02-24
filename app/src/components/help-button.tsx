@@ -10,8 +10,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const DOCS_USER_URL = "https://docs.financely.app";
-const DOCS_DEVELOPER_URL = "https://developers.financely.app";
+const DOCS_USER_URL = "https://docs.financely.app/user-manual/introduction";
+const DOCS_DEVELOPER_URL = "https://docs.financely.app/developers/introduction";
 
 export function HelpButton() {
 	const { t } = useTranslation();

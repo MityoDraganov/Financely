@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Plus, Info } from "lucide-react";
+import { Plus, Info, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import {
 	Select,
@@ -31,6 +31,7 @@ type CanvasHeaderProps = {
 	onTemplateChange: (id: string) => void;
 	onCreateNewTemplate: () => void;
 	onZoomChange: (zoom: number) => void;
+	onTogglePreview?: () => void;
 	isMobile?: boolean;
 };
 
@@ -42,6 +43,7 @@ export function CanvasHeader({
 	activeUsers,
 	onTemplateChange,
 	onZoomChange,
+	onTogglePreview,
 	isMobile = false,
 }: CanvasHeaderProps) {
 	const { t } = useTranslation();
@@ -78,6 +80,22 @@ export function CanvasHeader({
 			)}
 			{!isMobile && <EnhancedPresenceIndicator users={activeUsers} />}
 			<div className="ml-auto flex items-center gap-2 shrink-0">
+				{onTogglePreview && (
+					<Button
+						variant={state.previewMode ? "secondary" : "ghost"}
+						size="sm"
+						className="h-8 gap-1.5 text-xs"
+						onClick={onTogglePreview}
+						title={state.previewMode ? t('designer.canvasHeader.exitPreview', 'Exit Preview') : t('designer.canvasHeader.preview', 'Preview')}
+					>
+						{state.previewMode ? (
+							<EyeOff className="h-3.5 w-3.5" />
+						) : (
+							<Eye className="h-3.5 w-3.5" />
+						)}
+						{!isMobile && (state.previewMode ? t('designer.canvasHeader.exitPreview', 'Exit Preview') : t('designer.canvasHeader.preview', 'Preview'))}
+					</Button>
+				)}
 				{!isMobile && (
 					<Select
 						value={String(state.zoom)}

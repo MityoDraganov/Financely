@@ -61,6 +61,7 @@ type DesignerCanvasProps = {
 		append: boolean
 	) => void;
 	dragStartedRef?: React.MutableRefObject<boolean>; // Track if drag actually started (movement detected)
+	previewMode?: boolean;
 };
 
 function getPageDimensions(template: Template | undefined): { width: number; height: number } {
@@ -185,6 +186,7 @@ export function DesignerCanvas({
 	onUpdateTextInline,
 	onLassoSelect,
 	dragStartedRef,
+	previewMode = false,
 }: DesignerCanvasProps) {
 	const path = usePathEditing();
 	const canvasBoundsRef = useRef<HTMLDivElement | null>(null);
@@ -317,7 +319,7 @@ export function DesignerCanvas({
 				{template && (
 					<div
 						ref={pageRef}
-						className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm border-4 border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-3xl isolate"
+						className={`bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm transition-all duration-300 hover:shadow-3xl isolate ${!previewMode ? "border-4 border-neutral-200 dark:border-neutral-700" : ""}`}
 						onClick={() => {
 							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
 							// Skip deselect if a lasso drag just completed (click always fires after pointerup)
@@ -336,10 +338,10 @@ export function DesignerCanvas({
 						onDragOver={onDragOver}
 						onDrop={onDrop}
 						onMouseMove={onMouseMove}
-						onPointerDown={startLasso}
+						onPointerDown={previewMode ? undefined : startLasso}
 					>
 				{/* Grid */}
-				{state.showGrid !== false && (
+				{!previewMode && state.showGrid !== false && (
 					<div
 						className="absolute inset-0 z-0 transition-opacity duration-150"
 						style={{
@@ -357,17 +359,19 @@ export function DesignerCanvas({
 						onDrop={onDrop}
 					/>
 				)}
-				<div
-					className="absolute pointer-events-none z-[2]"
-					style={{
-						left: printableArea.left,
-						top: printableArea.top,
-						width: printableArea.width,
-						height: printableArea.height,
-						border: "1px dashed rgba(99, 102, 241, 0.6)",
-						boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.03)",
-					}}
-				/>
+				{!previewMode && (
+					<div
+						className="absolute pointer-events-none z-[2]"
+						style={{
+							left: printableArea.left,
+							top: printableArea.top,
+							width: printableArea.width,
+							height: printableArea.height,
+							border: "1px dashed rgba(99, 102, 241, 0.6)",
+							boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.03)",
+						}}
+					/>
+				)}
 				{template.referenceLayer?.assetUrl && template.referenceLayer.visible !== false && (
 					<div
 						className="absolute pointer-events-none"
@@ -390,7 +394,7 @@ export function DesignerCanvas({
 					</div>
 				)}
 				{/* Snap guides */}
-				{snapGuides.map((guide, idx) => (
+				{!previewMode && snapGuides.map((guide, idx) => (
 					<div
 						key={`snap-${idx}`}
 						className="absolute pointer-events-none"
@@ -422,7 +426,7 @@ export function DesignerCanvas({
 						)}
 					</div>
 				))}
-				{lassoRect && (
+				{!previewMode && lassoRect && (
 					<div
 						className="absolute pointer-events-none z-[10000]"
 						style={{
@@ -487,7 +491,7 @@ export function DesignerCanvas({
 							<ContextMenuTrigger asChild>
 									<div
 									data-designer-element="true"
-									className={`absolute select-none ${state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${(hoveredElementId === el.id || isInLasso) && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : "cursor-grab"} ${isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""} ${isLocked ? "opacity-80" : ""}`}
+									className={`absolute select-none ${!previewMode && state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary" : ""} ${!previewMode && (hoveredElementId === el.id || isInLasso) && !state.selectedElementIds?.includes(el.id) ? "ring-2 ring-primary/50" : ""} ${!previewMode && drag?.elementId === el.id && drag.mode === "move" ? "cursor-grabbing" : !previewMode ? "cursor-grab" : ""} ${!previewMode && isRequiredField ? "ring-1 ring-amber-400 dark:ring-amber-500" : ""} ${isLocked ? "opacity-80" : ""}`}
 									style={{
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
@@ -541,7 +545,7 @@ export function DesignerCanvas({
 									}}
 								>
 									{/* Lock icon for required fields */}
-									{isRequiredField && (
+									{!previewMode && isRequiredField && (
 										<div
 											className="absolute -top-2 -left-2 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-full p-1 z-50 shadow-md border-2 border-white animate-pulse"
 											title="Required field for compliance"
@@ -551,7 +555,7 @@ export function DesignerCanvas({
 									)}
 									{/* Resize handles - only show for single selection */}
 									{/* For tables, only show width resize handles (e, w) - height is calculated dynamically */}
-									{state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && !isLocked && (
+									{!previewMode && state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && !isLocked && (
 										<>
 											{(
 												el.type === "table"

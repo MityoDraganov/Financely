@@ -9,6 +9,7 @@ export type DesignerState = {
 	activeTool?: "select" | "node" | "pen"; // Active tool for path editing
 	selectedPathNodeId?: string;
 	selectedPathSubpathId?: string;
+	previewMode?: boolean;
 };
 
 export type DragMode = "move" | "resize";

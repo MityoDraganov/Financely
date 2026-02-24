@@ -891,8 +891,54 @@ export default function TemplateDesignerPage() {
 						schemaVersion: 2,
 					};
 				}
-				
-				const startTime = Date.now();
+
+				// When margins change, proportionally reposition elements to stay within the new printable area
+			if (partial.pageSettings?.margins && !hasHybridBlocks) {
+				const newMargins = resolveTemplateMarginsPx(partial.pageSettings.margins, template.brand?.margins);
+				const oldMargins = resolveTemplateMarginsPx(template.pageSettings?.margins, template.brand?.margins);
+				const dims = getPageDimensions({ ...template, pageSettings: partial.pageSettings } as Template);
+
+				const oldLeft = oldMargins.left;
+				const oldTop = oldMargins.top;
+				const oldWidth = Math.max(1, dims.width - oldMargins.left - oldMargins.right);
+				const oldHeight = Math.max(1, dims.height - oldMargins.top - oldMargins.bottom);
+
+				const newLeft = newMargins.left;
+				const newTop = newMargins.top;
+				const newWidth = Math.max(1, dims.width - newMargins.left - newMargins.right);
+				const newHeight = Math.max(1, dims.height - newMargins.top - newMargins.bottom);
+
+				const marginsActuallyChanged =
+					oldMargins.left !== newMargins.left ||
+					oldMargins.top !== newMargins.top ||
+					oldMargins.right !== newMargins.right ||
+					oldMargins.bottom !== newMargins.bottom;
+
+				if (marginsActuallyChanged) {
+					const scaleX = newWidth / oldWidth;
+					const scaleY = newHeight / oldHeight;
+					const sourceElements = partial.elements ?? draftRef.current ?? template.elements ?? [];
+					const remapped = sourceElements.map((el) => {
+						if (el.locked) return el;
+						const fracX = (el.x - oldLeft) / oldWidth;
+						const fracY = (el.y - oldTop) / oldHeight;
+						const newX = Math.round(newLeft + fracX * newWidth);
+						const newY = Math.round(newTop + fracY * newHeight);
+						const newElWidth = Math.max(1, Math.round(el.width * scaleX));
+						const newElHeight = Math.max(1, Math.round(el.height * scaleY));
+						// Clamp so element stays within the new printable area
+						const clampedX = Math.max(newLeft, Math.min(newX, newLeft + newWidth - newElWidth));
+						const clampedY = Math.max(newTop, Math.min(newY, newTop + newHeight - newElHeight));
+						return { ...el, x: clampedX, y: clampedY, width: newElWidth, height: newElHeight };
+					});
+					partial = { ...partial, elements: remapped };
+					// Optimistically update draft so canvas reflects changes immediately
+					draftRef.current = remapped;
+					setDraftElements(remapped);
+				}
+			}
+
+			const startTime = Date.now();
 				await templateService.updateDraft(templateId, partial);
 			const duration = Date.now() - startTime;
 			debugLog("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
@@ -4203,6 +4249,7 @@ export default function TemplateDesignerPage() {
 				}}
 				onCreateNewTemplate={handleCreateNewTemplate}
 				onZoomChange={(zoom) => setState((s) => ({ ...s, zoom }))}
+				onTogglePreview={() => setState((s) => ({ ...s, previewMode: !s.previewMode, selectedElementIds: s.previewMode ? s.selectedElementIds : [] }))}
 				isMobile={isMobile}
 			/>
 			<div ref={canvasViewportRef} className="flex-1 overflow-auto">
@@ -4348,6 +4395,7 @@ export default function TemplateDesignerPage() {
 						updateSelected({ ...tbl, columns: next } as Partial<TemplateElement>);
 					}}
 					dragStartedRef={dragStartedRef}
+					previewMode={state.previewMode ?? false}
 				/>
 			</div>
 		</div>
