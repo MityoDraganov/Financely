@@ -89,13 +89,14 @@ export default function IntegrationsWrapper() {
 					actions: template.actions,
 				});
 				invalidate();
+				await refetch();
 				setCurrentWidgetId(r.widgetId);
 				navigate(`/integrations/${r.widgetId}`, { replace: true });
 			} finally {
 				creatingRef.current = false;
 			}
 		},
-		[orgId, invalidate, navigate]
+		[orgId, invalidate, refetch, navigate]
 	);
 
 	return (

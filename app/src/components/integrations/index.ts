@@ -6,3 +6,5 @@ export { AutomationsSection } from "./automations-section";
 export { WidgetPreviewPanel } from "./widget-preview-panel";
 export { WidgetSidebar } from "./widget-sidebar";
 export { WidgetBuilderPropertiesPanel } from "./widget-builder-properties-panel";
+export { CreateWidgetDialog } from "./create-widget-dialog";
+export type { CreateWidgetDialogProps, TemplateOption as WidgetTemplateOption } from "./create-widget-dialog";

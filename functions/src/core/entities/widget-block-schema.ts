@@ -67,13 +67,13 @@ const submitButtonPropsSchema = z.object({
 });
 
 const blockPropsSchema = z.union([
-	layoutBlockPropsSchema,
-	sectionHeaderPropsSchema,
-	paragraphPropsSchema,
-	inputBlockPropsSchema,
-	selectInputPropsSchema,
-	successBlockPropsSchema,
-	submitButtonPropsSchema,
+	layoutBlockPropsSchema.passthrough(),
+	sectionHeaderPropsSchema.passthrough(),
+	paragraphPropsSchema.passthrough(),
+	inputBlockPropsSchema.passthrough(),
+	selectInputPropsSchema.passthrough(),
+	successBlockPropsSchema.passthrough(),
+	submitButtonPropsSchema.passthrough(),
 	z.record(z.string(), z.unknown()),
 ]);
 

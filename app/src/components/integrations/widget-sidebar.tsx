@@ -612,8 +612,8 @@ export function WidgetSidebar() {
 								/>
 							</div>
 						)}
-				</>
-			)}
+					</>
+				)}
 			<Dialog
 				open={addBlockPickerOpen}
 				onOpenChange={(open) =>

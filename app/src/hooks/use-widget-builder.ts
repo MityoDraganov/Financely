@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,8 +21,14 @@ const DEFAULT_ACTIONS: WidgetVersionActions = {
 
 const noop = () => {};
 const noopAsync = async () => {};
-const noopSetStr = (_: string) => {};
-const noopSetNull = (_: string | null) => {};
+const noopSetStr: (value: string) => void = () => {};
+const noopSetNull: (value: string | null) => void = () => {};
+
+export interface WidgetVersionListItem {
+	id: string;
+	versionNumber: number;
+	createdAt?: string;
+}
 
 export interface UseWidgetBuilderParams {
 	effectiveWidgetId: string | undefined;
@@ -33,6 +39,7 @@ export interface UseWidgetBuilderParams {
 
 export interface UseWidgetBuilderReturn {
 	pages: WidgetPage[];
+	isDirty: boolean;
 	activePageId: string | null;
 	setActivePageId: (id: string | null) => void;
 	selectedBlockId: string | null;
@@ -64,10 +71,20 @@ export interface UseWidgetBuilderReturn {
 	updateBlockProps: (id: string, props: Record<string, unknown>) => void;
 	save: () => Promise<void>;
 	publish: () => Promise<void>;
+	publishVersion: (versionId: string) => Promise<void>;
 	unpublish: () => Promise<void>;
+	restoreVersion: (versionId: string) => Promise<void>;
+	refreshVersions: () => Promise<void>;
 	widgetName: string;
 	setWidgetName: (name: string) => void;
 	handleWidgetNameBlur: () => Promise<void>;
+	versions: WidgetVersionListItem[];
+	versionsLoading: boolean;
+	selectedVersionId: string | null;
+	setSelectedVersionId: (id: string | null) => void;
+	publishedVersionId: string | null;
+	publishingVersionId: string | null;
+	restoringVersion: boolean;
 	definitionStatus: string | null;
 	loading: boolean;
 	saving: boolean;
@@ -87,6 +104,53 @@ const generatePageId = () =>
 	`page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const LAYOUT_BLOCKS_WITH_CHILDREN: BlockType[] = ["container", "card", "columns"];
+
+const getBuilderSnapshot = ({
+	pages,
+	actions,
+	multiStepOptions,
+}: {
+	pages: WidgetPage[];
+	actions: WidgetVersionActions;
+	multiStepOptions: WidgetMultiStepOptions;
+}) => JSON.stringify({ pages, actions, multiStepOptions });
+
+function normalizeBuilderState({
+	pages,
+	actions,
+	multiStepOptions,
+}: {
+	pages: unknown;
+	actions: unknown;
+	multiStepOptions: unknown;
+}): {
+	pages: WidgetPage[];
+	actions: WidgetVersionActions;
+	multiStepOptions: WidgetMultiStepOptions;
+} {
+	const normalizedPages = ensureAtLeastOnePage(
+		(Array.isArray(pages) ? (pages as WidgetPage[]) : []).map((p) => ({
+			...p,
+			fields: (Array.isArray(p.fields) ? p.fields : []).map(ensureLayoutBlockChildren),
+		})),
+	);
+
+	const normalizedActions = (
+		actions && typeof actions === "object" ? actions : DEFAULT_ACTIONS
+	) as WidgetVersionActions;
+
+	const normalizedMultiStep = (
+		multiStepOptions && typeof multiStepOptions === "object"
+			? multiStepOptions
+			: {}
+	) as WidgetMultiStepOptions;
+
+	return {
+		pages: normalizedPages,
+		actions: normalizedActions,
+		multiStepOptions: normalizedMultiStep,
+	};
+}
 
 function findBlockInFields(fields: WidgetBlock[], blockId: string): WidgetBlock | undefined {
 	for (const b of fields) {
@@ -196,66 +260,133 @@ export function useWidgetBuilder({
 	const [saving, setSaving] = useState(false);
 	const [publishing, setPublishing] = useState(false);
 	const [unpublishing, setUnpublishing] = useState(false);
+	const [publishingVersionId, setPublishingVersionId] = useState<string | null>(
+		null,
+	);
+	const [restoringVersion, setRestoringVersion] = useState(false);
 	const [definitionStatus, setDefinitionStatus] = useState<string | null>(
 		null,
 	);
+	const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
 	const [widgetName, setWidgetName] = useState("");
 	const [widgetNameSaving, setWidgetNameSaving] = useState(false);
 	const [deleteWidgetId, setDeleteWidgetId] = useState<string | null>(null);
+	const [versions, setVersions] = useState<WidgetVersionListItem[]>([]);
+	const [versionsLoading, setVersionsLoading] = useState(false);
+	const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+	const [hasInitializedSnapshot, setHasInitializedSnapshot] = useState(false);
+
+	// Snapshot of last-saved state for dirty tracking
+	const savedSnapshotRef = useRef<string>("");
+	const currentSnapshot = useMemo(
+		() => getBuilderSnapshot({ pages, actions, multiStepOptions }),
+		[pages, actions, multiStepOptions],
+	);
+
+	const isDirty = useMemo(
+		() => hasInitializedSnapshot && savedSnapshotRef.current !== currentSnapshot,
+		[hasInitializedSnapshot, currentSnapshot],
+	);
 
 	const selectedBlock = useMemo(
 		() => (selectedBlockId ? findBlockInPages(pages, selectedBlockId) : undefined),
 		[pages, selectedBlockId],
 	);
 
+	const applyBuilderState = useCallback(
+		(next: {
+			pages: WidgetPage[];
+			actions: WidgetVersionActions;
+			multiStepOptions: WidgetMultiStepOptions;
+		}) => {
+			setPages(next.pages);
+			setActions(next.actions);
+			setMultiStepOptions(next.multiStepOptions);
+			setActivePageId(next.pages[0]?.id ?? null);
+			setSelectedBlockId(null);
+			savedSnapshotRef.current = getBuilderSnapshot(next);
+			setHasInitializedSnapshot(true);
+		},
+		[],
+	);
+
+	const refreshVersions = useCallback(async () => {
+		if (!organizationId || !effectiveWidgetId) {
+			setVersions([]);
+			setSelectedVersionId(null);
+			return;
+		}
+		setVersionsLoading(true);
+		try {
+			const result = await functionsService.listModularWidgetVersions({
+				organizationId,
+				widgetId: effectiveWidgetId,
+			});
+			setVersions(result.versions);
+			setSelectedVersionId((prev) =>
+				prev && result.versions.some((v) => v.id === prev)
+					? prev
+					: result.versions[0]?.id ?? null,
+			);
+		} catch {
+			// Keep existing versions on transient failures
+		} finally {
+			setVersionsLoading(false);
+		}
+	}, [organizationId, effectiveWidgetId]);
+
 	useEffect(() => {
 		if (!organizationId || !effectiveWidgetId) {
 			setPages([]);
 			setActivePageId(null);
 			setSelectedBlockId(null);
+			setVersions([]);
+			setSelectedVersionId(null);
+			setPublishedVersionId(null);
+			setDefinitionStatus(null);
+			savedSnapshotRef.current = "";
+			setHasInitializedSnapshot(false);
 			return;
 		}
 		if (!widgetBelongsToOrg) return;
 		setLoading(true);
+		setHasInitializedSnapshot(false);
 		functionsService
 			.getModularWidgetDraft({
 				organizationId,
 				widgetId: effectiveWidgetId,
 			})
 			.then((r) => {
-				if (r.version?.pages && Array.isArray(r.version.pages)) {
-					const raw = r.version.pages as WidgetPage[];
-					const normalized = raw.map((p) => ({
-						...p,
-						fields: (Array.isArray(p.fields) ? p.fields : []).map(ensureLayoutBlockChildren),
-					}));
-					const loaded = ensureAtLeastOnePage(normalized);
-					setPages(loaded);
-					setActivePageId(loaded[0]?.id ?? null);
-				} else {
-					const defaultPages = ensureAtLeastOnePage([]);
-					setPages(defaultPages);
-					setActivePageId(defaultPages[0]?.id ?? null);
-				}
-				if (
-					r.version?.actions &&
-					typeof r.version.actions === "object"
-				) {
-					setActions(r.version.actions as WidgetVersionActions);
-				}
-				if (
-					r.version?.multiStepOptions &&
-					typeof r.version.multiStepOptions === "object"
-				) {
-					setMultiStepOptions(r.version.multiStepOptions as WidgetMultiStepOptions);
-				} else {
-					setMultiStepOptions({});
-				}
+				const normalized = normalizeBuilderState({
+					pages: r.version?.pages ?? [],
+					actions: r.version?.actions ?? DEFAULT_ACTIONS,
+					multiStepOptions: r.version?.multiStepOptions ?? {},
+				});
+				applyBuilderState(normalized);
+
 				setDefinitionStatus(r.definition?.status ?? null);
+				setPublishedVersionId(r.definition?.publishedVersionId ?? null);
+				setSelectedVersionId(
+					r.version?.id ?? r.definition?.publishedVersionId ?? null,
+				);
 			})
 			.catch(() => toast.error("Failed to load widget"))
 			.finally(() => setLoading(false));
-	}, [organizationId, effectiveWidgetId, widgetBelongsToOrg]);
+	}, [
+		organizationId,
+		effectiveWidgetId,
+		widgetBelongsToOrg,
+		applyBuilderState,
+	]);
+
+	useEffect(() => {
+		if (!organizationId || !effectiveWidgetId || !widgetBelongsToOrg) {
+			setVersions([]);
+			setSelectedVersionId(null);
+			return;
+		}
+		void refreshVersions();
+	}, [organizationId, effectiveWidgetId, widgetBelongsToOrg, refreshVersions]);
 
 	useEffect(() => {
 		setWidgetName(widgetDesigner?.currentDefinition?.name ?? "");
@@ -550,20 +681,32 @@ export function useWidgetBuilder({
 		if (!organizationId || !effectiveWidgetId) return;
 		setSaving(true);
 		try {
-			await functionsService.saveModularWidgetVersion({
+			const result = await functionsService.saveModularWidgetVersion({
 				organizationId,
 				widgetId: effectiveWidgetId,
 				pages,
 				actions,
 				multiStepOptions: Object.keys(multiStepOptions).length > 0 ? multiStepOptions : undefined,
 			});
+			savedSnapshotRef.current = currentSnapshot;
+			setHasInitializedSnapshot(true);
+			setSelectedVersionId(result.versionId);
+			await refreshVersions();
 			toast.success("Draft saved");
 		} catch {
 			toast.error("Failed to save");
 		} finally {
 			setSaving(false);
 		}
-	}, [organizationId, effectiveWidgetId, pages, actions, multiStepOptions]);
+	}, [
+		organizationId,
+		effectiveWidgetId,
+		pages,
+		actions,
+		multiStepOptions,
+		currentSnapshot,
+		refreshVersions,
+	]);
 
 	const publish = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
@@ -576,22 +719,65 @@ export function useWidgetBuilder({
 				actions,
 				multiStepOptions: Object.keys(multiStepOptions).length > 0 ? multiStepOptions : undefined,
 			});
+			savedSnapshotRef.current = currentSnapshot;
+			setHasInitializedSnapshot(true);
+			setSelectedVersionId(r.versionId);
+			setPublishingVersionId(r.versionId);
 			await functionsService.publishModularWidget({
 				organizationId,
 				widgetId: effectiveWidgetId,
 				versionId: r.versionId,
 			});
 			setDefinitionStatus("published");
+			setPublishedVersionId(r.versionId);
 			queryClient.invalidateQueries({
 				queryKey: ["widget-definitions", organizationId],
 			});
+			await refreshVersions();
 			toast.success("Widget published");
 		} catch {
 			toast.error("Failed to publish");
 		} finally {
+			setPublishingVersionId(null);
 			setPublishing(false);
 		}
-	}, [organizationId, effectiveWidgetId, pages, actions, multiStepOptions, queryClient]);
+	}, [
+		organizationId,
+		effectiveWidgetId,
+		pages,
+		actions,
+		multiStepOptions,
+		queryClient,
+		currentSnapshot,
+		refreshVersions,
+	]);
+
+	const publishVersion = useCallback(
+		async (versionId: string) => {
+			if (!organizationId || !effectiveWidgetId || !versionId) return;
+			setPublishingVersionId(versionId);
+			try {
+				await functionsService.publishModularWidget({
+					organizationId,
+					widgetId: effectiveWidgetId,
+					versionId,
+				});
+				setDefinitionStatus("published");
+				setPublishedVersionId(versionId);
+				setSelectedVersionId(versionId);
+				queryClient.invalidateQueries({
+					queryKey: ["widget-definitions", organizationId],
+				});
+				await refreshVersions();
+				toast.success("Widget published");
+			} catch {
+				toast.error("Failed to publish");
+			} finally {
+				setPublishingVersionId(null);
+			}
+		},
+		[organizationId, effectiveWidgetId, queryClient, refreshVersions],
+	);
 
 	const unpublish = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
@@ -602,6 +788,7 @@ export function useWidgetBuilder({
 				widgetId: effectiveWidgetId,
 			});
 			setDefinitionStatus("draft");
+			setPublishedVersionId(null);
 			queryClient.invalidateQueries({
 				queryKey: ["widget-definitions", organizationId],
 			});
@@ -612,6 +799,49 @@ export function useWidgetBuilder({
 			setUnpublishing(false);
 		}
 	}, [organizationId, effectiveWidgetId, queryClient]);
+
+	const restoreVersion = useCallback(
+		async (versionId: string) => {
+			if (!organizationId || !effectiveWidgetId || !versionId) return;
+			setRestoringVersion(true);
+			try {
+				const config = await functionsService.getModularWidgetConfig({
+					organizationId,
+					widgetId: effectiveWidgetId,
+					widgetVersionId: versionId,
+				});
+				const normalized = normalizeBuilderState({
+					pages: config.widget.pages,
+					actions: config.widget.actions,
+					multiStepOptions: config.widget.multiStepOptions ?? {},
+				});
+				const result = await functionsService.saveModularWidgetVersion({
+					organizationId,
+					widgetId: effectiveWidgetId,
+					pages: normalized.pages,
+					actions: normalized.actions,
+					multiStepOptions:
+						Object.keys(normalized.multiStepOptions).length > 0
+							? normalized.multiStepOptions
+							: undefined,
+				});
+				applyBuilderState(normalized);
+				setSelectedVersionId(result.versionId);
+				await refreshVersions();
+				toast.success("Version restored");
+			} catch {
+				toast.error("Failed to restore version");
+			} finally {
+				setRestoringVersion(false);
+			}
+		},
+		[
+			organizationId,
+			effectiveWidgetId,
+			applyBuilderState,
+			refreshVersions,
+		],
+	);
 
 	const previewStyling: Partial<WidgetStyling> = useMemo(() => {
 		const brand = organization?.settings?.brandColors;
@@ -637,6 +867,7 @@ export function useWidgetBuilder({
 	if (!active) {
 		return {
 			pages: [],
+			isDirty: false,
 			activePageId: null,
 			setActivePageId: noopSetNull,
 			selectedBlockId: null,
@@ -659,10 +890,20 @@ export function useWidgetBuilder({
 			updateBlockProps: noop,
 			save: noopAsync,
 			publish: noopAsync,
+			publishVersion: noopAsync,
 			unpublish: noopAsync,
+			restoreVersion: noopAsync,
+			refreshVersions: noopAsync,
 			widgetName: "",
 			setWidgetName: noopSetStr,
 			handleWidgetNameBlur: noopAsync,
+			versions: [],
+			versionsLoading: false,
+			selectedVersionId: null,
+			setSelectedVersionId: noopSetNull,
+			publishedVersionId: null,
+			publishingVersionId: null,
+			restoringVersion: false,
 			definitionStatus: null,
 			loading: false,
 			saving: false,
@@ -678,6 +919,7 @@ export function useWidgetBuilder({
 
 	return {
 		pages,
+		isDirty,
 		activePageId,
 		setActivePageId,
 		selectedBlockId,
@@ -700,10 +942,20 @@ export function useWidgetBuilder({
 		updateBlockProps,
 		save,
 		publish,
+		publishVersion,
 		unpublish,
+		restoreVersion,
+		refreshVersions,
 		widgetName,
 		setWidgetName,
 		handleWidgetNameBlur,
+		versions,
+		versionsLoading,
+		selectedVersionId,
+		setSelectedVersionId,
+		publishedVersionId,
+		publishingVersionId,
+		restoringVersion,
 		definitionStatus,
 		loading,
 		saving,

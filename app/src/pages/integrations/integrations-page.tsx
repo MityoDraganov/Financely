@@ -18,7 +18,9 @@ import {
 	AutomationsSection,
 	WidgetSidebar,
 	WidgetBuilderPropertiesPanel,
+	CreateWidgetDialog,
 	type TabValue,
+	type WidgetTemplateOption as TemplateOption,
 } from "@/components/integrations";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,20 +48,45 @@ function DesignAreaContent({
 	const isLoadingDefinitions = widgetDesigner?.isLoadingDefinitions ?? false;
 	const onWidgetChange = widgetDesigner?.onWidgetChange ?? (() => {});
 	const onCreateNewWidget = widgetDesigner?.onCreateNewWidget ?? (() => {});
+	const onCreateFromTemplate = widgetDesigner?.onCreateFromTemplate;
 	const isCreatingNewWidget = widgetDesigner?.isCreatingNewWidget ?? false;
+
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [selectedOption, setSelectedOption] = useState<TemplateOption | null>({ kind: "blank" });
+	const [isDialogPending, setIsDialogPending] = useState(false);
+
+	const handleOpenCreateDialog = () => {
+		setSelectedOption({ kind: "blank" });
+		setCreateDialogOpen(true);
+	};
+
+	const handleConfirmCreate = async () => {
+		if (!selectedOption) return;
+		setIsDialogPending(true);
+		try {
+			if (selectedOption.kind === "blank") {
+				await onCreateNewWidget();
+			} else if (onCreateFromTemplate) {
+				await onCreateFromTemplate(selectedOption.template);
+			}
+			setCreateDialogOpen(false);
+		} finally {
+			setIsDialogPending(false);
+		}
+	};
 
 	return (
 		<>
 			{showBuilder && (
-				<aside className="w-fit shrink-0 overflow-y-auto">
+				<aside className="w-fit shrink-0 h-full min-h-0 overflow-hidden">
 					<WidgetSidebar />
 				</aside>
 			)}
 			<main
 				className={
 					noWidgetSelected
-						? "flex-1 min-w-0 overflow-y-auto w-full px-6 py-8"
-						: "flex-1 min-w-0 overflow-y-auto mx-auto max-w-[1400px] px-6 py-8"
+						? "flex-1 min-h-0 min-w-0 overflow-y-auto w-full px-6 py-8"
+						: "flex-1 min-h-0 min-w-0 overflow-y-auto mx-auto max-w-[1400px] px-6 py-8"
 				}
 			>
 				{showBuilder && ctx ? (
@@ -126,43 +153,45 @@ function DesignAreaContent({
 												Publish
 											</Button>
 										)}
-										<Button
-											onClick={() => void ctx.save()}
-											disabled={ctx.saving}
-										>
-											{ctx.saving ? (
-												<Loader2 className="h-4 w-4 animate-spin" />
-											) : null}
-											Save
-										</Button>
+										{ctx.isDirty && (
+											<Button
+												onClick={() => void ctx.save()}
+												disabled={ctx.saving}
+											>
+												{ctx.saving ? (
+													<Loader2 className="h-4 w-4 animate-spin" />
+												) : null}
+												Save
+											</Button>
+										)}
 									</div>
 								</div>
 							</div>
 
-							<div className="min-h-[200px] rounded-lg border bg-card p-6">
-								{ctx.pages.length === 0 ? (
-									<p className="text-sm text-muted-foreground">
-										Add a page from the left to build your widget.
-									</p>
-								) : (
-									<div className="max-w-md mx-auto">
-										<WidgetSchemaRenderer
-											pages={ctx.pages}
-											actions={ctx.actions}
-											styling={ctx.previewStyling}
-											onSubmit={async () => {}}
-											multiStepOptions={ctx.multiStepOptions}
-											previewPageIndex={
-												ctx.activePageId != null
-													? ctx.pages.findIndex((p) => p.id === ctx.activePageId)
-													: undefined
-											}
-										/>
-									</div>
-								)}
+								<div className="min-h-[200px] rounded-lg border bg-card p-6">
+									{ctx.pages.length === 0 ? (
+										<p className="text-sm text-muted-foreground">
+											Add a page from the left to build your widget.
+										</p>
+									) : (
+										<div className="max-w-md mx-auto">
+											<WidgetSchemaRenderer
+												pages={ctx.pages}
+												actions={ctx.actions}
+												styling={ctx.previewStyling}
+												onSubmit={async () => {}}
+												multiStepOptions={ctx.multiStepOptions}
+												previewPageIndex={
+													ctx.activePageId != null
+														? ctx.pages.findIndex((p) => p.id === ctx.activePageId)
+														: undefined
+												}
+											/>
+										</div>
+									)}
+								</div>
 							</div>
-						</div>
-					)
+						)
 				) : noWidgetSelected ? (
 					<div className="max-w-[1400px] mx-auto">
 						<div className="flex flex-col items-center text-center py-12">
@@ -203,23 +232,32 @@ function DesignAreaContent({
 								<>
 									<button
 										type="button"
-										onClick={() => void onCreateNewWidget()}
-										disabled={isCreatingNewWidget}
+										onClick={handleOpenCreateDialog}
+										disabled={isCreatingNewWidget || isDialogPending}
 										className="group flex flex-col items-center justify-center min-h-[180px] rounded-xl border-2 border-dashed border-border bg-background hover:bg-muted/30 hover:border-primary/40 transition-all duration-200 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-70 disabled:pointer-events-none"
 									>
 										<div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/15 transition-colors mb-4">
-											{isCreatingNewWidget ? (
+											{isCreatingNewWidget || isDialogPending ? (
 												<Loader2 className="h-7 w-7 animate-spin" />
 											) : (
 												<Plus className="h-7 w-7" />
 											)}
 										</div>
 										<span className="text-base font-semibold">
-											{isCreatingNewWidget
+											{isCreatingNewWidget || isDialogPending
 												? t("siteBuilder.widgets.creating", "Creating…")
 												: t("siteBuilder.widgets.createNew", "Create New")}
 										</span>
 									</button>
+									<CreateWidgetDialog
+										open={createDialogOpen}
+										isPending={isDialogPending}
+										selectedOption={selectedOption}
+										onSelectedOptionChange={setSelectedOption}
+										onOpenChange={setCreateDialogOpen}
+										onConfirm={() => void handleConfirmCreate()}
+										onCancel={() => setCreateDialogOpen(false)}
+									/>
 									{definitions.map((d) => (
 										<button
 											key={d.id}
@@ -360,14 +398,14 @@ export default function IntegrationsPage() {
 
 	if (isLoading) {
 		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
+			<div className="h-[calc(100dvh-3.5rem)] md:h-screen bg-background flex items-center justify-center overflow-hidden">
 				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 			</div>
 		);
 	}
 
 	return (
-		<div className="min-h-screen bg-background flex flex-col">
+		<div className="h-[calc(100dvh-3.5rem)] md:h-screen bg-background flex flex-col overflow-hidden">
 			{!effectiveWidgetId && <IntegrationsHeader />}
 
 			{effectiveWidgetId && (
@@ -388,7 +426,7 @@ export default function IntegrationsPage() {
 				widgetBelongsToOrg={widgetBelongsToOrg}
 				onDeleteWidget={handleDeleteWidget}
 			>
-				<div className="flex flex-1 min-h-0 w-full">
+				<div className="flex flex-1 min-h-0 w-full overflow-hidden">
 					<DesignAreaContent
 						showBuilder={showBuilder}
 						showPropertiesPanel={showPropertiesPanel}
