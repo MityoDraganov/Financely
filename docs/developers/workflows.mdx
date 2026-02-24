@@ -1,0 +1,244 @@
+---
+title: Workflows
+description: Automate actions triggered by platform events. Full trigger reference, HTTP request step, template variables, and the manual trigger endpoint.
+---
+
+# Workflows
+
+## Overview
+
+Workflows let you automate actions in response to events inside Financely. They are built as directed graphs: a **trigger** fires, then a sequence of **steps** executes.
+
+Go to **Workflows** in the sidebar to create and manage workflows.
+
+## Concepts
+
+| Term | Meaning |
+|------|---------|
+| **Trigger** | The event that starts the workflow (e.g. `invoice.paid`) |
+| **Step** | An action to execute (e.g. HTTP Request, Send Email) |
+| **Edge** | A connection between steps that defines execution order |
+| **Run** | A single execution of the workflow, with its own status and logs |
+| **Version** | Every time you update the steps or edges, a new version is created |
+
+## All available triggers
+
+### Invoice events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `invoice.created` | A new invoice is created |
+| `invoice.paid` | An invoice's status changes to **Paid** |
+| `invoice.sent` | An invoice's status changes to **Sent** |
+| `invoice.overdue` | An invoice passes its due date without being paid (checked daily) |
+
+### Lead events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `lead.qualified` | A lead's status changes to **Contacted** |
+| `lead.converted` | A lead's status changes to **Converted** |
+
+### Contact events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `contact.created` | A new contact is created |
+| `contact.updated` | An existing contact record is updated |
+
+### Proposal events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `proposal.created` | A new proposal is created |
+| `proposal.sent` | A proposal is sent to a client |
+| `proposal.approved` | A proposal's status changes to **Accepted** |
+| `proposal.rejected` | A proposal's status changes to **Rejected** |
+| `proposal.converted_to_invoice` | A proposal is converted to an invoice |
+
+### Product events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `product.created` | A new product is added to the catalog |
+| `product.low_stock` | A product's stock quantity drops to or below its low stock threshold |
+
+### User events
+
+| Trigger | Fires when |
+|---------|-----------|
+| `user.joined` | A user accepts an invitation and joins the organization |
+
+### Schedule
+
+| Trigger | Format |
+|---------|--------|
+| `schedule.cron` | A cron expression string — e.g. `0 9 * * *` = daily at 9 AM UTC |
+
+### Manual trigger
+
+| Trigger | How to use |
+|---------|-----------|
+| `manual.trigger` | HTTP POST to the trigger endpoint (see below) |
+
+### External webhooks
+
+Trigger a workflow from an external system using the `webhookHandler` endpoint with a custom `eventType`. This lets you fire Financely workflows from any external tool that can make an HTTP request.
+
+## HTTP Request step
+
+The most common step type. Sends an HTTP request to any URL.
+
+**Configuration fields:**
+
+| Field | Details |
+|-------|---------|
+| **Method** | GET, POST, PUT, PATCH, DELETE |
+| **URL** | The endpoint to call. Supports template variables. |
+| **Headers** | Key-value pairs. Supports template variables. |
+| **Body** | JSON body for POST/PUT/PATCH. Supports template variables. |
+| **Authentication** | None, Bearer token, or Basic auth |
+
+## Template variables
+
+Use `{variable}` syntax in URL, headers, and body to inject dynamic data from the triggering event.
+
+### Invoice variables
+
+```
+{invoice.number}       → Invoice number (e.g. INV-2025-001)
+{invoice.total}        → Total amount
+{invoice.currency}     → Currency code
+{invoice.status}       → Current status
+{invoice.dueDate}      → Due date (ISO string)
+{invoice.id}           → Firestore document ID
+```
+
+### Customer/contact variables
+
+```
+{customer.name}        → Buyer name
+{customer.email}       → Buyer email address
+{customer.company}     → Buyer company
+```
+
+### Proposal variables
+
+```
+{proposal.title}       → Proposal title
+{proposal.status}      → Current status
+{proposal.id}          → Firestore document ID
+```
+
+### Lead variables
+
+```
+{lead.id}              → Lead document ID
+{lead.status}          → Current status
+```
+
+### Secrets
+
+```
+{secret.api_key}       → Retrieves a secret named "api_key" from your org's secret store
+```
+
+Secrets are stored encrypted and are never exposed in the workflow UI after being set.
+
+## Example: notify on invoice payment
+
+A workflow that POSTs to a Slack webhook when an invoice is paid:
+
+**Trigger:** `invoice.paid`
+
+**Step 1 — HTTP Request:**
+- Method: `POST`
+- URL: `https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK`
+- Body:
+```json
+{
+  "text": "Invoice {invoice.number} has been paid by {customer.name}. Amount: {invoice.total} {invoice.currency}"
+}
+```
+
+## Example: cron — daily overdue check
+
+**Trigger:** `schedule.cron` → `0 8 * * *` (every day at 8 AM UTC)
+
+**Step 1 — HTTP Request:** POST to your CRM or notification endpoint with a daily summary payload.
+
+## Manual trigger endpoint
+
+To trigger a workflow externally via HTTP:
+
+```
+POST https://us-central1-{PROJECT_ID}.cloudfunctions.net/triggerWorkflow
+Content-Type: application/json
+
+{
+  "workflowId": "workflow_abc123",
+  "tenantId": "org_xyz789",
+  "payload": {
+    "customKey": "customValue"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "eventId": "event_def456"
+}
+```
+
+Optional headers:
+- `x-correlation-id` — for tracing across systems
+- `x-idempotency-key` — prevents duplicate executions for the same key
+
+## External webhook trigger
+
+Trigger a workflow from an external system with a custom event type:
+
+```
+POST https://us-central1-{PROJECT_ID}.cloudfunctions.net/webhookHandler
+Content-Type: application/json
+
+{
+  "tenantId": "org_xyz789",
+  "eventType": "payment.received",
+  "payload": {
+    "amount": 500,
+    "currency": "EUR"
+  }
+}
+```
+
+Create a workflow with a trigger matching `payment.received` to handle this.
+
+## Workflow run history
+
+Every workflow execution creates a **Run** record. View run history from the workflow detail page:
+
+- **Status**: pending, running, completed, failed
+- **Started / completed at** timestamps
+- **Step results**: per-step status, request/response data, error messages
+
+Use this to debug failed runs — expand any step to see the exact HTTP request sent and the response received.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Workflow is not triggering">
+    Confirm the trigger event type matches exactly (case-sensitive). For Firestore-based triggers (invoice.paid, lead.converted, etc.), the trigger fires when the document field changes — make sure the status change is actually happening in the app.
+  </Accordion>
+  <Accordion title="HTTP Request step is failing">
+    Open the run history and expand the failed step. The response body and status code are logged. Common issues: wrong URL, missing auth header, body format mismatch, or the target server is rejecting requests.
+  </Accordion>
+  <Accordion title="Template variables are not being replaced">
+    Variable names are case-sensitive. Use the exact names listed in this document. If a variable is empty (e.g. customer has no company), the placeholder is replaced with an empty string.
+  </Accordion>
+  <Accordion title="Cron workflow is not running on schedule">
+    Cron expressions use UTC. Adjust accordingly for your local timezone. Crons are checked every minute — a workflow set to `0 9 * * *` fires once per day at exactly 09:00 UTC.
+  </Accordion>
+</AccordionGroup>

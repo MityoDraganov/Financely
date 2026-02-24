@@ -1,0 +1,174 @@
+---
+title: Widget Submissions
+description: How form submissions are processed server-side, what data is accepted, and how the lead creation pipeline works.
+---
+
+# Widget Submissions
+
+## Submission endpoint
+
+When a visitor submits a widget form, the widget loader POSTs to:
+
+```
+POST https://us-central1-{PROJECT_ID}.cloudfunctions.net/submitModularWidget
+```
+
+This is an HTTP function with CORS enabled. It is publicly accessible — no authentication is required from the visitor.
+
+## Accepted input fields
+
+The following fields can be collected by widget input blocks. All are optional unless marked as required in the widget's block configuration.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | string | Full name or display name |
+| `email` | string | Used for contact deduplication |
+| `phone` | string | Phone number (normalized server-side) |
+| `company` | string | Company or organisation name |
+| `jobTitle` | string | Job title |
+| `message` | string | Free-text message field |
+| `notes` | string | Additional notes |
+| `_hp` | string | Honeypot field — must be empty. Always include in your form but keep it hidden. |
+
+Additional custom fields from `text`, `textarea`, `select`, `checkbox`, and `date` blocks are collected as key-value pairs and stored in the lead's form data.
+
+## Server-side processing flow
+
+```
+Incoming POST
+    │
+    ├─ 1. Rate limit check (IP + org)
+    │        → Exceeded: return 200 (silent drop)
+    │
+    ├─ 2. Honeypot check (_hp field)
+    │        → Non-empty: return 200 (silent drop)
+    │
+    ├─ 3. Duplicate submission check (60s window, same IP + org)
+    │        → Duplicate: return 200 (silent drop)
+    │
+    ├─ 4. Fetch published widget version
+    │        → Not found / not published: return 400
+    │
+    ├─ 5. Validate + normalize data
+    │        → Trim strings, standardize phone format
+    │
+    ├─ 6. Contact upsert
+    │        → Check for existing contact by email in org
+    │        → If found: update with any new data
+    │        → If not found: create new contact
+    │
+    ├─ 7. Lead creation
+    │        → Create lead record linked to contact
+    │        → Source: "widget", widgetId, widgetType
+    │
+    ├─ 8. Usage event recorded (WIDGET_FORM_SUBMIT)
+    │
+    ├─ 9. Auto-proposal (if enabled in org AI settings)
+    │        → Triggers proposal generation asynchronously
+    │
+    └─ 10. Webhook dispatch
+             → POST to all configured webhook endpoints for this org
+             → Events: widget.submitted
+
+Return: HTTP 200 { success: true, message: "Form submitted successfully" }
+```
+
+<Note>
+The endpoint always returns HTTP 200, including for silently dropped submissions (spam, honeypot, duplicates). This is intentional — it prevents attackers from probing the spam filters.
+</Note>
+
+## Response
+
+```json
+{
+  "success": true,
+  "message": "Form submitted successfully"
+}
+```
+
+## Contact deduplication
+
+On every submission, Financely looks up an existing contact in the organization by exact email match (case-insensitive). If found, the contact record is updated with any new non-empty fields from the submission. If not found, a new contact is created.
+
+This means repeated submissions from the same email address enrich the contact record rather than creating duplicates.
+
+## Lead record
+
+A lead record is created for every valid submission. Key fields:
+
+```json
+{
+  "organizationId": "org_abc123",
+  "contactId": "contact_xyz789",
+  "source": "widget",
+  "widgetId": "widget_def456",
+  "status": "new",
+  "data": {
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "message": "I'd like a quote for 50 units."
+  },
+  "createdAt": "2025-03-15T10:30:00.000Z"
+}
+```
+
+## Webhook payload — `widget.submitted`
+
+When a submission is processed, all configured webhook endpoints for the organization receive this payload:
+
+```json
+{
+  "event": "widget.submitted",
+  "organizationId": "org_abc123",
+  "widgetId": "widget_def456",
+  "submittedAt": "2025-03-15T10:30:00.000Z",
+  "data": {
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "phone": "+1 555 000 1234",
+    "company": "Acme Corp",
+    "message": "I'd like a quote for 50 units."
+  },
+  "leadId": "lead_ghi012"
+}
+```
+
+## HMAC signature verification (Node.js)
+
+Every webhook request includes an `X-Financely-Signature` header. Verify it as follows:
+
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(secret, rawBody, signatureHeader) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)          // rawBody must be the raw Buffer/string, not parsed JSON
+    .digest('hex');
+
+  const provided = signatureHeader.replace('sha256=', '');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected, 'hex'),
+    Buffer.from(provided, 'hex')
+  );
+}
+
+// Express example
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig = req.headers['x-financely-signature'];
+  const isValid = verifySignature(process.env.WEBHOOK_SECRET, req.body, sig);
+
+  if (!isValid) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const event = JSON.parse(req.body);
+  // handle event...
+  res.sendStatus(200);
+});
+```
+
+<Warning>
+Always use `express.raw()` (or equivalent) to get the raw body before parsing. Computing the HMAC on a re-serialized JSON object will not produce the same signature.
+</Warning>

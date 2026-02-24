@@ -1,0 +1,46 @@
+---
+title: Developer Docs
+description: Integrate Financely into your website and external tools using widgets, webhooks, and workflow automation.
+---
+
+# Developer Docs
+
+## What's covered here
+
+These docs are for developers who want to:
+
+- **Embed widgets** on a website to capture leads into Financely
+- **Receive webhook events** when submissions, invoices, or leads are created
+- **Automate workflows** triggered by events inside Financely
+
+<Note>
+Financely does not currently have a public REST API. All external integration is done through the widget embed system, webhooks, and the workflow engine. If you need deeper API access, contact support.
+</Note>
+
+## Sections
+
+<CardGroup cols={2}>
+  <Card title="Widget Overview" icon="cube" href="/developers/widgets/overview">
+    Understand the widget data model — definitions, pages, blocks, versions, and the submission pipeline.
+  </Card>
+  <Card title="Embed a Widget" icon="code" href="/developers/widgets/embed">
+    The full embed script reference — attributes, CSP requirements, and platform-specific guides.
+  </Card>
+  <Card title="Widget Submissions" icon="paper-plane" href="/developers/widgets/submissions">
+    What happens when a form is submitted — the full server-side flow, input schema, and security model.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/developers/webhooks">
+    Receive real-time event payloads at your endpoint. Signature verification, retry behaviour, and full payload schemas.
+  </Card>
+  <Card title="Workflows" icon="bolt" href="/developers/workflows">
+    All available trigger events, the HTTP request step, template variables, and the manual trigger endpoint.
+  </Card>
+</CardGroup>
+
+## Quick orientation
+
+**Widget embed** — you build a form in the Financely UI, copy a `<script>` tag, paste it on your site. Done. Submissions create leads automatically.
+
+**Webhooks** — configure an HTTPS endpoint in **Integrations → Automations**. Financely POSTs a JSON payload to that URL on each submission event.
+
+**Workflows** — build automations inside Financely that fire on any platform event (invoice paid, lead created, etc.) and execute HTTP requests, send emails, or chain conditional logic.

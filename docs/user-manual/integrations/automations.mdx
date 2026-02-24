@@ -1,0 +1,100 @@
+---
+title: Automations
+description: Send widget submission data to external tools via webhooks, Zapier, and Google Sheets.
+---
+
+# Automations
+
+## Overview
+
+The Automations tab lets you connect Financely widget submissions to external services — your own backend, Zapier automations, or a Google Sheet. Every time someone submits a widget form, the configured integrations receive the data automatically.
+
+## Webhooks
+
+Webhooks let you receive widget submission data at any HTTP endpoint you control — your own server, a serverless function, or a third-party service.
+
+### Configuring a webhook
+
+1. Go to **Integrations → Automations tab**
+2. Click **Add webhook**
+3. Fill in:
+   - **Endpoint URL** — the HTTPS URL that will receive the POST request
+   - **Events** — select which events to send:
+     - `widget.submitted` — fires when a visitor completes and submits the form
+     - `widget.started` — fires when a visitor opens the widget and starts filling it in
+   - **Retries** — how many times to retry on failure (0–5). Failed deliveries are retried with a short delay.
+4. Click **Save**
+
+### Testing your webhook
+
+Click **Send test event** to fire a sample payload to your endpoint immediately. Use this to verify your endpoint is receiving requests correctly before going live.
+
+### HMAC signature verification
+
+Every webhook request includes an `X-Financely-Signature` header containing an HMAC-SHA256 signature of the request body. Use this to verify that requests are genuinely from Financely and have not been tampered with.
+
+See [Webhooks](/developers/webhooks) in the Developer Docs for the full verification implementation.
+
+### Example payload — `widget.submitted`
+
+```json
+{
+  "event": "widget.submitted",
+  "organizationId": "org_abc123",
+  "widgetId": "widget_xyz789",
+  "submittedAt": "2025-03-15T10:30:00.000Z",
+  "data": {
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "phone": "+1 555 000 1234",
+    "company": "Acme Corp",
+    "message": "I'd like a quote for 50 units."
+  },
+  "leadId": "lead_def456"
+}
+```
+
+## Zapier
+
+Connect Financely to 5,000+ apps through Zapier without writing any code.
+
+1. Click **Connect Zapier** in the Automations tab
+2. You'll be directed to the Zapier connector page
+3. Create a Zap using the Financely trigger
+4. Choose the app you want to connect (Slack, Google Sheets, HubSpot, Notion, etc.)
+5. Map the submission fields to your target app's fields
+
+## Google Sheets
+
+Automatically sync widget submissions to a Google Spreadsheet — each submission becomes a new row.
+
+1. Click **Connect Google Sheets** in the Automations tab
+2. Authorize your Google account
+3. Select the spreadsheet and sheet to write to
+4. Field mapping is automatic — each widget field becomes a column
+
+## Coming soon
+
+The following integrations are in development:
+
+- **Slack notifications** — post a message to a Slack channel on each submission
+- **HubSpot CRM** — create or update contacts and deals in HubSpot
+- **Airtable** — add records to an Airtable base
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="My webhook endpoint is not receiving events">
+    Check that:
+    1. The endpoint URL is publicly accessible over HTTPS (HTTP endpoints are not supported)
+    2. Your endpoint returns a `2xx` HTTP status code — non-2xx responses are treated as failures and trigger retries
+    3. The widget that submissions are coming from is **Published**
+    4. Try the **Send test event** button to confirm delivery manually
+  </Accordion>
+  <Accordion title="Webhook delivery keeps failing after retries">
+    If all retry attempts fail, the event is dropped. Check your endpoint logs for errors. Common causes: endpoint returning a 5xx error, timeout (response must arrive within a few seconds), or a firewall blocking inbound requests.
+  </Accordion>
+  <Accordion title="Signature verification is failing">
+    Make sure you're computing the HMAC against the raw request body (before any JSON parsing). See [Webhooks](/developers/webhooks) for a working code example.
+  </Accordion>
+</AccordionGroup>

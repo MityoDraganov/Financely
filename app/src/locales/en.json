@@ -569,34 +569,51 @@
 	},
 	"templates": {
 		"title": "Templates",
-		"subtitle": "Manage your invoice templates",
+		"subtitle": "Create and manage your invoice and email templates",
+		"browseMarketplace": "Browse Marketplace",
 		"actions": {
-			"createInvoice": "Create invoice template",
-			"createEmail": "Create email template"
+			"createInvoice": "Create Invoice Template",
+			"createEmail": "Create Email Template"
 		},
 		"sections": {
 			"invoice": {
-				"title": "Invoice templates",
-				"description": "Reusable PDF layouts for invoices and proposals."
+				"title": "Invoice Templates",
+				"description": "Design and manage your invoice templates"
 			},
 			"email": {
-				"title": "Email templates",
-				"description": "Transactional emails for invoices, proposals, and workflow events."
+				"title": "Email Templates",
+				"description": "Create and manage email templates for invoices and communications"
 			}
 		},
-		"createNew": "Create New Template",
 		"empty": {
 			"title": "No templates yet",
-			"description": "Create your first invoice template to get started. Templates define the layout and structure of your invoices.",
+			"description": "Create your first template to get started with automated invoicing",
 			"createFirst": "Create Your First Template"
 		},
 		"card": {
 			"untitled": "Untitled Template",
 			"noDescription": "No description",
-			"draft": "draft",
-			"published": "published",
+			"published": "Published",
+			"draft": "Draft",
 			"elements": "{{count}} element",
 			"elementsPlural": "{{count}} elements"
+		},
+		"email": {
+			"empty": {
+				"title": "No email templates yet",
+				"description": "Create your first email template for invoice communications",
+				"createFirst": "Create Your First Email Template"
+			},
+			"card": {
+				"untitled": "Untitled Email Template",
+				"noSubject": "No subject"
+			},
+			"status": {
+				"published": "Published",
+				"draft": "Draft"
+			},
+			"lastUpdated": "Updated {{date}}",
+			"openDesigner": "Open in Designer"
 		},
 		"delete": {
 			"title": "Delete Template",
@@ -606,12 +623,12 @@
 			"deleting": "Deleting..."
 		},
 		"bulkDelete": {
-			"selectAll": "Select all",
-			"deselectAll": "Deselect all",
 			"delete": "Delete {{count}} selected",
 			"clear": "Clear selection",
-			"title": "Delete {{count}} template",
-			"title_plural": "Delete {{count}} templates",
+			"selectAll": "Select all",
+			"deselectAll": "Deselect all",
+			"title": "Delete {{count}} template?",
+			"title_plural": "Delete {{count}} templates?",
 			"description": "Are you sure you want to delete {{count}} selected template? This action cannot be undone.",
 			"description_plural": "Are you sure you want to delete {{count}} selected templates? This action cannot be undone.",
 			"confirm": "Delete {{count}} template",
@@ -619,23 +636,6 @@
 			"deleting": "Deleting...",
 			"success": "Successfully deleted {{count}} template",
 			"success_plural": "Successfully deleted {{count}} templates"
-		},
-		"email": {
-			"empty": {
-				"title": "No email templates yet",
-				"description": "Create customizable email layouts for invoices, proposals, and workflow events.",
-				"createFirst": "Create your first email template"
-			},
-			"card": {
-				"untitled": "Untitled email template",
-				"noSubject": "No subject"
-			},
-			"status": {
-				"draft": "Draft",
-				"published": "Published"
-			},
-			"lastUpdated": "Updated {{date}}",
-			"openDesigner": "Open email designer"
 		}
 	},
 	"designer": {
@@ -1002,15 +1002,15 @@
 			"title": "Layout Patterns",
 			"description": "Choose a pre-designed layout pattern"
 		},
-			"sidebar": {
-				"select": "Select",
-				"duplicate": "Duplicate",
-				"delete": "Delete",
-				"column": "Column",
-				"dropToNest": "Drop to nest",
-				"nestedBlockSingular": "1 nested block",
-				"nestedBlocksPlural": "{{count}} nested blocks"
-			},
+		"sidebar": {
+			"select": "Select",
+			"duplicate": "Duplicate",
+			"delete": "Delete",
+			"column": "Column",
+			"dropToNest": "Drop to nest",
+			"nestedBlockSingular": "1 nested block",
+			"nestedBlocksPlural": "{{count}} nested blocks"
+		},
 		"blocks": {
 			"title": "Content blocks",
 			"currentBlocks": "Current blocks",
@@ -1140,7 +1140,6 @@
 			"lineWidth": "Line width",
 			"buttonWidth": "Button width",
 			"buttonHeight": "Button height",
-			"link": "Link",
 			"navigationLinks": "Navigation Links",
 			"navigationLinksHint": "Add navigation menu items",
 			"linkLabel": "Label",
@@ -1165,7 +1164,6 @@
 			"justifySpaceBetween": "Space Between",
 			"stackOnMobile": "Stack on Mobile",
 			"maxWidth": "Max Width",
-			"padding": "Padding",
 			"paddingNone": "None",
 			"paddingXS": "Extra Small",
 			"paddingSM": "Small",
@@ -2529,12 +2527,11 @@
 				"pageDescription": "Manage your organization's basic information and contact details.",
 				"basicInformation": {
 					"title": "Basic Information",
-					"description": "Your organization's primary details and description.",
+					"description": "Description",
 					"name": "Organization Name *",
 					"namePlaceholder": "Enter organization name",
 					"website": "Website",
 					"websitePlaceholder": "https://example.com",
-					"description": "Description",
 					"descriptionPlaceholder": "Brief description of your organization"
 				},
 				"contactInformation": {
@@ -2915,10 +2912,10 @@
 					"title": "Approve",
 					"copy": "Send proposals to the right approvers for compliance."
 				},
-			"convert": {
-				"title": "Convert",
-				"copy": "Transform approved proposals into invoices instantly with AI-powered conversion."
-			}
+				"convert": {
+					"title": "Convert",
+					"copy": "Transform approved proposals into invoices instantly with AI-powered conversion."
+				}
 			}
 		},
 		"features": {
@@ -3271,77 +3268,6 @@
 			"subtitle": "Share your templates with the community"
 		}
 	},
-	"templates": {
-		"title": "Templates",
-		"subtitle": "Create and manage your invoice and email templates",
-		"browseMarketplace": "Browse Marketplace",
-		"actions": {
-			"createInvoice": "Create Invoice Template",
-			"createEmail": "Create Email Template"
-		},
-		"sections": {
-			"invoice": {
-				"title": "Invoice Templates",
-				"description": "Design and manage your invoice templates"
-			},
-			"email": {
-				"title": "Email Templates",
-				"description": "Create and manage email templates for invoices and communications"
-			}
-		},
-		"empty": {
-			"title": "No templates yet",
-			"description": "Create your first template to get started with automated invoicing",
-			"createFirst": "Create Your First Template"
-		},
-		"card": {
-			"untitled": "Untitled Template",
-			"noDescription": "No description",
-			"published": "Published",
-			"draft": "Draft",
-			"elements": "{{count}} element",
-			"elementsPlural": "{{count}} elements"
-		},
-		"email": {
-			"empty": {
-				"title": "No email templates yet",
-				"description": "Create your first email template for invoice communications",
-				"createFirst": "Create Your First Email Template"
-			},
-			"card": {
-				"untitled": "Untitled Email Template",
-				"noSubject": "No subject"
-			},
-			"status": {
-				"published": "Published",
-				"draft": "Draft"
-			},
-			"lastUpdated": "Updated {{date}}",
-			"openDesigner": "Open in Designer"
-		},
-		"delete": {
-			"title": "Delete Template",
-			"description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-			"cancel": "Cancel",
-			"delete": "Delete",
-			"deleting": "Deleting..."
-		},
-		"bulkDelete": {
-			"delete": "Delete {{count}} selected",
-			"clear": "Clear selection",
-			"selectAll": "Select all",
-			"deselectAll": "Deselect all",
-			"title": "Delete {{count}} template?",
-			"title_plural": "Delete {{count}} templates?",
-			"description": "Are you sure you want to delete {{count}} selected template? This action cannot be undone.",
-			"description_plural": "Are you sure you want to delete {{count}} selected templates? This action cannot be undone.",
-			"confirm": "Delete {{count}} template",
-			"confirm_plural": "Delete {{count}} templates",
-			"deleting": "Deleting...",
-			"success": "Successfully deleted {{count}} template",
-			"success_plural": "Successfully deleted {{count}} templates"
-		}
-	},
 	"common": {
 		"cancel": "Cancel",
 		"save": "Save",
@@ -3365,5 +3291,11 @@
 		"previous": "Previous",
 		"next": "Next",
 		"page": "Page"
+	},
+	"help": {
+		"openMenu": "Help",
+		"menuLabel": "Documentation",
+		"userManual": "User manual",
+		"developerDocs": "Developer docs"
 	}
 }

@@ -1,0 +1,91 @@
+---
+title: Proposals
+description: Create and send proposals manually or have AI generate them from your leads and product catalog.
+---
+
+# Proposals
+
+## Overview
+
+Proposals let you quote clients before committing to an invoice. Financely can generate proposals automatically when a new lead arrives, or you can build them manually. Accepted proposals convert directly into invoices.
+
+## Creating a proposal manually
+
+<Steps>
+  <Step title="Go to Proposals → Create Proposal">
+    Click **Create Proposal**.
+  </Step>
+  <Step title="Fill in the details">
+    - **Title** — e.g. "Website Redesign Proposal"
+    - **Description** — summary of the work or offer
+    - **Items** — add line items with quantity, unit price, and tax rate
+    - **Terms & conditions** — your standard terms
+    - **Notes** — any additional information for the client
+  </Step>
+  <Step title="Link to a lead (optional)">
+    Attach the proposal to an existing lead to keep your pipeline organized.
+  </Step>
+  <Step title="Save as draft">
+    Click **Save**. The proposal is saved with status **Draft**.
+  </Step>
+</Steps>
+
+## AI-generated proposals
+
+From a lead's detail page, click **Generate Proposal**. Financely sends the lead's information and your product catalog to the AI, which returns a structured proposal draft with:
+
+- A suggested title
+- Relevant items matched to your products
+- Pricing based on your catalog
+- Draft terms and notes
+
+You can review and edit every field before sending.
+
+<Info>
+AI proposal generation works best when your product catalog is up to date. The more product details you provide (descriptions, prices, categories), the more accurate the suggestions will be.
+</Info>
+
+## Auto-proposal on lead creation
+
+You can enable **auto-proposal generation** in your organization settings. When turned on, every new lead that arrives (from a widget submission or manual entry) automatically triggers an AI-generated proposal draft — no manual step required.
+
+To enable: **Settings → Organization → AI Settings → Auto-generate proposals**
+
+## Proposal statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Created but not yet sent to client |
+| **Sent** | Delivered to the client |
+| **Accepted** | Client agreed to the proposal |
+| **Rejected** | Client declined |
+
+## Sending a proposal
+
+Open the proposal and click **Send**. The proposal is emailed to the associated contact or the email address you specify. Status updates to **Sent**.
+
+## Converting a proposal to an invoice
+
+When a proposal is accepted:
+
+1. Open the proposal
+2. Click **Convert to Invoice**
+3. Choose the invoice template
+4. Financely's AI maps the proposal data to the invoice template's bindings — items, buyer info, seller info, totals
+5. Review the generated invoice draft and save
+
+The proposal and invoice remain linked so you can trace the full history.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="AI proposal generation produces irrelevant items">
+    Make sure your product catalog has accurate names, descriptions, and prices. Generic product names produce generic suggestions. Adding categories and tags improves the AI's ability to match products to the lead's needs.
+  </Accordion>
+  <Accordion title="Auto-proposals are not being generated">
+    Check that **Auto-generate proposals** is enabled in Settings → Organization → AI Settings. Also verify that your AI configuration (API key, model settings) is correctly set up.
+  </Accordion>
+  <Accordion title="Convert to Invoice button is missing">
+    This button only appears on proposals with status **Accepted**. Change the proposal status to Accepted first.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,101 @@
+---
+title: Products
+description: Manage your product and service catalog, track inventory, and power AI proposal generation.
+---
+
+# Products
+
+## Overview
+
+The product catalog stores everything you sell — physical products, services, subscriptions, or anything else you quote and invoice for. Products are used by the AI proposal generator to suggest relevant items when a new lead arrives, and can be added manually to proposals and invoices.
+
+## Product fields
+
+| Field | Details |
+|-------|---------|
+| **Name** | Required |
+| **SKU** | Stock keeping unit — optional reference code |
+| **Description** | Shown in proposals and invoices |
+| **Price** | Selling price |
+| **Cost** | Your cost price (internal, not shown to clients) |
+| **Currency** | Currency for the price |
+| **Category** | Group products by type |
+| **Tags** | Labels for filtering and AI matching |
+| **Status** | `active`, `inactive`, `archived` |
+| **Images** | Upload multiple — the first image is the featured/primary image |
+| **Tax rate** | Applied when the product is added to a proposal or invoice |
+| **Inventory tracking** | Toggle on to enable stock quantity management |
+| **Stock quantity** | Current units in stock (only when inventory tracking is on) |
+| **Low stock threshold** | Triggers a `product.low_stock` workflow event when stock drops below this number |
+
+## Creating a product
+
+1. Go to **Products** in the sidebar
+2. Click **New Product**
+3. Fill in at minimum: name and price
+4. Optionally add images, inventory settings, and custom fields
+5. Click **Save**
+
+## Editing a product
+
+Click any product in the list to open the detail view. All fields are editable. Click **Save** to apply changes.
+
+## Deleting a product
+
+In the product list, click the actions menu on a product row and select **Delete**. Confirm in the dialog. Deleted products are removed permanently.
+
+## Search and filtering
+
+- **Search**: Filters by name, description, and SKU in real time
+- **Status filter**: Show `active`, `inactive`, `archived`, or all products
+
+## Product images
+
+Upload multiple images per product. Images are shown in a gallery. The **first image uploaded becomes the featured image** — it's displayed in the product list and used in proposals. Drag to reorder images in the gallery.
+
+## Inventory tracking
+
+Enable **Inventory tracking** on a product to track stock levels:
+
+- Set the current **stock quantity**
+- Set a **low stock threshold** — when stock drops to or below this number, a `product.low_stock` workflow event fires
+- You can wire this event to a workflow that sends you a notification (see [Workflows](/developers/workflows))
+
+When inventory tracking is off, the product is treated as unlimited stock.
+
+## Custom fields (Metafields)
+
+You can add custom fields to all products in your organization:
+
+1. Open any product's detail page
+2. Scroll to **Custom Fields**
+3. Click **Manage Fields** to define field types: text, number, date, select, boolean
+4. Once defined, the field appears on every product — fill in values per product
+
+Metafield definitions are shared across all products in your organization.
+
+## CSV export
+
+Click **Export** in the products list to download all products (including metafield values) as a CSV file.
+
+## How products power AI proposals
+
+When you click **Generate Proposal** from a lead, Financely sends your full product catalog to the AI along with the lead's details. The AI analyses the lead's needs and matches them to the most relevant products, then builds a proposal draft with those items pre-filled including your prices and descriptions.
+
+<Tip>
+Keep your product names, descriptions, and categories accurate. The AI uses this information to make matches — vague or missing descriptions lead to less relevant suggestions.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="AI proposal is not suggesting the right products">
+    Check that the products have clear names and descriptions. Add relevant tags and categories. If your product catalog has many items, more specific descriptions help the AI narrow down the right matches for a given lead.
+  </Accordion>
+  <Accordion title="Low stock workflow is not triggering">
+    Make sure inventory tracking is enabled on the product and a low stock threshold is set. Also confirm you have a workflow configured with the `product.low_stock` trigger. See [Workflows](/developers/workflows) for setup details.
+  </Accordion>
+  <Accordion title="Product images are not displaying">
+    Images are stored in Firebase Storage. If images aren't appearing, try re-uploading. Supported formats: JPG, PNG, WebP, GIF.
+  </Accordion>
+</AccordionGroup>

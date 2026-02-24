@@ -1,0 +1,72 @@
+---
+title: Leads
+description: Capture, track, and convert leads from your website widgets or manual entry.
+---
+
+# Leads
+
+## Overview
+
+Leads represent potential clients who have expressed interest in your business. They can come from three sources:
+
+1. **Widget submissions** — a visitor fills out a contact form or quote request form embedded on your website
+2. **Manual entry** — you create a lead directly in the app
+3. **Import** — bulk import from a CSV or external source
+
+## Lead statuses
+
+| Status | Meaning |
+|--------|---------|
+| **New** | Just created, not yet reviewed |
+| **Viewed** | You've opened the lead |
+| **Contacted** | You've reached out to the lead |
+| **Converted** | Lead became a client (linked to a contact) |
+| **Archived** | No longer active, removed from active pipeline |
+
+## Creating a lead manually
+
+Go to **Leads → New Lead** and fill in:
+- Name and contact details (email, phone)
+- Source and notes
+- Status
+
+## What happens when a widget submission arrives
+
+1. The visitor submits a form on your website
+2. Financely creates a lead automatically with the submitted data
+3. If the email matches an existing contact in your organization, the lead is linked to that contact
+4. If **auto-proposal generation** is enabled, a proposal draft is created immediately
+5. The lead appears in your Leads list with status **New**
+
+## Converting a lead to a contact
+
+When a lead is ready to become a long-term client:
+
+1. Open the lead
+2. Click **Convert to Contact**
+3. A contact record is created with the lead's information
+4. The lead status updates to **Converted**
+5. The contact and lead remain linked
+
+## Creating a proposal from a lead
+
+From the lead detail page you have two options:
+
+- **Manual**: Click **Create Proposal** to build a proposal yourself
+- **AI-assisted**: Click **Generate Proposal** to have AI create a draft based on the lead data and your product catalog
+
+See [Proposals](/user-manual/proposals) for full details.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Widget submissions are not creating leads">
+    Make sure your widget is **published** (not in draft status). Also check that the embed script is correctly placed on your website — the `data-org-id` and `data-widget-id` attributes must be present. See [Widget Embed](/user-manual/integrations/widget-embed) for details.
+  </Accordion>
+  <Accordion title="Duplicate leads from the same person">
+    Financely checks for an existing contact by email when a widget submission arrives and links accordingly, but does not deduplicate leads themselves. If the same person submits multiple forms, multiple leads are created. You can manually archive duplicates.
+  </Accordion>
+  <Accordion title="Lead is missing form data">
+    The data captured in a lead depends on the fields configured in the widget that generated it. If expected fields are missing, check the widget configuration under **Integrations**.
+  </Accordion>
+</AccordionGroup>

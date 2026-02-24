@@ -1,0 +1,170 @@
+---
+title: Widget Builder & Embed
+description: Build multi-step form widgets, publish them, and embed them on any website to capture leads.
+---
+
+# Widget Builder & Embed
+
+## Creating a widget
+
+1. Go to **Integrations** in the sidebar
+2. Click the **Create New** tile in the widget grid
+3. A new widget is created and opened automatically
+4. Type a name in the **Widget name** field at the top of the editor
+
+## Building your widget
+
+Widgets are made up of **pages** and **blocks**. A page is a step in the form. Each page contains one or more blocks (fields, layout elements, or actions).
+
+### Managing pages
+
+- Click **Add page** in the left sidebar to add a new step
+- Hover a page to reveal the drag handle — drag to reorder
+- Click the trash icon to delete a page (minimum 1 page is required)
+
+### Block types
+
+Blocks are added from the left sidebar. They are organized into four groups:
+
+**Layout**
+| Block | Purpose |
+|-------|---------|
+| Section header | Title and subtitle for a form section |
+| Container | Groups other blocks together |
+| Card | Styled container with a border |
+| Columns | Two-column layout |
+| Divider | Horizontal rule |
+| Spacer | Empty vertical space |
+
+**Content**
+| Block | Purpose |
+|-------|---------|
+| Paragraph | Static text shown to the user |
+
+**Inputs** — these collect data from the visitor
+| Block | Collected data |
+|-------|---------------|
+| Text | Single-line text |
+| Email | Email address (validated) |
+| Phone | Phone number |
+| Textarea | Multi-line text |
+| Select | Dropdown with predefined options |
+| Checkbox | Boolean yes/no |
+| Date | Date picker |
+
+**Actions**
+| Block | Purpose |
+|-------|---------|
+| Submit button | Submits the form — required on the last page |
+| Success message | Shown after successful submission |
+
+### Block operations
+
+Right-click any block (or use the block's context menu) to:
+- **Duplicate** — copy the block in place
+- **Delete** — remove the block
+- **Move up / Move down** — reorder within the page
+
+### Multi-step options
+
+When your widget has more than one page, configure the step navigation in the **Properties panel** on the right:
+- **Show progress bar** — displays a progress indicator at the top
+- **Progress style** — bar or dots
+- **Next button label** — default: "Next"
+- **Back button label** — default: "Back"
+- **Submit button label** — default: "Submit"
+
+## Saving
+
+Click **Save** to save the current state as a new version. Every save creates a new version in the version history — you can restore any previous version from the versions list.
+
+## Publishing vs draft
+
+| State | Behaviour |
+|-------|-----------|
+| **Draft** | Widget is not live. The embed script will not render the widget. Submissions are rejected. |
+| **Published** | Widget is live. Submissions are processed and create leads. |
+
+Click **Publish** to make the widget live. Click **Make Draft** to take it offline without deleting it.
+
+<Warning>
+Only **published** widgets accept submissions. If your embedded widget is not appearing or not submitting, check that the widget status is **Published**.
+</Warning>
+
+## Sharing & embedding
+
+Once a widget is selected, open the **Share & Embed** tab.
+
+### Shareable link
+
+A hosted URL where visitors can fill in the widget directly — no embedding required. Share this link in emails, social media, or anywhere you want to direct people.
+
+### Script embed (recommended)
+
+The script embed is the standard way to add a widget to your website. Copy the code snippet and paste it into your site's HTML where you want the widget to appear.
+
+```html
+<script
+  src="https://financely.app/widget-loader.js"
+  data-org-id="YOUR_ORG_ID"
+  data-widget-id="YOUR_WIDGET_ID"
+  data-api-url="https://us-central1-YOUR_PROJECT.cloudfunctions.net"
+  data-app-url="https://financely.app"
+></script>
+```
+
+The script automatically loads the latest published version of the widget — no need to update the embed code after you make changes and republish.
+
+### iFrame embed
+
+For platforms that block external scripts (Wix, Squarespace), use the iFrame embed instead. It loads the widget in an isolated frame.
+
+```html
+<iframe
+  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID"
+  width="100%"
+  height="600"
+  frameborder="0"
+></iframe>
+```
+
+### Platform quick-start guides
+
+| Platform | Method |
+|----------|--------|
+| **Webflow** | Add an **Embed** element → paste the script embed code |
+| **Wix** | Add an **HTML iframe** element → use the iFrame embed code |
+| **Squarespace** | Go to a page → Add block → **Code** → paste the script embed |
+| **Framer** | Add an **Embed** component → paste the script embed code |
+
+## Widget versioning
+
+Every time you click **Save**, a new version is created. To view or restore a previous version:
+
+1. Open the widget in the Design tab
+2. Click **Version history** (clock icon in the header)
+3. Browse previous versions with their timestamps
+4. Click **Restore** on any version to make it the current draft
+
+Restoring a version does not automatically publish it — you still need to click **Publish** after restoring.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Widget is not appearing on my website">
+    Check that:
+    1. The widget status is **Published** (not Draft)
+    2. The `data-org-id` and `data-widget-id` attributes in your embed script are correct — copy them directly from the Share & Embed tab
+    3. There are no JavaScript errors in your browser console blocking the script from loading
+    4. Your site's Content Security Policy (CSP) allows scripts from `financely.app` — if not, use the iFrame embed instead
+  </Accordion>
+  <Accordion title="Submissions are not creating leads">
+    Confirm the widget is **Published**. Draft widgets silently reject submissions. Also check the Leads page to confirm — leads from widget submissions appear with source "widget".
+  </Accordion>
+  <Accordion title="The widget shows but the submit button does nothing">
+    Make sure the last page of your widget includes a **Submit button** block from the Actions group. Without it, the form cannot be submitted.
+  </Accordion>
+  <Accordion title="iFrame embed is not resizing correctly">
+    The iFrame has a fixed height by default. Adjust the `height` attribute in the iFrame code to fit your widget's content, or set `height="100%"` and manage the container height in your site's CSS.
+  </Accordion>
+</AccordionGroup>

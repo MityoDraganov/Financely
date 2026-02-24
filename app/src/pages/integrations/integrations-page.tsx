@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -293,6 +293,24 @@ export default function IntegrationsPage() {
 	const widgetDesigner = useWidgetDesigner();
 	const effectiveWidgetId = widgetDesigner?.currentWidgetId;
 
+	const handleTabChange = useCallback(
+		(tab: TabValue) => {
+			const requiresWidget = tab === "share" || tab === "automations";
+			if (requiresWidget && !effectiveWidgetId) return;
+			setActiveTab(tab);
+		},
+		[effectiveWidgetId],
+	);
+
+	// If widget is deselected while on a widget-required tab, reset to design
+	const prevWidgetIdRef = useRef(effectiveWidgetId);
+	if (prevWidgetIdRef.current !== effectiveWidgetId) {
+		prevWidgetIdRef.current = effectiveWidgetId;
+		if (!effectiveWidgetId && (activeTab === "share" || activeTab === "automations")) {
+			setActiveTab("design");
+		}
+	}
+
 	const definitions = widgetDesigner?.definitions ?? [];
 	const widgetBelongsToOrg = definitions.some(
 		(d) => d.id === effectiveWidgetId,
@@ -350,16 +368,19 @@ export default function IntegrationsPage() {
 
 	return (
 		<div className="min-h-screen bg-background flex flex-col">
-			<IntegrationsHeader />
+			{!effectiveWidgetId && <IntegrationsHeader />}
 
-			<div className="border-b border-border shrink-0">
-				<div className="mx-auto max-w-[1400px] px-6">
-					<IntegrationsTabs
-						activeTab={activeTab}
-						onTabChange={setActiveTab}
-					/>
+			{effectiveWidgetId && (
+				<div className="border-b border-border shrink-0">
+					<div className="mx-auto max-w-[1400px] px-6">
+						<IntegrationsTabs
+							activeTab={activeTab}
+							onTabChange={handleTabChange}
+							hasWidgetSelected={Boolean(effectiveWidgetId)}
+						/>
+					</div>
 				</div>
-			</div>
+			)}
 
 			<WidgetBuilderProvider
 				effectiveWidgetId={effectiveWidgetId}

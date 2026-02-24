@@ -1,0 +1,57 @@
+---
+title: Integrations Overview
+description: Build embeddable widgets, capture leads from your website, and wire up automations — all from the Integrations page.
+---
+
+# Integrations
+
+## What is the Integrations page?
+
+The Integrations page is where you build **widgets** — embeddable multi-step forms you can place on any website. When a visitor fills out a widget form, Financely automatically creates a lead in your account and (optionally) generates a proposal draft.
+
+Widgets are the primary way to connect your existing website to Financely without rebuilding it.
+
+## The three tabs
+
+<CardGroup cols={3}>
+  <Card title="Design" icon="pencil">
+    Build and configure your widget — add pages, blocks, and fields. Available once you select or create a widget.
+  </Card>
+  <Card title="Share & Embed" icon="code">
+    Get the embed script or shareable link to put the widget on your website. Available once a widget is selected.
+  </Card>
+  <Card title="Automations" icon="bolt">
+    Connect webhooks, Zapier, and Google Sheets to your widget submissions. Always accessible.
+  </Card>
+</CardGroup>
+
+<Note>
+The **Design** and **Share & Embed** tabs require a widget to be selected first. If no widget is selected, they are locked. Click a widget from the grid or create a new one to unlock them.
+</Note>
+
+## Widget lifecycle
+
+```
+Create widget → Build pages & blocks → Publish → Copy embed script → Paste on website → Receive leads
+```
+
+1. **Create** — give the widget a name
+2. **Build** — add pages and input blocks (text, email, phone, select, etc.)
+3. **Publish** — make the widget live (draft widgets do not accept submissions)
+4. **Embed** — copy the script tag from the Share & Embed tab and paste it on your site
+5. **Receive leads** — every submission creates a lead in Financely automatically
+
+## Managing multiple widgets
+
+The main Integrations view shows a grid of all your widgets. Each card displays the widget name and its current status (Published or Draft). Click any card to open and edit that widget. Use the **Create New** tile to start a blank widget.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Build a widget" icon="pencil" href="/user-manual/integrations/widget-embed">
+    Step-by-step guide to building, publishing, and embedding a widget on your website.
+  </Card>
+  <Card title="Set up automations" icon="bolt" href="/user-manual/integrations/automations">
+    Connect webhooks, Zapier, and Google Sheets to receive submission data in other tools.
+  </Card>
+</CardGroup>

@@ -1,0 +1,125 @@
+---
+title: Embedding a Widget
+description: Full reference for the widget embed script — attributes, CSP requirements, and platform-specific guides.
+---
+
+# Embedding a Widget
+
+## The embed script
+
+Copy the script tag from **Integrations → Share & Embed tab** in the Financely app. It looks like this:
+
+```html
+<script
+  src="https://financely.app/widget-loader.js"
+  data-org-id="YOUR_ORG_ID"
+  data-widget-id="YOUR_WIDGET_ID"
+  data-api-url="https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net"
+  data-app-url="https://financely.app"
+></script>
+```
+
+Place this tag anywhere in your HTML where you want the widget to render. The script inserts the widget inline at the tag's position.
+
+## Attributes
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `src` | Yes | URL of the widget loader script. Always `https://financely.app/widget-loader.js` |
+| `data-org-id` | Yes | Your organization ID. Found in **Integrations → Share & Embed** |
+| `data-widget-id` | Yes | The ID of the specific widget to render. Found in **Share & Embed** |
+| `data-api-url` | Yes | Base URL for the Firebase Cloud Functions API |
+| `data-app-url` | Yes | Origin of the Financely app — always `https://financely.app` |
+
+<Warning>
+Always copy the full snippet directly from the **Share & Embed** tab. Do not construct the script manually — the `data-org-id` and `data-widget-id` values must match exactly.
+</Warning>
+
+## Auto-updating
+
+The embed script loads the **currently published version** of the widget at render time. When you make changes in the widget builder, save, and republish, the new version is served automatically — you do not need to update the embed code on your site.
+
+## Script embed vs iFrame embed
+
+| | Script embed | iFrame embed |
+|--|-------------|-------------|
+| **Rendering** | Inline in the page DOM | Inside an isolated frame |
+| **Styling** | Inherits page fonts; widget uses brand colors | Fully isolated |
+| **Resizing** | Automatic | Fixed height (set manually) |
+| **CSP** | Requires allowing scripts from `financely.app` | Works on strict CSP sites |
+| **Recommended for** | Most sites | Wix, Squarespace, sites with strict CSP |
+
+### iFrame embed
+
+```html
+<iframe
+  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID"
+  width="100%"
+  height="600"
+  frameborder="0"
+  style="border: none;"
+></iframe>
+```
+
+Adjust the `height` value to match your widget's content length.
+
+## Content Security Policy (CSP)
+
+If your site has a CSP header, you need to allow the following for the script embed:
+
+```
+script-src 'self' https://financely.app;
+connect-src 'self' https://us-central1-*.cloudfunctions.net https://financely.app;
+frame-src 'self' https://financely.app;
+```
+
+If you cannot modify your CSP (e.g. on hosted platforms), use the iFrame embed instead.
+
+## Platform guides
+
+### Webflow
+
+1. Open the page in Webflow designer
+2. Add an **Embed** element from the Add panel (HTML Embed)
+3. Paste the script embed code
+4. Click **Save & Close**
+5. Publish your site
+
+### Wix
+
+Wix's security policy blocks external scripts in most cases. Use the **iFrame embed** instead:
+
+1. In the Wix editor, click **Add → More → HTML iframe**
+2. Click the element → **Enter Code**
+3. Paste the iFrame embed code
+4. Adjust the height as needed
+
+### Squarespace
+
+1. Open the page in the Squarespace editor
+2. Click **Add Block → Code**
+3. Paste the script embed code (or iFrame embed if you prefer)
+4. Click **Apply**
+
+### Framer
+
+1. In the Framer canvas, add an **Embed** component from the Insert menu
+2. In the component's properties, paste the script embed code into the HTML field
+3. Set the component's dimensions to match your widget
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Widget is not rendering">
+    Open your browser's developer console and look for errors. Common causes:
+    - The widget is in **Draft** status — it must be Published
+    - A CSP error blocking the script — switch to iFrame embed
+    - Wrong `data-org-id` or `data-widget-id` — copy again from the Share & Embed tab
+  </Accordion>
+  <Accordion title="Widget renders but submissions fail">
+    Check the browser console for network errors on the submit request. The request goes to `data-api-url` — make sure your CSP allows `connect-src` to that domain.
+  </Accordion>
+  <Accordion title="Widget shows a previous version after republishing">
+    The widget-loader.js script has a browser cache. Add a cache-busting query string to the `src` or hard-reload the page (`Ctrl+Shift+R` / `Cmd+Shift+R`) to force a fresh fetch.
+  </Accordion>
+</AccordionGroup>

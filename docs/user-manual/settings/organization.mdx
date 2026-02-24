@@ -1,0 +1,118 @@
+---
+title: Organization Settings
+description: Configure your organization's general info, AI behaviour, billing, and data management.
+---
+
+# Organization Settings
+
+Go to **Settings → Organization** to manage everything related to your workspace.
+
+## General
+
+**Basic information**
+- **Organization name** (required) — displayed throughout the app and on invoices
+- **Website** — your company's website URL
+- **Description** — internal description of the organization
+
+**Contact information**
+- **Email** — organization contact email
+- **Phone** — organization contact phone number
+
+**Address**
+- Street address, city, state, zip code, country — used on invoice templates where seller address is bound
+
+Click **Save** to apply changes. A sticky save bar appears at the bottom of the page whenever you have unsaved changes.
+
+## AI Settings
+
+**Auto-generate proposal suggestions**
+
+When this toggle is on, Financely automatically generates an AI proposal draft every time a new lead is created — whether it arrives from a widget submission or is added manually.
+
+The generated proposal is placed in **Draft** status and linked to the lead. You still review and approve it before sending.
+
+To enable: **Settings → Organization → AI Settings → Auto-generate proposals** → toggle on → Save.
+
+<Info>
+AI proposal generation uses your product catalog. For the best results, keep your products up to date with accurate names, descriptions, and prices before turning this on.
+</Info>
+
+## Duplicate organization
+
+Available to **owners and admins** only.
+
+Creates a full copy of your organization with:
+- All invoice templates
+- All workflow definitions
+- All email templates
+- All products
+
+What is **not** copied:
+- Users and team members
+- Invoices and proposals
+- Leads and contacts
+- Billing subscription
+
+This is useful for creating a staging environment or setting up a second workspace with the same configuration.
+
+To duplicate: **Settings → Organization → General → Duplicate Organization** → confirm in the dialog.
+
+## Billing
+
+**Current plan**
+
+Shows your active subscription:
+- Plan name and price (e.g. Pro — €5/month)
+- Status: **Active**, **Trialing**, **Past Due**, or **Cancelled**
+- Next renewal date
+- Whether auto-renew is on or the subscription is set to cancel
+
+**Feature entitlements** are listed below the plan card — these show what your current plan includes.
+
+**Subscribe**
+
+If you're on a free plan or your trial has ended, click **Subscribe** to start a 14-day free trial. You'll be redirected to Stripe Checkout to enter payment details.
+
+**Manage Billing**
+
+Click **Manage Billing** to open the Stripe Customer Portal where you can:
+- Update your payment method
+- View invoices
+- Cancel or change your subscription
+
+**Usage tracking**
+
+Displays your current period usage:
+- Invoices created
+- Templates
+- Team members
+- Storage (GB)
+
+**Usage alert emails**
+
+Toggle on to receive an email notification when you're approaching your plan limits.
+
+## Data Management
+
+Export or import your organization's data.
+
+- **Export** — downloads all your organization data (contacts, products, invoices, leads, proposals, templates, workflows) as a structured file
+- **Import** — upload a previously exported file to restore or migrate data
+
+<Warning>
+Data import overwrites existing records with matching IDs. Use with caution in production workspaces.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Billing status shows Past Due">
+    Go to **Manage Billing** and update your payment method. Once a successful payment is processed, the status returns to Active automatically.
+  </Accordion>
+  <Accordion title="Auto-proposal generation is on but proposals are not being created">
+    Check **Settings → Organization → AI Settings** to confirm the toggle is saved (not just switched). Also verify that the AI configuration is complete — if the AI service is misconfigured, generation will silently fail.
+  </Accordion>
+  <Accordion title="Duplicate organization is not available">
+    This feature requires Owner or Admin role. If you don't see the option, ask your organization owner to perform the duplication or to upgrade your role.
+  </Accordion>
+</AccordionGroup>

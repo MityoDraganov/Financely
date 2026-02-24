@@ -47,6 +47,7 @@ import {
 import { Eye, Plus } from "lucide-react";
 import { memo, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { HelpButton } from "@/components/help-button";
 
 // Navigation items will be created with translations inside the component
 
@@ -400,6 +401,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			>
 				{children}
 			</div>
+			<HelpButton />
 		</div>
 	);
 }

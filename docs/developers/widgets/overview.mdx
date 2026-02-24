@@ -1,0 +1,101 @@
+---
+title: Widget Architecture
+description: How widget definitions, versions, pages, blocks, and the submission pipeline work under the hood.
+---
+
+# Widget Architecture
+
+## Data model
+
+A widget in Financely is composed of three layers:
+
+```
+Widget Definition
+└── Versions (one per save)
+    └── Pages (steps in the form)
+        └── Blocks (fields, layout, actions)
+```
+
+### Widget definition
+
+The top-level record for a widget. It holds:
+- `name` — human-readable label
+- `status` — `draft` or `published`
+- `publishedVersionId` — points to the currently live version (null if draft)
+- `organizationId` — scoped to an organization
+
+### Versions
+
+Every time you click **Save** in the widget builder, a new version is created with an incrementing `versionNumber`. The version stores the full widget schema: pages, blocks, actions, and multi-step options.
+
+The **published** version is the one with `versionId === publishedVersionId`. Only this version is served to embedded widgets and used to process submissions.
+
+### Pages
+
+A page is a single step in a multi-step form. A widget must have at least one page. Pages are ordered — the order in the version schema determines the step sequence shown to the user.
+
+### Blocks
+
+Blocks live inside pages and define the form's content and fields. Each block has a `type` and a `config` object with type-specific properties (label, placeholder, required, options, etc.).
+
+**Block types:**
+
+| Group | Types |
+|-------|-------|
+| Layout | `sectionHeader`, `container`, `card`, `columns`, `divider`, `spacer` |
+| Content | `paragraph` |
+| Inputs | `text`, `email`, `phone`, `textarea`, `select`, `checkbox`, `date` |
+| Actions | `submitButton`, `successMessage` |
+
+### Actions
+
+The `actions` object on a version defines what happens after submission — currently used for the success state (redirect URL or success message display).
+
+## Widget status lifecycle
+
+```
+Created (draft)
+    ↓  publishModularWidget
+Published  ←→  unpublishModularWidget  →  Draft
+```
+
+Only published widgets:
+- Render the embed script on external websites
+- Accept and process form submissions
+- Trigger lead creation and webhooks
+
+## Submission pipeline
+
+When a visitor submits a widget form, the following happens server-side:
+
+```
+POST /submitModularWidget
+    ↓
+1. Rate limit check (per IP + per org)
+2. Honeypot field check (_hp must be empty)
+3. Duplicate submission check (60-second window by IP + org)
+4. Fetch published widget version
+5. Validate submitted data against widget schema
+6. Normalize input (trim strings, standardize phone format)
+7. Create or merge Contact (matched by email address)
+8. Create Lead record (linked to contact if matched)
+9. Record usage event (WIDGET_FORM_SUBMIT)
+10. If auto-proposals enabled → trigger proposal generation
+11. Dispatch webhook events to configured endpoints
+    ↓
+Return HTTP 200 { success: true }
+```
+
+<Note>
+The endpoint always returns HTTP 200, even for rejected submissions (spam, honeypot, duplicate). This prevents abuse detection from being reverse-engineered.
+</Note>
+
+## Security model
+
+| Protection | Detail |
+|-----------|--------|
+| **Rate limiting** | Per IP address and per organization |
+| **Honeypot** | Hidden `_hp` field — if non-empty, submission is silently dropped |
+| **Duplicate guard** | Same IP + org within 60 seconds is treated as a duplicate |
+| **Request size** | Oversized payloads are rejected |
+| **Input normalization** | All string inputs are trimmed; phone numbers are standardized |

@@ -1,0 +1,80 @@
+---
+title: Branding
+description: Configure your logo, colors, and email identity — applied globally across invoices, widgets, and emails.
+---
+
+# Branding
+
+Go to **Settings → Organization → Branding** to configure your organization's visual identity.
+
+## What branding controls
+
+Changes made here are applied globally across:
+- **Invoice templates** — your logo and brand colors appear on generated PDFs
+- **Widgets** — the widget's default styling uses your brand colors
+- **Email templates** — the from name, from address, and logo are used in all outbound emails (invoice emails, proposal emails, invite emails)
+- **Generated sites** — if you use the site builder, your branding is applied to the generated HTML
+
+## Logo & favicon
+
+**Logo**
+Upload your company logo. Supported formats: PNG, SVG, JPG, WebP. The logo appears on invoice PDFs and in email headers.
+
+Click the upload area or drag and drop a file. A preview is shown immediately. The logo is saved when you click **Save** at the bottom.
+
+**Favicon**
+Upload a small icon (typically 32×32 or 64×64 px) that appears in browser tabs. SVG or PNG recommended.
+
+## Company name
+
+The company name is used as a display name in email headers and on invoices where the seller name is drawn from branding rather than from a data binding. This can differ from your organization name.
+
+## Brand colors
+
+Set three brand colors using the color picker (click the color swatch) or by entering a hex code directly.
+
+| Color | Default | Used for |
+|-------|---------|---------|
+| **Primary** | `#2563eb` | Main buttons, links, highlights |
+| **Secondary** | `#6b7280` | Secondary buttons, muted elements |
+| **Accent** | `#10b981` | Success states, badges, accents |
+
+A live **preview panel** at the top of the page updates in real time as you change colors, showing how they look in a header and button context.
+
+## Brand gallery
+
+Upload a collection of brand images (photos, graphics, assets) to keep them accessible for use in the site builder and templates. Images are displayed in a grid — hover to reveal the delete button.
+
+## Brand description
+
+A rich text field for describing your brand — values, tone of voice, company story. This text is passed to the AI when generating sites, widgets, and email content, so the AI can write in your brand's voice.
+
+## Email settings
+
+| Field | Purpose |
+|-------|---------|
+| **From name** | The sender name recipients see in their inbox (e.g. "Acme Corp") |
+| **From address** | The reply-to email address on all outgoing emails |
+| **Footer text** | Appears at the bottom of all outbound emails — use for legal text, address, or unsubscribe notice |
+
+<Note>
+The from address is a reply-to address only. Emails are sent through Financely's mail service (Resend). Custom sending domains are available on higher plans.
+</Note>
+
+## Saving changes
+
+A **sticky save bar** appears at the bottom of the page whenever you have unsaved changes. Click **Save** to apply. Click **Cancel** to discard. Navigating away without saving will prompt a confirmation.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Logo is not appearing on invoice PDFs">
+    After uploading the logo, make sure you click **Save**. Then regenerate the PDF on the invoice — previously generated PDFs are cached and won't update automatically.
+  </Accordion>
+  <Accordion title="Brand colors are not reflected in the widget">
+    Widget styling uses the brand colors at the time the widget was last saved. Open the widget in the Integrations page, make a minor edit, save, and republish to pick up the latest brand colors.
+  </Accordion>
+  <Accordion title="Email is showing the wrong from name">
+    Check **Settings → Organization → Branding → From name**. If it's blank, a default name is used. Fill it in and save to override.
+  </Accordion>
+</AccordionGroup>

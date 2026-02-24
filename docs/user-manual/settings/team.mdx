@@ -1,0 +1,101 @@
+---
+title: Team & Security
+description: Manage team members, roles, invitations, and review the audit log.
+---
+
+# Team & Security
+
+Go to **Settings → Users** to manage your team, and **Settings → Security → Audit Log** to review activity history.
+
+## Roles
+
+| Role | What they can do |
+|------|-----------------|
+| **Owner** | Full access to everything, including deleting the organization. There is one owner per organization. |
+| **Admin** | Manage users, change settings, and access all content (invoices, proposals, leads, products, etc.) |
+| **Member** | Create and edit content. Cannot manage users or change organization settings. |
+
+## Inviting team members
+
+1. Go to **Settings → Users**
+2. Click **Invite Member**
+3. Enter the invitee's **email address**
+4. Select their **role** (Admin or Member — owners are not assignable via invite)
+5. Optionally set an **expiry date** for the invite link (default: 7 days)
+6. Click **Send Invite**
+
+The invitee receives an email with a link to join your organization. If they don't have a Financely account yet, they'll be prompted to create one first.
+
+**Copy invite link**: Instead of sending the email, you can copy the invite link directly and send it yourself.
+
+## Managing pending invites
+
+Open the **Pending Invites** tab to see all outstanding invitations with their status:
+
+| Status | Meaning |
+|--------|---------|
+| **Pending** | Invite sent, not yet accepted |
+| **Accepted** | Member has joined |
+| **Expired** | Invite link passed its expiry date |
+
+From this tab you can:
+- **Resend** — send the invite email again (resets expiry)
+- **Revoke** — cancel the invite so the link no longer works
+
+## Changing a member's role
+
+In the **Members** tab, click the role badge next to any member's name to open a dropdown and select a new role. Changes take effect immediately.
+
+## Removing a member
+
+Click the actions menu on any member row and select **Remove**. A confirmation dialog will appear. Removed members lose access to the organization immediately.
+
+<Note>
+You cannot remove yourself if you are the owner. Transfer ownership first, or contact support.
+</Note>
+
+## Audit log
+
+Go to **Settings → Security → Audit Log** to see a full history of actions taken in your organization.
+
+### What is logged
+
+- Document creates, updates, and deletes (invoices, proposals, leads, contacts, products, templates, workflows)
+- User invitations and role changes
+- Settings changes
+- AI-generated actions
+
+### Filtering the audit log
+
+| Filter | Options |
+|--------|---------|
+| **Date range** | Last 7 days, 30 days, 90 days, or custom date range |
+| **Team member** | Filter by a specific user |
+| **Action type** | Create, update, delete, and others |
+
+### Viewing a log entry
+
+Click any row to open the full detail view, which includes:
+- Timestamp
+- User who performed the action
+- Resource type and ID
+- **Before / After values** — what the data looked like before and after the change
+- IP address and user agent
+
+### Exporting
+
+Click **Export CSV** to download the current filtered log as a CSV file. The export includes up to 200 log entries per query.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Invitee didn't receive the invite email">
+    Ask them to check their spam folder. You can also copy the invite link directly from the Pending Invites tab and send it to them via another channel. If the invite has expired, use Resend to issue a new one.
+  </Accordion>
+  <Accordion title="Member can't access certain features">
+    Check their role. Members cannot manage users or settings. Upgrade them to Admin if they need that access.
+  </Accordion>
+  <Accordion title="Audit log shows no entries">
+    Make sure your date range filter is wide enough. The audit log is populated by Firestore triggers — if a very recent action isn't showing, click Refresh. Up to 200 entries are returned per query.
+  </Accordion>
+</AccordionGroup>

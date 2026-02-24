@@ -1,0 +1,91 @@
+---
+title: Invoices
+description: Create, send, and track invoices using customizable templates and AI-assisted data conversion.
+---
+
+# Invoices
+
+## Overview
+
+Financely uses a **template-driven invoice system**. Each invoice is built on top of a template that defines the layout and the data fields (called *bindings*). This lets you create multiple invoice styles — branded, minimal, detailed — and reuse them across clients.
+
+## Creating an invoice
+
+<Steps>
+  <Step title="Go to Invoices → Create Invoice">
+    Click **Create Invoice** in the top right.
+  </Step>
+  <Step title="Select a template">
+    Choose from your saved templates. The template determines the layout and which fields you need to fill in.
+  </Step>
+  <Step title="Fill in the data">
+    Complete the form fields:
+    - **Seller** — your company details (pre-filled from your organization settings)
+    - **Buyer** — client name, address, email
+    - **Invoice details** — invoice number, issue date, due date
+    - **Line items** — description, quantity, unit price, tax
+    - **Totals** — subtotal, tax, total (calculated automatically)
+  </Step>
+  <Step title="Save">
+    Click **Save**. The invoice is created with status **Draft**.
+  </Step>
+</Steps>
+
+## Invoice statuses
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Created but not yet sent |
+| **Sent** | Emailed to the client |
+| **Paid** | Payment received and confirmed |
+| **Cancelled** | Invoice voided |
+
+## Generating a PDF
+
+Click **Generate PDF** on any invoice. Financely renders the invoice template with your data and produces a PDF, which is stored and linked to the invoice record.
+
+<Note>
+PDF generation may take a few seconds. The button will show a spinner while it processes.
+</Note>
+
+## Sending an invoice by email
+
+Click **Send Invoice**. Financely sends an email to the buyer's email address with the invoice PDF attached. The invoice status automatically updates to **Sent**.
+
+## Sharing an invoice
+
+Click **Share** to generate a public share link. Recipients can view the invoice in their browser without logging in — useful for clients who need to reference it.
+
+## Converting a proposal to an invoice
+
+If a client accepts a proposal, you can convert it directly to an invoice without re-entering data:
+
+1. Open the accepted proposal
+2. Click **Convert to Invoice**
+3. Select the invoice template to use
+4. Financely's AI maps the proposal items and buyer/seller data to the invoice format automatically
+5. Review the draft invoice and save
+
+<Tip>
+The AI conversion reads your template's bindings and intelligently maps proposal data to the correct fields — including line items, taxes, and compliance details for your region.
+</Tip>
+
+## Invoice templates
+
+Templates are designed in the **Template Designer** (drag-and-drop editor). Each element in a template can be bound to a data path like `seller.name` or `items`. When you create an invoice, Financely injects the right data into each binding.
+
+See the [Template Designer](/user-manual/site-builder) section for how to create and edit templates.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="PDF generation fails or takes too long">
+    Check your internet connection. If the issue persists, try saving the invoice again and clicking Generate PDF once more. If it consistently fails, contact support.
+  </Accordion>
+  <Accordion title="Email was not received by client">
+    Check the buyer email address on the invoice for typos. Ask the client to check their spam folder. Emails are sent via Resend — delivery usually happens within 30 seconds.
+  </Accordion>
+  <Accordion title="Invoice number is duplicated">
+    Invoice numbers are not automatically enforced as unique. You can set any number format you prefer. Consider using a prefix like `INV-2025-001` to keep them organized.
+  </Accordion>
+</AccordionGroup>

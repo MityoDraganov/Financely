@@ -1,0 +1,184 @@
+---
+title: Webhooks
+description: Receive real-time event payloads at your HTTPS endpoint. Full payload schemas, signature verification, and retry behaviour.
+---
+
+# Webhooks
+
+## Overview
+
+Webhooks let you receive event data from Financely at an HTTPS endpoint you control. Configure them in **Integrations → Automations → Webhooks**.
+
+## Available events
+
+| Event | Fired when |
+|-------|-----------|
+| `widget.submitted` | A visitor completes and submits a widget form |
+| `widget.started` | A visitor opens the widget and begins filling it in |
+
+## Configuring a webhook
+
+1. Go to **Integrations → Automations tab**
+2. Click **Add webhook**
+3. Enter your **endpoint URL** (must be HTTPS)
+4. Select the **events** you want to receive
+5. Set the number of **retries** (0–5) for failed deliveries
+6. Click **Save**
+
+Use **Send test event** to immediately fire a sample payload to your endpoint and verify delivery.
+
+## Request format
+
+All webhook requests are:
+- Method: `POST`
+- Content-Type: `application/json`
+- Body: JSON payload (see schemas below)
+- Headers: include `X-Financely-Signature` for verification
+
+## Payload schemas
+
+### `widget.submitted`
+
+```json
+{
+  "event": "widget.submitted",
+  "organizationId": "org_abc123",
+  "widgetId": "widget_def456",
+  "submittedAt": "2025-03-15T10:30:00.000Z",
+  "data": {
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "phone": "+1 555 000 1234",
+    "company": "Acme Corp",
+    "jobTitle": "Procurement Manager",
+    "message": "I'd like a quote for 50 units.",
+    "notes": ""
+  },
+  "leadId": "lead_ghi012"
+}
+```
+
+### `widget.started`
+
+```json
+{
+  "event": "widget.started",
+  "organizationId": "org_abc123",
+  "widgetId": "widget_def456",
+  "startedAt": "2025-03-15T10:29:45.000Z"
+}
+```
+
+## Signature verification
+
+Every request includes an `X-Financely-Signature` header with the format `sha256=<hex_digest>`. The digest is an HMAC-SHA256 of the raw request body, keyed with your webhook secret.
+
+### Node.js
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhook(secret, rawBody, signatureHeader) {
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signatureHeader)
+  );
+}
+
+// Express — use raw body middleware
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const valid = verifyWebhook(
+    process.env.WEBHOOK_SECRET,
+    req.body,
+    req.headers['x-financely-signature'] ?? ''
+  );
+
+  if (!valid) return res.status(401).end();
+
+  const payload = JSON.parse(req.body.toString());
+  console.log(payload.event, payload);
+
+  res.sendStatus(200);
+});
+```
+
+### Python
+
+```python
+import hmac
+import hashlib
+
+def verify_webhook(secret: str, raw_body: bytes, signature_header: str) -> bool:
+    expected = 'sha256=' + hmac.new(
+        secret.encode(),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+# Flask example
+from flask import Flask, request, abort
+
+app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    valid = verify_webhook(
+        secret=os.environ['WEBHOOK_SECRET'],
+        raw_body=request.get_data(),
+        signature_header=request.headers.get('X-Financely-Signature', '')
+    )
+    if not valid:
+        abort(401)
+
+    payload = request.get_json()
+    print(payload['event'], payload)
+    return '', 200
+```
+
+<Warning>
+Always verify the signature against the **raw request body** before parsing as JSON. Parsing and re-serializing will change byte order or whitespace and break the signature check.
+</Warning>
+
+## Retry behaviour
+
+If your endpoint does not respond with a `2xx` HTTP status code within the timeout, Financely retries the delivery. Retries use a short delay between attempts.
+
+| Setting | Detail |
+|---------|--------|
+| **Retries** | 0–5, configurable per webhook |
+| **Trigger** | Any non-2xx response or connection timeout |
+| **Behaviour** | After all retries are exhausted, the event is dropped |
+
+<Note>
+Your endpoint must return a `2xx` response as quickly as possible. For long-running processing, return `200` immediately and process the payload asynchronously.
+</Note>
+
+## Endpoint requirements
+
+- Must be **HTTPS** (HTTP endpoints are rejected)
+- Must return a **2xx** status code
+- Must respond within the timeout window
+- Should be idempotent — retries may deliver the same event more than once
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Not receiving any events">
+    1. Confirm your endpoint is publicly accessible over HTTPS
+    2. Use **Send test event** in the Automations tab to test delivery manually
+    3. Check that the widget generating submissions is **Published**
+    4. Verify your endpoint returns a 2xx status code
+  </Accordion>
+  <Accordion title="Signature verification is failing">
+    Make sure you are hashing the **raw bytes** of the request body, not the parsed JSON. In Express, use `express.raw()` middleware. In Flask, use `request.get_data()`.
+  </Accordion>
+  <Accordion title="Receiving duplicate events">
+    Retries can deliver the same event more than once. Make your handler idempotent by checking the `leadId` or `submittedAt` field before processing.
+  </Accordion>
+</AccordionGroup>

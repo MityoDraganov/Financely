@@ -1,0 +1,87 @@
+---
+title: Contacts
+description: Manage your client and lead contact records with custom fields, search, and filtering.
+---
+
+# Contacts
+
+## Overview
+
+Contacts are your central CRM records in Financely. They represent people you do business with — clients, prospects, leads. Contacts are linked automatically when leads come in from widget submissions (matched by email), and can also be created manually or converted from leads.
+
+## Contact fields
+
+| Field | Details |
+|-------|---------|
+| **First name / Last name** | Required |
+| **Email** | Used for deduplication — if a widget submission arrives with a matching email, it links to the existing contact |
+| **Phone** | Multiple phone numbers supported per contact |
+| **Company** | Employer or organisation name |
+| **Job title** | Role at the company |
+| **Address** | Street, city, state, zip code, country |
+| **Status** | `lead`, `prospect`, `customer`, `active`, `inactive` |
+| **Tags** | Free-form labels for grouping and filtering |
+| **Notes** | Internal notes, not visible to the contact |
+| **Preferred contact method** | Email, phone, or SMS |
+| **Marketing opt-in** | Consent flag for marketing communications |
+| **Newsletter opt-in** | Consent flag for newsletters |
+| **Social media** | LinkedIn, Twitter, Facebook, Instagram |
+
+## Creating a contact
+
+1. Go to **Contacts** in the sidebar
+2. Click **Add Contact**
+3. Fill in the details — only name is required, all other fields are optional
+4. Click **Save**
+
+## Editing a contact
+
+Click any contact in the list to open the detail view. All fields are editable inline. Changes are saved when you click **Save**.
+
+## Deleting a contact
+
+In the contact list, click the actions menu on a contact row and select **Delete**. A confirmation dialog will appear before the record is permanently removed.
+
+## Search and filtering
+
+- **Search**: The search bar filters in real time across name, email, and company
+- **Status filter**: Filter by `lead`, `prospect`, `customer`, `active`, or `inactive`
+- **Tags**: Click a tag to filter contacts by that label
+
+## Multiple phone numbers
+
+Each contact can have more than one phone number. In the contact detail view, use the **Add phone** button to add additional numbers. Each number can have a label (mobile, work, home, etc.).
+
+## Custom fields (Metafields)
+
+You can define custom fields for all contacts in your organization:
+
+1. Go to a contact's detail page
+2. Scroll to the **Custom Fields** section
+3. Click **Manage Fields** to define new field types:
+   - Text, number, date, select (dropdown), boolean (yes/no)
+4. Once defined, the field appears on every contact and you can fill in values per contact
+
+Metafield definitions are shared across all contacts in your organization — you define the schema once, then fill in values per record.
+
+## CSV export
+
+Click **Export** in the contacts list to download all contacts (including metafield values) as a CSV file.
+
+## How contacts link to leads
+
+When a visitor submits a widget form on your website, Financely checks whether a contact with the same email already exists in your organization. If it does, the new lead is automatically linked to that contact. If not, you can manually convert the lead to a contact using the **Convert to Contact** button on the lead detail page.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="A widget submission didn't link to an existing contact">
+    Linking is done by exact email match. Check that the email address in the widget submission exactly matches the email on the contact record (including case — matching is case-insensitive, but extra spaces will prevent a match).
+  </Accordion>
+  <Accordion title="Duplicate contacts for the same person">
+    If the same person submitted forms with different email addresses, separate contact records are created. Merge duplicates manually by updating one contact with the correct email and deleting the other.
+  </Accordion>
+  <Accordion title="Custom fields are not showing up">
+    Custom field definitions are per-organization. Make sure you've defined the metafield under **Manage Fields** in the Contacts section. Fields defined in Products do not carry over to Contacts.
+  </Accordion>
+</AccordionGroup>
