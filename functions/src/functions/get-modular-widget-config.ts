@@ -110,8 +110,19 @@ export const getModularWidgetConfig = onRequest(
 			const versionIdToLoad =
 				widgetVersionId ?? (status === "published" ? publishedVersionId : null);
 			if (!versionIdToLoad) {
+				const branding404 = organization.settings?.branding;
+				const brandColors404 = organization.settings?.brandColors ?? {
+					primary: "#2563eb",
+					secondary: "#6b7280",
+					accent: "#10b981",
+				};
 				response.status(404).json({
 					error: "Widget has no published version",
+					branding: {
+						logo: branding404?.customLogo ?? (organization as { logoUrl?: string }).logoUrl ?? null,
+						companyName: branding404?.companyName ?? organization.name,
+						colors: brandColors404,
+					},
 				});
 				return;
 			}

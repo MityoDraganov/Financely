@@ -592,8 +592,12 @@ export const functionsService: FunctionsService = {
     if (widgetVersionId) url.searchParams.set("widgetVersionId", widgetVersionId);
     const res = await fetch(url.toString());
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error((err as { error?: string }).error ?? "Failed to load widget config");
+      const err = await res.json().catch(() => ({})) as { error?: string; branding?: unknown };
+      const error = Object.assign(
+        new Error(err.error ?? "Failed to load widget config"),
+        { branding: err.branding ?? null },
+      );
+      throw error;
     }
     return res.json();
   },
