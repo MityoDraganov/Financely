@@ -76,6 +76,10 @@ export function WidgetBuilderPropertiesPanel() {
 	const versions = ctx?.versions ?? [];
 	const selectedVersionId = ctx?.selectedVersionId ?? null;
 	const selectedVersion = versions.find((v) => v.id === selectedVersionId);
+	const widgetName = ctx?.widgetName ?? "";
+	const setWidgetName = ctx?.setWidgetName ?? (() => {});
+	const handleWidgetNameBlur = ctx?.handleWidgetNameBlur ?? (async () => {});
+	const widgetNameSaving = ctx?.widgetNameSaving ?? false;
 	const currentWidgetId = widgetDesigner?.currentWidgetId;
 	const deleteWidgetId = ctx?.deleteWidgetId ?? null;
 	const setDeleteWidgetId = ctx?.setDeleteWidgetId ?? (() => {});
@@ -462,8 +466,25 @@ export function WidgetBuilderPropertiesPanel() {
 						className="flex-1 mt-0 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col"
 					>
 						<div className="px-4 pb-4">
+							{currentWidgetId && (
+								<div className="space-y-1.5">
+									<Label className="text-xs">Widget name</Label>
+									<Input
+										value={widgetName}
+										onChange={(e) => setWidgetName(e.target.value)}
+										onBlur={() => void handleWidgetNameBlur()}
+										onKeyDown={(e) =>
+											e.key === "Enter" &&
+											(e.target as HTMLInputElement).blur()
+										}
+										placeholder="Widget name"
+										disabled={widgetNameSaving}
+										className="h-9"
+									/>
+								</div>
+							)}
 							{activePage && (
-								<div className="space-y-3">
+								<div className="space-y-3 mt-3">
 									<p className="text-xs font-medium text-muted-foreground">
 										Page
 									</p>

@@ -13,7 +13,7 @@ import { projectId } from "@/infrastructure/firebase";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
 import {
 	IntegrationsHeader,
-	IntegrationsTabs,
+	IntegrationsWidgetNavBar,
 	ShareEmbedSection,
 	AutomationsSection,
 	WidgetSidebar,
@@ -22,7 +22,6 @@ import {
 	type TabValue,
 	type WidgetTemplateOption as TemplateOption,
 } from "@/components/integrations";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function DesignAreaContent({
@@ -97,32 +96,10 @@ function DesignAreaContent({
 					) : (
 						<div className="space-y-4">
 							<div className="flex items-end justify-between gap-4">
-								<div className="flex flex-col gap-0.5">
-									<Label className="text-sm font-medium">
-										{t(
-											"siteBuilder.widgets.widgetName",
-											"Widget name",
-										)}
+								<div className="min-w-0">
+									<Label className="text-sm font-medium truncate">
+										{ctx.widgetName}
 									</Label>
-									<Input
-										value={ctx.widgetName}
-										onChange={(e) =>
-											ctx.setWidgetName(e.target.value)
-										}
-										onBlur={() => void ctx.handleWidgetNameBlur()}
-										onKeyDown={(e) =>
-											e.key === "Enter" &&
-											(
-												e.target as HTMLInputElement
-											).blur()
-										}
-										placeholder={t(
-											"siteBuilder.widgets.widgetName",
-											"Widget name",
-										)}
-										disabled={ctx.widgetNameSaving}
-										className="max-w-[240px] font-semibold text-lg h-9"
-									/>
 								</div>
 								<div className="flex items-center gap-2">
 									<div className="flex gap-2">
@@ -409,15 +386,18 @@ export default function IntegrationsPage() {
 			{!effectiveWidgetId && <IntegrationsHeader />}
 
 			{effectiveWidgetId && (
-				<div className="border-b border-border shrink-0">
-					<div className="mx-auto max-w-[1400px] px-6">
-						<IntegrationsTabs
-							activeTab={activeTab}
-							onTabChange={handleTabChange}
-							hasWidgetSelected={Boolean(effectiveWidgetId)}
-						/>
-					</div>
-				</div>
+				<IntegrationsWidgetNavBar
+					activeTab={activeTab}
+					onTabChange={handleTabChange}
+					hasWidgetSelected={Boolean(effectiveWidgetId)}
+					selectedWidgetId={effectiveWidgetId}
+					onWidgetChange={widgetDesigner?.onWidgetChange ?? (() => {})}
+					widgetDefinitions={definitions.map((d) => ({
+						id: d.id,
+						name: d.name,
+					}))}
+					loadingDefinitions={widgetDesigner?.isLoadingDefinitions ?? false}
+				/>
 			)}
 
 			<WidgetBuilderProvider
