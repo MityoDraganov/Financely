@@ -1,5 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
+  "theme": "mint",
   "name": "Financely",
   "logo": {
     "light": "/logo/light.svg",
@@ -11,88 +12,98 @@
     "light": "#818cf8",
     "dark": "#4f46e5"
   },
-  "topbarLinks": [
-    {
-      "name": "App",
-      "url": "https://financely.app"
+  "navbar": {
+    "links": [
+      {
+        "label": "App",
+        "href": "https://financely.app"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Sign Up Free",
+      "href": "https://financely.app/sign-up"
     }
-  ],
-  "topbarCtaButton": {
-    "name": "Sign Up Free",
-    "url": "https://financely.app/sign-up"
   },
-  "tabs": [
-    {
-      "name": "User Manual",
-      "url": "user-manual"
-    },
-    {
-      "name": "Developer Docs",
-      "url": "developers"
-    }
-  ],
-  "anchors": [
-    {
-      "name": "Support",
-      "icon": "envelope",
-      "url": "mailto:support@financely.app"
-    }
-  ],
-  "navigation": [
-    {
-      "group": "User Manual",
-      "pages": [
-        "user-manual/introduction",
-        "user-manual/getting-started"
-      ]
-    },
-    {
-      "group": "Core Features",
-      "pages": [
-        "user-manual/invoices",
-        "user-manual/proposals",
-        "user-manual/leads",
-        "user-manual/contacts",
-        "user-manual/products"
-      ]
-    },
-    {
-      "group": "Integrations",
-      "pages": [
-        "user-manual/integrations/overview",
-        "user-manual/integrations/widget-embed",
-        "user-manual/integrations/automations"
-      ]
-    },
-    {
-      "group": "Settings & Team",
-      "pages": [
-        "user-manual/settings/organization",
-        "user-manual/settings/team",
-        "user-manual/settings/branding"
-      ]
-    },
-    {
-      "group": "Developer Docs",
-      "pages": [
-        "developers/introduction"
-      ]
-    },
-    {
-      "group": "Widgets",
-      "pages": [
-        "developers/widgets/overview",
-        "developers/widgets/embed",
-        "developers/widgets/submissions"
-      ]
-    },
-    {
-      "group": "Webhooks & Workflows",
-      "pages": [
-        "developers/webhooks",
-        "developers/workflows"
-      ]
-    }
-  ],
-  "footerSocials": {}
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "User Manual",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "user-manual/introduction",
+              "user-manual/getting-started"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "user-manual/invoices",
+              "user-manual/proposals",
+              "user-manual/leads",
+              "user-manual/contacts",
+              "user-manual/products"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "user-manual/integrations/overview",
+              "user-manual/integrations/widget-embed",
+              "user-manual/integrations/automations"
+            ]
+          },
+          {
+            "group": "Settings & Team",
+            "pages": [
+              "user-manual/settings/organization",
+              "user-manual/settings/team",
+              "user-manual/settings/branding"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Docs",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "developers/introduction"
+            ]
+          },
+          {
+            "group": "Widgets",
+            "pages": [
+              "developers/widgets/overview",
+              "developers/widgets/embed",
+              "developers/widgets/submissions"
+            ]
+          },
+          {
+            "group": "Webhooks & Workflows",
+            "pages": [
+              "developers/webhooks",
+              "developers/workflows"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "links": [
+      {
+        "header": "Support",
+        "items": [
+          {
+            "label": "Contact Support",
+            "href": "mailto:support@financely.app"
+          }
+        ]
+      }
+    ]
+  }
 }
