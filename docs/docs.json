@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "theme": "mint",
+  "theme": "maple",
   "name": "Financely",
   "logo": {
     "light": "/logo/light.svg",
@@ -8,9 +8,9 @@
   },
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#6366f1",
-    "light": "#818cf8",
-    "dark": "#4f46e5"
+    "primary": "#166534",
+    "light": "#22c55e",
+    "dark": "#14532d"
   },
   "navbar": {
     "links": [
