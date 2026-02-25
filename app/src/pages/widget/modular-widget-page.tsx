@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Shield, Clock, Star, Check, Lock } from "lucide-react";
 import { LoadingScreen } from "@/components/loading-screen";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
 import type { WidgetVersionActions } from "@/core/entities/widget-block-schema";
@@ -9,6 +9,37 @@ import { projectId } from "@/infrastructure/firebase";
 import { functionsService } from "@/services/functions/functions-service";
 import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
 import { WidgetPage } from "@/core/entities/widget-block-schema";
+import type { WidgetPageConfig } from "@/core/entities/widget-definition";
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+	return result
+		? {
+				r: parseInt(result[1], 16),
+				g: parseInt(result[2], 16),
+				b: parseInt(result[3], 16),
+		  }
+		: { r: 37, g: 99, b: 235 };
+}
+
+/** Returns whether to use white or dark text on a given hex background */
+function contrastColor(hex: string): string {
+	const { r, g, b } = hexToRgb(hex);
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance > 0.55 ? "#111827" : "#ffffff";
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type BrandingData = {
+	logo: string | null;
+	companyName: string;
+	colors: Record<string, string>;
+};
+
+// ─── Default styling for widget internals ────────────────────────────────────
 
 const defaultStyling: Partial<WidgetStyling> = {
 	primaryColor: "#166534",
@@ -25,29 +56,14 @@ const defaultStyling: Partial<WidgetStyling> = {
 	shadow: "0 4px 12px rgba(0,0,0,0.15)",
 };
 
-type BrandingData = {
-	logo: string | null;
-	companyName: string;
-	colors: Record<string, string>;
-};
+// ─── Not Published Page ───────────────────────────────────────────────────────
 
 function NotPublishedPage({ branding }: { branding: BrandingData | null }) {
 	const primary = branding?.colors?.primary ?? "#111827";
 	const companyName = branding?.companyName ?? "This widget";
 	const logo = branding?.logo;
-
-	// Derive a very subtle tint for the background
-	const hexToRgb = (hex: string) => {
-		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-		return result
-			? {
-					r: parseInt(result[1], 16),
-					g: parseInt(result[2], 16),
-					b: parseInt(result[3], 16),
-			  }
-			: { r: 17, g: 24, b: 39 };
-	};
 	const rgb = hexToRgb(primary);
+	const onPrimary = contrastColor(primary);
 
 	return (
 		<>
@@ -327,6 +343,8 @@ function NotPublishedPage({ branding }: { branding: BrandingData | null }) {
 	);
 }
 
+// ─── Main Widget Page ─────────────────────────────────────────────────────────
+
 export default function ModularWidgetPage() {
 	const { organizationId, widgetId } = useParams<{
 		organizationId: string;
@@ -334,7 +352,9 @@ export default function ModularWidgetPage() {
 	}>();
 	const [config, setConfig] = useState<{
 		branding: BrandingData;
+		pageConfig: WidgetPageConfig | null;
 		widget: {
+			name: string;
 			versionId: string;
 			pages: WidgetPage[];
 			actions: WidgetVersionActions;
@@ -343,9 +363,7 @@ export default function ModularWidgetPage() {
 	} | null>(null);
 	const [configError, setConfigError] = useState<string | null>(null);
 	const [errorBranding, setErrorBranding] = useState<BrandingData | null>(null);
-	const [submitStatus, setSubmitStatus] = useState<
-		"idle" | "success" | "error"
-	>("idle");
+	const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
 	const [submitMessage, setSubmitMessage] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<string | null>(null);
@@ -358,22 +376,20 @@ export default function ModularWidgetPage() {
 		functionsService
 			.getModularWidgetConfig({ organizationId, widgetId })
 			.then((data) => {
-				const pages = Array.isArray(data.widget.pages)
-					? data.widget.pages
-					: [];
+				const pages = Array.isArray(data.widget.pages) ? data.widget.pages : [];
 				const actions =
-					data.widget.actions &&
-					typeof data.widget.actions === "object"
+					data.widget.actions && typeof data.widget.actions === "object"
 						? (data.widget.actions as WidgetVersionActions)
 						: { success: { message: "Thank you!" } };
 				const multiStepOptions =
-					data.widget.multiStepOptions &&
-					typeof data.widget.multiStepOptions === "object"
+					data.widget.multiStepOptions && typeof data.widget.multiStepOptions === "object"
 						? data.widget.multiStepOptions
 						: undefined;
 				setConfig({
 					branding: data.branding,
+					pageConfig: (data as { pageConfig?: WidgetPageConfig | null }).pageConfig ?? null,
 					widget: {
+						name: data.widget.name,
 						versionId: data.widget.versionId,
 						pages,
 						actions,
@@ -382,19 +398,10 @@ export default function ModularWidgetPage() {
 				});
 			})
 			.catch((err) => {
-				const msg =
-					err instanceof Error ? err.message : "Failed to load widget";
+				const msg = err instanceof Error ? err.message : "Failed to load widget";
 				setConfigError(msg);
-				// If the error carries branding data (not published), extract it
-				if (
-					err &&
-					typeof err === "object" &&
-					"branding" in err &&
-					(err as { branding?: unknown }).branding
-				) {
-					setErrorBranding(
-						(err as { branding: BrandingData }).branding,
-					);
+				if (err && typeof err === "object" && "branding" in err && (err as { branding?: unknown }).branding) {
+					setErrorBranding((err as { branding: BrandingData }).branding);
 				}
 			});
 	}, [organizationId, widgetId]);
@@ -402,15 +409,12 @@ export default function ModularWidgetPage() {
 	if (!organizationId || !widgetId) {
 		return (
 			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
-				<p className="text-destructive">
-					Missing organization or widget
-				</p>
+				<p className="text-destructive">Missing organization or widget</p>
 			</div>
 		);
 	}
 
 	if (configError) {
-		// Show beautiful "not published" page for that specific error
 		if (configError === "Widget has no published version") {
 			return <NotPublishedPage branding={errorBranding} />;
 		}
@@ -450,109 +454,604 @@ export default function ModularWidgetPage() {
 			}
 			setSubmitStatus("success");
 			setSubmitMessage(
-				json.message ??
-					config.widget.actions.success?.message ??
-					"Thank you!",
+				json.message ?? config.widget.actions.success?.message ?? "Thank you!",
 			);
 		} catch (err) {
-			setSubmitError(
-				err instanceof Error ? err.message : "Something went wrong",
-			);
+			setSubmitError(err instanceof Error ? err.message : "Something went wrong");
 		} finally {
 			setSubmitting(false);
 		}
 	};
 
 	const colors = config.branding.colors ?? {};
-	const themeStyling: Partial<WidgetStyling> = {
-		primaryColor: colors.primary ?? defaultStyling.primaryColor,
-		secondaryColor: colors.secondary ?? defaultStyling.secondaryColor,
-		successColor: colors.accent ?? defaultStyling.successColor,
-	};
-	const primary = themeStyling.primaryColor ?? "#166534";
-	const pageBg = `${primary}08`;
+	const primary = config.pageConfig?.primaryColor || colors.primary || "#2563eb";
+	const secondary = colors.secondary ?? "#6b7280";
+	const accent = colors.accent ?? "#10b981";
+	const rgb = hexToRgb(primary);
+	const onPrimary = contrastColor(primary);
 
-	if (submitStatus === "success") {
-		return (
-			<div
-				className="min-h-screen w-screen max-w-none flex flex-col px-6 py-12 md:py-20"
-				style={{
-					backgroundColor: pageBg,
-					fontFamily: defaultStyling.fontFamily,
-					fontSize: defaultStyling.fontSize,
-				}}
-			>
-				<div className="mx-auto flex flex-1 w-full max-w-2xl flex-col items-center justify-center text-center">
-					<CheckCircle2
-						className="h-14 w-14 mb-4"
-						style={{ color: defaultStyling.successColor }}
-					/>
-					<h1
-						className="font-serif text-2xl md:text-3xl font-semibold mb-2"
-						style={{ color: defaultStyling.textColor }}
-					>
-						Thank you
-					</h1>
-					<p
-						className="text-base max-w-md opacity-90"
-						style={{ color: defaultStyling.textColor }}
-					>
-						{submitMessage}
-					</p>
-				</div>
-				<footer className="mt-auto pt-12 pb-6 flex justify-center">
-					<Link
-						to="/"
-						className="text-xs opacity-70"
-						style={{ color: defaultStyling.textColor }}
-					>
-						Powered by Financely
-					</Link>
-				</footer>
-			</div>
-		);
-	}
+	const themeStyling: Partial<WidgetStyling> = {
+		...defaultStyling,
+		primaryColor: primary,
+		secondaryColor: secondary,
+		successColor: accent,
+	};
 
 	return (
-		<div
-			className="min-h-screen w-screen max-w-none flex flex-col items-center justify-center px-6 py-12 md:py-20"
-			style={{
-				backgroundColor: pageBg,
-				fontFamily: defaultStyling.fontFamily,
-				fontSize: defaultStyling.fontSize,
-			}}
+		<BrandedLayout
+			branding={config.branding}
+			pageConfig={config.pageConfig}
+			widgetName={config.widget.name}
+			primary={primary}
+			rgb={rgb}
+			onPrimary={onPrimary}
+			submitStatus={submitStatus}
+			submitMessage={submitMessage}
+			successMessage={config.widget.actions.success?.message}
+			onResetSubmit={() => setSubmitStatus("idle")}
 		>
-			<div className="mx-auto w-full max-w-md">
-				<div
-					className="w-full rounded-xl shadow-lg overflow-hidden"
-					style={{
-						backgroundColor: defaultStyling.backgroundColor,
-						border: `1px solid ${defaultStyling.borderColor}`,
-						borderRadius: defaultStyling.borderRadius,
-						boxShadow: defaultStyling.shadow,
-						padding: "24px",
-					}}
-				>
-					<WidgetSchemaRenderer
-						pages={config.widget.pages}
-						actions={config.widget.actions}
-						styling={{ ...defaultStyling, ...themeStyling }}
-						onSubmit={handleSubmit}
-						submitting={submitting}
-						submitError={submitError}
-						multiStepOptions={config.widget.multiStepOptions}
-					/>
-				</div>
-				<footer className="mt-8 flex justify-center">
-					<Link
-						to="/"
-						className="text-xs opacity-70"
-						style={{ color: defaultStyling.textColor }}
-					>
-						Powered by Financely
-					</Link>
-				</footer>
+			<WidgetSchemaRenderer
+				pages={config.widget.pages}
+				actions={config.widget.actions}
+				styling={themeStyling}
+				onSubmit={handleSubmit}
+				submitting={submitting}
+				submitError={submitError}
+				multiStepOptions={config.widget.multiStepOptions}
+			/>
+		</BrandedLayout>
+	);
+}
+
+// ─── Branded Layout ───────────────────────────────────────────────────────────
+
+interface BrandedLayoutProps {
+	branding: BrandingData;
+	pageConfig: WidgetPageConfig | null;
+	widgetName: string;
+	primary: string;
+	rgb: { r: number; g: number; b: number };
+	onPrimary: string;
+	submitStatus: "idle" | "success" | "error";
+	submitMessage: string;
+	successMessage?: string;
+	onResetSubmit: () => void;
+	children: React.ReactNode;
+}
+
+function BrandedLayout({
+	branding,
+	pageConfig,
+	widgetName,
+	primary,
+	rgb,
+	onPrimary,
+	submitStatus,
+	submitMessage,
+	successMessage,
+	onResetSubmit,
+	children,
+}: BrandedLayoutProps) {
+	const logo = branding.logo;
+	const companyName = branding.companyName;
+
+	// Resolved page config values (with defaults)
+	const headline = pageConfig?.headline || null;
+	const body = pageConfig?.body || null;
+	const hideBrandPanel = pageConfig?.hideBrandPanel ?? false;
+	const formTitle = pageConfig?.formTitle || null;
+	const formSubtitle = pageConfig?.formSubtitle || null;
+	const footerLinks = pageConfig?.footerLinks ?? [];
+	const showPoweredBy = pageConfig?.showPoweredBy ?? true;
+	const customTrustSignals = pageConfig?.trustSignals ?? null;
+
+	return (
+		<>
+			<style>{`
+				@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap');
+
+				*, *::before, *::after { box-sizing: border-box; }
+
+				.wsp-root {
+					min-height: 100dvh;
+					width: 100vw;
+					max-width: none;
+					display: flex;
+					flex-direction: column;
+					font-family: 'Geist', system-ui, sans-serif;
+					background: #f8f7f5;
+					overflow-x: hidden;
+				}
+
+
+
+				/* ── Main ── */
+				.wsp-main {
+					flex: 1;
+					position: relative;
+					display: flex;
+					min-height: 100dvh;
+				}
+
+				/* ── Left panel ── */
+				.wsp-left {
+					position: fixed;
+					top: 0;
+					left: 0;
+					width: 380px;
+					height: 100dvh;
+					display: flex;
+					flex-direction: column;
+					padding: 56px 48px 40px;
+					background: ${primary};
+					color: ${onPrimary};
+					overflow: hidden;
+					z-index: 10;
+				}
+
+				.wsp-left::before {
+					content: '';
+					position: absolute;
+					inset: 0;
+					background:
+						radial-gradient(ellipse at 100% 0%, rgba(255,255,255,0.12) 0%, transparent 60%),
+						radial-gradient(ellipse at 0% 100%, rgba(0,0,0,0.12) 0%, transparent 50%);
+					pointer-events: none;
+				}
+
+				.wsp-left-noise {
+					position: absolute;
+					inset: 0;
+					opacity: 0.03;
+					background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+					pointer-events: none;
+				}
+
+				.wsp-left-content {
+					position: relative;
+					z-index: 1;
+					display: flex;
+					flex-direction: column;
+					height: 100%;
+				}
+
+				.wsp-left-logo-wrap {
+					margin-bottom: 48px;
+				}
+
+				.wsp-left-logo-img {
+					height: 36px;
+					max-width: 160px;
+					object-fit: contain;
+					filter: ${onPrimary === "#ffffff" ? "brightness(0) invert(1)" : "brightness(0)"};
+					opacity: 0.9;
+				}
+
+				.wsp-left-logo-text {
+					font-size: 18px;
+					font-weight: 600;
+					letter-spacing: -0.03em;
+					opacity: 0.95;
+				}
+
+				.wsp-left-eyebrow {
+					font-size: 10px;
+					font-weight: 500;
+					letter-spacing: 0.2em;
+					text-transform: uppercase;
+					opacity: 0.5;
+					margin-bottom: 12px;
+				}
+
+				.wsp-left-headline {
+					font-family: 'Instrument Serif', Georgia, serif;
+					font-size: clamp(28px, 3.5vw, 40px);
+					font-weight: 400;
+					line-height: 1.12;
+					letter-spacing: -0.025em;
+					margin: 0 0 20px;
+					opacity: 0.97;
+				}
+
+				.wsp-left-headline em {
+					font-style: italic;
+					opacity: 0.75;
+				}
+
+				.wsp-left-body {
+					font-size: 14px;
+					font-weight: 300;
+					line-height: 1.7;
+					opacity: 0.65;
+					margin: 0 0 40px;
+					max-width: 280px;
+				}
+
+				.wsp-left-trust-list {
+					list-style: none;
+					padding: 0;
+					margin: 0;
+					display: flex;
+					flex-direction: column;
+					gap: 14px;
+				}
+
+				.wsp-left-trust-item {
+					display: flex;
+					align-items: center;
+					gap: 10px;
+					font-size: 13px;
+					font-weight: 400;
+					opacity: 0.7;
+				}
+
+				.wsp-left-trust-icon {
+					width: 28px;
+					height: 28px;
+					border-radius: 7px;
+					background: rgba(255,255,255,0.12);
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					flex-shrink: 0;
+				}
+
+				.wsp-left-bottom {
+					margin-top: auto;
+					padding-top: 32px;
+				}
+
+				.wsp-left-divider {
+					width: 32px;
+					height: 1px;
+					background: rgba(255,255,255,0.25);
+					margin-bottom: 16px;
+				}
+
+				.wsp-left-powered {
+					font-size: 10px;
+					opacity: 0.35;
+					letter-spacing: 0.05em;
+				}
+
+				/* ── Right panel ── */
+				.wsp-right {
+					margin-left: 380px;
+					flex: 1;
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+					justify-content: flex-start;
+					padding: 56px 40px 80px;
+				}
+
+				.wsp-right-inner {
+					width: 100%;
+					max-width: 520px;
+				}
+
+				.wsp-right-full {
+					margin-left: 0;
+				}
+
+				.wsp-left-footer-links {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					margin-bottom: 10px;
+				}
+
+				.wsp-left-footer-links a {
+					font-size: 11px;
+					opacity: 0.45;
+					color: inherit;
+					text-decoration: underline;
+					text-underline-offset: 3px;
+					transition: opacity 0.2s;
+				}
+				.wsp-left-footer-links a:hover { opacity: 0.7; }
+
+				.wsp-right-header {
+					margin-bottom: 32px;
+				}
+
+				.wsp-right-label {
+					font-size: 10px;
+					font-weight: 500;
+					letter-spacing: 0.18em;
+					text-transform: uppercase;
+					color: ${primary};
+					margin-bottom: 8px;
+					display: block;
+				}
+
+				.wsp-right-title {
+					font-family: 'Instrument Serif', Georgia, serif;
+					font-size: clamp(22px, 3vw, 30px);
+					font-weight: 400;
+					letter-spacing: -0.02em;
+					color: #111;
+					margin: 0 0 6px;
+					line-height: 1.2;
+				}
+
+				.wsp-right-subtitle {
+					font-size: 14px;
+					color: #6b7280;
+					font-weight: 300;
+					line-height: 1.6;
+					margin: 0;
+				}
+
+				.wsp-widget-card {
+					background: #fff;
+					border-radius: 16px;
+					border: 1px solid rgba(0,0,0,0.07);
+					box-shadow:
+						0 0 0 1px rgba(255,255,255,0.8) inset,
+						0 4px 24px rgba(${rgb.r},${rgb.g},${rgb.b},0.07),
+						0 1px 3px rgba(0,0,0,0.04);
+					overflow: hidden;
+					padding: 28px;
+				}
+
+				/* ── Success state ── */
+				.wsp-success-wrap {
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+					text-align: center;
+					padding: 48px 24px;
+				}
+
+				.wsp-success-icon-ring {
+					width: 72px;
+					height: 72px;
+					border-radius: 50%;
+					background: rgba(${rgb.r},${rgb.g},${rgb.b},0.08);
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					margin-bottom: 24px;
+				}
+
+				.wsp-success-title {
+					font-family: 'Instrument Serif', Georgia, serif;
+					font-size: 26px;
+					font-weight: 400;
+					letter-spacing: -0.02em;
+					color: #111;
+					margin: 0 0 10px;
+				}
+
+				.wsp-success-body {
+					font-size: 15px;
+					color: #6b7280;
+					font-weight: 300;
+					line-height: 1.65;
+					margin: 0 0 28px;
+					max-width: 340px;
+				}
+
+				.wsp-success-reset {
+					font-size: 13px;
+					color: ${primary};
+					background: none;
+					border: none;
+					cursor: pointer;
+					padding: 8px 0;
+					font-weight: 500;
+					text-decoration: underline;
+					text-underline-offset: 3px;
+					font-family: inherit;
+					opacity: 0.8;
+					transition: opacity 0.2s;
+				}
+				.wsp-success-reset:hover { opacity: 1; }
+
+				/* ── Animations ── */
+				@keyframes wsp-fade-in {
+					from { opacity: 0; transform: translateY(14px); }
+					to   { opacity: 1; transform: translateY(0); }
+				}
+
+				.wsp-left-content > * { animation: wsp-fade-in 0.5s ease both; }
+				.wsp-left-content > *:nth-child(1) { animation-delay: 0.05s; }
+				.wsp-left-content > *:nth-child(2) { animation-delay: 0.12s; }
+				.wsp-left-content > *:nth-child(3) { animation-delay: 0.18s; }
+				.wsp-left-content > *:nth-child(4) { animation-delay: 0.25s; }
+				.wsp-left-content > *:nth-child(5) { animation-delay: 0.32s; }
+				.wsp-right-header { animation: wsp-fade-in 0.5s 0.2s ease both; }
+				.wsp-widget-card { animation: wsp-fade-in 0.5s 0.3s ease both; }
+				.wsp-success-wrap > * { animation: wsp-fade-in 0.5s ease both; }
+				.wsp-success-wrap > *:nth-child(1) { animation-delay: 0s; }
+				.wsp-success-wrap > *:nth-child(2) { animation-delay: 0.08s; }
+				.wsp-success-wrap > *:nth-child(3) { animation-delay: 0.16s; }
+				.wsp-success-wrap > *:nth-child(4) { animation-delay: 0.22s; }
+
+				/* ── Responsive ── */
+				@media (max-width: 900px) {
+					.wsp-main {
+						flex-direction: column;
+					}
+					.wsp-left {
+						position: relative;
+						top: 0;
+						left: 0;
+						width: 100%;
+						height: auto;
+						min-height: unset;
+						padding: 40px 32px 36px;
+						z-index: auto;
+					}
+					.wsp-left-headline {
+						font-size: 26px;
+					}
+					.wsp-left-body {
+						display: none;
+					}
+					.wsp-left-trust-list {
+						flex-direction: row;
+						flex-wrap: wrap;
+						gap: 10px;
+					}
+					.wsp-left-bottom {
+						display: none;
+					}
+					.wsp-right {
+						margin-left: 0;
+						padding: 36px 20px 60px;
+					}
+				}
+
+				@media (max-width: 480px) {
+					.wsp-left {
+						padding: 32px 20px 28px;
+					}
+					.wsp-widget-card {
+						padding: 20px;
+						border-radius: 12px;
+					}
+				}
+			`}</style>
+
+			<div className="wsp-root">
+				<main className="wsp-main">
+					{/* ── Left branding panel (hidden if hideBrandPanel) ── */}
+					{!hideBrandPanel && (
+					<aside className="wsp-left">
+						<div className="wsp-left-noise" aria-hidden />
+						<div className="wsp-left-content">
+							{/* Logo */}
+							<div className="wsp-left-logo-wrap">
+								{logo ? (
+									<img
+										src={logo}
+										alt={companyName}
+										className="wsp-left-logo-img"
+									/>
+								) : (
+									<span className="wsp-left-logo-text">{companyName}</span>
+								)}
+							</div>
+
+							{/* Eyebrow */}
+							<p className="wsp-left-eyebrow">{companyName}</p>
+
+							{/* Headline */}
+							<h1 className="wsp-left-headline">
+								{headline || widgetName || <>Fill out the form <em>& we'll be in touch</em></>}
+							</h1>
+
+							{/* Body copy */}
+							<p className="wsp-left-body">
+								{body || "Complete the form and our team will review your submission. We typically respond within one business day."}
+							</p>
+
+							{/* Trust signals */}
+							<ul className="wsp-left-trust-list">
+								{customTrustSignals ? (
+									customTrustSignals.map((signal, i) => (
+										<li key={i} className="wsp-left-trust-item">
+											<span className="wsp-left-trust-icon">
+												{signal.icon === "shield" && <Shield size={13} strokeWidth={2} />}
+												{signal.icon === "clock" && <Clock size={13} strokeWidth={2} />}
+												{signal.icon === "star" && <Star size={13} strokeWidth={2} />}
+												{signal.icon === "check" && <Check size={13} strokeWidth={2} />}
+												{signal.icon === "lock" && <Lock size={13} strokeWidth={2} />}
+											</span>
+											{signal.label}
+										</li>
+									))
+								) : (
+									<>
+									<li className="wsp-left-trust-item">
+										<span className="wsp-left-trust-icon">
+											<Shield size={13} strokeWidth={2} />
+										</span>
+										Your data is secure
+									</li>
+									<li className="wsp-left-trust-item">
+										<span className="wsp-left-trust-icon">
+											<Clock size={13} strokeWidth={2} />
+										</span>
+										Replies within 24h
+									</li>
+									<li className="wsp-left-trust-item">
+										<span className="wsp-left-trust-icon">
+											<Star size={13} strokeWidth={2} />
+										</span>
+										No spam, ever
+									</li>
+									</>
+								)}
+							</ul>
+
+							{/* Footer */}
+							<div className="wsp-left-bottom">
+								<div className="wsp-left-divider" />
+								{footerLinks.length > 0 && (
+									<nav className="wsp-left-footer-links">
+										{footerLinks.map((link, i) => (
+											<a key={i} href={link.url} target="_blank" rel="noopener noreferrer">
+												{link.label}
+											</a>
+										))}
+									</nav>
+								)}
+								{showPoweredBy && (
+									<Link to="/" style={{ textDecoration: "none" }}>
+										<p className="wsp-left-powered">Powered by Financely</p>
+									</Link>
+								)}
+							</div>
+						</div>
+					</aside>
+					)}
+
+					{/* ── Right widget panel ── */}
+					<section className={hideBrandPanel ? "wsp-right wsp-right-full" : "wsp-right"}>
+						<div className="wsp-right-inner">
+							{submitStatus === "success" ? (
+								<div className="wsp-widget-card">
+									<div className="wsp-success-wrap">
+										<div className="wsp-success-icon-ring">
+											<CheckCircle2
+												size={32}
+												strokeWidth={1.5}
+												style={{ color: primary }}
+											/>
+										</div>
+										<h2 className="wsp-success-title">All done!</h2>
+										<p className="wsp-success-body">
+											{submitMessage || successMessage || "Thank you for your submission. We'll be in touch shortly."}
+										</p>
+										<button
+											className="wsp-success-reset"
+											onClick={onResetSubmit}
+										>
+											Submit another response
+										</button>
+									</div>
+								</div>
+							) : (
+								<>
+									<div className="wsp-right-header">
+										<span className="wsp-right-label">{companyName}</span>
+										<h2 className="wsp-right-title">{formTitle || widgetName || "Get in touch"}</h2>
+										<p className="wsp-right-subtitle">
+											{formSubtitle || "Fill in the details below and we'll get back to you."}
+										</p>
+									</div>
+									<div className="wsp-widget-card">
+										{children}
+									</div>
+								</>
+							)}
+						</div>
+					</section>
+				</main>
 			</div>
-		</div>
+		</>
 	);
 }

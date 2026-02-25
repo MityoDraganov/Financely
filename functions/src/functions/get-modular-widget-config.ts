@@ -153,6 +153,7 @@ export const getModularWidgetConfig = onRequest(
 					companyName: branding?.companyName ?? organization.name,
 					colors: brandColors,
 				},
+				pageConfig: (definition as { pageConfig?: unknown }).pageConfig ?? null,
 				widget: {
 					widgetId,
 					name: (definition as { name: string }).name,

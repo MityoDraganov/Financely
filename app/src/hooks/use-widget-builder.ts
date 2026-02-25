@@ -12,6 +12,7 @@ import type {
 } from "@/core/entities/widget-block-schema";
 import type { BlockType } from "@/core/entities/widget-block-schema";
 import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
+import type { WidgetPageConfig } from "@/core/entities/widget-definition";
 import type { WidgetStyling } from "@/components/site-builder/widget-types";
 
 const DEFAULT_ACTIONS: WidgetVersionActions = {
@@ -48,6 +49,9 @@ export interface UseWidgetBuilderReturn {
 	actions: WidgetVersionActions;
 	multiStepOptions: WidgetMultiStepOptions;
 	setMultiStepOptions: (opts: WidgetMultiStepOptions) => void;
+	pageConfig: WidgetPageConfig;
+	setPageConfig: (config: WidgetPageConfig) => void;
+	savePageConfig: (config: WidgetPageConfig) => Promise<void>;
 	addPage: () => void;
 	removePage: (pageId: string) => void;
 	reorderPages: (fromIndex: number, toIndex: number) => void;
@@ -255,6 +259,7 @@ export function useWidgetBuilder({
 	const [activePageId, setActivePageId] = useState<string | null>(null);
 	const [actions, setActions] = useState<WidgetVersionActions>(DEFAULT_ACTIONS);
 	const [multiStepOptions, setMultiStepOptions] = useState<WidgetMultiStepOptions>({});
+	const [pageConfig, setPageConfig] = useState<WidgetPageConfig>({});
 	const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -344,6 +349,7 @@ export function useWidgetBuilder({
 			setSelectedVersionId(null);
 			setPublishedVersionId(null);
 			setDefinitionStatus(null);
+			setPageConfig({});
 			savedSnapshotRef.current = "";
 			setHasInitializedSnapshot(false);
 			return;
@@ -366,6 +372,11 @@ export function useWidgetBuilder({
 
 				setDefinitionStatus(r.definition?.status ?? null);
 				setPublishedVersionId(r.definition?.publishedVersionId ?? null);
+				if (r.definition?.pageConfig && typeof r.definition.pageConfig === "object") {
+					setPageConfig(r.definition.pageConfig as WidgetPageConfig);
+				} else {
+					setPageConfig({});
+				}
 				setSelectedVersionId(
 					r.version?.id ?? r.definition?.publishedVersionId ?? null,
 				);
@@ -843,6 +854,21 @@ export function useWidgetBuilder({
 		],
 	);
 
+	const savePageConfig = useCallback(async (config: WidgetPageConfig) => {
+		if (!organizationId || !effectiveWidgetId) return;
+		try {
+			await functionsService.updateWidgetDefinition({
+				organizationId,
+				widgetId: effectiveWidgetId,
+				pageConfig: config,
+			});
+			setPageConfig(config);
+			toast.success("Page settings saved");
+		} catch {
+			toast.error("Failed to save page settings");
+		}
+	}, [organizationId, effectiveWidgetId]);
+
 	const previewStyling: Partial<WidgetStyling> = useMemo(() => {
 		const brand = organization?.settings?.brandColors;
 		return {
@@ -876,6 +902,9 @@ export function useWidgetBuilder({
 			actions: DEFAULT_ACTIONS,
 			multiStepOptions: {},
 			setMultiStepOptions: noop,
+			pageConfig: {},
+			setPageConfig: noop,
+			savePageConfig: noopAsync,
 			addPage: noop,
 			removePage: noop,
 			reorderPages: noop,
@@ -928,6 +957,9 @@ export function useWidgetBuilder({
 		actions,
 		multiStepOptions,
 		setMultiStepOptions,
+		pageConfig,
+		setPageConfig,
+		savePageConfig,
 		addPage,
 		removePage,
 		reorderPages,

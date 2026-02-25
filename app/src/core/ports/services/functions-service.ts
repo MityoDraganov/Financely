@@ -802,7 +802,8 @@ export interface FunctionsService {
   updateWidgetDefinition(payload: {
     organizationId: string;
     widgetId: string;
-    name: string;
+    name?: string;
+    pageConfig?: import("@/core/entities/widget-definition").WidgetPageConfig | null;
   }): Promise<{ success: boolean; widgetId: string }>;
 
   deleteWidgetDefinition(payload: {
@@ -833,6 +834,7 @@ export interface FunctionsService {
       name: string;
       status: string;
       publishedVersionId: string | null;
+      pageConfig?: import("@/core/entities/widget-definition").WidgetPageConfig | null;
     };
     version: {
       id: string;

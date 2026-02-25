@@ -58,6 +58,7 @@ export const getModularWidgetDraft = onCall<GetModularWidgetDraftPayload>(
 				status: (definition as { status: string }).status,
 				publishedVersionId: (definition as { publishedVersionId: string | null })
 					.publishedVersionId,
+				pageConfig: (definition as { pageConfig?: unknown }).pageConfig ?? null,
 			},
 			version: latest
 				? {
