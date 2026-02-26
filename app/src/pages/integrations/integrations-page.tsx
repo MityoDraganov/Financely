@@ -15,6 +15,7 @@ import {
 	IntegrationsHeader,
 	IntegrationsWidgetNavBar,
 	ShareEmbedSection,
+	PageLayoutBuilderSection,
 	AutomationsSection,
 	WidgetSidebar,
 	WidgetBuilderPropertiesPanel,
@@ -287,6 +288,9 @@ function DesignAreaContent({
 								selectedWidgetId={effectiveWidgetId}
 							/>
 						)}
+						{activeTab === "pageBuilder" && (
+							<PageLayoutBuilderSection />
+						)}
 						{activeTab === "automations" && (
 							<AutomationsSection />
 						)}
@@ -310,7 +314,7 @@ export default function IntegrationsPage() {
 
 	const handleTabChange = useCallback(
 		(tab: TabValue) => {
-			const requiresWidget = tab === "share" || tab === "automations";
+			const requiresWidget = tab === "share" || tab === "pageBuilder" || tab === "automations";
 			if (requiresWidget && !effectiveWidgetId) return;
 			setActiveTab(tab);
 		},
@@ -321,7 +325,10 @@ export default function IntegrationsPage() {
 	const prevWidgetIdRef = useRef(effectiveWidgetId);
 	if (prevWidgetIdRef.current !== effectiveWidgetId) {
 		prevWidgetIdRef.current = effectiveWidgetId;
-		if (!effectiveWidgetId && (activeTab === "share" || activeTab === "automations")) {
+		if (
+			!effectiveWidgetId &&
+			(activeTab === "share" || activeTab === "pageBuilder" || activeTab === "automations")
+		) {
 			setActiveTab("design");
 		}
 	}

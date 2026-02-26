@@ -15,6 +15,7 @@ import { Loader2, Plus, GripVertical, Trash2, ArrowLeft, FileText, MessageSquare
 import { toast } from "sonner";
 import { functionsService } from "@/services/functions/functions-service";
 import { WIDGET_TEMPLATES } from "@/core/widget-templates";
+import { buildDefaultWidgetPageConfig } from "@/utils/widget-page-config-defaults";
 import type {
 	WidgetBlockSchema,
 	WidgetBlock,
@@ -213,10 +214,22 @@ export default function WidgetBuilderPage() {
 		if (!organization?.id) return;
 		setCreating(true);
 		try {
+			const widgetName = "New widget";
 			const r = await functionsService.createWidgetDefinition({
 				organizationId: organization.id,
-				name: "New widget",
+				name: widgetName,
 			});
+			try {
+				await functionsService.updateWidgetDefinition({
+					organizationId: organization.id,
+					widgetId: r.widgetId,
+					pageConfig: buildDefaultWidgetPageConfig(widgetName, {
+						primaryColor: organization?.settings?.brandColors?.primary,
+					}),
+				});
+			} catch {
+				// Non-blocking: builder hook will hydrate defaults on first load if this call fails.
+			}
 			navigate(`/integrations/widget-builder/${r.widgetId}`);
 		} catch {
 			toast.error("Failed to create widget");
@@ -236,6 +249,17 @@ export default function WidgetBuilderPage() {
 				organizationId: organization.id,
 				name: template.name,
 			});
+			try {
+				await functionsService.updateWidgetDefinition({
+					organizationId: organization.id,
+					widgetId: r.widgetId,
+					pageConfig: buildDefaultWidgetPageConfig(template.name, {
+						primaryColor: organization?.settings?.brandColors?.primary,
+					}),
+				});
+			} catch {
+				// Non-blocking: builder hook will hydrate defaults on first load if this call fails.
+			}
 			await functionsService.saveModularWidgetVersion({
 				organizationId: organization.id,
 				widgetId: r.widgetId,

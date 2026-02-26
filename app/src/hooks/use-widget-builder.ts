@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { functionsService } from "@/services/functions/functions-service";
+import {
+	buildDefaultWidgetPageConfig,
+	hasPageConfigValues,
+} from "@/utils/widget-page-config-defaults";
 import type {
 	WidgetBlock,
 	WidgetPage,
@@ -372,10 +376,24 @@ export function useWidgetBuilder({
 
 				setDefinitionStatus(r.definition?.status ?? null);
 				setPublishedVersionId(r.definition?.publishedVersionId ?? null);
-				if (r.definition?.pageConfig && typeof r.definition.pageConfig === "object") {
-					setPageConfig(r.definition.pageConfig as WidgetPageConfig);
+				const fetchedPageConfig =
+					r.definition?.pageConfig && typeof r.definition.pageConfig === "object"
+						? (r.definition.pageConfig as WidgetPageConfig)
+						: null;
+				if (hasPageConfigValues(fetchedPageConfig)) {
+					setPageConfig(fetchedPageConfig);
 				} else {
-					setPageConfig({});
+					const defaultPageConfig = buildDefaultWidgetPageConfig(r.definition?.name ?? "Widget", {
+						primaryColor: organization?.settings?.brandColors?.primary,
+					});
+					setPageConfig(defaultPageConfig);
+					void functionsService
+						.updateWidgetDefinition({
+							organizationId,
+							widgetId: effectiveWidgetId,
+							pageConfig: defaultPageConfig,
+						})
+						.catch(() => {});
 				}
 				setSelectedVersionId(
 					r.version?.id ?? r.definition?.publishedVersionId ?? null,
@@ -387,6 +405,7 @@ export function useWidgetBuilder({
 		organizationId,
 		effectiveWidgetId,
 		widgetBelongsToOrg,
+		organization?.settings?.brandColors?.primary,
 		applyBuilderState,
 	]);
 

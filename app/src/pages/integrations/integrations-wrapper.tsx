@@ -4,6 +4,7 @@ import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useWidgetDefinitions } from "@/hooks/repository-hooks/use-widget-definitions";
 import { WidgetDesignerProvider, type WidgetTemplateForCreate } from "@/contexts/widget-designer-context";
 import { functionsService } from "@/services/functions/functions-service";
+import { buildDefaultWidgetPageConfig } from "@/utils/widget-page-config-defaults";
 import IntegrationsPage from "./integrations-page";
 import AppLayout from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -45,10 +46,22 @@ export default function IntegrationsWrapper() {
 		creatingRef.current = true;
 		setIsCreatingNewWidget(true);
 		try {
+			const widgetName = `Widget ${definitions.length + 1}`;
 			const r = await functionsService.createWidgetDefinition({
 				organizationId: orgId,
-				name: `Widget ${definitions.length + 1}`,
+				name: widgetName,
 			});
+			try {
+				await functionsService.updateWidgetDefinition({
+					organizationId: orgId,
+					widgetId: r.widgetId,
+					pageConfig: buildDefaultWidgetPageConfig(widgetName, {
+						primaryColor: currentOrg?.settings?.brandColors?.primary,
+					}),
+				});
+			} catch {
+				// Non-blocking: builder hook will hydrate defaults on first load if this call fails.
+			}
 			invalidate();
 			await refetch();
 			setCurrentWidgetId(r.widgetId);
@@ -59,7 +72,7 @@ export default function IntegrationsWrapper() {
 			creatingRef.current = false;
 			setIsCreatingNewWidget(false);
 		}
-	}, [orgId, definitions.length, invalidate, refetch, navigate]);
+	}, [orgId, definitions.length, invalidate, refetch, navigate, currentOrg?.settings?.brandColors?.primary]);
 
 	const onWidgetChange = useCallback(
 		(id: string) => {
@@ -82,6 +95,17 @@ export default function IntegrationsWrapper() {
 					organizationId: orgId,
 					name: template.name,
 				});
+				try {
+					await functionsService.updateWidgetDefinition({
+						organizationId: orgId,
+						widgetId: r.widgetId,
+						pageConfig: buildDefaultWidgetPageConfig(template.name, {
+							primaryColor: currentOrg?.settings?.brandColors?.primary,
+						}),
+					});
+				} catch {
+					// Non-blocking: builder hook will hydrate defaults on first load if this call fails.
+				}
 				await functionsService.saveModularWidgetVersion({
 					organizationId: orgId,
 					widgetId: r.widgetId,
@@ -96,7 +120,7 @@ export default function IntegrationsWrapper() {
 				creatingRef.current = false;
 			}
 		},
-		[orgId, invalidate, refetch, navigate]
+		[orgId, invalidate, refetch, navigate, currentOrg?.settings?.brandColors?.primary]
 	);
 
 	return (
