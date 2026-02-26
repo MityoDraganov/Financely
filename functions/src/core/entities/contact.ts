@@ -1,5 +1,6 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { budgetValueSchema } from "./budget";
 
 export const contactDataSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -15,6 +16,10 @@ export const contactDataSchema = z.object({
   }),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
+  budget: budgetValueSchema.optional(),
+  budgetMin: z.number().finite().nonnegative().optional(),
+  budgetMax: z.number().finite().nonnegative().optional(),
+  budgetCurrency: z.string().min(1).optional(),
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -49,4 +54,3 @@ export const contactSchema = baseEntitySchema.extend({
 
 export type ContactData = z.infer<typeof contactDataSchema>;
 export type Contact = z.infer<typeof contactSchema>;
-

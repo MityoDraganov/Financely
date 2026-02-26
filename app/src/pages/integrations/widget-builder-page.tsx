@@ -52,7 +52,15 @@ const BLOCK_GROUPS: {
 			{ type: "email", label: "Email", defaultProps: { label: "Email", fieldKey: "email", required: true } },
 			{ type: "phone", label: "Phone", defaultProps: { label: "Phone", fieldKey: "phone", required: false } },
 			{ type: "textarea", label: "Textarea", defaultProps: { label: "Message", fieldKey: "message", required: false } },
-			{ type: "select", label: "Select", defaultProps: { label: "Select", fieldKey: "select1", options: ["Option 1"] } },
+			{
+				type: "select",
+				label: "Select",
+				defaultProps: {
+					label: "Select",
+					fieldKey: "select1",
+					options: [{ label: "Option 1", value: "option_1" }],
+				},
+			},
 			{ type: "checkbox", label: "Checkbox", defaultProps: { label: "Check", fieldKey: "check1" } },
 			{ type: "date", label: "Date", defaultProps: { label: "Date", fieldKey: "date1", required: false } },
 		],

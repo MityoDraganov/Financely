@@ -1,12 +1,34 @@
+import { useMemo, useState } from "react";
+import type { ContactMetafieldDefinition } from "@/core";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trash2, Loader2, History, CheckCircle2 } from "lucide-react";
+import {
+	Trash2,
+	Loader2,
+	History,
+	CheckCircle2,
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	ChevronsUpDown,
+	Database,
+	Tag,
+} from "lucide-react";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useContactMetafieldDefinitions } from "@/hooks/repository-hooks/use-contact-metafields";
 import { DeleteWidgetDialog } from "./delete-widget-dialog";
 import { Checkbox } from "../ui/checkbox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import {
 	Select,
 	SelectContent,
@@ -15,6 +37,15 @@ import {
 	SelectValue,
 } from "../ui/select";
 import { cn } from "@/lib/utils";
+import {
+	getEntityDynamicSourceFields,
+	type DynamicSourceValueType,
+} from "@/utils/dynamic-sources";
+import {
+	normalizeSelectOptions,
+	type WidgetSelectOption,
+} from "@/utils/widget-builder-validation";
+import { parseBudgetInput } from "@/utils/budget";
 
 const FIELD_BLOCK_TYPES = [
 	"inputText",
@@ -35,6 +66,378 @@ const REQUIRED_FIELD_TYPES = [
 	"select",
 	"date",
 ] as const;
+
+type FieldKeyOption = {
+	key: string;
+	label: string;
+	description?: string;
+	sourceKind: "field" | "metafield" | "legacy";
+	valueType?: DynamicSourceValueType;
+};
+
+type FieldKeyMenuPage = "root" | "contact-fields" | "metafields";
+type FieldKeyMenuState = {
+	page: FieldKeyMenuPage;
+};
+
+const FIELD_KEY_ROOT_PAGE: FieldKeyMenuState = { page: "root" };
+const HIDDEN_CONTACT_FIELD_KEYS = new Set([
+	"budgetMin",
+	"budgetMax",
+	"budgetCurrency",
+]);
+
+function buildFieldKeyOptions(contactMetafieldDefinitions: Array<{
+	id: ContactMetafieldDefinition["id"];
+	name: ContactMetafieldDefinition["name"];
+	type: ContactMetafieldDefinition["type"];
+	description?: ContactMetafieldDefinition["description"];
+}>): FieldKeyOption[] {
+	const sources = getEntityDynamicSourceFields({ contactMetafieldDefinitions }).filter(
+		(source) => source.entity === "contact" && source.path !== "organizationId",
+	);
+	const seenKeys = new Set<string>();
+	const options = sources.flatMap((source) => {
+		const key = source.path;
+		if (!key || seenKeys.has(key)) return [];
+		const isNestedContactField =
+			source.sourceKind !== "metafield" && key.includes(".");
+		if (isNestedContactField) return [];
+		if (source.sourceKind !== "metafield" && HIDDEN_CONTACT_FIELD_KEYS.has(key)) {
+			return [];
+		}
+		seenKeys.add(key);
+		const isBudgetKey = key === "budget";
+		return [
+			{
+				key,
+				label: isBudgetKey ? "Budget (exact or range)" : source.label,
+				description:
+					isBudgetKey
+						? "Accepts numeric value or numeric range"
+						: source.sourceKind === "metafield"
+						? source.description
+						: `contact.${source.path}`,
+				sourceKind: source.sourceKind === "metafield" ? "metafield" : "field",
+				valueType: source.valueType,
+			} satisfies FieldKeyOption,
+		];
+	});
+
+	if (!seenKeys.has("budget")) {
+		options.push({
+			key: "budget",
+			label: "Budget (exact or range)",
+			description: "Accepts numeric value or numeric range",
+			sourceKind: "field",
+			valueType: "unknown",
+		});
+	}
+
+	return options;
+}
+
+type BudgetOptionMode = "exact" | "range" | "minimum";
+type BudgetOptionDraft = {
+	mode: BudgetOptionMode;
+	exactAmount?: number;
+	minAmount?: number;
+	maxAmount?: number;
+};
+
+const parseBudgetNumber = (value: string): number | undefined => {
+	const normalized = value.trim().replace(/,/g, "");
+	if (!normalized) return undefined;
+	const parsed = Number(normalized);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const parseBudgetOptionDraft = (rawValue: string): BudgetOptionDraft => {
+	const value = rawValue.trim();
+	if (!value) return { mode: "exact" };
+
+	const minimumMatch = value.match(/^([\d,.]*)\s*\+$/);
+	if (minimumMatch) {
+		return { mode: "minimum", minAmount: parseBudgetNumber(minimumMatch[1]) };
+	}
+
+	const rangeMatch = value.match(/^([\d,.]*)\s*(?:-|–|—|to)\s*([\d,.]*)$/i);
+	if (rangeMatch) {
+		return {
+			mode: "range",
+			minAmount: parseBudgetNumber(rangeMatch[1]),
+			maxAmount: parseBudgetNumber(rangeMatch[2]),
+		};
+	}
+
+	const exactAmount = parseBudgetNumber(value);
+	if (exactAmount != null) {
+		return { mode: "exact", exactAmount };
+	}
+
+	const parsedBudget = parseBudgetInput({ value });
+	if (parsedBudget) {
+		if (parsedBudget.budget.kind === "exact") {
+			return { mode: "exact", exactAmount: parsedBudget.budget.amount };
+		}
+		if (parsedBudget.budget.minAmount === parsedBudget.budget.maxAmount) {
+			return { mode: "minimum", minAmount: parsedBudget.budget.minAmount };
+		}
+		return {
+			mode: "range",
+			minAmount: parsedBudget.budget.minAmount,
+			maxAmount: parsedBudget.budget.maxAmount,
+		};
+	}
+
+	return { mode: "exact" };
+};
+
+const toBudgetOptionValue = (draft: BudgetOptionDraft): string => {
+	if (draft.mode === "exact") {
+		return draft.exactAmount != null ? String(draft.exactAmount) : "";
+	}
+	if (draft.mode === "minimum") {
+		return `${draft.minAmount != null ? draft.minAmount : ""}+`;
+	}
+	return `${draft.minAmount != null ? draft.minAmount : ""}-${draft.maxAmount != null ? draft.maxAmount : ""}`;
+};
+
+type FieldKeyMenuHeaderProps = {
+	isNested: boolean;
+	title: string;
+	onGoBack: () => void;
+};
+
+const FieldKeyMenuHeader = ({ isNested, title, onGoBack }: FieldKeyMenuHeaderProps) => (
+	<div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground border-b border-border/70 bg-muted/35 min-w-0">
+		{isNested ? (
+			<button
+				type="button"
+				className="inline-flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted"
+				onClick={onGoBack}
+				aria-label="Go back"
+			>
+				<ChevronLeft className="h-4 w-4" />
+			</button>
+		) : null}
+		<span className="truncate">{title}</span>
+	</div>
+);
+
+type FieldKeyOptionListProps = {
+	options: FieldKeyOption[];
+	selectedKey: string;
+	emptyLabel: string;
+	onSelectKey: (nextOption: FieldKeyOption) => void;
+};
+
+const FieldKeyOptionList = ({
+	options,
+	selectedKey,
+	emptyLabel,
+	onSelectKey,
+}: FieldKeyOptionListProps) => (
+	<div className="max-h-64 overflow-y-auto overflow-x-hidden">
+		{options.length === 0 ? (
+			<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
+				{emptyLabel}
+			</DropdownMenuItem>
+		) : null}
+		{options.map((option) => (
+			<DropdownMenuItem
+				key={option.key}
+				className="min-h-10 rounded-xl text-sm items-start py-2"
+				onSelect={(event) => {
+					event.preventDefault();
+					onSelectKey(option);
+				}}
+			>
+				<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+					<span className="truncate">{option.label}</span>
+					<span className="truncate text-[11px] text-muted-foreground">
+						{option.key}
+					</span>
+				</div>
+				{selectedKey === option.key ? (
+					<Check className="h-4 w-4 text-primary shrink-0" />
+				) : null}
+			</DropdownMenuItem>
+		))}
+	</div>
+);
+
+type FieldKeySelectorProps = {
+	value: string;
+	contactFieldOptions: FieldKeyOption[];
+	contactMetafieldOptions: FieldKeyOption[];
+	metafieldsLoading: boolean;
+	metafieldsError: boolean;
+	onSelectKey: (nextOption: FieldKeyOption) => void;
+};
+
+function FieldKeySelector({
+	value,
+	contactFieldOptions,
+	contactMetafieldOptions,
+	metafieldsLoading,
+	metafieldsError,
+	onSelectKey,
+}: FieldKeySelectorProps) {
+	const [open, setOpen] = useState(false);
+	const [pageStack, setPageStack] = useState<FieldKeyMenuState[]>([FIELD_KEY_ROOT_PAGE]);
+	const allSelectableOptions = useMemo(
+		() => [...contactFieldOptions, ...contactMetafieldOptions],
+		[contactFieldOptions, contactMetafieldOptions],
+	);
+	const selectedOption = allSelectableOptions.find((option) => option.key === value);
+	const legacyOption =
+		value && !selectedOption
+			? ({
+					key: value,
+					label: "Current key (legacy)",
+					description: "This key is not in contact fields or contact metafields",
+					sourceKind: "legacy",
+			  } satisfies FieldKeyOption)
+			: null;
+
+	const currentState = pageStack[pageStack.length - 1] ?? FIELD_KEY_ROOT_PAGE;
+	const currentPage = currentState.page;
+	const isNested = pageStack.length > 1;
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		setOpen(nextOpen);
+		if (!nextOpen) {
+			setPageStack([FIELD_KEY_ROOT_PAGE]);
+		}
+	};
+
+	const goToPage = (page: FieldKeyMenuPage) => {
+		setPageStack((prev) => [...prev, { page }]);
+	};
+
+	const goBack = () => {
+		setPageStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+	};
+
+	const handleSelectKey = (nextOption: FieldKeyOption) => {
+		onSelectKey(nextOption);
+		setOpen(false);
+		setPageStack([FIELD_KEY_ROOT_PAGE]);
+	};
+
+	const title =
+		currentPage === "contact-fields"
+			? "Contact fields"
+			: currentPage === "metafields"
+				? "Contact metafields"
+				: "Choose field key";
+
+	return (
+		<DropdownMenu open={open} onOpenChange={handleOpenChange}>
+			<DropdownMenuTrigger asChild>
+				<Button
+					type="button"
+					variant="outline"
+					className="mt-1 w-full h-auto min-h-9 px-3 py-2 justify-between font-normal"
+				>
+					<span className="min-w-0 text-left">
+						<span className="block text-sm truncate text-foreground">
+							{selectedOption?.label ?? legacyOption?.label ?? "Select field key"}
+						</span>
+						<span className="block text-[11px] text-muted-foreground truncate">
+							{value || "No key selected"}
+						</span>
+					</span>
+					<ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="start"
+				sideOffset={8}
+				className="w-[320px] rounded-2xl p-0 overflow-x-hidden overflow-y-hidden"
+			>
+				<FieldKeyMenuHeader isNested={isNested} title={title} onGoBack={goBack} />
+				<div className="p-1.5 overflow-x-hidden">
+					{currentPage === "root" ? (
+						<>
+							<DropdownMenuItem
+								className="h-11 rounded-xl text-base flex items-center justify-between"
+								onSelect={(event) => {
+									event.preventDefault();
+									goToPage("contact-fields");
+								}}
+							>
+								<span className="inline-flex items-center gap-2 min-w-0">
+									<Database className="h-4 w-4 shrink-0" />
+									<span className="truncate">Contact fields</span>
+								</span>
+								<span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+									{contactFieldOptions.length}
+									<ChevronRight className="h-4 w-4" />
+								</span>
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className="h-11 rounded-xl text-base flex items-center justify-between"
+								onSelect={(event) => {
+									event.preventDefault();
+									goToPage("metafields");
+								}}
+							>
+								<span className="inline-flex items-center gap-2 min-w-0">
+									<Tag className="h-4 w-4 shrink-0" />
+									<span className="truncate">Contact metafields</span>
+								</span>
+								<span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+									{contactMetafieldOptions.length}
+									<ChevronRight className="h-4 w-4" />
+								</span>
+							</DropdownMenuItem>
+							{legacyOption ? (
+								<>
+									<DropdownMenuSeparator />
+									<FieldKeyOptionList
+										options={[legacyOption]}
+										selectedKey={value}
+										emptyLabel=""
+										onSelectKey={handleSelectKey}
+									/>
+								</>
+							) : null}
+						</>
+					) : null}
+					{currentPage === "contact-fields" ? (
+						<FieldKeyOptionList
+							options={contactFieldOptions}
+							selectedKey={value}
+							emptyLabel="No contact fields available"
+							onSelectKey={handleSelectKey}
+						/>
+					) : null}
+					{currentPage === "metafields" ? (
+						metafieldsLoading ? (
+							<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								Loading contact metafields…
+							</DropdownMenuItem>
+						) : metafieldsError ? (
+							<DropdownMenuItem disabled className="h-10 rounded-xl text-sm">
+								Failed to load contact metafields
+							</DropdownMenuItem>
+						) : (
+							<FieldKeyOptionList
+								options={contactMetafieldOptions}
+								selectedKey={value}
+								emptyLabel="No contact metafields defined yet"
+								onSelectKey={handleSelectKey}
+							/>
+						)
+					) : null}
+				</div>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
 
 function formatVersionTimestamp(value: unknown): string {
 	if (!value) return "Recently";
@@ -65,6 +468,7 @@ function formatVersionTimestamp(value: unknown): string {
 export function WidgetBuilderPropertiesPanel() {
 	const ctx = useWidgetBuilderContext();
 	const widgetDesigner = useWidgetDesigner();
+	const { data: organization } = useCurrentOrganization();
 	const pages = ctx?.pages ?? [];
 	const activePageId = ctx?.activePageId ?? null;
 	const activePage = pages.find((p) => p.id === activePageId) ?? null;
@@ -84,6 +488,40 @@ export function WidgetBuilderPropertiesPanel() {
 	const deleteWidgetId = ctx?.deleteWidgetId ?? null;
 	const setDeleteWidgetId = ctx?.setDeleteWidgetId ?? (() => {});
 	const onDeleteWidget = ctx?.onDeleteWidget;
+	const { data: contactMetafieldDefinitions = [], isLoading: contactMetafieldsLoading, isError: contactMetafieldsError } =
+		useContactMetafieldDefinitions(organization?.id);
+	const fieldKeyOptions = useMemo(
+		() => buildFieldKeyOptions(contactMetafieldDefinitions),
+		[contactMetafieldDefinitions],
+	);
+	const contactFieldOptions = useMemo(
+		() => fieldKeyOptions.filter((option) => option.sourceKind === "field"),
+		[fieldKeyOptions],
+	);
+	const contactMetafieldOptions = useMemo(
+		() => fieldKeyOptions.filter((option) => option.sourceKind === "metafield"),
+		[fieldKeyOptions],
+	);
+	const selectedBlockValidationIssues = useMemo(
+		() =>
+			selectedBlock
+				? (ctx?.validationIssues ?? []).filter((issue) => issue.blockId === selectedBlock.id)
+				: [],
+		[ctx?.validationIssues, selectedBlock],
+	);
+	const selectedSelectOptionErrorsByIndex = useMemo(() => {
+		const lookup: Record<number, string[]> = {};
+		selectedBlockValidationIssues.forEach((issue) => {
+			if (issue.optionIndex == null) return;
+			if (!lookup[issue.optionIndex]) lookup[issue.optionIndex] = [];
+			lookup[issue.optionIndex].push(issue.message);
+		});
+		return lookup;
+	}, [selectedBlockValidationIssues]);
+	const selectedBlockGeneralErrors = useMemo(
+		() => selectedBlockValidationIssues.filter((issue) => issue.optionIndex == null),
+		[selectedBlockValidationIssues],
+	);
 
 	return (
 		<aside className="w-80 shrink-0 h-full min-h-0 overflow-hidden border-l bg-muted/20 flex flex-col">
@@ -230,8 +668,7 @@ export function WidgetBuilderPropertiesPanel() {
 													<Label className="text-xs">
 														Field key
 													</Label>
-													<Input
-														className="mt-1"
+													<FieldKeySelector
 														value={
 															(
 																selectedBlock.props as {
@@ -239,15 +676,15 @@ export function WidgetBuilderPropertiesPanel() {
 																}
 															).fieldKey ?? ""
 														}
-														onChange={(e) =>
-															onUpdateProps(
-																selectedBlock.id,
-																{
-																	fieldKey:
-																		e.target
-																			.value,
-																},
-															)
+														contactFieldOptions={contactFieldOptions}
+														contactMetafieldOptions={contactMetafieldOptions}
+														metafieldsLoading={contactMetafieldsLoading}
+														metafieldsError={contactMetafieldsError}
+														onSelectKey={(nextOption) =>
+															onUpdateProps(selectedBlock.id, {
+																fieldKey: nextOption.key,
+																fieldValueType: nextOption.valueType ?? "unknown",
+															})
 														}
 													/>
 												</div>
@@ -367,72 +804,337 @@ export function WidgetBuilderPropertiesPanel() {
 								)}
 								{selectedBlock.type === "select" &&
 									(() => {
-										const options: string[] =
+										const options = normalizeSelectOptions(
 											(
 												selectedBlock.props as {
-													options?: string[];
+													options?: unknown;
+													fieldKey?: string;
 												}
-											).options ?? [];
+											).options,
+										);
+										const fieldKey =
+											(
+												selectedBlock.props as {
+													fieldKey?: string;
+												}
+											).fieldKey ?? "";
+										const isBudgetField = fieldKey === "budget";
+										const updateOptionAt = (
+											optionIndex: number,
+											changes: Partial<WidgetSelectOption>,
+										) => {
+											onUpdateProps(selectedBlock.id, {
+												options: options.map((option, currentIndex) =>
+													currentIndex === optionIndex
+														? { ...option, ...changes }
+														: option,
+												),
+											});
+										};
+										const updateBudgetDraft = (
+											optionIndex: number,
+											draft: BudgetOptionDraft,
+										) => {
+											updateOptionAt(optionIndex, {
+												value: toBudgetOptionValue(draft),
+											});
+										};
 										return (
 											<div>
 												<Label className="text-xs">
 													Options
 												</Label>
+												{selectedBlockGeneralErrors.map((issue, issueIndex) => (
+													<p
+														key={`${selectedBlock.id}-validation-${issueIndex}`}
+														className="mt-1 text-xs text-destructive"
+													>
+														{issue.message}
+													</p>
+												))}
+												{isBudgetField ? (
+													<p className="mt-1 text-xs text-muted-foreground">
+														Budget values are now structured to avoid syntax mistakes.
+													</p>
+												) : null}
 												<div className="mt-1 space-y-2">
 													{options.map((opt, i) => (
 														<div
 															key={i}
-															className="flex items-center gap-2"
+															className="space-y-1.5 rounded-md border border-border/70 p-2"
 														>
-															<Input
-																className="flex-1 min-w-0 rounded-sm"
-																value={opt}
-																onChange={(e) =>
-																	onUpdateProps(
-																		selectedBlock.id,
-																		{
-																			options:
-																				options.map(
-																					(
-																						o,
-																						j,
-																					) =>
-																						j ===
-																						i
-																							? e
-																									.target
-																									.value
-																							: o,
-																				),
-																		},
-																	)
-																}
-															/>
-															<Button
-																type="button"
-																variant="secondary"
-																size="icon"
-																className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-																onClick={() =>
-																	onUpdateProps(
-																		selectedBlock.id,
-																		{
-																			options:
-																				options.filter(
-																					(
-																						_,
-																						j,
-																					) =>
-																						j !==
-																						i,
-																				),
-																		},
-																	)
-																}
-																aria-label="Remove option"
-															>
-																<Trash2 className="h-4 w-4" />
-															</Button>
+															<div className="flex items-start gap-2">
+																<div className="flex-1 min-w-0 space-y-1.5">
+																	<div className="space-y-1">
+																		<Label className="text-[11px] text-muted-foreground">
+																			What users see
+																		</Label>
+																		<Input
+																			className="h-8"
+																			value={opt.label}
+																			onChange={(e) =>
+																				updateOptionAt(i, {
+																					label: e.target.value,
+																				})
+																			}
+																			placeholder="Display label"
+																		/>
+																	</div>
+																	{isBudgetField ? (
+																		(() => {
+																			const budgetDraft = parseBudgetOptionDraft(opt.value);
+																			return (
+																				<div className="space-y-1.5">
+																					<div className="space-y-1">
+																						<Label className="text-[11px] text-muted-foreground">
+																							Budget format
+																						</Label>
+																						<Select
+																							value={budgetDraft.mode}
+																							onValueChange={(nextMode) => {
+																								const mode = nextMode as BudgetOptionMode;
+																								if (mode === "exact") {
+																									updateBudgetDraft(i, {
+																										mode,
+																										exactAmount:
+																											budgetDraft.exactAmount ??
+																											budgetDraft.minAmount,
+																									});
+																									return;
+																								}
+																								if (mode === "minimum") {
+																									updateBudgetDraft(i, {
+																										mode,
+																										minAmount:
+																											budgetDraft.minAmount ??
+																											budgetDraft.exactAmount,
+																									});
+																									return;
+																								}
+																								const nextMinAmount =
+																									budgetDraft.minAmount ??
+																									budgetDraft.exactAmount;
+																								updateBudgetDraft(i, {
+																									mode,
+																									minAmount: nextMinAmount,
+																									maxAmount:
+																										budgetDraft.maxAmount ??
+																										nextMinAmount,
+																								});
+																							}}
+																						>
+																							<SelectTrigger className="h-8 text-xs">
+																								<SelectValue />
+																							</SelectTrigger>
+																							<SelectContent>
+																								<SelectItem value="exact">Exact amount</SelectItem>
+																								<SelectItem value="range">Range</SelectItem>
+																								<SelectItem value="minimum">At least</SelectItem>
+																							</SelectContent>
+																						</Select>
+																					</div>
+																					{budgetDraft.mode === "exact" ? (
+																						<div className="space-y-1">
+																							<Label className="text-[11px] text-muted-foreground">
+																								Amount
+																							</Label>
+																							<Input
+																								type="number"
+																								min="0"
+																								step="any"
+																								className="h-8 font-mono text-xs"
+																								value={
+																									budgetDraft.exactAmount != null
+																										? String(budgetDraft.exactAmount)
+																										: ""
+																								}
+																								onChange={(e) =>
+																									updateBudgetDraft(i, {
+																										mode: "exact",
+																										exactAmount: parseBudgetNumber(
+																											e.target.value,
+																										),
+																									})
+																								}
+																								placeholder="e.g. 5000"
+																							/>
+																						</div>
+																					) : null}
+																					{budgetDraft.mode === "range" ? (
+																						<div className="grid grid-cols-2 gap-2">
+																							<div className="space-y-1">
+																								<Label className="text-[11px] text-muted-foreground">
+																									Min
+																								</Label>
+																								<Input
+																									type="number"
+																									min="0"
+																									step="any"
+																									className="h-8 font-mono text-xs"
+																									value={
+																										budgetDraft.minAmount != null
+																											? String(budgetDraft.minAmount)
+																											: ""
+																									}
+																									onChange={(e) =>
+																										(() => {
+																											const nextMinAmount = parseBudgetNumber(
+																												e.target.value,
+																											);
+																											let nextMaxAmount = budgetDraft.maxAmount;
+																											if (
+																												typeof nextMinAmount === "number" &&
+																												typeof nextMaxAmount === "number" &&
+																												nextMaxAmount < nextMinAmount
+																											) {
+																												nextMaxAmount = nextMinAmount;
+																											}
+																											updateBudgetDraft(i, {
+																												mode: "range",
+																												minAmount: nextMinAmount,
+																												maxAmount: nextMaxAmount,
+																											});
+																										})()
+																									}
+																									placeholder="1000"
+																								/>
+																							</div>
+																							<div className="space-y-1">
+																								<Label className="text-[11px] text-muted-foreground">
+																									Max
+																								</Label>
+																								<Input
+																									type="number"
+																									min="0"
+																									step="any"
+																									className="h-8 font-mono text-xs"
+																									value={
+																										budgetDraft.maxAmount != null
+																											? String(budgetDraft.maxAmount)
+																											: ""
+																									}
+																									onChange={(e) =>
+																										(() => {
+																											const nextMaxAmount = parseBudgetNumber(
+																												e.target.value,
+																											);
+																											updateBudgetDraft(i, {
+																												mode: "range",
+																												minAmount: budgetDraft.minAmount,
+																												maxAmount: nextMaxAmount,
+																											});
+																										})()
+																									}
+																									onBlur={(e) =>
+																										(() => {
+																											const currentMaxAmount = parseBudgetNumber(
+																												e.target.value,
+																											);
+																											if (
+																												typeof budgetDraft.minAmount === "number" &&
+																												typeof currentMaxAmount === "number" &&
+																												currentMaxAmount < budgetDraft.minAmount
+																											) {
+																												updateBudgetDraft(i, {
+																													mode: "range",
+																													minAmount: budgetDraft.minAmount,
+																													maxAmount: budgetDraft.minAmount,
+																												});
+																											}
+																										})()
+																									}
+																									placeholder="5000"
+																								/>
+																							</div>
+																						</div>
+																					) : null}
+																					{budgetDraft.mode === "minimum" ? (
+																						<div className="space-y-1">
+																							<Label className="text-[11px] text-muted-foreground">
+																								Minimum amount
+																							</Label>
+																							<Input
+																								type="number"
+																								min="0"
+																								step="any"
+																								className="h-8 font-mono text-xs"
+																								value={
+																									budgetDraft.minAmount != null
+																										? String(budgetDraft.minAmount)
+																										: ""
+																								}
+																								onChange={(e) =>
+																									updateBudgetDraft(i, {
+																										mode: "minimum",
+																										minAmount: parseBudgetNumber(
+																											e.target.value,
+																										),
+																									})
+																								}
+																								placeholder="e.g. 10000"
+																							/>
+																						</div>
+																					) : null}
+																					<p className="text-[11px] text-muted-foreground">
+																						Submitted value:{" "}
+																						<code>{opt.value || "—"}</code>
+																					</p>
+																				</div>
+																			);
+																		})()
+																	) : (
+																		<div className="space-y-1">
+																			<Label className="text-[11px] text-muted-foreground">
+																				Submitted value
+																			</Label>
+																			<Input
+																				className="h-8 font-mono text-xs"
+																				value={opt.value}
+																				onChange={(e) =>
+																					updateOptionAt(i, {
+																						value: e.target.value,
+																					})
+																				}
+																				placeholder="Stored payload value"
+																			/>
+																		</div>
+																	)}
+																	{(selectedSelectOptionErrorsByIndex[i] ?? []).map(
+																		(errorMessage, errorIndex) => (
+																			<p
+																				key={`${selectedBlock.id}-option-${i}-error-${errorIndex}`}
+																				className="text-xs text-destructive"
+																			>
+																				{errorMessage}
+																			</p>
+																		),
+																	)}
+																</div>
+																<Button
+																	type="button"
+																	variant="secondary"
+																	size="icon"
+																	className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+																	onClick={() =>
+																		onUpdateProps(
+																			selectedBlock.id,
+																			{
+																				options:
+																					options.filter(
+																						(
+																							_,
+																							optionIndex,
+																						) =>
+																							optionIndex !== i,
+																					),
+																			},
+																		)
+																	}
+																	aria-label="Remove option"
+																>
+																	<Trash2 className="h-4 w-4" />
+																</Button>
+															</div>
 														</div>
 													))}
 													<Button
@@ -446,7 +1148,7 @@ export function WidgetBuilderPropertiesPanel() {
 																{
 																	options: [
 																		...options,
-																		"",
+																		{ label: "", value: "" } satisfies WidgetSelectOption,
 																	],
 																},
 															)

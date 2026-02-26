@@ -40,6 +40,9 @@ function mapContactToContext(contact: Contact): CustomerContext {
     phone: phoneArray,
     company: contact.data.company,
     jobTitle: contact.data.jobTitle,
+    budgetMin: contact.data.budgetMin,
+    budgetMax: contact.data.budgetMax,
+    budgetCurrency: contact.data.budgetCurrency,
     address: contact.data.address
       ? {
           street: contact.data.address.street,
@@ -52,4 +55,3 @@ function mapContactToContext(contact: Contact): CustomerContext {
     status: contact.data.status,
   };
 }
-

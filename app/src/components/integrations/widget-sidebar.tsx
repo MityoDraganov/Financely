@@ -456,7 +456,15 @@ const BLOCK_GROUPS: {
 			{ type: "email", label: "Email", defaultProps: { label: "Email", fieldKey: "email", required: true } },
 			{ type: "phone", label: "Phone", defaultProps: { label: "Phone", fieldKey: "phone", required: false } },
 			{ type: "textarea", label: "Textarea", defaultProps: { label: "Message", fieldKey: "message", required: false } },
-			{ type: "select", label: "Select", defaultProps: { label: "Select", fieldKey: "select1", options: ["Option 1"] } },
+			{
+				type: "select",
+				label: "Select",
+				defaultProps: {
+					label: "Select",
+					fieldKey: "select1",
+					options: [{ label: "Option 1", value: "option_1" }],
+				},
+			},
 			{ type: "checkbox", label: "Checkbox", defaultProps: { label: "Check", fieldKey: "check1" } },
 			{ type: "date", label: "Date", defaultProps: { label: "Date", fieldKey: "date1", required: false } },
 		],
@@ -574,14 +582,14 @@ export function WidgetSidebar() {
 
 	if (isLoadingDefinitions) {
 		return (
-			<div className="flex h-full w-48 sm:w-52 md:w-56 items-center justify-center border-r bg-muted/30 p-4 shrink-0">
+			<div className="w-48 sm:w-52 md:w-56 border-r shrink-0 flex h-full items-center justify-center bg-muted/30 p-4">
 				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex h-full w-48 sm:w-52 md:w-56 flex-col border-r bg-muted/30 overflow-y-auto shrink-0">
+		<div className="w-48 sm:w-52 md:w-56 border-r shrink-0 flex h-full flex-col bg-muted/30 overflow-y-auto">
 			{currentWidgetId && currentDefinition && (
 				<>
 					<PagesList

@@ -1,5 +1,6 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { budgetValueSchema } from "./budget";
 
 /**
  * Lead entity schema for tracking individual form submissions
@@ -17,6 +18,10 @@ export const leadDataSchema = z.object({
   phone: z.string().optional(),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
+  budget: budgetValueSchema.optional(),
+  budgetMin: z.number().finite().nonnegative().optional(),
+  budgetMax: z.number().finite().nonnegative().optional(),
+  budgetCurrency: z.string().min(1).optional(),
   // Submission data
   formData: z.record(z.string(), z.unknown()), // All form fields as key-value pairs
   message: z.string().optional(), // Extracted message/notes from form
@@ -31,4 +36,3 @@ export const leadSchema = baseEntitySchema.extend({
 
 export type LeadData = z.infer<typeof leadDataSchema>;
 export type Lead = z.infer<typeof leadSchema>;
-

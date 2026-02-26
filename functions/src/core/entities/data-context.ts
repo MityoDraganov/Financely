@@ -41,6 +41,9 @@ export const customerContextSchema = z.object({
   phone: z.union([z.string(), z.array(z.string())]).optional(),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
+  budgetMin: z.number().optional(),
+  budgetMax: z.number().optional(),
+  budgetCurrency: z.string().optional(),
   address: z
     .object({
       street: z.string().optional(),
@@ -172,4 +175,3 @@ export function createDataContext(
         },
   }) as Readonly<DataContext>;
 }
-

@@ -9,6 +9,7 @@ import { getContactRepository } from "../repositories/contact-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { ContactData } from "../core/entities/contact";
 import { LeadData } from "../core/entities/lead";
+import { parseBudgetInput } from "../utils/budget";
 import {
 	getRateLimiter,
 	checkRequestSize,
@@ -105,10 +106,14 @@ export const submitModularWidget = onRequest(
 
 			const data = rawData as Record<string, unknown>;
 			for (const [k, v] of Object.entries(data)) {
-				if (typeof v === "boolean") continue;
-				if (typeof v !== "string") {
-					data[k] = v == null ? "" : String(v);
+				if (
+					typeof v === "boolean" ||
+					typeof v === "number" ||
+					typeof v === "string"
+				) {
+					continue;
 				}
+				data[k] = v == null ? "" : String(v);
 			}
 
 			if (checkHoneypot(data)) {
@@ -274,6 +279,12 @@ export const submitModularWidget = onRequest(
 				const message = messageRaw
 					? normalizeName(messageRaw, MAX_LENGTHS.message)
 					: undefined;
+				const parsedBudget = parseBudgetInput({
+					value: data.budget ?? data.estimatedBudget,
+					minValue: data.budgetMin,
+					maxValue: data.budgetMax,
+					currency: data.budgetCurrency ?? data.currency,
+				});
 
 				const allContacts = await contactRepository.getAll({
 					queryConstraints: [
@@ -329,6 +340,14 @@ export const submitModularWidget = onRequest(
 					}
 					if (company) updateData.company = company;
 					if (jobTitle) updateData.jobTitle = jobTitle;
+					if (parsedBudget) {
+						updateData.budget = parsedBudget.budget;
+						updateData.budgetMin = parsedBudget.budgetMin;
+						updateData.budgetMax = parsedBudget.budgetMax;
+						if (parsedBudget.budgetCurrency) {
+							updateData.budgetCurrency = parsedBudget.budgetCurrency;
+						}
+					}
 					updateData.notes = existingContactData.notes
 						? `${existingContactData.notes}\n\n--- ${new Date().toISOString()} ---\n${submissionNote}`
 						: submissionNote;
@@ -357,6 +376,16 @@ export const submitModularWidget = onRequest(
 						phone: phone ? [phone] : [],
 						company,
 						jobTitle,
+						...(parsedBudget
+							? {
+									budget: parsedBudget.budget,
+									budgetMin: parsedBudget.budgetMin,
+									budgetMax: parsedBudget.budgetMax,
+									...(parsedBudget.budgetCurrency
+										? { budgetCurrency: parsedBudget.budgetCurrency }
+										: {}),
+							  }
+							: {}),
 						notes: submissionNote,
 						status: "lead",
 						tags: ["widget-submission", "widget-modular"],
@@ -382,6 +411,16 @@ export const submitModularWidget = onRequest(
 					phone: phone || undefined,
 					company,
 					jobTitle,
+					...(parsedBudget
+						? {
+								budget: parsedBudget.budget,
+								budgetMin: parsedBudget.budgetMin,
+								budgetMax: parsedBudget.budgetMax,
+								...(parsedBudget.budgetCurrency
+									? { budgetCurrency: parsedBudget.budgetCurrency }
+									: {}),
+						  }
+						: {}),
 					formData: data,
 					message,
 					status: "new",

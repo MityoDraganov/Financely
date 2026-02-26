@@ -1,5 +1,6 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { budgetValueSchema } from "./budget";
 
 /**
  * Contact entity schema for storing customer information
@@ -22,6 +23,12 @@ export const contactDataSchema = z.object({
   // Company information
   company: z.string().optional(),
   jobTitle: z.string().optional(),
+
+  // Budget intent (exact or range)
+  budget: budgetValueSchema.optional(),
+  budgetMin: z.number().finite().nonnegative().optional(),
+  budgetMax: z.number().finite().nonnegative().optional(),
+  budgetCurrency: z.string().min(1).optional(),
   
   // Address information
   address: z.object({

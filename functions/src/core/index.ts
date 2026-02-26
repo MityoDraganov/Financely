@@ -11,6 +11,7 @@ export * from "./entities/invoice";
 export * from "./entities/workflow";
 export * from "./entities/contact";
 export * from "./entities/lead";
+export * from "./entities/budget";
 export * from "./entities/product";
 export * from "./entities/analytics-config";
 export * from "./entities/analytics-event";

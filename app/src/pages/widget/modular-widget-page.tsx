@@ -690,7 +690,7 @@ export default function ModularWidgetPage() {
 		return <LoadingScreen />;
 	}
 
-	const handleSubmit = async (payload: Record<string, string | boolean>) => {
+	const handleSubmit = async (payload: Record<string, string | boolean | number>) => {
 		setSubmitting(true);
 		setSubmitError(null);
 		try {

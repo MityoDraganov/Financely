@@ -3,6 +3,12 @@ import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	getBlockFieldValueType,
+	normalizeSelectOptions,
+	parseFieldValueByType,
+	type WidgetFieldTypeMap,
+} from "@/utils/widget-builder-validation";
 import type {
 	WidgetBlock,
 	WidgetPage,
@@ -23,7 +29,7 @@ export interface WidgetSchemaRendererProps {
 	pages: WidgetPage[];
 	actions: WidgetVersionActions;
 	styling: Partial<WidgetStyling>;
-	onSubmit: (payload: Record<string, string | boolean>) => Promise<void>;
+	onSubmit: (payload: Record<string, string | boolean | number>) => Promise<void>;
 	submitting?: boolean;
 	submitError?: string | null;
 	multiStepOptions?: WidgetMultiStepOptions;
@@ -222,7 +228,7 @@ function renderBlock(
 			const required = (props.required as boolean) ?? false;
 			const placeholder = (props.placeholder as string) ?? "";
 			const fieldKey = (props.fieldKey as string) ?? block.id;
-			const options = (props.options as string[]) ?? [];
+			const options = normalizeSelectOptions(props.options);
 			return (
 				<div key={key}>
 					<label
@@ -246,9 +252,9 @@ function renderBlock(
 						}}
 					>
 						<option value="">{placeholder || "Select..."}</option>
-						{options.map((opt) => (
-							<option key={opt} value={opt}>
-								{opt}
+						{options.map((option, optionIndex) => (
+							<option key={`${fieldKey}-option-${optionIndex}`} value={option.value}>
+								{option.label || option.value}
 							</option>
 						))}
 					</select>
@@ -306,8 +312,38 @@ function findSubmitButtonLabel(blocks: WidgetBlock[], actions: WidgetVersionActi
 	return walk(blocks) ?? actions.success?.message ?? "Submit";
 }
 
-function collectFormData(form: HTMLFormElement): Record<string, string | boolean> {
-	const data: Record<string, string | boolean> = {};
+function buildFieldTypeMapForForm(blocks: WidgetBlock[]): WidgetFieldTypeMap {
+	const map: WidgetFieldTypeMap = {};
+	const walkBlocks = (currentBlocks: WidgetBlock[]) => {
+		currentBlocks.forEach((block) => {
+			const props = (block.props ?? {}) as {
+				fieldKey?: unknown;
+			};
+			const fieldKey = typeof props.fieldKey === "string" ? props.fieldKey : "";
+			if (fieldKey) {
+				const inferredByType =
+					block.type === "checkbox"
+						? "boolean"
+						: block.type === "date"
+							? "date"
+							: "unknown";
+				map[fieldKey] = getBlockFieldValueType(block, {}) ?? inferredByType;
+			}
+			if (block.children?.length) {
+				walkBlocks(block.children);
+			}
+		});
+	};
+
+	walkBlocks(blocks);
+	return map;
+}
+
+function collectFormData(
+	form: HTMLFormElement,
+	fieldTypeByKey: WidgetFieldTypeMap,
+): Record<string, string | boolean | number> {
+	const data: Record<string, string | boolean | number> = {};
 	const inputs = form.querySelectorAll<
 		HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 	>("input, textarea, select");
@@ -319,7 +355,7 @@ function collectFormData(form: HTMLFormElement): Record<string, string | boolean
 		} else if (el instanceof HTMLInputElement && el.type === "file" && el.files?.[0]) {
 			data[name] = el.files[0].name;
 		} else {
-			data[name] = (el.value ?? "") as string;
+			data[name] = parseFieldValueByType(el.value ?? "", fieldTypeByKey[name]);
 		}
 	});
 	return data;
@@ -338,7 +374,7 @@ export function WidgetSchemaRenderer({
 	const s = { ...defaultStyling, ...styling };
 	const isMultiStep = pages.length > 1;
 	const [currentPageIndex, setCurrentPageIndex] = useState(0);
-	const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
+	const [formValues, setFormValues] = useState<Record<string, string | boolean | number>>({});
 
 	const isPreviewMode = previewPageIndex !== undefined && previewPageIndex >= 0;
 	const effectiveIndex = isPreviewMode
@@ -348,6 +384,14 @@ export function WidgetSchemaRenderer({
 		pages.length === 0 ? 0 : Math.min(effectiveIndex, pages.length - 1);
 	const currentPage = pages[safePageIndex] ?? null;
 	const currentBlocks = Array.isArray(currentPage?.fields) ? currentPage.fields : [];
+	const allBlocks = useMemo(
+		() => pages.flatMap((page) => (Array.isArray(page.fields) ? page.fields : [])),
+		[pages],
+	);
+	const fieldTypeByKey = useMemo(
+		() => buildFieldTypeMapForForm(allBlocks),
+		[allBlocks],
+	);
 	const isLastPage = isMultiStep && safePageIndex === pages.length - 1;
 
 	const nextLabel = multiStepOptions?.nextLabel ?? "Continue";
@@ -357,7 +401,7 @@ export function WidgetSchemaRenderer({
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const form = e.currentTarget;
-		const currentData = collectFormData(form);
+		const currentData = collectFormData(form, fieldTypeByKey);
 		const payload = isMultiStep ? { ...formValues, ...currentData } : currentData;
 		await onSubmit(payload);
 	};
@@ -365,7 +409,7 @@ export function WidgetSchemaRenderer({
 	const handleNext = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const form = e.currentTarget;
-		const currentData = collectFormData(form);
+		const currentData = collectFormData(form, fieldTypeByKey);
 		setFormValues((prev) => ({ ...prev, ...currentData }));
 		setCurrentPageIndex((i) => Math.min(i + 1, pages.length - 1));
 	};

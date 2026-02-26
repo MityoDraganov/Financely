@@ -50,7 +50,6 @@ function DesignAreaContent({
 	const onCreateNewWidget = widgetDesigner?.onCreateNewWidget ?? (() => {});
 	const onCreateFromTemplate = widgetDesigner?.onCreateFromTemplate;
 	const isCreatingNewWidget = widgetDesigner?.isCreatingNewWidget ?? false;
-
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedOption, setSelectedOption] = useState<TemplateOption | null>({ kind: "blank" });
 	const [isDialogPending, setIsDialogPending] = useState(false);
@@ -123,7 +122,7 @@ function DesignAreaContent({
 													void ctx.publish()
 												}
 												variant="outline"
-												disabled={ctx.publishing}
+												disabled={ctx.publishing || ctx.hasValidationErrors}
 											>
 												{ctx.publishing ? (
 													<Loader2 className="h-4 w-4 animate-spin" />
@@ -134,7 +133,7 @@ function DesignAreaContent({
 										{ctx.isDirty && (
 											<Button
 												onClick={() => void ctx.save()}
-												disabled={ctx.saving}
+												disabled={ctx.saving || ctx.hasValidationErrors}
 											>
 												{ctx.saving ? (
 													<Loader2 className="h-4 w-4 animate-spin" />
@@ -145,6 +144,12 @@ function DesignAreaContent({
 									</div>
 								</div>
 							</div>
+							{ctx.hasValidationErrors ? (
+								<p className="text-xs text-destructive">
+									Fix {ctx.validationIssues.length} validation issue
+									{ctx.validationIssues.length === 1 ? "" : "s"} to save or publish.
+								</p>
+							) : null}
 
 								<div className="min-h-[200px] rounded-lg border bg-card p-6">
 									{ctx.pages.length === 0 ? (
@@ -297,7 +302,9 @@ function DesignAreaContent({
 					</div>
 				)}
 			</main>
-			{showPropertiesPanel && <WidgetBuilderPropertiesPanel />}
+			{showPropertiesPanel && (
+				<WidgetBuilderPropertiesPanel />
+			)}
 		</>
 	);
 }

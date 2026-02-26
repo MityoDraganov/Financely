@@ -59,8 +59,15 @@ export interface InputBlockProps {
 	helperText?: string;
 }
 
+export type SelectInputOption =
+	| string
+	| {
+			label: string;
+			value: string;
+	  };
+
 export interface SelectInputProps extends InputBlockProps {
-	options: string[];
+	options: SelectInputOption[];
 }
 
 export interface SuccessBlockProps {

@@ -52,8 +52,16 @@ const inputBlockPropsSchema = z.object({
 	helperText: z.string().optional(),
 });
 
+const selectOptionSchema = z.union([
+	z.string(),
+	z.object({
+		label: z.string(),
+		value: z.string(),
+	}),
+]);
+
 const selectInputPropsSchema = inputBlockPropsSchema.extend({
-	options: z.array(z.string()),
+	options: z.array(selectOptionSchema),
 });
 
 const successBlockPropsSchema = z.object({

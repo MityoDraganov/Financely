@@ -91,8 +91,13 @@ export const QUOTE_TEMPLATE: {
 			block("t-budget", "select", {
 				label: "Budget range",
 				fieldKey: "budget",
-				options: ["Under $1k", "$1k–$5k", "$5k–$10k", "$10k+"],
-			}),
+					options: [
+						{ label: "Under $1k", value: "0-1000" },
+						{ label: "$1k–$5k", value: "1000-5000" },
+						{ label: "$5k–$10k", value: "5000-10000" },
+						{ label: "$10k+", value: "10000+" },
+					],
+				}),
 			block("t-notes", "textarea", {
 				label: "Project details",
 				required: false,

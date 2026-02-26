@@ -185,6 +185,10 @@ export class LeadExecutor implements ActionExecutor {
       email: leadData.email || "",
       phone: leadData.phone ? (Array.isArray(leadData.phone) ? leadData.phone : [leadData.phone]) : [],
       ...(leadData.company && { company: leadData.company }),
+      ...(leadData.budget ? { budget: leadData.budget } : {}),
+      ...(typeof leadData.budgetMin === "number" ? { budgetMin: leadData.budgetMin } : {}),
+      ...(typeof leadData.budgetMax === "number" ? { budgetMax: leadData.budgetMax } : {}),
+      ...(leadData.budgetCurrency ? { budgetCurrency: leadData.budgetCurrency } : {}),
       tags: [],
       status: "lead" as const,
       preferences: {
@@ -232,5 +236,3 @@ export class LeadExecutor implements ActionExecutor {
     }, obj);
   }
 }
-
-

@@ -4,11 +4,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useContactMetafieldDefinitions } from "@/hooks/repository-hooks/use-contact-metafields";
 import { functionsService } from "@/services/functions/functions-service";
 import {
 	buildDefaultWidgetPageConfig,
 	hasPageConfigValues,
 } from "@/utils/widget-page-config-defaults";
+import {
+	getContactFieldTypeMap,
+	validateWidgetPages,
+	type WidgetValidationIssue,
+} from "@/utils/widget-builder-validation";
 import type {
 	WidgetBlock,
 	WidgetPage,
@@ -45,6 +51,8 @@ export interface UseWidgetBuilderParams {
 export interface UseWidgetBuilderReturn {
 	pages: WidgetPage[];
 	isDirty: boolean;
+	validationIssues: WidgetValidationIssue[];
+	hasValidationErrors: boolean;
 	activePageId: string | null;
 	setActivePageId: (id: string | null) => void;
 	selectedBlockId: string | null;
@@ -258,6 +266,8 @@ export function useWidgetBuilder({
 	const queryClient = useQueryClient();
 	const widgetDesigner = useWidgetDesigner();
 	const { data: organization } = useCurrentOrganization();
+	const { data: contactMetafieldDefinitions = [] } =
+		useContactMetafieldDefinitions(organizationId);
 
 	const [pages, setPages] = useState<WidgetPage[]>([]);
 	const [activePageId, setActivePageId] = useState<string | null>(null);
@@ -296,6 +306,15 @@ export function useWidgetBuilder({
 		() => hasInitializedSnapshot && savedSnapshotRef.current !== currentSnapshot,
 		[hasInitializedSnapshot, currentSnapshot],
 	);
+	const contactFieldTypeByKey = useMemo(
+		() => getContactFieldTypeMap(contactMetafieldDefinitions),
+		[contactMetafieldDefinitions],
+	);
+	const validationIssues = useMemo(
+		() => validateWidgetPages(pages, contactFieldTypeByKey),
+		[pages, contactFieldTypeByKey],
+	);
+	const hasValidationErrors = validationIssues.length > 0;
 
 	const selectedBlock = useMemo(
 		() => (selectedBlockId ? findBlockInPages(pages, selectedBlockId) : undefined),
@@ -380,7 +399,7 @@ export function useWidgetBuilder({
 					r.definition?.pageConfig && typeof r.definition.pageConfig === "object"
 						? (r.definition.pageConfig as WidgetPageConfig)
 						: null;
-				if (hasPageConfigValues(fetchedPageConfig)) {
+				if (fetchedPageConfig && hasPageConfigValues(fetchedPageConfig)) {
 					setPageConfig(fetchedPageConfig);
 				} else {
 					const defaultPageConfig = buildDefaultWidgetPageConfig(r.definition?.name ?? "Widget", {
@@ -709,6 +728,10 @@ export function useWidgetBuilder({
 
 	const save = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
+		if (hasValidationErrors) {
+			toast.error("Fix widget validation errors before saving.");
+			return;
+		}
 		setSaving(true);
 		try {
 			const result = await functionsService.saveModularWidgetVersion({
@@ -736,10 +759,15 @@ export function useWidgetBuilder({
 		multiStepOptions,
 		currentSnapshot,
 		refreshVersions,
+		hasValidationErrors,
 	]);
 
 	const publish = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
+		if (hasValidationErrors) {
+			toast.error("Fix widget validation errors before publishing.");
+			return;
+		}
 		setPublishing(true);
 		try {
 			const r = await functionsService.saveModularWidgetVersion({
@@ -780,6 +808,7 @@ export function useWidgetBuilder({
 		queryClient,
 		currentSnapshot,
 		refreshVersions,
+		hasValidationErrors,
 	]);
 
 	const publishVersion = useCallback(
@@ -913,6 +942,8 @@ export function useWidgetBuilder({
 		return {
 			pages: [],
 			isDirty: false,
+			validationIssues: [],
+			hasValidationErrors: false,
 			activePageId: null,
 			setActivePageId: noopSetNull,
 			selectedBlockId: null,
@@ -968,6 +999,8 @@ export function useWidgetBuilder({
 	return {
 		pages,
 		isDirty,
+		validationIssues,
+		hasValidationErrors,
 		activePageId,
 		setActivePageId,
 		selectedBlockId,
