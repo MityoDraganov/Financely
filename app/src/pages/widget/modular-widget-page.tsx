@@ -3,13 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { CheckCircle2, Shield, Clock, Star, Check, Lock, ArrowRight } from "lucide-react";
 import { LoadingScreen } from "@/components/loading-screen";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
+import { WidgetSchemaLayout } from "@/components/widget-schema-layout";
 import type { WidgetVersionActions } from "@/core/entities/widget-block-schema";
 import type { WidgetStyling } from "@/components/site-builder/widget-types";
 import { projectId } from "@/infrastructure/firebase";
 import { functionsService } from "@/services/functions/functions-service";
 import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
 import { WidgetPage } from "@/core/entities/widget-block-schema";
-import { cn } from "@/lib/utils";
 import type {
 	WidgetPageBlock,
 	WidgetPageConfig,
@@ -805,184 +805,14 @@ function SchemaDrivenLayout({
 	onResetSubmit,
 	children,
 }: SchemaDrivenLayoutProps) {
-	const sidebarPrimary = schema.layout.sidebarPrimaryColor?.trim() || primary;
-	const sidebarOnPrimary = contrastColor(sidebarPrimary);
-	const sidebarPosition = schema.layout.sidebarPosition;
-	const backgroundStyle = schema.layout.backgroundStyle ?? "clean";
-	const sidebarWidth = schema.layout.sidebarWidth === "sm"
-		? 320
-		: schema.layout.sidebarWidth === "lg"
-			? 440
-			: 380;
-
-	const pageBackground = backgroundStyle === "subtle-grid"
-		? `#f8f7f5 url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 .5H31.5V32' fill='none' stroke='%23${primary.replace("#", "")}' stroke-opacity='0.06' stroke-width='0.5'/%3E%3C/svg%3E")`
-		: backgroundStyle === "gradient"
-			? `linear-gradient(135deg, rgba(${rgb.r},${rgb.g},${rgb.b},0.04) 0%, #f8f7f5 50%, rgba(${rgb.r},${rgb.g},${rgb.b},0.02) 100%)`
-			: "#f8f7f5";
-
-	const sidebarOrderClass = sidebarPosition === "left"
-		? "order-1 lg:order-1"
-		: "order-1 lg:order-2";
-	const mainOrderClass = sidebarPosition === "left"
-		? "order-2 lg:order-2"
-		: "order-2 lg:order-1";
-
-	const renderTrustIcon = (icon: WidgetPageTrustSignal["icon"]) => {
-		if (icon === "shield") return <Shield size={13} strokeWidth={2} />;
-		if (icon === "clock") return <Clock size={13} strokeWidth={2} />;
-		if (icon === "star") return <Star size={13} strokeWidth={2} />;
-		if (icon === "check") return <Check size={13} strokeWidth={2} />;
-		return <Lock size={13} strokeWidth={2} />;
-	};
-
-	const renderBlocks = (
-		blocks: WidgetPageSchemaBlock[],
-		zone: "sidebar" | "main",
-		depth = 0,
-	): React.ReactNode => {
-		return blocks.map((block) => {
-			if (block.type === "stack") {
-				const stackGap = block.gap === "sm" ? "space-y-2" : block.gap === "lg" ? "space-y-5" : "space-y-3";
-				return (
-					<div
-						key={block.id}
-						className={cn(
-							"rounded-lg",
-							zone === "sidebar" ? "bg-white/10 p-4" : "border border-border/70 bg-card p-4",
-						)}
-						style={depth > 0 ? { marginLeft: 8 } : undefined}
-					>
-						<div className={stackGap}>
-							{renderBlocks(block.children, zone, depth + 1)}
-						</div>
-					</div>
-				);
-			}
-
-			if (block.type === "logo") {
-				return (
-					<div key={block.id} className="flex items-center justify-start">
-						{branding.logo ? (
-							<img
-								src={branding.logo}
-								alt={branding.companyName}
-								className="h-9 max-w-[160px] object-contain"
-								style={{
-									filter:
-										zone === "sidebar" && sidebarOnPrimary === "#ffffff"
-											? "brightness(0) invert(1)"
-											: undefined,
-								}}
-							/>
-						) : (
-							<span className={zone === "sidebar" ? "text-sm font-semibold" : "text-sm font-semibold text-foreground"}>
-								{branding.companyName}
-							</span>
-						)}
-						{block.showCompanyName && branding.logo && (
-							<span className={cn("ml-2 text-sm font-medium", zone === "sidebar" ? "opacity-80" : "text-muted-foreground")}>
-								{branding.companyName}
-							</span>
-						)}
-					</div>
-				);
-			}
-
-			if (block.type === "heading") {
-				const HeadingTag: "h1" | "h2" | "h3" =
-					block.level === 1 ? "h1" : block.level === 3 ? "h3" : "h2";
-				return (
-					<HeadingTag
-						key={block.id}
-						className={cn(
-							"tracking-tight",
-							zone === "sidebar"
-								? block.level === 1
-									? "text-3xl font-medium leading-tight"
-									: "text-xl font-semibold"
-								: block.level === 1
-									? "text-3xl font-semibold text-foreground"
-									: "text-xl font-semibold text-foreground",
-						)}
-					>
-						{block.text}
-					</HeadingTag>
-				);
-			}
-
-			if (block.type === "text") {
-				return (
-					<p
-						key={block.id}
-						className={cn(
-							"whitespace-pre-wrap text-sm leading-6",
-							zone === "sidebar" ? "opacity-85" : "text-muted-foreground",
-						)}
-					>
-						{block.text}
-					</p>
-				);
-			}
-
-			if (block.type === "list") {
-				return (
-					<ul key={block.id} className={cn("list-disc pl-5 space-y-1 text-sm", zone === "sidebar" ? "opacity-85" : "text-muted-foreground")}>
-						{block.items.map((item, index) => (
-							<li key={`${block.id}-list-${index}`}>{item}</li>
-						))}
-					</ul>
-				);
-			}
-
-			if (block.type === "iconList") {
-				return (
-					<ul key={block.id} className="space-y-2">
-						{block.items.map((item, index) => (
-							<li key={`${block.id}-icon-${index}`} className="flex items-center gap-2.5 text-sm">
-								<span className={cn(
-									"inline-flex h-6 w-6 items-center justify-center rounded-md",
-									zone === "sidebar" ? "bg-white/15" : "bg-muted",
-								)}>
-									{renderTrustIcon(item.icon)}
-								</span>
-								<span className={zone === "sidebar" ? "opacity-90" : "text-muted-foreground"}>
-									{item.text}
-								</span>
-							</li>
-						))}
-					</ul>
-				);
-			}
-
-			if (block.type === "policyLinks") {
-				return (
-					<nav key={block.id} className="flex flex-wrap gap-3">
-						{sanitizeFooterLinks(block.links).map((link, index) => (
-							<a
-								key={`${block.id}-policy-${index}`}
-								href={link.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								className={cn(
-									"text-xs underline underline-offset-2",
-									zone === "sidebar" ? "opacity-80" : "text-muted-foreground",
-								)}
-							>
-								{link.label}
-							</a>
-						))}
-					</nav>
-				);
-			}
-
-			if (block.type === "spacer") {
-				const spacerClass = block.size === "sm" ? "h-3" : block.size === "lg" ? "h-10" : "h-6";
-				return <div key={block.id} className={spacerClass} aria-hidden />;
-			}
-
-			return (
-				<div key={block.id} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+	return (
+		<WidgetSchemaLayout
+			branding={{ logo: branding.logo, companyName: branding.companyName }}
+			schema={schema}
+			primary={primary}
+			rgb={rgb}
+			renderFormBlock={({ block }) => (
+				<div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
 					{submitStatus === "success" ? (
 						<div className="flex flex-col items-center text-center py-8">
 							<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
@@ -1016,40 +846,8 @@ function SchemaDrivenLayout({
 						</>
 					)}
 				</div>
-			);
-		});
-	};
-
-	return (
-		<div className="min-h-screen w-screen max-w-none" style={{ background: pageBackground }}>
-			<div
-				className="min-h-screen flex flex-col lg:grid"
-				style={{
-					gridTemplateColumns:
-						sidebarPosition === "left"
-							? `${sidebarWidth}px minmax(0, 1fr)`
-							: `minmax(0, 1fr) ${sidebarWidth}px`,
-				}}
-			>
-				<aside
-					className={cn("px-8 py-10 flex flex-col gap-5", sidebarOrderClass)}
-					style={{ background: sidebarPrimary, color: sidebarOnPrimary }}
-				>
-					{renderBlocks(schema.sidebar, "sidebar")}
-					<div className="mt-auto pt-8">
-						<Link to="/" className="text-xs opacity-70 hover:opacity-100">
-							Powered by Financely
-						</Link>
-					</div>
-				</aside>
-
-				<main className={cn("px-5 sm:px-8 py-10", mainOrderClass)}>
-					<div className="mx-auto w-full max-w-[560px] space-y-4">
-						{renderBlocks(schema.main, "main")}
-					</div>
-				</main>
-			</div>
-		</div>
+			)}
+		/>
 	);
 }
 
@@ -1066,12 +864,13 @@ function BrandedLayout({
 	onResetSubmit,
 	children,
 }: BrandedLayoutProps) {
-	if (pageConfig?.schema?.version === 1) {
+	const effectiveSchema = migrateToSchema(pageConfig, widgetName);
+	if (effectiveSchema.version === 1) {
 		return (
 			<SchemaDrivenLayout
 				branding={branding}
 				widgetName={widgetName}
-				schema={migrateToSchema(pageConfig, widgetName)}
+				schema={effectiveSchema}
 				primary={primary}
 				rgb={rgb}
 				submitStatus={submitStatus}

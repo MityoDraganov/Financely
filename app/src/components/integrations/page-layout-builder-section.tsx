@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, DragEvent, ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -11,13 +11,9 @@ import {
 	List,
 	ListChecks,
 	Loader2,
-	Lock,
 	PanelLeftOpen,
 	Plus,
 	RectangleHorizontal,
-	Shield,
-	Clock3,
-	Star,
 	Text,
 	Trash2,
 } from "lucide-react";
@@ -25,7 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
+import { WidgetSchemaLayout } from "@/components/widget-schema-layout";
+import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
 import type {
 	WidgetPageBlock,
 	WidgetPageConfig,
@@ -219,18 +218,6 @@ function blockLabel(block: WidgetPageSchemaBlock): string {
 	if (block.type === "widgetForm") return "Widget form";
 	if (block.type === "spacer") return "Spacer";
 	return "Stack";
-}
-
-function blockSubtitle(block: WidgetPageSchemaBlock): string {
-	if (block.type === "heading") return block.text;
-	if (block.type === "text") return block.text;
-	if (block.type === "list") return `${block.items.length} item(s)`;
-	if (block.type === "iconList") return `${block.items.length} badge(s)`;
-	if (block.type === "policyLinks") return `${block.links.length} link(s)`;
-	if (block.type === "widgetForm") return block.title ?? "Widget form";
-	if (block.type === "spacer") return `Size: ${block.size ?? "md"}`;
-	if (block.type === "stack") return `${block.children.length} child block(s)`;
-	return "Brand logo";
 }
 
 function sanitizeLinks(links: WidgetPageFooterLink[] | undefined): WidgetPageFooterLink[] {
@@ -619,38 +606,23 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 		: { r: 37, g: 99, b: 235 };
 }
 
-function contrastColor(hex: string): string {
-	const { r, g, b } = hexToRgb(hex);
-	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-	return luminance > 0.55 ? "#111827" : "#ffffff";
-}
-
-interface DropZoneProps {
-	onDrop: (event: DragEvent<HTMLDivElement>) => void;
-	compact?: boolean;
-	className?: string;
-}
-
-function DropZone({ onDrop, compact = false, className }: DropZoneProps) {
-	return (
-		<div
-			onDragOver={(event) => event.preventDefault()}
-			onDrop={onDrop}
-			className={cn(
-				"rounded-md border border-dashed border-border/70 bg-muted/30 transition-colors hover:border-primary/50 hover:bg-primary/5",
-				compact ? "h-5" : "h-7",
-				className,
-			)}
-		/>
-	);
-}
-
 export function PageLayoutBuilderSection() {
 	const ctx = useWidgetBuilderContext();
+	const { data: organization } = useCurrentOrganization();
 	const widgetName = ctx?.widgetName ?? "Widget";
+	const organizationLogo =
+		organization?.settings?.branding?.customLogo || organization?.logoUrl || null;
+	const organizationDisplayName =
+		organization?.settings?.branding?.companyName?.trim() ||
+		organization?.name?.trim() ||
+		widgetName;
+	const brandColors = organization?.settings?.brandColors ?? {};
 
 	const [saving, setSaving] = useState(false);
 	const [selection, setSelection] = useState<BuilderSelection>("layout");
+	const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+	const [dragOverLocation, setDragOverLocation] = useState<BlockLocation | null>(null);
+	const activeDragPayloadRef = useRef<DragPayload | null>(null);
 	const [schema, setSchema] = useState<WidgetPageSchema>(() =>
 		migrateToSchema(ctx?.pageConfig ?? {}, widgetName),
 	);
@@ -735,12 +707,8 @@ export function PageLayoutBuilderSection() {
 		});
 	}, [widgetFormCount]);
 
-	const handleDrop = useCallback(
-		(container: DropContainer, index: number, event: DragEvent<HTMLDivElement>) => {
-			event.preventDefault();
-			const payload = parseDragPayload(event.dataTransfer.getData(DRAG_MIME_TYPE));
-			if (!payload) return;
-
+	const applyDropPayload = useCallback(
+		(payload: DragPayload, container: DropContainer, index: number) => {
 			setSchema((prev) => {
 				const widgetFormExists =
 					countBlockType(prev.sidebar, "widgetForm") + countBlockType(prev.main, "widgetForm");
@@ -767,7 +735,6 @@ export function PageLayoutBuilderSection() {
 				if (!sourceLocation || !movingBlock) return prev;
 
 				if (movingBlock.type === "widgetForm" && !isContainerInMain(prev, container)) {
-					toast.error("Widget form can only be placed in the main column.");
 					return prev;
 				}
 
@@ -780,6 +747,13 @@ export function PageLayoutBuilderSection() {
 					targetIndex -= 1;
 				}
 
+				if (
+					containerEquals(sourceLocation.container, container) &&
+					sourceLocation.index === targetIndex
+				) {
+					return prev;
+				}
+
 				const removed = removeBlockFromSchema(prev, payload.blockId);
 				if (!removed.removed) return prev;
 				return insertBlockInSchema(removed.schema, container, targetIndex, removed.removed);
@@ -788,222 +762,142 @@ export function PageLayoutBuilderSection() {
 		[],
 	);
 
+	const clearDragState = useCallback(() => {
+		setDraggedBlockId(null);
+		setDragOverLocation(null);
+		activeDragPayloadRef.current = null;
+	}, []);
+
+	const handleStructureDragOver = useCallback(
+		(
+			event: DragEvent<HTMLElement>,
+			container: DropContainer,
+			index: number,
+			usePointerPosition = true,
+		) => {
+			const payload =
+				activeDragPayloadRef.current ??
+				parseDragPayload(event.dataTransfer.getData(DRAG_MIME_TYPE));
+			if (!payload) return;
+			event.preventDefault();
+			event.stopPropagation();
+			event.dataTransfer.dropEffect = payload.source === "library" ? "copy" : "move";
+
+			let targetIndex = index;
+			if (usePointerPosition) {
+				const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+				const centerY = rect.top + rect.height / 2;
+				targetIndex = event.clientY < centerY ? index : index + 1;
+			}
+
+			setDragOverLocation({ container, index: targetIndex });
+		},
+		[],
+	);
+
+	const handleStructureDrop = useCallback(
+		(
+			event: DragEvent<HTMLElement>,
+			container: DropContainer,
+			index: number,
+			usePointerPosition = true,
+		) => {
+			const payload =
+				activeDragPayloadRef.current ??
+				parseDragPayload(event.dataTransfer.getData(DRAG_MIME_TYPE));
+			if (!payload) {
+				clearDragState();
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+
+			let targetIndex = index;
+			if (usePointerPosition) {
+				const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+				const centerY = rect.top + rect.height / 2;
+				targetIndex = event.clientY < centerY ? index : index + 1;
+			}
+
+			applyDropPayload(payload, container, targetIndex);
+			clearDragState();
+		},
+		[applyDropPayload, clearDragState],
+	);
+
 	const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, blockType: WidgetPageSchemaBlockType) => {
+		const payload: DragPayload = { source: "library", blockType };
+		activeDragPayloadRef.current = payload;
 		event.dataTransfer.setData(
 			DRAG_MIME_TYPE,
-			serializeDragPayload({ source: "library", blockType }),
+			serializeDragPayload(payload),
 		);
+		event.dataTransfer.setData("text/plain", blockType);
 		event.dataTransfer.effectAllowed = "copy";
+		setDraggedBlockId(`library-${blockType}`);
 	};
 
-	const startTreeDrag = (event: DragEvent<HTMLButtonElement>, blockId: string) => {
+	const startTreeDrag = (event: DragEvent<HTMLElement>, blockId: string) => {
+		const payload: DragPayload = { source: "tree", blockId };
+		activeDragPayloadRef.current = payload;
 		event.dataTransfer.setData(
 			DRAG_MIME_TYPE,
-			serializeDragPayload({ source: "tree", blockId }),
+			serializeDragPayload(payload),
 		);
+		event.dataTransfer.setData("text/plain", blockId);
 		event.dataTransfer.effectAllowed = "move";
+		setDraggedBlockId(blockId);
 	};
 
-	const renderTrustIcon = (icon: WidgetPageTrustSignal["icon"]) => {
-		if (icon === "shield") return <Shield className="h-3.5 w-3.5" />;
-		if (icon === "clock") return <Clock3 className="h-3.5 w-3.5" />;
-		if (icon === "star") return <Star className="h-3.5 w-3.5" />;
-		if (icon === "check") return <Check className="h-3.5 w-3.5" />;
-		return <Lock className="h-3.5 w-3.5" />;
-	};
-
-	const sidebarPrimary = schema.layout.sidebarPrimaryColor?.trim() || "#2563eb";
-	const sidebarOnPrimary = contrastColor(sidebarPrimary);
-	const sidebarRgb = hexToRgb(sidebarPrimary);
-	const sidebarOrderClass = schema.layout.sidebarPosition === "left"
-		? "order-1 lg:order-1"
-		: "order-1 lg:order-2";
-	const mainOrderClass = schema.layout.sidebarPosition === "left"
-		? "order-2 lg:order-2"
-		: "order-2 lg:order-1";
-	const sidebarWidth = schema.layout.sidebarWidth === "sm"
-		? 280
-		: schema.layout.sidebarWidth === "lg"
-			? 420
-			: 350;
-	const previewBackground = schema.layout.backgroundStyle === "subtle-grid"
-		? `#f8f7f5 url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 .5H27.5V28' fill='none' stroke='%230f172a' stroke-opacity='0.06' stroke-width='0.5'/%3E%3C/svg%3E")`
-		: schema.layout.backgroundStyle === "gradient"
-			? `linear-gradient(135deg, rgba(${sidebarRgb.r},${sidebarRgb.g},${sidebarRgb.b},0.08) 0%, #f8fafc 50%, rgba(${sidebarRgb.r},${sidebarRgb.g},${sidebarRgb.b},0.03) 100%)`
-			: "#f8f7f5";
-
-	const renderPreviewBlocks = (
+	const renderStructureBlockList = (
 		blocks: WidgetPageSchemaBlock[],
 		container: DropContainer,
-		zone: RootSlot,
 		depth = 0,
 	): ReactNode => {
-		const elements: ReactNode[] = [];
-		const dropClass = zone === "sidebar"
-			? "border-white/35 bg-white/10 hover:border-white/60 hover:bg-white/20"
-			: "border-border/70 bg-muted/35";
-
-		for (let index = 0; index <= blocks.length; index += 1) {
-			elements.push(
-				<DropZone
-					key={`${container.kind === "root" ? container.slot : container.stackId}-preview-drop-${index}-${depth}`}
-					compact={depth > 0}
-					className={dropClass}
-					onDrop={(event) => handleDrop(container, index, event)}
-				/>,
-			);
-
-			if (index >= blocks.length) continue;
-			const block = blocks[index];
+		return blocks.map((block, blockIndex) => {
 			const isSelected = selection !== "layout" && selection.blockId === block.id;
-			const metaTone = zone === "sidebar" ? "text-white/70" : "text-muted-foreground";
-
-			elements.push(
-				<div key={block.id} className="group relative">
-					<button
-						type="button"
-						onClick={() => setSelection({ blockId: block.id })}
-						className={cn(
-							"w-full rounded-lg border p-3 text-left transition-all",
-							zone === "sidebar" ? "border-white/20 bg-white/10 text-white" : "border-border bg-card",
-							isSelected
-								? "ring-2 ring-primary/45 border-primary/60"
-								: zone === "sidebar"
-									? "hover:border-white/45 hover:bg-white/15"
-									: "hover:border-primary/40 hover:bg-primary/5",
-						)}
+			const showDropBefore = Boolean(
+				draggedBlockId &&
+				dragOverLocation &&
+				containerEquals(dragOverLocation.container, container) &&
+				dragOverLocation.index === blockIndex,
+			);
+			return (
+				<div
+					key={block.id}
+					className={cn(
+						"relative rounded-md border bg-card",
+						isSelected ? "border-primary/60 ring-1 ring-primary/30" : "border-border",
+					)}
+					onDragOver={(event) => handleStructureDragOver(event, container, blockIndex)}
+					onDrop={(event) => handleStructureDrop(event, container, blockIndex)}
+				>
+					{showDropBefore && (
+						<div className="absolute left-0 right-0 -top-0.5 h-0.5 rounded-full bg-primary z-20" />
+					)}
+					<div
+						className="flex items-center gap-1.5 p-1.5 cursor-grab active:cursor-grabbing"
+						draggable
+						onDragStart={(event) => startTreeDrag(event, block.id)}
+						onDragEnd={clearDragState}
 					>
-						<div className={cn("mb-2 flex items-center justify-between gap-2 text-[11px]", metaTone)}>
-							<p className="truncate font-semibold uppercase tracking-wider">
+						<div className="h-7 w-7 shrink-0 flex items-center justify-center text-muted-foreground">
+							<GripVertical className="h-3.5 w-3.5" />
+						</div>
+						<button
+							type="button"
+							onClick={() => setSelection({ blockId: block.id })}
+							className="min-w-0 flex-1 rounded-md px-1 py-1 text-left hover:bg-muted/50"
+						>
+							<p className="truncate text-xs font-medium text-foreground">
 								{blockLabel(block)}
 							</p>
-							<p className="truncate">
-								{blockSubtitle(block)}
-							</p>
-						</div>
-						{block.type === "stack" ? (
-							<div
-								className={cn(
-									"rounded-md border border-dashed p-2",
-									zone === "sidebar" ? "border-white/25 bg-white/5" : "border-border/70 bg-muted/25",
-								)}
-							>
-								<div className={cn(getGapClass(block.gap))}>
-									{renderPreviewBlocks(block.children, { kind: "stack", stackId: block.id }, zone, depth + 1)}
-								</div>
-							</div>
-						) : block.type === "logo" ? (
-							<div className="flex items-center gap-2.5">
-								<div
-									className={cn(
-										"flex h-8 w-8 items-center justify-center rounded-md text-sm font-semibold",
-										zone === "sidebar" ? "bg-white/20" : "bg-muted",
-									)}
-								>
-									{widgetName.slice(0, 1).toUpperCase()}
-								</div>
-								{block.showCompanyName && (
-									<span className={cn("text-sm", zone === "sidebar" ? "text-white/90" : "text-muted-foreground")}>
-										{widgetName}
-									</span>
-								)}
-							</div>
-						) : block.type === "heading" ? (
-							block.level === 1 ? (
-								<h1 className={cn("text-2xl font-semibold leading-tight", zone === "sidebar" ? "text-white" : "text-foreground")}>
-									{block.text}
-								</h1>
-							) : block.level === 3 ? (
-								<h3 className={cn("text-base font-semibold", zone === "sidebar" ? "text-white" : "text-foreground")}>
-									{block.text}
-								</h3>
-							) : (
-								<h2 className={cn("text-lg font-semibold", zone === "sidebar" ? "text-white" : "text-foreground")}>
-									{block.text}
-								</h2>
-							)
-						) : block.type === "text" ? (
-							<p className={cn("whitespace-pre-wrap text-sm leading-6", zone === "sidebar" ? "text-white/85" : "text-muted-foreground")}>
-								{block.text}
-							</p>
-						) : block.type === "list" ? (
-							<ul className={cn("list-disc space-y-1 pl-5 text-sm", zone === "sidebar" ? "text-white/85" : "text-muted-foreground")}>
-								{block.items.map((item, itemIndex) => (
-									<li key={`${block.id}-list-preview-${itemIndex}`}>{item}</li>
-								))}
-							</ul>
-						) : block.type === "iconList" ? (
-							<ul className="space-y-2">
-								{block.items.map((item, itemIndex) => (
-									<li key={`${block.id}-icon-preview-${itemIndex}`} className="flex items-center gap-2.5 text-sm">
-										<span
-											className={cn(
-												"inline-flex h-6 w-6 items-center justify-center rounded-md",
-												zone === "sidebar" ? "bg-white/20" : "bg-muted",
-											)}
-										>
-											{renderTrustIcon(item.icon)}
-										</span>
-										<span className={zone === "sidebar" ? "text-white/90" : "text-muted-foreground"}>
-											{item.text}
-										</span>
-									</li>
-								))}
-							</ul>
-						) : block.type === "policyLinks" ? (
-							<div className="flex flex-wrap gap-3">
-								{block.links.map((link, linkIndex) => (
-									<span
-										key={`${block.id}-policy-preview-${linkIndex}`}
-										className={cn(
-											"text-xs underline underline-offset-2",
-											zone === "sidebar" ? "text-white/85" : "text-muted-foreground",
-										)}
-									>
-										{link.label || "Link"}
-									</span>
-								))}
-							</div>
-						) : block.type === "spacer" ? (
-							<div
-								className={cn(
-									"rounded-md",
-									getSpacerClass(block.size),
-									zone === "sidebar" ? "bg-white/18" : "bg-muted",
-								)}
-							/>
-						) : (
-							<div className={cn("rounded-xl border p-4", zone === "sidebar" ? "border-white/25 bg-white/10" : "border-border bg-card")}>
-								<p className={cn("text-lg font-semibold", zone === "sidebar" ? "text-white" : "text-foreground")}>
-									{block.title || "Get in touch"}
-								</p>
-								<p className={cn("mt-1 text-sm", zone === "sidebar" ? "text-white/80" : "text-muted-foreground")}>
-									{block.subtitle || "Fill in the details below and we'll get back to you."}
-								</p>
-								<div className="mt-3 space-y-2">
-									<div className={cn("h-9 rounded-md border", zone === "sidebar" ? "border-white/30 bg-white/10" : "border-border bg-background")} />
-									<div className={cn("h-9 rounded-md border", zone === "sidebar" ? "border-white/30 bg-white/10" : "border-border bg-background")} />
-									<div className={cn("h-10 rounded-md", zone === "sidebar" ? "bg-white/25" : "bg-primary/75")} />
-								</div>
-							</div>
-						)}
-					</button>
-					<div className={cn("absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border bg-background/95 px-1 py-0.5 shadow-sm transition-opacity", isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+						</button>
 						<Button
 							type="button"
 							variant="ghost"
 							size="icon"
-							className="h-6 w-6 text-muted-foreground"
-							draggable
-							onDragStart={(event) => startTreeDrag(event, block.id)}
-						>
-							<GripVertical className="h-3.5 w-3.5" />
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon"
-							className="h-6 w-6 text-muted-foreground"
+							className="h-7 w-7 text-muted-foreground"
 							onClick={() => duplicateBlock(block.id)}
 						>
 							<Copy className="h-3.5 w-3.5" />
@@ -1012,18 +906,76 @@ export function PageLayoutBuilderSection() {
 							type="button"
 							variant="ghost"
 							size="icon"
-							className="h-6 w-6 text-muted-foreground hover:text-destructive"
+							className="h-7 w-7 text-muted-foreground hover:text-destructive"
 							onClick={() => deleteBlock(block.id)}
 						>
 							<Trash2 className="h-3.5 w-3.5" />
 						</Button>
 					</div>
-				</div>,
+					{block.type === "stack" && (
+						<div
+							className={cn("pb-2 pr-2", depth > 0 ? "pl-6" : "pl-4")}
+							onDragOver={(event) =>
+								handleStructureDragOver(
+									event,
+									{ kind: "stack", stackId: block.id },
+									block.children.length,
+									false,
+								)
+							}
+							onDrop={(event) =>
+								handleStructureDrop(
+									event,
+									{ kind: "stack", stackId: block.id },
+									block.children.length,
+									false,
+								)
+							}
+						>
+							<div className={cn("space-y-1.5", getGapClass(block.gap))}>
+								{renderStructureBlockList(block.children, { kind: "stack", stackId: block.id }, depth + 1)}
+							</div>
+							{draggedBlockId &&
+								dragOverLocation &&
+								dragOverLocation.index === block.children.length &&
+								dragOverLocation.container.kind === "stack" &&
+								dragOverLocation.container.stackId === block.id && (
+									<div className="mt-1 h-0.5 rounded-full bg-primary" />
+								)}
+						</div>
+					)}
+				</div>
 			);
-		}
-
-		return elements;
+		});
 	};
+
+	const slotOrder: RootSlot[] = schema.layout.sidebarPosition === "left"
+		? ["sidebar", "main"]
+		: ["main", "sidebar"];
+	const previewPrimary = schema.layout.sidebarPrimaryColor?.trim() || "#2563eb";
+	const previewRgb = hexToRgb(previewPrimary);
+	const previewFormStyling = useMemo(() => ({
+		...ctx?.previewStyling,
+		primaryColor:
+			ctx?.pageConfig?.primaryColor?.trim() ||
+			brandColors.primary ||
+			ctx?.previewStyling?.primaryColor ||
+			"#2563eb",
+		secondaryColor:
+			brandColors.secondary ||
+			ctx?.previewStyling?.secondaryColor ||
+			"#6b7280",
+		successColor:
+			brandColors.accent ||
+			ctx?.previewStyling?.successColor ||
+			"#10b981",
+	}), [
+		brandColors.accent,
+		brandColors.primary,
+		brandColors.secondary,
+		ctx?.pageConfig?.primaryColor,
+		ctx?.previewStyling,
+	]);
 
 	return (
 		<div className="h-full min-h-0 flex flex-col">
@@ -1042,54 +994,101 @@ export function PageLayoutBuilderSection() {
 
 			<div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_320px] overflow-hidden">
 				<aside className="border-r border-border bg-muted/20 p-4 overflow-y-auto">
-					<div className="space-y-3">
+					<div className="space-y-5">
 						<div>
 							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Block Library
+								Page Structure
 							</p>
 							<p className="text-[11px] text-muted-foreground mt-1">
-								Drag a block into Sidebar or Main structure.
+								Reorder, duplicate, and remove blocks from here.
 							</p>
 						</div>
-						{LIBRARY_BLOCKS.map((item) => {
-							const disabled = item.type === "widgetForm" && widgetFormCount >= 1;
-							return (
-								<button
-									key={item.type}
-									type="button"
-									draggable={!disabled}
-									onDragStart={(event) => startLibraryDrag(event, item.type)}
-									onClick={() => {
-										if (disabled) {
-											toast.error("Only one Widget form block is allowed.");
-											return;
-										}
-										const block = createDefaultBlock(item.type);
-										const slot: DropContainer = { kind: "root", slot: item.type === "widgetForm" ? "main" : "sidebar" };
-										setSchema((prev) =>
-											insertBlockInSchema(
-												prev,
-												slot,
-												slot.slot === "sidebar" ? prev.sidebar.length : prev.main.length,
-												block,
-											),
-										);
-									}}
-									className={cn(
-										"w-full rounded-lg border p-3 text-left transition-colors",
-										disabled
-											? "cursor-not-allowed border-border/50 bg-muted/40 text-muted-foreground/60"
-											: "border-border bg-card hover:border-primary/50 hover:bg-primary/5",
-									)}
-								>
-									<div className="flex items-center gap-2">
-										<item.Icon className="h-4 w-4 text-muted-foreground" />
-										<p className="text-sm font-medium">{item.label}</p>
-									</div>
-									<p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-								</button>
-							);
-						})}
+
+						<div className="space-y-3">
+							{slotOrder.map((slot) => {
+								const blocks = slot === "sidebar" ? schema.sidebar : schema.main;
+								const container: DropContainer = { kind: "root", slot };
+								const showDropAtEnd = Boolean(
+									draggedBlockId &&
+									dragOverLocation &&
+									containerEquals(dragOverLocation.container, container) &&
+									dragOverLocation.index === blocks.length,
+								);
+								return (
+									<section key={slot} className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+										<div className="mb-2 flex items-center justify-between">
+											<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+												{slot === "sidebar" ? "Sidebar" : "Main"}
+											</p>
+											<p className="text-[11px] text-muted-foreground">{blocks.length}</p>
+										</div>
+										<div
+											className="space-y-1.5"
+											onDragOver={(event) =>
+												handleStructureDragOver(event, container, blocks.length, false)
+											}
+											onDrop={(event) =>
+												handleStructureDrop(event, container, blocks.length, false)
+											}
+										>
+											{renderStructureBlockList(blocks, container)}
+											{showDropAtEnd && <div className="h-0.5 rounded-full bg-primary" />}
+										</div>
+										</section>
+									);
+							})}
+						</div>
+
+						<div className="space-y-3 border-t border-border/70 pt-4">
+							<div>
+								<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+									Add Blocks
+								</p>
+								<p className="text-[11px] text-muted-foreground mt-1">
+									Drag from library or click to append.
+								</p>
+							</div>
+							{LIBRARY_BLOCKS.filter((item) => item.type !== "widgetForm").map((item) => {
+								const disabled = item.type === "widgetForm" && widgetFormCount >= 1;
+								return (
+									<button
+										key={item.type}
+										type="button"
+										draggable={!disabled}
+										onDragStart={(event) => startLibraryDrag(event, item.type)}
+										onDragEnd={clearDragState}
+										onClick={() => {
+											if (disabled) {
+												toast.error("Only one Widget form block is allowed.");
+												return;
+											}
+											const block = createDefaultBlock(item.type);
+											const slot: DropContainer = { kind: "root", slot: item.type === "widgetForm" ? "main" : "sidebar" };
+											setSchema((prev) =>
+												insertBlockInSchema(
+													prev,
+													slot,
+													slot.slot === "sidebar" ? prev.sidebar.length : prev.main.length,
+													block,
+												),
+											);
+										}}
+										className={cn(
+											"w-full rounded-lg border p-3 text-left transition-colors",
+											disabled
+												? "cursor-not-allowed border-border/50 bg-muted/40 text-muted-foreground/60"
+												: "border-border bg-card hover:border-primary/50 hover:bg-primary/5",
+										)}
+									>
+										<div className="flex items-center gap-2">
+											<item.Icon className="h-4 w-4 text-muted-foreground" />
+											<p className="text-sm font-medium">{item.label}</p>
+										</div>
+										<p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+									</button>
+								);
+							})}
+						</div>
 					</div>
 				</aside>
 
@@ -1099,7 +1098,7 @@ export function PageLayoutBuilderSection() {
 							<div>
 								<p className="text-sm font-semibold text-foreground">Live Page Preview</p>
 								<p className="text-xs text-muted-foreground mt-1">
-									Drag blocks directly in the preview and click a block to edit its properties.
+									Click any element to select it. Structure editing happens in the left sidebar.
 								</p>
 							</div>
 							<Button
@@ -1113,45 +1112,48 @@ export function PageLayoutBuilderSection() {
 						</div>
 
 						<div className="overflow-hidden rounded-xl border border-border/70 shadow-sm">
-							<div className="min-h-[680px] w-full overflow-auto" style={{ background: previewBackground }}>
-								<div
-									className="min-h-[680px] flex flex-col lg:grid"
-									style={{
-										gridTemplateColumns:
-											schema.layout.sidebarPosition === "left"
-												? `${sidebarWidth}px minmax(0, 1fr)`
-												: `minmax(0, 1fr) ${sidebarWidth}px`,
+							<div className="min-h-[680px] w-full overflow-auto">
+								<WidgetSchemaLayout
+									branding={{
+										logo: organizationLogo,
+										companyName: organizationDisplayName,
 									}}
-								>
-									<aside
-										className={cn("px-6 py-7 space-y-3", sidebarOrderClass)}
-										style={{ backgroundColor: sidebarPrimary, color: sidebarOnPrimary }}
-									>
-										<div className="flex items-center justify-between">
-											<p className="text-xs font-semibold uppercase tracking-wider text-white/75">
-												Sidebar
-											</p>
-											<p className="text-[11px] text-white/70">{schema.sidebar.length} block(s)</p>
-										</div>
-										<div className="space-y-2">
-											{renderPreviewBlocks(schema.sidebar, { kind: "root", slot: "sidebar" }, "sidebar")}
-										</div>
-									</aside>
-
-									<section className={cn("px-6 py-7", mainOrderClass)}>
-										<div className="mx-auto max-w-[620px] space-y-3">
-											<div className="flex items-center justify-between">
-												<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-													Main content
-												</p>
-												<p className="text-[11px] text-muted-foreground">{schema.main.length} block(s)</p>
+									schema={schema}
+									primary={previewPrimary}
+									rgb={previewRgb}
+									rootClassName="min-h-[680px] w-full max-w-none"
+									selectedBlockId={selection === "layout" ? null : selection.blockId}
+									onSelectBlock={(blockId) => setSelection({ blockId })}
+									renderFormBlock={({ block }) => {
+										return (
+											<div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+												<div className="mb-4">
+													<p className="text-[10px] uppercase tracking-widest text-primary mb-1">
+														{organizationDisplayName}
+													</p>
+													<h2 className="text-2xl font-semibold tracking-tight text-foreground">
+														{block.title || "Get in touch"}
+													</h2>
+													<p className="text-sm text-muted-foreground mt-1">
+														{block.subtitle || "Fill in the details below and we'll get back to you."}
+													</p>
+												</div>
+												<div className="pointer-events-none">
+													<WidgetSchemaRenderer
+														pages={ctx?.pages ?? []}
+														actions={ctx?.actions ?? { success: { message: "Thank you!" } }}
+														styling={previewFormStyling}
+														onSubmit={async () => {}}
+														submitting={false}
+														submitError={null}
+														multiStepOptions={ctx?.multiStepOptions}
+														previewPageIndex={0}
+													/>
+												</div>
 											</div>
-											<div className="space-y-2">
-												{renderPreviewBlocks(schema.main, { kind: "root", slot: "main" }, "main")}
-											</div>
-										</div>
-									</section>
-								</div>
+										);
+									}}
+								/>
 							</div>
 						</div>
 					</div>

@@ -590,7 +590,7 @@ export const functionsService: FunctionsService = {
     url.searchParams.set("organizationId", organizationId);
     url.searchParams.set("widgetId", widgetId);
     if (widgetVersionId) url.searchParams.set("widgetVersionId", widgetVersionId);
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string; branding?: unknown };
       const error = Object.assign(
