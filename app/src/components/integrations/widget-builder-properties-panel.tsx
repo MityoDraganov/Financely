@@ -465,7 +465,17 @@ function formatVersionTimestamp(value: unknown): string {
 	return "Recently";
 }
 
-export function WidgetBuilderPropertiesPanel() {
+type WidgetBuilderPropertiesPanelProps = {
+	isMergedSidebar?: boolean;
+	onBack?: () => void;
+	backLabel?: string;
+};
+
+export function WidgetBuilderPropertiesPanel({
+	isMergedSidebar = false,
+	onBack,
+	backLabel = "Back",
+}: WidgetBuilderPropertiesPanelProps = {}) {
 	const ctx = useWidgetBuilderContext();
 	const widgetDesigner = useWidgetDesigner();
 	const { data: organization } = useCurrentOrganization();
@@ -524,7 +534,25 @@ export function WidgetBuilderPropertiesPanel() {
 	);
 
 	return (
-		<aside className="w-80 shrink-0 h-full min-h-0 overflow-hidden border-l bg-muted/20 flex flex-col">
+		<aside
+			className={cn(
+				"w-80 shrink-0 h-full min-h-0 overflow-hidden flex flex-col",
+				isMergedSidebar ? "border-r bg-background" : "border-l bg-muted/20",
+			)}
+		>
+			{isMergedSidebar && onBack ? (
+				<div className="shrink-0 flex items-center gap-2 border-b bg-background px-3 py-2">
+					<Button
+						variant="ghost"
+						size="sm"
+						className="-ml-1"
+						onClick={onBack}
+					>
+						<ChevronLeft className="h-4 w-4 mr-1" />
+						{backLabel}
+					</Button>
+				</div>
+			) : null}
 			<div className="h-full min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col">
 				<Tabs
 					defaultValue="page-widget"

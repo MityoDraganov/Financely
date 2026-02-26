@@ -3,6 +3,7 @@ import type { ComponentType, DragEvent, ReactNode } from "react";
 import { toast } from "sonner";
 import {
 	Check,
+	ChevronLeft,
 	Copy,
 	GripVertical,
 	Heading2,
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useWidgetBuilderContext } from "@/contexts/widget-builder-context";
 import { WidgetSchemaLayout } from "@/components/widget-schema-layout";
@@ -42,7 +44,9 @@ const DRAG_MIME_TYPE = "application/x-financely-page-builder";
 
 type BuilderSelection = "layout" | { blockId: string };
 type RootSlot = "sidebar" | "main";
-type DropContainer = { kind: "root"; slot: RootSlot } | { kind: "stack"; stackId: string };
+type DropContainer =
+	| { kind: "root"; slot: RootSlot }
+	| { kind: "stack"; stackId: string };
 type DragPayload =
 	| { source: "library"; blockType: WidgetPageSchemaBlockType }
 	| { source: "tree"; blockId: string };
@@ -135,7 +139,9 @@ function generateBlockId(prefix: string): string {
 	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createDefaultBlock(type: WidgetPageSchemaBlockType): WidgetPageSchemaBlock {
+function createDefaultBlock(
+	type: WidgetPageSchemaBlockType,
+): WidgetPageSchemaBlock {
 	if (type === "stack") {
 		return {
 			id: generateBlockId("stack"),
@@ -220,7 +226,9 @@ function blockLabel(block: WidgetPageSchemaBlock): string {
 	return "Stack";
 }
 
-function sanitizeLinks(links: WidgetPageFooterLink[] | undefined): WidgetPageFooterLink[] {
+function sanitizeLinks(
+	links: WidgetPageFooterLink[] | undefined,
+): WidgetPageFooterLink[] {
 	return (links ?? [])
 		.map((link) => ({
 			label: String(link?.label ?? "").trim(),
@@ -229,7 +237,9 @@ function sanitizeLinks(links: WidgetPageFooterLink[] | undefined): WidgetPageFoo
 		.filter((link) => link.label.length > 0 || link.url.length > 0);
 }
 
-function sanitizeTrustSignals(trustSignals: WidgetPageTrustSignal[] | undefined): WidgetPageTrustSignal[] {
+function sanitizeTrustSignals(
+	trustSignals: WidgetPageTrustSignal[] | undefined,
+): WidgetPageTrustSignal[] {
 	return (trustSignals ?? [])
 		.map((signal) => ({
 			icon: signal.icon,
@@ -238,7 +248,10 @@ function sanitizeTrustSignals(trustSignals: WidgetPageTrustSignal[] | undefined)
 		.filter((signal) => signal.label.length > 0);
 }
 
-function findBlockById(blocks: WidgetPageSchemaBlock[], blockId: string): WidgetPageSchemaBlock | undefined {
+function findBlockById(
+	blocks: WidgetPageSchemaBlock[],
+	blockId: string,
+): WidgetPageSchemaBlock | undefined {
 	for (const block of blocks) {
 		if (block.id === blockId) return block;
 		if (block.type === "stack") {
@@ -249,18 +262,26 @@ function findBlockById(blocks: WidgetPageSchemaBlock[], blockId: string): Widget
 	return undefined;
 }
 
-function hasBlockType(blocks: WidgetPageSchemaBlock[], type: WidgetPageSchemaBlockType): boolean {
+function hasBlockType(
+	blocks: WidgetPageSchemaBlock[],
+	type: WidgetPageSchemaBlockType,
+): boolean {
 	for (const block of blocks) {
 		if (block.type === type) return true;
-		if (block.type === "stack" && hasBlockType(block.children, type)) return true;
+		if (block.type === "stack" && hasBlockType(block.children, type))
+			return true;
 	}
 	return false;
 }
 
-function countBlockType(blocks: WidgetPageSchemaBlock[], type: WidgetPageSchemaBlockType): number {
+function countBlockType(
+	blocks: WidgetPageSchemaBlock[],
+	type: WidgetPageSchemaBlockType,
+): number {
 	return blocks.reduce((count, block) => {
 		const current = block.type === type ? 1 : 0;
-		const nested = block.type === "stack" ? countBlockType(block.children, type) : 0;
+		const nested =
+			block.type === "stack" ? countBlockType(block.children, type) : 0;
 		return count + current + nested;
 	}, 0);
 }
@@ -275,7 +296,11 @@ function updateBlockByIdInList(
 		if (block.type === "stack") {
 			return {
 				...block,
-				children: updateBlockByIdInList(block.children, blockId, updater),
+				children: updateBlockByIdInList(
+					block.children,
+					blockId,
+					updater,
+				),
 			};
 		}
 		return block;
@@ -346,34 +371,57 @@ function insertBlockInSchema(
 ): WidgetPageSchema {
 	if (container.kind === "root") {
 		if (container.slot === "sidebar") {
-			return { ...schema, sidebar: insertBlockAtIndex(schema.sidebar, index, block) };
+			return {
+				...schema,
+				sidebar: insertBlockAtIndex(schema.sidebar, index, block),
+			};
 		}
-		return { ...schema, main: insertBlockAtIndex(schema.main, index, block) };
+		return {
+			...schema,
+			main: insertBlockAtIndex(schema.main, index, block),
+		};
 	}
 
 	return {
 		...schema,
-		sidebar: updateBlockByIdInList(schema.sidebar, container.stackId, (candidate) => {
-			if (candidate.type !== "stack") return candidate;
-			return {
-				...candidate,
-				children: insertBlockAtIndex(candidate.children, index, block),
-			};
-		}),
-		main: updateBlockByIdInList(schema.main, container.stackId, (candidate) => {
-			if (candidate.type !== "stack") return candidate;
-			return {
-				...candidate,
-				children: insertBlockAtIndex(candidate.children, index, block),
-			};
-		}),
+		sidebar: updateBlockByIdInList(
+			schema.sidebar,
+			container.stackId,
+			(candidate) => {
+				if (candidate.type !== "stack") return candidate;
+				return {
+					...candidate,
+					children: insertBlockAtIndex(
+						candidate.children,
+						index,
+						block,
+					),
+				};
+			},
+		),
+		main: updateBlockByIdInList(
+			schema.main,
+			container.stackId,
+			(candidate) => {
+				if (candidate.type !== "stack") return candidate;
+				return {
+					...candidate,
+					children: insertBlockAtIndex(
+						candidate.children,
+						index,
+						block,
+					),
+				};
+			},
+		),
 	};
 }
 
 function containerEquals(a: DropContainer, b: DropContainer): boolean {
 	if (a.kind !== b.kind) return false;
 	if (a.kind === "root" && b.kind === "root") return a.slot === b.slot;
-	if (a.kind === "stack" && b.kind === "stack") return a.stackId === b.stackId;
+	if (a.kind === "stack" && b.kind === "stack")
+		return a.stackId === b.stackId;
 	return false;
 }
 
@@ -398,7 +446,10 @@ function findLocationInList(
 	return null;
 }
 
-function findBlockLocation(schema: WidgetPageSchema, blockId: string): BlockLocation | null {
+function findBlockLocation(
+	schema: WidgetPageSchema,
+	blockId: string,
+): BlockLocation | null {
 	const inSidebar = findLocationInList(schema.sidebar, blockId, {
 		kind: "root",
 		slot: "sidebar",
@@ -410,7 +461,10 @@ function findBlockLocation(schema: WidgetPageSchema, blockId: string): BlockLoca
 	});
 }
 
-function blockContainsStack(block: WidgetPageSchemaBlock, stackId: string): boolean {
+function blockContainsStack(
+	block: WidgetPageSchemaBlock,
+	stackId: string,
+): boolean {
 	if (block.id === stackId) return true;
 	if (block.type !== "stack") return false;
 	return block.children.some((child) => blockContainsStack(child, stackId));
@@ -420,7 +474,10 @@ function hasStackId(blocks: WidgetPageSchemaBlock[], stackId: string): boolean {
 	return blocks.some((block) => blockContainsStack(block, stackId));
 }
 
-function isContainerInMain(schema: WidgetPageSchema, container: DropContainer): boolean {
+function isContainerInMain(
+	schema: WidgetPageSchema,
+	container: DropContainer,
+): boolean {
 	if (container.kind === "root") return container.slot === "main";
 	return hasStackId(schema.main, container.stackId);
 }
@@ -433,8 +490,8 @@ function toLegacyFields(schema: WidgetPageSchema): Partial<WidgetPageConfig> {
 	const formBlock = findFirstBlockOfType(schema.main, "widgetForm");
 	const trustSignals = firstIconList
 		? firstIconList.items
-			.filter((item) => item.text.trim().length > 0)
-			.map((item) => ({ icon: item.icon, label: item.text.trim() }))
+				.filter((item) => item.text.trim().length > 0)
+				.map((item) => ({ icon: item.icon, label: item.text.trim() }))
 		: undefined;
 
 	const legacyBlocks: WidgetPageBlock[] = [];
@@ -487,7 +544,10 @@ function findFirstBlockOfType<T extends WidgetPageSchemaBlock["type"]>(
 	return undefined;
 }
 
-function migrateToSchema(config: WidgetPageConfig | null | undefined, widgetName: string): WidgetPageSchema {
+function migrateToSchema(
+	config: WidgetPageConfig | null | undefined,
+	widgetName: string,
+): WidgetPageSchema {
 	const existing = config?.schema;
 	if (existing && existing.version === 1) {
 		const ensureForm = hasBlockType(existing.main, "widgetForm")
@@ -497,14 +557,20 @@ function migrateToSchema(config: WidgetPageConfig | null | undefined, widgetName
 	}
 
 	const legacySidePanel = (config?.blocks ?? []).find(
-		(block): block is Extract<WidgetPageBlock, { type: "sidePanel" }> => block.type === "sidePanel",
+		(block): block is Extract<WidgetPageBlock, { type: "sidePanel" }> =>
+			block.type === "sidePanel",
 	);
-	const sidebarHeading = legacySidePanel?.title?.trim() || config?.headline?.trim() || widgetName;
+	const sidebarHeading =
+		legacySidePanel?.title?.trim() ||
+		config?.headline?.trim() ||
+		widgetName;
 	const sidebarBody =
 		legacySidePanel?.body?.trim() ||
 		config?.body?.trim() ||
 		"Complete the form and our team will review your submission.";
-	const sidebarTrustSignals = sanitizeTrustSignals(legacySidePanel?.trustSignals ?? config?.trustSignals);
+	const sidebarTrustSignals = sanitizeTrustSignals(
+		legacySidePanel?.trustSignals ?? config?.trustSignals,
+	);
 
 	const sidebarBlocks: WidgetPageSchemaBlock[] = [
 		{
@@ -526,7 +592,10 @@ function migrateToSchema(config: WidgetPageConfig | null | undefined, widgetName
 		{
 			id: generateBlockId("icon-list"),
 			type: "iconList",
-			items: (sidebarTrustSignals.length > 0 ? sidebarTrustSignals : DEFAULT_TRUST_SIGNALS).map((signal) => ({
+			items: (sidebarTrustSignals.length > 0
+				? sidebarTrustSignals
+				: DEFAULT_TRUST_SIGNALS
+			).map((signal) => ({
 				icon: signal.icon,
 				text: signal.label,
 			})),
@@ -560,7 +629,8 @@ function migrateToSchema(config: WidgetPageConfig | null | undefined, widgetName
 			sidebarPosition: legacySidePanel?.position ?? "left",
 			sidebarWidth: "md",
 			backgroundStyle: config?.backgroundStyle ?? "clean",
-			sidebarPrimaryColor: legacySidePanel?.primaryColor ?? config?.primaryColor,
+			sidebarPrimaryColor:
+				legacySidePanel?.primaryColor ?? config?.primaryColor,
 		},
 		sidebar: sidebarBlocks,
 		main: mainBlocks,
@@ -572,7 +642,8 @@ function parseDragPayload(raw: string): DragPayload | null {
 	try {
 		const parsed = JSON.parse(raw) as DragPayload;
 		if (!parsed || typeof parsed !== "object") return null;
-		if (parsed.source !== "library" && parsed.source !== "tree") return null;
+		if (parsed.source !== "library" && parsed.source !== "tree")
+			return null;
 		return parsed;
 	} catch {
 		return null;
@@ -599,19 +670,22 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
 	return result
 		? {
-			r: parseInt(result[1], 16),
-			g: parseInt(result[2], 16),
-			b: parseInt(result[3], 16),
-		}
+				r: parseInt(result[1], 16),
+				g: parseInt(result[2], 16),
+				b: parseInt(result[3], 16),
+			}
 		: { r: 37, g: 99, b: 235 };
 }
 
 export function PageLayoutBuilderSection() {
 	const ctx = useWidgetBuilderContext();
+	const isWideLayout = useMediaQuery("(min-width: 1600px)");
 	const { data: organization } = useCurrentOrganization();
 	const widgetName = ctx?.widgetName ?? "Widget";
 	const organizationLogo =
-		organization?.settings?.branding?.customLogo || organization?.logoUrl || null;
+		organization?.settings?.branding?.customLogo ||
+		organization?.logoUrl ||
+		null;
 	const organizationDisplayName =
 		organization?.settings?.branding?.companyName?.trim() ||
 		organization?.name?.trim() ||
@@ -620,8 +694,12 @@ export function PageLayoutBuilderSection() {
 
 	const [saving, setSaving] = useState(false);
 	const [selection, setSelection] = useState<BuilderSelection>("layout");
+	const [mergedSidebarView, setMergedSidebarView] = useState<
+		"structure" | "properties"
+	>("structure");
 	const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-	const [dragOverLocation, setDragOverLocation] = useState<BlockLocation | null>(null);
+	const [dragOverLocation, setDragOverLocation] =
+		useState<BlockLocation | null>(null);
 	const activeDragPayloadRef = useRef<DragPayload | null>(null);
 	const [schema, setSchema] = useState<WidgetPageSchema>(() =>
 		migrateToSchema(ctx?.pageConfig ?? {}, widgetName),
@@ -630,7 +708,14 @@ export function PageLayoutBuilderSection() {
 	useEffect(() => {
 		setSchema(migrateToSchema(ctx?.pageConfig ?? {}, widgetName));
 		setSelection("layout");
+		setMergedSidebarView("structure");
 	}, [ctx?.pageConfig, widgetName]);
+
+	useEffect(() => {
+		if (!isWideLayout && selection !== "layout") {
+			setMergedSidebarView("properties");
+		}
+	}, [isWideLayout, selection]);
 
 	const selectedBlock = useMemo(() => {
 		if (selection === "layout") return null;
@@ -642,7 +727,9 @@ export function PageLayoutBuilderSection() {
 	}, [schema.main, schema.sidebar, selection]);
 
 	const widgetFormCount = useMemo(
-		() => countBlockType(schema.sidebar, "widgetForm") + countBlockType(schema.main, "widgetForm"),
+		() =>
+			countBlockType(schema.sidebar, "widgetForm") +
+			countBlockType(schema.main, "widgetForm"),
 		[schema.main, schema.sidebar],
 	);
 
@@ -666,8 +753,16 @@ export function PageLayoutBuilderSection() {
 			if (selection === "layout") return;
 			setSchema((prev) => ({
 				...prev,
-				sidebar: updateBlockByIdInList(prev.sidebar, selection.blockId, updater),
-				main: updateBlockByIdInList(prev.main, selection.blockId, updater),
+				sidebar: updateBlockByIdInList(
+					prev.sidebar,
+					selection.blockId,
+					updater,
+				),
+				main: updateBlockByIdInList(
+					prev.main,
+					selection.blockId,
+					updater,
+				),
 			}));
 		},
 		[selection],
@@ -691,36 +786,53 @@ export function PageLayoutBuilderSection() {
 		[schema.main, schema.sidebar, selection, widgetFormCount],
 	);
 
-	const duplicateBlock = useCallback((blockId: string) => {
-		setSchema((prev) => {
-			const location = findBlockLocation(prev, blockId);
-			if (!location) return prev;
-			const block = findBlockById(prev.sidebar, blockId) ?? findBlockById(prev.main, blockId);
-			if (!block) return prev;
-			if (block.type === "widgetForm" && widgetFormCount >= 1) {
-				toast.error("Only one Widget form block is allowed.");
-				return prev;
-			}
-			const cloned = JSON.parse(JSON.stringify(block)) as WidgetPageSchemaBlock;
-			cloned.id = generateBlockId(cloned.type);
-			return insertBlockInSchema(prev, location.container, location.index + 1, cloned);
-		});
-	}, [widgetFormCount]);
+	const duplicateBlock = useCallback(
+		(blockId: string) => {
+			setSchema((prev) => {
+				const location = findBlockLocation(prev, blockId);
+				if (!location) return prev;
+				const block =
+					findBlockById(prev.sidebar, blockId) ??
+					findBlockById(prev.main, blockId);
+				if (!block) return prev;
+				if (block.type === "widgetForm" && widgetFormCount >= 1) {
+					toast.error("Only one Widget form block is allowed.");
+					return prev;
+				}
+				const cloned = JSON.parse(
+					JSON.stringify(block),
+				) as WidgetPageSchemaBlock;
+				cloned.id = generateBlockId(cloned.type);
+				return insertBlockInSchema(
+					prev,
+					location.container,
+					location.index + 1,
+					cloned,
+				);
+			});
+		},
+		[widgetFormCount],
+	);
 
 	const applyDropPayload = useCallback(
 		(payload: DragPayload, container: DropContainer, index: number) => {
 			setSchema((prev) => {
 				const widgetFormExists =
-					countBlockType(prev.sidebar, "widgetForm") + countBlockType(prev.main, "widgetForm");
+					countBlockType(prev.sidebar, "widgetForm") +
+					countBlockType(prev.main, "widgetForm");
 
 				if (payload.source === "library") {
 					if (payload.blockType === "widgetForm") {
 						if (widgetFormExists >= 1) {
-							toast.error("Only one Widget form block is allowed.");
+							toast.error(
+								"Only one Widget form block is allowed.",
+							);
 							return prev;
 						}
 						if (!isContainerInMain(prev, container)) {
-							toast.error("Widget form can only be placed in the main column.");
+							toast.error(
+								"Widget form can only be placed in the main column.",
+							);
 							return prev;
 						}
 					}
@@ -734,16 +846,25 @@ export function PageLayoutBuilderSection() {
 					findBlockById(prev.main, payload.blockId);
 				if (!sourceLocation || !movingBlock) return prev;
 
-				if (movingBlock.type === "widgetForm" && !isContainerInMain(prev, container)) {
+				if (
+					movingBlock.type === "widgetForm" &&
+					!isContainerInMain(prev, container)
+				) {
 					return prev;
 				}
 
-				if (container.kind === "stack" && blockContainsStack(movingBlock, container.stackId)) {
+				if (
+					container.kind === "stack" &&
+					blockContainsStack(movingBlock, container.stackId)
+				) {
 					return prev;
 				}
 
 				let targetIndex = index;
-				if (containerEquals(sourceLocation.container, container) && sourceLocation.index < targetIndex) {
+				if (
+					containerEquals(sourceLocation.container, container) &&
+					sourceLocation.index < targetIndex
+				) {
 					targetIndex -= 1;
 				}
 
@@ -756,7 +877,12 @@ export function PageLayoutBuilderSection() {
 
 				const removed = removeBlockFromSchema(prev, payload.blockId);
 				if (!removed.removed) return prev;
-				return insertBlockInSchema(removed.schema, container, targetIndex, removed.removed);
+				return insertBlockInSchema(
+					removed.schema,
+					container,
+					targetIndex,
+					removed.removed,
+				);
 			});
 		},
 		[],
@@ -781,11 +907,14 @@ export function PageLayoutBuilderSection() {
 			if (!payload) return;
 			event.preventDefault();
 			event.stopPropagation();
-			event.dataTransfer.dropEffect = payload.source === "library" ? "copy" : "move";
+			event.dataTransfer.dropEffect =
+				payload.source === "library" ? "copy" : "move";
 
 			let targetIndex = index;
 			if (usePointerPosition) {
-				const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+				const rect = (
+					event.currentTarget as HTMLElement
+				).getBoundingClientRect();
 				const centerY = rect.top + rect.height / 2;
 				targetIndex = event.clientY < centerY ? index : index + 1;
 			}
@@ -814,7 +943,9 @@ export function PageLayoutBuilderSection() {
 
 			let targetIndex = index;
 			if (usePointerPosition) {
-				const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+				const rect = (
+					event.currentTarget as HTMLElement
+				).getBoundingClientRect();
 				const centerY = rect.top + rect.height / 2;
 				targetIndex = event.clientY < centerY ? index : index + 1;
 			}
@@ -825,7 +956,10 @@ export function PageLayoutBuilderSection() {
 		[applyDropPayload, clearDragState],
 	);
 
-	const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, blockType: WidgetPageSchemaBlockType) => {
+	const startLibraryDrag = (
+		event: DragEvent<HTMLButtonElement>,
+		blockType: WidgetPageSchemaBlockType,
+	) => {
 		const payload: DragPayload = { source: "library", blockType };
 		activeDragPayloadRef.current = payload;
 		event.dataTransfer.setData(
@@ -855,22 +989,29 @@ export function PageLayoutBuilderSection() {
 		depth = 0,
 	): ReactNode => {
 		return blocks.map((block, blockIndex) => {
-			const isSelected = selection !== "layout" && selection.blockId === block.id;
+			const isSelected =
+				selection !== "layout" && selection.blockId === block.id;
 			const showDropBefore = Boolean(
 				draggedBlockId &&
-				dragOverLocation &&
-				containerEquals(dragOverLocation.container, container) &&
-				dragOverLocation.index === blockIndex,
+					dragOverLocation &&
+					containerEquals(dragOverLocation.container, container) &&
+					dragOverLocation.index === blockIndex,
 			);
 			return (
 				<div
 					key={block.id}
 					className={cn(
 						"relative rounded-md border bg-card",
-						isSelected ? "border-primary/60 ring-1 ring-primary/30" : "border-border",
+						isSelected
+							? "border-primary/60 ring-1 ring-primary/30"
+							: "border-border",
 					)}
-					onDragOver={(event) => handleStructureDragOver(event, container, blockIndex)}
-					onDrop={(event) => handleStructureDrop(event, container, blockIndex)}
+					onDragOver={(event) =>
+						handleStructureDragOver(event, container, blockIndex)
+					}
+					onDrop={(event) =>
+						handleStructureDrop(event, container, blockIndex)
+					}
 				>
 					{showDropBefore && (
 						<div className="absolute left-0 right-0 -top-0.5 h-0.5 rounded-full bg-primary z-20" />
@@ -914,7 +1055,10 @@ export function PageLayoutBuilderSection() {
 					</div>
 					{block.type === "stack" && (
 						<div
-							className={cn("pb-2 pr-2", depth > 0 ? "pl-6" : "pl-4")}
+							className={cn(
+								"pb-2 pr-2",
+								depth > 0 ? "pl-6" : "pl-4",
+							)}
 							onDragOver={(event) =>
 								handleStructureDragOver(
 									event,
@@ -932,14 +1076,25 @@ export function PageLayoutBuilderSection() {
 								)
 							}
 						>
-							<div className={cn("space-y-1.5", getGapClass(block.gap))}>
-								{renderStructureBlockList(block.children, { kind: "stack", stackId: block.id }, depth + 1)}
+							<div
+								className={cn(
+									"space-y-1.5",
+									getGapClass(block.gap),
+								)}
+							>
+								{renderStructureBlockList(
+									block.children,
+									{ kind: "stack", stackId: block.id },
+									depth + 1,
+								)}
 							</div>
 							{draggedBlockId &&
 								dragOverLocation &&
-								dragOverLocation.index === block.children.length &&
+								dragOverLocation.index ===
+									block.children.length &&
 								dragOverLocation.container.kind === "stack" &&
-								dragOverLocation.container.stackId === block.id && (
+								dragOverLocation.container.stackId ===
+									block.id && (
 									<div className="mt-1 h-0.5 rounded-full bg-primary" />
 								)}
 						</div>
@@ -949,93 +1104,121 @@ export function PageLayoutBuilderSection() {
 		});
 	};
 
-	const slotOrder: RootSlot[] = schema.layout.sidebarPosition === "left"
-		? ["sidebar", "main"]
-		: ["main", "sidebar"];
-	const previewPrimary = schema.layout.sidebarPrimaryColor?.trim() || "#2563eb";
+	const slotOrder: RootSlot[] =
+		schema.layout.sidebarPosition === "left"
+			? ["sidebar", "main"]
+			: ["main", "sidebar"];
+	const previewPrimary =
+		schema.layout.sidebarPrimaryColor?.trim() || "#2563eb";
 	const previewRgb = hexToRgb(previewPrimary);
-	const previewFormStyling = useMemo(() => ({
-		...ctx?.previewStyling,
-		primaryColor:
-			ctx?.pageConfig?.primaryColor?.trim() ||
-			brandColors.primary ||
-			ctx?.previewStyling?.primaryColor ||
-			"#2563eb",
-		secondaryColor:
-			brandColors.secondary ||
-			ctx?.previewStyling?.secondaryColor ||
-			"#6b7280",
-		successColor:
-			brandColors.accent ||
-			ctx?.previewStyling?.successColor ||
-			"#10b981",
-	}), [
-		brandColors.accent,
-		brandColors.primary,
-		brandColors.secondary,
-		ctx?.pageConfig?.primaryColor,
-		ctx?.previewStyling,
-	]);
+	const previewFormStyling = useMemo(
+		() => ({
+			...ctx?.previewStyling,
+			primaryColor:
+				ctx?.pageConfig?.primaryColor?.trim() ||
+				brandColors.primary ||
+				ctx?.previewStyling?.primaryColor ||
+				"#2563eb",
+			secondaryColor:
+				brandColors.secondary ||
+				ctx?.previewStyling?.secondaryColor ||
+				"#6b7280",
+			successColor:
+				brandColors.accent ||
+				ctx?.previewStyling?.successColor ||
+				"#10b981",
+		}),
+		[
+			brandColors.accent,
+			brandColors.primary,
+			brandColors.secondary,
+			ctx?.pageConfig?.primaryColor,
+			ctx?.previewStyling,
+		],
+	);
+	const showMergedProperties =
+		!isWideLayout && mergedSidebarView === "properties";
 
 	return (
-		<div className="h-full min-h-0 flex flex-col">
-			<div className="border-b border-border px-4 py-3 flex items-center justify-between gap-3">
-				<div>
-					<h2 className="text-sm font-semibold text-foreground">Page Builder</h2>
-					<p className="text-xs text-muted-foreground">
-						Build your share page with drag and drop blocks.
-					</p>
-				</div>
-				<Button onClick={() => void save()} disabled={saving}>
-					{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-					Save page builder
-				</Button>
-			</div>
-
-			<div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_320px] overflow-hidden">
-				<aside className="border-r border-border bg-muted/20 p-4 overflow-y-auto">
+		<div className="h-full min-h-0 flex flex-col space-y-4">
+			<div className="flex-1 min-h-0 w-full flex overflow-hidden">
+				<aside
+					className={cn(
+						"w-48 sm:w-52 md:w-56 shrink-0 border-r border-border bg-muted/20 p-4 overflow-y-auto",
+						showMergedProperties && "hidden",
+					)}
+				>
 					<div className="space-y-5">
 						<div>
 							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 								Page Structure
 							</p>
-							<p className="text-[11px] text-muted-foreground mt-1">
-								Reorder, duplicate, and remove blocks from here.
-							</p>
 						</div>
 
 						<div className="space-y-3">
 							{slotOrder.map((slot) => {
-								const blocks = slot === "sidebar" ? schema.sidebar : schema.main;
-								const container: DropContainer = { kind: "root", slot };
+								const blocks =
+									slot === "sidebar"
+										? schema.sidebar
+										: schema.main;
+								const container: DropContainer = {
+									kind: "root",
+									slot,
+								};
 								const showDropAtEnd = Boolean(
 									draggedBlockId &&
-									dragOverLocation &&
-									containerEquals(dragOverLocation.container, container) &&
-									dragOverLocation.index === blocks.length,
+										dragOverLocation &&
+										containerEquals(
+											dragOverLocation.container,
+											container,
+										) &&
+										dragOverLocation.index ===
+											blocks.length,
 								);
 								return (
-									<section key={slot} className="rounded-lg border border-border/70 bg-background/80 p-2.5">
+									<section
+										key={slot}
+										className="rounded-lg border border-border/70 bg-background/80 p-2.5"
+									>
 										<div className="mb-2 flex items-center justify-between">
 											<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-												{slot === "sidebar" ? "Sidebar" : "Main"}
+												{slot === "sidebar"
+													? "Sidebar"
+													: "Main"}
 											</p>
-											<p className="text-[11px] text-muted-foreground">{blocks.length}</p>
+											<p className="text-[11px] text-muted-foreground">
+												{blocks.length}
+											</p>
 										</div>
 										<div
 											className="space-y-1.5"
 											onDragOver={(event) =>
-												handleStructureDragOver(event, container, blocks.length, false)
+												handleStructureDragOver(
+													event,
+													container,
+													blocks.length,
+													false,
+												)
 											}
 											onDrop={(event) =>
-												handleStructureDrop(event, container, blocks.length, false)
+												handleStructureDrop(
+													event,
+													container,
+													blocks.length,
+													false,
+												)
 											}
 										>
-											{renderStructureBlockList(blocks, container)}
-											{showDropAtEnd && <div className="h-0.5 rounded-full bg-primary" />}
+											{renderStructureBlockList(
+												blocks,
+												container,
+											)}
+											{showDropAtEnd && (
+												<div className="h-0.5 rounded-full bg-primary" />
+											)}
 										</div>
-										</section>
-									);
+									</section>
+								);
 							})}
 						</div>
 
@@ -1048,27 +1231,45 @@ export function PageLayoutBuilderSection() {
 									Drag from library or click to append.
 								</p>
 							</div>
-							{LIBRARY_BLOCKS.filter((item) => item.type !== "widgetForm").map((item) => {
-								const disabled = item.type === "widgetForm" && widgetFormCount >= 1;
+							{LIBRARY_BLOCKS.filter(
+								(item) => item.type !== "widgetForm",
+							).map((item) => {
+								const disabled =
+									item.type === "widgetForm" &&
+									widgetFormCount >= 1;
 								return (
 									<button
 										key={item.type}
 										type="button"
 										draggable={!disabled}
-										onDragStart={(event) => startLibraryDrag(event, item.type)}
+										onDragStart={(event) =>
+											startLibraryDrag(event, item.type)
+										}
 										onDragEnd={clearDragState}
 										onClick={() => {
 											if (disabled) {
-												toast.error("Only one Widget form block is allowed.");
+												toast.error(
+													"Only one Widget form block is allowed.",
+												);
 												return;
 											}
-											const block = createDefaultBlock(item.type);
-											const slot: DropContainer = { kind: "root", slot: item.type === "widgetForm" ? "main" : "sidebar" };
+											const block = createDefaultBlock(
+												item.type,
+											);
+											const slot: DropContainer = {
+												kind: "root",
+												slot:
+													item.type === "widgetForm"
+														? "main"
+														: "sidebar",
+											};
 											setSchema((prev) =>
 												insertBlockInSchema(
 													prev,
 													slot,
-													slot.slot === "sidebar" ? prev.sidebar.length : prev.main.length,
+													slot.slot === "sidebar"
+														? prev.sidebar.length
+														: prev.main.length,
 													block,
 												),
 											);
@@ -1082,9 +1283,13 @@ export function PageLayoutBuilderSection() {
 									>
 										<div className="flex items-center gap-2">
 											<item.Icon className="h-4 w-4 text-muted-foreground" />
-											<p className="text-sm font-medium">{item.label}</p>
+											<p className="text-sm font-medium">
+												{item.label}
+											</p>
 										</div>
-										<p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+										<p className="text-xs text-muted-foreground mt-1">
+											{item.description}
+										</p>
 									</button>
 								);
 							})}
@@ -1092,26 +1297,46 @@ export function PageLayoutBuilderSection() {
 					</div>
 				</aside>
 
-				<main className="overflow-y-auto bg-background p-4">
-					<div className="mx-auto max-w-[1300px] space-y-3">
-						<div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
-							<div>
-								<p className="text-sm font-semibold text-foreground">Live Page Preview</p>
-								<p className="text-xs text-muted-foreground mt-1">
-									Click any element to select it. Structure editing happens in the left sidebar.
-								</p>
+				<main
+					className={cn(
+						"min-w-0 flex-1 overflow-y-auto bg-background px-6 py-8",
+						!isWideLayout && showMergedProperties && "order-2",
+					)}
+				>
+					<div className="w-full space-y-4">
+						<div className="flex items-end justify-end gap-4">
+							<div className="flex items-center gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-9 px-3"
+									onClick={() => {
+										setSelection("layout");
+										if (!isWideLayout) {
+											setMergedSidebarView("properties");
+										}
+									}}
+								>
+									Layout settings
+								</Button>
+								<Button
+									size="sm"
+									className="h-9 px-3"
+									onClick={() => void save()}
+									disabled={saving}
+								>
+									{saving ? (
+										<Loader2 className="h-4 w-4 animate-spin mr-2" />
+									) : (
+										<Check className="h-4 w-4 mr-2" />
+									)}
+									Save page builder
+								</Button>
 							</div>
-							<Button
-								type="button"
-								variant={selection === "layout" ? "default" : "outline"}
-								size="sm"
-								onClick={() => setSelection("layout")}
-							>
-								Layout settings
-							</Button>
 						</div>
 
-						<div className="overflow-hidden rounded-xl border border-border/70 shadow-sm">
+						<div className="min-h-[200px] rounded-lg border bg-card overflow-hidden">
 							<div className="min-h-[680px] w-full overflow-auto">
 								<WidgetSchemaLayout
 									branding={{
@@ -1122,31 +1347,55 @@ export function PageLayoutBuilderSection() {
 									primary={previewPrimary}
 									rgb={previewRgb}
 									rootClassName="min-h-[680px] w-full max-w-none"
-									selectedBlockId={selection === "layout" ? null : selection.blockId}
-									onSelectBlock={(blockId) => setSelection({ blockId })}
+									selectedBlockId={
+										selection === "layout"
+											? null
+											: selection.blockId
+									}
+									onSelectBlock={(blockId) => {
+										setSelection({ blockId });
+										if (!isWideLayout) {
+											setMergedSidebarView("properties");
+										}
+									}}
 									renderFormBlock={({ block }) => {
 										return (
 											<div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
 												<div className="mb-4">
 													<p className="text-[10px] uppercase tracking-widest text-primary mb-1">
-														{organizationDisplayName}
+														{
+															organizationDisplayName
+														}
 													</p>
 													<h2 className="text-2xl font-semibold tracking-tight text-foreground">
-														{block.title || "Get in touch"}
+														{block.title ||
+															"Get in touch"}
 													</h2>
 													<p className="text-sm text-muted-foreground mt-1">
-														{block.subtitle || "Fill in the details below and we'll get back to you."}
+														{block.subtitle ||
+															"Fill in the details below and we'll get back to you."}
 													</p>
 												</div>
 												<div className="pointer-events-none">
 													<WidgetSchemaRenderer
 														pages={ctx?.pages ?? []}
-														actions={ctx?.actions ?? { success: { message: "Thank you!" } }}
-														styling={previewFormStyling}
+														actions={
+															ctx?.actions ?? {
+																success: {
+																	message:
+																		"Thank you!",
+																},
+															}
+														}
+														styling={
+															previewFormStyling
+														}
 														onSubmit={async () => {}}
 														submitting={false}
 														submitError={null}
-														multiStepOptions={ctx?.multiStepOptions}
+														multiStepOptions={
+															ctx?.multiStepOptions
+														}
 														previewPageIndex={0}
 													/>
 												</div>
@@ -1159,17 +1408,48 @@ export function PageLayoutBuilderSection() {
 					</div>
 				</main>
 
-				<aside className="border-l border-border bg-muted/20 p-4 overflow-y-auto">
+				<aside
+					className={cn(
+						"w-80 shrink-0 bg-muted/20 p-4 overflow-y-auto",
+						isWideLayout
+							? "border-l border-border"
+							: showMergedProperties
+								? "order-1 border-r border-border"
+								: "hidden",
+					)}
+				>
+					{!isWideLayout && (
+						<div className="mb-4">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								className="-ml-1"
+								onClick={() => {
+									setMergedSidebarView("structure");
+									setSelection("layout");
+								}}
+							>
+								<ChevronLeft className="mr-1 h-4 w-4" />
+								Back
+							</Button>
+						</div>
+					)}
 					{selection === "layout" && (
 						<div className="space-y-4">
 							<div>
-								<h3 className="text-sm font-semibold text-foreground">Layout Properties</h3>
+								<h3 className="text-sm font-semibold text-foreground">
+									Layout Properties
+								</h3>
 								<p className="text-xs text-muted-foreground mt-1">
-									Configure sidebar placement and page atmosphere.
+									Configure sidebar placement and page
+									atmosphere.
 								</p>
 							</div>
 							<div className="space-y-1.5">
-								<Label className="text-xs">Sidebar position</Label>
+								<Label className="text-xs">
+									Sidebar position
+								</Label>
 								<select
 									value={schema.layout.sidebarPosition}
 									onChange={(event) =>
@@ -1177,7 +1457,8 @@ export function PageLayoutBuilderSection() {
 											...prev,
 											layout: {
 												...prev.layout,
-												sidebarPosition: event.target.value as "left" | "right",
+												sidebarPosition: event.target
+													.value as "left" | "right",
 											},
 										}))
 									}
@@ -1196,7 +1477,8 @@ export function PageLayoutBuilderSection() {
 											...prev,
 											layout: {
 												...prev.layout,
-												sidebarWidth: event.target.value as WidgetPageSchemaSidebarWidth,
+												sidebarWidth: event.target
+													.value as WidgetPageSchemaSidebarWidth,
 											},
 										}))
 									}
@@ -1208,44 +1490,65 @@ export function PageLayoutBuilderSection() {
 								</select>
 							</div>
 							<div className="space-y-1.5">
-								<Label className="text-xs">Background style</Label>
+								<Label className="text-xs">
+									Background style
+								</Label>
 								<select
-									value={schema.layout.backgroundStyle ?? "clean"}
+									value={
+										schema.layout.backgroundStyle ?? "clean"
+									}
 									onChange={(event) =>
 										setSchema((prev) => ({
 											...prev,
 											layout: {
 												...prev.layout,
-												backgroundStyle: event.target.value as "clean" | "subtle-grid" | "gradient",
+												backgroundStyle: event.target
+													.value as
+													| "clean"
+													| "subtle-grid"
+													| "gradient",
 											},
 										}))
 									}
 									className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
 								>
 									<option value="clean">Clean</option>
-									<option value="subtle-grid">Subtle grid</option>
-									<option value="gradient">Soft gradient</option>
+									<option value="subtle-grid">
+										Subtle grid
+									</option>
+									<option value="gradient">
+										Soft gradient
+									</option>
 								</select>
 							</div>
 							<div className="space-y-1.5">
-								<Label className="text-xs">Sidebar color override</Label>
+								<Label className="text-xs">
+									Sidebar color override
+								</Label>
 								<div className="flex items-center gap-2">
 									<input
 										type="color"
-										value={schema.layout.sidebarPrimaryColor ?? "#2563eb"}
+										value={
+											schema.layout.sidebarPrimaryColor ??
+											"#2563eb"
+										}
 										onChange={(event) =>
 											setSchema((prev) => ({
 												...prev,
 												layout: {
 													...prev.layout,
-													sidebarPrimaryColor: event.target.value,
+													sidebarPrimaryColor:
+														event.target.value,
 												},
 											}))
 										}
 										className="h-8 w-10 rounded border border-border bg-transparent p-0.5"
 									/>
 									<Input
-										value={schema.layout.sidebarPrimaryColor ?? ""}
+										value={
+											schema.layout.sidebarPrimaryColor ??
+											""
+										}
 										placeholder="#2563eb"
 										className="font-mono text-xs"
 										onChange={(event) =>
@@ -1253,7 +1556,8 @@ export function PageLayoutBuilderSection() {
 												...prev,
 												layout: {
 													...prev.layout,
-													sidebarPrimaryColor: event.target.value,
+													sidebarPrimaryColor:
+														event.target.value,
 												},
 											}))
 										}
@@ -1266,7 +1570,9 @@ export function PageLayoutBuilderSection() {
 					{selection !== "layout" && selectedBlock && (
 						<div className="space-y-4">
 							<div>
-								<h3 className="text-sm font-semibold text-foreground">{blockLabel(selectedBlock)} Properties</h3>
+								<h3 className="text-sm font-semibold text-foreground">
+									{blockLabel(selectedBlock)} Properties
+								</h3>
 								<p className="text-xs text-muted-foreground mt-1">
 									ID: {selectedBlock.id}
 								</p>
@@ -1281,7 +1587,12 @@ export function PageLayoutBuilderSection() {
 											onChange={(event) =>
 												updateSelectedBlock((block) =>
 													block.type === "heading"
-														? { ...block, text: event.target.value }
+														? {
+																...block,
+																text: event
+																	.target
+																	.value,
+															}
 														: block,
 												)
 											}
@@ -1294,7 +1605,13 @@ export function PageLayoutBuilderSection() {
 											onChange={(event) =>
 												updateSelectedBlock((block) =>
 													block.type === "heading"
-														? { ...block, level: Number(event.target.value) as 1 | 2 | 3 }
+														? {
+																...block,
+																level: Number(
+																	event.target
+																		.value,
+																) as 1 | 2 | 3,
+															}
 														: block,
 												)
 											}
@@ -1318,7 +1635,11 @@ export function PageLayoutBuilderSection() {
 										onChange={(event) =>
 											updateSelectedBlock((block) =>
 												block.type === "text"
-													? { ...block, text: event.target.value }
+													? {
+															...block,
+															text: event.target
+																.value,
+														}
 													: block,
 											)
 										}
@@ -1328,13 +1649,25 @@ export function PageLayoutBuilderSection() {
 
 							{selectedBlock.type === "logo" && (
 								<div className="space-y-1.5">
-									<Label className="text-xs">Show company name fallback</Label>
+									<Label className="text-xs">
+										Show company name fallback
+									</Label>
 									<select
-										value={selectedBlock.showCompanyName ? "yes" : "no"}
+										value={
+											selectedBlock.showCompanyName
+												? "yes"
+												: "no"
+										}
 										onChange={(event) =>
 											updateSelectedBlock((block) =>
 												block.type === "logo"
-													? { ...block, showCompanyName: event.target.value === "yes" }
+													? {
+															...block,
+															showCompanyName:
+																event.target
+																	.value ===
+																"yes",
+														}
 													: block,
 											)
 										}
@@ -1348,7 +1681,9 @@ export function PageLayoutBuilderSection() {
 
 							{selectedBlock.type === "list" && (
 								<div className="space-y-1.5">
-									<Label className="text-xs">Items (one per line)</Label>
+									<Label className="text-xs">
+										Items (one per line)
+									</Label>
 									<Textarea
 										value={selectedBlock.items.join("\n")}
 										rows={6}
@@ -1357,12 +1692,18 @@ export function PageLayoutBuilderSection() {
 											updateSelectedBlock((block) =>
 												block.type === "list"
 													? {
-														...block,
-														items: event.target.value
-															.split("\n")
-															.map((line) => line.trim())
-															.filter((line) => line.length > 0),
-													}
+															...block,
+															items: event.target.value
+																.split("\n")
+																.map((line) =>
+																	line.trim(),
+																)
+																.filter(
+																	(line) =>
+																		line.length >
+																		0,
+																),
+														}
 													: block,
 											)
 										}
@@ -1383,9 +1724,15 @@ export function PageLayoutBuilderSection() {
 												updateSelectedBlock((block) =>
 													block.type === "iconList"
 														? {
-															...block,
-															items: [...block.items, { icon: "check", text: "New item" }],
-														}
+																...block,
+																items: [
+																	...block.items,
+																	{
+																		icon: "check",
+																		text: "New item",
+																	},
+																],
+															}
 														: block,
 												)
 											}
@@ -1395,40 +1742,74 @@ export function PageLayoutBuilderSection() {
 										</Button>
 									</div>
 									{selectedBlock.items.map((item, index) => (
-										<div key={`${selectedBlock.id}-icon-item-${index}`} className="flex items-center gap-2">
+										<div
+											key={`${selectedBlock.id}-icon-item-${index}`}
+											className="flex items-center gap-2"
+										>
 											<select
 												value={item.icon}
 												onChange={(event) =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "iconList") return block;
-														const next = [...block.items];
-														next[index] = {
-															...next[index],
-															icon: event.target.value as WidgetPageTrustSignal["icon"],
-														};
-														return { ...block, items: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"iconList"
+															)
+																return block;
+															const next = [
+																...block.items,
+															];
+															next[index] = {
+																...next[index],
+																icon: event
+																	.target
+																	.value as WidgetPageTrustSignal["icon"],
+															};
+															return {
+																...block,
+																items: next,
+															};
+														},
+													)
 												}
 												className="h-8 w-24 rounded-md border border-border bg-background px-2 text-xs"
 											>
-												{TRUST_ICON_OPTIONS.map((option) => (
-													<option key={option.value} value={option.value}>
-														{option.label}
-													</option>
-												))}
+												{TRUST_ICON_OPTIONS.map(
+													(option) => (
+														<option
+															key={option.value}
+															value={option.value}
+														>
+															{option.label}
+														</option>
+													),
+												)}
 											</select>
 											<Input
 												value={item.text}
 												onChange={(event) =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "iconList") return block;
-														const next = [...block.items];
-														next[index] = {
-															...next[index],
-															text: event.target.value,
-														};
-														return { ...block, items: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"iconList"
+															)
+																return block;
+															const next = [
+																...block.items,
+															];
+															next[index] = {
+																...next[index],
+																text: event
+																	.target
+																	.value,
+															};
+															return {
+																...block,
+																items: next,
+															};
+														},
+													)
 												}
 												className="h-8 text-xs"
 											/>
@@ -1438,12 +1819,26 @@ export function PageLayoutBuilderSection() {
 												size="icon"
 												className="h-8 w-8 text-muted-foreground hover:text-destructive"
 												onClick={() =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "iconList") return block;
-														const next = [...block.items];
-														next.splice(index, 1);
-														return { ...block, items: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"iconList"
+															)
+																return block;
+															const next = [
+																...block.items,
+															];
+															next.splice(
+																index,
+																1,
+															);
+															return {
+																...block,
+																items: next,
+															};
+														},
+													)
 												}
 											>
 												<Trash2 className="h-3.5 w-3.5" />
@@ -1456,7 +1851,9 @@ export function PageLayoutBuilderSection() {
 							{selectedBlock.type === "policyLinks" && (
 								<div className="space-y-2">
 									<div className="flex items-center justify-between">
-										<Label className="text-xs">Policy links</Label>
+										<Label className="text-xs">
+											Policy links
+										</Label>
 										<Button
 											type="button"
 											variant="ghost"
@@ -1464,10 +1861,20 @@ export function PageLayoutBuilderSection() {
 											className="h-7 text-xs"
 											onClick={() =>
 												updateSelectedBlock((block) => {
-													if (block.type !== "policyLinks") return block;
+													if (
+														block.type !==
+														"policyLinks"
+													)
+														return block;
 													return {
 														...block,
-														links: [...block.links, { label: "New link", url: "" }],
+														links: [
+															...block.links,
+															{
+																label: "New link",
+																url: "",
+															},
+														],
 													};
 												})
 											}
@@ -1477,18 +1884,37 @@ export function PageLayoutBuilderSection() {
 										</Button>
 									</div>
 									{selectedBlock.links.map((link, index) => (
-										<div key={`${selectedBlock.id}-policy-${index}`} className="space-y-1.5 rounded-md border border-border/70 p-2">
+										<div
+											key={`${selectedBlock.id}-policy-${index}`}
+											className="space-y-1.5 rounded-md border border-border/70 p-2"
+										>
 											<Input
 												value={link.label}
 												placeholder="Label"
 												className="h-8 text-xs"
 												onChange={(event) =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "policyLinks") return block;
-														const next = [...block.links];
-														next[index] = { ...next[index], label: event.target.value };
-														return { ...block, links: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"policyLinks"
+															)
+																return block;
+															const next = [
+																...block.links,
+															];
+															next[index] = {
+																...next[index],
+																label: event
+																	.target
+																	.value,
+															};
+															return {
+																...block,
+																links: next,
+															};
+														},
+													)
 												}
 											/>
 											<Input
@@ -1496,12 +1922,28 @@ export function PageLayoutBuilderSection() {
 												placeholder="https://..."
 												className="h-8 text-xs"
 												onChange={(event) =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "policyLinks") return block;
-														const next = [...block.links];
-														next[index] = { ...next[index], url: event.target.value };
-														return { ...block, links: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"policyLinks"
+															)
+																return block;
+															const next = [
+																...block.links,
+															];
+															next[index] = {
+																...next[index],
+																url: event
+																	.target
+																	.value,
+															};
+															return {
+																...block,
+																links: next,
+															};
+														},
+													)
 												}
 											/>
 											<Button
@@ -1510,12 +1952,26 @@ export function PageLayoutBuilderSection() {
 												size="sm"
 												className="h-7 w-full text-xs text-muted-foreground hover:text-destructive"
 												onClick={() =>
-													updateSelectedBlock((block) => {
-														if (block.type !== "policyLinks") return block;
-														const next = [...block.links];
-														next.splice(index, 1);
-														return { ...block, links: next };
-													})
+													updateSelectedBlock(
+														(block) => {
+															if (
+																block.type !==
+																"policyLinks"
+															)
+																return block;
+															const next = [
+																...block.links,
+															];
+															next.splice(
+																index,
+																1,
+															);
+															return {
+																...block,
+																links: next,
+															};
+														},
+													)
 												}
 											>
 												Remove link
@@ -1528,20 +1984,29 @@ export function PageLayoutBuilderSection() {
 							{selectedBlock.type === "widgetForm" && (
 								<>
 									<div className="space-y-1.5">
-										<Label className="text-xs">Form title</Label>
+										<Label className="text-xs">
+											Form title
+										</Label>
 										<Input
 											value={selectedBlock.title ?? ""}
 											onChange={(event) =>
 												updateSelectedBlock((block) =>
 													block.type === "widgetForm"
-														? { ...block, title: event.target.value }
+														? {
+																...block,
+																title: event
+																	.target
+																	.value,
+															}
 														: block,
 												)
 											}
 										/>
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs">Form subtitle</Label>
+										<Label className="text-xs">
+											Form subtitle
+										</Label>
 										<Textarea
 											rows={3}
 											className="resize-none"
@@ -1549,7 +2014,12 @@ export function PageLayoutBuilderSection() {
 											onChange={(event) =>
 												updateSelectedBlock((block) =>
 													block.type === "widgetForm"
-														? { ...block, subtitle: event.target.value }
+														? {
+																...block,
+																subtitle:
+																	event.target
+																		.value,
+															}
 														: block,
 												)
 											}
@@ -1566,7 +2036,14 @@ export function PageLayoutBuilderSection() {
 										onChange={(event) =>
 											updateSelectedBlock((block) =>
 												block.type === "spacer"
-													? { ...block, size: event.target.value as "sm" | "md" | "lg" }
+													? {
+															...block,
+															size: event.target
+																.value as
+																| "sm"
+																| "md"
+																| "lg",
+														}
 													: block,
 											)
 										}
@@ -1576,7 +2053,12 @@ export function PageLayoutBuilderSection() {
 										<option value="md">Medium</option>
 										<option value="lg">Large</option>
 									</select>
-									<div className={cn("rounded-md bg-muted/70", getSpacerClass(selectedBlock.size))} />
+									<div
+										className={cn(
+											"rounded-md bg-muted/70",
+											getSpacerClass(selectedBlock.size),
+										)}
+									/>
 								</div>
 							)}
 
@@ -1588,7 +2070,14 @@ export function PageLayoutBuilderSection() {
 										onChange={(event) =>
 											updateSelectedBlock((block) =>
 												block.type === "stack"
-													? { ...block, gap: event.target.value as "sm" | "md" | "lg" }
+													? {
+															...block,
+															gap: event.target
+																.value as
+																| "sm"
+																| "md"
+																| "lg",
+														}
 													: block,
 											)
 										}

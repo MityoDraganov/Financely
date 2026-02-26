@@ -374,11 +374,6 @@ export default function ContactsPage() {
                   {def.description && (
                     <p className="text-sm text-muted-foreground mb-4">{def.description}</p>
                   )}
-                  {def.options?.storefrontApiAccess && (
-                    <Badge variant="outline" className="text-xs">
-                      Storefront API
-                    </Badge>
-                  )}
                 </CardContent>
               </Card>
             ))}

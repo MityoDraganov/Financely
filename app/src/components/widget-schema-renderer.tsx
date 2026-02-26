@@ -2,6 +2,13 @@ import { useState, useMemo } from "react";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	getBlockFieldValueType,
@@ -228,6 +235,8 @@ function renderBlock(
 			const required = (props.required as boolean) ?? false;
 			const placeholder = (props.placeholder as string) ?? "";
 			const fieldKey = (props.fieldKey as string) ?? block.id;
+			const helperText =
+				props.helperText != null ? String(props.helperText) : undefined;
 			const options = normalizeSelectOptions(props.options);
 			return (
 				<div key={key}>
@@ -240,24 +249,44 @@ function renderBlock(
 							<span style={{ color: s.errorColor }}> *</span>
 						)}
 					</label>
-					<select
-						name={fieldKey}
-						required={required}
-						className="w-full rounded-md border px-3 py-2 text-sm"
-						style={{
-							borderColor: s.borderColor,
-							borderRadius: s.borderRadius,
-							color: s.textColor,
-							backgroundColor: s.backgroundColor,
-						}}
-					>
-						<option value="">{placeholder || "Select..."}</option>
-						{options.map((option, optionIndex) => (
-							<option key={`${fieldKey}-option-${optionIndex}`} value={option.value}>
-								{option.label || option.value}
-							</option>
-						))}
-					</select>
+					<Select name={fieldKey} required={required}>
+						<SelectTrigger
+							className="w-full"
+							style={{
+								borderColor: s.borderColor,
+								borderRadius: s.borderRadius,
+								color: s.textColor,
+								backgroundColor: s.backgroundColor,
+							}}
+						>
+							<SelectValue placeholder={placeholder || "Select..."} />
+						</SelectTrigger>
+						<SelectContent
+							style={{
+								borderColor: s.borderColor,
+								color: s.textColor,
+								backgroundColor: s.backgroundColor,
+							}}
+						>
+							{options.map((option, optionIndex) => {
+								const optionValue = option.value.trim();
+								if (!optionValue) return null;
+								return (
+									<SelectItem key={`${fieldKey}-option-${optionIndex}`} value={optionValue}>
+										{option.label || optionValue}
+									</SelectItem>
+								);
+							})}
+						</SelectContent>
+					</Select>
+					{helperText && (
+						<p
+							className="text-xs mt-1 opacity-70"
+							style={{ color: s.textColor }}
+						>
+							{helperText}
+						</p>
+					)}
 				</div>
 			);
 		}

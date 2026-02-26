@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useDeleteWidgetDefinition } from "@/hooks/service-hooks/use-widget-definition-functions";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
 import { WidgetBuilderProvider, useWidgetBuilderContext } from "@/contexts/widget-builder-context";
 import { projectId } from "@/infrastructure/firebase";
@@ -43,13 +44,19 @@ function DesignAreaContent({
 	const { t } = useTranslation();
 	const widgetDesigner = useWidgetDesigner();
 	const ctx = useWidgetBuilderContext();
+	const isWideLayout = useMediaQuery("(min-width: 1600px)");
 	const noWidgetSelected = activeTab === "design" && !effectiveWidgetId;
+	const hasSelectedBlock = Boolean(ctx?.selectedBlockId);
 	const definitions = widgetDesigner?.definitions ?? [];
 	const isLoadingDefinitions = widgetDesigner?.isLoadingDefinitions ?? false;
 	const onWidgetChange = widgetDesigner?.onWidgetChange ?? (() => {});
 	const onCreateNewWidget = widgetDesigner?.onCreateNewWidget ?? (() => {});
 	const onCreateFromTemplate = widgetDesigner?.onCreateFromTemplate;
 	const isCreatingNewWidget = widgetDesigner?.isCreatingNewWidget ?? false;
+	const showMergedSidebar = showBuilder && !isWideLayout;
+	const showMergedPropertiesPanel = showMergedSidebar && hasSelectedBlock;
+	const showLeftSidebar = showBuilder && !showMergedPropertiesPanel;
+	const showRightPropertiesPanel = showPropertiesPanel && !showMergedSidebar;
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedOption, setSelectedOption] = useState<TemplateOption | null>({ kind: "blank" });
 	const [isDialogPending, setIsDialogPending] = useState(false);
@@ -76,16 +83,23 @@ function DesignAreaContent({
 
 	return (
 		<>
-			{showBuilder && (
+			{showLeftSidebar && (
 				<aside className="w-fit shrink-0 h-full min-h-0 overflow-hidden">
 					<WidgetSidebar />
 				</aside>
 			)}
+			{showMergedPropertiesPanel && (
+				<WidgetBuilderPropertiesPanel
+					isMergedSidebar
+					onBack={() => ctx?.setSelectedBlockId(null)}
+					backLabel={t("designer.back", "Back")}
+				/>
+			)}
 			<main
 				className={
-					noWidgetSelected
-						? "flex-1 min-h-0 min-w-0 overflow-y-auto w-full px-6 py-8"
-						: "flex-1 min-h-0 min-w-0 overflow-y-auto mx-auto max-w-[1400px] px-6 py-8"
+					activeTab === "pageBuilder"
+						? "flex-1 min-h-0 min-w-0 overflow-y-auto w-full"
+						: "flex-1 min-h-0 min-w-0 overflow-y-auto w-full px-6 py-8"
 				}
 			>
 				{showBuilder && ctx ? (
@@ -302,7 +316,7 @@ function DesignAreaContent({
 					</div>
 				)}
 			</main>
-			{showPropertiesPanel && (
+			{showRightPropertiesPanel && (
 				<WidgetBuilderPropertiesPanel />
 			)}
 		</>

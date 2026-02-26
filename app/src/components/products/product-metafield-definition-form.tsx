@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldTypeSelector } from "@/components/content/field-type-selector";
 import { CreateMetafieldDefinitionInput, MetafieldDefinition, UpdateMetafieldDefinitionInput } from "@/core";
@@ -216,24 +215,6 @@ export function ProductMetafieldDefinitionForm({
           </Label>
         </div>
       )}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div>
-          <Label htmlFor="storefront-api" className="cursor-pointer">API access</Label>
-          <p className="text-xs text-muted-foreground mt-1">
-            Allow this metafield to be accessed via the API
-          </p>
-        </div>
-        <Switch
-          id="storefront-api"
-          checked={formData.options?.storefrontApiAccess || false}
-          onCheckedChange={(checked) =>
-            setFormData({
-              ...formData,
-              options: { ...formData.options, storefrontApiAccess: checked },
-            })
-          }
-        />
-      </div>
       <div className="flex items-center justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel}>
           Cancel

@@ -307,11 +307,6 @@ export default function ProductsPage() {
                       </div>
                     </div>
                   )}
-                  {def.options?.storefrontApiAccess && (
-                    <Badge variant="outline" className="text-xs">
-                      Storefront API
-                    </Badge>
-                  )}
                 </CardContent>
               </Card>
             ))}

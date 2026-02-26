@@ -37,8 +37,10 @@ export function IntegrationsWidgetNavBar({
 	return (
 		<div className="border-b border-border shrink-0">
 			<div className="w-full p-2">
-				<div className="flex flex-col gap-2 md:relative md:min-h-10 md:flex-row md:items-center">
-					<div className="md:relative md:z-10 md:w-[240px]">
+				<div
+					className="flex flex-row items-center gap-1 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:gap-0"
+				>
+					<div className="w-[180px] shrink-0 sm:w-[220px] lg:w-auto">
 						<Select
 							value={selectedWidgetId}
 							onValueChange={onWidgetChange}
@@ -61,13 +63,14 @@ export function IntegrationsWidgetNavBar({
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="self-center md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
+					<div className="min-w-0 flex-1 overflow-x-auto lg:flex lg:justify-center lg:overflow-visible">
 						<IntegrationsTabs
 							activeTab={activeTab}
 							onTabChange={onTabChange}
 							hasWidgetSelected={hasWidgetSelected}
 						/>
 					</div>
+					<div className="hidden lg:block" aria-hidden="true" />
 				</div>
 			</div>
 		</div>

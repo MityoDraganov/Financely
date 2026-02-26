@@ -403,19 +403,6 @@ export function AdminSettingsPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>API Access</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable API access for organizations
-                  </p>
-                </div>
-                <Switch
-                  checked={featureToggles.apiAccess}
-                  onCheckedChange={(checked) => handleFeatureToggle("apiAccess", checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
                   <Label>Custom Templates</Label>
                   <p className="text-sm text-muted-foreground">
                     Allow organizations to create custom templates
@@ -577,4 +564,3 @@ export function AdminSettingsPage() {
     </div>
   );
 }
-
