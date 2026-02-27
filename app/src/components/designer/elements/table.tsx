@@ -60,6 +60,9 @@ export default function TableElement({
 }: TableElementProps) {
 	const { t } = useTranslation();
 	const tbl = element;
+	const scaledSize = (value: number): number => Math.max(1, value * zoom);
+	const cellPaddingX = scaledSize(8);
+	const cellPaddingY = scaledSize(2);
 	const headerTextBehavior = normalizeTableTextBehavior(tbl.headerStyle?.textBehavior, "wrap");
 	const rowTextBehavior = normalizeTableTextBehavior(tbl.rowStyle?.textBehavior, "wrap");
 	const headerTextStyle = getTableTextBehaviorStyles(headerTextBehavior);
@@ -74,13 +77,13 @@ export default function TableElement({
 	};
 	const headerPreviewTypography = {
 		fontFamily: tbl.headerStyle?.fontFamily || "Inter",
-		fontSize: tbl.headerStyle?.fontSize ? `${tbl.headerStyle.fontSize}px` : "10px",
+		fontSize: `${scaledSize(tbl.headerStyle?.fontSize ?? 10)}px`,
 		fontWeight: normalizeFontWeight(tbl.headerStyle?.fontWeight),
 		color: tbl.headerStyle?.color || "hsl(var(--foreground))",
 	} as const;
 	const rowPreviewTypography = {
 		fontFamily: tbl.rowStyle?.fontFamily || "Inter",
-		fontSize: tbl.rowStyle?.fontSize ? `${tbl.rowStyle.fontSize}px` : "10px",
+		fontSize: `${scaledSize(tbl.rowStyle?.fontSize ?? 10)}px`,
 		fontWeight: normalizeFontWeight(tbl.rowStyle?.fontWeight),
 		color: tbl.rowStyle?.color || "hsl(var(--muted-foreground))",
 	} as const;
@@ -108,10 +111,11 @@ export default function TableElement({
 				{previewColumns.map((c) => (
 						<div
 							key={c.id}
-							className="border-r last:border-r-0 px-2 text-[10px] bg-background text-foreground border-border min-w-0 flex"
+							className="border-r last:border-r-0 bg-background text-foreground border-border min-w-0 flex"
 						style={{
 							textAlign: c.align,
 							alignItems: headerIsMultiline ? "flex-start" : "center",
+							padding: `${cellPaddingY}px ${cellPaddingX}px`,
 						}}
 					>
 						<textarea
@@ -141,12 +145,13 @@ export default function TableElement({
 				{previewColumns.map((c) => (
 					<div
 						key={c.id}
-						className="border-r last:border-r-0 px-2 text-[10px] text-muted-foreground flex items-center min-w-0"
+						className="border-r last:border-r-0 text-muted-foreground flex items-center min-w-0"
 						style={{
 							textAlign: c.align,
 							justifyContent: c.align === "right" ? "flex-end" : c.align === "center" ? "center" : "flex-start",
 							alignItems: rowIsMultiline ? "flex-start" : "center",
 							overflow: rowOverflowVisible ? "visible" : "hidden",
+							padding: `${cellPaddingY}px ${cellPaddingX}px`,
 						}}
 					>
 						<span style={{ ...rowTextStyle, ...rowPreviewTypography }}>

@@ -496,9 +496,10 @@ export function DesignerCanvas({
 										left: el.x * state.zoom,
 										top: el.y * state.zoom,
 										width: el.width * state.zoom,
-										height: el.type === "table" 
-											? (el.headerHeight + el.rowHeight) * state.zoom // Preview: header + one row
-											: el.height * state.zoom,
+										height: el.type === "table" ? "auto" : el.height * state.zoom,
+										minHeight: el.type === "table"
+											? (el.headerHeight + el.rowHeight) * state.zoom // Base preview: header + one row
+											: undefined,
 										transform: `rotate(${el.rotation}deg)`,
 										touchAction: "none",
 										userSelect: "none",
@@ -509,7 +510,9 @@ export function DesignerCanvas({
 										padding: elementPaddingCss,
 										backgroundColor: elementWrapperBackgroundColor,
 										borderRadius: elementBorderRadiusCss,
-										overflow: elementBorderRadiusCss ? "hidden" : undefined,
+										overflow: el.type === "table"
+											? "visible"
+											: (elementBorderRadiusCss ? "hidden" : undefined),
 										zIndex: el.zIndex ?? 10,
 										opacity: isPathMode && !isPathEditing ? 0.6 : undefined,
 									}}
