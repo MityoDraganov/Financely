@@ -11,6 +11,7 @@ import { getProposalRepository } from "../repositories/proposal-repository";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getTemplateRepository } from "../repositories/template-repository";
 import { fileGeneratorService, type SheetData } from "./file-generator-service";
+import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 
 export interface ExportService {
   /**
@@ -154,21 +155,21 @@ function transformProposal(proposal: Record<string, unknown> & { id: string; cre
  */
 function transformInvoice(invoice: Record<string, unknown> & { id: string; data?: Record<string, unknown>; createdAt?: string; updatedAt?: string }, orgId: string): Record<string, unknown> {
   const externalId = generateExternalId(orgId, "invoices", invoice.id);
-  // Invoices have a nested data property
-  const invoiceData = (invoice.data || invoice) as Record<string, unknown>;
-  
-  // Invoice data is dynamic, so we export it as JSON
+  const invoicePayload = (invoice.data || {}) as Record<string, unknown>;
+
+  // Invoices have core fields at top-level, with dynamic template bindings in `data`.
   const flattened: Record<string, unknown> = {
     schema_version: "1.0",
     external_id: externalId,
     created_at: invoice.createdAt,
     updated_at: invoice.updatedAt,
-    templateId: invoiceData.templateId,
-    templateVersionId: invoiceData.templateVersionId,
-    status: invoiceData.status,
-    notes: invoiceData.notes,
-    pdfUrl: invoiceData.pdfUrl,
-    data: JSON.stringify(invoiceData.data || {}),
+    orgId: invoice.orgId,
+    templateId: invoice.templateId,
+    templateVersionId: invoice.templateVersionId,
+    status: invoice.status,
+    notes: invoice.notes,
+    pdfUrl: invoice.pdfUrl,
+    data: JSON.stringify(invoicePayload),
   };
 
   return flattened;
@@ -199,6 +200,41 @@ function transformTemplate(template: Record<string, unknown> & { id: string; dat
   };
 
   return flattened;
+}
+
+/**
+ * Transform email template (Realtime DB) to export format
+ */
+function transformEmailTemplate(
+  template: Record<string, unknown> & { id: string; createdAt?: string; updatedAt?: string },
+  orgId: string,
+): Record<string, unknown> {
+  const externalId = generateExternalId(orgId, "emailTemplates", template.id);
+
+  return {
+    schema_version: "1.0",
+    external_id: externalId,
+    created_at: template.createdAt,
+    updated_at: template.updatedAt,
+    orgId: template.orgId,
+    templateType: "email",
+    name: template.name,
+    description: template.description,
+    key: template.key,
+    subject: template.subject,
+    preheader: template.preheader,
+    status: template.status,
+    version: template.version,
+    isSystemDefault: template.isSystemDefault,
+    isLocked: template.isLocked,
+    marketplaceTemplateId: template.marketplaceTemplateId,
+    allowedContexts: JSON.stringify(template.allowedContexts || []),
+    htmlContent: template.htmlContent || "",
+    blocks: JSON.stringify(template.blocks || []),
+    designTokens: JSON.stringify(template.designTokens || {}),
+    placeholders: JSON.stringify(template.placeholders || []),
+    sections: JSON.stringify(template.sections || {}),
+  };
 }
 
 /**
@@ -370,7 +406,7 @@ async function exportInvoices(
   
   // Add orgId constraint
   constraints.push({
-    field: "data.orgId",
+    field: "orgId",
     operator: "==",
     value: orgId,
   });
@@ -389,22 +425,59 @@ async function exportTemplates(
   orgId: string,
   options: ExportDataInput["options"],
   databaseService: DatabaseService,
-): Promise<Array<Record<string, unknown>>> {
+): Promise<{
+  invoiceTemplates: Array<Record<string, unknown>>;
+  emailTemplates: Array<Record<string, unknown>>;
+}> {
   const templateRepository = getTemplateRepository(databaseService);
   const constraints = buildQueryConstraints(orgId, options);
-  
-  // Add orgId constraint
+
+  // Firestore invoice/document templates
   constraints.push({
-    field: "data.orgId",
+    field: "orgId",
     operator: "==",
     value: orgId,
   });
 
-  const templates = await templateRepository.getAll({
+  const invoiceTemplates = await templateRepository.getAll({
     queryConstraints: constraints,
   });
 
-  return templates.map((t) => transformTemplate(t as Record<string, unknown> & { id: string; createdAt?: string; updatedAt?: string }, orgId));
+  const realtimeInvoiceTemplates = await realtimeDatabaseService.getAll<Record<string, unknown> & { id: string }>(
+    "templates",
+    {
+      orderBy: "orgId",
+      equalTo: orgId,
+    },
+  );
+
+  // Realtime email templates
+  const realtimeEmailTemplates = await realtimeDatabaseService.getAll<Record<string, unknown> & { id: string }>(
+    "emailTemplates",
+    {
+      orderBy: "orgId",
+      equalTo: orgId,
+    },
+  );
+
+  // Merge invoice templates from Firestore + Realtime by id (Realtime wins as source of truth for editor data).
+  const mergedInvoiceTemplatesById = new Map<string, Record<string, unknown> & { id: string }>();
+  invoiceTemplates.forEach((t) => {
+    const template = t as Record<string, unknown> & { id: string };
+    mergedInvoiceTemplatesById.set(template.id, template);
+  });
+  realtimeInvoiceTemplates.forEach((t) => {
+    mergedInvoiceTemplatesById.set(t.id, t);
+  });
+
+  return {
+    invoiceTemplates: Array.from(mergedInvoiceTemplatesById.values()).map((t) =>
+      transformTemplate(t as Record<string, unknown> & { id: string; createdAt?: string; updatedAt?: string }, orgId),
+    ),
+    emailTemplates: realtimeEmailTemplates.map((t) =>
+      transformEmailTemplate(t as Record<string, unknown> & { id: string; createdAt?: string; updatedAt?: string }, orgId),
+    ),
+  };
 }
 
 export const exportService: ExportService = {
@@ -504,15 +577,30 @@ export const exportService: ExportService = {
           }
 
           case "templates": {
-            const templates = await exportTemplates(orgId, options, databaseService);
-            if (templates.length > 0) {
-              const headers = Object.keys(templates[0]);
+            const { invoiceTemplates, emailTemplates } = await exportTemplates(
+              orgId,
+              options,
+              databaseService,
+            );
+
+            if (invoiceTemplates.length > 0) {
+              const headers = Object.keys(invoiceTemplates[0]);
               sheets.push({
-                name: "Templates",
-                data: templates as Array<Record<string, string | number | boolean | null | undefined>>,
+                name: "InvoiceTemplates",
+                data: invoiceTemplates as Array<Record<string, string | number | boolean | null | undefined>>,
                 headers,
               });
-              totalRecords += templates.length;
+              totalRecords += invoiceTemplates.length;
+            }
+
+            if (emailTemplates.length > 0) {
+              const headers = Object.keys(emailTemplates[0]);
+              sheets.push({
+                name: "EmailTemplates",
+                data: emailTemplates as Array<Record<string, string | number | boolean | null | undefined>>,
+                headers,
+              });
+              totalRecords += emailTemplates.length;
             }
             break;
           }

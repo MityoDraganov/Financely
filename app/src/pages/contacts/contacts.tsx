@@ -6,28 +6,70 @@ import {
   Search,
   Edit,
   Trash2,
-  Mail,
-  Phone,
-  Building,
   MoreHorizontal,
   User,
-  Users,
   Download,
   Database,
-  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useContactsByOrg, useCreateContact, useUpdateContact, useDeleteContact, useSearchContacts } from "@/hooks/repository-hooks/use-contacts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useContactsByOrg,
+  useCreateContact,
+  useUpdateContact,
+  useDeleteContact,
+  useSearchContacts,
+} from "@/hooks/repository-hooks/use-contacts";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import {
   ContactData,
@@ -43,7 +85,83 @@ import {
 } from "@/hooks/repository-hooks/use-contact-metafields";
 import { useCreateContactMetafieldDefinition } from "@/hooks/service-hooks/use-contact-metafield-functions";
 import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
-import { extractUrls } from "@/utils/file-links";
+import { cn } from "@/lib/utils";
+
+// ─── Status config ─────────────────────────────────────────────────────────────
+
+const STATUS_OPTIONS = [
+  "lead",
+  "prospect",
+  "customer",
+  "active",
+  "inactive",
+] as const;
+type ContactStatus = typeof STATUS_OPTIONS[number];
+
+const STATUS_CONFIG: Record<
+  ContactStatus,
+  { dot: string; badge: string; activePill: string; idlePill: string }
+> = {
+  lead: {
+    dot: "bg-violet-400",
+    badge: "bg-violet-50 text-violet-700 border-violet-200",
+    activePill: "bg-violet-600 text-white border-violet-600 shadow-sm",
+    idlePill: "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100",
+  },
+  prospect: {
+    dot: "bg-amber-400",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    activePill: "bg-amber-500 text-white border-amber-500 shadow-sm",
+    idlePill: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+  },
+  customer: {
+    dot: "bg-blue-500",
+    badge: "bg-blue-50 text-blue-700 border-blue-200",
+    activePill: "bg-blue-600 text-white border-blue-600 shadow-sm",
+    idlePill: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+  },
+  active: {
+    dot: "bg-emerald-500",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    activePill: "bg-emerald-600 text-white border-emerald-600 shadow-sm",
+    idlePill: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+  },
+  inactive: {
+    dot: "bg-stone-400",
+    badge: "bg-stone-50 text-stone-500 border-stone-200",
+    activePill: "bg-stone-600 text-white border-stone-600 shadow-sm",
+    idlePill: "bg-stone-50 text-stone-500 border-stone-200 hover:bg-stone-100",
+  },
+};
+
+// ─── Avatar helpers ────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  "bg-violet-100 text-violet-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-orange-100 text-orange-700",
+];
+
+function getInitials(firstName: string, lastName: string): string {
+  const a = (firstName || "").charAt(0).toUpperCase();
+  const b = (lastName || "").charAt(0).toUpperCase();
+  return (a + b).trim() || "?";
+}
+
+function getAvatarColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface ContactFormData {
   firstName: string;
@@ -61,7 +179,7 @@ interface ContactFormData {
   };
   tags: string[];
   notes?: string;
-  status: "active" | "inactive" | "prospect" | "customer" | "lead";
+  status: ContactStatus;
   preferences: {
     preferredContactMethod: "email" | "phone" | "sms";
     marketingOptIn: boolean;
@@ -75,33 +193,82 @@ interface ContactFormData {
   };
 }
 
+// ─── Loading skeleton ──────────────────────────────────────────────────────────
+
+function ContactsLoadingSkeleton() {
+  return (
+    <div className="py-6 pr-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-28" />
+          <Skeleton className="h-4 w-44" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24 rounded-md" />
+          <Skeleton className="h-9 w-24 rounded-md" />
+          <Skeleton className="h-9 w-32 rounded-md" />
+        </div>
+      </div>
+      <Skeleton className="h-9 w-64 rounded-md" />
+      <div className="flex gap-1.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-6 w-16 rounded-full" />
+        ))}
+      </div>
+      <Card className="overflow-hidden">
+        <div className="divide-y">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="px-4 py-4 flex items-center gap-4">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-3 w-44 hidden md:block" />
+              <Skeleton className="h-3 w-28 hidden lg:block" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
 export default function ContactsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { currentOrganization } = useOrganizationContext();
+
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [isManagingMetafields, setIsManagingMetafields] = useState(false);
-  const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
-  const [deleteMetafieldDefinitionId, setDeleteMetafieldDefinitionId] = useState<string | null>(null);
+  const [isMetafieldSheetOpen, setIsMetafieldSheetOpen] = useState(false);
+  const [isMetafieldDialogOpen, setIsMetafieldDialogOpen] = useState(false);
+  const [deleteMetafieldDefinitionId, setDeleteMetafieldDefinitionId] =
+    useState<string | null>(null);
 
-  // Queries
-  const { data: contacts = [], isLoading: isLoadingContacts } = useContactsByOrg(currentOrganization?.id);
-  const { data: searchResults = [] } = useSearchContacts(currentOrganization?.id, searchTerm);
-  const { data: metafieldDefinitions = [], error } = useContactMetafieldDefinitions(currentOrganization?.id);
-  if(error){
-    console.error("Failed to fetch contacts metafields: ", error)
-  }
-  // Mutations
+  const { data: contacts = [], isLoading } = useContactsByOrg(
+    currentOrganization?.id
+  );
+  const { data: searchResults = [] } = useSearchContacts(
+    currentOrganization?.id,
+    searchTerm
+  );
+  const { data: metafieldDefinitions = [], error } =
+    useContactMetafieldDefinitions(currentOrganization?.id);
+  if (error) console.error("Failed to fetch contacts metafields:", error);
+
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();
   const deleteContactMutation = useDeleteContact();
   const createMetafieldDefinition = useCreateContactMetafieldDefinition();
   const deleteMetafieldDefinition = useDeleteContactMetafieldDefinition();
 
-  // Form handling
   const form = useForm<ContactFormData>({
     defaultValues: {
       firstName: "",
@@ -110,13 +277,7 @@ export default function ContactsPage() {
       phone: "",
       company: "",
       jobTitle: "",
-      address: {
-        street: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
-      },
+      address: { street: "", city: "", state: "", zipCode: "", country: "" },
       tags: [],
       notes: "",
       status: "lead",
@@ -125,723 +286,663 @@ export default function ContactsPage() {
         marketingOptIn: false,
         newsletterOptIn: false,
       },
-      socialMedia: {
-        linkedin: "",
-        twitter: "",
-        facebook: "",
-        instagram: "",
-      },
+      socialMedia: { linkedin: "", twitter: "", facebook: "", instagram: "" },
     },
   });
 
-  const displayedContacts = searchTerm.trim() ? searchResults : contacts;
+  const baseContacts = searchTerm.trim() ? searchResults : contacts;
+  const displayedContacts =
+    statusFilter === "all"
+      ? baseContacts
+      : baseContacts.filter((c) => {
+          const d = c.data || c;
+          return d.status === statusFilter;
+        });
 
   const handleCreateContact = async (data: ContactFormData) => {
     if (!currentOrganization?.id) return;
 
-    // Normalize email for comparison
     const normalizedEmail = data.email.trim().toLowerCase();
-
-    // Check if contact with this email already exists
     const existingContact = contacts.find((contact) => {
       const contactData = contact.data || contact;
-      const contactEmail = (contactData.email || "").trim().toLowerCase();
-      return contactEmail === normalizedEmail;
+      return (contactData.email || "").trim().toLowerCase() === normalizedEmail;
     });
 
     if (existingContact) {
-      // Contact exists - update it and merge phone numbers
       const existingContactData = existingContact.data || existingContact;
       const existingPhones = Array.isArray(existingContactData.phone)
         ? existingContactData.phone
         : existingContactData.phone
         ? [existingContactData.phone]
         : [];
-
       const newPhone = data.phone?.trim();
       const updatedPhones = [...existingPhones];
-
-      // Add new phone if it's different and not already in the list
       if (newPhone && !existingPhones.includes(newPhone)) {
         updatedPhones.push(newPhone);
       }
-
-      // Prepare update data
-      const updateData: Partial<ContactData> = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: updatedPhones.length > 0 ? updatedPhones : [],
-        company: data.company,
-        jobTitle: data.jobTitle,
-        address: data.address,
-        tags: data.tags,
-        notes: data.notes,
-        status: data.status,
-        preferences: data.preferences,
-        socialMedia: data.socialMedia,
-        organizationId: currentOrganization.id,
-      };
-
       try {
         await updateContactMutation.mutateAsync({
           id: existingContact.id,
-          data: updateData,
+          data: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phone: updatedPhones.length > 0 ? updatedPhones : [],
+            company: data.company,
+            jobTitle: data.jobTitle,
+            address: data.address,
+            tags: data.tags,
+            notes: data.notes,
+            status: data.status,
+            preferences: data.preferences,
+            socialMedia: data.socialMedia,
+            organizationId: currentOrganization.id,
+          } as Partial<ContactData>,
         });
         setIsCreateDialogOpen(false);
         form.reset();
         toast.success(
           newPhone && !existingPhones.includes(newPhone)
-            ? t('contacts.messages.contactUpdatedWithPhone')
-            : t('contacts.messages.contactUpdated')
+            ? t("contacts.messages.contactUpdatedWithPhone")
+            : t("contacts.messages.contactUpdated")
         );
-      } catch (error) {
-        console.error("Failed to update contact:", error);
-        toast.error(t('contacts.messages.updateFailed'));
+      } catch {
+        toast.error(t("contacts.messages.updateFailed"));
       }
       return;
     }
 
-    // No existing contact - create new one
-    const contactData: ContactData = {
-      ...data,
-      phone: data.phone?.trim() ? [data.phone.trim()] : [],
-      organizationId: currentOrganization.id,
-    };
-
     try {
-      await createContactMutation.mutateAsync(contactData);
+      await createContactMutation.mutateAsync({
+        ...data,
+        phone: data.phone?.trim() ? [data.phone.trim()] : [],
+        organizationId: currentOrganization.id,
+      } as ContactData);
       setIsCreateDialogOpen(false);
       form.reset();
-      toast.success(t('contacts.messages.contactCreated'));
-    } catch (error) {
-      console.error("Failed to create contact:", error);
-      toast.error(t('contacts.messages.createFailed'));
+      toast.success(t("contacts.messages.contactCreated"));
+    } catch {
+      toast.error(t("contacts.messages.createFailed"));
     }
   };
 
   const handleDeleteContact = async () => {
     if (!deleteContactId) return;
-
     try {
       await deleteContactMutation.mutateAsync(deleteContactId);
       setDeleteContactId(null);
-    } catch (error) {
-      console.error("Failed to delete contact:", error);
+    } catch {
+      toast.error("Failed to delete contact");
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return "bg-green-100 text-green-800";
-      case "customer": return "bg-blue-100 text-blue-800";
-      case "prospect": return "bg-yellow-100 text-yellow-800";
-      case "lead": return "bg-purple-100 text-purple-800";
-      case "inactive": return "bg-gray-100 text-gray-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const handleCreateMetafieldDefinition = async (data: CreateContactMetafieldDefinitionInput | UpdateContactMetafieldDefinitionInput) => {
+  const handleCreateMetafieldDefinition = async (
+    data:
+      | CreateContactMetafieldDefinitionInput
+      | UpdateContactMetafieldDefinitionInput
+  ) => {
     if (!currentOrganization?.id) {
       toast.error("Organization is required");
       return;
     }
-
     try {
       if ("organizationId" in data) {
-        await createMetafieldDefinition.mutateAsync(data as CreateContactMetafieldDefinitionInput);
+        await createMetafieldDefinition.mutateAsync(
+          data as CreateContactMetafieldDefinitionInput
+        );
       } else {
         throw new Error("Update not supported in this context");
       }
-      toast.success("Contact metafield definition created successfully");
-      setIsCreatingMetafield(false);
+      toast.success("Custom field created");
+      setIsMetafieldDialogOpen(false);
     } catch (error) {
-      console.error("Failed to create contact metafield definition:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to create contact metafield definition: ${errorMessage}`);
+      toast.error(
+        `Failed to create field: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handleDeleteMetafieldDefinition = async () => {
-    if (!deleteMetafieldDefinitionId) {
-      return;
-    }
-
+    if (!deleteMetafieldDefinitionId) return;
     try {
-      await deleteMetafieldDefinition.mutateAsync(deleteMetafieldDefinitionId);
-      toast.success("Metafield definition deleted successfully");
+      await deleteMetafieldDefinition.mutateAsync(
+        deleteMetafieldDefinitionId
+      );
+      toast.success("Custom field deleted");
       setDeleteMetafieldDefinitionId(null);
     } catch {
-      toast.error("Failed to delete metafield definition");
+      toast.error("Failed to delete custom field");
     }
   };
 
-  const openAttachment = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
+  if (isLoading) return <ContactsLoadingSkeleton />;
 
-  const downloadAttachment = (url: string) => {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "";
-    anchor.rel = "noopener noreferrer";
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-  };
-
-  if (isLoadingContacts) {
-    return (
-      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
-            <p className="text-sm text-muted-foreground">{t('contacts.subtitle')}</p>
-          </div>
+  return (
+    <div className="py-6 pr-6 space-y-5">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("contacts.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {t("contacts.subtitle")}
+          </p>
         </div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">{t('contacts.loading')}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isCreatingMetafield) {
-    return (
-      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCreatingMetafield(false)}
+            variant="outline"
+            size="sm"
+            onClick={() => setIsMetafieldSheetOpen(true)}
           >
-            <ChevronLeft className="h-5 w-5" />
+            <Database className="mr-1.5 h-3.5 w-3.5" />
+            Custom fields
           </Button>
-          <div>
-            <h1 className="text-2xl font-semibold">Add contact metafield definition</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Define a new metafield that can be added to contacts
-            </p>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExportDialog(true)}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Export
+          </Button>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                {t("contacts.addContact")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="pb-1">
+                <DialogTitle>{t("contacts.createTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("contacts.createDescription")}
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                onSubmit={form.handleSubmit(handleCreateContact)}
+                className="space-y-4"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.firstName")}
+                    </Label>
+                    <Input
+                      className="text-sm"
+                      {...form.register("firstName", {
+                        required: t("contacts.form.firstNameRequired"),
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.lastName")}
+                    </Label>
+                    <Input
+                      className="text-sm"
+                      {...form.register("lastName", {
+                        required: t("contacts.form.lastNameRequired"),
+                      })}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.email")}
+                    </Label>
+                    <Input
+                      type="email"
+                      className="text-sm"
+                      {...form.register("email", {
+                        required: t("contacts.form.emailRequired"),
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.phone")}
+                    </Label>
+                    <Input
+                      className="text-sm"
+                      {...form.register("phone")}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.company")}
+                    </Label>
+                    <Input
+                      className="text-sm"
+                      {...form.register("company")}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("contacts.form.jobTitle")}
+                    </Label>
+                    <Input
+                      className="text-sm"
+                      {...form.register("jobTitle")}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("contacts.form.status")}</Label>
+                  <Select
+                    value={form.watch("status")}
+                    onValueChange={(v) =>
+                      form.setValue("status", v as ContactStatus)
+                    }
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s} className="text-sm">
+                          {t(`contacts.status.${s}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{t("contacts.form.notes")}</Label>
+                  <Textarea
+                    rows={2}
+                    className="text-sm resize-none"
+                    {...form.register("notes")}
+                  />
+                </div>
+                <DialogFooter className="gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCreateDialogOpen(false)}
+                  >
+                    {t("contacts.actions.cancel")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createContactMutation.isPending}
+                  >
+                    {createContactMutation.isPending
+                      ? t("contacts.actions.creating")
+                      : t("contacts.actions.create")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
-
-        <Card>
-          <CardContent className="p-6">
-            <MetafieldDefinitionForm
-              onSubmit={handleCreateMetafieldDefinition}
-              onCancel={() => setIsCreatingMetafield(false)}
-              isPending={createMetafieldDefinition.isPending}
-              organizationId={currentOrganization?.id || ""}
-              showCategories={false}
-            />
-          </CardContent>
-        </Card>
       </div>
-    );
-  }
 
-  if (isManagingMetafields) {
-    return (
-      <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsManagingMetafields(false)}
+      {/* ── Search + count ── */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 pointer-events-none" />
+          <Input
+            placeholder={t("contacts.filters.searchPlaceholder")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 h-9 text-sm"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+          {displayedContacts.length === contacts.length
+            ? `${contacts.length} contact${contacts.length !== 1 ? "s" : ""}`
+            : `${displayedContacts.length} of ${contacts.length}`}
+        </span>
+      </div>
+
+      {/* ── Status filter chips ── */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <button
+          onClick={() => setStatusFilter("all")}
+          className={cn(
+            "px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+            statusFilter === "all"
+              ? "bg-foreground text-background border-foreground shadow-sm"
+              : "text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
+          )}
+        >
+          All
+        </button>
+        {STATUS_OPTIONS.map((status) => {
+          const cfg = STATUS_CONFIG[status];
+          const isActive = statusFilter === status;
+          return (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(isActive ? "all" : status)}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150",
+                isActive ? cfg.activePill : cfg.idlePill
+              )}
             >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-semibold">Contact metafield definitions</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manage custom fields that can be added to contacts
+              {t(`contacts.status.${status}`)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Contacts table ── */}
+      <Card className="overflow-hidden">
+        {displayedContacts.length === 0 ? (
+          <CardContent className="py-20 flex flex-col items-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+              <User className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">
+                {searchTerm.trim() || statusFilter !== "all"
+                  ? "No contacts match your filters"
+                  : t("contacts.empty.title")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {searchTerm.trim() || statusFilter !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : t("contacts.empty.getStarted")}
               </p>
             </div>
-          </div>
-          <Button onClick={() => setIsCreatingMetafield(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add metafield definition
-          </Button>
-        </div>
-
-        {metafieldDefinitions.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Database className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No metafield definitions found</p>
-            </CardContent>
-          </Card>
+          </CardContent>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {metafieldDefinitions.map((def) => (
-              <Card key={def.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{def.name}</h3>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableHead className="text-xs font-medium pl-4">
+                  Contact
+                </TableHead>
+                <TableHead className="text-xs font-medium">Email</TableHead>
+                <TableHead className="text-xs font-medium">Phone</TableHead>
+                <TableHead className="text-xs font-medium w-[120px]">
+                  Status
+                </TableHead>
+                <TableHead className="w-[44px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {displayedContacts.map((contact) => {
+                const d = contact.data || contact;
+                if (!contact?.id) return null;
+
+                const fullName =
+                  [d.firstName, d.lastName].filter(Boolean).join(" ") || "—";
+                const initials = getInitials(
+                  d.firstName || "",
+                  d.lastName || ""
+                );
+                const avatarColor = getAvatarColor(
+                  fullName + (d.email || "")
+                );
+                const status = (d.status || "lead") as ContactStatus;
+                const statusCfg =
+                  STATUS_CONFIG[status] || STATUS_CONFIG.lead;
+                const phones = Array.isArray(d.phone)
+                  ? d.phone
+                  : d.phone
+                  ? [d.phone]
+                  : [];
+
+                return (
+                  <TableRow
+                    key={contact.id}
+                    className="cursor-pointer transition-colors duration-100 hover:bg-muted/40 group"
+                    onClick={() => navigate(`/contacts/${contact.id}`)}
+                  >
+                    {/* Avatar + name + company */}
+                    <TableCell className="pl-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-transform duration-150 group-hover:scale-105",
+                            avatarColor
+                          )}
+                        >
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium leading-tight truncate">
+                            {fullName}
+                          </p>
+                          {d.company && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {d.company}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    {/* Email */}
+                    <TableCell className="text-sm text-muted-foreground py-3 max-w-[200px]">
+                      <p className="truncate">{d.email || "—"}</p>
+                    </TableCell>
+
+                    {/* Phone */}
+                    <TableCell className="text-sm text-muted-foreground py-3 whitespace-nowrap">
+                      {phones.length > 0 ? (
+                        <>
+                          {phones[0]}
+                          {phones.length > 1 && (
+                            <span className="text-xs text-muted-foreground/60 ml-1.5">
+                              +{phones.length - 1}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell className="py-3">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                          statusCfg.badge
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            statusCfg.dot
+                          )}
+                        />
+                        {t(`contacts.status.${status}`)}
+                      </span>
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell
+                      className="py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/contacts/${contact.id}`)
+                            }
+                          >
+                            <Edit className="mr-2 h-3.5 w-3.5" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setDeleteContactId(contact.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      {/* ── Custom fields Sheet ── */}
+      <Sheet open={isMetafieldSheetOpen} onOpenChange={setIsMetafieldSheetOpen}>
+        <SheetContent className="sm:max-w-md p-0 gap-0" side="right">
+          <div className="flex items-center justify-between px-6 py-5 border-b">
+            <div>
+              <SheetTitle className="text-base font-semibold">
+                Custom fields
+              </SheetTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Extra data fields available on all contacts
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsMetafieldDialogOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add field
+            </Button>
+          </div>
+
+          <div className="overflow-y-auto h-[calc(100vh-88px)]">
+            {metafieldDefinitions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-6 gap-3">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium">No custom fields yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Add fields to capture extra contact data
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {metafieldDefinitions.map((def) => (
+                  <div
+                    key={def.id}
+                    className="flex items-center justify-between px-6 py-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{def.name}</p>
+                      {def.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {def.description}
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setDeleteMetafieldDefinitionId(def.id)}
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={() =>
+                        setDeleteMetafieldDefinitionId(def.id)
+                      }
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {def.description && (
-                    <p className="text-sm text-muted-foreground mb-4">{def.description}</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </SheetContent>
+      </Sheet>
 
-        <AlertDialog
-          open={!!deleteMetafieldDefinitionId}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDeleteMetafieldDefinitionId(null);
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete metafield definition?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. The selected contact metafield definition will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteMetafieldDefinition}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    );
-  }
-
-  return (
-    <div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('contacts.title')}</h1>
-          <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsManagingMetafields(true)}>
-            <Database className="mr-2 h-4 w-4" />
-            Metafields
-          </Button>
-          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t('contacts.addContact')}
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t('contacts.createTitle')}</DialogTitle>
-              <DialogDescription>
-                {t('contacts.createDescription')}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(handleCreateContact)} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">{t('contacts.form.firstName')}</Label>
-                  <Input
-                    id="firstName"
-                    {...form.register("firstName", { required: t('contacts.form.firstNameRequired') })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">{t('contacts.form.lastName')}</Label>
-                  <Input
-                    id="lastName"
-                    {...form.register("lastName", { required: t('contacts.form.lastNameRequired') })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t('contacts.form.email')}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...form.register("email", { required: t('contacts.form.emailRequired') })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('contacts.form.phone')}</Label>
-                  <Input
-                    id="phone"
-                    {...form.register("phone")}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company">{t('contacts.form.company')}</Label>
-                  <Input
-                    id="company"
-                    {...form.register("company")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="jobTitle">{t('contacts.form.jobTitle')}</Label>
-                  <Input
-                    id="jobTitle"
-                    {...form.register("jobTitle")}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">{t('contacts.form.status')}</Label>
-                <Select
-                  value={form.watch("status")}
-                  onValueChange={(value) => form.setValue("status", value as ContactFormData["status"])}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('contacts.form.statusPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lead">{t('contacts.status.lead')}</SelectItem>
-                    <SelectItem value="prospect">{t('contacts.status.prospect')}</SelectItem>
-                    <SelectItem value="customer">{t('contacts.status.customer')}</SelectItem>
-                    <SelectItem value="active">{t('contacts.status.active')}</SelectItem>
-                    <SelectItem value="inactive">{t('contacts.status.inactive')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">{t('contacts.form.notes')}</Label>
-                <Textarea
-                  id="notes"
-                  rows={3}
-                  {...form.register("notes")}
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  {t('contacts.actions.cancel')}
-                </Button>
-                <Button type="submit" disabled={createContactMutation.isPending}>
-                  {createContactMutation.isPending ? t('contacts.actions.creating') : t('contacts.actions.create')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-        </div>
-      </div>
-
-      {/* Search and Stats */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder={t('contacts.filters.searchPlaceholder')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9"
+      {/* ── Create metafield definition dialog ── */}
+      <Dialog
+        open={isMetafieldDialogOpen}
+        onOpenChange={setIsMetafieldDialogOpen}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add custom field</DialogTitle>
+            <DialogDescription>
+              Define a new field that will be available on all contacts
+            </DialogDescription>
+          </DialogHeader>
+          <MetafieldDefinitionForm
+            onSubmit={handleCreateMetafieldDefinition}
+            onCancel={() => setIsMetafieldDialogOpen(false)}
+            isPending={createMetafieldDefinition.isPending}
+            organizationId={currentOrganization?.id || ""}
+            showCategories={false}
           />
-        </div>
-        <Card className="p-2.5 sm:p-3 shrink-0">
-          <div className="flex items-center space-x-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{displayedContacts.length}</span>
-            <span className="text-sm text-muted-foreground hidden sm:inline">{t('contacts.filters.contact')}</span>
-          </div>
-        </Card>
-      </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Contacts List */}
-      {displayedContacts.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-8">
-            <User className="mx-auto h-10 w-10 text-muted-foreground" />
-            <h3 className="mt-2 text-sm font-semibold text-foreground">{t('contacts.empty.title')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {searchTerm.trim() 
-                ? t('contacts.empty.noMatch')
-                : t('contacts.empty.getStarted')
-              }
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Desktop Table View */}
-          <Card className="hidden md:block">
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('contacts.table.name')}</TableHead>
-                      <TableHead>{t('contacts.table.email')}</TableHead>
-                      <TableHead>{t('contacts.table.company')}</TableHead>
-                      <TableHead>{t('contacts.table.status')}</TableHead>
-                      <TableHead>{t('contacts.table.phone')}</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedContacts.map((contact) => {
-                      const contactData = contact.data || contact;
-                      const attachmentUrl =
-                        typeof contactData.notes === "string"
-                          ? extractUrls(contactData.notes)[0]
-                          : undefined;
-                      
-                      if (!contact || !contact.id) {
-                        return null;
-                      }
-                      
-                      return (
-                        <TableRow
-                          key={contact.id}
-                          className="cursor-pointer"
-                          onClick={() => navigate(`/contacts/${contact.id}`)}
-                        >
-                          <TableCell className="font-medium">
-                            {contactData.firstName || ''} {contactData.lastName || ''}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span>{contactData.email || ''}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {contactData.company && (
-                              <div className="flex items-center space-x-2">
-                                <Building className="h-4 w-4 text-muted-foreground" />
-                                <span>{contactData.company}</span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(contactData.status || 'lead')}>
-                              {t(`contacts.status.${contactData.status || 'lead'}`)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const phones = Array.isArray(contactData.phone)
-                                ? contactData.phone
-                                : contactData.phone
-                                ? [contactData.phone]
-                                : [];
-                              return phones.length > 0 ? (
-                                <div className="flex flex-col gap-1">
-                                  {phones.map((phone, idx) => (
-                                    <div key={idx} className="flex items-center space-x-2">
-                                      <Phone className="h-4 w-4 text-muted-foreground" />
-                                      <span>{phone}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null;
-                            })()}
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(`/contacts/${contact.id}`)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  {t('contacts.actions.edit')}
-                                </DropdownMenuItem>
-                                {attachmentUrl && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => openAttachment(attachmentUrl)}>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Open file
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => downloadAttachment(attachmentUrl)}>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Download file
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => setDeleteContactId(contact.id)}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  {t('contacts.actions.delete')}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Mobile Card View */}
-          <div className="md:hidden space-y-3 pt-5">
-            {displayedContacts.map((contact) => {
-              const contactData = contact.data || contact;
-              const attachmentUrl =
-                typeof contactData.notes === "string"
-                  ? extractUrls(contactData.notes)[0]
-                  : undefined;
-              
-              if (!contact || !contact.id) {
-                return null;
-              }
-
-              const phones = Array.isArray(contactData.phone)
-                ? contactData.phone
-                : contactData.phone
-                ? [contactData.phone]
-                : [];
-
-              return (
-                <Card
-                  key={contact.id}
-                  className="p-3 cursor-pointer"
-                  onClick={() => navigate(`/contacts/${contact.id}`)}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm truncate">
-                          {contactData.firstName || ''} {contactData.lastName || ''}
-                        </h3>
-                        {contactData.company && (
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {contactData.company}
-                          </p>
-                        )}
-                      </div>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/contacts/${contact.id}`)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              {t('contacts.actions.edit')}
-                            </DropdownMenuItem>
-                            {attachmentUrl && (
-                              <>
-                                <DropdownMenuItem onClick={() => openAttachment(attachmentUrl)}>
-                                  <Download className="mr-2 h-4 w-4" />
-                                  Open file
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => downloadAttachment(attachmentUrl)}>
-                                  <Download className="mr-2 h-4 w-4" />
-                                  Download file
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleteContactId(contact.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              {t('contacts.actions.delete')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-xs">
-                      {contactData.email && (
-                        <div className="flex items-center space-x-2">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="truncate">{contactData.email}</span>
-                        </div>
-                      )}
-                      {phones.length > 0 && (
-                        <div className="flex items-center space-x-2">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span>{phones[0]}</span>
-                          {phones.length > 1 && (
-                            <span className="text-muted-foreground">{t('contacts.mobile.morePhones', { count: phones.length - 1 })}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div
-                      className="flex items-center justify-between pt-2 border-t"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Badge className={getStatusColor(contactData.status || 'lead')} variant="outline">
-                        {t(`contacts.status.${contactData.status || 'lead'}`)}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/contacts/${contact.id}`)}
-                        className="h-7 text-xs"
-                      >
-                        <Edit className="h-3.5 w-3.5 mr-1.5" />
-                        {t('contacts.actions.edit')}
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteContactId} onOpenChange={() => setDeleteContactId(null)}>
+      {/* ── Delete contact confirmation ── */}
+      <AlertDialog
+        open={!!deleteContactId}
+        onOpenChange={() => setDeleteContactId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('contacts.delete.title')}</AlertDialogTitle>
+            <AlertDialogTitle>{t("contacts.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('contacts.delete.description')}
+              {t("contacts.delete.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('contacts.delete.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel>{t("contacts.delete.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteContact}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
-              {t('contacts.delete.confirm')}
+              {t("contacts.delete.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Delete custom field confirmation ── */}
+      <AlertDialog
+        open={!!deleteMetafieldDefinitionId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteMetafieldDefinitionId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete custom field?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The field will be removed from all
+              contacts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMetafieldDefinition}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

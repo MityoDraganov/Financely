@@ -1,14 +1,25 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, Database, Plus } from "lucide-react";
+import { ChevronLeft, Database, Link2, MapPin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useContactsByOrg, useUpdateContact } from "@/hooks/repository-hooks/use-contacts";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import {
@@ -30,6 +41,37 @@ import { MetafieldInput } from "@/components/metafields/metafield-input";
 import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { extractUrls, getFileLabelFromUrl } from "@/utils/file-links";
+import { cn } from "@/lib/utils";
+
+// ─── File preview ──────────────────────────────────────────────────────────────
+
+const NATIVE_PREVIEW_EXTENSIONS = new Set([
+  "pdf", "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp",
+  "mp4", "webm", "ogg", "mp3", "wav",
+  "txt", "csv", "json", "xml", "html", "htm",
+]);
+
+function getPreviewUrl(url: string): string {
+  try {
+    const ext = new URL(url).pathname.split(".").pop()?.toLowerCase() ?? "";
+    if (NATIVE_PREVIEW_EXTENSIONS.has(ext)) return url;
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
+// ─── Status config ────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG = {
+  lead:     { dot: "bg-amber-400",   label: "Lead" },
+  prospect: { dot: "bg-blue-400",    label: "Prospect" },
+  customer: { dot: "bg-emerald-400", label: "Customer" },
+  active:   { dot: "bg-green-400",   label: "Active" },
+  inactive: { dot: "bg-gray-400",    label: "Inactive" },
+} as const;
+
+// ─── Form types ───────────────────────────────────────────────────────────────
 
 interface ContactFormData {
   firstName: string;
@@ -77,9 +119,7 @@ const createEmptyContactFormValues = (): ContactFormData => ({
 });
 
 const mapContactToFormData = (contactData: ContactData | null): ContactFormData => {
-  if (!contactData) {
-    return createEmptyContactFormValues();
-  }
+  if (!contactData) return createEmptyContactFormValues();
   return {
     firstName: contactData.firstName || "",
     lastName: contactData.lastName || "",
@@ -98,9 +138,16 @@ const mapContactToFormData = (contactData: ContactData | null): ContactFormData 
       marketingOptIn: false,
       newsletterOptIn: false,
     },
-    socialMedia: contactData.socialMedia || { linkedin: "", twitter: "", facebook: "", instagram: "" },
+    socialMedia: contactData.socialMedia || {
+      linkedin: "",
+      twitter: "",
+      facebook: "",
+      instagram: "",
+    },
   };
 };
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -117,48 +164,65 @@ export default function ContactDetailPage() {
   const updateMetafieldMutation = useUpdateContactMetafield();
   const deleteMetafieldMutation = useDeleteContactMetafield();
   const createMetafieldDefinitionMutation = useCreateContactMetafieldDefinition();
+
   const [metafieldValues, setMetafieldValues] = useState<Record<string, unknown>>({});
   const [isCreatingMetafieldDefinition, setIsCreatingMetafieldDefinition] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
   const lastHydratedMetafieldsKeyRef = useRef<string | null>(null);
   const lastFormValuesKeyRef = useRef<string | null>(null);
+  const hasInitializedAddressRef = useRef(false);
 
   const contact = contacts.find((c) => c.id === id);
   const contactData = contact ? (contact.data || contact) : null;
 
+  // Expand address section if the contact already has address data
   useEffect(() => {
-    if (!metafieldsQuery.data) {
-      return;
+    if (contactData && !hasInitializedAddressRef.current) {
+      hasInitializedAddressRef.current = true;
+      const hasAddr = !!(
+        contactData.address?.street ||
+        contactData.address?.city ||
+        contactData.address?.country
+      );
+      if (hasAddr) setShowAddress(true);
     }
+  }, [contactData]);
+
+  useEffect(() => {
+    if (!metafieldsQuery.data) return;
     const values: Record<string, unknown> = {};
     metafieldsQuery.data.forEach((metafield) => {
       values[metafield.definitionId] = metafield.value;
     });
     const valuesKey = JSON.stringify(values);
-    if (lastHydratedMetafieldsKeyRef.current === valuesKey) {
-      return;
-    }
+    if (lastHydratedMetafieldsKeyRef.current === valuesKey) return;
     lastHydratedMetafieldsKeyRef.current = valuesKey;
     setMetafieldValues(values);
   }, [metafieldsQuery.data]);
 
-  const formValues = useMemo<ContactFormData>(() => {
-    return mapContactToFormData(contactData);
-  }, [contactData]);
+  const formValues = useMemo<ContactFormData>(
+    () => mapContactToFormData(contactData),
+    [contactData],
+  );
   const formValuesKey = useMemo(() => JSON.stringify(formValues), [formValues]);
 
   const form = useForm<ContactFormData>({
     defaultValues: createEmptyContactFormValues(),
   });
+
   const notesValue = form.watch("notes") ?? "";
   const noteLinks = useMemo(() => extractUrls(notesValue), [notesValue]);
+  const firstName = form.watch("firstName");
+  const lastName = form.watch("lastName");
+  const status = form.watch("status");
 
   useEffect(() => {
-    if (lastFormValuesKeyRef.current === formValuesKey) {
-      return;
-    }
+    if (lastFormValuesKeyRef.current === formValuesKey) return;
     lastFormValuesKeyRef.current = formValuesKey;
     form.reset(formValues);
   }, [form, formValues, formValuesKey]);
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSubmit = async (data: ContactFormData) => {
     if (!contact?.id || !currentOrganization?.id) return;
@@ -235,7 +299,9 @@ export default function ContactDetailPage() {
   ) => {
     try {
       if ("organizationId" in data) {
-        await createMetafieldDefinitionMutation.mutateAsync(data as CreateContactMetafieldDefinitionInput);
+        await createMetafieldDefinitionMutation.mutateAsync(
+          data as CreateContactMetafieldDefinitionInput,
+        );
       } else {
         throw new Error("Update not supported in this context");
       }
@@ -248,14 +314,45 @@ export default function ContactDetailPage() {
     }
   };
 
+  // ─── Loading ───────────────────────────────────────────────────────────────
+
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 space-y-6">
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-[500px] w-full" />
+      <div className="p-4 sm:p-6 max-w-5xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-9 rounded-lg" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-20" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 pt-2">
+          <div className="grid grid-cols-2 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-6">
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
+
+  // ─── Not found ─────────────────────────────────────────────────────────────
 
   if (!contact || !contactData) {
     return (
@@ -264,162 +361,269 @@ export default function ContactDetailPage() {
           {t("contacts.notFound", "Contact not found")}
         </p>
         <p className="text-sm text-muted-foreground">
-          {t("contacts.notFoundDescription", "This contact may have been deleted or you don't have access.")}
+          {t(
+            "contacts.notFoundDescription",
+            "This contact may have been deleted or you don't have access.",
+          )}
         </p>
       </div>
     );
   }
 
-  return (
-    <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/contacts")}>
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">{t("contacts.editTitle")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{t("contacts.editDescription")}</p>
-        </div>
-      </div>
+  // ─── Render ────────────────────────────────────────────────────────────────
 
-      {/* Form */}
-      <Card>
-        <CardContent className="p-6">
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
-            {/* Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">{t("contacts.form.firstName")}</Label>
+  return (
+    <div className="p-4 sm:p-6">
+      <form onSubmit={form.handleSubmit(handleSubmit)}>
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="-ml-2 shrink-0"
+              onClick={() => navigate("/contacts")}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0">
+              <p className="text-base font-semibold leading-none truncate">
+                {firstName || contactData.firstName} {lastName || contactData.lastName}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Edit contact</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/contacts")}
+            >
+              {t("contacts.actions.cancel")}
+            </Button>
+            <Button type="submit" disabled={updateContactMutation.isPending}>
+              {updateContactMutation.isPending
+                ? t("contacts.actions.updating")
+                : t("contacts.actions.update")}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Two-column layout ────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-8 max-w-5xl">
+
+          {/* LEFT: Core fields ────────────────────────────────────────────── */}
+          <div className="space-y-5">
+
+            {/* Name + contact info grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="firstName">
+                  {t("contacts.form.firstName")}
+                </Label>
                 <Input
                   id="firstName"
-                  {...form.register("firstName", { required: t("contacts.form.firstNameRequired") })}
+                  {...form.register("firstName", {
+                    required: t("contacts.form.firstNameRequired"),
+                  })}
                 />
                 {form.formState.errors.firstName && (
-                  <p className="text-xs text-destructive">{form.formState.errors.firstName.message}</p>
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.firstName.message}
+                  </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">{t("contacts.form.lastName")}</Label>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="lastName">
+                  {t("contacts.form.lastName")}
+                </Label>
                 <Input
                   id="lastName"
-                  {...form.register("lastName", { required: t("contacts.form.lastNameRequired") })}
+                  {...form.register("lastName", {
+                    required: t("contacts.form.lastNameRequired"),
+                  })}
                 />
                 {form.formState.errors.lastName && (
-                  <p className="text-xs text-destructive">{form.formState.errors.lastName.message}</p>
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.lastName.message}
+                  </p>
                 )}
               </div>
-            </div>
 
-            {/* Email + Phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">{t("contacts.form.email")}</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="email">
+                  {t("contacts.form.email")}
+                </Label>
                 <Input
                   id="email"
                   type="email"
-                  {...form.register("email", { required: t("contacts.form.emailRequired") })}
+                  {...form.register("email", {
+                    required: t("contacts.form.emailRequired"),
+                  })}
                 />
                 {form.formState.errors.email && (
-                  <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.email.message}
+                  </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">{t("contacts.form.phone")}</Label>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="phone">
+                  {t("contacts.form.phone")}
+                </Label>
                 <Input id="phone" {...form.register("phone")} />
               </div>
-            </div>
 
-            {/* Company + Job title */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="company">{t("contacts.form.company")}</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="company">
+                  {t("contacts.form.company")}
+                </Label>
                 <Input id="company" {...form.register("company")} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="jobTitle">{t("contacts.form.jobTitle")}</Label>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs" htmlFor="jobTitle">
+                  {t("contacts.form.jobTitle")}
+                </Label>
                 <Input id="jobTitle" {...form.register("jobTitle")} />
               </div>
             </div>
 
             {/* Status */}
-            <div className="space-y-2">
-              <Label>{t("contacts.form.status")}</Label>
+            <div className="space-y-1.5 max-w-[200px]">
+              <Label className="text-xs">{t("contacts.form.status")}</Label>
               <Select
-                value={form.watch("status")}
-                onValueChange={(value) =>
-                  form.setValue("status", value as ContactFormData["status"])
+                value={status}
+                onValueChange={(v) =>
+                  form.setValue("status", v as ContactFormData["status"])
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder={t("contacts.form.statusPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="lead">{t("contacts.status.lead")}</SelectItem>
-                  <SelectItem value="prospect">{t("contacts.status.prospect")}</SelectItem>
-                  <SelectItem value="customer">{t("contacts.status.customer")}</SelectItem>
-                  <SelectItem value="active">{t("contacts.status.active")}</SelectItem>
-                  <SelectItem value="inactive">{t("contacts.status.inactive")}</SelectItem>
+                  {(
+                    Object.entries(STATUS_CONFIG) as Array<
+                      [string, (typeof STATUS_CONFIG)[keyof typeof STATUS_CONFIG]]
+                    >
+                  ).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex items-center gap-2">
+                        <span className={cn("h-1.5 w-1.5 rounded-full", cfg.dot)} />
+                        {cfg.label}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Address */}
-            <div className="space-y-3">
-              <Label>{t("contacts.form.address", "Address")}</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="street" className="text-xs text-muted-foreground">
+            {/* Address — collapsible */}
+            {showAddress ? (
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Address
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddress(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs" htmlFor="street">
                     {t("contacts.form.street", "Street")}
                   </Label>
                   <Input id="street" {...form.register("address.street")} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city" className="text-xs text-muted-foreground">
-                    {t("contacts.form.city", "City")}
-                  </Label>
-                  <Input id="city" {...form.register("address.city")} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs" htmlFor="city">
+                      {t("contacts.form.city", "City")}
+                    </Label>
+                    <Input id="city" {...form.register("address.city")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs" htmlFor="state">
+                      {t("contacts.form.state", "State")}
+                    </Label>
+                    <Input id="state" {...form.register("address.state")} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state" className="text-xs text-muted-foreground">
-                    {t("contacts.form.state", "State")}
-                  </Label>
-                  <Input id="state" {...form.register("address.state")} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="zipCode" className="text-xs text-muted-foreground">
-                    {t("contacts.form.zipCode", "Zip code")}
-                  </Label>
-                  <Input id="zipCode" {...form.register("address.zipCode")} />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="country" className="text-xs text-muted-foreground">
-                    {t("contacts.form.country", "Country")}
-                  </Label>
-                  <Input id="country" {...form.register("address.country")} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs" htmlFor="zipCode">
+                      {t("contacts.form.zipCode", "Zip code")}
+                    </Label>
+                    <Input id="zipCode" {...form.register("address.zipCode")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs" htmlFor="country">
+                      {t("contacts.form.country", "Country")}
+                    </Label>
+                    <Input id="country" {...form.register("address.country")} />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddress(true)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                Add address
+              </button>
+            )}
+          </div>
+
+          {/* RIGHT: Notes + Custom fields ─────────────────────────────────── */}
+          <div className="space-y-6 lg:border-l lg:pl-8">
 
             {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">{t("contacts.form.notes")}</Label>
-              <Textarea id="notes" rows={3} {...form.register("notes")} />
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Notes
+              </p>
+              <Textarea
+                id="notes"
+                rows={5}
+                className="resize-none"
+                placeholder="Add notes about this contact..."
+                {...form.register("notes")}
+              />
               {noteLinks.length > 0 && (
-                <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Detected file links</p>
+                <div className="space-y-1 pt-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Detected files
+                  </p>
                   {noteLinks.map((url) => (
-                    <div key={url} className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-medium">{getFileLabelFromUrl(url)}</span>
+                    <div key={url} className="flex flex-wrap items-center gap-2 py-0.5">
+                      <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium truncate max-w-[140px]">
+                        {getFileLabelFromUrl(url)}
+                      </span>
                       <a
-                        href={url}
+                        href={getPreviewUrl(url)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline text-primary"
+                        className="text-xs text-primary underline underline-offset-2"
                       >
-                        Open
+                        Preview
                       </a>
-                      <a href={url} download className="underline text-primary">
+                      <a
+                        href={url}
+                        download
+                        className="text-xs text-primary underline underline-offset-2"
+                      >
                         Download
                       </a>
                     </div>
@@ -428,33 +632,42 @@ export default function ContactDetailPage() {
               )}
             </div>
 
-            {/* Metafields */}
-            <div className="pt-4 border-t space-y-4">
+            {/* Custom fields */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">Contact metafields</Label>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Custom fields
+                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="h-7 text-xs gap-1"
                   onClick={() => setIsCreatingMetafieldDefinition(true)}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add metafield
+                  <Plus className="h-3.5 w-3.5" />
+                  Add field
                 </Button>
               </div>
 
               {metafieldDefinitions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Database className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No metafields available. Create one to get started.</p>
+                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <Database className="h-7 w-7 mb-2 opacity-25" />
+                  <p className="text-sm">No custom fields yet.</p>
+                  <p className="text-xs opacity-60 mt-0.5">
+                    Create one to store additional data.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {metafieldDefinitions.map((definition) => {
-                    const existingMetafield = existingMetafields.find((m) => m.definitionId === definition.id);
-                    const currentValue = metafieldValues[definition.id] !== undefined
-                      ? metafieldValues[definition.id]
-                      : existingMetafield?.value;
+                    const existingMetafield = existingMetafields.find(
+                      (m) => m.definitionId === definition.id,
+                    );
+                    const currentValue =
+                      metafieldValues[definition.id] !== undefined
+                        ? metafieldValues[definition.id]
+                        : existingMetafield?.value;
 
                     return (
                       <MetafieldInput
@@ -474,28 +687,20 @@ export default function ContactDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </form>
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => navigate("/contacts")}>
-                {t("contacts.actions.cancel")}
-              </Button>
-              <Button type="submit" disabled={updateContactMutation.isPending}>
-                {updateContactMutation.isPending
-                  ? t("contacts.actions.updating")
-                  : t("contacts.actions.update")}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Dialog open={isCreatingMetafieldDefinition} onOpenChange={setIsCreatingMetafieldDefinition}>
+      {/* ── Create metafield definition dialog ──────────────────────────────── */}
+      <Dialog
+        open={isCreatingMetafieldDefinition}
+        onOpenChange={setIsCreatingMetafieldDefinition}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add contact metafield</DialogTitle>
+            <DialogTitle>Add custom field</DialogTitle>
             <DialogDescription>
-              Create a new metafield definition that can be used across contacts
+              Create a new custom field that can be used across contacts
             </DialogDescription>
           </DialogHeader>
           <MetafieldDefinitionForm
