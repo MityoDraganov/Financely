@@ -117,33 +117,6 @@ function DesignAreaContent({
 								</div>
 								<div className="flex items-center gap-2">
 									<div className="flex gap-2">
-										{ctx.definitionStatus === "published" ? (
-											<Button
-												variant="outline"
-												onClick={() =>
-													void ctx.unpublish()
-												}
-												disabled={ctx.unpublishing}
-											>
-												{ctx.unpublishing ? (
-													<Loader2 className="h-4 w-4 animate-spin" />
-												) : null}
-												Make draft
-											</Button>
-										) : (
-											<Button
-												onClick={() =>
-													void ctx.publish()
-												}
-												variant="outline"
-												disabled={ctx.publishing || ctx.hasValidationErrors}
-											>
-												{ctx.publishing ? (
-													<Loader2 className="h-4 w-4 animate-spin" />
-												) : null}
-												Publish
-											</Button>
-										)}
 										{ctx.isDirty && (
 											<Button
 												onClick={() => void ctx.save()}
@@ -161,32 +134,32 @@ function DesignAreaContent({
 							{ctx.hasValidationErrors ? (
 								<p className="text-xs text-destructive">
 									Fix {ctx.validationIssues.length} validation issue
-									{ctx.validationIssues.length === 1 ? "" : "s"} to save or publish.
+									{ctx.validationIssues.length === 1 ? "" : "s"} to save.
 								</p>
 							) : null}
 
-								<div className="min-h-[200px] rounded-lg border bg-card p-6">
-									{ctx.pages.length === 0 ? (
-										<p className="text-sm text-muted-foreground">
-											Add a page from the left to build your widget.
-										</p>
-									) : (
-										<div className="max-w-md mx-auto">
-											<WidgetSchemaRenderer
-												pages={ctx.pages}
-												actions={ctx.actions}
-												styling={ctx.previewStyling}
-												onSubmit={async () => {}}
-												multiStepOptions={ctx.multiStepOptions}
-												previewPageIndex={
-													ctx.activePageId != null
-														? ctx.pages.findIndex((p) => p.id === ctx.activePageId)
-														: undefined
-												}
-											/>
-										</div>
-									)}
-								</div>
+							<div className="min-h-[200px] rounded-lg border bg-card p-6">
+								{ctx.pages.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										Add a page from the left to build your widget.
+									</p>
+								) : (
+									<div className="max-w-md mx-auto">
+										<WidgetSchemaRenderer
+											pages={ctx.pages}
+											actions={ctx.actions}
+											styling={ctx.previewStyling}
+											onSubmit={async () => {}}
+											multiStepOptions={ctx.multiStepOptions}
+											previewPageIndex={
+												ctx.activePageId != null
+													? ctx.pages.findIndex((p) => p.id === ctx.activePageId)
+													: undefined
+											}
+										/>
+									</div>
+								)}
+							</div>
 							</div>
 						)
 				) : noWidgetSelected ? (

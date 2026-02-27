@@ -29,6 +29,7 @@ import { useCreateContactMetafieldDefinition } from "@/hooks/service-hooks/use-c
 import { MetafieldInput } from "@/components/metafields/metafield-input";
 import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { extractUrls, getFileLabelFromUrl } from "@/utils/file-links";
 
 interface ContactFormData {
   firstName: string;
@@ -148,6 +149,8 @@ export default function ContactDetailPage() {
   const form = useForm<ContactFormData>({
     defaultValues: createEmptyContactFormValues(),
   });
+  const notesValue = form.watch("notes") ?? "";
+  const noteLinks = useMemo(() => extractUrls(notesValue), [notesValue]);
 
   useEffect(() => {
     if (lastFormValuesKeyRef.current === formValuesKey) {
@@ -402,6 +405,27 @@ export default function ContactDetailPage() {
             <div className="space-y-2">
               <Label htmlFor="notes">{t("contacts.form.notes")}</Label>
               <Textarea id="notes" rows={3} {...form.register("notes")} />
+              {noteLinks.length > 0 && (
+                <div className="space-y-1 rounded-md border border-border bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Detected file links</p>
+                  {noteLinks.map((url) => (
+                    <div key={url} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium">{getFileLabelFromUrl(url)}</span>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-primary"
+                      >
+                        Open
+                      </a>
+                      <a href={url} download className="underline text-primary">
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Metafields */}

@@ -23,7 +23,7 @@ interface SaveModularWidgetVersionPayload {
 }
 
 /**
- * Saves a new draft version for a modular widget. Callable.
+ * Saves a new version for a modular widget and makes it the active published version. Callable.
  */
 export const saveModularWidgetVersion = onCall<SaveModularWidgetVersionPayload>(
 	{
@@ -93,6 +93,13 @@ export const saveModularWidgetVersion = onCall<SaveModularWidgetVersionPayload>(
 					...(safeMultiStep != null && Object.keys(safeMultiStep).length > 0
 						? { multiStepOptions: safeMultiStep }
 						: {}),
+				},
+			});
+			await widgetDefinitionRepository.update({
+				id: widgetId,
+				data: {
+					status: "published",
+					publishedVersionId: versionId,
 				},
 			});
 

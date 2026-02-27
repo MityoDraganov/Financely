@@ -124,6 +124,17 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async transferOrganizationOwnership(payload: { organizationId: string; newOwnerId: string }): Promise<{ success: boolean; message: string }> {
+    const result = await httpsCallable<
+      { organizationId: string; newOwnerId: string },
+      { success: boolean; message: string }
+    >(
+      firebase.functions,
+      "transferOrganizationOwnership",
+    )(payload);
+    return result.data;
+  },
+
   async createWorkflow(payload) {
     type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
     const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(
@@ -592,10 +603,17 @@ export const functionsService: FunctionsService = {
     if (widgetVersionId) url.searchParams.set("widgetVersionId", widgetVersionId);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as { error?: string; branding?: unknown };
+      const err = await res.json().catch(() => ({})) as {
+        error?: string;
+        branding?: unknown;
+        pageConfig?: unknown;
+      };
       const error = Object.assign(
         new Error(err.error ?? "Failed to load widget config"),
-        { branding: err.branding ?? null },
+        {
+          branding: err.branding ?? null,
+          pageConfig: err.pageConfig ?? null,
+        },
       );
       throw error;
     }

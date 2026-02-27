@@ -16,6 +16,7 @@ import {
 	parseFieldValueByType,
 	type WidgetFieldTypeMap,
 } from "@/utils/widget-builder-validation";
+import { functionsService } from "@/services/functions/functions-service";
 import type {
 	WidgetBlock,
 	WidgetPage,
@@ -37,6 +38,7 @@ export interface WidgetSchemaRendererProps {
 	actions: WidgetVersionActions;
 	styling: Partial<WidgetStyling>;
 	onSubmit: (payload: Record<string, string | boolean | number>) => Promise<void>;
+	organizationId?: string;
 	submitting?: boolean;
 	submitError?: string | null;
 	multiStepOptions?: WidgetMultiStepOptions;
@@ -174,6 +176,8 @@ function renderBlock(
 			const fieldKey = (props.fieldKey as string) ?? block.id;
 			const helperText =
 				props.helperText != null ? String(props.helperText) : undefined;
+			const allowMultipleFiles =
+				block.type === "file" && Boolean(props.multiple);
 			const inputStyle = {
 				borderColor: s.borderColor,
 				borderRadius: s.borderRadius,
@@ -215,6 +219,7 @@ function renderBlock(
 							}
 							required={required}
 							placeholder={placeholder}
+							multiple={allowMultipleFiles}
 							className="w-full"
 							style={inputStyle}
 						/>
@@ -368,25 +373,90 @@ function buildFieldTypeMapForForm(blocks: WidgetBlock[]): WidgetFieldTypeMap {
 	return map;
 }
 
-function collectFormData(
+function sanitizeFileName(fileName: string): string {
+	return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+async function fileToBase64(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const result = reader.result;
+			if (typeof result !== "string") {
+				reject(new Error("Failed to read selected file."));
+				return;
+			}
+			const base64Data = result.includes(",") ? result.split(",")[1] : result;
+			resolve(base64Data);
+		};
+		reader.onerror = () => reject(new Error("Failed to read selected file."));
+		reader.readAsDataURL(file);
+	});
+}
+
+async function uploadWidgetFile(
+	file: File,
+	organizationId: string
+): Promise<string> {
+	const extension = file.name.includes(".")
+		? file.name.split(".").pop()
+		: "";
+	const timestamp = Date.now();
+	const randomSuffix = Math.random().toString(36).slice(2, 10);
+	const sanitizedName = sanitizeFileName(file.name);
+	const path = `organizations/${organizationId}/widgets/submissions/${timestamp}-${randomSuffix}-${sanitizedName}${extension && !sanitizedName.endsWith(`.${extension}`) ? `.${extension}` : ""}`;
+	const base64Data = await fileToBase64(file);
+	const response = await functionsService.uploadFile({
+		organizationId,
+		fileName: file.name,
+		fileData: base64Data,
+		contentType: file.type || "application/octet-stream",
+		path,
+	});
+	return response.url;
+}
+
+async function collectFormData(
 	form: HTMLFormElement,
 	fieldTypeByKey: WidgetFieldTypeMap,
-): Record<string, string | boolean | number> {
+	organizationId?: string,
+): Promise<Record<string, string | boolean | number>> {
 	const data: Record<string, string | boolean | number> = {};
 	const inputs = form.querySelectorAll<
 		HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 	>("input, textarea, select");
-	inputs.forEach((el) => {
+	for (const el of inputs) {
 		const name = el.name;
-		if (!name) return;
+		if (!name) continue;
 		if (el instanceof HTMLInputElement && el.type === "checkbox") {
 			data[name] = el.checked;
-		} else if (el instanceof HTMLInputElement && el.type === "file" && el.files?.[0]) {
-			data[name] = el.files[0].name;
+		} else if (el instanceof HTMLInputElement && el.type === "file") {
+			const files = el.files ? Array.from(el.files) : [];
+			if (files.length === 0) {
+				data[name] = "";
+			} else {
+				const fileValues =
+					organizationId && files.length > 0
+						? await Promise.all(
+								files.map(async (file) => {
+									try {
+										return await uploadWidgetFile(file, organizationId);
+									} catch (error) {
+										const reason =
+											error instanceof Error
+												? error.message
+												: "File upload failed.";
+										throw new Error(`Couldn't upload "${file.name}". ${reason}`);
+									}
+								})
+						  )
+						: files.map((file) => file.name);
+				data[name] = el.multiple ? fileValues.join(", ") : fileValues[0] ?? "";
+			}
 		} else {
 			data[name] = parseFieldValueByType(el.value ?? "", fieldTypeByKey[name]);
 		}
-	});
+	}
 	return data;
 }
 
@@ -395,6 +465,7 @@ export function WidgetSchemaRenderer({
 	actions,
 	styling,
 	onSubmit,
+	organizationId,
 	submitting = false,
 	submitError = null,
 	multiStepOptions,
@@ -404,6 +475,8 @@ export function WidgetSchemaRenderer({
 	const isMultiStep = pages.length > 1;
 	const [currentPageIndex, setCurrentPageIndex] = useState(0);
 	const [formValues, setFormValues] = useState<Record<string, string | boolean | number>>({});
+	const [processingFiles, setProcessingFiles] = useState(false);
+	const [localSubmitError, setLocalSubmitError] = useState<string | null>(null);
 
 	const isPreviewMode = previewPageIndex !== undefined && previewPageIndex >= 0;
 	const effectiveIndex = isPreviewMode
@@ -430,17 +503,41 @@ export function WidgetSchemaRenderer({
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const form = e.currentTarget;
-		const currentData = collectFormData(form, fieldTypeByKey);
-		const payload = isMultiStep ? { ...formValues, ...currentData } : currentData;
-		await onSubmit(payload);
+		setLocalSubmitError(null);
+		setProcessingFiles(true);
+		try {
+			const currentData = await collectFormData(form, fieldTypeByKey, organizationId);
+			const payload = isMultiStep ? { ...formValues, ...currentData } : currentData;
+			await onSubmit(payload);
+		} catch (error) {
+			setLocalSubmitError(
+				error instanceof Error
+					? error.message
+					: "We couldn't prepare your files for upload.",
+			);
+		} finally {
+			setProcessingFiles(false);
+		}
 	};
 
-	const handleNext = (e: React.FormEvent<HTMLFormElement>) => {
+	const handleNext = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const form = e.currentTarget;
-		const currentData = collectFormData(form, fieldTypeByKey);
-		setFormValues((prev) => ({ ...prev, ...currentData }));
-		setCurrentPageIndex((i) => Math.min(i + 1, pages.length - 1));
+		setLocalSubmitError(null);
+		setProcessingFiles(true);
+		try {
+			const currentData = await collectFormData(form, fieldTypeByKey, organizationId);
+			setFormValues((prev) => ({ ...prev, ...currentData }));
+			setCurrentPageIndex((i) => Math.min(i + 1, pages.length - 1));
+		} catch (error) {
+			setLocalSubmitError(
+				error instanceof Error
+					? error.message
+					: "We couldn't prepare your files for upload.",
+			);
+		} finally {
+			setProcessingFiles(false);
+		}
 	};
 
 	const handleBack = () => {
@@ -526,7 +623,7 @@ export function WidgetSchemaRenderer({
 				renderBlock(block, s, block.id || `block-${i}`)
 			)}
 			{!progressBarAtTop && progressBarEl}
-			{submitError && (
+			{(submitError || localSubmitError) && (
 				<p
 					className="text-sm py-2 px-3 rounded-md"
 					style={{
@@ -535,7 +632,7 @@ export function WidgetSchemaRenderer({
 						border: `1px solid ${s.errorColor}`,
 					}}
 				>
-					{submitError}
+					{localSubmitError ?? submitError}
 				</p>
 			)}
 			{isMultiStep ? (
@@ -545,6 +642,7 @@ export function WidgetSchemaRenderer({
 							type="button"
 							variant="outline"
 							onClick={handleBack}
+							disabled={processingFiles}
 							className="shrink-0"
 							style={{
 								borderColor: s.borderColor,
@@ -559,7 +657,7 @@ export function WidgetSchemaRenderer({
 					{isLastPage && hasSubmitButton ? (
 						<Button
 							type="submit"
-							disabled={submitting}
+							disabled={submitting || processingFiles}
 							className="shrink-0"
 							style={{
 								backgroundColor: s.primaryColor,
@@ -568,10 +666,10 @@ export function WidgetSchemaRenderer({
 								borderRadius: s.buttonBorderRadius,
 							}}
 						>
-							{submitting ? (
+							{submitting || processingFiles ? (
 								<>
 									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-									Submitting...
+									{submitting ? "Submitting..." : "Uploading files..."}
 								</>
 							) : (
 								submitLabel
@@ -580,6 +678,7 @@ export function WidgetSchemaRenderer({
 					) : (
 						<Button
 							type="submit"
+							disabled={processingFiles}
 							className="shrink-0"
 							style={{
 								backgroundColor: s.primaryColor,
@@ -588,8 +687,17 @@ export function WidgetSchemaRenderer({
 								borderRadius: s.buttonBorderRadius,
 							}}
 						>
-							{nextLabel}
-							<ChevronRight className="h-4 w-4 ml-1" />
+							{processingFiles ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Uploading files...
+								</>
+							) : (
+								<>
+									{nextLabel}
+									<ChevronRight className="h-4 w-4 ml-1" />
+								</>
+							)}
 						</Button>
 					)}
 				</div>
@@ -597,7 +705,7 @@ export function WidgetSchemaRenderer({
 				hasSubmitButton && (
 					<Button
 						type="submit"
-						disabled={submitting}
+						disabled={submitting || processingFiles}
 						className="w-full"
 						style={{
 							backgroundColor: s.primaryColor,
@@ -606,10 +714,10 @@ export function WidgetSchemaRenderer({
 							borderRadius: s.buttonBorderRadius,
 						}}
 					>
-						{submitting ? (
+						{submitting || processingFiles ? (
 							<>
 								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-								Submitting...
+								{submitting ? "Submitting..." : "Uploading files..."}
 							</>
 						) : (
 							submitLabel

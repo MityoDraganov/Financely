@@ -63,15 +63,6 @@ export const getModularWidgetConfig = onRequest(
 				});
 				return;
 			}
-			const cacheKey = `modular-widget:${organizationId}:${widgetId}:${widgetVersionId ?? "published"}`;
-			const cache = getConfigCache();
-			const cached = cache.get<unknown>(cacheKey);
-			if (cached) {
-				response.setHeader("Cache-Control", "public, max-age=300");
-				response.setHeader("X-Cache", "HIT");
-				response.status(200).json(cached);
-				return;
-			}
 			const databaseService = getDatabaseService();
 			const organizationRepository = getOrganizationRepository(databaseService);
 			const widgetDefinitionRepository =
@@ -109,6 +100,15 @@ export const getModularWidgetConfig = onRequest(
 				.publishedVersionId;
 			const versionIdToLoad =
 				widgetVersionId ?? (status === "published" ? publishedVersionId : null);
+			const cacheKey = `modular-widget:${organizationId}:${widgetId}:${versionIdToLoad ?? "none"}`;
+			const cache = getConfigCache();
+			const cached = versionIdToLoad ? cache.get<unknown>(cacheKey) : null;
+			if (cached) {
+				response.setHeader("Cache-Control", "public, max-age=300");
+				response.setHeader("X-Cache", "HIT");
+				response.status(200).json(cached);
+				return;
+			}
 			if (!versionIdToLoad) {
 				const branding404 = organization.settings?.branding;
 				const brandColors404 = organization.settings?.brandColors ?? {
@@ -123,6 +123,7 @@ export const getModularWidgetConfig = onRequest(
 						companyName: branding404?.companyName ?? organization.name,
 						colors: brandColors404,
 					},
+					pageConfig: (definition as { pageConfig?: unknown }).pageConfig ?? null,
 				});
 				return;
 			}

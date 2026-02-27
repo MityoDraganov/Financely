@@ -52,6 +52,7 @@ const BLOCK_GROUPS: {
 			{ type: "email", label: "Email", defaultProps: { label: "Email", fieldKey: "email", required: true } },
 			{ type: "phone", label: "Phone", defaultProps: { label: "Phone", fieldKey: "phone", required: false } },
 			{ type: "textarea", label: "Textarea", defaultProps: { label: "Message", fieldKey: "message", required: false } },
+			{ type: "file", label: "File upload", defaultProps: { label: "Upload file", fieldKey: "file1", required: false } },
 			{
 				type: "select",
 				label: "Select",

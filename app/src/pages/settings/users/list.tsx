@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   Mail,
   Shield,
+  Crown,
   UserCheck,
   UserX,
   Users,
@@ -77,6 +78,11 @@ export default function UsersListPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [memberToTransfer, setMemberToTransfer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [expirationDays, setExpirationDays] = useState(7);
   const queryClient = useQueryClient();
 
@@ -141,6 +147,53 @@ export default function UsersListPage() {
     },
   });
 
+  const transferOwnershipMutation = useMutation({
+    mutationFn: async ({
+      organizationId,
+      newOwnerId,
+    }: {
+      organizationId: string;
+      newOwnerId: string;
+    }) => {
+      return await functionsService.transferOrganizationOwnership({
+        organizationId,
+        newOwnerId,
+      });
+    },
+    onSuccess: async () => {
+      toast.success(
+        t("settings.users.allUsers.transferOwnershipSuccess", {
+          defaultValue: "Organization ownership transferred successfully",
+        })
+      );
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["users"] }),
+        queryClient.refetchQueries({ queryKey: ["organizations"] }),
+        queryClient.refetchQueries({
+          queryKey: ["organization-members", organization?.id],
+        }),
+      ]);
+      setTransferDialogOpen(false);
+      setMemberToTransfer(null);
+    },
+    onError: (error: Error) => {
+      console.error("Failed to transfer organization ownership:", error);
+      toast.error(
+        error.message.includes("permission-denied")
+          ? t("settings.users.allUsers.onlyOwnerCanTransferOwnership", {
+              defaultValue: "Only organization owners can transfer ownership",
+            })
+          : t("settings.users.allUsers.transferOwnershipError", {
+              defaultValue: "Failed to transfer ownership",
+            })
+      );
+    },
+  });
+
   const handleRevokeClick = (member: {
     id: string;
     name: string;
@@ -163,6 +216,31 @@ export default function UsersListPage() {
     revokeMemberMutation.mutate({
       organizationId: organization.id,
       memberId: memberToRevoke.id,
+    });
+  };
+
+  const handleTransferOwnershipClick = (member: {
+    id: string;
+    name: string;
+    role: string;
+  }) => {
+    if (member.role === ORGANIZATION_ROLES.OWNER) {
+      toast.error(
+        t("settings.users.allUsers.cannotTransferToOwner", {
+          defaultValue: "Selected member is already an owner",
+        })
+      );
+      return;
+    }
+    setMemberToTransfer({ id: member.id, name: member.name });
+    setTransferDialogOpen(true);
+  };
+
+  const handleConfirmTransferOwnership = () => {
+    if (!memberToTransfer || !organization?.id) return;
+    transferOwnershipMutation.mutate({
+      organizationId: organization.id,
+      newOwnerId: memberToTransfer.id,
     });
   };
 
@@ -448,6 +526,14 @@ export default function UsersListPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
+                            onClick={() => handleTransferOwnershipClick(member)}
+                          >
+                            <Crown className="h-4 w-4 mr-2" />
+                            {t("settings.users.allUsers.transferOwnership", {
+                              defaultValue: "Transfer Ownership",
+                            })}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => handleRevokeClick(member)}
                           >
@@ -671,6 +757,44 @@ export default function UsersListPage() {
                 ? t("common.processing", { defaultValue: "Processing..." })
                 : t("settings.users.allUsers.revokeAccess", {
                     defaultValue: "Revoke Access",
+                  })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Transfer Ownership Confirmation Dialog */}
+      <AlertDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("settings.users.allUsers.confirmTransferOwnershipTitle", {
+                defaultValue: "Transfer Organization Ownership",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings.users.allUsers.confirmTransferOwnershipDescription", {
+                defaultValue:
+                  "Are you sure you want to transfer ownership to {{name}}? You will become an admin and lose owner-only permissions.",
+                name: memberToTransfer?.name || "this member",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={transferOwnershipMutation.isPending}>
+              {t("common.cancel", { defaultValue: "Cancel" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmTransferOwnership}
+              disabled={transferOwnershipMutation.isPending}
+            >
+              {transferOwnershipMutation.isPending
+                ? t("common.processing", { defaultValue: "Processing..." })
+                : t("settings.users.allUsers.transferOwnership", {
+                    defaultValue: "Transfer Ownership",
                   })}
             </AlertDialogAction>
           </AlertDialogFooter>

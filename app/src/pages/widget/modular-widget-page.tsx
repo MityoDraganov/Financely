@@ -671,7 +671,12 @@ export default function ModularWidgetPage() {
 	}
 
 	if (configError) {
-		if (configError === "Widget has no published version") {
+		const normalizedError = configError.toLowerCase();
+		const isDraftWidgetError =
+			normalizedError.includes("no published version") ||
+			normalizedError.includes("widget is draft") ||
+			normalizedError.includes("widget in draft");
+		if (isDraftWidgetError) {
 			return (
 				<NotPublishedPage
 					branding={errorBranding}
@@ -693,6 +698,8 @@ export default function ModularWidgetPage() {
 	const handleSubmit = async (payload: Record<string, string | boolean | number>) => {
 		setSubmitting(true);
 		setSubmitError(null);
+		setSubmitMessage("");
+		setSubmitStatus("idle");
 		try {
 			const res = await fetch(`${apiUrl}/submitModularWidget`, {
 				method: "POST",
@@ -706,19 +713,33 @@ export default function ModularWidgetPage() {
 			});
 			const json = (await res.json().catch(() => ({}))) as {
 				success?: boolean;
+				duplicate?: boolean;
 				error?: string;
 				message?: string;
 			};
 			if (!res.ok) {
-				setSubmitError(json.error ?? "Submit failed");
+				const defaultError =
+					res.status >= 500
+						? "We couldn't submit your form right now. Please try again in a moment."
+						: "Submit failed. Please check your details and try again.";
+				setSubmitStatus("error");
+				setSubmitError(json.error ?? defaultError);
 				return;
 			}
 			setSubmitStatus("success");
 			setSubmitMessage(
-				json.message ?? config.widget.actions.success?.message ?? "Thank you!",
+				json.message ??
+					(json.duplicate
+						? "We've already received this submission."
+						: config.widget.actions.success?.message ?? "Thank you!"),
 			);
 		} catch (err) {
-			setSubmitError(err instanceof Error ? err.message : "Something went wrong");
+			setSubmitStatus("error");
+			setSubmitError(
+				err instanceof Error
+					? err.message
+					: "We couldn't submit your form right now. Please try again.",
+			);
 		} finally {
 			setSubmitting(false);
 		}
@@ -756,6 +777,7 @@ export default function ModularWidgetPage() {
 				actions={config.widget.actions}
 				styling={themeStyling}
 				onSubmit={handleSubmit}
+				organizationId={organizationId}
 				submitting={submitting}
 				submitError={submitError}
 				multiStepOptions={config.widget.multiStepOptions}

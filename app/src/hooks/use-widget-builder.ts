@@ -85,6 +85,10 @@ export interface UseWidgetBuilderReturn {
 	reorderBlocks: (parentId: string | null, fromIndex: number, toIndex: number) => void;
 	moveBlock: (blockId: string, targetParentId: string | null, targetIndex: number) => void;
 	updateBlockProps: (id: string, props: Record<string, unknown>) => void;
+	updateFieldBlockType: (
+		id: string,
+		nextType: EditableFieldBlockType,
+	) => void;
 	save: () => Promise<void>;
 	publish: () => Promise<void>;
 	publishVersion: (versionId: string) => Promise<void>;
@@ -120,6 +124,151 @@ const generatePageId = () =>
 	`page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const LAYOUT_BLOCKS_WITH_CHILDREN: BlockType[] = ["container", "card", "columns"];
+type EditableFieldBlockType =
+	| "inputText"
+	| "email"
+	| "phone"
+	| "textarea"
+	| "select"
+	| "checkbox"
+	| "date"
+	| "file"
+	| "submitButton";
+
+const EDITABLE_FIELD_BLOCK_TYPES: EditableFieldBlockType[] = [
+	"inputText",
+	"email",
+	"phone",
+	"textarea",
+	"select",
+	"checkbox",
+	"date",
+	"file",
+	"submitButton",
+];
+
+const FIELD_BLOCKS_SUPPORTING_REQUIRED = new Set<EditableFieldBlockType>([
+	"inputText",
+	"email",
+	"phone",
+	"textarea",
+	"select",
+	"date",
+	"file",
+]);
+
+const FIELD_BLOCKS_SUPPORTING_PLACEHOLDER = new Set<EditableFieldBlockType>([
+	"inputText",
+	"email",
+	"phone",
+	"textarea",
+	"select",
+	"date",
+]);
+
+const SELECT_DEFAULT_OPTIONS = [{ label: "Option 1", value: "option_1" }];
+
+const isEditableFieldBlockType = (
+	type: BlockType,
+): type is EditableFieldBlockType =>
+	EDITABLE_FIELD_BLOCK_TYPES.includes(type as EditableFieldBlockType);
+
+function getDefaultFieldBlockProps(
+	type: EditableFieldBlockType,
+): Record<string, unknown> {
+	switch (type) {
+		case "inputText":
+			return { label: "Label", fieldKey: "field1", required: false };
+		case "email":
+			return { label: "Email", fieldKey: "email", required: true };
+		case "phone":
+			return { label: "Phone", fieldKey: "phone", required: false };
+		case "textarea":
+			return { label: "Message", fieldKey: "message", required: false };
+		case "select":
+			return {
+				label: "Select",
+				fieldKey: "select1",
+				required: false,
+				options: SELECT_DEFAULT_OPTIONS.map((option) => ({ ...option })),
+			};
+		case "checkbox":
+			return { label: "Check", fieldKey: "check1" };
+		case "date":
+			return { label: "Date", fieldKey: "date1", required: false };
+		case "file":
+			return {
+				label: "Upload file",
+				fieldKey: "file1",
+				required: false,
+				multiple: false,
+			};
+		case "submitButton":
+			return { label: "Submit" };
+	}
+}
+
+function buildFieldBlockProps(
+	type: EditableFieldBlockType,
+	previousProps: Record<string, unknown>,
+): Record<string, unknown> {
+	const defaults = getDefaultFieldBlockProps(type);
+	if (type === "submitButton") {
+		const nextLabel =
+			typeof previousProps.label === "string" && previousProps.label.trim().length > 0
+				? previousProps.label
+				: defaults.label;
+		return { label: nextLabel };
+	}
+
+	const nextProps: Record<string, unknown> = {
+		...defaults,
+	};
+
+	if (typeof previousProps.label === "string") {
+		nextProps.label = previousProps.label;
+	}
+
+	if (typeof previousProps.fieldKey === "string") {
+		nextProps.fieldKey = previousProps.fieldKey;
+	}
+
+	if (
+		FIELD_BLOCKS_SUPPORTING_REQUIRED.has(type) &&
+		typeof previousProps.required === "boolean"
+	) {
+		nextProps.required = previousProps.required;
+	}
+
+	if (
+		FIELD_BLOCKS_SUPPORTING_PLACEHOLDER.has(type) &&
+		typeof previousProps.placeholder === "string"
+	) {
+		nextProps.placeholder = previousProps.placeholder;
+	}
+
+	if (typeof previousProps.helperText === "string") {
+		nextProps.helperText = previousProps.helperText;
+	}
+
+	if (typeof previousProps.fieldValueType === "string") {
+		nextProps.fieldValueType = previousProps.fieldValueType;
+	}
+
+	if (type === "select") {
+		const options = previousProps.options;
+		nextProps.options =
+			Array.isArray(options) && options.length > 0
+				? options
+				: SELECT_DEFAULT_OPTIONS.map((option) => ({ ...option }));
+	}
+
+	if (type === "file" && typeof previousProps.multiple === "boolean") {
+		nextProps.multiple = previousProps.multiple;
+	}
+
+	return nextProps;
+}
 
 const getBuilderSnapshot = ({
 	pages,
@@ -726,6 +875,29 @@ export function useWidgetBuilder({
 		[],
 	);
 
+	const updateFieldBlockType = useCallback(
+		(id: string, nextType: EditableFieldBlockType) => {
+			setPages((prev) =>
+				prev.map((page) => ({
+					...page,
+					fields: updateBlockInFields(page.fields ?? [], id, (block) => {
+						if (!isEditableFieldBlockType(block.type)) return block;
+						if (block.type === nextType) return block;
+						return {
+							...block,
+							type: nextType,
+							props: buildFieldBlockProps(
+								nextType,
+								(block.props ?? {}) as Record<string, unknown>,
+							),
+						};
+					}),
+				})),
+			);
+		},
+		[],
+	);
+
 	const save = useCallback(async () => {
 		if (!organizationId || !effectiveWidgetId) return;
 		if (hasValidationErrors) {
@@ -744,8 +916,13 @@ export function useWidgetBuilder({
 			savedSnapshotRef.current = currentSnapshot;
 			setHasInitializedSnapshot(true);
 			setSelectedVersionId(result.versionId);
+			setDefinitionStatus("published");
+			setPublishedVersionId(result.versionId);
+			queryClient.invalidateQueries({
+				queryKey: ["widget-definitions", organizationId],
+			});
 			await refreshVersions();
-			toast.success("Draft saved");
+			toast.success("Changes saved");
 		} catch {
 			toast.error("Failed to save");
 		} finally {
@@ -757,6 +934,7 @@ export function useWidgetBuilder({
 		pages,
 		actions,
 		multiStepOptions,
+		queryClient,
 		currentSnapshot,
 		refreshVersions,
 		hasValidationErrors,
@@ -886,6 +1064,11 @@ export function useWidgetBuilder({
 				});
 				applyBuilderState(normalized);
 				setSelectedVersionId(result.versionId);
+				setDefinitionStatus("published");
+				setPublishedVersionId(result.versionId);
+				queryClient.invalidateQueries({
+					queryKey: ["widget-definitions", organizationId],
+				});
 				await refreshVersions();
 				toast.success("Version restored");
 			} catch {
@@ -898,6 +1081,7 @@ export function useWidgetBuilder({
 			organizationId,
 			effectiveWidgetId,
 			applyBuilderState,
+			queryClient,
 			refreshVersions,
 		],
 	);
@@ -967,6 +1151,7 @@ export function useWidgetBuilder({
 			reorderBlocks: noop,
 			moveBlock: noop,
 			updateBlockProps: noop,
+			updateFieldBlockType: noop,
 			save: noopAsync,
 			publish: noopAsync,
 			publishVersion: noopAsync,
@@ -1024,6 +1209,7 @@ export function useWidgetBuilder({
 		reorderBlocks,
 		moveBlock,
 		updateBlockProps,
+		updateFieldBlockType,
 		save,
 		publish,
 		publishVersion,

@@ -64,14 +64,21 @@ export function ProductMetafieldDefinitionForm({
       return;
     }
 
+    const normalizedMetaobjectDefinitionId =
+      formData.type === "metaobject_reference" &&
+      typeof formData.metaobjectDefinitionId === "string" &&
+      formData.metaobjectDefinitionId.trim().length > 0
+        ? formData.metaobjectDefinitionId.trim()
+        : undefined;
+
     if (isEditMode) {
       const updateData: UpdateMetafieldDefinitionInput = {
         name: formData.name,
         type: formData.type,
         description: formData.description,
         categoryAssignments: formData.categoryAssignments,
-        metaobjectDefinitionId: formData.metaobjectDefinitionId,
         options: formData.options,
+        ...(normalizedMetaobjectDefinitionId ? { metaobjectDefinitionId: normalizedMetaobjectDefinitionId } : {}),
       };
       await onSubmit(updateData);
     } else {
@@ -81,8 +88,8 @@ export function ProductMetafieldDefinitionForm({
         type: formData.type!,
         description: formData.description,
         categoryAssignments: formData.categoryAssignments || [],
-        metaobjectDefinitionId: formData.metaobjectDefinitionId,
         options: formData.options || { storefrontApiAccess: false },
+        ...(normalizedMetaobjectDefinitionId ? { metaobjectDefinitionId: normalizedMetaobjectDefinitionId } : {}),
       };
       await onSubmit(createData);
     }

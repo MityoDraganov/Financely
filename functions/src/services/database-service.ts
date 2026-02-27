@@ -275,10 +275,11 @@ export const databaseService: DatabaseService = {
    */
   async create<T>(collectionName: string, data: T): Promise<string> {
     console.log(`Creating document in collection ${collectionName}`, data);
+    const sanitizedData = stripUndefinedDeep(data);
     const response = await firestore()
       .collection(collectionName)
       .add({
-        ...data,
+        ...(sanitizedData as object),
         createdAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
@@ -300,9 +301,10 @@ export const databaseService: DatabaseService = {
   async set<T>(collectionName: string, id: string, data: T): Promise<void> {
     console.log(`Setting document ${collectionName}/${id}`, data);
     const documentRef = firestore().collection(collectionName).doc(id);
+    const sanitizedData = stripUndefinedDeep(data);
 
     await documentRef.set({
-      ...data,
+      ...(sanitizedData as object),
       createdAt: firestore.FieldValue.serverTimestamp(),
       updatedAt: firestore.FieldValue.serverTimestamp(),
     });
@@ -322,9 +324,10 @@ export const databaseService: DatabaseService = {
   batchSet<T>(collectionName: string, id: string, data: T): BatchOperation {
     return (batch: FirebaseFirestore.WriteBatch) => {
       const documentRef = firestore().collection(collectionName).doc(id);
+      const sanitizedData = stripUndefinedDeep(data);
 
       batch.set(documentRef, {
-        ...data,
+        ...(sanitizedData as object),
         createdAt: firestore.FieldValue.serverTimestamp(),
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });

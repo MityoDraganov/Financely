@@ -8,7 +8,6 @@ import {
 	Trash2,
 	Loader2,
 	History,
-	CheckCircle2,
 	Check,
 	ChevronLeft,
 	ChevronRight,
@@ -55,6 +54,7 @@ const FIELD_BLOCK_TYPES = [
 	"select",
 	"checkbox",
 	"date",
+	"file",
 	"submitButton",
 ] as const;
 
@@ -65,7 +65,25 @@ const REQUIRED_FIELD_TYPES = [
 	"textarea",
 	"select",
 	"date",
+	"file",
 ] as const;
+
+type FieldBlockType = (typeof FIELD_BLOCK_TYPES)[number];
+
+const FIELD_BLOCK_TYPE_OPTIONS: Array<{
+	value: FieldBlockType;
+	label: string;
+}> = [
+	{ value: "inputText", label: "Text" },
+	{ value: "email", label: "Email" },
+	{ value: "phone", label: "Phone" },
+	{ value: "textarea", label: "Textarea" },
+	{ value: "select", label: "Select" },
+	{ value: "checkbox", label: "Checkbox" },
+	{ value: "date", label: "Date" },
+	{ value: "file", label: "File upload" },
+	{ value: "submitButton", label: "Submit button" },
+];
 
 type FieldKeyOption = {
 	key: string;
@@ -73,6 +91,7 @@ type FieldKeyOption = {
 	description?: string;
 	sourceKind: "field" | "metafield" | "legacy";
 	valueType?: DynamicSourceValueType;
+	metafieldType?: ContactMetafieldDefinition["type"];
 };
 
 type FieldKeyMenuPage = "root" | "contact-fields" | "metafields";
@@ -87,12 +106,52 @@ const HIDDEN_CONTACT_FIELD_KEYS = new Set([
 	"budgetCurrency",
 ]);
 
+const FILE_METAFIELD_TYPES = new Set<ContactMetafieldDefinition["type"]>([
+	"file_reference",
+	"file_reference_image",
+	"file_reference_video",
+	"list.file_reference",
+]);
+
+const isFieldBlockType = (type: string): type is FieldBlockType =>
+	FIELD_BLOCK_TYPES.includes(type as FieldBlockType);
+
+const getPreferredFieldBlockType = (
+	currentType: FieldBlockType,
+	option: FieldKeyOption,
+): FieldBlockType | null => {
+	if (option.metafieldType && FILE_METAFIELD_TYPES.has(option.metafieldType)) {
+		return currentType === "file" ? null : "file";
+	}
+
+	if (option.valueType === "array" || option.valueType === "object") {
+		return currentType === "textarea" ? null : "textarea";
+	}
+
+	if (option.valueType === "boolean") {
+		return currentType === "checkbox" || currentType === "select"
+			? null
+			: "checkbox";
+	}
+
+	if (option.valueType === "date") {
+		return currentType === "date" || currentType === "select"
+			? null
+			: "date";
+	}
+
+	return null;
+};
+
 function buildFieldKeyOptions(contactMetafieldDefinitions: Array<{
 	id: ContactMetafieldDefinition["id"];
 	name: ContactMetafieldDefinition["name"];
 	type: ContactMetafieldDefinition["type"];
 	description?: ContactMetafieldDefinition["description"];
 }>): FieldKeyOption[] {
+	const definitionsById = new Map(
+		contactMetafieldDefinitions.map((definition) => [definition.id, definition]),
+	);
 	const sources = getEntityDynamicSourceFields({ contactMetafieldDefinitions }).filter(
 		(source) => source.entity === "contact" && source.path !== "organizationId",
 	);
@@ -108,6 +167,13 @@ function buildFieldKeyOptions(contactMetafieldDefinitions: Array<{
 		}
 		seenKeys.add(key);
 		const isBudgetKey = key === "budget";
+		const metafieldDefinitionId =
+			source.sourceKind === "metafield" && key.startsWith("metafields.")
+				? key.slice("metafields.".length)
+				: undefined;
+		const metafieldType = metafieldDefinitionId
+			? definitionsById.get(metafieldDefinitionId)?.type
+			: undefined;
 		return [
 			{
 				key,
@@ -120,6 +186,7 @@ function buildFieldKeyOptions(contactMetafieldDefinitions: Array<{
 						: `contact.${source.path}`,
 				sourceKind: source.sourceKind === "metafield" ? "metafield" : "field",
 				valueType: source.valueType,
+				metafieldType,
 			} satisfies FieldKeyOption,
 		];
 	});
@@ -131,6 +198,7 @@ function buildFieldKeyOptions(contactMetafieldDefinitions: Array<{
 			description: "Accepts numeric value or numeric range",
 			sourceKind: "field",
 			valueType: "unknown",
+			metafieldType: undefined,
 		});
 	}
 
@@ -484,6 +552,7 @@ export function WidgetBuilderPropertiesPanel({
 	const activePage = pages.find((p) => p.id === activePageId) ?? null;
 	const selectedBlock = ctx?.selectedBlock;
 	const onUpdateProps = ctx?.updateBlockProps ?? (() => {});
+	const onUpdateFieldBlockType = ctx?.updateFieldBlockType ?? (() => {});
 	const updatePage = ctx?.updatePage ?? (() => {});
 	const multiStepOptions = ctx?.multiStepOptions ?? {};
 	const setMultiStepOptions = ctx?.setMultiStepOptions ?? (() => {});
@@ -580,9 +649,32 @@ export function WidgetBuilderPropertiesPanel({
 							<div className="space-y-3">
 								<div>
 									<Label className="text-xs">Type</Label>
-									<p className="text-sm font-medium">
-										{selectedBlock.type}
-									</p>
+									{isFieldBlockType(selectedBlock.type) ? (
+										<Select
+											value={selectedBlock.type}
+											onValueChange={(nextType) =>
+												onUpdateFieldBlockType(
+													selectedBlock.id,
+													nextType as FieldBlockType,
+												)
+											}
+										>
+											<SelectTrigger className="mt-1 w-full">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{FIELD_BLOCK_TYPE_OPTIONS.map((option) => (
+													<SelectItem key={option.value} value={option.value}>
+														{option.label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									) : (
+										<p className="text-sm font-medium">
+											{selectedBlock.type}
+										</p>
+									)}
 								</div>
 								{selectedBlock.type === "sectionHeader" && (
 									<>
@@ -708,39 +800,61 @@ export function WidgetBuilderPropertiesPanel({
 														contactMetafieldOptions={contactMetafieldOptions}
 														metafieldsLoading={contactMetafieldsLoading}
 														metafieldsError={contactMetafieldsError}
-														onSelectKey={(nextOption) =>
-															onUpdateProps(selectedBlock.id, {
+														onSelectKey={(nextOption) => {
+															const nextProps: Record<string, unknown> = {
 																fieldKey: nextOption.key,
 																fieldValueType: nextOption.valueType ?? "unknown",
-															})
-														}
+															};
+															if (
+																nextOption.metafieldType &&
+																FILE_METAFIELD_TYPES.has(nextOption.metafieldType)
+															) {
+																nextProps.multiple = nextOption.metafieldType.startsWith("list.");
+															}
+															const preferredType = getPreferredFieldBlockType(
+																selectedBlock.type as FieldBlockType,
+																nextOption,
+															);
+															if (
+																preferredType &&
+																preferredType !== selectedBlock.type
+															) {
+																onUpdateFieldBlockType(
+																	selectedBlock.id,
+																	preferredType,
+																);
+															}
+															onUpdateProps(selectedBlock.id, nextProps);
+														}}
 													/>
 												</div>
-												<div>
-													<Label className="text-xs">
-														Placeholder
-													</Label>
-													<Input
-														className="mt-1"
-														value={
-															(
-																selectedBlock.props as {
-																	placeholder?: string;
-																}
-															).placeholder ?? ""
-														}
-														onChange={(e) =>
-															onUpdateProps(
-																selectedBlock.id,
-																{
-																	placeholder:
-																		e.target
-																			.value,
-																},
-															)
-														}
-													/>
-												</div>
+												{selectedBlock.type !== "file" && (
+													<div>
+														<Label className="text-xs">
+															Placeholder
+														</Label>
+														<Input
+															className="mt-1"
+															value={
+																(
+																	selectedBlock.props as {
+																		placeholder?: string;
+																	}
+																).placeholder ?? ""
+															}
+															onChange={(e) =>
+																onUpdateProps(
+																	selectedBlock.id,
+																	{
+																		placeholder:
+																			e.target
+																				.value,
+																	},
+																)
+															}
+														/>
+													</div>
+												)}
 											</>
 										)}
 									</>
@@ -1391,7 +1505,6 @@ export function WidgetBuilderPropertiesPanel({
 									<div className="space-y-1 px-4">
 										{versions.map((version) => {
 											const isSelected = selectedVersionId === version.id;
-											const isPublished = ctx?.publishedVersionId === version.id;
 											return (
 												<button
 													key={version.id}
@@ -1408,9 +1521,6 @@ export function WidgetBuilderPropertiesPanel({
 														<span className="text-xs font-medium">
 															v{version.versionNumber}
 														</span>
-														{isPublished ? (
-															<CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-														) : null}
 													</div>
 													<p className="mt-1 text-[11px] text-muted-foreground">
 														{formatVersionTimestamp(version.createdAt)}
@@ -1424,26 +1534,6 @@ export function WidgetBuilderPropertiesPanel({
 										<div className="relative bg-muted/95 px-4 pt-2 pb-1">
 											<div className="grid gap-1.5">
 												<Button
-													variant="outline"
-													size="sm"
-													className="h-8 text-xs"
-													onClick={() =>
-														selectedVersion && void ctx?.publishVersion(selectedVersion.id)
-													}
-													disabled={
-														!selectedVersion ||
-														ctx?.publishing ||
-														ctx?.publishingVersionId != null ||
-														ctx?.unpublishing ||
-														ctx?.publishedVersionId === selectedVersion.id
-													}
-												>
-													{ctx?.publishingVersionId === selectedVersion?.id ? (
-														<Loader2 className="h-3.5 w-3.5 animate-spin" />
-													) : null}
-													Publish selected
-												</Button>
-												<Button
 													size="sm"
 													className="h-8 text-xs"
 													onClick={() =>
@@ -1452,8 +1542,7 @@ export function WidgetBuilderPropertiesPanel({
 													disabled={
 														!selectedVersion ||
 														ctx?.restoringVersion ||
-														ctx?.saving ||
-														ctx?.publishing
+														ctx?.saving
 													}
 												>
 													{ctx?.restoringVersion ? (

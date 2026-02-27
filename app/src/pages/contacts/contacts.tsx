@@ -43,6 +43,7 @@ import {
 } from "@/hooks/repository-hooks/use-contact-metafields";
 import { useCreateContactMetafieldDefinition } from "@/hooks/service-hooks/use-contact-metafield-functions";
 import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
+import { extractUrls } from "@/utils/file-links";
 
 interface ContactFormData {
   firstName: string;
@@ -84,12 +85,15 @@ export default function ContactsPage() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [isManagingMetafields, setIsManagingMetafields] = useState(false);
   const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
+  const [deleteMetafieldDefinitionId, setDeleteMetafieldDefinitionId] = useState<string | null>(null);
 
   // Queries
   const { data: contacts = [], isLoading: isLoadingContacts } = useContactsByOrg(currentOrganization?.id);
   const { data: searchResults = [] } = useSearchContacts(currentOrganization?.id, searchTerm);
-  const { data: metafieldDefinitions = [] } = useContactMetafieldDefinitions(currentOrganization?.id);
-  
+  const { data: metafieldDefinitions = [], error } = useContactMetafieldDefinitions(currentOrganization?.id);
+  if(error){
+    console.error("Failed to fetch contacts metafields: ", error)
+  }
   // Mutations
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();
@@ -259,17 +263,32 @@ export default function ContactsPage() {
     }
   };
 
-  const handleDeleteMetafieldDefinition = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this metafield definition?")) {
+  const handleDeleteMetafieldDefinition = async () => {
+    if (!deleteMetafieldDefinitionId) {
       return;
     }
 
     try {
-      await deleteMetafieldDefinition.mutateAsync(id);
+      await deleteMetafieldDefinition.mutateAsync(deleteMetafieldDefinitionId);
       toast.success("Metafield definition deleted successfully");
+      setDeleteMetafieldDefinitionId(null);
     } catch {
       toast.error("Failed to delete metafield definition");
     }
+  };
+
+  const openAttachment = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadAttachment = (url: string) => {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
   };
 
   if (isLoadingContacts) {
@@ -366,7 +385,7 @@ export default function ContactsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeleteMetafieldDefinition(def.id)}
+                      onClick={() => setDeleteMetafieldDefinitionId(def.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -379,6 +398,33 @@ export default function ContactsPage() {
             ))}
           </div>
         )}
+
+        <AlertDialog
+          open={!!deleteMetafieldDefinitionId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteMetafieldDefinitionId(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete metafield definition?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. The selected contact metafield definition will be permanently deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteMetafieldDefinition}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
@@ -563,6 +609,10 @@ export default function ContactsPage() {
                   <TableBody>
                     {displayedContacts.map((contact) => {
                       const contactData = contact.data || contact;
+                      const attachmentUrl =
+                        typeof contactData.notes === "string"
+                          ? extractUrls(contactData.notes)[0]
+                          : undefined;
                       
                       if (!contact || !contact.id) {
                         return null;
@@ -627,6 +677,18 @@ export default function ContactsPage() {
                                   <Edit className="mr-2 h-4 w-4" />
                                   {t('contacts.actions.edit')}
                                 </DropdownMenuItem>
+                                {attachmentUrl && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => openAttachment(attachmentUrl)}>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Open file
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => downloadAttachment(attachmentUrl)}>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Download file
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => setDeleteContactId(contact.id)}
@@ -651,6 +713,10 @@ export default function ContactsPage() {
           <div className="md:hidden space-y-3 pt-5">
             {displayedContacts.map((contact) => {
               const contactData = contact.data || contact;
+              const attachmentUrl =
+                typeof contactData.notes === "string"
+                  ? extractUrls(contactData.notes)[0]
+                  : undefined;
               
               if (!contact || !contact.id) {
                 return null;
@@ -692,6 +758,18 @@ export default function ContactsPage() {
                               <Edit className="mr-2 h-4 w-4" />
                               {t('contacts.actions.edit')}
                             </DropdownMenuItem>
+                            {attachmentUrl && (
+                              <>
+                                <DropdownMenuItem onClick={() => openAttachment(attachmentUrl)}>
+                                  <Download className="mr-2 h-4 w-4" />
+                                  Open file
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadAttachment(attachmentUrl)}>
+                                  <Download className="mr-2 h-4 w-4" />
+                                  Download file
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => setDeleteContactId(contact.id)}

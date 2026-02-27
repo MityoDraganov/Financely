@@ -65,7 +65,7 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         throw new HttpsError("invalid-argument", "contentType is required");
       }
 
-      // Validate file type (images and PDFs allowed)
+      // Validate file type (images + common document formats)
       const allowedTypes = [
         "image/jpeg",
         "image/png",
@@ -73,16 +73,43 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         "image/webp",
         "image/gif",
         "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "text/csv",
+        "text/plain",
+        "application/rtf",
+        "application/vnd.oasis.opendocument.text",
       ];
+      const allowedExtensions = [
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".csv",
+        ".txt",
+        ".rtf",
+        ".odt",
+      ];
+      const normalizedFileName = fileName.toLowerCase();
+      const hasAllowedExtension = allowedExtensions.some((ext) =>
+        normalizedFileName.endsWith(ext),
+      );
       
       const isAllowedType = allowedTypes.includes(contentType) || 
         contentType.startsWith("image/") ||
-        fileName.toLowerCase().endsWith(".pdf");
+        hasAllowedExtension;
       
       if (!isAllowedType) {
         throw new HttpsError(
           "invalid-argument",
-          "Only image files (JPEG, PNG, WebP, GIF) and PDF files are allowed"
+          "Only image files and common document files (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, CSV, TXT, RTF, ODT) are allowed"
         );
       }
 
@@ -98,13 +125,13 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         throw new HttpsError("invalid-argument", "Invalid base64 file data");
       }
 
-      // Validate file size (20MB max for PDFs, 10MB for images)
-      const isPdf = contentType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
-      const maxSize = isPdf ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for PDFs, 10MB for images
+      // Validate file size (20MB max for documents, 10MB for images)
+      const isDocument = hasAllowedExtension || contentType === "application/pdf";
+      const maxSize = isDocument ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for docs, 10MB for images
       if (fileBuffer.length > maxSize) {
         throw new HttpsError(
           "invalid-argument",
-          `File size must be less than ${isPdf ? "20MB" : "10MB"}`
+          `File size must be less than ${isDocument ? "20MB" : "10MB"}`
         );
       }
 

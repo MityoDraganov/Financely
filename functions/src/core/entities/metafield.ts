@@ -63,7 +63,10 @@ export const metafieldDefinitionDataSchema = z.object({
   type: metafieldTypeSchema,
   description: z.string().optional(),
   categoryAssignments: z.array(z.string()).default([]),
-  metaobjectDefinitionId: z.string().optional(),
+  metaobjectDefinitionId: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.string().optional(),
+  ),
   options: z.object({
     storefrontApiAccess: z.boolean().default(false),
   }).default({

@@ -62,6 +62,7 @@ export { createInvite } from "./functions/create-invite";
 export { acceptInvite } from "./functions/accept-invite";
 export { revokeInvite } from "./functions/revoke-invite";
 export { revokeMember } from "./functions/revoke-member";
+export { transferOrganizationOwnership } from "./functions/transfer-organization-ownership";
 
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";

@@ -23,6 +23,7 @@ import {
 import {
 	checkHoneypot,
 	checkDuplicateSubmission,
+	clearDuplicateSubmission,
 	hashPayload,
 } from "../middleware/abuse-protection";
 
@@ -62,6 +63,8 @@ export const submitModularWidget = onRequest(
 	async (request, response) => {
 		const FUNCTION_NAME = "submit-modular-widget";
 		const ipAddress = extractIpFromRequest(request);
+		let duplicateOrgId: string | null = null;
+		let duplicatePayloadHash: string | null = null;
 
 		try {
 			if (request.method !== "POST") {
@@ -146,10 +149,13 @@ export const submitModularWidget = onRequest(
 				});
 				response.status(200).json({
 					success: true,
-					message: "Form submitted successfully",
+					duplicate: true,
+					message: "We've already received this submission.",
 				});
 				return;
 			}
+			duplicateOrgId = organizationId;
+			duplicatePayloadHash = payloadHash;
 
 			const rateLimiter = getRateLimiter();
 			const rateLimitResult = await rateLimiter.checkLimit(
@@ -374,8 +380,8 @@ export const submitModularWidget = onRequest(
 						lastName: lastName || "",
 						email: email || "",
 						phone: phone ? [phone] : [],
-						company,
-						jobTitle,
+						...(company ? { company } : {}),
+						...(jobTitle ? { jobTitle } : {}),
 						...(parsedBudget
 							? {
 									budget: parsedBudget.budget,
@@ -409,8 +415,8 @@ export const submitModularWidget = onRequest(
 					lastName: lastName || undefined,
 					email: email || undefined,
 					phone: phone || undefined,
-					company,
-					jobTitle,
+					...(company ? { company } : {}),
+					...(jobTitle ? { jobTitle } : {}),
 					...(parsedBudget
 						? {
 								budget: parsedBudget.budget,
@@ -439,8 +445,8 @@ export const submitModularWidget = onRequest(
 						timestamp: new Date().toISOString(),
 					},
 					linkedEntities: {
-						leadId: leadId ?? undefined,
-						contactId: contactId ?? undefined,
+						...(leadId ? { leadId } : {}),
+						...(contactId ? { contactId } : {}),
 					},
 				},
 			});
@@ -450,12 +456,26 @@ export const submitModularWidget = onRequest(
 				...(redirectUrl && { redirectUrl }),
 			});
 		} catch (error) {
+			if (duplicateOrgId && duplicatePayloadHash) {
+				try {
+					await clearDuplicateSubmission(
+						duplicateOrgId,
+						ipAddress,
+						duplicatePayloadHash,
+					);
+				} catch (clearError) {
+					logger.warn("Failed to clear duplicate submission marker after failed request", {
+						organizationId: duplicateOrgId,
+						error: clearError instanceof Error ? clearError.message : "Unknown error",
+					});
+				}
+			}
 			logger.error("Error processing modular widget submission", {
 				error: error instanceof Error ? error.message : "Unknown error",
 				body: request.body,
 			});
 			response.status(500).json({
-				error: "Internal server error",
+				error: "We couldn't submit your form right now. Please try again.",
 			});
 		}
 	}

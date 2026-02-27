@@ -53,7 +53,7 @@ export async function checkDuplicateSubmission(
   }
 
   const collection = firestore().collection("duplicateSubmissions");
-  const key = `${orgId}:${hashIpAddress(ipAddress)}:${payloadHash}`;
+  const key = buildDuplicateSubmissionKey(orgId, ipAddress, payloadHash);
   const docRef = collection.doc(key);
   const doc = await docRef.get();
 
@@ -85,6 +85,31 @@ export async function checkDuplicateSubmission(
   });
 
   return false;
+}
+
+/**
+ * Build the duplicate-submission document key.
+ */
+export function buildDuplicateSubmissionKey(
+  orgId: string,
+  ipAddress: string,
+  payloadHash: string,
+): string {
+  return `${orgId}:${hashIpAddress(ipAddress)}:${payloadHash}`;
+}
+
+/**
+ * Clear duplicate submission marker so users can retry after a failed attempt.
+ */
+export async function clearDuplicateSubmission(
+  orgId: string,
+  ipAddress: string | undefined,
+  payloadHash: string,
+): Promise<void> {
+  if (!ipAddress) return;
+
+  const key = buildDuplicateSubmissionKey(orgId, ipAddress, payloadHash);
+  await firestore().collection("duplicateSubmissions").doc(key).delete();
 }
 
 /**
@@ -152,4 +177,3 @@ export function shouldSampleEvent(orgId: string, sampleRate: number): boolean {
   const random = (hash % 1000) / 1000;
   return random > sampleRate;
 }
-

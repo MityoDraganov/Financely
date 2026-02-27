@@ -27,6 +27,9 @@ interface RevokeMemberResponse {
 export const revokeMember = onCall<RevokeMemberPayload, Promise<RevokeMemberResponse>>(
   {
     region: "us-central1",
+    cors: true,
+    invoker: "public",
+    ingressSettings: "ALLOW_ALL",
   },
   async (request) => {
     const startTime = Date.now();

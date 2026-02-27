@@ -167,6 +167,11 @@ export interface FunctionsService {
     memberId: string;
   }): Promise<{ success: boolean; message: string }>;
 
+  transferOrganizationOwnership(payload: {
+    organizationId: string;
+    newOwnerId: string;
+  }): Promise<{ success: boolean; message: string }>;
+
   /**
    * Create a workflow with the specified configuration.
    * 

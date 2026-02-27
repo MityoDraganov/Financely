@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes } from "@/utils/currencies";
 import { ExportDialog } from "@/components/export-import/export-dialog";
+import { extractUrls, getFileLabelFromUrl } from "@/utils/file-links";
 
 export default function LeadsPage() {
   const { t } = useTranslation();
@@ -123,6 +124,40 @@ export default function LeadsPage() {
       case "quoteRequest": return "bg-purple-100 text-purple-800";
       default: return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const renderFormDataValue = (value: unknown) => {
+    if (typeof value === "object" && value !== null) {
+      return JSON.stringify(value, null, 2);
+    }
+    const raw = String(value ?? "").trim();
+    if (!raw) {
+      return t("leads.detail.na");
+    }
+    const urls = extractUrls(raw);
+    if (urls.length === 0) {
+      return raw;
+    }
+    return (
+      <div className="space-y-1">
+        {urls.map((url) => (
+          <div key={url} className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{getFileLabelFromUrl(url)}</span>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              Open
+            </a>
+            <a href={url} download className="underline text-primary">
+              Download
+            </a>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   if (isLoadingLeads) {
@@ -510,11 +545,9 @@ export default function LeadsPage() {
                           <span className="font-medium text-sm min-w-[120px] capitalize">
                             {key.replace(/([A-Z])/g, " $1").trim()}:
                           </span>
-                          <span className="text-sm text-muted-foreground flex-1">
-                            {typeof value === "object" && value !== null
-                              ? JSON.stringify(value, null, 2)
-                              : String(value || t('leads.detail.na'))}
-                          </span>
+                          <div className="text-sm text-muted-foreground flex-1">
+                            {renderFormDataValue(value)}
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -866,4 +899,3 @@ function ManualProposalDialog({
     </Dialog>
   );
 }
-
