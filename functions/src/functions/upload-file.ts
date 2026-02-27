@@ -178,6 +178,12 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
       const bucket = getStorage().bucket();
       const file = bucket.file(storagePath);
 
+      // Widget submissions may contain sensitive user documents (CVs, contracts, etc.)
+      // — use a Firebase download token so the file is NOT publicly enumerable.
+      // Everything else (branding, site-builder assets) stays publicly readable.
+      const isSubmission = storagePath.includes("/widgets/submissions/");
+      const downloadToken = isSubmission ? crypto.randomUUID() : null;
+
       await file.save(fileBuffer, {
         metadata: {
           contentType,
@@ -185,15 +191,21 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
             uploadedAt: new Date().toISOString(),
             organizationId,
             uploadedBy: (await extractUserContextFromRequest(request))?.userId || "unknown",
+            ...(downloadToken && { firebaseStorageDownloadTokens: downloadToken }),
           },
         },
       });
 
-      // Make file publicly readable (needed for displaying in sites)
-      await file.makePublic();
-
-      // Get public URL
-      const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      let url: string;
+      if (isSubmission && downloadToken) {
+        // Token-gated URL: accessible to anyone who has this URL, but not guessable or indexed.
+        const encodedPath = encodeURIComponent(storagePath);
+        url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+      } else {
+        // Public asset (branding, site builder) — make publicly readable as before.
+        await file.makePublic();
+        url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      }
 
       logger.info("File uploaded successfully", {
         organizationId,
