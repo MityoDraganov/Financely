@@ -35,8 +35,7 @@ export class OpenAIProvider implements AIProvider {
     const data = await this.requestChatCompletions({
       model: this.model,
       messages: [{ role: "user", content: prompt }],
-      temperature: options?.temperature ?? 0.7,
-      top_p: options?.topP ?? 1,
+      ...samplingParams(this.model, options),
       ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       ...(options?.stopSequences && { stop: options.stopSequences }),
     });
@@ -64,8 +63,7 @@ export class OpenAIProvider implements AIProvider {
     const data = await this.requestChatCompletions({
       model: this.model,
       messages: [{ role: "user", content: jsonPrompt }],
-      temperature: options?.temperature ?? 0.7,
-      top_p: options?.topP ?? 1,
+      ...samplingParams(this.model, options),
       ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       response_format: { type: "json_object" },
       ...(options?.stopSequences && { stop: options.stopSequences }),
@@ -114,8 +112,7 @@ export class OpenAIProvider implements AIProvider {
           ],
         },
       ],
-      temperature: options?.temperature ?? 0.7,
-      top_p: options?.topP ?? 1,
+      ...samplingParams(this.model, options),
       ...maxTokensParam(this.model, options?.maxTokens ?? 8192),
       response_format: { type: "json_object" },
       ...(options?.stopSequences && { stop: options.stopSequences }),
@@ -176,8 +173,40 @@ export class OpenAIProvider implements AIProvider {
  * Returns the appropriate parameter key for the given model.
  */
 function maxTokensParam(model: string, value: number): Record<string, number> {
-  const usesCompletionTokens = /^o\d|^gpt-5/i.test(model);
-  return usesCompletionTokens ? { max_completion_tokens: value } : { max_tokens: value };
+  return usesNextGenModelParams(model) ? { max_completion_tokens: value } : { max_tokens: value };
+}
+
+/**
+ * Some newer models only support default sampling values; omit custom sampling params there.
+ */
+function samplingParams(
+  model: string,
+  options?: AIGenerationOptions,
+): Record<string, number> {
+  if (usesNextGenModelParams(model)) {
+    if (typeof options?.temperature === "number" && options.temperature !== 1) {
+      logger.warn("Ignoring unsupported temperature for model; using model default", {
+        model,
+        requestedTemperature: options.temperature,
+      });
+    }
+    if (typeof options?.topP === "number" && options.topP !== 1) {
+      logger.warn("Ignoring unsupported top_p for model; using model default", {
+        model,
+        requestedTopP: options.topP,
+      });
+    }
+    return {};
+  }
+
+  return {
+    temperature: options?.temperature ?? 0.7,
+    top_p: options?.topP ?? 1,
+  };
+}
+
+function usesNextGenModelParams(model: string): boolean {
+  return /^o\d|^gpt-5/i.test(model);
 }
 
 function extractTextFromMessage(content: string | Array<{ type?: string; text?: string }> | undefined): string {
