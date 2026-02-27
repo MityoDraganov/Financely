@@ -551,7 +551,8 @@ export const exportService: ExportService = {
 
     // Generate storage path
     const timestamp = Date.now();
-    const extension = format === "csv" ? "csv" : format === "xls" ? "xls" : "xlsx";
+    const isCsvArchive = format === "csv" && sheets.length > 1;
+    const extension = isCsvArchive ? "zip" : format === "csv" ? "csv" : format === "xls" ? "xls" : "xlsx";
     const storagePath = `organizations/${orgId}/exports/export-${timestamp}.${extension}`;
 
     // Generate and upload file

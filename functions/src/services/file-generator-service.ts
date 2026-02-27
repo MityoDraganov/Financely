@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
+import { crc32 } from "node:zlib";
 import type { ExportFormat } from "../core/entities/export-import";
 
 export interface RowData {
@@ -31,19 +32,13 @@ export interface FileGeneratorService {
 }
 
 /**
- * Generate CSV buffer
+ * Generate CSV text for a single sheet
  */
-function generateCSV(sheets: SheetData[]): Buffer {
-  if (sheets.length === 0) {
-    throw new Error("At least one sheet is required");
-  }
-
-  // CSV only supports one sheet, use the first one
-  const sheet = sheets[0];
+function generateCSVContent(sheet: SheetData): string {
   const data = sheet.data;
 
   if (data.length === 0) {
-    return Buffer.from("", "utf-8");
+    return "";
   }
 
   // Get headers from first row or use provided headers
@@ -67,7 +62,129 @@ function generateCSV(sheets: SheetData[]): Buffer {
     lines.push(values.join(","));
   });
 
-  return Buffer.from(lines.join("\n"), "utf-8");
+  return lines.join("\n");
+}
+
+/**
+ * Generate CSV buffer
+ */
+function generateCSV(sheets: SheetData[]): Buffer {
+  if (sheets.length === 0) {
+    throw new Error("At least one sheet is required");
+  }
+
+  // CSV only supports one sheet, use the first one
+  const sheet = sheets[0];
+  return Buffer.from(generateCSVContent(sheet), "utf-8");
+}
+
+interface ZipEntry {
+  fileName: string;
+  content: Buffer;
+}
+
+/**
+ * Build a .zip archive using "stored" (uncompressed) entries.
+ * This avoids extra dependencies while keeping predictable output.
+ */
+function createZipBuffer(entries: ZipEntry[]): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const fileNameBuffer = Buffer.from(entry.fileName, "utf-8");
+    const content = entry.content;
+    const entryCrc32 = Number(crc32(content)) >>> 0;
+
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0); // Local file header signature
+    localHeader.writeUInt16LE(20, 4); // Version needed to extract
+    localHeader.writeUInt16LE(0, 6); // General purpose bit flag
+    localHeader.writeUInt16LE(0, 8); // Compression method (stored)
+    localHeader.writeUInt16LE(0, 10); // Last mod file time
+    localHeader.writeUInt16LE(0, 12); // Last mod file date
+    localHeader.writeUInt32LE(entryCrc32, 14); // CRC-32
+    localHeader.writeUInt32LE(content.length, 18); // Compressed size
+    localHeader.writeUInt32LE(content.length, 22); // Uncompressed size
+    localHeader.writeUInt16LE(fileNameBuffer.length, 26); // File name length
+    localHeader.writeUInt16LE(0, 28); // Extra field length
+
+    localParts.push(localHeader, fileNameBuffer, content);
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0); // Central file header signature
+    centralHeader.writeUInt16LE(20, 4); // Version made by
+    centralHeader.writeUInt16LE(20, 6); // Version needed to extract
+    centralHeader.writeUInt16LE(0, 8); // General purpose bit flag
+    centralHeader.writeUInt16LE(0, 10); // Compression method
+    centralHeader.writeUInt16LE(0, 12); // Last mod file time
+    centralHeader.writeUInt16LE(0, 14); // Last mod file date
+    centralHeader.writeUInt32LE(entryCrc32, 16); // CRC-32
+    centralHeader.writeUInt32LE(content.length, 20); // Compressed size
+    centralHeader.writeUInt32LE(content.length, 24); // Uncompressed size
+    centralHeader.writeUInt16LE(fileNameBuffer.length, 28); // File name length
+    centralHeader.writeUInt16LE(0, 30); // Extra field length
+    centralHeader.writeUInt16LE(0, 32); // File comment length
+    centralHeader.writeUInt16LE(0, 34); // Disk number start
+    centralHeader.writeUInt16LE(0, 36); // Internal file attributes
+    centralHeader.writeUInt32LE(0, 38); // External file attributes
+    centralHeader.writeUInt32LE(offset, 42); // Relative offset of local header
+
+    centralParts.push(centralHeader, fileNameBuffer);
+
+    offset += localHeader.length + fileNameBuffer.length + content.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const endOfCentralDirectory = Buffer.alloc(22);
+  endOfCentralDirectory.writeUInt32LE(0x06054b50, 0); // End of central dir signature
+  endOfCentralDirectory.writeUInt16LE(0, 4); // Number of this disk
+  endOfCentralDirectory.writeUInt16LE(0, 6); // Number of the disk with central directory
+  endOfCentralDirectory.writeUInt16LE(entries.length, 8); // Total entries on this disk
+  endOfCentralDirectory.writeUInt16LE(entries.length, 10); // Total entries
+  endOfCentralDirectory.writeUInt32LE(centralDirectory.length, 12); // Central directory size
+  endOfCentralDirectory.writeUInt32LE(offset, 16); // Offset of central directory
+  endOfCentralDirectory.writeUInt16LE(0, 20); // Comment length
+
+  return Buffer.concat([...localParts, centralDirectory, endOfCentralDirectory]);
+}
+
+function sanitizeCsvFileName(name: string, fallbackIndex: number): string {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || `sheet-${fallbackIndex + 1}`;
+}
+
+/**
+ * Generate ZIP archive containing one CSV per sheet.
+ */
+function generateCSVArchive(sheets: SheetData[]): Buffer {
+  if (sheets.length === 0) {
+    throw new Error("At least one sheet is required");
+  }
+
+  const usedNames = new Set<string>();
+  const entries: ZipEntry[] = sheets.map((sheet, index) => {
+    const baseName = sanitizeCsvFileName(sheet.name, index);
+    let candidateName = `${baseName}.csv`;
+    let suffix = 2;
+    while (usedNames.has(candidateName)) {
+      candidateName = `${baseName}-${suffix}.csv`;
+      suffix++;
+    }
+    usedNames.add(candidateName);
+
+    return {
+      fileName: candidateName,
+      content: Buffer.from(generateCSVContent(sheet), "utf-8"),
+    };
+  });
+
+  return createZipBuffer(entries);
 }
 
 /**
@@ -189,10 +306,10 @@ async function uploadToStorage(
 /**
  * Get content type for format
  */
-function getContentType(format: ExportFormat): string {
+function getContentType(format: ExportFormat, sheetCount: number): string {
   switch (format) {
     case "csv":
-      return "text/csv";
+      return sheetCount > 1 ? "application/zip" : "text/csv";
     case "xls":
       return "application/vnd.ms-excel";
     case "xlsx":
@@ -212,7 +329,7 @@ export const fileGeneratorService: FileGeneratorService = {
       logger.info("Generating file", { format, storagePath, sheetCount: sheets.length });
 
       const buffer = this.generateBuffer(sheets, format);
-      const contentType = getContentType(format);
+      const contentType = getContentType(format, sheets.length);
 
       const result = await uploadToStorage(buffer, storagePath, contentType);
 
@@ -239,7 +356,7 @@ export const fileGeneratorService: FileGeneratorService = {
   generateBuffer(sheets: SheetData[], format: ExportFormat): Buffer {
     switch (format) {
       case "csv":
-        return generateCSV(sheets);
+        return sheets.length > 1 ? generateCSVArchive(sheets) : generateCSV(sheets);
       case "xls":
       case "xlsx":
         return generateExcel(sheets, format);

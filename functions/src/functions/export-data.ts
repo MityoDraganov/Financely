@@ -96,7 +96,7 @@ export const exportData = onCall<ExportDataInput, Promise<{ jobId: string }>>(
           totalRecords: 0,
           exportedRecords: 0,
         },
-        notifyEmail: payload.notifyEmail !== undefined ? payload.notifyEmail : true, // Default to true
+        notifyEmail: true,
         emailRecipient: payload.emailRecipient || userContext.email, // Use provided email or default to user's email
         options: payload.options,
       };
@@ -137,9 +137,8 @@ export const exportData = onCall<ExportDataInput, Promise<{ jobId: string }>>(
           notifyEmail: jobData.notifyEmail,
         });
 
-        // Send email notification if notifyEmail is true
         const emailRecipient = jobData.emailRecipient || userContext.email;
-        if (jobData.notifyEmail && emailRecipient) {
+        if (emailRecipient) {
           try {
             const emailService = new ResendEmailService({
               apiKey: resendApiKey.value(),

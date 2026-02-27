@@ -182,6 +182,12 @@ export { onProductWritten } from "./functions/on-product-updated";
 // Billing and usage functions
 export { getUsageHistory } from "./functions/get-usage-history";
 
+// Data export/import functions
+export { exportData } from "./functions/export-data";
+export { getExportJob } from "./functions/get-export-job";
+export { importData } from "./functions/import-data";
+export { getImportJob } from "./functions/get-import-job";
+
 // Organization duplication functions
 export { duplicateOrganization } from "./functions/duplicate-organization";
 

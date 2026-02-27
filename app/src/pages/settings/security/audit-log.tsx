@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, RefreshCw, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
@@ -97,6 +98,82 @@ export default function AuditLogPage() {
     setIsDetailOpen(true);
   };
 
+  const handleExport = () => {
+    if (logs.length === 0) {
+      toast.info(t("settings.security.auditLog.exportNoData", "No audit log entries to export"));
+      return;
+    }
+
+    const escapeCsvValue = (value: unknown): string => {
+      if (value === null || value === undefined) return "";
+      const text =
+        typeof value === "string"
+          ? value
+          : typeof value === "object"
+            ? JSON.stringify(value)
+            : String(value);
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const headers = [
+      "timestamp",
+      "action",
+      "severity",
+      "status",
+      "user_name",
+      "user_email",
+      "resource_type",
+      "resource_id",
+      "resource_name",
+      "source",
+      "source_details",
+      "duration_ms",
+      "error_code",
+      "error_message",
+    ];
+
+    const rows = logs.map((log) => [
+      log.timestamp ?? "",
+      log.action ?? "",
+      log.severity ?? "",
+      log.outcome?.status ?? "",
+      log.user?.name ?? "",
+      log.user?.email ?? "",
+      log.resource?.type ?? "",
+      log.resource?.id ?? "",
+      log.resource?.name ?? "",
+      log.metadata?.source ?? "",
+      log.metadata?.sourceDetails ?? "",
+      log.outcome?.durationMs ?? "",
+      log.outcome?.errorCode ?? "",
+      log.outcome?.errorMessage ?? "",
+    ]);
+
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((row) => row.map(escapeCsvValue).join(",")),
+    ];
+
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const orgSlug = currentOrganization?.name?.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") || "organization";
+    const datePart = new Date().toISOString().slice(0, 10);
+    anchor.href = url;
+    anchor.download = `audit-log-${orgSlug}-${datePart}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      t("settings.security.auditLog.exportSuccess", "Audit log exported successfully"),
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -129,7 +206,13 @@ export default function AuditLogPage() {
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
             {t("settings.security.auditLog.refresh", "Refresh")}
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={handleExport}
+            disabled={logs.length === 0}
+          >
             <Download className="h-3.5 w-3.5" />
             {t("settings.security.auditLog.export", "Export")}
           </Button>

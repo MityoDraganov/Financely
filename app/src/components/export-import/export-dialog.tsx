@@ -69,7 +69,6 @@ export function ExportDialog({
     end: "",
   });
   const [includeArchived, setIncludeArchived] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState(true); // Email notification opt-in (default: true)
   const hasDownloadedRef = useRef(false);
 
   // Poll for export job status
@@ -93,11 +92,21 @@ export function ExportDialog({
   useEffect(() => {
     if (exportJob?.status === "completed" && exportJob.fileUrl && !hasDownloadedRef.current) {
       hasDownloadedRef.current = true;
-      
+
       // Auto-download the file
+      const extensionFromUrl = (() => {
+        try {
+          const pathname = new URL(exportJob.fileUrl).pathname;
+          const fileName = pathname.split("/").pop() ?? "";
+          const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
+          return extension || (format === "csv" ? "csv" : format === "xls" ? "xls" : "xlsx");
+        } catch {
+          return format === "csv" ? "csv" : format === "xls" ? "xls" : "xlsx";
+        }
+      })();
       const link = document.createElement("a");
       link.href = exportJob.fileUrl;
-      link.download = `export-${jobId}.${format === "csv" ? "csv" : format === "xls" ? "xls" : "xlsx"}`;
+      link.download = `export-${jobId}.${extensionFromUrl}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -120,7 +129,7 @@ export function ExportDialog({
         orgId: organization.id,
         entityTypes: selectedEntityTypes,
         format,
-        notifyEmail,
+        notifyEmail: true,
         options: {
           dateRange: dateRange.start || dateRange.end ? dateRange : undefined,
           includeArchived: includeArchived || undefined,
@@ -132,9 +141,7 @@ export function ExportDialog({
       setMode("progress");
       hasDownloadedRef.current = false;
       toast.success("Export started", {
-        description: notifyEmail 
-          ? "Your export is being processed. You can safely close this window. We'll email you when it's ready."
-          : "Your export is being processed. The file will download automatically when ready.",
+        description: "Your export is being processed. You can safely close this window. We'll email you when it's ready.",
       });
     },
     onError: (error: Error) => {
@@ -165,9 +172,7 @@ export function ExportDialog({
     if (open === false && mode === "progress" && exportJob?.status !== "completed" && exportJob?.status !== "failed") {
       // Show toast when closing during export (but allow closing)
       toast.info("Export in progress", {
-        description: notifyEmail 
-          ? "You'll receive an email when the export is ready."
-          : "The export will continue in the background.",
+        description: "You'll receive an email when the export is ready.",
       });
     }
     if (open === false) {
@@ -322,17 +327,6 @@ export function ExportDialog({
                 </Label>
               </div>
 
-              {/* Email Notification */}
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="notify-email"
-                  checked={notifyEmail}
-                  onCheckedChange={(checked) => setNotifyEmail(checked === true)}
-                />
-                <Label htmlFor="notify-email" className="text-sm font-normal cursor-pointer">
-                  Email me when ready
-                </Label>
-              </div>
             </div>
 
             <DialogFooter>
