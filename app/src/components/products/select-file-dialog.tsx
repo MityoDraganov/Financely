@@ -183,6 +183,12 @@ export function SelectFileDialog({
 				url: string;
 				originalFile: globalThis.File;
 			} | null>[] = [];
+			const validationMode =
+				fieldType === "file_reference_image"
+					? "image"
+					: fieldType === "file_reference_video"
+						? "video"
+						: "any";
 
 			for (let i = 0; i < fileList.length; i++) {
 				const file = fileList[i];
@@ -190,7 +196,7 @@ export function SelectFileDialog({
 				const path = `organizations/${organizationId}/files/${timestamp}-${i}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
 
 				uploadPromises.push(
-					uploadFile(file, path).then((url) => {
+					uploadFile(file, path, { validationMode }).then((url) => {
 						if (url) {
 							return { url, originalFile: file };
 						}
@@ -248,7 +254,7 @@ export function SelectFileDialog({
 				fileInputRef.current.value = "";
 			}
 		},
-		[organizationId, uploadFile, selectedUrls, multiple],
+		[fieldType, organizationId, uploadFile, selectedUrls, multiple],
 	);
 
 	const handleDone = useCallback(() => {

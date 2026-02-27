@@ -13,6 +13,7 @@ interface UploadFilePayload {
   fileData: string; // Base64 encoded file data
   contentType: string;
   path?: string; // Optional custom path, defaults to branding folder
+  validationMode?: "default" | "image" | "video" | "any";
 }
 
 /**
@@ -27,7 +28,8 @@ interface UploadFilePayload {
  *   fileName: string,
  *   fileData: string (base64 encoded),
  *   contentType: string,
- *   path?: string (optional, defaults to branding folder)
+ *   path?: string (optional, defaults to branding folder),
+ *   validationMode?: "default" | "image" | "video" | "any"
  * }
  * 
  * Response: { url: string }
@@ -41,7 +43,15 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
   },
   async (request) => {
     const startTime = Date.now();
-    const { organizationId, fileName, fileData, contentType, path } = request.data;
+    let mode: NonNullable<UploadFilePayload["validationMode"]> = "default";
+    const {
+      organizationId,
+      fileName,
+      fileData,
+      contentType,
+      path,
+      validationMode,
+    } = request.data;
 
     try {
       // TODO: Add authentication check when Clerk is integrated
@@ -63,6 +73,14 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
 
       if (!contentType) {
         throw new HttpsError("invalid-argument", "contentType is required");
+      }
+
+      mode = validationMode ?? "default";
+      if (!["default", "image", "video", "any"].includes(mode)) {
+        throw new HttpsError(
+          "invalid-argument",
+          "validationMode must be one of: default, image, video, any",
+        );
       }
 
       // Validate file type (images + common document formats)
@@ -101,15 +119,30 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
       const hasAllowedExtension = allowedExtensions.some((ext) =>
         normalizedFileName.endsWith(ext),
       );
-      
-      const isAllowedType = allowedTypes.includes(contentType) || 
-        contentType.startsWith("image/") ||
-        hasAllowedExtension;
+
+      const isImageType = contentType.startsWith("image/");
+      const isVideoType = contentType.startsWith("video/");
+      const isAllowedInDefaultMode =
+        allowedTypes.includes(contentType) || isImageType || hasAllowedExtension;
+      const isAllowedType =
+        mode === "any"
+          ? true
+          : mode === "image"
+          ? isImageType
+          : mode === "video"
+          ? isVideoType
+          : isAllowedInDefaultMode;
       
       if (!isAllowedType) {
+        const message =
+          mode === "image"
+            ? "Only image files are allowed"
+            : mode === "video"
+            ? "Only video files are allowed"
+            : "Only image files and common document files (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, CSV, TXT, RTF, ODT) are allowed";
         throw new HttpsError(
           "invalid-argument",
-          "Only image files and common document files (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, CSV, TXT, RTF, ODT) are allowed"
+          message,
         );
       }
 
@@ -127,11 +160,12 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
 
       // Validate file size (20MB max for documents, 10MB for images)
       const isDocument = hasAllowedExtension || contentType === "application/pdf";
-      const maxSize = isDocument ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for docs, 10MB for images
+      const useLargeFileLimit = mode === "any" || mode === "video" || isDocument;
+      const maxSize = useLargeFileLimit ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for documents/video/any, 10MB for images
       if (fileBuffer.length > maxSize) {
         throw new HttpsError(
           "invalid-argument",
-          `File size must be less than ${isDocument ? "20MB" : "10MB"}`
+          `File size must be less than ${useLargeFileLimit ? "20MB" : "10MB"}`,
         );
       }
 
@@ -165,6 +199,7 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         organizationId,
         fileName,
         contentType,
+        validationMode: mode,
         fileSize: fileBuffer.length,
         storagePath,
         durationMs: Date.now() - startTime,
@@ -186,6 +221,7 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
           sourceDetails: "uploadFile",
           customFields: {
             contentType,
+            validationMode: mode,
             fileSizeBytes: fileBuffer.length,
             storagePath,
             url,
@@ -200,6 +236,7 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
         organizationId,
         fileName,
         contentType,
+        validationMode: mode,
         durationMs: Date.now() - startTime,
       });
 
@@ -221,6 +258,7 @@ export const uploadFile = onCall<UploadFilePayload, Promise<{ url: string }>>(
           sourceDetails: "uploadFile",
           customFields: {
             contentType,
+            validationMode: mode,
             hasFileData: Boolean(fileData),
           },
         },

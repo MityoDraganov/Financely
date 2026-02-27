@@ -810,6 +810,16 @@ export function WidgetBuilderPropertiesPanel({
 																FILE_METAFIELD_TYPES.has(nextOption.metafieldType)
 															) {
 																nextProps.multiple = nextOption.metafieldType.startsWith("list.");
+																if (nextOption.metafieldType.includes("image")) {
+																	nextProps.accept = "image/*";
+																	nextProps.uploadValidationMode = "image";
+																} else if (nextOption.metafieldType.includes("video")) {
+																	nextProps.accept = "video/*";
+																	nextProps.uploadValidationMode = "video";
+																} else {
+																	nextProps.accept = undefined;
+																	nextProps.uploadValidationMode = "any";
+																}
 															}
 															const preferredType = getPreferredFieldBlockType(
 																selectedBlock.type as FieldBlockType,

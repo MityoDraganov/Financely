@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Loader2, ChevronLeft, ChevronRight, Upload, X, Image, FileText, Table, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,6 +46,8 @@ export interface WidgetSchemaRendererProps {
 	previewPageIndex?: number;
 }
 
+type UploadValidationMode = "default" | "image" | "video" | "any";
+
 function getFieldKeysFromBlocks(blocks: WidgetBlock[]): string[] {
 	const keys: string[] = [];
 	for (const b of blocks) {
@@ -79,6 +81,313 @@ const defaultStyling: WidgetStyling = {
 	modalMaxWidth: "500px",
 	shadow: "0 4px 12px rgba(0,0,0,0.15)",
 };
+
+function formatFileSize(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+function getFileTypeIcon(file: File, color: string) {
+	const p = { size: 16, strokeWidth: 1.75, style: { color, flexShrink: 0 } } as const;
+	if (file.type.startsWith("image/")) return <Image {...p} />;
+	if (file.type === "application/pdf") return <FileText {...p} />;
+	if (
+		file.type.includes("spreadsheet") ||
+		file.name.endsWith(".xlsx") ||
+		file.name.endsWith(".xls") ||
+		file.name.endsWith(".csv")
+	)
+		return <Table {...p} />;
+	if (
+		file.type.includes("word") ||
+		file.name.endsWith(".docx") ||
+		file.name.endsWith(".doc")
+	)
+		return <FileText {...p} />;
+	return <Paperclip {...p} />;
+}
+
+function FileInputBlock({ block, s }: { block: WidgetBlock; s: WidgetStyling }) {
+	const [files, setFiles] = useState<File[]>([]);
+	const [isDragging, setIsDragging] = useState(false);
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	const props = block.props as Record<string, unknown>;
+	const label = (props.label as string) ?? "";
+	const required = (props.required as boolean) ?? false;
+	const helperText = props.helperText != null ? String(props.helperText) : undefined;
+	const fieldKey = (props.fieldKey as string) ?? block.id;
+	const allowMultiple = Boolean(props.multiple);
+	const accept = (props.accept as string) ?? undefined;
+	const configuredUploadValidationMode = props.uploadValidationMode;
+	const uploadValidationMode: UploadValidationMode | undefined =
+		configuredUploadValidationMode === "default" ||
+		configuredUploadValidationMode === "image" ||
+		configuredUploadValidationMode === "video" ||
+		configuredUploadValidationMode === "any"
+			? configuredUploadValidationMode
+			: fieldKey.startsWith("metafields.")
+				? accept?.includes("video/")
+					? "video"
+					: accept?.includes("image/")
+						? "image"
+						: "any"
+				: undefined;
+
+	const syncFiles = (updated: File[]) => {
+		if (!inputRef.current) return;
+		try {
+			const dt = new DataTransfer();
+			updated.forEach((f) => dt.items.add(f));
+			inputRef.current.files = dt.files;
+		} catch {
+			// DataTransfer not available in some environments
+		}
+	};
+
+	const addFiles = (incoming: File[]) => {
+		const next = allowMultiple ? [...files, ...incoming] : incoming.slice(0, 1);
+		setFiles(next);
+		syncFiles(next);
+	};
+
+	const removeFile = (index: number) => {
+		const next = files.filter((_, i) => i !== index);
+		setFiles(next);
+		syncFiles(next);
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragging(false);
+		addFiles(Array.from(e.dataTransfer.files));
+	};
+
+	const showDropZone = files.length === 0 || allowMultiple;
+
+	const acceptHint = accept
+		? accept
+				.split(",")
+				.map((t) => t.trim().replace(/^\./, "").toUpperCase())
+				.join(", ")
+		: undefined;
+
+	return (
+		<div>
+			{label && (
+				<label
+					className="block text-sm font-medium mb-1.5"
+					style={{ color: s.textColor }}
+				>
+					{label}
+					{required && <span style={{ color: s.errorColor }}> *</span>}
+				</label>
+			)}
+
+			{/* Hidden real input — collectFormData reads this */}
+			<input
+				ref={inputRef}
+				name={fieldKey}
+				type="file"
+				required={required && files.length === 0}
+				multiple={allowMultiple}
+				accept={accept}
+				data-upload-validation-mode={uploadValidationMode}
+				className="sr-only"
+				tabIndex={-1}
+				aria-hidden
+				onChange={(e) => {
+					addFiles(Array.from(e.target.files ?? []));
+				}}
+			/>
+
+			{/* File cards (non-empty state) */}
+			{files.length > 0 && (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: "6px",
+						marginBottom: showDropZone ? "8px" : "0",
+					}}
+				>
+					{files.map((file, i) => (
+						<div
+							key={`${file.name}-${i}`}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "10px",
+								padding: "10px 12px",
+								borderRadius: s.borderRadius,
+								border: `1px solid ${s.borderColor}`,
+								backgroundColor: `${s.primaryColor}08`,
+							}}
+						>
+							<div
+								style={{
+									width: "32px",
+									height: "32px",
+									borderRadius: "6px",
+									backgroundColor: `${s.primaryColor}12`,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									flexShrink: 0,
+								}}
+							>
+								{getFileTypeIcon(file, s.primaryColor)}
+							</div>
+							<div style={{ flex: 1, minWidth: 0 }}>
+								<p
+									style={{
+										fontSize: "13px",
+										fontWeight: 500,
+										color: s.textColor,
+										margin: 0,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
+									{file.name}
+								</p>
+								<p
+									style={{
+										fontSize: "11px",
+										color: s.textColor,
+										opacity: 0.5,
+										margin: 0,
+									}}
+								>
+									{formatFileSize(file.size)}
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => removeFile(i)}
+								title="Remove file"
+								style={{
+									background: "none",
+									border: "none",
+									cursor: "pointer",
+									color: s.textColor,
+									opacity: 0.4,
+									padding: "3px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									borderRadius: "4px",
+									flexShrink: 0,
+									transition: "opacity 0.15s",
+								}}
+								onMouseOver={(e) => (e.currentTarget.style.opacity = "1")}
+								onMouseOut={(e) => (e.currentTarget.style.opacity = "0.4")}
+							>
+								<X size={14} strokeWidth={2} />
+							</button>
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Drop zone (empty state, or "add more" when multiple) */}
+			{showDropZone && (
+				<div
+					role="button"
+					tabIndex={0}
+					onClick={() => inputRef.current?.click()}
+					onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+					onDragOver={(e) => {
+						e.preventDefault();
+						setIsDragging(true);
+					}}
+					onDragLeave={() => setIsDragging(false)}
+					onDrop={handleDrop}
+					style={{
+						border: `2px dashed ${isDragging ? s.primaryColor : s.borderColor}`,
+						borderRadius: s.borderRadius,
+						backgroundColor: isDragging ? `${s.primaryColor}0a` : "transparent",
+						cursor: "pointer",
+						padding: files.length > 0 ? "12px 16px" : "24px 16px",
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						gap: "6px",
+						transition: "border-color 0.15s, background-color 0.15s",
+						outline: "none",
+					}}
+					onMouseOver={(e) => {
+						if (!isDragging)
+							(e.currentTarget as HTMLDivElement).style.borderColor = s.primaryColor;
+					}}
+					onMouseOut={(e) => {
+						if (!isDragging)
+							(e.currentTarget as HTMLDivElement).style.borderColor = s.borderColor;
+					}}
+					onFocus={(e) => {
+						(e.currentTarget as HTMLDivElement).style.borderColor = s.primaryColor;
+					}}
+					onBlur={(e) => {
+						(e.currentTarget as HTMLDivElement).style.borderColor = isDragging
+							? s.primaryColor
+							: s.borderColor;
+					}}
+				>
+					<Upload
+						size={files.length > 0 ? 18 : 26}
+						strokeWidth={1.5}
+						style={{
+							color: isDragging ? s.primaryColor : s.borderColor,
+							transition: "color 0.15s",
+						}}
+					/>
+					<p style={{ margin: 0, fontSize: "13px", textAlign: "center" }}>
+						<span
+							style={{
+								color: s.primaryColor,
+								fontWeight: 500,
+								textDecoration: "underline",
+								textUnderlineOffset: "2px",
+							}}
+						>
+							{files.length > 0 ? "Add more files" : "Click to upload"}
+						</span>
+						{files.length === 0 && (
+							<span style={{ color: s.textColor, opacity: 0.45 }}>
+								{" "}
+								or drag &amp; drop
+							</span>
+						)}
+					</p>
+					{acceptHint && files.length === 0 && (
+						<p
+							style={{
+								margin: 0,
+								fontSize: "11px",
+								color: s.textColor,
+								opacity: 0.35,
+								letterSpacing: "0.03em",
+							}}
+						>
+							{acceptHint}
+						</p>
+					)}
+				</div>
+			)}
+
+			{helperText && (
+				<p
+					className="text-xs mt-1"
+					style={{ color: s.textColor, opacity: 0.6 }}
+				>
+					{helperText}
+				</p>
+			)}
+		</div>
+	);
+}
 
 function renderBlock(
 	block: WidgetBlock,
@@ -164,20 +473,19 @@ function renderBlock(
 					{(props.content as string) ?? ""}
 				</p>
 			);
+		case "file":
+			return <FileInputBlock key={key} block={block} s={s} />;
 		case "inputText":
 		case "email":
 		case "phone":
 		case "textarea":
-		case "date":
-		case "file": {
+		case "date": {
 			const label = (props.label as string) ?? "";
 			const required = (props.required as boolean) ?? false;
 			const placeholder = (props.placeholder as string) ?? "";
 			const fieldKey = (props.fieldKey as string) ?? block.id;
 			const helperText =
 				props.helperText != null ? String(props.helperText) : undefined;
-			const allowMultipleFiles =
-				block.type === "file" && Boolean(props.multiple);
 			const inputStyle = {
 				borderColor: s.borderColor,
 				borderRadius: s.borderRadius,
@@ -213,13 +521,10 @@ function renderBlock(
 										? "email"
 										: block.type === "phone"
 											? "tel"
-											: block.type === "file"
-												? "file"
-												: "text"
+											: "text"
 							}
 							required={required}
 							placeholder={placeholder}
-							multiple={allowMultipleFiles}
 							className="w-full"
 							style={inputStyle}
 						/>
@@ -396,7 +701,8 @@ async function fileToBase64(file: File): Promise<string> {
 
 async function uploadWidgetFile(
 	file: File,
-	organizationId: string
+	organizationId: string,
+	validationMode?: UploadValidationMode,
 ): Promise<string> {
 	const extension = file.name.includes(".")
 		? file.name.split(".").pop()
@@ -412,9 +718,18 @@ async function uploadWidgetFile(
 		fileData: base64Data,
 		contentType: file.type || "application/octet-stream",
 		path,
+		validationMode,
 	});
 	return response.url;
 }
+
+const isUploadValidationMode = (
+	value: string | undefined,
+): value is UploadValidationMode =>
+	value === "default" ||
+	value === "image" ||
+	value === "video" ||
+	value === "any";
 
 async function collectFormData(
 	form: HTMLFormElement,
@@ -432,6 +747,10 @@ async function collectFormData(
 			data[name] = el.checked;
 		} else if (el instanceof HTMLInputElement && el.type === "file") {
 			const files = el.files ? Array.from(el.files) : [];
+			const rawValidationMode = el.dataset.uploadValidationMode;
+			const validationMode = isUploadValidationMode(rawValidationMode)
+				? rawValidationMode
+				: undefined;
 			if (files.length === 0) {
 				data[name] = "";
 			} else {
@@ -440,7 +759,11 @@ async function collectFormData(
 						? await Promise.all(
 								files.map(async (file) => {
 									try {
-										return await uploadWidgetFile(file, organizationId);
+										return await uploadWidgetFile(
+											file,
+											organizationId,
+											validationMode,
+										);
 									} catch (error) {
 										const reason =
 											error instanceof Error

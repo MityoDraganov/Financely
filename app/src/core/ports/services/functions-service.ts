@@ -988,6 +988,7 @@ export interface FunctionsService {
    * @param payload.fileData - Base64 encoded file data
    * @param payload.contentType - MIME type of the file
    * @param payload.path - Optional custom storage path
+   * @param payload.validationMode - Optional validation profile for file type rules
    * @returns Promise with the public URL of the uploaded file
    */
   uploadFile(payload: {
@@ -996,6 +997,7 @@ export interface FunctionsService {
     fileData: string; // Base64 encoded
     contentType: string;
     path?: string;
+    validationMode?: "default" | "image" | "video" | "any";
   }): Promise<{ url: string }>;
 
   improveText(payload: {

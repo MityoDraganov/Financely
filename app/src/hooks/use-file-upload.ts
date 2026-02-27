@@ -3,7 +3,13 @@ import { storageService } from "@/services/storage/storage-service";
 import { functionsService } from "@/services/functions/functions-service";
 
 export interface UseFileUploadResult {
-  uploadFile: (file: File, path: string) => Promise<string | null>;
+  uploadFile: (
+    file: File,
+    path: string,
+    options?: {
+      validationMode?: "default" | "image" | "video" | "any";
+    },
+  ) => Promise<string | null>;
   isUploading: boolean;
   uploadProgress: number;
   error: string | null;
@@ -14,7 +20,13 @@ export function useFileUpload(): UseFileUploadResult {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const uploadFile = useCallback(async (file: File, path: string): Promise<string | null> => {
+  const uploadFile = useCallback(async (
+    file: File,
+    path: string,
+    options?: {
+      validationMode?: "default" | "image" | "video" | "any";
+    },
+  ): Promise<string | null> => {
     setIsUploading(true);
     setUploadProgress(0);
     setError(null);
@@ -31,6 +43,7 @@ export function useFileUpload(): UseFileUploadResult {
       let url: string;
 
       if (organizationId) {
+        const contentType = file.type || "application/octet-stream";
         const base64Data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -51,8 +64,9 @@ export function useFileUpload(): UseFileUploadResult {
           organizationId,
           fileName: file.name,
           fileData: base64Data,
-          contentType: file.type,
+          contentType,
           path,
+          validationMode: options?.validationMode,
         });
         url = response.url;
       } else {
