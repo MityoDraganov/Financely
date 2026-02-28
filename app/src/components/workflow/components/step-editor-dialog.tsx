@@ -89,11 +89,11 @@ export function StepEditorDialog({
   }, [step, open]);
 
   useEffect(() => {
-    setEditedStep((prevStep) => {
+    setEditedStep((prevStep: WorkflowStep | null) => {
       if (!prevStep) return prevStep;
 
       let changed = false;
-      const updatedActions = prevStep.actions.map((action) => {
+      const updatedActions = prevStep.actions.map((action: WorkflowAction) => {
         if (action.type !== "send.email") return action;
         const config = action.config as { mode?: "manual" | "template"; emailTemplateId?: string };
         const mode = config.mode ?? "manual";

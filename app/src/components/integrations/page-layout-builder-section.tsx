@@ -690,7 +690,7 @@ export function PageLayoutBuilderSection() {
 		organization?.settings?.branding?.companyName?.trim() ||
 		organization?.name?.trim() ||
 		widgetName;
-	const brandColors = organization?.settings?.brandColors ?? {};
+	const brandColors = organization?.settings?.brandColors;
 
 	const [saving, setSaving] = useState(false);
 	const [selection, setSelection] = useState<BuilderSelection>("layout");
@@ -1116,22 +1116,22 @@ export function PageLayoutBuilderSection() {
 			...ctx?.previewStyling,
 			primaryColor:
 				ctx?.pageConfig?.primaryColor?.trim() ||
-				brandColors.primary ||
+				brandColors?.primary ||
 				ctx?.previewStyling?.primaryColor ||
 				"#2563eb",
 			secondaryColor:
-				brandColors.secondary ||
+				brandColors?.secondary ||
 				ctx?.previewStyling?.secondaryColor ||
 				"#6b7280",
 			successColor:
-				brandColors.accent ||
+				brandColors?.accent ||
 				ctx?.previewStyling?.successColor ||
 				"#10b981",
 		}),
 		[
-			brandColors.accent,
-			brandColors.primary,
-			brandColors.secondary,
+			brandColors?.accent,
+			brandColors?.primary,
+			brandColors?.secondary,
 			ctx?.pageConfig?.primaryColor,
 			ctx?.previewStyling,
 		],

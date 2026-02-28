@@ -7,7 +7,6 @@ import { EmailDesignerTemplateProvider } from "@/contexts/email-designer-templat
 import EmailDesignerPage from "./email-designer";
 import AppLayout from "@/components/layout";
 import type { EmailTemplateData, EmailTemplateDesignTokens } from "@/core";
-import { useTranslation } from "react-i18next";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CreateEmailTemplateDialog } from "@/components/email-designer/create-email-template-dialog";
 import {
@@ -25,7 +24,6 @@ const defaultTokens: EmailTemplateDesignTokens = {
 };
 
 export default function EmailDesignerWrapper() {
-	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();

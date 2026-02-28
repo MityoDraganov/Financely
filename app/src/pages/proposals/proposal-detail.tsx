@@ -41,8 +41,10 @@ export default function ProposalDetailPage() {
   const navigate = useNavigate();
   const { data: proposal, isLoading } = useProposal(id);
   const { data: lead, isLoading: isLeadLoading } = useLead(proposal?.leadId);
-  
-  const { data: contact, isLoading: isContactLoading } = useContact(lead?.contactId);
+
+  const { data: contact, isLoading: isContactLoading } = useContact(lead?.data?.contactId);
+  const leadData = lead?.data;
+  const contactData = contact?.data;
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
   const { data: emailTemplates = [], isLoading: isEmailTemplatesLoading } = useEmailTemplates(currentOrganization?.id || "");
@@ -64,12 +66,14 @@ export default function ProposalDetailPage() {
 
   const defaultProposalRecipientEmail = useMemo(() => {
     const formData =
-      lead?.formData && typeof lead.formData === "object" && lead.formData !== null
-        ? (lead.formData as Record<string, unknown>)
+      leadData?.formData &&
+      typeof leadData.formData === "object" &&
+      leadData.formData !== null
+        ? (leadData.formData as Record<string, unknown>)
         : {};
-    const emailCandidate = lead?.email || formData.email || contact?.email;
+    const emailCandidate = leadData?.email || formData.email || contactData?.email;
     return typeof emailCandidate === "string" ? emailCandidate : "";
-  }, [lead, contact]);
+  }, [leadData, contactData]);
 
   useEffect(() => {
     if (!proposalRecipientEmail && defaultProposalRecipientEmail) {
@@ -178,20 +182,23 @@ export default function ProposalDetailPage() {
   const statusConfig = getStatusConfig(proposal.status);
 
   // Extract client information
-  const clientFormData = lead?.formData && typeof lead.formData === 'object' && lead.formData !== null
-    ? lead.formData as Record<string, unknown>
+  const clientFormData =
+    leadData?.formData &&
+    typeof leadData.formData === "object" &&
+    leadData.formData !== null
+    ? (leadData.formData as Record<string, unknown>)
     : {};
 
-  const clientFirstName = contact?.firstName || lead?.firstName || clientFormData.firstName;
-  const clientLastName = contact?.lastName || lead?.lastName || clientFormData.lastName;
+  const clientFirstName = contactData?.firstName || leadData?.firstName || clientFormData.firstName;
+  const clientLastName = contactData?.lastName || leadData?.lastName || clientFormData.lastName;
   // Also support formData.name as a combined full-name fallback (e.g. "Test Finalov")
   const clientFullName = [clientFirstName, clientLastName].filter(Boolean).join(" ")
     || (typeof clientFormData.name === 'string' ? clientFormData.name : "");
-  const clientEmail = contact?.email || lead?.email || (typeof clientFormData.email === 'string' ? clientFormData.email : "");
-  const clientPhone = contact?.phone?.[0] || lead?.phone || (typeof clientFormData.phone === 'string' ? clientFormData.phone : "");
-  const clientCompany = contact?.company || lead?.company || (typeof clientFormData.company === 'string' ? clientFormData.company : "");
-  const clientJobTitle = contact?.jobTitle || lead?.jobTitle || (typeof clientFormData.jobTitle === 'string' ? clientFormData.jobTitle : "");
-  const clientAddress = contact?.address;
+  const clientEmail = contactData?.email || leadData?.email || (typeof clientFormData.email === 'string' ? clientFormData.email : "");
+  const clientPhone = contactData?.phone?.[0] || leadData?.phone || (typeof clientFormData.phone === 'string' ? clientFormData.phone : "");
+  const clientCompany = contactData?.company || leadData?.company || (typeof clientFormData.company === 'string' ? clientFormData.company : "");
+  const clientJobTitle = contactData?.jobTitle || leadData?.jobTitle || (typeof clientFormData.jobTitle === 'string' ? clientFormData.jobTitle : "");
+  const clientAddress = contactData?.address;
 
   return (
     <div className="py-6 pr-6 space-y-6">
@@ -407,11 +414,11 @@ export default function ProposalDetailPage() {
                   </CardTitle>
                   <div className="flex items-center gap-1">
                     <Badge variant="outline" className="text-xs py-0 h-5">
-                      {t(`leads.status.${lead.status || "new"}`)}
+                      {t(`leads.status.${leadData?.status || "new"}`)}
                     </Badge>
-                    {lead.widgetType && (
+                    {leadData?.widgetType && (
                       <Badge variant="secondary" className="text-xs py-0 h-5 capitalize">
-                        {t(`leads.widgetType.${lead.widgetType}`)}
+                        {t(`leads.widgetType.${leadData.widgetType}`)}
                       </Badge>
                     )}
                   </div>
@@ -500,22 +507,22 @@ export default function ProposalDetailPage() {
                     )}
 
                     {/* Social media */}
-                    {contact?.socialMedia && (
+                    {contactData?.socialMedia && (
                       <div className="flex items-center gap-2 pt-1">
-                        {contact.socialMedia.linkedin && (
-                          <a href={contact.socialMedia.linkedin} target="_blank" rel="noreferrer"
+                        {contactData.socialMedia.linkedin && (
+                          <a href={contactData.socialMedia.linkedin} target="_blank" rel="noreferrer"
                             className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
                             <Linkedin className="h-3.5 w-3.5 text-muted-foreground" />
                           </a>
                         )}
-                        {contact.socialMedia.twitter && (
-                          <a href={contact.socialMedia.twitter} target="_blank" rel="noreferrer"
+                        {contactData.socialMedia.twitter && (
+                          <a href={contactData.socialMedia.twitter} target="_blank" rel="noreferrer"
                             className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
                             <Twitter className="h-3.5 w-3.5 text-muted-foreground" />
                           </a>
                         )}
-                        {(contact.socialMedia.facebook || contact.socialMedia.instagram) && (
-                          <a href={contact.socialMedia.facebook || contact.socialMedia.instagram} target="_blank" rel="noreferrer"
+                        {(contactData.socialMedia.facebook || contactData.socialMedia.instagram) && (
+                          <a href={contactData.socialMedia.facebook || contactData.socialMedia.instagram} target="_blank" rel="noreferrer"
                             className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
                             <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                           </a>
@@ -524,13 +531,13 @@ export default function ProposalDetailPage() {
                     )}
 
                     {/* Tags */}
-                    {lead.tags && lead.tags.length > 0 && (
+                    {leadData?.tags && leadData.tags.length > 0 && (
                       <div className="flex items-start gap-3">
                         <div className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center">
                           <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {lead.tags.map((tag, idx) => (
+                          {leadData.tags.map((tag: string, idx: number) => (
                             <Badge key={idx} variant="secondary" className="text-xs py-0 px-2">
                               {tag}
                             </Badge>
@@ -541,7 +548,7 @@ export default function ProposalDetailPage() {
 
                     {/* Message */}
                     {(() => {
-                      const message = lead.message || clientFormData.message;
+                      const message = leadData?.message || clientFormData.message;
                       return message ? (
                         <div className="pt-3 border-t">
                           <div className="flex items-start gap-3">

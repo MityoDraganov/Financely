@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AuditLog } from "@/core";
-import { getSeverityColor, getStatusIcon, formatAction } from "./audit-log-table";
+import { getSeverityColor, getStatusIcon } from "./audit-log-table";
 
 interface AuditLogDetailDialogProps {
   log: AuditLog | null;

@@ -19,7 +19,6 @@ import {
 	Mail,
 	LayoutGrid,
 	TrendingUp,
-	Zap,
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-react";

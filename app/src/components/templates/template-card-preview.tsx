@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { FileText } from "lucide-react";
 import type { Template } from "@/core/entities/template";
 import { PAGE_SIZES } from "@/utils/template-preview-utils";

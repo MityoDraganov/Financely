@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 const DOCS_INTEGRATIONS_URL = "https://docs.financely.app/user-manual/integrations/widget-embed";
 

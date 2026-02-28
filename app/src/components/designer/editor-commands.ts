@@ -58,7 +58,7 @@ function stripBindings(element: TemplateElement): TemplateElement {
 	if (element.type === "input") return { ...element, binding: undefined };
 	if (element.type === "image") return { ...element, binding: undefined };
 	if (element.type === "currency") return { ...element, binding: undefined };
-	if (element.type === "table") return { ...element, itemsBinding: undefined };
+	if (element.type === "table") return { ...element, itemsBinding: "" };
 	return { ...element };
 }
 

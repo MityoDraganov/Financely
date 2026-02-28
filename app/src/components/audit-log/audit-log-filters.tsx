@@ -90,14 +90,6 @@ export function getDateRangeFromFilters(filters: AuditLogFiltersState): {
   }
 }
 
-function hasActiveFilters(filters: AuditLogFiltersState): boolean {
-  return (
-    filters.duration !== DEFAULT_FILTERS.duration ||
-    filters.memberIds.length > 0 ||
-    filters.actionTypes.length > 0
-  );
-}
-
 // ─── Duration Filter ──────────────────────────────────────────────────────────
 
 interface DurationFilterProps {

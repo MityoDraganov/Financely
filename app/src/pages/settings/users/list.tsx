@@ -17,13 +17,11 @@ import {
   XCircle,
   AlertCircle,
   RefreshCw,
-  Calendar,
   UserPlus,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -98,7 +96,6 @@ export default function UsersListPage() {
     createInvite,
     revokeInvite,
     copyToClipboard,
-    refetch: refetchInvites,
     isCreating: creating,
     isRevoking,
   } = useInviteActions();
@@ -324,7 +321,6 @@ export default function UsersListPage() {
   const isInviteExpired = (expiresAt: string) =>
     new Date(expiresAt) <= new Date();
 
-  const activeMembers = members.filter((m) => m.status === "active").length;
   const adminCount = members.filter(
     (m) =>
       m.role === ORGANIZATION_ROLES.ADMIN ||

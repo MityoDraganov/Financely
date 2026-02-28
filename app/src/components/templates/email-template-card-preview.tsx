@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode, useMemo } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { Mail } from "lucide-react";
 import type { EmailTemplate } from "@/core/entities/email-template";
 
@@ -53,7 +53,7 @@ export function EmailTemplateCardPreview({ template }: EmailTemplateCardPreviewP
   }
 
   // Extract HTML content
-  const htmlContent = template.htmlContent || template.body || "";
+  const htmlContent = template.htmlContent || "";
 
   // Calculate scale to fit card width (matching invoice template scale)
   const emailWidth = 600; // Standard email width
@@ -112,11 +112,11 @@ export function EmailTemplateCardPreview({ template }: EmailTemplateCardPreviewP
                     {template.subject || "No subject"}
                   </span>
                 </div>
-                {template.previewText && (
+                {template.preheader && (
                   <div className="flex items-start gap-2 text-xs">
                     <span className="font-medium text-muted-foreground shrink-0">Preview:</span>
                     <span className="text-muted-foreground line-clamp-1">
-                      {template.previewText}
+                      {template.preheader}
                     </span>
                   </div>
                 )}

@@ -275,7 +275,7 @@ function LeadDetailPanel({
   onManualProposal: () => void;
   isUpdating: boolean;
   t: (key: string) => string;
-  formatDateTime: (date: unknown) => string;
+  formatDateTime: (date: Date | string | number) => string;
 }) {
   const d = lead.data || lead;
   const fullName =
@@ -1144,8 +1144,6 @@ function ManualProposalDialog({
               </div>
 
               {proposalItems.map((item, index) => {
-                const lineTotal =
-                  item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100);
                 return (
                   <div
                     key={index}

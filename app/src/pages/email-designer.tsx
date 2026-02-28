@@ -1123,10 +1123,9 @@ export default function EmailDesignerPage() {
 		if (!target || target.type !== "container") return;
 
 		const containerBlock = target as Extract<EmailTemplateBlock, { type: "container" }>;
-		const movedBlock: EmailTemplateBlock = {
-			...removedBlock,
-			section: containerBlock.section || removedBlock.section || "body",
-		};
+		const targetSection: EmailSection =
+			containerBlock.section || removedBlock.section || "body";
+		const movedBlock = withMovedBlockSection(removedBlock, targetSection);
 		const updatedContainer: EmailTemplateBlock = {
 			...containerBlock,
 			blocks: [...(containerBlock.blocks || []), movedBlock],
@@ -2613,4 +2612,23 @@ function removeBlockFromTree(
 	}
 
 	return { blocks: nextBlocks, removedBlock };
+}
+
+function withMovedBlockSection(
+	block: EmailTemplateBlock,
+	requestedSection: EmailSection,
+): EmailTemplateBlock {
+	switch (block.type) {
+		case "subject":
+		case "preheader":
+		case "logo":
+		case "navigation":
+			return { ...block, section: "header" };
+		case "footerText":
+		case "socialLinks":
+		case "unsubscribe":
+			return { ...block, section: "footer" };
+		default:
+			return { ...block, section: requestedSection };
+	}
 }

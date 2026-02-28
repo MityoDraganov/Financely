@@ -162,7 +162,7 @@ export function InvoiceTableRow({
 	selectedProductId,
 	products,
 	onProductSelect,
-	onProductClear,
+	onProductClear: _onProductClear,
 	isMapping,
 	rowLockedFields,
 	onCellChange,

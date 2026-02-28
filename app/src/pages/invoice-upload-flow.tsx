@@ -723,10 +723,7 @@ export default function InvoiceUploadFlowPage() {
               <CardHeader>
                 <CardTitle>Extracted Data</CardTitle>
                 <CardDescription>
-                  {flowType === "template" 
-                    ? "Review and configure the template structure. Field values will be set when creating invoices from this template."
-                    : "Review the extracted data and generate a template. You can edit both field names and values."
-                  }
+                  Review the extracted data and generate a template. You can edit both field names and values.
                 </CardDescription>
               </CardHeader>
               <CardContent>
