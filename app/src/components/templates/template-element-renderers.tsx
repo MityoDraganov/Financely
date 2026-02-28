@@ -14,6 +14,7 @@ import { getTableGridTemplateColumns } from "@/utils/table-column-width";
 import { getTableTextBehaviorStyles, normalizeTableTextBehavior } from "@/utils/table-text-behavior";
 import { loadGoogleFonts } from "@/utils/google-fonts";
 import { resolveTemplateImageSource } from "@/utils/template-image-source";
+import { computeTableRuntimeLayout } from "@/utils/template-table-layout";
 
 type InvoicePreviewContext = unknown;
 
@@ -221,14 +222,10 @@ function calculateAdjustedY(
 	
 	_templateElements.forEach((otherEl) => {
 		if (otherEl.type === "table" && otherEl.id !== el.id) {
-			const items = getByPath<Array<Record<string, unknown>>>(context, (otherEl as Extract<TemplateElement, { type: "table" }>).itemsBinding) || [];
-			const headerHeight = (otherEl as Extract<TemplateElement, { type: "table" }>).headerHeight;
-			const minRowHeight = (otherEl as Extract<TemplateElement, { type: "table" }>).rowHeight;
-			const hasTotalingRow = (otherEl as Extract<TemplateElement, { type: "table" }>).columns.some((c) => c.showTotal);
-			const totalingRowHeight = hasTotalingRow ? minRowHeight : 0;
-			const actualHeight = headerHeight + (items.length * minRowHeight) + totalingRowHeight;
+			const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
+			const actualHeight = computeTableRuntimeLayout(tableEl, context).totalHeight;
 			// Original height is preview height (headerHeight + rowHeight)
-			const originalHeight = headerHeight + minRowHeight;
+			const originalHeight = tableEl.headerHeight + tableEl.rowHeight;
 			const heightDiff = actualHeight - originalHeight;
 			
 			if (heightDiff > 0) {
@@ -654,17 +651,20 @@ function renderTableElement(
 		el.footerStyle?.fontFamily || "Inter",
 	]);
 	const { context, page } = renderContext;
+	const tableLayout = computeTableRuntimeLayout(el, context);
 	const allItems = getByPath<Array<Record<string, unknown>>>(context, el.itemsBinding) || [];
 	
 	const slice = page.tableSlices[el.id];
 	const items = slice ? allItems.slice(slice.start, slice.end) : allItems;
+	const slicedRowHeights = slice
+		? tableLayout.rowHeights.slice(slice.start, slice.end)
+		: tableLayout.rowHeights;
 	const showTotals = slice ? slice.isLastSlice : true;
 	
 	const headerHeight = el.headerHeight;
-	const minRowHeight = el.rowHeight;
-	const actualContentHeight = items.length * minRowHeight;
-	const hasTotalingRow = el.columns.some((c) => c.showTotal) && showTotals;
-	const totalingRowHeight = hasTotalingRow ? minRowHeight : 0;
+	const actualContentHeight = slicedRowHeights.reduce((sum, height) => sum + height, 0);
+	const hasTotalingRow = tableLayout.hasTotalingRow && showTotals;
+	const totalingRowHeight = hasTotalingRow ? tableLayout.totalRowHeight : 0;
 	const totalTableHeight = headerHeight + actualContentHeight + totalingRowHeight;
 	const headerTextBehavior = normalizeTableTextBehavior(el.headerStyle?.textBehavior, "wrap");
 	const rowTextBehavior = normalizeTableTextBehavior(el.rowStyle?.textBehavior, "wrap");
@@ -690,10 +690,9 @@ function renderTableElement(
 	};
 	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
 	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
-	const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
-	const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
-	
-	const tableStyle = { ...style, height: totalTableHeight, overflow: "visible" };
+
+	// Keep table height deterministic so pagination math and visual rendering stay in sync.
+	const tableStyle = { ...style, height: totalTableHeight, overflow: "hidden" };
 	
 	return (
 		<div key={el.id} style={tableStyle}>
@@ -703,7 +702,7 @@ function renderTableElement(
 					height: "100%",
 					fontSize: 10,
 					color: "#374151",
-					overflow: "visible",
+					overflow: "hidden",
 					display: "flex",
 					flexDirection: "column",
 				}}
@@ -714,7 +713,8 @@ function renderTableElement(
 						display: "grid",
 						gridTemplateColumns: getTableGridTemplateColumns(el.columns),
 						borderBottom: "1px solid #e5e7eb",
-						minHeight: el.headerHeight,
+						height: el.headerHeight,
+						boxSizing: "border-box",
 					}}
 				>
 					{el.columns.map((c) => (
@@ -726,16 +726,17 @@ function renderTableElement(
 								padding: "4px",
 								fontWeight: 600,
 								minWidth: 0,
-								overflow: headerOverflowVisible ? "visible" : "hidden",
+								overflow: "hidden",
 							}}
 						>
 							<span style={{ ...headerTextStyle, ...headerTypographyStyle }}>{c.header}</span>
 						</div>
 					))}
 				</div>
-				<div style={{ flex: 1, minHeight: 0, overflow: "visible" }}>
+				<div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
 					{items.map((row, idx) => {
 						const actualIdx = slice ? slice.start + idx : idx;
+						const rowHeight = slicedRowHeights[idx] ?? el.rowHeight;
 						return (
 							<div
 								key={actualIdx}
@@ -746,8 +747,8 @@ function renderTableElement(
 										el.stripe && actualIdx % 2 === 1
 											? "1px solid #f3f4f6"
 											: "1px solid #e5e7eb",
-									minHeight: el.rowHeight,
-									padding: "4px 0",
+									height: rowHeight,
+									boxSizing: "border-box",
 								}}
 							>
 								{el.columns.map((c) => {
@@ -795,9 +796,10 @@ function renderTableElement(
 												alignItems: rowIsMultiline ? "flex-start" : "center",
 												justifyContent: justify,
 												padding: "4px",
-												minHeight: "20px",
+												height: "100%",
 												minWidth: 0,
-												overflow: rowOverflowVisible ? "visible" : "hidden",
+												overflow: "hidden",
+												boxSizing: "border-box",
 											}}
 										>
 											<span style={{ ...rowTextStyle, ...rowTypographyStyle }}>{text}</span>
@@ -815,7 +817,8 @@ function renderTableElement(
 								display: "grid",
 								gridTemplateColumns: getTableGridTemplateColumns(el.columns),
 								borderBottom: "1px solid #e5e7eb",
-								minHeight: el.rowHeight,
+								height: tableLayout.totalRowHeight,
+								boxSizing: "border-box",
 							}}
 						>
 							{el.columns.map((c) => {
@@ -831,7 +834,8 @@ function renderTableElement(
 												: "flex-start",
 									padding: "4px",
 									minWidth: 0,
-									overflow: rowOverflowVisible ? "visible" : "hidden",
+									overflow: "hidden",
+									boxSizing: "border-box",
 								};
 								
 								if (c.showTotal && (c.type === "number" || c.type === "currency")) {
