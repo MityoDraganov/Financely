@@ -198,6 +198,28 @@ function calculateElementStyle(
 	};
 }
 
+function getEffectiveElementWidth(
+	element: TemplateElement,
+	pageSize: { w: number; h: number },
+	margins: { top: number; right: number; bottom: number; left: number }
+): number {
+	const clampedX = Math.max(
+		margins.left,
+		Math.min(element.x, pageSize.w - margins.right)
+	);
+	const maxWidth = Math.max(0, pageSize.w - margins.right - clampedX);
+	return Math.max(0, Math.min(element.width, maxWidth));
+}
+
+function getNumericWidth(value: React.CSSProperties["width"]): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string") {
+		const parsed = Number.parseFloat(value);
+		if (Number.isFinite(parsed)) return parsed;
+	}
+	return undefined;
+}
+
 /**
  * Calculate adjusted Y position accounting for table expansion
  * This recalculates the same adjustment logic used in pagination
@@ -223,7 +245,9 @@ function calculateAdjustedY(
 	_templateElements.forEach((otherEl) => {
 		if (otherEl.type === "table" && otherEl.id !== el.id) {
 			const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
-			const actualHeight = computeTableRuntimeLayout(tableEl, context).totalHeight;
+			const actualHeight = computeTableRuntimeLayout(tableEl, context, {
+				layoutWidth: getEffectiveElementWidth(tableEl, pageSize, margins),
+			}).totalHeight;
 			// Original height is preview height (headerHeight + rowHeight)
 			const originalHeight = tableEl.headerHeight + tableEl.rowHeight;
 			const heightDiff = actualHeight - originalHeight;
@@ -645,13 +669,16 @@ function renderTableElement(
 	style: ElementStyle,
 	renderContext: RenderContext
 ): React.ReactNode {
+	const tableTextLineHeight = 1.5;
 	loadGoogleFonts([
 		el.headerStyle?.fontFamily || "Inter",
 		el.rowStyle?.fontFamily || "Inter",
 		el.footerStyle?.fontFamily || "Inter",
 	]);
 	const { context, page } = renderContext;
-	const tableLayout = computeTableRuntimeLayout(el, context);
+	const tableLayout = computeTableRuntimeLayout(el, context, {
+		layoutWidth: getNumericWidth(style.width) ?? el.width,
+	});
 	const allItems = getByPath<Array<Record<string, unknown>>>(context, el.itemsBinding) || [];
 	
 	const slice = page.tableSlices[el.id];
@@ -681,12 +708,14 @@ function renderTableElement(
 		fontSize: el.headerStyle?.fontSize || 10,
 		fontWeight: normalizeTableFontWeight(el.headerStyle?.fontWeight),
 		color: el.headerStyle?.color || "#374151",
+		lineHeight: tableTextLineHeight,
 	};
 	const rowTypographyStyle: React.CSSProperties = {
 		fontFamily: el.rowStyle?.fontFamily || "Inter",
 		fontSize: el.rowStyle?.fontSize || 10,
 		fontWeight: normalizeTableFontWeight(el.rowStyle?.fontWeight),
 		color: el.rowStyle?.color || "#374151",
+		lineHeight: tableTextLineHeight,
 	};
 	const headerIsMultiline = ["wrap", "break-words", "clamp"].includes(headerTextBehavior.mode);
 	const rowIsMultiline = ["wrap", "break-words", "clamp"].includes(rowTextBehavior.mode);
@@ -723,7 +752,7 @@ function renderTableElement(
 							style={{
 								display: "flex",
 								alignItems: headerIsMultiline ? "flex-start" : "center",
-								padding: "4px",
+								padding: "6px 4px",
 								fontWeight: 600,
 								minWidth: 0,
 								overflow: "hidden",
@@ -749,6 +778,7 @@ function renderTableElement(
 											: "1px solid #e5e7eb",
 									height: rowHeight,
 									boxSizing: "border-box",
+									overflow: "hidden",
 								}}
 							>
 								{el.columns.map((c) => {
@@ -795,7 +825,7 @@ function renderTableElement(
 												display: "flex",
 												alignItems: rowIsMultiline ? "flex-start" : "center",
 												justifyContent: justify,
-												padding: "4px",
+												padding: "6px 4px",
 												height: "100%",
 												minWidth: 0,
 												overflow: "hidden",
@@ -832,7 +862,7 @@ function renderTableElement(
 											: c.align === "center"
 												? "center"
 												: "flex-start",
-									padding: "4px",
+									padding: "6px 4px",
 									minWidth: 0,
 									overflow: "hidden",
 									boxSizing: "border-box",

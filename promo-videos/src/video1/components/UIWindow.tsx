@@ -101,7 +101,7 @@ const NAV_ITEMS: { label: string; Icon: LucideIcon }[] = [
   { label: "Templates",  Icon: FolderOpen },
   { label: "Designer",   Icon: Brush },
   { label: "Contacts",   Icon: Users },
-  { label: "Site Builder", Icon: Sparkles },
+  { label: "Integrations", Icon: Sparkles },
   { label: "Workflows",  Icon: Zap },
   { label: "Products",   Icon: Package },
   { label: "Settings",   Icon: Settings },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Template, TemplateElement } from "@/core/entities/template";
 import { paginateTemplate } from "./template-pagination";
+import { computeTableRuntimeLayout } from "./template-table-layout";
 
 const ZERO_SPACING = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -63,6 +64,14 @@ function createTableElement(overrides?: Partial<Extract<TemplateElement, { type:
 	};
 }
 
+function expectedTableGrowth(
+	table: Extract<TemplateElement, { type: "table" }>,
+	context: unknown
+): number {
+	const layout = computeTableRuntimeLayout(table, context);
+	return layout.totalHeight - (table.headerHeight + table.rowHeight);
+}
+
 describe("paginateTemplate table background growth", () => {
 	it("grows a box background that tightly frames a table behind it", () => {
 		const background: Extract<TemplateElement, { type: "box" }> = {
@@ -97,10 +106,10 @@ describe("paginateTemplate table background growth", () => {
 		const renderedBackground = pages[0]?.elements.find((el) => el.id === background.id) as
 			| Extract<TemplateElement, { type: "box" }>
 			| undefined;
+		const growth = expectedTableGrowth(table, context);
 
 		expect(renderedBackground).toBeDefined();
-		// Original table height = 20 + 20 = 40; actual = 20 + 5*20 = 120; growth = 80.
-		expect(renderedBackground?.height).toBe(background.height + 80);
+		expect(renderedBackground?.height).toBe(background.height + growth);
 	});
 
 	it("does not grow broad wrapper backgrounds that are not table-specific", () => {
@@ -176,9 +185,10 @@ describe("paginateTemplate table background growth", () => {
 		const renderedPath = pages[0]?.elements.find((el) => el.id === pathBackground.id) as
 			| Extract<TemplateElement, { type: "path" }>
 			| undefined;
+		const growth = expectedTableGrowth(table, context);
 
 		expect(renderedPath).toBeDefined();
-		expect(renderedPath?.height).toBe(pathBackground.height + 80);
+		expect(renderedPath?.height).toBe(pathBackground.height + growth);
 	});
 
 	it("grows a bottom-aligned background even when it is not tightly framed", () => {
@@ -214,9 +224,10 @@ describe("paginateTemplate table background growth", () => {
 		const renderedBackground = pages[0]?.elements.find(
 			(el) => el.id === wideBackground.id
 		) as Extract<TemplateElement, { type: "box" }> | undefined;
+		const growth = expectedTableGrowth(table, context);
 
 		expect(renderedBackground).toBeDefined();
-		expect(renderedBackground?.height).toBe(wideBackground.height + 80);
+		expect(renderedBackground?.height).toBe(wideBackground.height + growth);
 	});
 
 	it("grows a tall background that covers table top and extends far below", () => {
@@ -252,9 +263,10 @@ describe("paginateTemplate table background growth", () => {
 		const renderedBackground = pages[0]?.elements.find(
 			(el) => el.id === tallBackground.id
 		) as Extract<TemplateElement, { type: "box" }> | undefined;
+		const growth = expectedTableGrowth(table, context);
 
 		expect(renderedBackground).toBeDefined();
-		expect(renderedBackground?.height).toBe(tallBackground.height + 80);
+		expect(renderedBackground?.height).toBe(tallBackground.height + growth);
 	});
 
 	it("grows a bottom-aligned background when z-index is equal to the table", () => {
@@ -290,9 +302,10 @@ describe("paginateTemplate table background growth", () => {
 		const renderedBackground = pages[0]?.elements.find(
 			(el) => el.id === equalZBackground.id
 		) as Extract<TemplateElement, { type: "box" }> | undefined;
+		const growth = expectedTableGrowth(table, context);
 
 		expect(renderedBackground).toBeDefined();
-		expect(renderedBackground?.height).toBe(equalZBackground.height + 80);
+		expect(renderedBackground?.height).toBe(equalZBackground.height + growth);
 	});
 
 	it("moves elements below a table when wrapped row content increases runtime row height", () => {
@@ -347,5 +360,62 @@ describe("paginateTemplate table background growth", () => {
 		);
 
 		expect(pageIndexWithBelowBox).toBe(1);
+	});
+
+	it("uses full-page row capacity on continuation pages", () => {
+		const table = createTableElement({
+			y: 50,
+			rowHeight: 20,
+			headerHeight: 20,
+			rowStyle: {
+				fontSize: 10,
+				textBehavior: { mode: "nowrap" },
+			},
+		});
+		const template = createTemplate([table]);
+		const context = {
+			items: Array.from({ length: 30 }, (_, index) => ({
+				description: `Item ${index + 1}`,
+			})),
+		};
+
+		const pages = paginateTemplate(template, context, { w: 600, h: 200 });
+		const sliceCounts = pages
+			.map((page) => page.tableSlices[table.id])
+			.filter((slice): slice is NonNullable<typeof slice> => Boolean(slice))
+			.map((slice) => slice.end - slice.start);
+
+		expect(sliceCounts.length).toBeGreaterThanOrEqual(3);
+		expect(sliceCounts[1]).toBeGreaterThan(sliceCounts[0]);
+		const continuationSlices = sliceCounts.slice(1, -1);
+		const uniqueContinuationCounts = new Set(continuationSlices);
+		expect(uniqueContinuationCounts.size).toBe(1);
+	});
+
+	it("moves a row to the next page when it does not fit in remaining space", () => {
+		const table = createTableElement({
+			y: 170,
+			rowHeight: 20,
+			headerHeight: 20,
+			rowStyle: {
+				fontSize: 10,
+				textBehavior: { mode: "nowrap" },
+			},
+		});
+		const template = createTemplate([table]);
+		const context = {
+			items: [
+				{ description: "First" },
+				{ description: "Second" },
+			],
+		};
+
+		const pages = paginateTemplate(template, context, { w: 600, h: 200 });
+		const firstPageSlice = pages[0]?.tableSlices[table.id];
+		const secondPageSlice = pages[1]?.tableSlices[table.id];
+
+		expect(firstPageSlice).toBeUndefined();
+		expect(secondPageSlice).toBeDefined();
+		expect(secondPageSlice?.start).toBe(0);
 	});
 });

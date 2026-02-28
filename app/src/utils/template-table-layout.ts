@@ -1,22 +1,29 @@
 import type { TemplateElement } from "@/core/entities/template";
 import { getEditableTableColumnWidth } from "./table-column-width";
-import { normalizeTableTextBehavior, type TableTextBehavior } from "./table-text-behavior";
+import {
+	normalizeTableTextBehavior,
+	type TableTextBehavior,
+} from "./table-text-behavior";
 import { formatValue, getByPath } from "./template-preview-utils";
 
 const DEFAULT_FONT_SIZE_PX = 10;
-const DEFAULT_LINE_HEIGHT_MULTIPLIER = 1.2;
+const DEFAULT_LINE_HEIGHT_MULTIPLIER = 1.5;
 const CELL_HORIZONTAL_PADDING_PX = 8;
-const CELL_VERTICAL_PADDING_PX = 8;
+const CELL_VERTICAL_PADDING_PX = 12;
+const CELL_DESCENT_GUARD_PX = 4;
+const ROW_BORDER_ALLOWANCE_PX = 1;
+const WRAP_HORIZONTAL_SAFETY_PX = 6;
+const WRAP_VERTICAL_SAFETY_PX = 4;
 const MIN_CELL_CONTENT_WIDTH_PX = 8;
 
 type TableElement = Extract<TemplateElement, { type: "table" }>;
-
 type TableColumn = TableElement["columns"][number];
 
 type TextMeasurementOptions = {
 	fontFamily: string;
 	fontSizePx: number;
 	fontWeight: number;
+	lineHeightMultiplier: number;
 };
 
 export type TableRuntimeLayout = {
@@ -28,18 +35,51 @@ export type TableRuntimeLayout = {
 	totalHeight: number;
 };
 
-let measurementContext: CanvasRenderingContext2D | null | undefined;
+type TableRuntimeLayoutOptions = {
+	layoutWidth?: number;
+};
+
+let measurementCanvasContext: CanvasRenderingContext2D | null | undefined;
+let measurementElement: HTMLDivElement | null | undefined;
 
 function getMeasurementContext(): CanvasRenderingContext2D | null {
-	if (measurementContext !== undefined) return measurementContext;
+	if (measurementCanvasContext !== undefined) return measurementCanvasContext;
 	if (typeof document === "undefined") {
-		measurementContext = null;
-		return measurementContext;
+		measurementCanvasContext = null;
+		return measurementCanvasContext;
 	}
 
 	const canvas = document.createElement("canvas");
-	measurementContext = canvas.getContext("2d");
-	return measurementContext;
+	measurementCanvasContext = canvas.getContext("2d");
+	return measurementCanvasContext;
+}
+
+function getMeasurementElement(): HTMLDivElement | null {
+	if (measurementElement !== undefined) return measurementElement;
+	if (typeof document === "undefined") {
+		measurementElement = null;
+		return measurementElement;
+	}
+
+	const el = document.createElement("div");
+	el.setAttribute("aria-hidden", "true");
+	el.style.position = "fixed";
+	el.style.left = "-10000px";
+	el.style.top = "0";
+	el.style.visibility = "hidden";
+	el.style.pointerEvents = "none";
+	el.style.zIndex = "-1";
+	el.style.boxSizing = "border-box";
+	el.style.padding = "0";
+	el.style.margin = "0";
+	el.style.border = "0";
+	el.style.minWidth = "0";
+	el.style.maxWidth = "none";
+	el.style.width = "0";
+	el.style.lineHeight = "normal";
+	document.body.appendChild(el);
+	measurementElement = el;
+	return measurementElement;
 }
 
 function normalizeFontWeight(value: unknown): number {
@@ -52,11 +92,71 @@ function normalizeFontWeight(value: unknown): number {
 function measureTextWidth(text: string, options: TextMeasurementOptions): number {
 	const context = getMeasurementContext();
 	if (!context) {
-		// SSR/test fallback: good-enough approximation.
 		return text.length * options.fontSizePx * 0.55;
 	}
 	context.font = `${options.fontWeight} ${options.fontSizePx}px ${options.fontFamily}`;
 	return context.measureText(text).width;
+}
+
+function applyTextBehaviorStyles(
+	element: HTMLDivElement,
+	behavior: TableTextBehavior
+): void {
+	// Reset relevant properties before applying behavior.
+	element.style.display = "block";
+	element.style.whiteSpace = "normal";
+	element.style.wordBreak = "normal";
+	element.style.overflowWrap = "normal";
+	element.style.textOverflow = "clip";
+	element.style.overflow = "visible";
+	element.style.setProperty("-webkit-box-orient", "initial");
+	element.style.setProperty("-webkit-line-clamp", "initial");
+
+	switch (behavior.mode) {
+		case "nowrap":
+			element.style.whiteSpace = "nowrap";
+			element.style.overflow = "hidden";
+			break;
+		case "break-words":
+			element.style.whiteSpace = "normal";
+			element.style.wordBreak = "normal";
+			element.style.overflowWrap = "anywhere";
+			break;
+		case "ellipsis":
+			element.style.whiteSpace = "nowrap";
+			element.style.overflow = "hidden";
+			element.style.textOverflow = "ellipsis";
+			break;
+		case "clamp":
+			element.style.display = "-webkit-box";
+			element.style.whiteSpace = "normal";
+			element.style.wordBreak = "normal";
+			element.style.overflowWrap = "anywhere";
+			element.style.overflow = "hidden";
+			element.style.setProperty("-webkit-box-orient", "vertical");
+			element.style.setProperty(
+				"-webkit-line-clamp",
+				String(behavior.clampLines ?? 2)
+			);
+			break;
+		case "wrap":
+		default:
+			element.style.whiteSpace = "normal";
+			element.style.wordBreak = "normal";
+			element.style.overflowWrap = "normal";
+			break;
+	}
+}
+
+function getMeasurementWidth(
+	availableWidth: number,
+	behavior: TableTextBehavior
+): number {
+	const horizontalSafety =
+		behavior.mode === "wrap" || behavior.mode === "break-words"
+			? WRAP_HORIZONTAL_SAFETY_PX
+			: 0;
+	return Math.max(MIN_CELL_CONTENT_WIDTH_PX, availableWidth - horizontalSafety);
 }
 
 function countLinesByWordWrap(
@@ -129,7 +229,7 @@ function countLinesByCharacterWrap(
 	return Math.max(1, lines);
 }
 
-function estimateCellLineCount(
+function estimateCellLineCountFallback(
 	text: string,
 	availableWidth: number,
 	behavior: TableTextBehavior,
@@ -137,10 +237,7 @@ function estimateCellLineCount(
 ): number {
 	if (!text) return 1;
 	if (availableWidth <= 0) return 1;
-
-	if (behavior.mode === "nowrap" || behavior.mode === "ellipsis") {
-		return 1;
-	}
+	if (behavior.mode === "nowrap" || behavior.mode === "ellipsis") return 1;
 
 	const wrappedLines =
 		behavior.mode === "break-words" || behavior.mode === "clamp"
@@ -152,6 +249,50 @@ function estimateCellLineCount(
 	}
 
 	return wrappedLines;
+}
+
+function measureCellContentHeight(
+	text: string,
+	availableWidth: number,
+	behavior: TableTextBehavior,
+	options: TextMeasurementOptions
+): number {
+	if (!text) {
+		return options.fontSizePx * DEFAULT_LINE_HEIGHT_MULTIPLIER;
+	}
+	if (availableWidth <= 0) {
+		return options.fontSizePx * DEFAULT_LINE_HEIGHT_MULTIPLIER;
+	}
+
+	const element = getMeasurementElement();
+	if (element) {
+		const measuredWidth = getMeasurementWidth(availableWidth, behavior);
+		element.style.width = `${Math.max(1, measuredWidth)}px`;
+		element.style.fontFamily = options.fontFamily;
+		element.style.fontSize = `${options.fontSizePx}px`;
+		element.style.fontWeight = String(options.fontWeight);
+		element.style.lineHeight = String(options.lineHeightMultiplier);
+		applyTextBehaviorStyles(element, behavior);
+		element.textContent = text;
+		const rectHeight = element.getBoundingClientRect().height;
+		const measured =
+			behavior.mode === "clamp"
+				? rectHeight
+				: Math.max(rectHeight, element.scrollHeight);
+		element.textContent = "";
+		if (Number.isFinite(measured) && measured > 0) {
+			return Math.ceil(measured + CELL_DESCENT_GUARD_PX);
+		}
+	}
+
+	const lineCount = estimateCellLineCountFallback(
+		text,
+		availableWidth,
+		behavior,
+		options
+	);
+	const lineHeightPx = options.fontSizePx * options.lineHeightMultiplier;
+	return Math.ceil(lineCount * lineHeightPx + CELL_DESCENT_GUARD_PX);
 }
 
 function resolveColumnWidths(tableWidth: number, columns: TableColumn[]): number[] {
@@ -215,7 +356,8 @@ function calculateRowHeight(
 	row: Record<string, unknown>,
 	columnWidths: number[],
 	behavior: TableTextBehavior,
-	options: TextMeasurementOptions
+	options: TextMeasurementOptions,
+	cache: Map<string, number>
 ): number {
 	let rowHeight = table.rowHeight;
 
@@ -226,9 +368,35 @@ function calculateRowHeight(
 			MIN_CELL_CONTENT_WIDTH_PX,
 			columnWidths[columnIndex] - CELL_HORIZONTAL_PADDING_PX
 		);
-		const lineCount = estimateCellLineCount(cellText, availableWidth, behavior, options);
-		const lineHeightPx = options.fontSizePx * DEFAULT_LINE_HEIGHT_MULTIPLIER;
-		const cellHeight = Math.ceil(lineCount * lineHeightPx + CELL_VERTICAL_PADDING_PX);
+		const key = [
+			cellText,
+			availableWidth,
+			behavior.mode,
+			behavior.clampLines ?? "",
+			options.fontFamily,
+			options.fontSizePx,
+			options.fontWeight,
+		].join("|");
+		let contentHeight = cache.get(key);
+		if (contentHeight == null) {
+			contentHeight = measureCellContentHeight(
+				cellText,
+				availableWidth,
+				behavior,
+				options
+			);
+			cache.set(key, contentHeight);
+		}
+		const wrapVerticalSafety =
+			behavior.mode === "wrap" || behavior.mode === "break-words"
+				? WRAP_VERTICAL_SAFETY_PX
+				: 0;
+		const cellHeight = Math.ceil(
+			contentHeight +
+				CELL_VERTICAL_PADDING_PX +
+				ROW_BORDER_ALLOWANCE_PX +
+				wrapVerticalSafety
+		);
 		rowHeight = Math.max(rowHeight, cellHeight);
 	}
 
@@ -240,7 +408,8 @@ function calculateTotalsRowHeight(
 	allItems: Array<Record<string, unknown>>,
 	columnWidths: number[],
 	behavior: TableTextBehavior,
-	baseOptions: TextMeasurementOptions
+	baseOptions: TextMeasurementOptions,
+	cache: Map<string, number>
 ): number {
 	let totalsRowHeight = table.rowHeight;
 
@@ -269,12 +438,39 @@ function calculateTotalsRowHeight(
 			columnWidths[columnIndex] - CELL_HORIZONTAL_PADDING_PX
 		);
 		const fontSizePx = column.totalStyle?.fontSize ?? baseOptions.fontSizePx;
-		const lineCount = estimateCellLineCount(text, availableWidth, behavior, {
+		const options = {
 			...baseOptions,
 			fontSizePx,
-		});
-		const lineHeightPx = fontSizePx * DEFAULT_LINE_HEIGHT_MULTIPLIER;
-		const cellHeight = Math.ceil(lineCount * lineHeightPx + CELL_VERTICAL_PADDING_PX);
+		};
+		const key = [
+			text,
+			availableWidth,
+			behavior.mode,
+			behavior.clampLines ?? "",
+			options.fontFamily,
+			options.fontSizePx,
+			options.fontWeight,
+		].join("|");
+		let contentHeight = cache.get(key);
+		if (contentHeight == null) {
+			contentHeight = measureCellContentHeight(
+				text,
+				availableWidth,
+				behavior,
+				options
+			);
+			cache.set(key, contentHeight);
+		}
+		const wrapVerticalSafety =
+			behavior.mode === "wrap" || behavior.mode === "break-words"
+				? WRAP_VERTICAL_SAFETY_PX
+				: 0;
+		const cellHeight = Math.ceil(
+			contentHeight +
+				CELL_VERTICAL_PADDING_PX +
+				ROW_BORDER_ALLOWANCE_PX +
+				wrapVerticalSafety
+		);
 		totalsRowHeight = Math.max(totalsRowHeight, cellHeight);
 	}
 
@@ -283,23 +479,44 @@ function calculateTotalsRowHeight(
 
 export function computeTableRuntimeLayout(
 	table: TableElement,
-	context: unknown
+	context: unknown,
+	options?: TableRuntimeLayoutOptions
 ): TableRuntimeLayout {
 	const items = getByPath<Array<Record<string, unknown>>>(context, table.itemsBinding) || [];
-	const columnWidths = resolveColumnWidths(table.width, table.columns);
+	const effectiveWidth =
+		typeof options?.layoutWidth === "number" && Number.isFinite(options.layoutWidth)
+			? Math.max(0, options.layoutWidth)
+			: table.width;
+	const columnWidths = resolveColumnWidths(effectiveWidth, table.columns);
 	const rowBehavior = normalizeTableTextBehavior(table.rowStyle?.textBehavior, "wrap");
 	const textOptions: TextMeasurementOptions = {
 		fontFamily: table.rowStyle?.fontFamily || "Inter",
 		fontSizePx: table.rowStyle?.fontSize || DEFAULT_FONT_SIZE_PX,
 		fontWeight: normalizeFontWeight(table.rowStyle?.fontWeight),
+		lineHeightMultiplier: DEFAULT_LINE_HEIGHT_MULTIPLIER,
 	};
+	const measurementCache = new Map<string, number>();
 
 	const rowHeights = items.map((row) =>
-		calculateRowHeight(table, row, columnWidths, rowBehavior, textOptions)
+		calculateRowHeight(
+			table,
+			row,
+			columnWidths,
+			rowBehavior,
+			textOptions,
+			measurementCache
+		)
 	);
 	const hasTotalingRow = table.columns.some((column) => column.showTotal);
 	const totalRowHeight = hasTotalingRow
-		? calculateTotalsRowHeight(table, items, columnWidths, rowBehavior, textOptions)
+		? calculateTotalsRowHeight(
+				table,
+				items,
+				columnWidths,
+				rowBehavior,
+				textOptions,
+				measurementCache
+			)
 		: 0;
 	const bodyHeight = rowHeights.reduce((sum, height) => sum + height, 0);
 	const totalHeight = table.headerHeight + bodyHeight + totalRowHeight;

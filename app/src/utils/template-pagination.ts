@@ -40,6 +40,19 @@ const BACKGROUND_BOTTOM_ALIGNMENT_TOLERANCE = 24;
 const BACKGROUND_MIN_HORIZONTAL_OVERLAP_PX = 24;
 const BACKGROUND_MIN_VERTICAL_OVERLAP_PX = 12;
 
+function getEffectiveElementWidth(
+	element: TemplateElement,
+	pageSize: { w: number; h: number },
+	margins: { top: number; right: number; bottom: number; left: number }
+): number {
+	const clampedX = Math.max(
+		margins.left,
+		Math.min(element.x, pageSize.w - margins.right)
+	);
+	const maxWidth = Math.max(0, pageSize.w - margins.right - clampedX);
+	return Math.max(0, Math.min(element.width, maxWidth));
+}
+
 function isBehindByZIndex(
 	background: TemplateElement,
 	backgroundOrder: number,
@@ -191,7 +204,8 @@ export function paginateTemplate(
 	const tableGrowthById = new Map<string, TableGrowthMeta>();
 	for (const el of sortedElements) {
 		if (el.type !== "table") continue;
-		const layout = computeTableRuntimeLayout(el, context);
+		const layoutWidth = getEffectiveElementWidth(el, pageSize, margins);
+		const layout = computeTableRuntimeLayout(el, context, { layoutWidth });
 		const originalHeight = el.headerHeight + el.rowHeight;
 		const actualHeight = layout.totalHeight;
 		tableGrowthById.set(el.id, {
@@ -233,7 +247,11 @@ export function paginateTemplate(
 			// Handle table pagination
 			const tbl = el;
 			const tableMeta = tableGrowthById.get(tbl.id);
-			const tableLayout = tableMeta?.layout ?? computeTableRuntimeLayout(tbl, context);
+			const tableLayout =
+				tableMeta?.layout ??
+				computeTableRuntimeLayout(tbl, context, {
+					layoutWidth: getEffectiveElementWidth(tbl, pageSize, margins),
+				});
 			const rowHeights = tableLayout.rowHeights;
 			const itemCount = rowHeights.length;
 			const hasTotalingRow = tableLayout.hasTotalingRow;
@@ -251,7 +269,10 @@ export function paginateTemplate(
 					const prevOriginalHeight =
 						prevMeta?.originalHeight ?? (prevTbl.headerHeight + prevTbl.rowHeight);
 					const prevActualHeight =
-						prevMeta?.actualHeight ?? computeTableRuntimeLayout(prevTbl, context).totalHeight;
+						prevMeta?.actualHeight ??
+						computeTableRuntimeLayout(prevTbl, context, {
+							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
+						}).totalHeight;
 					const prevTableBottom = prevEl.y + prevOriginalHeight;
 
 					// If this table is below the previous table, add the expansion
@@ -278,8 +299,9 @@ export function paginateTemplate(
 			let emittedAtLeastOneSlice = false;
 
 			while (rowStart < itemCount || !emittedAtLeastOneSlice) {
-				// Calculate Y position within current page
-				const yInPage = tableStartY - currentTablePageY;
+				// Only the first slice starts at the table's original Y offset.
+				// Continuation slices always start from the top of the next page.
+				const yInPage = rowStart === 0 ? tableStartY - currentTablePageY : 0;
 
 				// If table start is beyond current page, move to next page
 				if (yInPage >= usableHeight) {
@@ -324,9 +346,24 @@ export function paginateTemplate(
 					}
 				}
 
+				// If no row fits in the remaining area but the next row can fit on a fresh page,
+				// push it to the next page instead of clipping it at the current page bottom.
+				const nextRowHeight = rowHeights[rowStart] ?? tbl.rowHeight;
+				if (
+					itemCount > rowStart &&
+					rowEnd === rowStart &&
+					yInPage > 0 &&
+					nextRowHeight <= Math.max(0, usableHeight - tbl.headerHeight)
+				) {
+					currentTablePageY += usableHeight;
+					currentTablePageIndex += 1;
+					continue;
+				}
+
 				// Safety fallback: force one row to avoid deadlocks on very tall content rows.
 				if (itemCount > rowStart && rowEnd === rowStart) {
 					rowEnd = rowStart + 1;
+					usedRowsHeight = nextRowHeight;
 				}
 
 				const isLastSlice = rowEnd >= itemCount;
@@ -360,7 +397,10 @@ export function paginateTemplate(
 					const prevOriginalHeight =
 						prevMeta?.originalHeight ?? (prevTbl.headerHeight + prevTbl.rowHeight);
 					const prevActualHeight =
-						prevMeta?.actualHeight ?? computeTableRuntimeLayout(prevTbl, context).totalHeight;
+						prevMeta?.actualHeight ??
+						computeTableRuntimeLayout(prevTbl, context, {
+							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
+						}).totalHeight;
 					const prevTableBottom = prevEl.y + prevOriginalHeight;
 
 					// If this element is below the previous table, add the expansion
