@@ -1,9 +1,9 @@
 /**
- * IntegrationsScene — 3-phase animation of the Site Builder / Integrations page
+ * IntegrationsScene — 3-phase animation of the Integrations page
  *
  * Phase 1 (fr 0–46):   Widget listing grid (select or create a widget)
  * Phase 2 (fr 40–96):  Widget builder open — Design tab (block palette + form preview + properties)
- * Phase 3 (fr 90–155): Share tab — embed script + iframe code snippets
+ * Phase 3 (fr 90–155): Share & Embed tab — embed script + iframe code snippets
  */
 import React from "react";
 import {
@@ -17,10 +17,15 @@ import {
   Plus,
   Copy,
   ExternalLink,
-  ArrowLeft,
   CheckCircle2,
+  Palette,
+  Code2,
+  Blocks,
+  Zap,
+  Lock,
+  ChevronDown,
 } from "lucide-react";
-import { L, AppShell, PrimaryButton } from "../components/UIWindow";
+import { L, AppShell, PrimaryButton, OutlineButton } from "../components/UIWindow";
 
 // ── AnimIn spring helper ──────────────────────────────────────────────────────
 const AnimIn: React.FC<{
@@ -49,8 +54,7 @@ const AnimIn: React.FC<{
 const WidgetCard: React.FC<{
   name: string;
   status: "published" | "draft";
-  description?: string;
-}> = ({ name, status, description }) => (
+}> = ({ name, status }) => (
   <div
     style={{
       background: L.CARD,
@@ -83,11 +87,6 @@ const WidgetCard: React.FC<{
         <div style={{ fontSize: 14, fontWeight: 600, color: L.TEXT, lineHeight: 1.3 }}>
           {name}
         </div>
-        {description && (
-          <div style={{ fontSize: 11, color: L.TEXT_MUTED, marginTop: 3, lineHeight: 1.4 }}>
-            {description}
-          </div>
-        )}
       </div>
     </div>
     <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 6 }}>
@@ -143,38 +142,50 @@ const CreateCard: React.FC = () => (
 // ── Phase 1: Widget listing ───────────────────────────────────────────────────
 const WidgetListing: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => (
   <div style={{ padding: "26px 32px", height: "100%", overflow: "hidden" }}>
+    {/* Header — mirrors IntegrationsHeader */}
     <AnimIn frame={frame} fps={fps} delay={0}>
       <div
         style={{
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
-          marginBottom: 24,
+          paddingBottom: 20,
+          borderBottom: `1px solid ${L.BORDER}`,
+          marginBottom: 28,
         }}
       >
         <div>
           <div
             style={{
-              fontSize: 24,
-              fontWeight: 700,
+              fontSize: 22,
+              fontWeight: 600,
               color: L.TEXT,
-              letterSpacing: "-0.4px",
-              marginBottom: 3,
+              letterSpacing: "-0.3px",
             }}
           >
-            Site Builder
-          </div>
-          <div style={{ fontSize: 13, color: L.TEXT_MUTED }}>
-            Create embeddable widgets and forms for your website
+            Integration Widgets
           </div>
         </div>
-        <PrimaryButton>
-          <Plus size={14} />
-          Create Widget
-        </PrimaryButton>
+        <OutlineButton style={{ fontSize: 12, padding: "6px 12px", gap: 5 }}>
+          <ExternalLink size={13} strokeWidth={1.8} />
+          View Docs
+        </OutlineButton>
       </div>
     </AnimIn>
 
+    {/* Empty-state heading */}
+    <AnimIn frame={frame} fps={fps} delay={3}>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: L.TEXT, marginBottom: 4 }}>
+          Select or create a widget
+        </div>
+        <div style={{ fontSize: 12.5, color: L.TEXT_MUTED }}>
+          Choose a widget from the list or create one from a template.
+        </div>
+      </div>
+    </AnimIn>
+
+    {/* Grid */}
     <div
       style={{
         display: "grid",
@@ -182,134 +193,112 @@ const WidgetListing: React.FC<{ frame: number; fps: number }> = ({ frame, fps })
         gap: 20,
       }}
     >
-      <AnimIn frame={frame} fps={fps} delay={4}>
+      <AnimIn frame={frame} fps={fps} delay={6}>
         <CreateCard />
       </AnimIn>
-      <AnimIn frame={frame} fps={fps} delay={8}>
-        <WidgetCard
-          name="Contact Form"
-          status="published"
-          description="Capture leads and messages"
-        />
+      <AnimIn frame={frame} fps={fps} delay={10}>
+        <WidgetCard name="Contact Form" status="published" />
       </AnimIn>
-      <AnimIn frame={frame} fps={fps} delay={12}>
-        <WidgetCard
-          name="Invoice Request"
-          status="draft"
-          description="Let clients request invoices"
-        />
+      <AnimIn frame={frame} fps={fps} delay={14}>
+        <WidgetCard name="Invoice Request" status="draft" />
       </AnimIn>
-      <AnimIn frame={frame} fps={fps} delay={16}>
-        <WidgetCard
-          name="Quote Request"
-          status="published"
-          description="Accept quote inquiries"
-        />
+      <AnimIn frame={frame} fps={fps} delay={18}>
+        <WidgetCard name="Quote Request" status="published" />
       </AnimIn>
-      <AnimIn frame={frame} fps={fps} delay={20}>
-        <WidgetCard
-          name="Newsletter Signup"
-          status="published"
-          description="Grow your subscriber list"
-        />
+      <AnimIn frame={frame} fps={fps} delay={22}>
+        <WidgetCard name="Newsletter Signup" status="published" />
       </AnimIn>
     </div>
   </div>
 );
 
-// ── Widget builder nav bar ────────────────────────────────────────────────────
+// ── Widget nav bar (mirrors IntegrationsWidgetNavBar) ─────────────────────────
 const WidgetNavBar: React.FC<{ activeTab: "design" | "share" }> = ({ activeTab }) => {
-  const TABS = [
-    { id: "design", label: "Design" },
-    { id: "share", label: "Share" },
-    { id: "pageBuilder", label: "Page Builder" },
-    { id: "automations", label: "Automations" },
-  ] as const;
+  const TABS: { id: "design" | "share" | "pageBuilder" | "automations"; label: string; Icon: React.FC<{ size: number; strokeWidth: number; color?: string }>; requiresWidget: boolean }[] = [
+    { id: "design",      label: "Design",        Icon: Palette as any, requiresWidget: false },
+    { id: "share",       label: "Share & Embed",  Icon: Code2 as any,  requiresWidget: true  },
+    { id: "pageBuilder", label: "Page Builder",   Icon: Blocks as any, requiresWidget: true  },
+    { id: "automations", label: "Automations",    Icon: Zap as any,    requiresWidget: true  },
+  ];
 
   return (
     <div
       style={{
-        height: 50,
         borderBottom: `1px solid ${L.BORDER}`,
         background: L.BG,
-        display: "flex",
-        alignItems: "center",
-        paddingLeft: 16,
         flexShrink: 0,
+        padding: "8px 8px 0",
       }}
     >
-      {/* Back + widget name */}
       <div
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "220px 1fr 220px",
           alignItems: "center",
-          gap: 10,
-          paddingRight: 20,
-          borderRight: `1px solid ${L.BORDER}`,
-          marginRight: 4,
         }}
       >
+        {/* Widget select dropdown simulation */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 5,
-            color: L.TEXT_MUTED,
-            fontSize: 12,
+            justifyContent: "space-between",
+            border: `1px solid ${L.BORDER}`,
+            borderRadius: 6,
+            padding: "5px 10px",
+            background: L.BG,
+            height: 36,
             fontFamily: "inherit",
           }}
         >
-          <ArrowLeft size={13} strokeWidth={2} />
-          Back
+          <span style={{ fontSize: 13, color: L.TEXT, fontWeight: 500 }}>Contact Form</span>
+          <ChevronDown size={14} color={L.TEXT_MUTED} strokeWidth={2} />
         </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: L.TEXT, fontFamily: "inherit" }}>
-          Contact Form
-        </div>
+
+        {/* Centered tabs */}
         <div
           style={{
-            fontSize: 10,
-            fontWeight: 500,
-            color: "#065f46",
-            background: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            borderRadius: 99,
-            padding: "2px 8px",
-            fontFamily: "inherit",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            paddingBottom: 0,
           }}
         >
-          Published
+          {TABS.map((tab) => {
+            const isActive = tab.id === activeTab;
+            const isLocked = tab.requiresWidget && activeTab === "design" && tab.id !== "design";
+            // In design phase, all tabs for the selected widget should be available
+            // In share phase, locked = false for all tabs
+            const locked = false; // widget is selected so none are locked
+
+            return (
+              <div
+                key={tab.id}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 14px",
+                  fontSize: 13,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? L.TEXT : L.TEXT_MUTED,
+                  fontFamily: "inherit",
+                  flexShrink: 0,
+                  borderBottom: isActive ? `2px solid ${L.TEXT}` : "2px solid transparent",
+                  marginBottom: -1,
+                }}
+              >
+                <tab.Icon size={14} strokeWidth={isActive ? 2.2 : 1.8} />
+                {tab.label}
+              </div>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Tabs */}
-      {TABS.map((tab) => {
-        const active = tab.id === activeTab;
-        return (
-          <div
-            key={tab.id}
-            style={{
-              padding: "0 16px",
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              fontSize: 13,
-              fontWeight: active ? 600 : 400,
-              color: active ? L.TEXT : L.TEXT_MUTED,
-              borderBottom: active ? `2px solid ${L.PRIMARY}` : "2px solid transparent",
-              fontFamily: "inherit",
-              flexShrink: 0,
-            }}
-          >
-            {tab.label}
-          </div>
-        );
-      })}
-
-      {/* Save button */}
-      <div style={{ marginLeft: "auto", paddingRight: 16 }}>
-        <PrimaryButton style={{ padding: "6px 14px", fontSize: 12 }}>
-          Save Draft
-        </PrimaryButton>
+        {/* Right spacer */}
+        <div />
       </div>
     </div>
   );
@@ -318,9 +307,9 @@ const WidgetNavBar: React.FC<{ activeTab: "design" | "share" }> = ({ activeTab }
 // ── Block palette (left sidebar in builder) ───────────────────────────────────
 const BlockPalette: React.FC = () => {
   const groups = [
-    { label: "Layout", items: ["Section header", "Container", "Columns", "Divider", "Spacer"] },
+    { label: "Layout",  items: ["Section header", "Container", "Columns", "Divider"] },
     { label: "Content", items: ["Paragraph"] },
-    { label: "Inputs", items: ["Text", "Email", "Phone", "Textarea", "File upload", "Select", "Date"] },
+    { label: "Inputs",  items: ["Text", "Email", "Phone", "Textarea", "File upload", "Select", "Date"] },
     { label: "Actions", items: ["Submit button", "Success block"] },
   ];
 
@@ -560,7 +549,6 @@ const PropertiesPanel: React.FC = () => (
       Properties
     </div>
 
-    {/* Selected element badge */}
     <div
       style={{
         display: "inline-flex",
@@ -626,6 +614,7 @@ const DesignView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) =>
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
+          padding: "32px 24px",
         }}
       >
         <FormPreview frame={frame} fps={fps} />
@@ -664,7 +653,6 @@ const CodeBlock: React.FC<{
         {lines.map((line, i) => (
           <div key={i}>{line}</div>
         ))}
-        {/* Copy chip */}
         <div
           style={{
             position: "absolute",
@@ -688,8 +676,62 @@ const CodeBlock: React.FC<{
   </AnimIn>
 );
 
-// ── Phase 3: Share tab ────────────────────────────────────────────────────────
-const ShareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => (
+// ── Share link row ────────────────────────────────────────────────────────────
+const ShareLinkRow: React.FC<{ frame: number; fps: number; delay?: number }> = ({
+  frame,
+  fps,
+  delay = 0,
+}) => (
+  <AnimIn frame={frame} fps={fps} delay={delay}>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: L.TEXT, marginBottom: 8 }}>
+        Share page link
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          border: `1px solid ${L.BORDER}`,
+          borderRadius: 8,
+          padding: "10px 14px",
+          background: L.BG_SUBTLE,
+          fontFamily: "inherit",
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            fontSize: 12.5,
+            color: L.TEXT_MUTED,
+            fontFamily: "'Courier New', monospace",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          https://app.financely.io/w/contact-form-xyz
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 12,
+            color: L.PRIMARY,
+            fontWeight: 500,
+          }}
+        >
+          <ExternalLink size={12} color={L.PRIMARY} />
+          Open
+        </div>
+      </div>
+    </div>
+  </AnimIn>
+);
+
+// ── Phase 3: Share & Embed tab ────────────────────────────────────────────────
+const ShareEmbedView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => (
   <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
     <WidgetNavBar activeTab="share" />
     <div
@@ -714,10 +756,10 @@ const ShareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => 
                 marginBottom: 4,
               }}
             >
-              Embed your widget
+              Share & Embed
             </div>
             <div style={{ fontSize: 13, color: L.TEXT_MUTED }}>
-              Add your widget to any website using a script tag or iframe — no coding required.
+              Embed your widget on any site or share it via a public page link.
             </div>
           </div>
         </AnimIn>
@@ -741,7 +783,7 @@ const ShareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => 
           label="iFrame embed"
           lines={[
             '<iframe',
-            '  src="https://app.financely.io/widget/contact-form-xyz"',
+            '  src="https://app.financely.io/w/contact-form-xyz"',
             '  width="100%" height="600"',
             '  frameborder="0"',
             '  style="border: none;">',
@@ -752,7 +794,9 @@ const ShareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => 
           delay={12}
         />
 
-        <AnimIn frame={frame} fps={fps} delay={18}>
+        <ShareLinkRow frame={frame} fps={fps} delay={18} />
+
+        <AnimIn frame={frame} fps={fps} delay={24}>
           <div
             style={{
               display: "flex",
@@ -769,18 +813,6 @@ const ShareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => 
             <span style={{ fontSize: 12.5, fontWeight: 500, color: L.PRIMARY, flex: 1 }}>
               Widget is live and publicly accessible
             </span>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 12,
-                color: L.PRIMARY,
-              }}
-            >
-              <ExternalLink size={12} />
-              Preview
-            </div>
           </div>
         </AnimIn>
       </div>
@@ -793,7 +825,6 @@ export const IntegrationsScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Phase cross-fades
   const phase1Opacity = interpolate(
     frame,
     [0, 8, 38, 46],
@@ -818,7 +849,7 @@ export const IntegrationsScene: React.FC = () => {
   const frameP3 = Math.max(0, frame - 90);
 
   return (
-    <AppShell activeItem="Site Builder">
+    <AppShell activeItem="Integrations">
       <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
         {phase1Opacity > 0 && (
           <div
@@ -838,7 +869,7 @@ export const IntegrationsScene: React.FC = () => {
           <div
             style={{ position: "absolute", inset: 0, opacity: phase3Opacity, zIndex: 3 }}
           >
-            <ShareView frame={frameP3} fps={fps} />
+            <ShareEmbedView frame={frameP3} fps={fps} />
           </div>
         )}
       </div>
