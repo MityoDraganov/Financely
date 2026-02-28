@@ -1,3 +1,7 @@
+/**
+ * OutroScene — Bulgarian version.
+ * UI is visually identical to video1/OutroScene; only marketing copy is translated.
+ */
 import React from "react";
 import {
   AbsoluteFill,
@@ -6,75 +10,34 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { L } from "../components/UIWindow";
-import { FinancelyLogo } from "../components/FinancelyLogo";
+import { L } from "../../video1/components/UIWindow";
+import { FinancelyLogo } from "../../video1/components/FinancelyLogo";
 
 export const OutroScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Logo entrance
-  const logoEntrance = spring({
-    frame: frame - 5,
-    fps,
-    config: { damping: 200 },
-    durationInFrames: 40,
-  });
-  const logoScale = interpolate(logoEntrance, [0, 1], [0.7, 1]);
+  const logoEntrance = spring({ frame: frame - 5, fps, config: { damping: 200 }, durationInFrames: 40 });
+  const logoScale   = interpolate(logoEntrance, [0, 1], [0.7, 1]);
   const logoOpacity = interpolate(logoEntrance, [0, 1], [0, 1]);
 
-  // Divider
-  const dividerEntrance = spring({
-    frame: frame - 18,
-    fps,
-    config: { damping: 200 },
-    durationInFrames: 25,
-  });
-  const dividerW = interpolate(dividerEntrance, [0, 1], [0, 200]);
+  const dividerEntrance = spring({ frame: frame - 18, fps, config: { damping: 200 }, durationInFrames: 25 });
+  const dividerW       = interpolate(dividerEntrance, [0, 1], [0, 200]);
   const dividerOpacity = interpolate(dividerEntrance, [0, 1], [0, 1]);
 
-  // Tagline
-  const taglineEntrance = spring({
-    frame: frame - 25,
-    fps,
-    config: { damping: 200 },
-    durationInFrames: 30,
-  });
-  const taglineY = interpolate(taglineEntrance, [0, 1], [24, 0]);
+  const taglineEntrance = spring({ frame: frame - 25, fps, config: { damping: 200 }, durationInFrames: 30 });
+  const taglineY       = interpolate(taglineEntrance, [0, 1], [24, 0]);
   const taglineOpacity = interpolate(taglineEntrance, [0, 1], [0, 1]);
 
-  // CTA button
-  const ctaEntrance = spring({
-    frame: frame - 45,
-    fps,
-    config: { damping: 12, stiffness: 200 },
-    durationInFrames: 25,
-  });
-  const ctaScale = interpolate(ctaEntrance, [0, 1], [0.7, 1]);
+  const ctaEntrance = spring({ frame: frame - 45, fps, config: { damping: 12, stiffness: 200 }, durationInFrames: 25 });
+  const ctaScale   = interpolate(ctaEntrance, [0, 1], [0.7, 1]);
   const ctaOpacity = interpolate(ctaEntrance, [0, 1], [0, 1]);
 
-  // URL text
-  const urlEntrance = spring({
-    frame: frame - 65,
-    fps,
-    config: { damping: 200 },
-    durationInFrames: 20,
-  });
-  const urlOpacity = interpolate(urlEntrance, [0, 1], [0, 1]);
+  const urlEntrance = spring({ frame: frame - 65, fps, config: { damping: 200 }, durationInFrames: 20 });
+  const urlOpacity  = interpolate(urlEntrance, [0, 1], [0, 1]);
 
-  // Ambient glow pulse (subtle)
-  const glowPulse = interpolate(
-    Math.sin((frame / fps) * Math.PI * 0.8),
-    [-1, 1],
-    [0.08, 0.18]
-  );
-
-  // CTA glow pulse
-  const ctaGlow = interpolate(
-    Math.sin((frame / fps) * Math.PI * 2),
-    [-1, 1],
-    [0.15, 0.35]
-  );
+  const glowPulse = interpolate(Math.sin((frame / fps) * Math.PI * 0.8), [-1, 1], [0.08, 0.18]);
+  const ctaGlow   = interpolate(Math.sin((frame / fps) * Math.PI * 2), [-1, 1], [0.15, 0.35]);
 
   return (
     <AbsoluteFill
@@ -98,7 +61,7 @@ export const OutroScene: React.FC = () => {
         }}
       />
 
-      {/* Center ambient glow — green, very subtle on white */}
+      {/* Center ambient glow */}
       <div
         style={{
           position: "absolute",
@@ -137,12 +100,7 @@ export const OutroScene: React.FC = () => {
         }}
       >
         {/* Logo */}
-        <div
-          style={{
-            transform: `scale(${logoScale})`,
-            opacity: logoOpacity,
-          }}
-        >
+        <div style={{ transform: `scale(${logoScale})`, opacity: logoOpacity }}>
           <FinancelyLogo size={80} color={L.TEXT} dotColor={L.PRIMARY_ACCENT} />
         </div>
 
@@ -176,7 +134,7 @@ export const OutroScene: React.FC = () => {
               lineHeight: 1.4,
             }}
           >
-            The modern invoicing &amp; ops workspace
+            Всичко за твоя бизнес — на едно място
           </div>
         </div>
 
@@ -184,12 +142,7 @@ export const OutroScene: React.FC = () => {
         <OutroFeaturePills delay={35} />
 
         {/* CTA */}
-        <div
-          style={{
-            transform: `scale(${ctaScale})`,
-            opacity: ctaOpacity,
-          }}
-        >
+        <div style={{ transform: `scale(${ctaScale})`, opacity: ctaOpacity }}>
           <div
             style={{
               background: L.PRIMARY_ACCENT,
@@ -206,7 +159,7 @@ export const OutroScene: React.FC = () => {
               gap: 10,
             }}
           >
-            Get started free
+            Започни безплатно
             <span style={{ fontSize: 20 }}>→</span>
           </div>
         </div>
@@ -232,21 +185,16 @@ const OutroFeaturePills: React.FC<{ delay: number }> = ({ delay }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const entrance = spring({
-    frame: frame - delay,
-    fps,
-    config: { damping: 200 },
-    durationInFrames: 25,
-  });
-  const opacity = interpolate(entrance, [0, 1], [0, 1]);
+  const entrance   = spring({ frame: frame - delay, fps, config: { damping: 200 }, durationInFrames: 25 });
+  const opacity    = interpolate(entrance, [0, 1], [0, 1]);
   const translateY = interpolate(entrance, [0, 1], [12, 0]);
 
   const features = [
-    "Smart Invoicing",
-    "Template Designer",
-    "CRM & Leads",
-    "Workflow Automation",
-    "Analytics",
+    "Умно фактуриране",
+    "Дизайнер на шаблони",
+    "CRM и клиенти",
+    "Автоматизация",
+    "Аналитика",
   ];
 
   return (

@@ -1,13 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Code2, Palette, Zap, Lock, Blocks } from "lucide-react";
+import { Code2, Palette, Lock, Blocks } from "lucide-react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export type TabValue = "share" | "design" | "pageBuilder" | "automations";
+export type TabValue = "share" | "design" | "pageBuilder";
 
 interface IntegrationsTabsProps {
 	activeTab: TabValue;
@@ -39,12 +39,6 @@ export function IntegrationsTabs({
 			value: "pageBuilder" as const,
 			label: "Page Builder",
 			icon: Blocks,
-			requiresWidget: true,
-		},
-		{
-			value: "automations" as const,
-			label: t("siteBuilder.tabs.automations", "Automations"),
-			icon: Zap,
 			requiresWidget: true,
 		},
 	];

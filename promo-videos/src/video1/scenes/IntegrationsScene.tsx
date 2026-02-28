@@ -710,7 +710,7 @@ const ShareLinkRow: React.FC<{ frame: number; fps: number; delay?: number }> = (
             whiteSpace: "nowrap",
           }}
         >
-          https://app.financely.io/w/contact-form-xyz
+          https://app.financely.app/w/contact-form-xyz
         </span>
         <div
           style={{
@@ -771,7 +771,7 @@ const ShareEmbedView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }
             '  src="/widget-loader.js"',
             '  data-org-id="acme-org-abc123"',
             '  data-widget-id="contact-form-xyz"',
-            '  data-app-url="https://app.financely.io">',
+            '  data-app-url="https://app.financely.app">',
             '</script>',
           ]}
           frame={frame}
@@ -783,7 +783,7 @@ const ShareEmbedView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }
           label="iFrame embed"
           lines={[
             '<iframe',
-            '  src="https://app.financely.io/w/contact-form-xyz"',
+            '  src="https://app.financely.app/w/contact-form-xyz"',
             '  width="100%" height="600"',
             '  frameborder="0"',
             '  style="border: none;">',
@@ -820,33 +820,413 @@ const ShareEmbedView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }
   </div>
 );
 
+// ── Phase 4: Website preview — embedded widget live on user's site ────────────
+const WebsitePreview: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
+  // Browser window entrance
+  const browserProg = spring({ frame, fps, config: { damping: 200 } });
+  const browserOpacity = interpolate(frame, [0, 10], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Website body reveal (staggered after browser appears)
+  const contentOpacity = interpolate(frame, [8, 22], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Widget spring-in (snappy with slight bounce)
+  const widgetProg = spring({
+    frame: Math.max(0, frame - 16),
+    fps,
+    config: { damping: 14, stiffness: 180 },
+  });
+  const widgetOpacity = interpolate(frame, [16, 28], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Live badge pulse-in
+  const badgeOpacity = interpolate(frame, [30, 42], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  const fields: { label: string; ph: string; multiline: boolean }[] = [
+    { label: "Full Name", ph: "e.g. John Smith",          multiline: false },
+    { label: "Email",     ph: "e.g. hello@example.com",   multiline: false },
+    { label: "Message",   ph: "Your message…",            multiline: true  },
+  ];
+
+  return (
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(140deg, #f0fdf4 0%, #eff6ff 100%)",
+        padding: "22px 36px",
+        fontFamily: "inherit",
+        position: "relative",
+      }}
+    >
+      {/* Label */}
+      <div
+        style={{
+          position: "absolute",
+          top: 22,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          fontSize: 11.5,
+          fontWeight: 600,
+          color: L.TEXT_MUTED,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          opacity: contentOpacity,
+        }}
+      >
+        Widget live on your website
+      </div>
+
+      {/* Browser shell */}
+      <div
+        style={{
+          width: 1120,
+          height: 756,
+          borderRadius: 10,
+          overflow: "hidden",
+          boxShadow:
+            "0 32px 80px rgba(0,0,0,0.16), 0 6px 20px rgba(0,0,0,0.09)",
+          border: "1px solid #d1d5db",
+          opacity: browserOpacity,
+          transform: `scale(${interpolate(browserProg, [0, 1], [0.97, 1])})`,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Browser chrome bar */}
+        <div
+          style={{
+            background: "#f3f4f6",
+            borderBottom: "1px solid #e5e7eb",
+            height: 40,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 14px",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          {/* Traffic lights */}
+          <div style={{ display: "flex", gap: 6, marginRight: 4 }}>
+            {(["#ef4444", "#f59e0b", "#22c55e"] as string[]).map((c) => (
+              <div
+                key={c}
+                style={{ width: 11, height: 11, borderRadius: "50%", background: c }}
+              />
+            ))}
+          </div>
+
+          {/* URL bar */}
+          <div
+            style={{
+              flex: 1,
+              maxWidth: 420,
+              margin: "0 auto",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 18,
+              height: 26,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 10px",
+              gap: 6,
+            }}
+          >
+            <Lock size={10} color="#9ca3af" strokeWidth={2} />
+            <span style={{ fontSize: 11.5, color: "#374151", fontFamily: "inherit" }}>
+              yoursite.com/contact
+            </span>
+          </div>
+        </div>
+
+        {/* Website page */}
+        <div
+          style={{
+            flex: 1,
+            background: "#ffffff",
+            overflow: "hidden",
+            opacity: contentOpacity,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Site nav */}
+          <div
+            style={{
+              height: 52,
+              borderBottom: "1px solid #f3f4f6",
+              display: "flex",
+              alignItems: "center",
+              padding: "0 36px",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: "#111827",
+                letterSpacing: "-0.5px",
+                marginRight: "auto",
+                fontFamily: "inherit",
+              }}
+            >
+              Acme<span style={{ color: "#6366f1" }}>.</span>
+            </span>
+            {(["Home", "About", "Services", "Contact"] as string[]).map((label) => (
+              <span
+                key={label}
+                style={{
+                  fontSize: 13,
+                  fontWeight: label === "Contact" ? 600 : 400,
+                  color: label === "Contact" ? "#111827" : "#9ca3af",
+                  marginLeft: 24,
+                  fontFamily: "inherit",
+                }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+
+          {/* Page body */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              paddingTop: 44,
+              overflow: "hidden",
+            }}
+          >
+            {/* Page heading */}
+            <div
+              style={{
+                fontSize: 26,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 6,
+                letterSpacing: "-0.5px",
+                textAlign: "center",
+                fontFamily: "inherit",
+              }}
+            >
+              Get in Touch
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "#9ca3af",
+                marginBottom: 30,
+                textAlign: "center",
+                fontFamily: "inherit",
+              }}
+            >
+              We'd love to hear from you. We'll respond within 24 hours.
+            </div>
+
+            {/* Embedded widget */}
+            <div
+              style={{
+                opacity: widgetOpacity,
+                transform: `scale(${interpolate(widgetProg, [0, 1], [0.88, 1])}) translateY(${interpolate(widgetProg, [0, 1], [18, 0])}px)`,
+                position: "relative",
+              }}
+            >
+              {/* Live badge */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: -13,
+                  right: -2,
+                  zIndex: 10,
+                  opacity: badgeOpacity,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  background: "#ecfdf5",
+                  border: "1px solid #a7f3d0",
+                  borderRadius: 20,
+                  padding: "3px 9px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#065f46",
+                  whiteSpace: "nowrap",
+                  fontFamily: "inherit",
+                }}
+              >
+                <div
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#10b981",
+                  }}
+                />
+                Live — Embedded via Financely
+              </div>
+
+              {/* Contact form widget */}
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  padding: "20px 24px",
+                  width: 400,
+                  boxShadow:
+                    "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+                  fontFamily: "inherit",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    marginBottom: 3,
+                    letterSpacing: "-0.3px",
+                  }}
+                >
+                  Contact Us
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 14 }}>
+                  Fill out the form and we'll get back to you.
+                </div>
+
+                {fields.map(({ label, ph, multiline }) => (
+                  <div key={label} style={{ marginBottom: 10 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "#0f172a",
+                        marginBottom: 3,
+                      }}
+                    >
+                      {label}
+                      {label !== "Message" && (
+                        <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 6,
+                        padding: multiline ? "8px 10px" : "7px 10px",
+                        fontSize: 11.5,
+                        color: "#94a3b8",
+                        background: "#fff",
+                        minHeight: multiline ? 48 : undefined,
+                      }}
+                    >
+                      {ph}
+                    </div>
+                  </div>
+                ))}
+
+                <div
+                  style={{
+                    background: L.PRIMARY,
+                    color: "#ffffff",
+                    borderRadius: 6,
+                    padding: "9px 0",
+                    textAlign: "center",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    marginTop: 6,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Send Message
+                </div>
+
+                {/* Powered by */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 9.5, color: "#94a3b8", fontFamily: "inherit" }}>
+                    Powered by
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      color: L.PRIMARY,
+                      letterSpacing: "-0.3px",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Financely<span style={{ color: L.PRIMARY_ACCENT }}>.</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export const IntegrationsScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // Phase 1: f0–70   → hold f8–60   (≈1.7s at full opacity)
   const phase1Opacity = interpolate(
     frame,
-    [0, 8, 38, 46],
+    [0, 8, 60, 70],
     [0, 1, 1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
+  // Phase 2: f64–142 → hold f76–130 (≈1.8s at full opacity)
   const phase2Opacity = interpolate(
     frame,
-    [40, 50, 88, 96],
+    [64, 76, 130, 142],
     [0, 1, 1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
+  // Phase 3: f136–234 → hold f148–222 (≈2.5s at full opacity)
   const phase3Opacity = interpolate(
     frame,
-    [90, 100],
+    [136, 148, 222, 234],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  // Phase 4: f228–310 → hold f242–310 (≈2.3s at full opacity)
+  const phase4Opacity = interpolate(
+    frame,
+    [228, 242],
     [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
   const frameP1 = frame;
-  const frameP2 = Math.max(0, frame - 40);
-  const frameP3 = Math.max(0, frame - 90);
+  const frameP2 = Math.max(0, frame - 64);
+  const frameP3 = Math.max(0, frame - 136);
+  const frameP4 = Math.max(0, frame - 228);
 
   return (
     <AppShell activeItem="Integrations">
@@ -870,6 +1250,13 @@ export const IntegrationsScene: React.FC = () => {
             style={{ position: "absolute", inset: 0, opacity: phase3Opacity, zIndex: 3 }}
           >
             <ShareEmbedView frame={frameP3} fps={fps} />
+          </div>
+        )}
+        {phase4Opacity > 0 && (
+          <div
+            style={{ position: "absolute", inset: 0, opacity: phase4Opacity, zIndex: 4 }}
+          >
+            <WebsitePreview frame={frameP4} fps={fps} />
           </div>
         )}
       </div>

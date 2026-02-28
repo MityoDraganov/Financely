@@ -1,13 +1,22 @@
 import { useState, useMemo } from "react";
-import { Search, FileText, ImageIcon, Video, File } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Search, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFiles, useDeleteFile } from "@/hooks/repository-hooks/use-files";
+import { useOrganizationStorageFiles, useDeleteOrganizationStorageFile } from "@/hooks/repository-hooks/use-files";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { toast } from "sonner";
 import { FileCard } from "@/components/content/file-card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const FILE_TYPE_OPTIONS = [
   { value: "all", label: "All types" },
@@ -20,14 +29,13 @@ export default function FilesPage() {
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
+  const [pendingDeleteFileId, setPendingDeleteFileId] = useState<string | null>(null);
 
-  const { data: files = [], isLoading, error } = useFiles(currentOrganization?.id, {
-    fileType: fileTypeFilter !== "all" ? fileTypeFilter : undefined,
-  });
+  const { data: files = [], isLoading, error } = useOrganizationStorageFiles(currentOrganization?.id);
   if (error) {
     console.error(error);
   }
-  const deleteFile = useDeleteFile();
+  const deleteFile = useDeleteOrganizationStorageFile();
 
   const filteredFiles = useMemo(() => {
     return files.filter((file) => {
@@ -41,13 +49,25 @@ export default function FilesPage() {
     });
   }, [files, fileTypeFilter, searchTerm]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this file?")) return;
+  const pendingDeleteFile = useMemo(
+    () => files.find((file) => file.id === pendingDeleteFileId),
+    [files, pendingDeleteFileId],
+  );
+
+  const handleDeleteRequest = (id: string) => {
+    setPendingDeleteFileId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteFileId) return;
+
     try {
-      await deleteFile.mutateAsync(id);
+      await deleteFile.mutateAsync(pendingDeleteFileId);
       toast.success("File deleted successfully");
-    } catch {
-      toast.error("Failed to delete file");
+      setPendingDeleteFileId(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete file";
+      toast.error(message);
     }
   };
 
@@ -83,6 +103,33 @@ export default function FilesPage() {
         )}
       </div>
 
+      <AlertDialog
+        open={!!pendingDeleteFileId}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteFileId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete
+              {pendingDeleteFile ? ` "${pendingDeleteFile.filename}"` : " this file"} from storage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteFile.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteFile.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteFile.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Loading state */}
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -117,7 +164,7 @@ export default function FilesPage() {
         /* File grid */
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {filteredFiles.map((file) => (
-            <FileCard key={file.id} file={file} onDelete={handleDelete} />
+            <FileCard key={file.id} file={file} onDelete={handleDeleteRequest} />
           ))}
         </div>
       )}

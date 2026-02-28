@@ -3247,6 +3247,7 @@
 		"preview": "Preview"
 	},
 	"marketplace": {
+		"badge": "Template Marketplace",
 		"title": "Template Marketplace",
 		"subtitle": "Discover and download professional templates",
 		"shareTemplate": "Share Your Template",

@@ -15,9 +15,6 @@ import { serviceHost } from "@/services";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { MarketplaceTemplate } from "@/core";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -30,7 +27,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, FileText, Mail, CheckCircle, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  FileText,
+  Mail,
+  CheckCircle,
+  Star,
+  Upload,
+  Eye,
+  Trash2,
+  ShieldCheck,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +48,42 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
+/* ── Status badge ──────────────────────────────────────────── */
+function StatusBadge({ template }: { template: MarketplaceTemplate }) {
+  if (template.isFeatured) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+        <Star className="h-2.5 w-2.5" />
+        Featured
+      </span>
+    );
+  }
+  switch (template.status) {
+    case "published":
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px] font-bold">
+          <CheckCircle className="h-2.5 w-2.5" />
+          Published
+        </span>
+      );
+    case "draft":
+      return (
+        <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold">
+          Draft
+        </span>
+      );
+    default:
+      return (
+        <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold capitalize">
+          {template.status}
+        </span>
+      );
+  }
+}
+
+/* ── Main page ─────────────────────────────────────────────── */
 export default function ContributorPortalPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -49,21 +92,21 @@ export default function ContributorPortalPage() {
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: isContributor = false, isLoading: isLoadingStatus } = useIsContributor();
   const queryClient = useQueryClient();
-  
-  // Use Firebase Auth UID if available, fallback to Clerk ID (they should be the same)
+
   const userId = firebaseAuthUser?.uid || user?.id;
   const { data: submissions = [], error: submissionsError } = useMyMarketplaceSubmissions(userId);
-  
+
   console.log("Submissions data:", submissions);
   console.log("Submissions error:", submissionsError);
   console.log("Clerk User ID:", user?.id);
   console.log("Firebase Auth UID:", firebaseAuthUser?.uid);
   console.log("Using User ID for query:", userId);
-  
+
   const registerContributor = useRegisterContributor();
   const submitTemplate = useSubmitMarketplaceTemplate();
   const { data: templates } = useTemplates(currentOrganization?.id);
   const { data: emailTemplates = [] } = useEmailTemplates(currentOrganization?.id);
+
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -79,12 +122,8 @@ export default function ContributorPortalPage() {
     country: "",
   });
 
-
   const handleRegister = async () => {
-    if (!termsAccepted) {
-      return;
-    }
-
+    if (!termsAccepted) return;
     try {
       await registerContributor.mutateAsync({ termsAccepted: true });
       setIsRegisterDialogOpen(false);
@@ -94,10 +133,7 @@ export default function ContributorPortalPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.sourceTemplateId || !formData.title || !currentOrganization?.id) {
-      return;
-    }
-
+    if (!formData.sourceTemplateId || !formData.title || !currentOrganization?.id) return;
     try {
       await submitTemplate.mutateAsync({
         sourceTemplateId: formData.sourceTemplateId,
@@ -107,7 +143,7 @@ export default function ContributorPortalPage() {
         description: formData.description || undefined,
         shortDescription: formData.shortDescription || undefined,
         category: formData.category || undefined,
-        tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()) : undefined,
+        tags: formData.tags ? formData.tags.split(",").map((tag) => tag.trim()) : undefined,
         language: formData.language || undefined,
         country: formData.country || undefined,
       });
@@ -128,355 +164,508 @@ export default function ContributorPortalPage() {
     }
   };
 
-  const getStatusBadge = (template: MarketplaceTemplate) => {
-    if (template.isFeatured) {
-      return (
-        <Badge className="bg-yellow-100 text-yellow-800 flex items-center gap-1">
-          <Star className="h-3 w-3" />
-          Featured
-        </Badge>
-      );
-    }
-    
-    switch (template.status) {
-      case "published":
-        return (
-          <Badge variant="default" className="flex items-center gap-1">
-            <CheckCircle className="h-3 w-3" />
-            Published
-          </Badge>
-        );
-      case "draft":
-        return (
-          <Badge variant="outline" className="flex items-center gap-1">
-            Draft
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{template.status}</Badge>;
-    }
-  };
-
+  /* ── Loading ── */
   if (isLoadingStatus) {
     return (
-      <div className="p-4 sm:p-6 space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
+      <div className="min-h-screen" style={{ background: "#f5f5f3" }}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+          <Skeleton className="h-6 w-48 rounded-lg" />
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" onClick={() => navigate("/marketplace")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Marketplace
-          </Button>
-          <h1 className="text-3xl font-bold tracking-tight mt-4">
+    <div className="min-h-screen" style={{ background: "#f5f5f3" }}>
+      {/* ── Top nav ── */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+          <button
+            onClick={() => navigate("/marketplace")}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition-colors font-medium"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Marketplace
+          </button>
+          <span className="text-gray-200">/</span>
+          <span className="text-sm text-gray-900 font-medium">
             {t("marketplace.contributor.title") || "Contributor Portal"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {t("marketplace.contributor.subtitle") ||
-              "Share your templates with the community"}
-          </p>
+          </span>
         </div>
       </div>
 
-      {/* Registration Section */}
-      {!isContributor && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Become a Contributor</CardTitle>
-            <CardDescription>
-              Register as a contributor to share your templates with the Financely community
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>Register as Contributor</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Contributor Terms</DialogTitle>
-                  <DialogDescription>
-                    By registering as a contributor, you agree to:
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                    <li>You own the content you submit</li>
-                    <li>You will not submit sensitive or personal data</li>
-                    <li>You will not submit copyrighted material without permission</li>
-                    <li>Templates will be reviewed before publication</li>
-                    <li>Financely may remove templates that violate guidelines</li>
-                  </ul>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="terms"
-                      checked={termsAccepted}
-                      onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-                    />
-                    <Label htmlFor="terms" className="text-sm">
-                      I agree to the contributor terms
-                    </Label>
-                  </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {/* ── Page header ── */}
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t("marketplace.contributor.title") || "Contributor Portal"}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {t("marketplace.contributor.subtitle") ||
+              "Share your templates with the Financely community"}
+          </p>
+        </div>
+
+        {/* ── Contributor status banner ── */}
+        {isContributor && (
+          <div
+            className="flex items-center gap-3 p-4 rounded-xl text-white text-sm"
+            style={{
+              background:
+                "linear-gradient(135deg, hsl(143,64%,18%) 0%, hsl(158,50%,22%) 100%)",
+            }}
+          >
+            <ShieldCheck className="h-5 w-5 shrink-0 text-green-300" />
+            <div>
+              <p className="font-semibold">Verified Contributor</p>
+              <p className="text-white/60 text-xs mt-0.5">
+                You can submit templates for community review
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Register section (non-contributors) ── */}
+        {!isContributor && (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            {/* Accent strip */}
+            <div
+              className="h-1 w-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, hsl(143,64%,22%), hsl(158,50%,28%))",
+              }}
+            />
+            <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "hsl(143,64%,24%,0.08)" }}
+                >
+                  <Upload className="h-5 w-5" style={{ color: "hsl(143,64%,24%)" }} />
                 </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsRegisterDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleRegister}
-                    disabled={!termsAccepted || registerContributor.isPending}
-                  >
-                    {registerContributor.isPending ? "Registering..." : "Register"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Submissions Section */}
-      {isContributor && (
-        <>
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">My Submissions</h2>
-            <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Listing
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Submit Template to Marketplace</DialogTitle>
-                  <DialogDescription>
-                    Select a template from your organization to share with the community
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <Label>Template Type</Label>
-                    <Select
-                      value={formData.sourceTemplateType}
-                      onValueChange={(v) =>
-                        setFormData({ ...formData, sourceTemplateType: v as "invoice" | "email" })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="invoice">Invoice Template</SelectItem>
-                        <SelectItem value="email">Email Template</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label>Select Template</Label>
-                    <Select
-                      value={formData.sourceTemplateId}
-                      onValueChange={(v) => setFormData({ ...formData, sourceTemplateId: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a template..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {formData.sourceTemplateType === "invoice"
-                          ? templates?.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4" />
-                                  <span>{t.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))
-                          : emailTemplates.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-4 w-4" />
-                                  <span>{t.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="title">Title *</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      placeholder="Professional Invoice Template"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="shortDescription">Short Description</Label>
-                    <Input
-                      id="shortDescription"
-                      value={formData.shortDescription}
-                      onChange={(e) =>
-                        setFormData({ ...formData, shortDescription: e.target.value })
-                      }
-                      placeholder="A modern invoice template for consulting businesses"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Full Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Describe what this template is for, how to use it, and any special features..."
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Input
-                        id="category"
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        placeholder="Professional Services"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="language">Language</Label>
-                      <Input
-                        id="language"
-                        value={formData.language}
-                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                        placeholder="English"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="tags">Tags (comma-separated)</Label>
-                    <Input
-                      id="tags"
-                      value={formData.tags}
-                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                      placeholder="invoice, professional, modern"
-                    />
-                  </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 mb-1">
+                    Become a Contributor
+                  </h2>
+                  <p className="text-sm text-gray-500 max-w-md">
+                    Register to share your invoice and email templates with thousands of Financely
+                    users worldwide.
+                  </p>
                 </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsSubmitDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={
-                      !formData.sourceTemplateId ||
-                      !formData.title ||
-                      submitTemplate.isPending
+              </div>
+
+              <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    className="shrink-0 h-9 px-5 rounded-xl text-white text-sm font-semibold transition-all active:scale-95"
+                    style={{ background: "hsl(143,64%,22%)" }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background =
+                        "hsl(143,64%,18%)")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background =
+                        "hsl(143,64%,22%)")
                     }
                   >
-                    {submitTemplate.isPending ? "Submitting..." : "Submit for Review"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {!submissions || submissions.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <FileText className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No submissions yet</h3>
-                <p className="text-muted-foreground mb-6 text-center">
-                  Start sharing your templates with the community
-                </p>
-                <Button onClick={() => setIsSubmitDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Submit Your First Template
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {submissions.map((submission) => (
-                <Card key={submission.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle>{submission.title}</CardTitle>
-                        {submission.shortDescription && (
-                          <CardDescription className="mt-1">
-                            {submission.shortDescription}
-                          </CardDescription>
-                        )}
-                        {submission.createdAt && (
-                          <CardDescription className="mt-1">
-                            Published {new Date(submission.createdAt).toLocaleDateString()}
-                            {submission.publishedAt && (
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({new Date(submission.publishedAt).toLocaleDateString()})
-                              </span>
-                            )}
-                          </CardDescription>
-                        )}
-                      </div>
-                      {getStatusBadge(submission)}
+                    Get Started
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-base">Contributor Terms</DialogTitle>
+                    <DialogDescription>
+                      Please review and accept before registering
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
+                      {[
+                        "You own the content you submit",
+                        "You will not submit sensitive or personal data",
+                        "You will not submit copyrighted material without permission",
+                        "Templates will be reviewed before publication",
+                        "Financely may remove templates that violate guidelines",
+                      ].map((term) => (
+                        <div key={term} className="flex items-start gap-2.5">
+                          <CheckCircle
+                            className="h-3.5 w-3.5 mt-0.5 shrink-0"
+                            style={{ color: "hsl(143,64%,30%)" }}
+                          />
+                          <span className="text-xs text-gray-600">{term}</span>
+                        </div>
+                      ))}
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/marketplace/${submission.id}`)}
+                    <div className="flex items-center gap-2.5">
+                      <Checkbox
+                        id="terms"
+                        checked={termsAccepted}
+                        onCheckedChange={(c) => setTermsAccepted(c === true)}
+                      />
+                      <Label htmlFor="terms" className="text-sm cursor-pointer">
+                        I agree to the contributor terms
+                      </Label>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <button
+                      onClick={() => setIsRegisterDialogOpen(false)}
+                      className="h-9 px-4 rounded-xl text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
                     >
-                      View in Marketplace
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={async () => {
-                        if (confirm(`Are you sure you want to delete "${submission.title}"? This action cannot be undone.`)) {
-                          try {
-                            const repository = repositoryHost.getMarketplaceTemplatesRepository(serviceHost.getDatabaseService());
-                            await repository.delete({ id: submission.id });
-                            toast.success("Template deleted successfully");
-                            // Refetch submissions
-                            queryClient.invalidateQueries({ queryKey: ["marketplaceTemplates", "submissions", userId] });
-                          } catch (error) {
-                            toast.error("Failed to delete template", {
-                              description: error instanceof Error ? error.message : "Unknown error",
-                            });
-                          }
-                        }
-                      }}
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleRegister}
+                      disabled={!termsAccepted || registerContributor.isPending}
+                      className={cn(
+                        "h-9 px-5 rounded-xl text-sm font-semibold text-white transition-all",
+                        !termsAccepted || registerContributor.isPending
+                          ? "opacity-50 cursor-not-allowed bg-gray-400"
+                          : "active:scale-95"
+                      )}
+                      style={
+                        termsAccepted && !registerContributor.isPending
+                          ? { background: "hsl(143,64%,22%)" }
+                          : undefined
+                      }
                     >
-                      Delete
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                      {registerContributor.isPending ? "Registering…" : "Register"}
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        )}
+
+        {/* ── Submissions section (contributors) ── */}
+        {isContributor && (
+          <div className="space-y-4">
+            {/* Section header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">My Submissions</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {submissions.length} template{submissions.length !== 1 ? "s" : ""} submitted
+                </p>
+              </div>
+
+              <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    className="flex items-center gap-2 h-9 px-4 rounded-xl text-white text-sm font-semibold transition-all active:scale-95"
+                    style={{ background: "hsl(143,64%,22%)" }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background =
+                        "hsl(143,64%,18%)")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background =
+                        "hsl(143,64%,22%)")
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New Listing
+                  </button>
+                </DialogTrigger>
+
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-base">Submit Template</DialogTitle>
+                    <DialogDescription>
+                      Share a template from your organization with the community
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 py-2">
+                    {/* Template type selector */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {(["invoice", "email"] as const).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() =>
+                            setFormData({ ...formData, sourceTemplateType: type, sourceTemplateId: "" })
+                          }
+                          className={cn(
+                            "flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all",
+                            formData.sourceTemplateType === type
+                              ? "border-green-500 bg-green-50 text-green-800"
+                              : "border-gray-200 text-gray-600 hover:border-gray-300"
+                          )}
+                        >
+                          {type === "invoice" ? (
+                            <FileText className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <Mail className="h-4 w-4 shrink-0" />
+                          )}
+                          {type === "invoice" ? "Invoice Template" : "Email Template"}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500 font-medium">Select Template</Label>
+                      <Select
+                        value={formData.sourceTemplateId}
+                        onValueChange={(v) => setFormData({ ...formData, sourceTemplateId: v })}
+                      >
+                        <SelectTrigger className="h-10 text-sm">
+                          <SelectValue placeholder="Choose a template…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.sourceTemplateType === "invoice"
+                            ? templates?.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                    {t.name}
+                                  </div>
+                                </SelectItem>
+                              ))
+                            : emailTemplates.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                                    {t.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="title" className="text-xs text-gray-500 font-medium">
+                        Title <span className="text-red-400">*</span>
+                      </Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        placeholder="Professional Invoice Template"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="shortDescription" className="text-xs text-gray-500 font-medium">
+                        Short Description
+                      </Label>
+                      <Input
+                        id="shortDescription"
+                        value={formData.shortDescription}
+                        onChange={(e) =>
+                          setFormData({ ...formData, shortDescription: e.target.value })
+                        }
+                        placeholder="A modern invoice template for consulting businesses"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="description" className="text-xs text-gray-500 font-medium">
+                        Full Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Describe what this template is for, how to use it, and any special features…"
+                        rows={3}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="category" className="text-xs text-gray-500 font-medium">
+                          Category
+                        </Label>
+                        <Input
+                          id="category"
+                          value={formData.category}
+                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                          placeholder="Professional Services"
+                          className="h-10 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="language" className="text-xs text-gray-500 font-medium">
+                          Language
+                        </Label>
+                        <Input
+                          id="language"
+                          value={formData.language}
+                          onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                          placeholder="English"
+                          className="h-10 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="tags" className="text-xs text-gray-500 font-medium">
+                        Tags <span className="text-gray-400">(comma-separated)</span>
+                      </Label>
+                      <Input
+                        id="tags"
+                        value={formData.tags}
+                        onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                        placeholder="invoice, professional, modern"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <button
+                      onClick={() => setIsSubmitDialogOpen(false)}
+                      className="h-9 px-4 rounded-xl text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSubmit}
+                      disabled={
+                        !formData.sourceTemplateId || !formData.title || submitTemplate.isPending
+                      }
+                      className={cn(
+                        "h-9 px-5 rounded-xl text-sm font-semibold text-white transition-all",
+                        !formData.sourceTemplateId || !formData.title || submitTemplate.isPending
+                          ? "opacity-50 cursor-not-allowed bg-gray-400"
+                          : "active:scale-95"
+                      )}
+                      style={
+                        formData.sourceTemplateId && formData.title && !submitTemplate.isPending
+                          ? { background: "hsl(143,64%,22%)" }
+                          : undefined
+                      }
+                    >
+                      {submitTemplate.isPending ? "Submitting…" : "Submit for Review"}
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Empty state */}
+            {submissions.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 flex flex-col items-center justify-center py-16 px-6 text-center">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                  style={{ background: "hsl(143,64%,24%,0.07)" }}
+                >
+                  <FileText className="h-6 w-6" style={{ color: "hsl(143,64%,28%)" }} />
+                </div>
+                <h3 className="text-base font-semibold text-gray-900 mb-1.5">No submissions yet</h3>
+                <p className="text-sm text-gray-400 max-w-xs mb-5">
+                  Start sharing your templates with the Financely community
+                </p>
+                <button
+                  onClick={() => setIsSubmitDialogOpen(true)}
+                  className="flex items-center gap-2 h-9 px-5 rounded-xl text-white text-sm font-semibold transition-all active:scale-95"
+                  style={{ background: "hsl(143,64%,22%)" }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Submit Your First Template
+                </button>
+              </div>
+            ) : (
+              /* Submissions list */
+              <div className="space-y-3">
+                {submissions.map((submission) => (
+                  <div
+                    key={submission.id}
+                    className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+                  >
+                    {/* Type icon */}
+                    <div
+                      className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                        submission.type === "invoice" ? "bg-blue-50" : "bg-violet-50"
+                      )}
+                    >
+                      {submission.type === "invoice" ? (
+                        <FileText className="h-4.5 w-4.5 text-blue-600" />
+                      ) : (
+                        <Mail className="h-4.5 w-4.5 text-violet-600" />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {submission.title}
+                        </h3>
+                        <StatusBadge template={submission} />
+                      </div>
+                      {submission.shortDescription && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {submission.shortDescription}
+                        </p>
+                      )}
+                      {submission.createdAt && (
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Submitted{" "}
+                          {new Date(submission.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigate(`/marketplace/${submission.id}`)}
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+                      >
+                        <Eye className="h-3 w-3" />
+                        View
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (
+                            confirm(
+                              `Are you sure you want to delete "${submission.title}"? This action cannot be undone.`
+                            )
+                          ) {
+                            try {
+                              const repository =
+                                repositoryHost.getMarketplaceTemplatesRepository(
+                                  serviceHost.getDatabaseService()
+                                );
+                              await repository.delete({ id: submission.id });
+                              toast.success("Template deleted successfully");
+                              queryClient.invalidateQueries({
+                                queryKey: ["marketplaceTemplates", "submissions", userId],
+                              });
+                            } catch (error) {
+                              toast.error("Failed to delete template", {
+                                description:
+                                  error instanceof Error ? error.message : "Unknown error",
+                              });
+                            }
+                          }
+                        }}
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-red-500 border border-red-100 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

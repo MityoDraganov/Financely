@@ -1,7 +1,10 @@
 import { Trash2, Download, Image as ImageIcon, Video, File } from "lucide-react";
+import { getBlob, ref } from "@firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { File as FileType } from "@/core";
+import { toast } from "sonner";
+import { firebase } from "@/infrastructure";
 
 interface FileCardProps {
   file: FileType;
@@ -22,6 +25,36 @@ function getFileIcon(fileType: string) {
 
 export function FileCard({ file, onDelete }: FileCardProps) {
   const FileIcon = getFileIcon(file.fileType);
+  const downloadFilename = file.originalFilename || file.filename || "file";
+  const storagePath =
+    typeof file.metadata?.storagePath === "string" ? file.metadata.storagePath : null;
+
+  const handleDownload = async () => {
+    if (!file.url) return;
+
+    try {
+      const fileRef = storagePath
+        ? ref(firebase.storage, storagePath)
+        : ref(firebase.storage, file.url);
+      const blob = await getBlob(fileRef);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = downloadFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error("Failed to download file");
+    }
+  };
+
+  const handleDeleteClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDelete(file.id);
+  };
 
   return (
     <Card className="overflow-hidden pt-0 rounded-sm">
@@ -46,16 +79,15 @@ export function FileCard({ file, onDelete }: FileCardProps) {
             </h3>
             <div className="flex space-x-1 ml-2">
               {file.url && (
-                <Button variant="ghost" size="icon" asChild>
-                  <a href={file.url} target="_blank" rel="noopener noreferrer">
-                    <Download className="h-4 w-4" />
-                  </a>
+                <Button variant="ghost" size="icon" type="button" onClick={handleDownload}>
+                  <Download className="h-4 w-4" />
                 </Button>
               )}
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => onDelete(file.id)}
+                type="button"
+                onClick={handleDeleteClick}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

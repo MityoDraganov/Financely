@@ -3,7 +3,6 @@ export { IntegrationsTabs, type TabValue } from "./tabs";
 export { IntegrationsWidgetNavBar } from "./widget-nav-bar";
 export { ShareEmbedSection } from "./share-embed-section";
 export { CustomizeSection } from "./customize-section";
-export { AutomationsSection } from "./automations-section";
 export { WidgetPreviewPanel } from "./widget-preview-panel";
 export { WidgetSidebar } from "./widget-sidebar";
 export { WidgetBuilderPropertiesPanel } from "./widget-builder-properties-panel";

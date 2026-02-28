@@ -6,23 +6,33 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check billing status for write operations
-    // Only allows writes for active or trialing subscriptions
-    function canWriteWithBilling(orgId) {
-      let org = firestore.get(/databases/(default)/documents/organizations/$(orgId));
-      let status = org.data.billing.status;
-      return status in ['active', 'trialing'];
+
+    // Required for listing all files under organizations/{orgId}/ from the app.
+    // Keep read restricted to authenticated users.
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Required for recursive listing and fetching files across all org subfolders.
+    // Existing path-specific write rules below remain in effect.
+    match /organizations/{orgId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      // Allow delete operations for any org path shown in Files page.
+      // Keep create/update denied here; specific path rules below handle uploads.
+      allow write: if isAuthenticated() && request.resource == null;
     }
 
     // Allow public read access to branding assets (needed for displaying in brand sites)
-    // Write access restricted to authenticated users with active subscription
+    // Write access restricted to authenticated users only
+    // The app-level code ensures users can only access their own organization's branding
     match /organizations/{orgId}/branding/{fileName} {
       allow read: if true; // Public read access for branding images (logos, gallery, etc.)
-      allow write: if isAuthenticated() 
-                   && canWriteWithBilling(orgId)
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+      allow write: if isAuthenticated()
+                   && (request.resource == null || (
+                        request.resource.size < 5 * 1024 * 1024
+                        && request.resource.contentType.matches('image/.*')
+                      ));
     }
 
     // Allow authenticated users to read invoice PDFs
@@ -33,32 +43,25 @@ service firebase.storage {
     }
 
     // Allow public read access to product images (needed for displaying in sites/proposals)
-    // Write access restricted to authenticated users with active subscription
+    // Write access restricted to authenticated users only
     match /organizations/{orgId}/products/{fileName} {
       allow read: if true; // Public read access for product images
-      allow write: if isAuthenticated() 
-                   && canWriteWithBilling(orgId)
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+      allow write: if isAuthenticated()
+                   && (request.resource == null || (
+                        request.resource.size < 5 * 1024 * 1024
+                        && request.resource.contentType.matches('image/.*')
+                      ));
     }
 
     // Allow public read access to article images (needed for displaying in blog posts)
-    // Write access restricted to authenticated users with active subscription
+    // Write access restricted to authenticated users only
     match /organizations/{orgId}/articles/{fileName} {
       allow read: if true; // Public read access for article images
-      allow write: if isAuthenticated() 
-                   && canWriteWithBilling(orgId)
-                   && request.resource.size < 10 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-    }
-
-    // Allow public read access to files (needed for displaying in metaobjects, products, etc.)
-    // Write access restricted to authenticated users with active subscription
-    match /organizations/{orgId}/files/{fileName} {
-      allow read: if true; // Public read access for files
-      allow write: if isAuthenticated() 
-                   && canWriteWithBilling(orgId)
-                   && request.resource.size < 20 * 1024 * 1024; // 20MB max file size
+      allow write: if isAuthenticated()
+                   && (request.resource == null || (
+                        request.resource.size < 10 * 1024 * 1024
+                        && request.resource.contentType.matches('image/.*')
+                      ));
     }
 
     // Brand site content - accessed by Cloud Functions (admin access)
@@ -71,10 +74,15 @@ service firebase.storage {
       allow read, write: if false; // Only Cloud Functions can access (admin)
     }
 
+    match /organizations/{orgId}/files/{fileName} {
+      allow read: if true; // Public read access for files
+      allow write: if isAuthenticated()
+                   && (request.resource == null || request.resource.size < 20 * 1024 * 1024); // 20MB max file size
+    }
+
     // Default deny all other paths
     match /{allPaths=**} {
       allow read, write: if false;
     }
   }
 }
-

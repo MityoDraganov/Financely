@@ -5,7 +5,11 @@
   "scripts": {
     "start": "remotion studio src/index.ts",
     "render:v1": "remotion render src/index.ts FinancelyV1 --output out/video1.mp4",
-    "render:v1:hq": "remotion render src/index.ts FinancelyV1 --output out/video1-hq.mp4 --codec h264 --crf 16"
+    "render:v1:hq": "remotion render src/index.ts FinancelyV1 --output out/video1-hq.mp4 --codec h264 --crf 16",
+    "render:v2bg": "remotion render src/index.ts FinancelyV2BG --output out/video2-bg.mp4",
+    "render:v2bg:hq": "remotion render src/index.ts FinancelyV2BG --output out/video2-bg-hq.mp4 --codec h264 --crf 16",
+    "voiceover:en": "node --env-file=.env ./node_modules/.bin/tsx generate-voiceover.ts",
+    "voiceover:bg": "node --env-file=.env ./node_modules/.bin/tsx generate-voiceover-bg.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.290",
@@ -19,6 +23,7 @@
   "devDependencies": {
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.0"
   },
   "remotion": {
