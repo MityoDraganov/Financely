@@ -1,6 +1,4 @@
-import { Info, CheckCircle2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Info, CheckCircle2, Sparkles, Lock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -11,6 +9,7 @@ import {
 import { formatCurrency } from "@/utils/currencies";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 
 interface BindingField {
 	path: string;
@@ -55,71 +54,83 @@ export function InvoiceFormField({
 	if (isAddressField && isObjectValue) {
 		const addressObj = value as Record<string, InvoiceDataValue>;
 		return (
-			<div className="space-y-2">
-				<Label htmlFor={field.path}>{field.label}</Label>
+			<div className="space-y-1.5">
+				<label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+					{field.label}
+				</label>
 				<div className="space-y-2">
-					<Input
-						id={`${field.path}-street`}
+					<input
 						type="text"
-						placeholder="Street Address"
+						placeholder="Street address"
 						value={String(addressObj.street ?? "")}
-						onChange={(e) => {
-							onChange({
-								...addressObj,
-								street: e.target.value,
-							});
-						}}
+						onChange={(e) =>
+							onChange({ ...addressObj, street: e.target.value })
+						}
+						className={cn(
+							"w-full px-3 py-2 text-sm rounded-md border bg-background",
+							"transition-all duration-150",
+							"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+							"placeholder:text-muted-foreground/40"
+						)}
 					/>
 					<div className="grid grid-cols-2 gap-2">
-						<Input
-							id={`${field.path}-city`}
+						<input
 							type="text"
 							placeholder="City"
 							value={String(addressObj.city ?? "")}
-							onChange={(e) => {
-								onChange({
-									...addressObj,
-									city: e.target.value,
-								});
-							}}
+							onChange={(e) =>
+								onChange({ ...addressObj, city: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
 						/>
-						<Input
-							id={`${field.path}-state`}
+						<input
 							type="text"
-							placeholder="State/Province"
+							placeholder="State / Province"
 							value={String(addressObj.state ?? "")}
-							onChange={(e) => {
-								onChange({
-									...addressObj,
-									state: e.target.value,
-								});
-							}}
+							onChange={(e) =>
+								onChange({ ...addressObj, state: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-2">
-						<Input
-							id={`${field.path}-zipCode`}
+						<input
 							type="text"
-							placeholder="ZIP/Postal Code"
+							placeholder="ZIP / Postal code"
 							value={String(addressObj.zipCode ?? "")}
-							onChange={(e) => {
-								onChange({
-									...addressObj,
-									zipCode: e.target.value,
-								});
-							}}
+							onChange={(e) =>
+								onChange({ ...addressObj, zipCode: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
 						/>
-						<Input
-							id={`${field.path}-country`}
+						<input
 							type="text"
 							placeholder="Country"
 							value={String(addressObj.country ?? "")}
-							onChange={(e) => {
-								onChange({
-									...addressObj,
-									country: e.target.value,
-								});
-							}}
+							onChange={(e) =>
+								onChange({ ...addressObj, country: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
 						/>
 					</div>
 				</div>
@@ -130,42 +141,30 @@ export function InvoiceFormField({
 	// Use local state to preserve cursor position during typing
 	const [localValue, setLocalValue] = useState<string>(() => {
 		if (field.type === "number") {
-			if (value === null || value === undefined || value === "") {
-				return "";
-			}
-			if (typeof value === "number") {
-				return String(value);
-			}
+			if (value === null || value === undefined || value === "") return "";
 			return String(value);
 		}
-		// For non-number fields, handle objects by returning empty string
 		if (typeof value === "object" && value !== null && !Array.isArray(value)) {
 			return "";
 		}
 		return String(value ?? "");
 	});
 
+	const [isFilled, setIsFilled] = useState(false);
+	const [justFilled, setJustFilled] = useState(false);
+
 	const inputRef = useRef<HTMLInputElement>(null);
 	const previousValueRef = useRef<InvoiceDataValue>(value);
 	const isUserTypingRef = useRef(false);
 	const pendingValueRef = useRef<string | null>(null);
 
-	// Sync local value with prop value only when it changes externally (not from user typing)
+	// Sync local value with prop value only when it changes externally
 	useEffect(() => {
-		// Skip if user is actively typing
-		if (isUserTypingRef.current) {
-			return;
-		}
+		if (isUserTypingRef.current) return;
 
-		// Only update if the value changed externally (not from our own onChange)
 		const currentDisplayValue = (() => {
 			if (field.type === "number") {
-				if (value === null || value === undefined || value === "") {
-					return "";
-				}
-				if (typeof value === "number") {
-					return String(value);
-				}
+				if (value === null || value === undefined || value === "") return "";
 				return String(value);
 			}
 			if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -174,16 +173,16 @@ export function InvoiceFormField({
 			return String(value ?? "");
 		})();
 
-		// Only update if the value actually changed
 		if (currentDisplayValue !== localValue) {
-			// Preserve cursor position when updating from external source
 			if (inputRef.current && document.activeElement === inputRef.current) {
 				const cursorPosition = inputRef.current.selectionStart;
 				setLocalValue(currentDisplayValue);
-				// Restore cursor position after state update
 				setTimeout(() => {
 					if (inputRef.current) {
-						const newPosition = Math.min(cursorPosition ?? 0, currentDisplayValue.length);
+						const newPosition = Math.min(
+							cursorPosition ?? 0,
+							currentDisplayValue.length
+						);
 						inputRef.current.setSelectionRange(newPosition, newPosition);
 					}
 				}, 0);
@@ -194,14 +193,24 @@ export function InvoiceFormField({
 		previousValueRef.current = value;
 	}, [value, field.type, localValue]);
 
+	// Track filled state for the checkmark animation
+	useEffect(() => {
+		const hasValue =
+			localValue !== "" && localValue !== null && localValue !== undefined;
+		if (hasValue && !isFilled) {
+			setIsFilled(true);
+			setJustFilled(true);
+			setTimeout(() => setJustFilled(false), 400);
+		} else if (!hasValue) {
+			setIsFilled(false);
+		}
+	}, [localValue, isFilled]);
+
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const inputValue = e.target.value;
-		
-		// Mark that user is typing
+
 		isUserTypingRef.current = true;
 		pendingValueRef.current = inputValue;
-		
-		// Update local state immediately to preserve cursor position
 		setLocalValue(inputValue);
 
 		let val: InvoiceDataValue;
@@ -215,7 +224,12 @@ export function InvoiceFormField({
 				val = "";
 			} else {
 				const trimmed = inputValue.trim();
-				if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-.") {
+				if (
+					trimmed === "" ||
+					trimmed === "-" ||
+					trimmed === "." ||
+					trimmed === "-."
+				) {
 					val = "";
 				} else {
 					const numValue = Number(trimmed);
@@ -234,11 +248,9 @@ export function InvoiceFormField({
 			val = inputValue;
 		}
 
-		// Update parent state (non-blocking)
 		onChange(val);
 		previousValueRef.current = val;
 
-		// Clear the typing flag after a short delay to allow for fast typing
 		setTimeout(() => {
 			isUserTypingRef.current = false;
 			pendingValueRef.current = null;
@@ -248,7 +260,12 @@ export function InvoiceFormField({
 	const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
 		if (field.type === "number") {
 			const inputValue = e.target.value.trim();
-			if (inputValue === "" || inputValue === "-" || inputValue === "." || inputValue === "-.") {
+			if (
+				inputValue === "" ||
+				inputValue === "-" ||
+				inputValue === "." ||
+				inputValue === "-."
+			) {
 				onChange("");
 			} else {
 				const numValue = Number(inputValue);
@@ -259,58 +276,82 @@ export function InvoiceFormField({
 				}
 			}
 		}
-		if (onBlur) {
-			onBlur(e);
-		}
+		if (onBlur) onBlur(e);
 	};
 
+	const hasValue =
+		localValue !== "" && localValue !== null && localValue !== undefined;
+	const isAutoField = field.isLinkedCurrency || field.hasFormula;
+
 	return (
-		<div className="space-y-2">
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<Label htmlFor={field.path}>
+		<div className="space-y-1.5">
+			{/* Label row */}
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-1.5">
+					<label
+						htmlFor={`binding-${field.path}`}
+						className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+					>
 						{field.label}
-						{field.isLinkedCurrency && (
-							<span className="ml-2 text-xs text-muted-foreground font-normal">
-								(Linked - read-only)
-							</span>
-						)}
-						{field.hasFormula && (
-							<span className="ml-2 text-xs text-muted-foreground font-normal">
-								(Formula - read-only)
-							</span>
-						)}
-						{isProductLocked && (
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Info className="ml-2 h-4 w-4 text-muted-foreground cursor-help" />
-									</TooltipTrigger>
-									<TooltipContent>
-										<p>
-											This field is populated from the
-											selected product
-										</p>
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						)}
-					</Label>
+					</label>
+
+					{isAutoField && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 leading-none cursor-help">
+										{field.hasFormula ? (
+											<Zap className="h-2.5 w-2.5" />
+										) : (
+											<Sparkles className="h-2.5 w-2.5" />
+										)}
+										{field.hasFormula ? "formula" : "linked"}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p className="text-xs">
+										{field.hasFormula
+											? "This field is auto-calculated by a formula"
+											: "This field is linked to another currency field"}
+									</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+
+					{isProductLocked && !isAutoField && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 leading-none cursor-help">
+										<Lock className="h-2.5 w-2.5" />
+										product
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p className="text-xs">Populated from selected product</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
 				</div>
+
 				{shouldAutoCalculate && onAutoCalculate && (
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
-						className="h-6 px-2 text-xs"
+						className="h-5 px-2 text-[10px] font-medium text-primary hover:text-primary"
 						onClick={onAutoCalculate}
 					>
 						Auto-calculate
 					</Button>
 				)}
 			</div>
-			<div className="relative">
-				<Input
+
+			{/* Input */}
+			<div className="relative group">
+				<input
 					ref={inputRef}
 					id={`binding-${field.path}`}
 					type={field.type}
@@ -319,36 +360,73 @@ export function InvoiceFormField({
 					onBlur={handleBlur}
 					placeholder={`Enter ${field.label.toLowerCase()}`}
 					readOnly={isReadOnly}
-					className={
-						isReadOnly
-							? "bg-muted cursor-not-allowed"
-							: ""
-					}
+					className={cn(
+						"w-full px-3 py-2 text-sm rounded-md border bg-background",
+						"transition-all duration-150",
+						"focus:outline-none focus:ring-2 focus:ring-ring/60 focus:border-transparent",
+						"placeholder:text-muted-foreground/40",
+						// Filled state: subtle green left border
+						hasValue && !isReadOnly && !isAutoField &&
+							"border-l-2 border-l-green-500/50",
+						// Readonly states
+						isAutoField &&
+							"bg-muted/30 text-muted-foreground border-transparent cursor-default select-none",
+						isProductLocked && !isAutoField &&
+							"bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
+						// Editable default
+						!isReadOnly && "border-border hover:border-border/80"
+					)}
 				/>
-				{isProductLocked && (
+
+				{/* Success checkmark */}
+				{hasValue && !isReadOnly && !isAutoField && (
+					<div
+						className={cn(
+							"absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500/70",
+							justFilled && "inv-check-pop"
+						)}
+					>
+						<CheckCircle2 className="h-3.5 w-3.5" />
+					</div>
+				)}
+
+				{/* Product locked indicator */}
+				{isProductLocked && !isAutoField && (
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-green-600 cursor-help">
+								<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400 cursor-help">
 									<CheckCircle2 className="h-3.5 w-3.5" />
 								</div>
 							</TooltipTrigger>
 							<TooltipContent>
-								<p>
-									This field is populated from the selected
-									product
-								</p>
+								<p className="text-xs">Populated from selected product</p>
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 				)}
+
+				{/* Auto-field sparkle indicator */}
+				{isAutoField && (
+					<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40">
+						<Info className="h-3.5 w-3.5" />
+					</div>
+				)}
 			</div>
+
+			{/* Auto-calculate hint */}
 			{shouldAutoCalculate && suggestedValue !== undefined && (
-				<p className="text-xs text-muted-foreground">
-					Suggested: {formatCurrency(suggestedValue, defaultCurrency)}
+				<p className="text-[11px] text-muted-foreground pl-0.5">
+					Suggested:{" "}
+					<button
+						type="button"
+						onClick={onAutoCalculate}
+						className="text-primary hover:underline font-medium"
+					>
+						{formatCurrency(suggestedValue, defaultCurrency)}
+					</button>
 				</p>
 			)}
 		</div>
 	);
 }
-

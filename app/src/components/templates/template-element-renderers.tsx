@@ -5,7 +5,7 @@
 
 import React from "react";
 import type { TemplateElement } from "@/core/entities/template";
-import type { RenderPage } from "@/utils/template-pagination";
+import type { ElementSlice, RenderPage } from "@/utils/template-pagination";
 import { getByPath, formatValue } from "@/utils/template-preview-utils";
 import type { IconName } from "lucide-react/dynamic";
 import { DynamicIcon, normalizeIconName } from "@/components/designer/elements/lucide-icon-map";
@@ -161,11 +161,14 @@ function calculateElementStyle(
 	adjustedY: number,
 	pageIndex: number,
 	pageSize: { w: number; h: number },
-	margins: { top: number; right: number; bottom: number; left: number }
+	margins: { top: number; right: number; bottom: number; left: number },
+	elementSlice?: ElementSlice
 ): ElementStyle {
+	const effectiveY = adjustedY + (elementSlice?.offsetY ?? 0);
+	const effectiveHeight = elementSlice?.height ?? el.height;
 	const usableHeight = pageSize.h - margins.top - margins.bottom;
 	const pageStartY = pageIndex * usableHeight;
-	const yInUsableArea = adjustedY - pageStartY;
+	const yInUsableArea = effectiveY - pageStartY;
 	
 	// Position relative to page, accounting for top margin
 	const yOnPage = margins.top + yInUsableArea;
@@ -175,7 +178,7 @@ function calculateElementStyle(
 	const maxWidth = Math.max(0, pageSize.w - margins.right - clampedX);
 	const maxHeight = Math.max(0, pageSize.h - margins.bottom - clampedY);
 	const clampedWidth = Math.max(0, Math.min(el.width, maxWidth));
-	const clampedHeight = Math.max(0, Math.min(el.height, maxHeight));
+	const clampedHeight = Math.max(0, Math.min(effectiveHeight, maxHeight));
 	
 	return {
 		position: "absolute",
@@ -352,16 +355,52 @@ function renderImageElement(
  */
 function renderBoxElement(
 	el: Extract<TemplateElement, { type: "box" }>,
-	style: ElementStyle
+	style: ElementStyle,
+	elementSlice?: ElementSlice
 ): React.ReactNode {
+	const background = el.fillGradient
+		? el.fillGradient.type === "linear"
+			? `linear-gradient(${el.fillGradient.angle}deg, ${el.fillGradient.colors.join(", ")})`
+			: `radial-gradient(circle, ${el.fillGradient.colors.join(", ")})`
+		: el.fill;
+	const shadowStyle = el.shadow?.enabled
+		? `${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.color}`
+		: undefined;
+	const sliceOffsetY = elementSlice?.offsetY ?? 0;
+	const isSliced = sliceOffsetY > 0 || Boolean(elementSlice && elementSlice.height < el.height);
+
+	if (isSliced) {
+		return (
+			<div key={el.id} style={{ ...style, overflow: "hidden" }}>
+				<div
+					style={{
+						position: "absolute",
+						left: 0,
+						top: -sliceOffsetY,
+						width: "100%",
+						height: el.height,
+						background,
+						border: `${el.strokeWidth}px solid ${el.stroke}`,
+						borderRadius: el.radius,
+						opacity: el.opacity ?? 1,
+						boxShadow: shadowStyle,
+						boxSizing: "border-box",
+					}}
+				/>
+			</div>
+		);
+	}
+
 	return (
 		<div
 			key={el.id}
 			style={{
 				...style,
-				background: el.fill,
+				background,
 				border: `${el.strokeWidth}px solid ${el.stroke}`,
 				borderRadius: el.radius,
+				opacity: el.opacity ?? 1,
+				boxShadow: shadowStyle,
 			}}
 		/>
 	);
@@ -392,10 +431,10 @@ function renderLineElement(
 
 function renderPathElement(
 	el: Extract<TemplateElement, { type: "path" }>,
-	style: ElementStyle
+	style: ElementStyle,
+	elementSlice?: ElementSlice
 ): React.ReactNode {
 	const gradient = el.fillGradient;
-	const fill = gradient ? `url(#gradient-${el.id})` : el.fill;
 	const strokeDasharray =
 		el.strokeStyle === "dashed"
 			? `${(el.strokeWidth || 1) * 4},${(el.strokeWidth || 1) * 2}`
@@ -406,16 +445,23 @@ function renderPathElement(
 		? `drop-shadow(${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.color})`
 		: undefined;
 	const pathData = resolvePathData(el);
+	const sliceOffsetY = elementSlice?.offsetY ?? 0;
+	const isSliced = sliceOffsetY > 0 || Boolean(elementSlice && elementSlice.height < el.height);
+	const gradientId = `gradient-${el.id}-${Math.max(0, Math.round(sliceOffsetY))}`;
+	const fill = gradient ? `url(#${gradientId})` : el.fill;
 
 	return (
-		<div key={el.id} style={style}>
+		<div key={el.id} style={{ ...style, overflow: "hidden" }}>
 			<svg
 				width="100%"
-				height="100%"
+				height={isSliced ? el.height : "100%"}
 				viewBox={`0 0 ${el.width} ${el.height}`}
 				preserveAspectRatio="none"
 				xmlns="http://www.w3.org/2000/svg"
 				style={{
+					position: isSliced ? "absolute" : undefined,
+					left: isSliced ? 0 : undefined,
+					top: isSliced ? -sliceOffsetY : undefined,
 					opacity: el.opacity ?? 1,
 					mixBlendMode: el.blendMode || "normal",
 					filter: shadowStyle,
@@ -424,7 +470,7 @@ function renderPathElement(
 				{gradient && (
 					<defs>
 						{gradient.type === "linear" ? (
-							<linearGradient id={`gradient-${el.id}`} gradientTransform={`rotate(${gradient.angle})`}>
+							<linearGradient id={gradientId} gradientTransform={`rotate(${gradient.angle})`}>
 								{gradient.colors.map((color, idx) => (
 									<stop
 										key={idx}
@@ -434,7 +480,7 @@ function renderPathElement(
 								))}
 							</linearGradient>
 						) : (
-							<radialGradient id={`gradient-${el.id}`}>
+							<radialGradient id={gradientId}>
 								{gradient.colors.map((color, idx) => (
 									<stop
 										key={idx}
@@ -991,11 +1037,12 @@ export function renderTemplateElement(
 	el: TemplateElement,
 	renderContext: RenderContext
 ): React.ReactNode {
-	const { context, pageIndex, pageSize, templateElements, margins } = renderContext;
+	const { context, page, pageIndex, pageSize, templateElements, margins } = renderContext;
 	// page is accessed via renderContext in renderTableElement
 	
+	const elementSlice = page.elementSlices[el.id];
 	const adjustedY = calculateAdjustedY(el, templateElements, context, pageSize, margins);
-	const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins);
+	const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins, elementSlice);
 	
 	switch (el.type) {
 		case "text":
@@ -1003,11 +1050,11 @@ export function renderTemplateElement(
 		case "image":
 			return renderImageElement(el, style, context);
 		case "box":
-			return renderBoxElement(el, style);
+			return renderBoxElement(el, style, elementSlice);
 		case "line":
 			return renderLineElement(el, style);
 		case "path":
-			return renderPathElement(el, style);
+			return renderPathElement(el, style, elementSlice);
 		case "icon":
 			return renderIconElement(el, style);
 		case "input":

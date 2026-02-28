@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useCreateInvoice } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
@@ -1403,48 +1404,20 @@ export default function CreateInvoicePage() {
 		);
 	}
 
-	const formContent = (
-		<form id="invoice-form" onSubmit={handleSubmit} className="space-y-6">
-			{/* Template Selection - Hidden on mobile (shown in layout header) */}
-			<div className={isMobile ? "hidden" : ""}>
-				<InvoiceTemplateSelector
-					templates={templates ?? []}
-					selectedTemplateId={selectedTemplateId}
-					onTemplateChange={setSelectedTemplateId}
-					selectedTemplate={selectedTemplate}
-				/>
-			</div>
+	// Tables rendered separately so they can span full width on desktop
+	const tablesContent = tableConfigs.length > 0 ? (
+		<div data-section="tables" className="space-y-4">
+			{tableConfigs.map((tableConfig, tableIndex) => {
+				const tableItems = getTableItems(tableConfig.itemsPath);
+				const itemsPath = tableConfig.itemsPath;
 
-			{/* Dynamic Fields */}
-			{bindings.length > 0 && (
-				<InvoiceFormFields
-					bindings={bindings}
-					formData={formData}
-					getValue={getValue}
-					setValue={setValue}
-					complianceValidation={complianceValidation}
-					currentOrganization={currentOrganization}
-					onAutoFill={handleAutoFill}
-					productLockedFields={new Set(
-						Array.from(productLockedFields.values()).flatMap((set) =>
-							Array.from(set)
-						)
-					)}
-					allItems={allItems}
-					calculatedTotals={calculatedTotals}
-					defaultCurrency={defaultCurrency}
-				/>
-			)}
-
-			{/* Dynamic Tables */}
-			<div data-section="tables">
-				{tableConfigs.map((tableConfig, tableIndex) => {
-					const tableItems = getTableItems(tableConfig.itemsPath);
-					const itemsPath = tableConfig.itemsPath;
-
-					return (
+				return (
+					<div
+						key={`table-${tableIndex}`}
+						className="inv-slide-up"
+						style={{ animationDelay: `${120 + tableIndex * 40}ms` }}
+					>
 						<InvoiceTable
-							key={`table-${tableIndex}`}
 							tableConfig={tableConfig}
 							tableIndex={tableIndex}
 							tableItems={tableItems}
@@ -1474,36 +1447,49 @@ export default function CreateInvoicePage() {
 							tableColumnCurrencyLinks={tableColumnCurrencyLinks}
 							defaultCurrency={defaultCurrency}
 						/>
-					);
-				})}
+					</div>
+				);
+			})}
+		</div>
+	) : null;
+
+	const formContent = (
+		<form id="invoice-form" onSubmit={handleSubmit} className="space-y-6">
+			{/* Template Selection - Hidden on mobile (shown in layout header) */}
+			<div className={isMobile ? "hidden" : "inv-slide-up"} style={{ animationDelay: "0ms" }}>
+				<InvoiceTemplateSelector
+					templates={templates ?? []}
+					selectedTemplateId={selectedTemplateId}
+					onTemplateChange={setSelectedTemplateId}
+					selectedTemplate={selectedTemplate}
+				/>
 			</div>
 
-			{/* Submit - Hidden on mobile (shown in sticky footer) */}
-			<Card className={isMobile ? "hidden" : ""}>
-				<CardContent className="pt-6">
-					<Button
-						type="submit"
-						className="w-full"
-						disabled={
-							createInvoice.isPending ||
-							!selectedTemplate
-						}
-						size="lg"
-					>
-						{createInvoice.isPending ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Creating Invoice...
-							</>
-						) : (
-							<>
-								<FileText className="mr-2 h-4 w-4" />
-								Create Invoice
-							</>
+			{/* Dynamic Fields */}
+			{bindings.length > 0 && (
+				<div className="inv-slide-up" style={{ animationDelay: "60ms" }}>
+					<InvoiceFormFields
+						bindings={bindings}
+						formData={formData}
+						getValue={getValue}
+						setValue={setValue}
+						complianceValidation={complianceValidation}
+						currentOrganization={currentOrganization}
+						onAutoFill={handleAutoFill}
+						productLockedFields={new Set(
+							Array.from(productLockedFields.values()).flatMap((set) =>
+								Array.from(set)
+							)
 						)}
-					</Button>
-				</CardContent>
-			</Card>
+						allItems={allItems}
+						calculatedTotals={calculatedTotals}
+						defaultCurrency={defaultCurrency}
+					/>
+				</div>
+			)}
+
+			{/* Tables inline on mobile only */}
+			{isMobile && tablesContent}
 		</form>
 	);
 
@@ -1567,28 +1553,55 @@ export default function CreateInvoicePage() {
 					</Dialog>
 				</>
 			) : (
-				<div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+				<div className="container mx-auto px-4 py-6 space-y-5 max-w-7xl">
 					{/* Header Section */}
-					<div className="space-y-2">
-						<h1 className="text-3xl font-bold tracking-tight">
-							Create Invoice
-						</h1>
-						<p className="text-muted-foreground">
-							Select a template and fill in the details. Your invoice
-							will be generated based on the template design.
-						</p>
+					<div className="inv-slide-up flex items-end justify-between gap-4">
+						<div className="space-y-0.5">
+							<h1 className="text-2xl font-semibold tracking-tight">
+								Create Invoice
+							</h1>
+							<p className="text-sm text-muted-foreground">
+								Fill in the details — your invoice updates live as you type.
+							</p>
+						</div>
 					</div>
 
-					<div className="grid gap-6 lg:grid-cols-3">
-						{/* Live Preview */}
-						<div className="lg:col-span-2">
-							{previewContent}
-						</div>
-
-						{/* Form Sidebar */}
+					<div className="grid gap-6 lg:grid-cols-3 items-start">
+						{/* Form Sidebar — left */}
 						<div className="space-y-6">
 							{formContent}
 						</div>
+
+						{/* Live Preview — right, 2/3 width */}
+						<div className="lg:col-span-2 inv-slide-up" style={{ animationDelay: "30ms" }}>
+							{previewContent}
+						</div>
+					</div>
+
+					{/* Line items tables — full width below the grid */}
+					{tablesContent}
+
+					{/* Desktop submit — full width, below tables */}
+					<div className="inv-slide-up" style={{ animationDelay: "200ms" }}>
+						<Button
+							type="submit"
+							form="invoice-form"
+							className="w-full active:scale-[0.98]"
+							disabled={createInvoice.isPending || !selectedTemplate}
+							size="lg"
+						>
+							{createInvoice.isPending ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Creating Invoice…
+								</>
+							) : (
+								<>
+									<FileText className="mr-2 h-4 w-4" />
+									Create Invoice
+								</>
+							)}
+						</Button>
 					</div>
 				</div>
 			)}

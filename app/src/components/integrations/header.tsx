@@ -16,17 +16,8 @@ export function IntegrationsHeader() {
 						<h1 className="text-2xl font-semibold tracking-tight text-foreground">
 							{t("siteBuilder.sidebar.integrationWidgets")}
 						</h1>
-						<Badge
-							variant="secondary"
-							className="bg-primary/10 text-primary border-0 text-xs font-medium"
-						>
-							<Sparkles className="mr-1 h-3 w-3" />
-							{t("siteBuilder.aiWidgetDialog.title")}
-						</Badge>
 					</div>
-					<p className="text-sm text-muted-foreground max-w-xl">
-						{t("siteBuilder.subtitle")}
-					</p>
+		
 				</div>
 
 				<div className="flex items-center gap-4 shrink-0">

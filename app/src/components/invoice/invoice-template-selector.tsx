@@ -1,6 +1,4 @@
 import { FileText } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -24,40 +22,35 @@ export function InvoiceTemplateSelector({
 	selectedTemplate,
 }: InvoiceTemplateSelectorProps) {
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Template</CardTitle>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<div>
-					<Label>Choose a template</Label>
-					<Select value={selectedTemplateId} onValueChange={onTemplateChange}>
-						<SelectTrigger>
-							<SelectValue placeholder="Select template" />
-						</SelectTrigger>
-						<SelectContent>
-							{templates.map((t) => (
-								<SelectItem key={t.id} value={t.id}>
-									<div className="flex items-center space-x-2">
-										<FileText className="h-4 w-4" />
-										<span>{t.name}</span>
-									</div>
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
+		<div className="space-y-3">
+			<div className="flex items-center gap-3">
+				<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+					Template
+				</span>
+				<div className="flex-1 h-px bg-border" />
+			</div>
 
-				{selectedTemplate && (
-					<div className="text-sm text-muted-foreground">
-						<p>
-							<strong>Description:</strong>{" "}
-							{selectedTemplate.description || "No description"}
-						</p>
-					</div>
-				)}
-			</CardContent>
-		</Card>
+			<Select value={selectedTemplateId} onValueChange={onTemplateChange}>
+				<SelectTrigger className="w-full">
+					<SelectValue placeholder="Select a template…" />
+				</SelectTrigger>
+				<SelectContent>
+					{templates.map((t) => (
+						<SelectItem key={t.id} value={t.id}>
+							<div className="flex items-center gap-2">
+								<FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+								<span>{t.name}</span>
+							</div>
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			{selectedTemplate?.description && (
+				<p className="text-xs text-muted-foreground pl-0.5 inv-slide-up">
+					{selectedTemplate.description}
+				</p>
+			)}
+		</div>
 	);
 }
-

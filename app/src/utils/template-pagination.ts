@@ -13,10 +13,16 @@ export type TableSlice = {
 	isLastSlice: boolean;
 };
 
+export type ElementSlice = {
+	offsetY: number;
+	height: number;
+};
+
 export type RenderPage = {
 	pageIndex: number;
 	elements: TemplateElement[];
 	tableSlices: Record<string, TableSlice>;
+	elementSlices: Record<string, ElementSlice>;
 };
 
 
@@ -61,7 +67,12 @@ export function paginateTemplate(
 	const pages: RenderPage[] = [];
 	const ensurePage = (i: number): RenderPage => {
 		while (pages.length <= i) {
-			pages.push({ pageIndex: pages.length, elements: [], tableSlices: {} });
+			pages.push({
+				pageIndex: pages.length,
+				elements: [],
+				tableSlices: {},
+				elementSlices: {},
+			});
 		}
 		return pages[i];
 	};
@@ -224,6 +235,40 @@ export function paginateTemplate(
 				}
 			}
 			
+			const elementHeight = el.height;
+			const elementBottom = elementY + elementHeight;
+
+			// Background effects should continue across page boundaries instead of
+			// jumping to just the next page.
+			if (el.type === "box" || el.type === "path") {
+				let pageIndex = 0;
+				let pageStartY = 0;
+
+				while (elementY >= pageStartY + usableHeight) {
+					pageStartY += usableHeight;
+					pageIndex += 1;
+				}
+
+				while (pageStartY < elementBottom) {
+					const sliceStart = Math.max(elementY, pageStartY);
+					const sliceEnd = Math.min(elementBottom, pageStartY + usableHeight);
+
+					if (sliceEnd > sliceStart) {
+						const targetPageIndex = pageIndex + forcedPageShift;
+						const page = ensurePage(targetPageIndex);
+						page.elements.push(el);
+						page.elementSlices[el.id] = {
+							offsetY: sliceStart - elementY,
+							height: sliceEnd - sliceStart,
+						};
+					}
+
+					pageStartY += usableHeight;
+					pageIndex += 1;
+				}
+				continue;
+			}
+
 			// Find which page this element belongs to
 			let targetPageIndex = 0;
 			let pageStartY = 0;
@@ -234,9 +279,6 @@ export function paginateTemplate(
 				targetPageIndex += 1;
 			}
 			
-			// Check if element fits on this page
-			const elementHeight = el.height;
-			const elementBottom = elementY + elementHeight;
 			const pageEndY = pageStartY + usableHeight;
 			
 			// If element doesn't fit, move to next page
