@@ -12,15 +12,8 @@ import type { EmailTemplate } from "../core/entities/email-template";
 interface SubmitMarketplaceTemplateInput {
   sourceTemplateId: string;
   sourceTemplateType: "invoice" | "email";
-  orgId: string; // Organization ID to verify template ownership
+  orgId: string;
   title: string;
-  description?: string;
-  shortDescription?: string;
-  category?: string;
-  tags?: string[];
-  language?: string;
-  country?: string;
-  previewImages?: string[];
 }
 
 interface SubmitMarketplaceTemplateResponse {
@@ -51,13 +44,6 @@ export const submitMarketplaceTemplate = onCall<
         sourceTemplateType,
         orgId,
         title,
-        description,
-        shortDescription,
-        category,
-        tags = [],
-        language,
-        country,
-        previewImages = [],
       } = request.data;
 
       if (!sourceTemplateId) {
@@ -182,8 +168,6 @@ export const submitMarketplaceTemplate = onCall<
       const submissionId = await marketplaceTemplateRepo.create({
         data: {
           title,
-          description,
-          shortDescription,
           type: sourceTemplateType,
           authorId: userId,
           authorName,
@@ -191,11 +175,8 @@ export const submitMarketplaceTemplate = onCall<
           isFeatured: false,
           status: "published",
           templateContent,
-          previewImages,
-          tags,
-          category,
-          language,
-          country,
+          previewImages: [],
+          tags: [],
           ratingAverage: 0,
           ratingCount: 0,
           downloadCount: 0,
