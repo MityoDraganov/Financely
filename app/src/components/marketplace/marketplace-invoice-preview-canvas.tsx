@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Template, TemplateElement } from "@/core";
+import type { Organization } from "@/core/entities/organization";
 import { WatermarkRenderer } from "@/components/designer/watermark-renderer";
 import {
   TextElement,
@@ -15,10 +16,13 @@ import CurrencyElement from "@/components/designer/elements/currency";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 import { cn } from "@/lib/utils";
 import { getElementBorderRadiusCss, getElementPaddingCss } from "@/utils/element-box-model";
+import { getDesignerDefaultValueForBinding } from "@/utils/designer-binding-defaults";
 
 type MarketplaceInvoicePreviewCanvasProps = {
   template: Template;
   className?: string;
+  mode?: "original" | "organization";
+  organization?: Organization;
 };
 
 function getPageDimensions(template: Template): { width: number; height: number } {
@@ -48,6 +52,8 @@ function getPageDimensions(template: Template): { width: number; height: number 
 export function MarketplaceInvoicePreviewCanvas({
   template,
   className,
+  mode = "original",
+  organization,
 }: MarketplaceInvoicePreviewCanvasProps) {
   const [zoom, setZoom] = useState(0.8);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -74,12 +80,84 @@ export function MarketplaceInvoicePreviewCanvas({
     };
   }, [pageDimensions.width]);
 
+  const resolveOrganizationBindingValue = (binding: string): string | undefined => {
+    const defaultValue = getDesignerDefaultValueForBinding(binding, organization);
+    if (defaultValue) return defaultValue;
+
+    const key = binding.toLowerCase();
+    const logoUrl = organization?.settings?.branding?.customLogo || organization?.logoUrl;
+
+    if (key === "seller.logo" || key === "supplier.logo" || key === "organization.logo") {
+      return logoUrl || undefined;
+    }
+
+    if (key === "seller.email" || key === "supplier.email") {
+      return organization?.settings?.email || undefined;
+    }
+
+    if (key === "seller.phone" || key === "supplier.phone") {
+      return organization?.settings?.phone || undefined;
+    }
+
+    if (key === "seller.website" || key === "supplier.website" || key === "organization.website") {
+      return organization?.website || undefined;
+    }
+
+    if (key === "currency") {
+      return organization?.settings?.defaultCurrency || "USD";
+    }
+
+    if (key === "invoicedate" || key === "issuedate") {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    return undefined;
+  };
+
+  const displayElements = useMemo(() => {
+    const baseElements = template.elements ?? [];
+    if (mode === "original") return baseElements;
+
+    return baseElements.map((el) => {
+      if (el.type === "text" && el.binding) {
+        const value = resolveOrganizationBindingValue(el.binding);
+        if (!value) return el;
+        return { ...el, text: value };
+      }
+
+      if (el.type === "input" && el.binding) {
+        const value = resolveOrganizationBindingValue(el.binding);
+        if (!value) return el;
+        return { ...el, placeholder: value };
+      }
+
+      if (el.type === "currency" && el.binding) {
+        const value = resolveOrganizationBindingValue(el.binding);
+        if (!value) return el;
+        return { ...el, placeholder: value };
+      }
+
+      if (el.type === "image") {
+        const logoUrl = organization?.settings?.branding?.customLogo || organization?.logoUrl;
+        if (el.binding) {
+          const value = resolveOrganizationBindingValue(el.binding);
+          if (value) return { ...el, src: value };
+        }
+        if (logoUrl && (el.src === "[Your Image URL]" || el.src === "")) {
+          return { ...el, src: logoUrl };
+        }
+      }
+
+      return el;
+    });
+  }, [mode, organization, template.elements]);
+
   const elements = useMemo(
     () =>
-      [...(template.elements ?? [])]
+      [...displayElements]
         .filter((el) => el.visible !== false)
         .sort((a, b) => (a.zIndex ?? 10) - (b.zIndex ?? 10)),
-    [template.elements]
+    [displayElements]
   );
 
   return (

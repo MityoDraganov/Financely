@@ -20,6 +20,7 @@ export default function TemplateDetailPage() {
   const { data: currentOrganization } = useCurrentOrganization();
   const addTemplate = useAddMarketplaceTemplate();
   const [isAdding, setIsAdding] = useState(false);
+  const [invoicePreviewMode, setInvoicePreviewMode] = useState<"original" | "organization">("original");
   const isAdded = useIsMarketplaceTemplateAdded(template, currentOrganization?.id);
 
   const handleAddTemplate = async () => {
@@ -237,14 +238,46 @@ export default function TemplateDetailPage() {
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-800">Template Preview</h2>
-                <span className="text-[11px] text-gray-400 font-medium">
-                  {template.type === "invoice" ? "Invoice Layout" : "Email Layout"}
-                </span>
+                {template.type === "invoice" ? (
+                  <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setInvoicePreviewMode("original")}
+                      className={cn(
+                        "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors",
+                        invoicePreviewMode === "original"
+                          ? "bg-gray-900 text-white"
+                          : "text-gray-500 hover:text-gray-700"
+                      )}
+                    >
+                      Original
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvoicePreviewMode("organization")}
+                      disabled={!currentOrganization}
+                      className={cn(
+                        "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                        invoicePreviewMode === "organization"
+                          ? "bg-gray-900 text-white"
+                          : "text-gray-500 hover:text-gray-700"
+                      )}
+                    >
+                      My Org Data
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-gray-400 font-medium">Email Layout</span>
+                )}
               </div>
               <div className="bg-gray-50 p-4 sm:p-6">
                 <div className="w-full rounded-xl border border-gray-200 bg-white overflow-hidden">
                   {template.type === "invoice" && invoiceTemplateForPreview ? (
-                    <MarketplaceInvoicePreviewCanvas template={invoiceTemplateForPreview} />
+                    <MarketplaceInvoicePreviewCanvas
+                      template={invoiceTemplateForPreview}
+                      mode={invoicePreviewMode}
+                      organization={currentOrganization ?? undefined}
+                    />
                   ) : template.type === "email" && canRenderEmailPreview ? (
                     <iframe
                       srcDoc={(template.templateContent as EmailTemplateData).htmlContent || ""}

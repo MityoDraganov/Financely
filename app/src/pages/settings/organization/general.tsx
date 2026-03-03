@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@clerk/clerk-react";
 import { Globe, Mail, Phone, Copy } from "lucide-react";
+import { deleteField } from "firebase/firestore";
+import type { Organization } from "@/core";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,36 +106,53 @@ export default function OrganizationGeneralPage() {
     if (!organization) return;
 
     try {
-      // Build address object if any address fields are provided
-      const address = (data.address || data.city || data.state || data.zipCode || data.country) ? {
-        street: data.address || undefined,
-        city: data.city || undefined,
-        state: data.state || undefined,
-        zipCode: data.zipCode || undefined,
-        country: data.country || undefined,
-      } : undefined;
+      const hasAddressValues = Boolean(
+        data.address || data.city || data.state || data.zipCode || data.country,
+      );
+      const address = hasAddressValues
+        ? {
+            ...(data.address ? { street: data.address } : {}),
+            ...(data.city ? { city: data.city } : {}),
+            ...(data.state ? { state: data.state } : {}),
+            ...(data.zipCode ? { zipCode: data.zipCode } : {}),
+            ...(data.country ? { country: data.country } : {}),
+          }
+        : null;
 
-      // Update settings with address and contact information
-      // Note: settings.country should be ISO code (e.g., "US"), not full name
-      // The full country name goes in address.country
-      const currentSettings = organization.settings || {};
-      const updatedSettings = {
-        ...currentSettings,
-        ...(address && { address }),
-        // Save email and phone (empty string means clear the field)
-        email: data.email || undefined,
-        phone: data.phone || undefined,
-        // Keep existing country code if it exists, don't overwrite with full name
+      // Use dot-path updates and deleteField() for cleared optional fields.
+      // This avoids sending undefined values to Firestore.
+      const updateData: Record<string, unknown> = {
+        name: data.name,
+        description: data.description?.trim() ?? "",
       };
+
+      if (data.website) {
+        updateData["website"] = data.website;
+      } else if (organization.website) {
+        updateData["website"] = deleteField();
+      }
+
+      if (data.email) {
+        updateData["settings.email"] = data.email;
+      } else if (organization.settings?.email) {
+        updateData["settings.email"] = deleteField();
+      }
+
+      if (data.phone) {
+        updateData["settings.phone"] = data.phone;
+      } else if (organization.settings?.phone) {
+        updateData["settings.phone"] = deleteField();
+      }
+
+      if (address) {
+        updateData["settings.address"] = address;
+      } else if (organization.settings?.address) {
+        updateData["settings.address"] = deleteField();
+      }
 
       await updateOrganization.mutateAsync({
         id: organization.id,
-        data: {
-          name: data.name,
-          description: data.description || undefined,
-          website: data.website || undefined,
-          settings: updatedSettings,
-        },
+        data: updateData as Partial<Organization>,
       });
 
       toast.success(t('settings.organization.general.toasts.updated'));
