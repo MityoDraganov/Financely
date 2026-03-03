@@ -967,6 +967,7 @@ export function TableProperties({
 														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.fontSize')}</Label>
 														<Input
 															type="number"
+															allowEmptyNumber
 															placeholder={t('designer.elementProperties.table.column.total.fontSizePlaceholder')}
 															value={("totalStyle" in c && c.totalStyle?.fontSize) || ""}
 															onChange={(e) => {

@@ -377,6 +377,7 @@ export function WatermarkConfig({ template, organizationLogo, saveMutation }: Wa
 							<Input
 								id="watermark-height"
 								type="number"
+								allowEmptyNumber
 								min={50}
 								max={1000}
 								value={brand.watermark?.height || ""}
