@@ -52,7 +52,11 @@ type DesignerCanvasProps = {
 	onDeleteElement: (id: string) => void;
 	onSetElementLock?: (id: string, locked: boolean) => void;
 	onCreateTemplate: () => void;
-	isRequired: (binding: string | undefined) => boolean;
+	elementIsRequired: (el: {
+		fieldId?: string;
+		binding?: string;
+		itemsBinding?: string;
+	}) => boolean;
 	onTableHeaderChange?: (tableId: string, columnId: string, header: string) => void;
 	onStartTextEdit?: (id: string) => void;
 	onUpdateTextInline?: (id: string, text: string) => void;
@@ -180,7 +184,7 @@ export function DesignerCanvas({
 	onDeleteElement,
 	onSetElementLock,
 	onCreateTemplate,
-	isRequired,
+	elementIsRequired,
 	onTableHeaderChange,
 	onStartTextEdit,
 	onUpdateTextInline,
@@ -457,12 +461,11 @@ export function DesignerCanvas({
 				
 				{/* Elements */}
 				{elements.map((el: TemplateElement) => {
-					const binding = el.type === "text" ? el.binding :
-						el.type === "input" ? el.binding :
-						el.type === "image" ? el.binding :
-						el.type === "currency" ? el.binding :
-						el.type === "table" ? el.itemsBinding : undefined;
-					const isRequiredField = isRequired(binding);
+					const isRequiredField = elementIsRequired({
+						fieldId: (el as { fieldId?: string }).fieldId,
+						binding: (el as { binding?: string }).binding,
+						itemsBinding: el.type === "table" ? el.itemsBinding : undefined,
+					});
 					const isLocked = el.locked === true;
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);

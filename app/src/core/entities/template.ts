@@ -111,6 +111,8 @@ export const textElementSchema = templateElementBaseSchema.extend({
   type: z.literal("text"),
   text: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   calc: z.string().optional(),
   typography: z.object({
     fontFamily: z.string().default("Inter"),
@@ -145,6 +147,8 @@ export const imageElementSchema = templateElementBaseSchema.extend({
   type: z.literal("image"),
   src: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   objectFit: z.enum(["contain", "cover", "fill", "none", "scale-down"]).default("contain"),
   objectPosition: z.string().optional(),
   opacity: z.number().min(0).max(1).optional(),
@@ -226,6 +230,8 @@ export const inputElementSchema = templateElementBaseSchema.extend({
   type: z.literal("input"),
   placeholder: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   variant: z.enum(["text", "number", "date"]).default("text"),
   align: z.enum(["left", "center", "right"]).default("left"),
   fontFamily: z.string().optional(),
@@ -236,6 +242,8 @@ export const currencyElementSchema = templateElementBaseSchema.extend({
   type: z.literal("currency"),
   placeholder: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   currency: z.string().length(3).default("USD"), // ISO 4217 currency code (e.g., "USD", "EUR")
   currencyLinks: z.array(currencyFieldLinkSchema).default([]), // Field linking configuration
   mode: z.enum(["independent", "linked", "formula"]).default("independent"), // Field mode
@@ -296,6 +304,8 @@ export const tableElementSchema = templateElementBaseSchema.extend({
   stripe: z.boolean().default(false),
   columns: z.array(tableColumnSchema).default([]),
   itemsBinding: z.string().default("items"),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   // Design-time sample rows for the designer preview (not used at runtime)
   designRows: z
     .array(
@@ -344,6 +354,8 @@ export const qrCodeElementSchema = templateElementBaseSchema.extend({
   type: z.literal("qrCode"),
   content: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   dataType: z.enum(["url", "text", "payment", "custom"]).default("text"),
   foregroundColor: z.string().default("#111827"),
   backgroundColor: z.string().default("#ffffff"),
@@ -361,6 +373,8 @@ export const barcodeElementSchema = templateElementBaseSchema.extend({
   type: z.literal("barcode"),
   value: z.string().default(""),
   binding: z.string().optional(),
+  fieldId: z.string().optional(),
+  isCustomBinding: z.boolean().optional(),
   format: z.enum(["CODE128", "CODE39", "EAN13", "UPC"]).default("CODE128"),
   color: z.string().default("#111827"),
   backgroundColor: z.string().default("#ffffff"),
@@ -610,19 +624,46 @@ export const invoiceBlockSchema: z.ZodType<InvoiceBlockNode> = z.lazy(() =>
 
 export type InvoiceBlock = z.infer<typeof invoiceBlockSchema>;
 
+/** @deprecated Use templateComplianceConfigSchema instead */
 export const templateComplianceMetadataSchema = z.object({
-  // Target region for this template (determines which compliance schema applies)
   region: z.enum(["US", "EU", "CA", "AU", "UK"]).optional(),
-  // Required field bindings that must be present in the template
-  requiredFields: z.array(z.string()).default([]), // Array of binding paths (e.g., ["invoiceNumber", "seller.name"])
-  // Whether to auto-inject compliance footer
+  requiredFields: z.array(z.string()).default([]),
   autoFooter: z.boolean().default(true),
-  // Custom footer text (overrides auto-generated)
   customFooter: z.string().optional(),
-  // Whether template has been validated for compliance
   complianceValidated: z.boolean().default(false),
-  // Last compliance validation timestamp
   complianceValidatedAt: z.string().optional(),
+});
+
+export const templateComplianceConfigSchema = z.object({
+  region: z.enum(["US", "EU", "CA", "AU", "UK"]).optional(),
+  mode: z.enum(["region", "custom", "none"]).default("region"),
+  additionalRequired: z
+    .array(
+      z.object({
+        fieldId: z.string().min(1),
+        label: z.string().optional(),
+        reason: z.string().optional(),
+      }),
+    )
+    .default([])
+    .optional(),
+  waived: z
+    .array(
+      z.object({
+        fieldId: z.string().min(1),
+        reason: z
+          .string()
+          .min(1, "A reason is required when waiving a compliance field"),
+      }),
+    )
+    .default([])
+    .optional(),
+  // Legacy compat fields
+  autoFooter: z.boolean().default(true).optional(),
+  customFooter: z.string().optional(),
+  complianceValidated: z.boolean().default(false).optional(),
+  complianceValidatedAt: z.string().optional(),
+  requiredFields: z.array(z.string()).default([]).optional(),
 });
 
 /**
@@ -688,8 +729,8 @@ export const templateDataSchema = z.object({
   referenceLayer: templateReferenceLayerSchema.optional(),
   elements: z.array(templateElementSchema).default([]),
   status: z.enum(["draft", "published"]).default("draft"),
-  // Compliance metadata for invoice templates
-  compliance: templateComplianceMetadataSchema.optional(),
+  // Compliance configuration for invoice templates
+  compliance: templateComplianceConfigSchema.optional(),
   // Product table configuration for pre-mapping products to invoice tables
   productTableConfig: productTableConfigSchema.optional(),
   // Marketplace template ID if this template was imported from marketplace
@@ -698,6 +739,7 @@ export const templateDataSchema = z.object({
   schemaVersion: z.number().int().min(1).optional(),
 });
 
+export type TemplateComplianceConfig = z.infer<typeof templateComplianceConfigSchema>;
 export type TemplateData = z.infer<typeof templateDataSchema>;
 
 export const templateSchema = baseEntitySchema.merge(templateDataSchema);

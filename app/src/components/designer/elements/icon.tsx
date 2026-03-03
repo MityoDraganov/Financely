@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronsUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -175,23 +176,13 @@ export function IconProperties({ element, onChange, isNarrow }: IconPropertiesPr
 					</PopoverContent>
 				</Popover>
 			</section>
-			<section className={components.subsection}>
-				<h4 className={typography.subsectionTitle}>{t("designer.elementProperties.icon.color", "Color")}</h4>
-				<div className="flex items-center gap-2">
-					<Input
-						type="text"
-						value={element.color}
-						onChange={(e) => onChange({ color: e.target.value })}
-						className={components.inputHeight}
+				<section className={components.subsection}>
+					<h4 className={typography.subsectionTitle}>{t("designer.elementProperties.icon.color", "Color")}</h4>
+					<ColorPicker
+						value={element.color || "#111827"}
+						onChange={(color) => onChange({ color })}
 					/>
-					<input
-						type="color"
-						value={element.color}
-						onChange={(e) => onChange({ color: e.target.value })}
-						className="h-9 w-9 rounded border cursor-pointer"
-					/>
-				</div>
-			</section>
+				</section>
 			{common}
 		</div>
 	);

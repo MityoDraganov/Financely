@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Label } from "@/components/ui/label";
 import { TemplateElement } from "@/core";
 import { typography, separators, components } from "../design-system";
@@ -82,19 +83,17 @@ export function LineProperties({ element, onChange, isNarrow }: LinePropertiesPr
 			{/* Line Styling */}
 			<section className={components.subsection}>
 				<h4 className={typography.subsectionTitle}>{t('designer.elementProperties.line.styling')}</h4>
-				<div className={components.grid}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>{t('designer.elementProperties.line.stroke')}</Label>
-						<Input
-							placeholder={t('designer.elementProperties.line.strokePlaceholder')}
-							value={element.stroke}
-							onChange={(e) => {
-								const ln = element as Extract<TemplateElement, { type: "line" }>;
-								onChange({ ...ln, stroke: e.target.value });
-							}}
-							className={components.inputHeight}
-						/>
-					</div>
+					<div className={components.grid}>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>{t('designer.elementProperties.line.stroke')}</Label>
+							<ColorPicker
+								value={element.stroke || "#111827"}
+								onChange={(color) => {
+									const ln = element as Extract<TemplateElement, { type: "line" }>;
+									onChange({ ...ln, stroke: color });
+								}}
+							/>
+						</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.line.strokeWidth')}</Label>
 						<Input

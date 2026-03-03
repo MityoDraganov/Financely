@@ -394,17 +394,16 @@ export function PathProperties({
 								</div>
 							)}
 
-							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Colors</Label>
-								<div className={spacing.fieldGroupGap}>
-									{element.fillGradient.colors.map((color, idx) => (
-										<div key={idx} className="flex gap-2">
-											<Input
-												type="color"
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Colors</Label>
+									<div className={spacing.fieldGroupGap}>
+										{element.fillGradient.colors.map((color, idx) => (
+											<ColorPicker
+												key={idx}
 												value={color}
-												onChange={(e) => {
+												onChange={(nextColor) => {
 													const newColors = [...element.fillGradient!.colors];
-													newColors[idx] = e.target.value;
+													newColors[idx] = nextColor;
 													onChange({
 														...element,
 														fillGradient: {
@@ -413,27 +412,10 @@ export function PathProperties({
 														},
 													});
 												}}
-												className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 											/>
-											<Input
-												value={color}
-												onChange={(e) => {
-													const newColors = [...element.fillGradient!.colors];
-													newColors[idx] = e.target.value;
-													onChange({
-														...element,
-														fillGradient: {
-															...element.fillGradient!,
-															colors: newColors,
-														},
-													});
-												}}
-												className={components.inputHeight}
-											/>
-										</div>
-									))}
+										))}
+									</div>
 								</div>
-							</div>
 						</div>
 					)}
 				</div>
@@ -443,15 +425,17 @@ export function PathProperties({
 			<section className={components.subsection}>
 				<h4 className={typography.subsectionTitle}>Stroke</h4>
 				<div className={components.grid}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Stroke Color</Label>
-						<Input
-							type="color"
-							value={element.stroke || "#000000"}
-							onChange={(e) => onChange({ stroke: e.target.value })}
-							className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-						/>
-					</div>
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>Stroke Color</Label>
+							<ColorPicker
+								value={element.stroke || "#000000"}
+								onChange={(color) =>
+									onChange({
+										stroke: color.trim().length === 0 ? undefined : color,
+									})
+								}
+							/>
+						</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Stroke Width</Label>
 						<Input
@@ -626,23 +610,21 @@ export function PathProperties({
 									className={components.inputHeight}
 								/>
 							</div>
-							<div className={components.field}>
-								<Label className={typography.fieldLabel}>Color</Label>
-								<Input
-									type="color"
-									value={element.shadow.color || "#000000"}
-									onChange={(e) => {
-										onChange({
-											...element,
-											shadow: {
-												...element.shadow!,
-												color: e.target.value,
-											},
-										});
-									}}
-									className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-								/>
-							</div>
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>Color</Label>
+									<ColorPicker
+										value={element.shadow.color || "#00000040"}
+										onChange={(color) => {
+											onChange({
+												...element,
+												shadow: {
+													...element.shadow!,
+													color,
+												},
+											});
+										}}
+									/>
+								</div>
 						</div>
 					)}
 				</div>

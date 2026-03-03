@@ -1,5 +1,13 @@
 import { useMemo } from "react";
-import { Building2, User, FileText, DollarSign, Hash } from "lucide-react";
+import {
+	AlertCircle,
+	Building2,
+	CheckCircle2,
+	DollarSign,
+	FileText,
+	Hash,
+	User,
+} from "lucide-react";
 import { InvoiceComplianceAlert } from "./invoice-compliance-alert";
 import { InvoiceFormField } from "./invoice-form-field";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
@@ -18,7 +26,8 @@ interface ComplianceValidation {
 	valid: boolean;
 	region: string;
 	missingFields: Array<{
-		binding: string;
+		fieldId: string;
+		binding?: string;
 		label: string;
 		description?: string;
 	}>;
@@ -32,12 +41,40 @@ interface InvoiceFormFieldsProps {
 	getValue: (path: string) => InvoiceDataValue;
 	setValue: (path: string, value: InvoiceDataValue) => void;
 	complianceValidation: ComplianceValidation | null;
+	sectionCompletion?: Record<
+		string,
+		{ missingCount: number; complete: boolean }
+	>;
 	currentOrganization: Organization | undefined;
 	onAutoFill: (field: { binding: string; label: string }) => void;
 	productLockedFields: Set<string>;
 	allItems: Array<Record<string, unknown>>;
 	calculatedTotals: { subtotal: number; total: number };
 	defaultCurrency: string;
+}
+
+function SectionBadge({
+	status,
+}: {
+	status?: { missingCount: number; complete: boolean };
+}) {
+	if (!status) return null;
+
+	if (status.complete) {
+		return (
+			<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+				<CheckCircle2 className="h-3 w-3" />
+				Complete
+			</span>
+		);
+	}
+
+	return (
+		<span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+			<AlertCircle className="h-3 w-3" />
+			{status.missingCount} required
+		</span>
+	);
 }
 
 interface FieldGroup {
@@ -156,6 +193,7 @@ export function InvoiceFormFields({
 	getValue,
 	setValue,
 	complianceValidation,
+	sectionCompletion,
 	currentOrganization,
 	onAutoFill,
 	productLockedFields,
@@ -180,6 +218,16 @@ export function InvoiceFormFields({
 			{groups.map((group) => {
 				const delay = sectionIndex * 40;
 				sectionIndex++;
+				const sectionKey =
+					group.name === "Invoice Details"
+						? "invoice"
+						: group.name === "Seller / Supplier"
+							? "seller"
+							: group.name === "Buyer / Client"
+								? "customer"
+								: group.name === "Totals"
+									? "totals"
+									: undefined;
 
 				return (
 					<div
@@ -192,6 +240,13 @@ export function InvoiceFormFields({
 							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
 								{group.name}
 							</span>
+							<SectionBadge
+								status={
+									sectionKey && sectionCompletion
+										? sectionCompletion[sectionKey]
+										: undefined
+								}
+							/>
 							<div className="flex-1 h-px bg-border" />
 						</div>
 

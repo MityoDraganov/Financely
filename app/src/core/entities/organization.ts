@@ -445,6 +445,21 @@ export const organizationDataSchema = z.object({
             .optional(),
         })
         .optional(),
+      // Org-level compliance defaults applied on top of every template's region requirements
+      complianceDefaults: z
+        .object({
+          /** Additional canonical fieldIds required for every invoice in this org */
+          additionalRequired: z
+            .array(
+              z.object({
+                fieldId: z.string().min(1),
+                label: z.string().optional(),
+                reason: z.string().optional(),
+              }),
+            )
+            .default([]),
+        })
+        .optional(),
     })
     .default({
       brandColors: {

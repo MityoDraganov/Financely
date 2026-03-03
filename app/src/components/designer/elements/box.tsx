@@ -13,20 +13,6 @@ import {
 import { TemplateElement } from "@/core";
 import { typography, spacing, separators, components } from "../design-system";
 
-function normalizeColorInputValue(value: string | undefined): string {
-	if (!value) return "#ffffff";
-	const trimmed = value.trim();
-	if (!trimmed || trimmed.toLowerCase() === "transparent") return "#ffffff";
-	const shortHex = /^#([0-9a-fA-F]{3})$/.exec(trimmed);
-	if (shortHex) {
-		const [r, g, b] = shortHex[1].split("");
-		return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-	}
-	const longHex = /^#([0-9a-fA-F]{6})$/.exec(trimmed);
-	if (longHex) return `#${longHex[1].toLowerCase()}`;
-	return "#ffffff";
-}
-
 interface BoxElementProps {
 	element: Extract<TemplateElement, { type: "box" }>;
 }
@@ -136,27 +122,18 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 							transparentLabel={t("designer.elementProperties.text.transparent", "Transparent")}
 						/>
 					</div>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.stroke')}</Label>
-						<div className="flex gap-2">
-							<Input
-								type="color"
-								value={normalizeColorInputValue(element.stroke || "#e5e7eb")}
-								onChange={(e) => {
-									onChange({ ...element, stroke: e.target.value });
-								}}
-								className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-							/>
-							<Input
-								placeholder={t('designer.elementProperties.box.strokePlaceholder')}
-								value={element.stroke}
-								onChange={(e) => {
-									onChange({ ...element, stroke: e.target.value });
-								}}
-								className={components.inputHeight}
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.stroke')}</Label>
+							<ColorPicker
+								value={element.stroke || "#e5e7eb"}
+								onChange={(color) =>
+									onChange({
+										...element,
+										stroke: color.trim().length === 0 ? undefined : color,
+									})
+								}
 							/>
 						</div>
-					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.strokeWidth')}</Label>
 						<Input
@@ -271,17 +248,16 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 								</div>
 							)}
 							
-							<div className={components.field}>
-								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.colors')}</Label>
-								<div className={spacing.fieldGroupGap}>
-									{element.fillGradient.colors.map((color, idx) => (
-										<div key={idx} className="flex gap-2">
-											<Input
-												type="color"
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.colors')}</Label>
+									<div className={spacing.fieldGroupGap}>
+										{element.fillGradient.colors.map((color, idx) => (
+											<ColorPicker
+												key={idx}
 												value={color}
-												onChange={(e) => {
+												onChange={(nextColor) => {
 													const newColors = [...element.fillGradient!.colors];
-													newColors[idx] = e.target.value;
+													newColors[idx] = nextColor;
 													onChange({
 														...element,
 														fillGradient: {
@@ -290,27 +266,10 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 														},
 													});
 												}}
-												className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
 											/>
-											<Input
-												value={color}
-												onChange={(e) => {
-													const newColors = [...element.fillGradient!.colors];
-													newColors[idx] = e.target.value;
-													onChange({
-														...element,
-														fillGradient: {
-															...element.fillGradient!,
-															colors: newColors,
-														},
-													});
-												}}
-												className={components.inputHeight}
-											/>
-										</div>
-									))}
+										))}
+									</div>
 								</div>
-							</div>
 						</div>
 					)}
 				</div>
@@ -379,38 +338,21 @@ export function BoxProperties({ element, onChange, isNarrow }: BoxPropertiesProp
 									className={components.inputHeight}
 								/>
 							</div>
-							<div className={components.field}>
-								<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.shadowColor')}</Label>
-								<div className="flex gap-2">
-									<Input
-										type="color"
-										value={element.shadow.color || "#000000"}
-										onChange={(e) => {
-											onChange({
-												...element,
-												shadow: {
-													...element.shadow!,
-													color: e.target.value,
-												},
-											});
-										}}
-										className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-									/>
-									<Input
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>{t('designer.elementProperties.box.shadowColor')}</Label>
+									<ColorPicker
 										value={element.shadow.color || "#00000040"}
-										onChange={(e) => {
+										onChange={(color) => {
 											onChange({
 												...element,
 												shadow: {
 													...element.shadow!,
-													color: e.target.value,
+													color,
 												},
 											});
 										}}
-										className={components.inputHeight}
 									/>
 								</div>
-							</div>
 						</div>
 					)}
 				</div>

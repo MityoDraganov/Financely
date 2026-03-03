@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +12,9 @@ import {
 import { TemplateElement } from "@/core";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { resolveTemplateImageSource } from "@/utils/template-image-source";
-import { AlertCircle, Check, Image as ImageIcon } from "lucide-react";
-import { typography, spacing, separators, components, colors } from "../design-system";
+import { Image as ImageIcon } from "lucide-react";
+import { typography, separators, components } from "../design-system";
+import { FieldCombobox } from "@/components/designer/field-combobox";
 
 interface ImageElementProps {
 	element: Extract<TemplateElement, { type: "image" }>;
@@ -52,44 +52,9 @@ interface ImagePropertiesProps {
 	onOpenImagePicker?: (elementId: string) => void;
 }
 
-export function ImageProperties({ element, onChange, isNarrow, allElements = [], onOpenImagePicker }: ImagePropertiesProps) {
+export function ImageProperties({ element, onChange, isNarrow, allElements: _allElements = [], onOpenImagePicker }: ImagePropertiesProps) {
 	const { t } = useTranslation();
-	const [bindingInput, setBindingInput] = useState(element.binding ?? "");
-	
-	// Check for duplicate bindings
-	const hasDuplicateBinding = (binding: string | undefined): boolean => {
-		if (!binding) return false;
-		return allElements.some((el) => {
-			if (el.id === element.id) return false; // Don't check against self
-			if (el.type === "text" || el.type === "input" || el.type === "image") {
-				return el.binding === binding;
-			}
-			if (el.type === "table") {
-				return el.itemsBinding === binding;
-			}
-			return false;
-		});
-	};
-	
-	// Generate a unique binding suggestion
-	const getUniqueBinding = (binding: string): string => {
-		if (!binding) return "";
-		let counter = 1;
-		let suggested = binding;
-		while (hasDuplicateBinding(suggested)) {
-			suggested = `${binding} (${counter})`;
-			counter++;
-		}
-		return suggested;
-	};
-	
-	const bindingError = hasDuplicateBinding(bindingInput);
-	const suggestedBinding = bindingError ? getUniqueBinding(bindingInput) : null;
-	
-	// Sync with element binding when it changes externally
-	useEffect(() => {
-		setBindingInput(element.binding ?? "");
-	}, [element.binding]);
+
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
@@ -168,53 +133,28 @@ export function ImageProperties({ element, onChange, isNarrow, allElements = [],
 							)}
 						</div>
 					</div>
-					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.dataBinding')}</Label>
-						<div className={spacing.fieldGroupGap}>
-							<Input
-								placeholder={t('designer.elementProperties.image.bindingPlaceholder')}
-								value={bindingInput}
-								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
-								onChange={(e) => {
-									const newValue = e.target.value;
-									setBindingInput(newValue);
-									const img = element as Extract<TemplateElement, { type: "image" }>;
-									onChange({ ...img, binding: newValue || undefined });
-								}}
-							/>
-							{bindingError && suggestedBinding && (
-								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
-									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-									<div className="flex-1 min-w-0">
-										<p className={`${typography.errorText} mb-1.5`}>
-											{t('designer.elementProperties.binding.duplicateError')}
-										</p>
-										<div className="flex items-center gap-2">
-											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												{t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
-											</p>
-											<Button
-												type="button"
-												size="sm"
-												variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
-												onClick={() => {
-													setBindingInput(suggestedBinding);
-													const img = element as Extract<TemplateElement, { type: "image" }>;
-													onChange({ ...img, binding: suggestedBinding });
-												}}
-											>
-												<Check className="h-3 w-3 mr-1" />
-												{t('designer.elementProperties.binding.use')}
-											</Button>
-										</div>
-									</div>
-								</div>
-							)}
-							<p className={typography.helperText}>
-								{t('designer.elementProperties.image.bindingHint')}
-							</p>
-						</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>{t('designer.elementProperties.binding.dataBinding')}</Label>
+						<FieldCombobox
+							value={element.binding}
+							fieldId={element.fieldId}
+							onSelect={(fieldId, binding) => {
+								onChange({
+									...element,
+									binding: binding || undefined,
+									fieldId,
+									isCustomBinding: false,
+								});
+							}}
+							onCustomBinding={(binding) => {
+								onChange({
+									...element,
+									binding,
+									fieldId: undefined,
+									isCustomBinding: true,
+								});
+							}}
+						/>
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.image.objectFit')}</Label>

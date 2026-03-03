@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { TemplateElement } from "@/core";
-import { AlertCircle, Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { CURRENCIES, getCurrency } from "@/utils/currencies";
 import { cn } from "@/lib/utils";
 import {
@@ -46,6 +46,7 @@ import { CurrencyFieldLinking } from "../currency-field-linking";
 import { FormulaBuilder } from "../formula-builder";
 import { typography, spacing, separators, components, colors } from "../design-system";
 import { GoogleFontPicker } from "@/components/designer/google-font-picker";
+import { FieldCombobox } from "@/components/designer/field-combobox";
 
 interface TableElementProps {
 	element: Extract<TemplateElement, { type: "table" }>;
@@ -186,8 +187,6 @@ export function TableProperties({
 }: TablePropertiesProps) {
 	const { t } = useTranslation();
 	const tbl = element;
-	const [bindingInput, setBindingInput] = useState(tbl.itemsBinding ?? "");
-	
 	// Default columns for fallback
 	const defaultTwo = [
 		{ id: "c1", header: t('designer.tableColumns.column1'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
@@ -264,41 +263,6 @@ export function TableProperties({
 			},
 		});
 	};
-	
-	// Check for duplicate bindings
-	const hasDuplicateBinding = (binding: string | undefined): boolean => {
-		if (!binding) return false;
-		return allElements.some((el) => {
-			if (el.id === element.id) return false; // Don't check against self
-			if (el.type === "text" || el.type === "input" || el.type === "image") {
-				return el.binding === binding;
-			}
-			if (el.type === "table") {
-				return el.itemsBinding === binding;
-			}
-			return false;
-		});
-	};
-	
-	// Generate a unique binding suggestion
-	const getUniqueBinding = (binding: string): string => {
-		if (!binding) return "";
-		let counter = 1;
-		let suggested = binding;
-		while (hasDuplicateBinding(suggested)) {
-			suggested = `${binding} (${counter})`;
-			counter++;
-		}
-		return suggested;
-	};
-	
-	const bindingError = hasDuplicateBinding(bindingInput);
-	const suggestedBinding = bindingError ? getUniqueBinding(bindingInput) : null;
-	
-	// Sync with element binding when it changes externally
-	useEffect(() => {
-		setBindingInput(tbl.itemsBinding ?? "");
-	}, [tbl.itemsBinding]);
 	
 	// Common position/size controls
 	const common = (
@@ -489,49 +453,30 @@ export function TableProperties({
 							/>
 						</div>
 					)}
-					<div className={`${components.field} col-span-full`}>
-						<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.itemsBinding')}</Label>
-						<div className={spacing.fieldGroupGap}>
-					<Input
-								placeholder={t('designer.elementProperties.table.itemsBindingPlaceholder')}
-							value={bindingInput}
-								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
-							onChange={(e) => {
-								const newValue = e.target.value;
-								setBindingInput(newValue);
-								onChange({ ...tbl, itemsBinding: newValue || undefined });
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Items Binding</Label>
+						<FieldCombobox
+							value={tbl.itemsBinding}
+							fieldId={tbl.fieldId}
+							filterElementType="table"
+							onSelect={(fieldId, binding) => {
+								onChange({
+									...element,
+									itemsBinding: binding || "items",
+									fieldId,
+									isCustomBinding: false,
+								});
+							}}
+							onCustomBinding={(binding) => {
+								onChange({
+									...element,
+									itemsBinding: binding,
+									fieldId: undefined,
+									isCustomBinding: true,
+								});
 							}}
 						/>
-						{bindingError && suggestedBinding && (
-								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
-									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-								<div className="flex-1 min-w-0">
-										<p className={`${typography.errorText} mb-1.5`}>
-										{t('designer.elementProperties.binding.duplicateError')}
-									</p>
-									<div className="flex items-center gap-2">
-											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-											{t('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
-										</p>
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
-											onClick={() => {
-												setBindingInput(suggestedBinding);
-												onChange({ ...tbl, itemsBinding: suggestedBinding });
-											}}
-										>
-											<Check className="h-3 w-3 mr-1" />
-											{t('designer.elementProperties.binding.use')}
-										</Button>
-									</div>
-								</div>
-							</div>
-						)}
 					</div>
-				</div>
 			</div>
 			</section>
 
@@ -942,55 +887,51 @@ export function TableProperties({
 										{c.showTotal && (
 											<div className={`${separators.nestedContent} ${colors.bgSuccess} rounded-md p-3 ${spacing.fieldGroupGap}`}>
 												<h5 className={`${typography.subsectionTitle} text-green-700 dark:text-green-400`}>{t('designer.elementProperties.table.column.total.totalStyling')}</h5>
-												<div className={components.grid}>
-													<div className={components.field}>
-														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.backgroundColor')}</Label>
-														<Input
-															type="color"
-															value={("totalStyle" in c && c.totalStyle?.backgroundColor) || "#f9fafb"}
-															onChange={(e) => {
-																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-																const next = base.map((col) => 
-																	col.id === c.id 
+													<div className={components.grid}>
+														<div className={components.field}>
+															<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.backgroundColor')}</Label>
+															<ColorPicker
+																value={("totalStyle" in c && c.totalStyle?.backgroundColor) || "#f9fafb"}
+																onChange={(color) => {
+																	const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																	const next = base.map((col) => 
+																		col.id === c.id 
 																		? { 
 																			...col, 
-																			totalStyle: {
-																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
-																				...("totalStyle" in col ? col.totalStyle : {}),
-																				backgroundColor: e.target.value,
+																				totalStyle: {
+																					fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																					...("totalStyle" in col ? col.totalStyle : {}),
+																					backgroundColor: color,
+																				}
 																			}
-																		}
-																		: col
-																);
-																onChange({ ...tbl, columns: next });
-															}}
-															className={components.inputHeightSmall}
-														/>
-													</div>
-													<div className={components.field}>
-														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.textColor')}</Label>
-														<Input
-															type="color"
-															value={("totalStyle" in c && c.totalStyle?.color) || "#111827"}
-															onChange={(e) => {
-																const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
-																const next = base.map((col) => 
-																	col.id === c.id 
+																			: col
+																	);
+																	onChange({ ...tbl, columns: next });
+																}}
+															/>
+														</div>
+														<div className={components.field}>
+															<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.textColor')}</Label>
+															<ColorPicker
+																value={("totalStyle" in c && c.totalStyle?.color) || "#111827"}
+																onChange={(color) => {
+																	const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo;
+																	const next = base.map((col) => 
+																		col.id === c.id 
 																		? { 
 																			...col, 
-																			totalStyle: {
-																				fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
-																				...("totalStyle" in col ? col.totalStyle : {}),
-																				color: e.target.value,
+																				totalStyle: {
+																					fontWeight: ("totalStyle" in col && col.totalStyle?.fontWeight) || "bold",
+																					...("totalStyle" in col ? col.totalStyle : {}),
+																					color,
+																				}
 																			}
-																		}
-																		: col
-																);
-																onChange({ ...tbl, columns: next });
-															}}
-															className={components.inputHeightSmall}
-														/>
-													</div>
+																			: col
+																	);
+																	onChange({ ...tbl, columns: next });
+																}}
+															/>
+														</div>
 													<div className={components.field}>
 														<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.total.fontWeight')}</Label>
 														<Select

@@ -75,6 +75,11 @@ export function TemplateVersionHistory({
     return bTime - aTime;
   });
 
+  const dedupedVersions = sortedVersions.filter(
+    (version, index, all) =>
+      index === all.findIndex((candidate) => candidate.version === version.version)
+  );
+
   if (versions.length === 0) {
     return (
       <div className="border-t border-border pt-4 space-y-3">
@@ -106,7 +111,7 @@ export function TemplateVersionHistory({
           )}
         </div>
         <div className="space-y-2">
-          {sortedVersions.map((version) => {
+          {dedupedVersions.map((version) => {
             const isCurrent = version.version === currentVersion;
             const isCreatedByCurrentUser = version.createdBy === currentUserId;
 
@@ -254,4 +259,3 @@ export function TemplateVersionHistory({
     </>
   );
 }
-

@@ -9,6 +9,13 @@ import type { InvoiceRegion, ComplianceValidationResult, ComplianceFieldMetadata
 import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { getBindingValue } from "@/core/entities/invoice";
+import {
+  getCatalogField,
+  getRequiredCatalogFields,
+  type FieldDefinition,
+} from "@/core/entities/field-catalog";
+import type { TemplateComplianceConfig } from "@/core/entities/template";
+import { extractTemplateElementFieldId } from "@/utils/binding-resolution";
 
 // ============================================================================
 // Region Detection
@@ -343,7 +350,7 @@ export function extractTemplateBindings(elements: Array<{
  * @returns Array of missing required bindings
  */
 export function validateTemplateCompliance(
-  elements: Array<{ 
+  elements: Array<{
     type: string;
     binding?: string;
     itemsBinding?: string;
@@ -354,13 +361,13 @@ export function validateTemplateCompliance(
   const templateBindings = extractTemplateBindings(elements);
   const requiredBindings = getRequiredFieldsForRegion(region);
   const missing: string[] = [];
-  
+
   for (const required of requiredBindings) {
     // Check if binding exists directly
     if (templateBindings.has(required)) {
       continue;
     }
-    
+
     // For table item fields (e.g., items[0].description), check if:
     // 1. The itemsBinding exists (e.g., "items")
     // 2. The column binding exists (e.g., "description")
@@ -377,11 +384,165 @@ export function validateTemplateCompliance(
       // For nested bindings like "seller.name", check if any part matches
       // This is already handled by direct binding check above
     }
-    
+
     // If we get here, the binding is missing
     missing.push(required);
   }
-  
+
   return missing;
 }
 
+// ============================================================================
+// Field-ID-Based Compliance (new semantic path)
+// ============================================================================
+
+type TemplateElementLike = {
+  type: string;
+  binding?: string;
+  itemsBinding?: string;
+  fieldId?: string;
+  columns?: Array<{ binding?: string }>;
+};
+
+function toCatalogOrCustomField(
+  fieldId: string,
+  label?: string,
+  reason?: string,
+): FieldDefinition {
+  const catalog = getCatalogField(fieldId);
+  if (catalog) return catalog;
+
+  return {
+    id: fieldId,
+    label: label ?? fieldId,
+    description: reason,
+    group: "Custom",
+    format: "string",
+    compliance: {},
+    suggestedElementType: "text",
+  };
+}
+
+/**
+ * Returns: region required fields minus waived, plus template additionalRequired,
+ * plus org additionalRequired, deduplicated.
+ */
+export function getEffectiveRequirements(
+  config: TemplateComplianceConfig | undefined,
+  orgAdditionalRequired: Array<{ fieldId: string }> = [],
+): FieldDefinition[] {
+  if (!config) return [];
+
+  if (config.mode === "none") return [];
+
+  const waivedIds = new Set((config.waived ?? []).map((w) => w.fieldId));
+
+  const map = new Map<string, FieldDefinition>();
+
+  const regionRequired =
+    config.mode === "custom"
+      ? []
+      : config.region
+        ? getRequiredCatalogFields(config.region)
+        : [];
+
+  for (const field of regionRequired) {
+    if (waivedIds.has(field.id)) continue;
+    map.set(field.id, field);
+  }
+
+  for (const field of config.additionalRequired ?? []) {
+    if (!field.fieldId || waivedIds.has(field.fieldId)) continue;
+    if (!map.has(field.fieldId)) {
+      map.set(
+        field.fieldId,
+        toCatalogOrCustomField(field.fieldId, field.label, field.reason),
+      );
+    }
+  }
+
+  for (const field of orgAdditionalRequired) {
+    if (!field.fieldId || waivedIds.has(field.fieldId)) continue;
+    if (!map.has(field.fieldId)) {
+      map.set(field.fieldId, toCatalogOrCustomField(field.fieldId));
+    }
+  }
+
+  return [...map.values()];
+}
+
+/**
+ * Validate that a template covers all required fieldIds.
+ */
+export function validateTemplateComplianceByFieldId(
+  elements: TemplateElementLike[],
+  config: TemplateComplianceConfig | undefined,
+  orgAdditionalRequired: Array<{ fieldId: string }> = [],
+): FieldDefinition[] {
+  const required = getEffectiveRequirements(config, orgAdditionalRequired);
+  if (required.length === 0) return [];
+
+  const covered = new Set(
+    elements.map((el) => extractTemplateElementFieldId(el)).filter(Boolean),
+  );
+
+  return required.filter((field) => !covered.has(field.id));
+}
+
+function extractBindingsByFieldId(elements: TemplateElementLike[]): Map<string, Set<string>> {
+  const byField = new Map<string, Set<string>>();
+
+  for (const el of elements) {
+    const fieldId = extractTemplateElementFieldId(el);
+    if (!fieldId) continue;
+
+    if (!byField.has(fieldId)) byField.set(fieldId, new Set<string>());
+
+    const binding = el.itemsBinding ?? el.binding;
+    if (binding) {
+      byField.get(fieldId)?.add(binding);
+    }
+  }
+
+  return byField;
+}
+
+/**
+ * Returns required fields whose element exists but data is empty.
+ */
+export function validateInvoiceComplianceByFieldId(
+  elements: TemplateElementLike[],
+  config: TemplateComplianceConfig | undefined,
+  orgAdditionalRequired: Array<{ fieldId: string }> = [],
+  data: Record<string, InvoiceDataValue>,
+): Array<{ fieldId: string; label: string; description?: string }> {
+  const required = getEffectiveRequirements(config, orgAdditionalRequired);
+  if (required.length === 0) return [];
+
+  const coveredFieldIds = new Set(
+    elements.map((el) => extractTemplateElementFieldId(el)).filter(Boolean),
+  );
+  const bindingsByFieldId = extractBindingsByFieldId(elements);
+  const missing: Array<{ fieldId: string; label: string; description?: string }> = [];
+
+  for (const field of required) {
+    // This validator only checks fields that the template actually renders.
+    if (!coveredFieldIds.has(field.id)) continue;
+
+    const elementBindings = bindingsByFieldId.get(field.id);
+    const candidates = elementBindings && elementBindings.size > 0
+      ? [...elementBindings]
+      : [field.id, ...(field.aliases ?? [])];
+
+    const hasValue = candidates.some((binding) => validateBindingExists(data, binding));
+    if (!hasValue) {
+      missing.push({
+        fieldId: field.id,
+        label: field.label,
+        description: field.description,
+      });
+    }
+  }
+
+  return missing;
+}

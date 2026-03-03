@@ -26,10 +26,11 @@ import {
 import { Template, TemplateElement } from "@/core";
 import { toast } from "sonner";
 import {
-	MissingRequiredFieldsPanel,
+	CompliancePanel,
 	type MissingRequiredField,
 } from "./missing-required-fields-panel";
 import type { DesignerState } from "./designer-types";
+import type { TemplateComplianceStatus } from "@/hooks/use-template-compliance";
 
 type TemplateSidebarProps = {
 	templates: Template[];
@@ -45,13 +46,13 @@ type TemplateSidebarProps = {
 	onDuplicateElement: (id: string) => void;
 	onDeleteElement: (id: string) => void;
 	onReorderElements: (fromIndex: number, toIndex: number) => void;
-	missingRequiredFields: MissingRequiredField[];
-	onAddRequiredElement: (
-		binding: string,
-		label: string,
-		elementType: "text" | "input" | "table" | "currency",
-	) => void;
-	isRequired: (binding: string | undefined) => boolean;
+	complianceStatus: TemplateComplianceStatus | null;
+	onAddRequiredElement: (field: MissingRequiredField) => void;
+	elementIsRequired: (el: {
+		fieldId?: string;
+		binding?: string;
+		itemsBinding?: string;
+	}) => boolean;
 };
 
 type PaletteItemConfig = {
@@ -189,9 +190,9 @@ export function TemplateSidebar({
 	onDuplicateElement,
 	onDeleteElement,
 	onReorderElements,
-	missingRequiredFields,
+	complianceStatus,
 	onAddRequiredElement,
-	isRequired,
+	elementIsRequired,
 }: TemplateSidebarProps) {
 	const { t } = useTranslation();
 	const [draggedElementId, setDraggedElementId] = useState<string | null>(
@@ -369,9 +370,10 @@ export function TemplateSidebar({
 				)}
 			</div>
 			{currentTemplate && (
-				<MissingRequiredFieldsPanel
-					fields={missingRequiredFields}
+				<CompliancePanel
+					complianceStatus={complianceStatus}
 					onAddRequiredElement={onAddRequiredElement}
+					storageKey={currentTemplate.id}
 				/>
 			)}
 			<div className="mt-5">
@@ -426,17 +428,11 @@ export function TemplateSidebar({
 							<div className="h-0.5 bg-primary rounded-full animate-pulse" />
 						)}
 						{orderedElements.map((el, index) => {
-							const binding =
-								el.type === "text"
-									? el.binding
-									: el.type === "input"
-										? el.binding
-										: el.type === "image"
-											? el.binding
-											: el.type === "table"
-												? el.itemsBinding
-												: undefined;
-							const isRequiredField = isRequired(binding);
+							const isRequiredField = elementIsRequired({
+								fieldId: (el as { fieldId?: string }).fieldId,
+								binding: (el as { binding?: string }).binding,
+								itemsBinding: el.type === "table" ? el.itemsBinding : undefined,
+							});
 							const isDragging = draggedElementId === el.id;
 							const isDragOver = dragOverIndex === index;
 

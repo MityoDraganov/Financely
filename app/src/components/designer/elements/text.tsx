@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
 import {
 	Select,
@@ -13,9 +12,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TemplateElement } from "@/core";
-import { AlertCircle, Check } from "lucide-react";
-import { typography, spacing, separators, components, colors } from "../design-system";
+import { typography, spacing, separators, components } from "../design-system";
 import { GoogleFontPicker } from "@/components/designer/google-font-picker";
+import { FieldCombobox } from "@/components/designer/field-combobox";
 
 interface TextElementProps {
 	element: Extract<TemplateElement, { type: "text" }>;
@@ -71,45 +70,12 @@ interface TextPropertiesProps {
 	allElements?: TemplateElement[];
 }
 
-export function TextProperties({ element, onChange, isNarrow, allElements = [] }: TextPropertiesProps) {
+export function TextProperties({ element, onChange, isNarrow }: TextPropertiesProps) {
 	const { t: translate } = useTranslation();
 	const t = element as Extract<TemplateElement, { type: "text" }>;
-	const [bindingInput, setBindingInput] = useState(t.binding ?? "");
-	
-	// Check for duplicate bindings
-	const hasDuplicateBinding = (binding: string | undefined): boolean => {
-		if (!binding) return false;
-		return allElements.some((el) => {
-			if (el.id === element.id) return false; // Don't check against self
-			if (el.type === "text" || el.type === "input" || el.type === "image") {
-				return el.binding === binding;
-			}
-			if (el.type === "table") {
-				return el.itemsBinding === binding;
-			}
-			return false;
-		});
-	};
-	
-	// Generate a unique binding suggestion
-	const getUniqueBinding = (binding: string): string => {
-		if (!binding) return "";
-		let counter = 1;
-		let suggested = binding;
-		while (hasDuplicateBinding(suggested)) {
-			suggested = `${binding} (${counter})`;
-			counter++;
-		}
-		return suggested;
-	};
-	
-	const bindingError = hasDuplicateBinding(bindingInput);
-	const suggestedBinding = bindingError ? getUniqueBinding(bindingInput) : null;
-	
-	// Sync with element binding when it changes externally
-	useEffect(() => {
-		setBindingInput(t.binding ?? "");
-	}, [t.binding]);
+
+	// Keep effect for any future external sync needs
+	useEffect(() => {}, [t.binding]);
 	
 	// Common position/size controls
 	const common = (
@@ -190,74 +156,26 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.binding.dataBinding')}</Label>
-						<div className={spacing.fieldGroupGap}>
-							<Input
-								placeholder={translate('designer.elementProperties.binding.bindingPlaceholder')}
-								value={bindingInput}
-								className={`${components.inputHeight} ${bindingError ? "border-amber-500 focus-visible:ring-amber-500" : ""}`}
-								onChange={(e) => {
-									const newValue = e.target.value;
-									setBindingInput(newValue);
-									onChange({
-										id: element.id,
-										type: "text",
-										x: element.x,
-										y: element.y,
-										width: element.width,
-										height: element.height,
-										rotation: element.rotation,
-										zIndex: element.zIndex,
-										visible: element.visible,
-										text: t.text,
-										binding: newValue || undefined,
-										typography: t.typography,
-										format: t.format,
-									});
-								}}
-							/>
-							{bindingError && suggestedBinding && (
-								<div className={`flex items-start gap-2 p-2.5 ${colors.bgWarning} border ${colors.borderDefault} rounded-md`}>
-									<AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-									<div className="flex-1 min-w-0">
-										<p className={`${typography.errorText} mb-1.5`}>
-											{translate('designer.elementProperties.binding.duplicateError')}
-										</p>
-										<div className="flex items-center gap-2">
-											<p className={`${typography.errorTextSecondary} flex-1 truncate`}>
-												{translate('designer.elementProperties.binding.suggested')} <span className="font-mono font-medium">{suggestedBinding}</span>
-											</p>
-											<Button
-												type="button"
-												size="sm"
-												variant="outline"
-												className="h-7 px-2.5 text-xs border-amber-300 dark:border-amber-700 bg-background hover:bg-amber-100 dark:hover:bg-amber-900/30 shrink-0"
-												onClick={() => {
-													setBindingInput(suggestedBinding);
-													onChange({
-														id: element.id,
-														type: "text",
-														x: element.x,
-														y: element.y,
-														width: element.width,
-														height: element.height,
-														rotation: element.rotation,
-														zIndex: element.zIndex,
-														visible: element.visible,
-														text: t.text,
-														binding: suggestedBinding,
-														typography: t.typography,
-														format: t.format,
-													});
-												}}
-											>
-												<Check className="h-3 w-3 mr-1" />
-												{translate('designer.elementProperties.binding.use')}
-											</Button>
-										</div>
-									</div>
-								</div>
-							)}
-						</div>
+						<FieldCombobox
+							value={t.binding}
+							fieldId={t.fieldId}
+							onSelect={(fieldId, binding) => {
+								onChange({
+									...element,
+									binding: binding || undefined,
+									fieldId,
+									isCustomBinding: false,
+								});
+							}}
+							onCustomBinding={(binding) => {
+								onChange({
+									...element,
+									binding,
+									fieldId: undefined,
+									isCustomBinding: true,
+								});
+							}}
+						/>
 					</div>
 				</div>
 			</section>
@@ -347,31 +265,29 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 							</SelectContent>
 						</Select>
 					</div>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.color')}</Label>
-						<Input
-							placeholder="#111827"
-							value={t.typography.color}
-							onChange={(e) =>
-								onChange({
-									id: element.id,
-									type: "text",
+						<div className={components.field}>
+							<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.color')}</Label>
+							<ColorPicker
+								value={t.typography.color || "#111827"}
+								onChange={(color) =>
+									onChange({
+										id: element.id,
+										type: "text",
 									x: element.x,
 									y: element.y,
 									width: element.width,
 									height: element.height,
 									rotation: element.rotation,
-									zIndex: element.zIndex,
-									visible: element.visible,
-									text: t.text,
-									binding: t.binding,
-									typography: { ...t.typography, color: e.target.value },
-									format: t.format,
-								})
-							}
-							className={components.inputHeight}
-						/>
-					</div>
+										zIndex: element.zIndex,
+										visible: element.visible,
+										text: t.text,
+										binding: t.binding,
+										typography: { ...t.typography, color },
+										format: t.format,
+									})
+								}
+							/>
+						</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.alignment')}</Label>
 						<Select
@@ -539,40 +455,23 @@ export function TextProperties({ element, onChange, isNarrow, allElements = [] }
 									className={components.inputHeight}
 								/>
 							</div>
-							<div className={components.field}>
-								<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.shadowColor')}</Label>
-								<div className="flex gap-2">
-									<Input
-										type="color"
-										value={t.shadow.color || "#000000"}
-										onChange={(e) => {
-											onChange({
-												...element,
-												shadow: {
-													...t.shadow!,
-													color: e.target.value,
-												},
-											});
-										}}
-										className={`w-12 ${components.inputHeight} p-1 cursor-pointer`}
-									/>
-									<Input
+								<div className={components.field}>
+									<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.shadowColor')}</Label>
+									<ColorPicker
 										value={t.shadow.color || "#00000040"}
-										onChange={(e) => {
+										onChange={(color) => {
 											onChange({
 												...element,
 												shadow: {
 													...t.shadow!,
-													color: e.target.value,
+													color,
 												},
 											});
 										}}
-										className={components.inputHeight}
 									/>
 								</div>
 							</div>
-						</div>
-					)}
+						)}
 				</div>
 			</section>
 			

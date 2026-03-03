@@ -15,7 +15,7 @@ import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { FileText, Loader2, Plus } from "lucide-react";
+import { AlertCircle, FileText, Loader2, Plus, X } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
 	Dialog,
@@ -41,6 +41,8 @@ import { useInvoiceTemplateConfig } from "@/hooks/use-invoice-template-config";
 import { useInvoiceFormulaEvaluation } from "@/hooks/use-invoice-formula-evaluation";
 import { useInvoiceCurrencyConversion } from "@/hooks/use-invoice-currency-conversion";
 import { useInvoiceComplianceValidation } from "@/hooks/use-invoice-compliance-validation";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type TableColumn = {
 	id: string;
@@ -97,6 +99,9 @@ export default function CreateInvoicePage() {
 		new Set()
 	);
 	const [hasAutoFilled, setHasAutoFilled] = useState(false);
+	const [submitError, setSubmitError] = useState<string[] | null>(null);
+	const submitErrorRef = useRef<HTMLDivElement | null>(null);
+	const [warningsDismissed, setWarningsDismissed] = useState(false);
 
 	// Get default currency from organization settings
 	const defaultCurrency = useMemo(() => {
@@ -136,6 +141,18 @@ export default function CreateInvoicePage() {
 		currentOrganization,
 		formData,
 	});
+
+	useEffect(() => {
+		if ((complianceValidation?.warnings?.length ?? 0) > 0) {
+			setWarningsDismissed(false);
+		}
+	}, [complianceValidation?.warnings]);
+
+	useEffect(() => {
+		if (complianceValidation?.valid) {
+			setSubmitError(null);
+		}
+	}, [complianceValidation?.valid]);
 
 	// Auto-fill organization data when template is selected
 	useEffect(() => {
@@ -803,39 +820,52 @@ export default function CreateInvoicePage() {
 			return;
 		}
 
-		// Pre-validate compliance before saving
-		// Use template's stored region if available, otherwise detect from organization
-		const region = selectedTemplate.compliance?.region || 
-			invoiceComplianceService.detectRegion(currentOrganization);
-		const invoiceData = {
-			orgId: currentOrganization.id,
-			templateId: selectedTemplate.id,
-			data: formData,
-			status: "draft" as const,
-		};
-
-		const validation = invoiceComplianceService.validateInvoice(
-			invoiceData,
-			region
+		// Pre-validate compliance before saving.
+		const semanticMode = Boolean(
+			selectedTemplate.compliance?.region &&
+				selectedTemplate.compliance?.mode,
 		);
+		const orgAdditionalRequired =
+			currentOrganization.settings?.complianceDefaults?.additionalRequired ??
+			[];
 
-		if (!validation.valid) {
-			const missingFieldsList = validation.missingFields
-				.map((f) => f.label)
-				.join(", ");
-			toast.error(
-				`Invoice is not compliant. Missing required fields: ${missingFieldsList}`,
-				{ duration: 5000 }
+		let missingLabels: string[] = [];
+		if (semanticMode) {
+			const missing = invoiceComplianceService.validateInvoiceByFieldId(
+				selectedTemplate,
+				orgAdditionalRequired,
+				formData,
 			);
+			missingLabels = missing.map((field) => field.label);
+		} else {
+			const region =
+				selectedTemplate.compliance?.region ||
+				invoiceComplianceService.detectRegion(currentOrganization);
+			const invoiceData = {
+				orgId: currentOrganization.id,
+				templateId: selectedTemplate.id,
+				data: formData,
+				status: "draft" as const,
+			};
+			const validation = invoiceComplianceService.validateInvoice(
+				invoiceData,
+				region,
+			);
+			missingLabels = validation.missingFields.map((field) => field.label);
+		}
+
+		if (missingLabels.length > 0) {
+			setSubmitError(missingLabels);
+			requestAnimationFrame(() => {
+				submitErrorRef.current?.scrollIntoView({
+					behavior: "smooth",
+					block: "center",
+				});
+			});
 			return;
 		}
 
-		if (validation.warnings && validation.warnings.length > 0) {
-			toast.warning(
-				`Invoice has compliance warnings: ${validation.warnings.join(", ")}`,
-				{ duration: 5000 }
-			);
-		}
+		setSubmitError(null);
 
 		try {
 			// Store default currency in invoice data
@@ -1403,6 +1433,87 @@ export default function CreateInvoicePage() {
 		);
 	}
 
+	const sectionCompletion = useMemo(() => {
+		const sectionGroups = {
+			seller: ["seller.name", "seller.address", "seller.vatId", "seller.taxId"],
+			customer: ["customer.name", "customer.address", "customer.vatId"],
+			invoice: ["invoiceNumber", "invoiceDate", "dueDate", "currency"],
+			items: ["items"],
+			totals: ["total", "netAmount", "vatTotal", "grossTotal"],
+		} as const;
+
+		const missingIds = new Set(
+			(complianceValidation?.missingFields ?? []).map((field) => field.fieldId),
+		);
+
+		return Object.fromEntries(
+			Object.entries(sectionGroups).map(([section, fields]) => {
+				const missingCount = fields.filter((fieldId) => missingIds.has(fieldId)).length;
+				return [section, { missingCount, complete: missingCount === 0 }];
+			}),
+		) as Record<
+			keyof typeof sectionGroups,
+			{ missingCount: number; complete: boolean }
+		>;
+	}, [complianceValidation?.missingFields]);
+
+	const submitDisabled =
+		createInvoice.isPending ||
+		!selectedTemplate ||
+		(complianceValidation !== null && !complianceValidation.valid);
+	const missingLabels = complianceValidation?.missingFields.map((f) => f.label) ?? [];
+	const submitDisabledReason = !selectedTemplate
+		? "Select a template first."
+		: complianceValidation !== null && !complianceValidation.valid
+			? `Missing required fields: ${missingLabels.join(", ")}`
+			: undefined;
+
+	const complianceWarningsAlert =
+		!warningsDismissed &&
+		complianceValidation?.warnings &&
+		complianceValidation.warnings.length > 0 ? (
+			<Alert className="border-amber-300 bg-amber-50">
+				<AlertCircle className="h-4 w-4 text-amber-600" />
+				<AlertTitle>Compliance warnings</AlertTitle>
+				<AlertDescription>
+					<div className="flex items-start justify-between gap-2">
+						<ul className="list-disc space-y-1 pl-4">
+							{complianceValidation.warnings.map((warning, index) => (
+								<li key={`${warning}-${index}`} className="text-sm">
+									{warning}
+								</li>
+							))}
+						</ul>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="h-6 w-6 shrink-0"
+							onClick={() => setWarningsDismissed(true)}
+						>
+							<X className="h-3.5 w-3.5" />
+						</Button>
+					</div>
+				</AlertDescription>
+			</Alert>
+		) : null;
+
+	const submitErrorSummary = submitError ? (
+		<div
+			ref={submitErrorRef}
+			className="rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+		>
+			<p className="text-sm font-semibold text-destructive">
+				Cannot submit: missing required fields
+			</p>
+			<ul className="mt-1 list-disc pl-5 text-sm text-destructive/90">
+				{submitError.map((label, index) => (
+					<li key={`${label}-${index}`}>{label}</li>
+				))}
+			</ul>
+		</div>
+	) : null;
+
 	// Tables rendered separately so they can span full width on desktop
 	const tablesContent = tableConfigs.length > 0 ? (
 		<div data-section="tables" className="space-y-4">
@@ -1473,6 +1584,7 @@ export default function CreateInvoicePage() {
 						getValue={getValue}
 						setValue={setValue}
 						complianceValidation={complianceValidation}
+						sectionCompletion={sectionCompletion}
 						currentOrganization={currentOrganization}
 						onAutoFill={handleAutoFill}
 						productLockedFields={new Set(
@@ -1513,28 +1625,38 @@ export default function CreateInvoicePage() {
 
 					{/* Mobile Sticky Submit Button */}
 					<div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t p-4 md:hidden">
-						<Button
-							type="submit"
-							form="invoice-form"
-							className="w-full"
-							disabled={
-								createInvoice.isPending ||
-								!selectedTemplate
-							}
-							size="lg"
-						>
-							{createInvoice.isPending ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Creating Invoice...
-								</>
-							) : (
-								<>
-									<FileText className="mr-2 h-4 w-4" />
-									Create Invoice
-								</>
-							)}
-						</Button>
+						<div className="space-y-3">
+							{submitErrorSummary}
+							{complianceWarningsAlert}
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="block w-full">
+										<Button
+											type="submit"
+											form="invoice-form"
+											className="w-full"
+											disabled={submitDisabled}
+											size="lg"
+										>
+											{createInvoice.isPending ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Creating Invoice...
+												</>
+											) : (
+												<>
+													<FileText className="mr-2 h-4 w-4" />
+													Create Invoice
+												</>
+											)}
+										</Button>
+									</span>
+								</TooltipTrigger>
+								{submitDisabledReason && (
+									<TooltipContent>{submitDisabledReason}</TooltipContent>
+								)}
+							</Tooltip>
+						</div>
 					</div>
 
 					{/* Mobile Preview Dialog */}
@@ -1582,25 +1704,38 @@ export default function CreateInvoicePage() {
 
 					{/* Desktop submit — full width, below tables */}
 					<div className="inv-slide-up" style={{ animationDelay: "200ms" }}>
-						<Button
-							type="submit"
-							form="invoice-form"
-							className="w-full active:scale-[0.98]"
-							disabled={createInvoice.isPending || !selectedTemplate}
-							size="lg"
-						>
-							{createInvoice.isPending ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Creating Invoice…
-								</>
-							) : (
-								<>
-									<FileText className="mr-2 h-4 w-4" />
-									Create Invoice
-								</>
-							)}
-						</Button>
+						<div className="space-y-3">
+							{submitErrorSummary}
+							{complianceWarningsAlert}
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="block w-full">
+										<Button
+											type="submit"
+											form="invoice-form"
+											className="w-full active:scale-[0.98]"
+											disabled={submitDisabled}
+											size="lg"
+										>
+											{createInvoice.isPending ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Creating Invoice…
+												</>
+											) : (
+												<>
+													<FileText className="mr-2 h-4 w-4" />
+													Create Invoice
+												</>
+											)}
+										</Button>
+									</span>
+								</TooltipTrigger>
+								{submitDisabledReason && (
+									<TooltipContent>{submitDisabledReason}</TooltipContent>
+								)}
+							</Tooltip>
+						</div>
 					</div>
 				</div>
 			)}

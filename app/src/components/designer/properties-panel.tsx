@@ -1,6 +1,7 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -29,6 +30,7 @@ import {
 	PathProperties,
 } from "@/components/designer/elements";
 import { CurrencyProperties } from "@/components/designer/elements/currency";
+import { FieldCombobox } from "@/components/designer/field-combobox";
 import type { Organization } from "@/core";
 import { typography, spacing, separators, components, colors } from "./design-system";
 import {
@@ -46,21 +48,18 @@ import {
 	type ElementBoxModelStyle,
 	type ElementMeasuredLength,
 } from "@/utils/element-box-model";
+import type { TemplateComplianceStatus } from "@/hooks/use-template-compliance";
+import type { MissingRequiredField } from "./missing-required-fields-panel";
 
 type PropertiesPanelProps = {
 	template: Template | undefined;
 	selectedElementIds: string[];
 	draftElements: TemplateElement[] | null;
 	organization: Organization | undefined;
-	complianceStatus: {
-		region: string;
-		valid: boolean;
-		missingBindings: string[];
-	} | null;
+	complianceStatus: TemplateComplianceStatus | null;
 	saveMutation: UseMutationResult<void, Error, Partial<TemplateData>, unknown>;
 	onUpdateElement: (partial: Partial<TemplateElement>) => void;
-	onAddRequiredElement: (binding: string, label: string, elementType: "text" | "input" | "table" | "currency") => void;
-	determineElementTypeForBinding: (binding: string, format?: "string" | "number" | "date" | "boolean" | "object" | "array") => "text" | "input" | "table" | "currency";
+	onAddRequiredElement: (field: MissingRequiredField) => void;
 	onOpenImagePicker?: (elementId: string) => void;
 	onPropsNarrowChange?: (isNarrow: boolean) => void;
 	// Version history props
@@ -83,7 +82,6 @@ export function PropertiesPanel({
 	saveMutation,
 	onUpdateElement,
 	onAddRequiredElement,
-	determineElementTypeForBinding,
 	onOpenImagePicker,
 	onPropsNarrowChange,
 	templateId,
@@ -199,7 +197,6 @@ export function PropertiesPanel({
 					complianceStatus={complianceStatus}
 					template={template}
 					onAddRequiredElement={onAddRequiredElement}
-					determineElementTypeForBinding={determineElementTypeForBinding}
 				/>
 			)}
 			<section className={components.section}>
@@ -295,14 +292,11 @@ export function PropertiesPanel({
 						<div className={components.grid}>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>Top</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									step={marginUnit === "cm" ? "0.1" : "0.05"}
 									min={0}
 									value={Number(pxToMarginUnit(currentMargins.top, marginUnit).toFixed(2))}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-										const next = Number(e.target.value);
-										if (!Number.isFinite(next)) return;
+									onValueChange={(next) => {
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												margins: {
@@ -317,14 +311,11 @@ export function PropertiesPanel({
 							</div>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>Right</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									step={marginUnit === "cm" ? "0.1" : "0.05"}
 									min={0}
 									value={Number(pxToMarginUnit(currentMargins.right, marginUnit).toFixed(2))}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-										const next = Number(e.target.value);
-										if (!Number.isFinite(next)) return;
+									onValueChange={(next) => {
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												margins: {
@@ -339,14 +330,11 @@ export function PropertiesPanel({
 							</div>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>Bottom</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									step={marginUnit === "cm" ? "0.1" : "0.05"}
 									min={0}
 									value={Number(pxToMarginUnit(currentMargins.bottom, marginUnit).toFixed(2))}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-										const next = Number(e.target.value);
-										if (!Number.isFinite(next)) return;
+									onValueChange={(next) => {
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												margins: {
@@ -361,14 +349,11 @@ export function PropertiesPanel({
 							</div>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>Left</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									step={marginUnit === "cm" ? "0.1" : "0.05"}
 									min={0}
 									value={Number(pxToMarginUnit(currentMargins.left, marginUnit).toFixed(2))}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-										const next = Number(e.target.value);
-										if (!Number.isFinite(next)) return;
+									onValueChange={(next) => {
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												margins: {
@@ -406,15 +391,14 @@ export function PropertiesPanel({
 						<>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.customWidth', 'Custom Width')}</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									value={template.pageSettings?.customSize?.width ?? 794}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+									onValueChange={(next) =>
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												size: "Custom",
 												customSize: {
-													width: Number(e.target.value),
+													width: next,
 													height: template.pageSettings?.customSize?.height ?? 1123,
 												},
 											}),
@@ -425,16 +409,15 @@ export function PropertiesPanel({
 							</div>
 							<div className={components.field}>
 								<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.customHeight', 'Custom Height')}</Label>
-								<Input
-									type="number"
+								<DraftNumberInput
 									value={template.pageSettings?.customSize?.height ?? 1123}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+									onValueChange={(next) =>
 										saveMutation.mutate({
 											pageSettings: buildNextPageSettings({
 												size: "Custom",
 												customSize: {
 													width: template.pageSettings?.customSize?.width ?? 794,
-													height: Number(e.target.value),
+													height: next,
 												},
 											}),
 										})
@@ -446,17 +429,15 @@ export function PropertiesPanel({
 					)}
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{t('designer.propertiesPanel.pageBackground', 'Page Background')}</Label>
-						<Input
-							type="color"
+						<ColorPicker
 							value={template.pageSettings?.backgroundColor ?? "#ffffff"}
-							onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+							onChange={(color) =>
 								saveMutation.mutate({
 									pageSettings: buildNextPageSettings({
-										backgroundColor: e.target.value,
+										backgroundColor: color,
 									}),
 								})
 							}
-							className={components.inputHeight}
 						/>
 					</div>
 				</div>
@@ -471,7 +452,9 @@ export function PropertiesPanel({
 							onValueChange={(v: string) => {
 								const currentCompliance = template.compliance || {
 									region: "US" as const,
-									requiredFields: [],
+									mode: "region" as const,
+									additionalRequired: [],
+									waived: [],
 									autoFooter: true,
 									complianceValidated: false,
 								};
@@ -673,11 +656,10 @@ function BoxModelStyleEditor({
 				<div className={`${components.field} mt-3`}>
 					<Label className={typography.fieldLabel}>All Sides</Label>
 					<div className="flex gap-2">
-						<Input
-							type="number"
+						<DraftNumberInput
 							step="0.1"
 							value={normalized.all.value}
-							onChange={(e) => updateAll({ value: Number(e.target.value) || 0 })}
+							onValueChange={(next) => updateAll({ value: next })}
 							className={components.inputHeight}
 						/>
 						<Select
@@ -705,11 +687,10 @@ function BoxModelStyleEditor({
 								{side.charAt(0).toUpperCase() + side.slice(1)}
 							</Label>
 							<div className="flex gap-2">
-								<Input
-									type="number"
+								<DraftNumberInput
 									step="0.1"
 									value={normalized.values[side].value}
-									onChange={(e) => updateSide(side, { value: Number(e.target.value) || 0 })}
+									onValueChange={(next) => updateSide(side, { value: next })}
 									className={components.inputHeight}
 								/>
 								<Select
@@ -735,6 +716,68 @@ function BoxModelStyleEditor({
 				</div>
 			)}
 		</div>
+	);
+}
+
+function DraftNumberInput({
+	value,
+	onValueChange,
+	className,
+	min,
+	max,
+	step,
+}: {
+	value: number;
+	onValueChange: (value: number) => void;
+	className?: string;
+	min?: number;
+	max?: number;
+	step?: string | number;
+}) {
+	const [draft, setDraft] = useState(String(value));
+	const [isFocused, setIsFocused] = useState(false);
+
+	useEffect(() => {
+		if (!isFocused) {
+			setDraft(String(value));
+		}
+	}, [isFocused, value]);
+
+	return (
+		<Input
+			type="number"
+			value={draft}
+			min={min}
+			max={max}
+			step={step}
+			onFocus={() => setIsFocused(true)}
+			onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+				const nextRaw = e.target.value;
+				setDraft(nextRaw);
+				if (nextRaw.trim() === "") return;
+
+				const parsed = Number(nextRaw);
+				if (!Number.isFinite(parsed)) return;
+				onValueChange(parsed);
+			}}
+			onBlur={() => {
+				setIsFocused(false);
+				const trimmed = draft.trim();
+				if (trimmed === "") {
+					setDraft(String(value));
+					return;
+				}
+
+				const parsed = Number(trimmed);
+				if (!Number.isFinite(parsed)) {
+					setDraft(String(value));
+					return;
+				}
+
+				onValueChange(parsed);
+			}}
+			className={className}
+		/>
 	);
 }
 
@@ -878,19 +921,19 @@ function BasicElementProperties({
 				<div className={components.grid}>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>X</Label>
-						<Input type="number" value={element.x} onChange={(e) => onChange({ x: Number(e.target.value) })} className={components.inputHeight} />
+						<DraftNumberInput value={element.x} onValueChange={(next) => onChange({ x: next })} className={components.inputHeight} />
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Y</Label>
-						<Input type="number" value={element.y} onChange={(e) => onChange({ y: Number(e.target.value) })} className={components.inputHeight} />
+						<DraftNumberInput value={element.y} onValueChange={(next) => onChange({ y: next })} className={components.inputHeight} />
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Width</Label>
-						<Input type="number" value={element.width} onChange={(e) => onChange({ width: Number(e.target.value) })} className={components.inputHeight} />
+						<DraftNumberInput value={element.width} onValueChange={(next) => onChange({ width: next })} className={components.inputHeight} />
 					</div>
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Height</Label>
-						<Input type="number" value={element.height} onChange={(e) => onChange({ height: Number(e.target.value) })} className={components.inputHeight} />
+						<DraftNumberInput value={element.height} onValueChange={(next) => onChange({ height: next })} className={components.inputHeight} />
 					</div>
 				</div>
 			</section>
@@ -900,6 +943,19 @@ function BasicElementProperties({
 						<Label className={typography.fieldLabel}>Content</Label>
 						<Input value={element.content} onChange={(e) => onChange({ content: e.target.value })} className={components.inputHeight} />
 					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Binding</Label>
+						<FieldCombobox
+							value={element.binding}
+							fieldId={element.fieldId}
+							onSelect={(fieldId, binding) =>
+								onChange({ binding, fieldId, isCustomBinding: false })
+							}
+							onCustomBinding={(binding) =>
+								onChange({ binding, fieldId: undefined, isCustomBinding: true })
+							}
+						/>
+					</div>
 				</section>
 			)}
 			{element.type === "barcode" && (
@@ -907,6 +963,19 @@ function BasicElementProperties({
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>Value</Label>
 						<Input value={element.value} onChange={(e) => onChange({ value: e.target.value })} className={components.inputHeight} />
+					</div>
+					<div className={components.field}>
+						<Label className={typography.fieldLabel}>Binding</Label>
+						<FieldCombobox
+							value={element.binding}
+							fieldId={element.fieldId}
+							onSelect={(fieldId, binding) =>
+								onChange({ binding, fieldId, isCustomBinding: false })
+							}
+							onCustomBinding={(binding) =>
+								onChange({ binding, fieldId: undefined, isCustomBinding: true })
+							}
+						/>
 					</div>
 				</section>
 			)}

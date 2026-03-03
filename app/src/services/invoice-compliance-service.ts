@@ -9,12 +9,15 @@ import type { InvoiceRegion, ComplianceValidationResult } from "@/core/entities/
 import type { InvoiceData, InvoiceDataValue } from "@/core/entities/invoice";
 import type { Template } from "@/core/entities/template";
 import type { Organization } from "@/core/entities/organization";
+import type { FieldDefinition } from "@/core/entities/field-catalog";
 import {
   detectRegionForInvoice,
   validateInvoiceCompliance,
   generateComplianceFooter,
   validateTemplateCompliance,
   getRequiredFieldsForRegion,
+  validateTemplateComplianceByFieldId,
+  validateInvoiceComplianceByFieldId,
 } from "@/utils/invoice-compliance";
 
 export interface ComplianceService {
@@ -48,6 +51,24 @@ export interface ComplianceService {
    * Get required fields for a region
    */
   getRequiredFields(region: InvoiceRegion): string[];
+
+  /**
+   * Validate template using the new field-ID semantic path.
+   * Falls back gracefully when compliance config has no mode/region set.
+   */
+  validateTemplateByFieldId(
+    template: Template,
+    orgAdditionalRequired?: Array<{ fieldId: string }>,
+  ): FieldDefinition[];
+
+  /**
+   * Validate invoice data using the new field-ID semantic path.
+   */
+  validateInvoiceByFieldId(
+    template: Template,
+    orgAdditionalRequired: Array<{ fieldId: string }> | undefined,
+    data: Record<string, InvoiceDataValue>,
+  ): Array<{ fieldId: string; label: string; description?: string }>;
 }
 
 export const invoiceComplianceService: ComplianceService = {
@@ -88,5 +109,28 @@ export const invoiceComplianceService: ComplianceService = {
   getRequiredFields(region: InvoiceRegion): string[] {
     return getRequiredFieldsForRegion(region);
   },
-};
 
+  validateTemplateByFieldId(
+    template: Template,
+    orgAdditionalRequired: Array<{ fieldId: string }> = [],
+  ) {
+    return validateTemplateComplianceByFieldId(
+      template.elements,
+      template.compliance,
+      orgAdditionalRequired,
+    );
+  },
+
+  validateInvoiceByFieldId(
+    template: Template,
+    orgAdditionalRequired: Array<{ fieldId: string }> = [],
+    data: Record<string, InvoiceDataValue>,
+  ) {
+    return validateInvoiceComplianceByFieldId(
+      template.elements ?? [],
+      template.compliance,
+      orgAdditionalRequired,
+      data,
+    );
+  },
+};

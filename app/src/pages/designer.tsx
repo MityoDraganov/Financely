@@ -27,10 +27,9 @@ import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { invoiceComplianceService } from "@/services/invoice-compliance-service";
 import { useGenerateInvoiceTemplate } from "@/hooks/service-hooks/use-invoice-template-generation";
 import { toast } from "sonner";
-import { isRequiredBinding, extractTemplateBindings } from "@/utils/invoice-compliance";
-import { COMPLIANCE_SCHEMAS } from "@/core/entities/invoice-compliance";
 import { generateUniqueTemplateName } from "@/utils/template-naming";
 import { TemplateSidebar } from "@/components/designer/template-sidebar";
+import type { MissingRequiredField } from "@/components/designer/missing-required-fields-panel";
 import { CanvasHeader } from "@/components/designer/canvas-header";
 import { DesignerCanvas } from "@/components/designer/designer-canvas";
 import { PropertiesPanel } from "@/components/designer/properties-panel";
@@ -71,6 +70,7 @@ import {
 	type PathEditingContextValue,
 	type PathEditorTool,
 } from "@/components/designer/path-editor/path-editing-context";
+import { useTemplateCompliance } from "@/hooks/use-template-compliance";
 
 const DEBUG_DESIGNER = false;
 const debugLog = (...args: unknown[]) => {
@@ -81,6 +81,74 @@ const debugWarn = (...args: unknown[]) => {
 	if (!DEBUG_DESIGNER) return;
 	console.warn(...args);
 };
+const AUTO_VERSION_GROUP_WINDOW_MS = 2000;
+const AUTO_VERSION_DEDUPE_WINDOW_MS = 1500;
+
+function stableSerialize(value: unknown): string {
+	const normalize = (input: unknown): unknown => {
+		if (Array.isArray(input)) {
+			return input.map((item) => normalize(item));
+		}
+		if (input && typeof input === "object") {
+			const sortedEntries = Object.entries(input as Record<string, unknown>)
+				.filter(([, entryValue]) => entryValue !== undefined)
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([key, entryValue]) => [key, normalize(entryValue)]);
+			return Object.fromEntries(sortedEntries);
+		}
+		return input;
+	};
+	return JSON.stringify(normalize(value));
+}
+
+function sanitizeForRealtimeValue<T>(value: T, fallback?: unknown): T {
+	if (Array.isArray(value)) {
+		const fallbackArray = Array.isArray(fallback) ? fallback : [];
+		return value.map((item, index) =>
+			sanitizeForRealtimeValue(item, fallbackArray[index])
+		) as T;
+	}
+
+	if (value && typeof value === "object") {
+		const source = value as Record<string, unknown>;
+		const fallbackRecord =
+			fallback && typeof fallback === "object"
+				? (fallback as Record<string, unknown>)
+				: undefined;
+		const result: Record<string, unknown> = {};
+
+		for (const [key, raw] of Object.entries(source)) {
+			const fallbackValue = fallbackRecord?.[key];
+			let nextValue = raw;
+
+			if (nextValue === undefined) {
+				nextValue = fallbackValue;
+			}
+			if (nextValue === undefined) {
+				continue;
+			}
+
+			if (typeof nextValue === "number" && !Number.isFinite(nextValue)) {
+				if (typeof fallbackValue === "number" && Number.isFinite(fallbackValue)) {
+					result[key] = fallbackValue;
+				}
+				continue;
+			}
+
+			result[key] = sanitizeForRealtimeValue(nextValue, fallbackValue);
+		}
+
+		return result as T;
+	}
+
+	if (typeof value === "number" && !Number.isFinite(value)) {
+		if (typeof fallback === "number" && Number.isFinite(fallback)) {
+			return fallback as T;
+		}
+	}
+
+	return value;
+}
 
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
@@ -167,8 +235,11 @@ export default function TemplateDesignerPage() {
 	}, [canAutoCreateVersion]);
 
 	// Refs to avoid stale closures and track pending saves
+	const lastAutoVersionSaveRef = useRef<{ signature: string; timestamp: number } | null>(null);
 	const versionCreationTimerRef = useRef<NodeJS.Timeout | null>(null);
-	const lastSavedElementsRef = useRef<string>("");
+	const pendingAutoVersionRef = useRef<{ templateId: string; userId: string; signature: string } | null>(null);
+	const autoVersionQueueRef = useRef<{ templateId: string; userId: string } | null>(null);
+	const autoVersionQueueInFlightRef = useRef(false);
 	const loadedFontSignatureRef = useRef<string>("");
 	const currentTemplateIdRef = useRef<string | undefined>(undefined);
 	const templatesRef = useRef<Template[]>([]);
@@ -210,6 +281,55 @@ export default function TemplateDesignerPage() {
 		selectedElementIdsRef.current = state.selectedElementIds || [];
 	}, [state.selectedElementIds]);
 
+	const flushAutoVersionQueue = async () => {
+		if (autoVersionQueueInFlightRef.current) return;
+		autoVersionQueueInFlightRef.current = true;
+		try {
+			while (autoVersionQueueRef.current) {
+				const job = autoVersionQueueRef.current;
+				autoVersionQueueRef.current = null;
+				try {
+					await saveVersion.mutateAsync({
+						templateId: job.templateId,
+						userId: job.userId,
+						description: t('designer.defaults.autoSavedVersion'),
+						silent: true,
+					});
+				} catch (error) {
+					console.error("Failed to auto-create version:", error);
+					// Don't show error toast for auto-save failures
+				}
+			}
+		} finally {
+			autoVersionQueueInFlightRef.current = false;
+		}
+	};
+
+	const scheduleAutoVersion = (job: { templateId: string; userId: string; signature: string }) => {
+		pendingAutoVersionRef.current = job;
+		if (versionCreationTimerRef.current) {
+			clearTimeout(versionCreationTimerRef.current);
+		}
+		versionCreationTimerRef.current = setTimeout(async () => {
+			const pending = pendingAutoVersionRef.current;
+			pendingAutoVersionRef.current = null;
+			versionCreationTimerRef.current = null;
+			if (!pending) return;
+
+			const now = Date.now();
+			const last = lastAutoVersionSaveRef.current;
+			const isDuplicateBurstSave =
+				last != null &&
+				last.signature === pending.signature &&
+				now - last.timestamp < AUTO_VERSION_DEDUPE_WINDOW_MS;
+			if (isDuplicateBurstSave) return;
+
+			lastAutoVersionSaveRef.current = { signature: pending.signature, timestamp: now };
+			autoVersionQueueRef.current = { templateId: pending.templateId, userId: pending.userId };
+			await flushAutoVersionQueue();
+		}, AUTO_VERSION_GROUP_WINDOW_MS);
+	};
+
 	// Load brand assets for image picker
 	useEffect(() => {
 		const branding = currentOrg?.settings?.branding;
@@ -244,6 +364,16 @@ export default function TemplateDesignerPage() {
 		return () => {
 			if (versionCreationTimerRef.current) {
 				clearTimeout(versionCreationTimerRef.current);
+				versionCreationTimerRef.current = null;
+			}
+			const pendingVersion = pendingAutoVersionRef.current;
+			pendingAutoVersionRef.current = null;
+			if (pendingVersion) {
+				autoVersionQueueRef.current = {
+					templateId: pendingVersion.templateId,
+					userId: pendingVersion.userId,
+				};
+				void flushAutoVersionQueue();
 			}
 			if (keyboardNudgeSaveTimerRef.current) {
 				clearTimeout(keyboardNudgeSaveTimerRef.current);
@@ -297,7 +427,6 @@ export default function TemplateDesignerPage() {
 			return undefined;
 		}
 		
-		// Check if we have a pending save that should take precedence
 		const pendingSave = pendingSaveRef.current;
 		let elementsToUse = draftElements ?? template.elements ?? [];
 		
@@ -310,8 +439,9 @@ export default function TemplateDesignerPage() {
 			initialElementsToUseCount: elementsToUse.length,
 		});
 		
-		// If we have a pending save, check if the realtime update matches our save
-		if (pendingSave) {
+		// Always prefer local draft when present to keep all UI (including compliance)
+		// in sync with the latest unsaved edits.
+		if (pendingSave && !draftElements) {
 			// Use normalized comparison to handle floating point precision
 			const normalizeElements = (elements: TemplateElement[]) => {
 				return elements.map(el => ({
@@ -336,18 +466,11 @@ export default function TemplateDesignerPage() {
 				pendingElementsCount: normalizedPending.length,
 			});
 			
-			// If template elements match our pending save, use template (realtime confirmed)
-			// Otherwise, use draftElements if available (still waiting for confirmation)
+			// No draft available; use realtime template while pending save is reconciling.
 			if (matches) {
-				// Realtime update confirmed our save - use template elements
 				elementsToUse = template.elements ?? [];
 				debugLog("[TEMPLATE] Using template elements (realtime confirmed)");
-			} else if (draftElements) {
-				// Template hasn't been updated yet, but we have draftElements - use them
-				elementsToUse = draftElements;
-				debugLog("[TEMPLATE] Using draftElements (waiting for realtime confirmation)");
 			} else {
-				// No draftElements and template doesn't match - use template (fallback)
 				elementsToUse = template.elements ?? [];
 				debugLog("[TEMPLATE] Using template elements (fallback, no draftElements)");
 			}
@@ -451,15 +574,17 @@ export default function TemplateDesignerPage() {
 			first100CharsPending: pendingElementsStr.substring(0, 100),
 		});
 		
-		// If template elements match our pending save, the realtime update confirmed our save
-		if (templateElementsStr === pendingElementsStr && draftElements) {
+		// If template elements match our pending save, the realtime update confirmed our save.
+		// Always clear the pending marker; clear draft only if one is currently active.
+		if (templateElementsStr === pendingElementsStr) {
 			debugLog("[SAVE] ✅ Realtime update confirmed save, clearing draftElements", {
 				elementsCount: pendingSave.elements.length,
 				timeSinceSave: Date.now() - pendingSave.timestamp,
 			});
-			// Realtime update confirmed our save - clear pending and draftElements
 			pendingSaveRef.current = null;
-			setDraftElements(null);
+			if (draftElements) {
+				setDraftElements(null);
+			}
 		} else if (templateElementsStr !== pendingElementsStr && draftElements) {
 			debugLog("[SAVE] ⏳ Realtime update doesn't match yet, keeping draftElements", {
 				rawTemplateElementIds: (rawTemplate.elements ?? []).map(el => el.id),
@@ -468,110 +593,34 @@ export default function TemplateDesignerPage() {
 		}
 	}, [templates, contextCurrentTemplateId, state.currentTemplateId, draftElements]);
 
-	// Compliance validation for current template
-	const complianceStatus = useMemo(() => {
-		if (!currentTemplate || !currentOrg) return null;
-		
-		// Use template's stored region if available, otherwise detect from organization
-		const region = currentTemplate.compliance?.region || invoiceComplianceService.detectRegion(currentOrg);
-		const validation = invoiceComplianceService.validateTemplate(currentTemplate, region);
-		
-		return {
-			region,
-			valid: validation.valid,
-			missingBindings: validation.missingBindings,
-		};
-	}, [currentTemplate, currentOrg]);
-
-	// Check if a binding is required for compliance
-	const isRequired = useMemo(() => {
-		if (!currentOrg || !complianceStatus) return () => false;
-		return (binding: string | undefined) => {
-			if (!binding) return false;
-			return isRequiredBinding(complianceStatus.region, binding);
-		};
-	}, [currentOrg, complianceStatus]);
-
-	// Helper to determine element type based on binding
-	function determineElementTypeForBinding(
-		binding: string,
-		format?: "string" | "number" | "date" | "boolean" | "object" | "array"
-	): "text" | "input" | "table" | "currency" {
-		if (binding === "items" || format === "array") {
-			return "table";
-		}
-		if (format === "date" || binding.includes("Date") || binding.includes("date")) {
-			return "input";
-		}
-		// Currency fields should use currency element type
-		if (format === "number" && (binding.includes("Amount") || binding.includes("Total") || binding.includes("Price") || binding.includes("vatTotal") || binding.includes("netAmount") || binding.includes("grossTotal"))) {
-			return "currency";
-		}
-		if (format === "number" || binding.includes("Rate")) {
-			return "input";
-		}
-		return "text";
-	}
-
-	// Get missing required fields with metadata for the palette
-	const missingRequiredFields = useMemo(() => {
-		if (!complianceStatus || !currentTemplate) return [];
-		
-		const region = complianceStatus.region;
-		const schema = COMPLIANCE_SCHEMAS[region];
-		
-		// Use the proper extraction function to get all bindings (including table columns)
-		const existingBindings = extractTemplateBindings(currentTemplate.elements ?? []);
-		
-		// Also check table column bindings for nested fields
-		// For example, if required field is "items" and we have a table with itemsBinding="items", it's satisfied
-		// For fields within items (like "description", "quantity"), we check column bindings
-		const elements = currentTemplate.elements ?? [];
-		for (const el of elements) {
-			if (el.type === "table" && el.itemsBinding) {
-				// If required field is the items array itself, mark it as found
-				existingBindings.add(el.itemsBinding);
-				
-				// Add column bindings to the set
-				const tableEl = el as Extract<TemplateElement, { type: "table" }>;
-				for (const col of tableEl.columns ?? []) {
-					if (col.binding) {
-						existingBindings.add(col.binding);
-					}
-				}
-			}
-		}
-		
-		return schema.requiredFields
-			.filter(field => {
-				// Check direct binding match
-				if (existingBindings.has(field.binding)) {
-					return false;
-				}
-				
-				// For "items" array, check if any table has itemsBinding="items"
-				if (field.binding === "items") {
-					return !elements.some(
-						(el) => el.type === "table" && 
-						(el as Extract<TemplateElement, { type: "table" }>).itemsBinding === "items"
-					);
-				}
-				
-				// For nested bindings like "seller.name", check if any element has that exact binding
-				// This is already handled by the direct check above
-				return true;
-			})
-			.map(field => ({
-				binding: field.binding,
-				label: field.label,
-				description: field.description,
-				elementType: determineElementTypeForBinding(field.binding, field.format),
-			}));
-	}, [complianceStatus, currentTemplate]);
+	const { complianceStatus, elementIsRequired } =
+		useTemplateCompliance(
+			currentTemplate,
+			currentOrg,
+			currentOrg?.settings?.complianceDefaults?.additionalRequired ?? [],
+		);
 
 	// Function to add required element with pre-configured binding
-	function addRequiredElement(binding: string, label: string, elementType: "text" | "input" | "table" | "currency") {
+	function addRequiredElement(field: MissingRequiredField) {
 		if (!currentTemplate) return;
+		const binding = field.binding ?? field.id;
+		const label = field.label;
+		const normalizedKey = (field.id || binding).toLowerCase();
+		const inferInputVariant = (): "text" | "number" | "date" => {
+			if (normalizedKey.includes("date")) return "date";
+			if (normalizedKey === "invoicenumber" || normalizedKey.endsWith("number")) {
+				return "number";
+			}
+			if (field.format === "date") return "date";
+			if (field.format === "number") return "number";
+			return "text";
+		};
+
+		const inferredInputVariant = inferInputVariant();
+		const shouldForceInput =
+			field.suggestedElementType === "text" &&
+			inferredInputVariant !== "text";
+		const elementType = shouldForceInput ? "input" : field.suggestedElementType;
 		
 		// Determine position - stack them vertically
 		const existingElements = currentTemplate.elements ?? [];
@@ -648,6 +697,8 @@ export default function TemplateDesignerPage() {
 				],
 				designRows: [],
 				itemsBinding: binding,
+				fieldId: field.id,
+				isCustomBinding: false,
 			};
 			const next = [...existingElements, tableElement];
 			draftRef.current = next;
@@ -668,7 +719,9 @@ export default function TemplateDesignerPage() {
 				visible: true,
 				placeholder: label,
 				binding: binding,
-				variant: binding.includes("Date") || binding.includes("date") ? "date" : "number",
+				fieldId: field.id,
+				isCustomBinding: false,
+				variant: inferredInputVariant,
 				align: "left",
 			};
 			const next = [...existingElements, inputElement];
@@ -690,6 +743,8 @@ export default function TemplateDesignerPage() {
 				visible: true,
 				placeholder: "0.00",
 				binding: binding,
+				fieldId: field.id,
+				isCustomBinding: false,
 				currency: currentOrg?.settings?.defaultCurrency || "USD",
 				currencyLinks: [],
 				mode: "independent",
@@ -714,6 +769,8 @@ export default function TemplateDesignerPage() {
 				visible: true,
 				text: label,
 				binding: binding,
+				fieldId: field.id,
+				isCustomBinding: false,
 				opacity: 1,
 				typography: {
 					fontFamily: "Inter",
@@ -939,7 +996,8 @@ export default function TemplateDesignerPage() {
 			}
 
 			const startTime = Date.now();
-				await templateService.updateDraft(templateId, partial);
+				const sanitizedPartial = sanitizeForRealtimeValue(partial) as Partial<TemplateData>;
+				await templateService.updateDraft(templateId, sanitizedPartial);
 			const duration = Date.now() - startTime;
 			debugLog("[SAVE] ✅ mutationFn: templateService.updateDraft completed", {
 				templateId,
@@ -1038,41 +1096,17 @@ export default function TemplateDesignerPage() {
 			// Clear draft brand after successful save (real-time update will handle it)
 			setTimeout(() => setDraftBrand(null), 100);
 
-			// Auto-create version when elements are changed
+			// Auto-create version for every successful template change.
 			const templateId = currentTemplateIdRef.current;
-			if (partial.elements && templateId && clerkUser?.id && canAutoCreateVersionRef.current) {
-				const elementsStr = JSON.stringify(partial.elements);
-				
-				// Only create version if elements actually changed
-				if (elementsStr !== lastSavedElementsRef.current) {
-					lastSavedElementsRef.current = elementsStr;
-
-					// Clear existing timer
-					if (versionCreationTimerRef.current) {
-						clearTimeout(versionCreationTimerRef.current);
-					}
-
-					// Debounce version creation to avoid creating too many versions
-					// Wait 2 seconds after the last change before creating a version
-					versionCreationTimerRef.current = setTimeout(async () => {
-						try {
-							await saveVersion.mutateAsync({
-								templateId,
-								userId: clerkUser.id,
-								description: t('designer.defaults.autoSavedVersion'),
-								silent: true,
-							});
-						} catch (error) {
-							console.error("Failed to auto-create version:", error);
-							// Don't show error toast for auto-save failures
-						}
-					}, 2000);
-				}
+			if (templateId && clerkUser?.id && canAutoCreateVersionRef.current && Object.keys(partial).length > 0) {
+				const signature = stableSerialize(partial);
+				scheduleAutoVersion({ templateId, userId: clerkUser.id, signature });
 			}
 		},
-		onError: () => {
+		onError: (error) => {
 			// Revert draft brand on error
 			setDraftBrand(null);
+			console.error("Failed to save template draft changes:", error);
 		},
 	});
 
@@ -1110,7 +1144,9 @@ export default function TemplateDesignerPage() {
 				// Set compliance metadata based on organization region
 				compliance: {
 					region,
-					requiredFields: [],
+					mode: "region",
+					additionalRequired: [],
+					waived: [],
 					autoFooter: true,
 					complianceValidated: false,
 				},
@@ -1685,15 +1721,13 @@ export default function TemplateDesignerPage() {
 		const selectedIds = selectedElementIdsRef.current ?? [];
 		if (selectedIds.length === 0) return;
 		const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
-		const requiredSelected = selectedElements.filter((el) => {
-			const binding =
-				el.type === "text" || el.type === "input" || el.type === "image" || el.type === "currency"
-					? el.binding
-					: el.type === "table"
-						? el.itemsBinding
-						: undefined;
-			return isRequired(binding);
-		});
+		const requiredSelected = selectedElements.filter((el) =>
+			elementIsRequired({
+				fieldId: (el as { fieldId?: string }).fieldId,
+				binding: (el as { binding?: string }).binding,
+				itemsBinding: el.type === "table" ? el.itemsBinding : undefined,
+			}),
+		);
 		if (requiredSelected.length > 0) {
 			toast.warning(t("designer.toast.requiredDeleteWarning", "Deleted required compliance fields. Template marked as non-compliant."));
 		}
@@ -2324,20 +2358,38 @@ export default function TemplateDesignerPage() {
 			(el: TemplateElement) =>
 				selectedIds.includes(el.id)
 					? ((): TemplateElement => {
-							const merged = {
+							const merged = sanitizeForRealtimeValue({
 								...el,
 								...partial,
-							} as TemplateElement;
+							} as TemplateElement, el);
+							const safeWidth =
+								typeof merged.width === "number" && Number.isFinite(merged.width)
+									? merged.width
+									: el.width;
+							const safeHeight =
+								typeof merged.height === "number" && Number.isFinite(merged.height)
+									? merged.height
+									: el.height;
+							const safeX =
+								typeof merged.x === "number" && Number.isFinite(merged.x)
+									? merged.x
+									: el.x;
+							const safeY =
+								typeof merged.y === "number" && Number.isFinite(merged.y)
+									? merged.y
+									: el.y;
 							const clamped = clampMove(
-								merged.x,
-								merged.y,
-								merged.width,
-								merged.height
+								safeX,
+								safeY,
+								safeWidth,
+								safeHeight
 							);
 							const updated = {
 								...merged,
 								x: clamped.x,
 								y: clamped.y,
+								width: safeWidth,
+								height: safeHeight,
 							} as TemplateElement;
 							debugLog(`[SAVE] Updated element ${el.id}`, {
 								before: { x: el.x, y: el.y, width: el.width, height: el.height },
@@ -3668,16 +3720,18 @@ export default function TemplateDesignerPage() {
 		const { elements: nextElements, removedIds } = deleteSelection(elements, [id]);
 		if (removedIds.length === 0) return;
 		const removedRequired = elements.find((el) => el.id === id);
-		if (removedRequired) {
-			const binding =
-				removedRequired.type === "text" || removedRequired.type === "input" || removedRequired.type === "image" || removedRequired.type === "currency"
-					? removedRequired.binding
-					: removedRequired.type === "table"
+		if (
+			removedRequired &&
+			elementIsRequired({
+				fieldId: (removedRequired as { fieldId?: string }).fieldId,
+				binding: (removedRequired as { binding?: string }).binding,
+				itemsBinding:
+					removedRequired.type === "table"
 						? removedRequired.itemsBinding
-						: undefined;
-			if (isRequired(binding)) {
-				toast.warning(t("designer.toast.requiredDeleteWarning", "Deleted required compliance fields. Template marked as non-compliant."));
-			}
+						: undefined,
+			})
+		) {
+			toast.warning(t("designer.toast.requiredDeleteWarning", "Deleted required compliance fields. Template marked as non-compliant."));
 		}
 		applyCommandResult({
 			nextElements,
@@ -4096,9 +4150,9 @@ export default function TemplateDesignerPage() {
 			onDuplicateElement={duplicateElement}
 			onDeleteElement={deleteElement}
 			onReorderElements={reorderElementsByLayer}
-			missingRequiredFields={missingRequiredFields}
+			complianceStatus={complianceStatus}
 			onAddRequiredElement={addRequiredElement}
-			isRequired={isRequired}
+			elementIsRequired={elementIsRequired}
 		/>
 	);
 
@@ -4208,7 +4262,6 @@ export default function TemplateDesignerPage() {
 			saveMutation={saveMutation}
 			onUpdateElement={updateSelected}
 			onAddRequiredElement={addRequiredElement}
-			determineElementTypeForBinding={determineElementTypeForBinding}
 			onOpenImagePicker={handleOpenImagePicker}
 			templateId={templateId}
 			versions={versions}
@@ -4372,7 +4425,7 @@ export default function TemplateDesignerPage() {
 					onDuplicateElement={duplicateElement}
 					onDeleteElement={deleteElement}
 					onCreateTemplate={() => createMutation.mutate()}
-					isRequired={isRequired}
+					elementIsRequired={elementIsRequired}
 					onTableHeaderChange={(tableId, columnId, header) => {
 						const elements = draftElements ?? currentTemplate?.elements ?? [];
 						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;

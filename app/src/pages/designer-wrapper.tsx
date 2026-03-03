@@ -62,7 +62,9 @@ export default function DesignerWrapper() {
 			status: "draft",
 			compliance: {
 				region,
-				requiredFields: [],
+				mode: "region",
+				additionalRequired: [],
+				waived: [],
 				autoFooter: true,
 				complianceValidated: false,
 			},

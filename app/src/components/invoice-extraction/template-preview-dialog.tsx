@@ -1198,6 +1198,9 @@ export function TemplatePreviewDialog({
                         compliance: {
                           ...prev.compliance,
                           region: newRegion,
+                          mode: newRegion ? "region" : "none",
+                          additionalRequired: prev.compliance?.additionalRequired ?? [],
+                          waived: prev.compliance?.waived ?? [],
                           requiredFields,
                           autoFooter: prev.compliance?.autoFooter ?? true,
                           complianceValidated: false,
@@ -1243,6 +1246,9 @@ export function TemplatePreviewDialog({
                                     ...prev,
                                     compliance: {
                                       ...prev.compliance,
+                                      mode: prev.compliance?.mode ?? "region",
+                                      additionalRequired: prev.compliance?.additionalRequired ?? [],
+                                      waived: prev.compliance?.waived ?? [],
                                       requiredFields: newFields,
                                       region: prev.compliance?.region,
                                       autoFooter: prev.compliance?.autoFooter ?? true,
@@ -1286,6 +1292,9 @@ export function TemplatePreviewDialog({
                         ...prev,
                         compliance: {
                           ...prev.compliance,
+                          mode: prev.compliance?.mode ?? "region",
+                          additionalRequired: prev.compliance?.additionalRequired ?? [],
+                          waived: prev.compliance?.waived ?? [],
                           autoFooter: checked === true,
                           region: prev.compliance?.region,
                           requiredFields: prev.compliance?.requiredFields || [],
@@ -1310,6 +1319,9 @@ export function TemplatePreviewDialog({
                           ...prev,
                           compliance: {
                             ...prev.compliance,
+                            mode: prev.compliance?.mode ?? "region",
+                            additionalRequired: prev.compliance?.additionalRequired ?? [],
+                            waived: prev.compliance?.waived ?? [],
                             customFooter: e.target.value || undefined,
                             region: prev.compliance?.region,
                             requiredFields: prev.compliance?.requiredFields || [],

@@ -8,7 +8,8 @@ interface ComplianceValidation {
 	valid: boolean;
 	region: string;
 	missingFields: Array<{
-		binding: string;
+		fieldId: string;
+		binding?: string;
 		label: string;
 		description?: string;
 	}>;
@@ -92,7 +93,7 @@ export function InvoiceComplianceAlert({
 						<div className="pt-2 space-y-1.5">
 							{missingFields.map((field) => (
 								<div
-									key={field.binding}
+									key={field.fieldId}
 									className="flex items-start gap-2"
 								>
 									<div className="flex-1 min-w-0 pt-0.5">
@@ -109,7 +110,12 @@ export function InvoiceComplianceAlert({
 										size="sm"
 										variant="outline"
 										className="h-6 px-2 text-xs shrink-0 border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900"
-										onClick={() => onAutoFill(field)}
+										onClick={() =>
+											onAutoFill({
+												binding: field.binding ?? field.fieldId,
+												label: field.label,
+											})
+										}
 									>
 										<Plus className="h-3 w-3 mr-1" />
 										Fill

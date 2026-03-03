@@ -1,4 +1,4 @@
-import { Template, TemplateData, TemplateVersion, TemplateVersionData } from "@/core";
+import { Template, TemplateData, TemplateElement, TemplateVersion, TemplateVersionData } from "@/core";
 import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
 import { getTemplateVersionRepository } from "@/repositories/template-version-repository";
 import { databaseService } from "./database/database-service";
@@ -6,6 +6,7 @@ import {
   logClientAuditFailure,
   logClientAuditSuccess,
 } from "./audit-log/audit-log-client-helper";
+import { resolveBinding } from "@/utils/binding-resolution";
 
 export type TemplateService = {
   getTemplate: (id: string) => Promise<Template | null>;
@@ -24,6 +25,36 @@ const templateRepository = getTemplateRealtimeRepository();
 // Versions stay on Firestore for historical records
 const templateVersionRepository = getTemplateVersionRepository(databaseService);
 
+function enrichElementsWithFieldId(elements: TemplateElement[]): TemplateElement[] {
+  return elements.map((element) => {
+    const current = element as TemplateElement & {
+      fieldId?: string;
+      binding?: string;
+      itemsBinding?: string;
+      isCustomBinding?: boolean;
+    };
+
+    if (current.fieldId) return element;
+
+    const bindingToCheck =
+      current.type === "table" ? current.itemsBinding : current.binding;
+    const result = resolveBinding(bindingToCheck);
+
+    if (result.resolved !== "unknown" && result.fieldId) {
+      return {
+        ...element,
+        fieldId: result.fieldId,
+        isCustomBinding: false,
+      } as TemplateElement;
+    }
+
+    return {
+      ...element,
+      isCustomBinding: true,
+    } as TemplateElement;
+  });
+}
+
 export const templateService: TemplateService = {
   async getTemplate(id) {
     return templateRepository.get({ id });
@@ -37,7 +68,13 @@ export const templateService: TemplateService = {
 
   async createDraft(data) {
     try {
-      const id = await templateRepository.create({ data: { ...data, status: "draft" } });
+      const id = await templateRepository.create({
+        data: {
+          ...data,
+          status: "draft",
+          elements: enrichElementsWithFieldId(data.elements ?? []),
+        },
+      });
 
       await logClientAuditSuccess({
         organizationId: data.orgId,
@@ -72,7 +109,13 @@ export const templateService: TemplateService = {
   },
 
   async updateDraft(id, data) {
-    return templateRepository.update({ id, data });
+    const nextData = {
+      ...data,
+      ...(data.elements
+        ? { elements: enrichElementsWithFieldId(data.elements) }
+        : {}),
+    };
+    return templateRepository.update({ id, data: nextData });
   },
 
   async publish(id) {

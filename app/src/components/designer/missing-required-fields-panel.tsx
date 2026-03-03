@@ -1,102 +1,165 @@
-import { useTranslation } from "react-i18next";
-import { Lock, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, ChevronDown, Lock, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { TemplateComplianceStatus } from "@/hooks/use-template-compliance";
+import type { FieldFormat } from "@/core/entities/field-catalog";
 
 export type MissingRequiredField = {
-	binding: string;
-	label: string;
-	description?: string;
-	elementType: "text" | "input" | "table" | "currency";
+  id: string;
+  binding?: string;
+  label: string;
+  description?: string;
+  format?: FieldFormat;
+  suggestedElementType: "text" | "input" | "table" | "currency";
 };
 
-type MissingRequiredFieldsPanelProps = {
-	fields: MissingRequiredField[];
-	onAddRequiredElement: (
-		binding: string,
-		label: string,
-		elementType: "text" | "input" | "table" | "currency",
-	) => void;
-	title?: string;
-	showIcon?: boolean;
-	showToast?: boolean;
-	variant?: "card" | "embedded";
-	className?: string;
+type CompliancePanelProps = {
+  complianceStatus: TemplateComplianceStatus | null;
+  onAddRequiredElement: (field: MissingRequiredField) => void;
+  showToast?: boolean;
+  className?: string;
+  storageKey?: string;
 };
 
-export function MissingRequiredFieldsPanel({
-	fields,
-	onAddRequiredElement,
-	title,
-	showIcon = true,
-	showToast = true,
-	variant = "card",
-	className,
-}: MissingRequiredFieldsPanelProps) {
-	const { t } = useTranslation();
+export function CompliancePanel({
+  complianceStatus,
+  onAddRequiredElement,
+  showToast = true,
+  className,
+  storageKey = "default",
+}: CompliancePanelProps) {
+  const localStorageKey = useMemo(
+    () => `designer:compliance-panel:${storageKey}`,
+    [storageKey],
+  );
+  const [collapsed, setCollapsed] = useState(true);
 
-	if (fields.length === 0) return null;
+  useEffect(() => {
+    const raw = localStorage.getItem(localStorageKey);
+    if (raw === "expanded") setCollapsed(false);
+    if (raw === "collapsed") setCollapsed(true);
+  }, [localStorageKey]);
 
-	const resolvedTitle = title ?? t("designer.sidebar.requiredFields");
-	const isEmbedded = variant === "embedded";
+  useEffect(() => {
+    localStorage.setItem(localStorageKey, collapsed ? "collapsed" : "expanded");
+  }, [collapsed, localStorageKey]);
 
-	return (
-		<div
-			className={cn(
-				isEmbedded
-					? "text-xs"
-					: "mt-5 mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm dark:border-amber-800/50 dark:bg-amber-950/20",
-				className,
-			)}
-		>
-			<div className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">
-				{showIcon && <Lock className="h-3.5 w-3.5" />}
-				{resolvedTitle}
-			</div>
-			<ul className="divide-y divide-amber-200/80 dark:divide-amber-800/60">
-				{fields.map((field) => (
-					<li key={field.binding} className="py-1 first:pt-0 last:pb-0">
-						<button
-							type="button"
-							onClick={() => {
-								onAddRequiredElement(
-									field.binding,
-									field.label,
-									field.elementType,
-								);
-								if (showToast) {
-									toast.success(
-										t("designer.sidebar.addedField", {
-											label: field.label,
-										}),
-										{ duration: 2000 },
-									);
-								}
-							}}
-							className={cn(
-								"group w-full rounded-md px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40",
-								isEmbedded
-									? "hover:bg-amber-100/60 dark:hover:bg-amber-900/25"
-									: "hover:bg-amber-100/80 dark:hover:bg-amber-900/40",
-							)}
-						>
-							<div className="flex min-w-0 items-start gap-2">
-								<Plus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-								<div className="min-w-0">
-									<div className="break-words text-xs font-semibold leading-snug text-amber-900 dark:text-amber-200">
-										{field.label}
-									</div>
-									{field.description && (
-										<div className="mt-0.5 whitespace-normal break-words text-[11px] font-normal leading-relaxed text-amber-700/80 dark:text-amber-400/80">
-											{field.description}
-										</div>
-									)}
-								</div>
-							</div>
-						</button>
-					</li>
-				))}
-			</ul>
-		</div>
-	);
+  if (!complianceStatus) return null;
+
+  const missingIds = new Set(
+    complianceStatus.missingFields.map((field) => field.id),
+  );
+  const requiredById = new Map(
+    complianceStatus.requiredFields.map((field) => [field.id, field] as const),
+  );
+  // Defensive merge to keep panel consistent even if upstream missingFields contains
+  // an ID not present in requiredFields.
+  for (const field of complianceStatus.missingFields) {
+    if (!requiredById.has(field.id)) {
+      requiredById.set(field.id, field);
+    }
+  }
+  const requiredFields: Array<MissingRequiredField & { isPresent: boolean }> = [
+    ...requiredById.values(),
+  ]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map((field) => ({
+      id: field.id,
+      binding: field.id,
+      label: field.label,
+      description: field.description,
+      format: field.format,
+      suggestedElementType: field.suggestedElementType,
+      isPresent: !missingIds.has(field.id),
+    }));
+  const totalCount = requiredFields.length;
+  const coveredCount = requiredFields.filter((field) => field.isPresent).length;
+  const isValid = coveredCount === totalCount;
+
+  return (
+    <div className={cn("rounded-lg border bg-card/40 p-2", className)}>
+      <button
+        type="button"
+        onClick={() => setCollapsed((value) => !value)}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/50"
+      >
+        {isValid ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        ) : (
+          <Lock className="h-4 w-4 text-amber-600" />
+        )}
+        <span className="text-sm font-medium">
+          Compliance ({complianceStatus.region})
+        </span>
+        <span
+          className={cn(
+            "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
+            isValid
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-amber-100 text-amber-700",
+          )}
+        >
+          {coveredCount}/{totalCount}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted-foreground transition-transform",
+            !collapsed && "rotate-180",
+          )}
+        />
+      </button>
+
+      {!collapsed && (
+        <div className="mt-2 space-y-1.5 px-2 pb-1">
+          {requiredFields.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No required fields.</p>
+          ) : (
+            requiredFields.map((field) =>
+              field.isPresent ? (
+                <div
+                  key={field.id}
+                  className="flex w-full items-start gap-2 rounded-md border border-emerald-200/70 bg-emerald-50/40 px-2 py-2"
+                >
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-emerald-600" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium text-emerald-800 line-through">
+                      {field.label}
+                    </span>
+                    {field.description && (
+                      <span className="block text-xs text-emerald-700/80 line-through">
+                        {field.description}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ) : (
+              <button
+                key={field.id}
+                type="button"
+                onClick={() => {
+                  onAddRequiredElement(field);
+                  if (showToast) {
+                    toast.success(`Added "${field.label}"`);
+                  }
+                }}
+                className="flex w-full items-start gap-2 rounded-md border px-2 py-2 text-left hover:bg-muted/50"
+              >
+                <Plus className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium">{field.label}</span>
+                  {field.description && (
+                    <span className="block text-xs text-muted-foreground">
+                      {field.description}
+                    </span>
+                  )}
+                </span>
+              </button>
+              ),
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
