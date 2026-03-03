@@ -24,8 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
@@ -48,7 +46,32 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+
+/* ── Enrichment badge ──────────────────────────────────────── */
+function EnrichmentBadge({ status }: { status?: string }) {
+  if (!status || status === "done") return null;
+  if (status === "pending" || status === "processing") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-semibold">
+        <svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+        AI enhancing…
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold">
+        Metadata pending
+      </span>
+    );
+  }
+  return null;
+}
 
 /* ── Status badge ──────────────────────────────────────────── */
 function StatusBadge({ template }: { template: MarketplaceTemplate }) {
@@ -94,13 +117,7 @@ export default function ContributorPortalPage() {
   const queryClient = useQueryClient();
 
   const userId = firebaseAuthUser?.uid || user?.id;
-  const { data: submissions = [], error: submissionsError } = useMyMarketplaceSubmissions(userId);
-
-  console.log("Submissions data:", submissions);
-  console.log("Submissions error:", submissionsError);
-  console.log("Clerk User ID:", user?.id);
-  console.log("Firebase Auth UID:", firebaseAuthUser?.uid);
-  console.log("Using User ID for query:", userId);
+  const { data: submissions = [] } = useMyMarketplaceSubmissions(userId);
 
   const registerContributor = useRegisterContributor();
   const submitTemplate = useSubmitMarketplaceTemplate();
@@ -114,12 +131,6 @@ export default function ContributorPortalPage() {
     sourceTemplateId: "",
     sourceTemplateType: "invoice" as "invoice" | "email",
     title: "",
-    description: "",
-    shortDescription: "",
-    category: "",
-    tags: "",
-    language: "",
-    country: "",
   });
 
   const handleRegister = async () => {
@@ -140,25 +151,9 @@ export default function ContributorPortalPage() {
         sourceTemplateType: formData.sourceTemplateType,
         orgId: currentOrganization.id,
         title: formData.title,
-        description: formData.description || undefined,
-        shortDescription: formData.shortDescription || undefined,
-        category: formData.category || undefined,
-        tags: formData.tags ? formData.tags.split(",").map((tag) => tag.trim()) : undefined,
-        language: formData.language || undefined,
-        country: formData.country || undefined,
       });
       setIsSubmitDialogOpen(false);
-      setFormData({
-        sourceTemplateId: "",
-        sourceTemplateType: "invoice",
-        title: "",
-        description: "",
-        shortDescription: "",
-        category: "",
-        tags: "",
-        language: "",
-        country: "",
-      });
+      setFormData({ sourceTemplateId: "", sourceTemplateType: "invoice", title: "" });
     } catch {
       // Error handled by hook
     }
@@ -409,7 +404,17 @@ export default function ContributorPortalPage() {
                       <Label className="text-xs text-gray-500 font-medium">Select Template</Label>
                       <Select
                         value={formData.sourceTemplateId}
-                        onValueChange={(v) => setFormData({ ...formData, sourceTemplateId: v })}
+                        onValueChange={(v) => {
+                          const selectedTemplate =
+                            formData.sourceTemplateType === "invoice"
+                              ? templates?.find((t) => t.id === v)
+                              : emailTemplates.find((t) => t.id === v);
+                          setFormData({
+                            ...formData,
+                            sourceTemplateId: v,
+                            title: formData.title || selectedTemplate?.name || "",
+                          });
+                        }}
                       >
                         <SelectTrigger className="h-10 text-sm">
                           <SelectValue placeholder="Choose a template…" />
@@ -447,75 +452,9 @@ export default function ContributorPortalPage() {
                         placeholder="Professional Invoice Template"
                         className="h-10 text-sm"
                       />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="shortDescription" className="text-xs text-gray-500 font-medium">
-                        Short Description
-                      </Label>
-                      <Input
-                        id="shortDescription"
-                        value={formData.shortDescription}
-                        onChange={(e) =>
-                          setFormData({ ...formData, shortDescription: e.target.value })
-                        }
-                        placeholder="A modern invoice template for consulting businesses"
-                        className="h-10 text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="description" className="text-xs text-gray-500 font-medium">
-                        Full Description
-                      </Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Describe what this template is for, how to use it, and any special features…"
-                        rows={3}
-                        className="text-sm resize-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="category" className="text-xs text-gray-500 font-medium">
-                          Category
-                        </Label>
-                        <Input
-                          id="category"
-                          value={formData.category}
-                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                          placeholder="Professional Services"
-                          className="h-10 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="language" className="text-xs text-gray-500 font-medium">
-                          Language
-                        </Label>
-                        <Input
-                          id="language"
-                          value={formData.language}
-                          onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                          placeholder="English"
-                          className="h-10 text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="tags" className="text-xs text-gray-500 font-medium">
-                        Tags <span className="text-gray-400">(comma-separated)</span>
-                      </Label>
-                      <Input
-                        id="tags"
-                        value={formData.tags}
-                        onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                        placeholder="invoice, professional, modern"
-                        className="h-10 text-sm"
-                      />
+                      <p className="text-[11px] text-gray-400">
+                        AI will automatically generate the description, tags, and category.
+                      </p>
                     </div>
                   </div>
 
@@ -601,6 +540,7 @@ export default function ContributorPortalPage() {
                           {submission.title}
                         </h3>
                         <StatusBadge template={submission} />
+                        <EnrichmentBadge status={submission.aiEnrichmentStatus} />
                       </div>
                       {submission.shortDescription && (
                         <p className="text-xs text-gray-500 truncate">
