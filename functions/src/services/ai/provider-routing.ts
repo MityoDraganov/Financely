@@ -23,6 +23,7 @@ export const AI_TASKS = {
   translation: "translation",
   productToInvoiceFieldMapping: "product_to_invoice_field_mapping",
   leadAutoProposalGeneration: "lead_auto_proposal_generation",
+  marketplaceMetadataEnrichment: "marketplace_metadata_enrichment",
 } as const;
 
 export type AITaskName = (typeof AI_TASKS)[keyof typeof AI_TASKS] | (string & {});
@@ -76,6 +77,10 @@ const TASK_DEFAULT_MODELS: Partial<Record<AITaskName, Partial<Record<AIProviderN
   [AI_TASKS.invoiceTemplateFromExtractionGeneration]: {
     gemini: "gemini-2.5-pro",
     openai: "gpt-4.1",
+  },
+  [AI_TASKS.marketplaceMetadataEnrichment]: {
+    gemini: "gemini-2.0-flash",
+    openai: "gpt-4.1-mini",
   },
 };
 
