@@ -1330,16 +1330,9 @@ export interface FunctionsService {
     sourceTemplateType: "invoice" | "email";
     orgId: string;
     title: string;
-    description?: string;
-    shortDescription?: string;
-    category?: string;
-    tags?: string[];
-    language?: string;
-    country?: string;
-    previewImages?: string[];
   }): Promise<{
     submissionId: string;
-    status: "pending";
+    status: "published";
     message: string;
   }>;
 
