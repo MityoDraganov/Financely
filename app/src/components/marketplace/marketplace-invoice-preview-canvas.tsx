@@ -83,9 +83,9 @@ export function MarketplaceInvoicePreviewCanvas({
   );
 
   return (
-    <div ref={containerRef} className={cn("w-full max-h-[75vh] overflow-auto", className)}>
+    <div ref={containerRef} className={cn("w-full h-fit overflow-hidden", className)}>
       <div className="relative bg-muted/30 p-8">
-        <div className="grid place-items-center min-h-full">
+        <div className="grid place-items-center">
           <div
             className="bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm isolate"
             style={{
