@@ -199,3 +199,4 @@ export { submitMarketplaceTemplate } from "./functions/submit-marketplace-templa
 export { featureMarketplaceTemplate, unfeatureMarketplaceTemplate } from "./functions/moderate-marketplace-template";
 export { submitMarketplaceReview, getMarketplaceReviews } from "./functions/marketplace-reviews";
 export { registerAsContributor, getContributorStatus } from "./functions/manage-contributor";
+export { onMarketplaceTemplateCreated } from "./functions/on-marketplace-template-created";
