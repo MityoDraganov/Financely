@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import type { OrganizationImageAssetRef } from "@/utils/template-image-source";
 
 type BrandAssets = {
 	logo?: string;
@@ -29,6 +30,10 @@ type BrandImagePickerDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	assets: BrandAssets;
 	onSelect: (url: string) => void;
+	onSelectDynamic?: (
+		assetRef: OrganizationImageAssetRef,
+		fallbackUrl?: string,
+	) => void;
 	onUploadImage: (file: File) => Promise<void>;
 	isUploading?: boolean;
 	uploadState?: UploadState | null;
@@ -39,6 +44,7 @@ export function BrandImagePickerDialog({
 	onOpenChange,
 	assets,
 	onSelect,
+	onSelectDynamic,
 	onUploadImage,
 	isUploading = false,
 	uploadState,
@@ -46,7 +52,9 @@ export function BrandImagePickerDialog({
 	const { t } = useTranslation();
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-	const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileChange = async (
+		event: React.ChangeEvent<HTMLInputElement>,
+	) => {
 		const file = event.target.files?.[0];
 		if (file) {
 			await onUploadImage(file);
@@ -61,18 +69,26 @@ export function BrandImagePickerDialog({
 		assets.logo && {
 			label: t("emailDesigner.imagePicker.logo"),
 			url: assets.logo,
+			assetRef: "organization.logo" as const,
 		},
 		assets.favicon && {
 			label: t("emailDesigner.imagePicker.favicon"),
 			url: assets.favicon,
+			assetRef: "organization.favicon" as const,
 		},
-	].filter(Boolean) as { label: string; url: string }[];
+	].filter(Boolean) as Array<{
+		label: string;
+		url: string;
+		assetRef: OrganizationImageAssetRef;
+	}>;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto pb-8 flex flex-col">
 				<DialogHeader className="shrink-0">
-					<DialogTitle>{t("emailDesigner.imagePicker.title")}</DialogTitle>
+					<DialogTitle>
+						{t("emailDesigner.imagePicker.title")}
+					</DialogTitle>
 					<DialogDescription>
 						{t("emailDesigner.imagePicker.description")}
 					</DialogDescription>
@@ -93,11 +109,15 @@ export function BrandImagePickerDialog({
 								<div className="relative w-20 h-20 rounded-lg overflow-hidden border">
 									<img
 										src={uploadState.preview}
-										alt={t("emailDesigner.imagePicker.uploadPreviewAlt")}
+										alt={t(
+											"emailDesigner.imagePicker.uploadPreviewAlt",
+										)}
 										className="h-full w-full object-cover"
 									/>
 									<div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-										<CircularUploadProgress value={uploadState.progress} />
+										<CircularUploadProgress
+											value={uploadState.progress}
+										/>
 									</div>
 								</div>
 							)}
@@ -129,10 +149,9 @@ export function BrandImagePickerDialog({
 								<section className="space-y-3">
 									<div>
 										<p className="text-sm font-semibold">
-											{t("emailDesigner.imagePicker.identitySection")}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{t("emailDesigner.imagePicker.identityHint")}
+											{t(
+												"emailDesigner.imagePicker.identitySection",
+											)}
 										</p>
 									</div>
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -141,7 +160,18 @@ export function BrandImagePickerDialog({
 												key={asset.label}
 												label={asset.label}
 												src={asset.url}
-												onSelect={() => onSelect(asset.url)}
+												onSelect={() =>
+													onSelect(asset.url)
+												}
+												onSelectDynamic={
+													onSelectDynamic
+														? () =>
+																onSelectDynamic(
+																	asset.assetRef,
+																	asset.url,
+																)
+														: undefined
+												}
 											/>
 										))}
 									</div>
@@ -151,16 +181,22 @@ export function BrandImagePickerDialog({
 							<section className="space-y-3">
 								<div>
 									<p className="text-sm font-semibold">
-										{t("emailDesigner.imagePicker.galleryTitle")}
+										{t(
+											"emailDesigner.imagePicker.galleryTitle",
+										)}
 									</p>
 									<p className="text-xs text-muted-foreground">
-										{t("emailDesigner.imagePicker.galleryHint")}
+										{t(
+											"emailDesigner.imagePicker.galleryHint",
+										)}
 									</p>
 								</div>
 								{assets.gallery.length === 0 ? (
 									<div className="rounded-lg border border-dashed border-muted-foreground/40 p-6 text-center text-sm text-muted-foreground">
 										<ImageIcon className="mx-auto mb-3 h-6 w-6 opacity-70" />
-										{t("emailDesigner.imagePicker.emptyState")}
+										{t(
+											"emailDesigner.imagePicker.emptyState",
+										)}
 									</div>
 								) : (
 									<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -186,13 +222,18 @@ type ImageCardProps = {
 	src: string;
 	label?: string;
 	onSelect: () => void;
+	onSelectDynamic?: () => void;
 };
 
-function ImageCard({ src, label, onSelect }: ImageCardProps) {
+function ImageCard({ src, label, onSelect, onSelectDynamic }: ImageCardProps) {
 	const { t } = useTranslation();
 	return (
 		<div className="group relative rounded-lg border bg-card overflow-hidden">
-			<img src={src} alt={label || ""} className="h-32 w-full object-cover" />
+			<img
+				src={src}
+				alt={label || ""}
+				className="h-32 w-full object-cover"
+			/>
 			<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 			<div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
 				{label && (
@@ -201,18 +242,34 @@ function ImageCard({ src, label, onSelect }: ImageCardProps) {
 						<span>{label}</span>
 					</div>
 				)}
-				<Button
-					type="button"
-					size="sm"
-					variant="secondary"
-					className={cn(
-						"ml-auto bg-white/90 text-foreground shadow-sm hover:bg-white",
-						!label && "bg-white/90"
+				<div className="ml-auto flex items-center gap-1">
+					{onSelectDynamic ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							className={cn(
+								"bg-white/90 text-foreground shadow-sm hover:bg-white",
+							)}
+							onClick={onSelectDynamic}
+						>
+							{t("emailDesigner.imagePicker.useImage")}
+						</Button>
+					) : (
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							className={cn(
+								"bg-white/90 text-foreground shadow-sm hover:bg-white",
+								!label && "bg-white/90",
+							)}
+							onClick={onSelect}
+						>
+							{t("emailDesigner.imagePicker.useImage")}
+						</Button>
 					)}
-					onClick={onSelect}
-				>
-					{t("emailDesigner.imagePicker.useImage")}
-				</Button>
+				</div>
 			</div>
 		</div>
 	);
@@ -259,4 +316,3 @@ function CircularUploadProgress({ value }: { value: number }) {
 		</div>
 	);
 }
-

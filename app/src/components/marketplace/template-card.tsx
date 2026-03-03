@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAddMarketplaceTemplate } from "@/hooks/use-add-marketplace-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useIsMarketplaceTemplateAdded } from "@/hooks/use-is-marketplace-template-added";
-import { TemplatePreview } from "@/components/templates/template-preview";
+import { MarketplaceInvoiceCardPreview } from "@/components/marketplace/marketplace-invoice-card-preview";
 import { MarketplaceTemplate, TemplateData, EmailTemplateData } from "@/core";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
   const addTemplate = useAddMarketplaceTemplate();
   const [isAdding, setIsAdding] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [hasPreviewImageError, setHasPreviewImageError] = useState(false);
   const isAdded = useIsMarketplaceTemplateAdded(template, currentOrganization?.id);
 
   const canRenderPreview = useMemo(() => {
@@ -50,26 +51,6 @@ export function TemplateCard({ template }: TemplateCardProps) {
       return false;
     }
   }, [template]);
-
-  const previewContext = useMemo(() => {
-    if (template.type !== "invoice" || !canRenderPreview) return {};
-    const templateContent = template.templateContent as TemplateData;
-    const context: Record<string, unknown> = {};
-    if (templateContent.elements && Array.isArray(templateContent.elements)) {
-      templateContent.elements.forEach((element: { binding?: string; [key: string]: unknown }) => {
-        if (element.binding && typeof element.binding === "string") {
-          const b = element.binding;
-          if (b.includes("seller")) context[b] = context[b] || "Sample Company";
-          else if (b.includes("buyer")) context[b] = context[b] || "Sample Customer";
-          else if (b.includes("invoiceNumber")) context[b] = "INV-001";
-          else if (b.includes("total") || b.includes("subtotal")) context[b] = 1000;
-          else if (b.includes("date")) context[b] = new Date().toISOString().split("T")[0];
-          else context[b] = `[${b}]`;
-        }
-      });
-    }
-    return context;
-  }, [template, canRenderPreview]);
 
   const invoiceTemplateForPreview = useMemo(() => {
     if (template.type !== "invoice" || !canRenderPreview) return null;
@@ -109,6 +90,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
 
   const type = TYPE_STYLES[template.type] ?? TYPE_STYLES.invoice;
   const initials = (template.isOfficial ? "F" : template.authorName?.[0] ?? "?").toUpperCase();
+  const previewImageUrl = template.previewImages?.[0];
 
   return (
     <div
@@ -124,27 +106,14 @@ export function TemplateCard({ template }: TemplateCardProps) {
     >
       {/* ── Preview area ── */}
       <div className="relative h-44 bg-gray-50 overflow-hidden shrink-0">
-        {template.previewImages && template.previewImages.length > 0 ? (
-          <img
-            src={template.previewImages[0]}
-            alt={template.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          />
-        ) : template.type === "invoice" && invoiceTemplateForPreview ? (
+        {template.type === "invoice" && invoiceTemplateForPreview ? (
           <div className="w-full h-full bg-white overflow-hidden relative">
             <div
-              className="absolute inset-0 transition-transform duration-500 group-hover:scale-[1.04]"
-              style={{
-                transform: "scale(0.35)",
-                transformOrigin: "top left",
-                width: "285.7%",
-                height: "285.7%",
-              }}
+              className="absolute inset-0"
             >
-              <TemplatePreview
+              <MarketplaceInvoiceCardPreview
                 template={invoiceTemplateForPreview}
-                context={previewContext}
-                zoom={1}
+                className="h-full"
               />
             </div>
           </div>
@@ -153,11 +122,18 @@ export function TemplateCard({ template }: TemplateCardProps) {
             <iframe
               srcDoc={(template.templateContent as EmailTemplateData).htmlContent || ""}
               className="w-full h-full border-0 origin-top-left pointer-events-none transition-transform duration-500 group-hover:scale-[1.04]"
-              style={{ width: "200%", height: "200%", transform: "scale(0.5)" }}
+              style={{ width: "300%", height: "300%", transform: "scale(0.3333)" }}
               title={`Preview of ${template.title}`}
               sandbox="allow-same-origin"
             />
           </div>
+        ) : previewImageUrl && !hasPreviewImageError ? (
+          <img
+            src={previewImageUrl}
+            alt={template.title}
+            className="w-full h-auto block transition-transform duration-500 group-hover:scale-[1.04]"
+            onError={() => setHasPreviewImageError(true)}
+          />
         ) : (
           /* Placeholder */
           <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-gray-50 to-gray-100/60 p-4 gap-3">

@@ -146,6 +146,7 @@ export const textElementSchema = templateElementBaseSchema.extend({
 export const imageElementSchema = templateElementBaseSchema.extend({
   type: z.literal("image"),
   src: z.string().default(""),
+  assetRef: z.enum(["organization.logo", "organization.favicon"]).nullable().optional(),
   binding: z.string().optional(),
   fieldId: z.string().optional(),
   isCustomBinding: z.boolean().optional(),

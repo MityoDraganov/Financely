@@ -88,12 +88,16 @@ export function TemplatePreviewDialog({
   const previewContext = useMemo(() => {
     const fallbackLogoUrl =
       organization?.settings?.branding?.customLogo || organization?.logoUrl || "";
+    const fallbackFaviconUrl = organization?.settings?.branding?.customFavicon || "";
 
     return {
       ...(editableData || {}),
       __brandLogoUrl: fallbackLogoUrl,
+      __brandFaviconUrl: fallbackFaviconUrl,
       logoUrl: fallbackLogoUrl,
       logo: fallbackLogoUrl,
+      faviconUrl: fallbackFaviconUrl,
+      favicon: fallbackFaviconUrl,
     };
   }, [editableData, organization]);
 

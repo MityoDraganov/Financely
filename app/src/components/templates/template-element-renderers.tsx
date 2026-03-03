@@ -325,7 +325,9 @@ function renderImageElement(
 			imageSrc = boundValue;
 		}
 	}
-	imageSrc = resolveTemplateImageSource(imageSrc, context);
+	imageSrc = resolveTemplateImageSource(imageSrc, context, undefined, {
+		assetRef: el.assetRef,
+	});
 	
 	return (
 		<div key={el.id} style={style}>

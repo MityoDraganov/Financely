@@ -836,6 +836,18 @@
 			"image": {
 				"title": "Image",
 				"settings": "Settings",
+				"sourceType": "Image source",
+				"sourceTypeOptions": {
+					"static": "Fixed image",
+					"binding": "From document data",
+					"organizationAsset": "Organization branding"
+				},
+				"organizationAsset": "Brand image",
+				"organizationAssetOptions": {
+					"logo": "Logo",
+					"favicon": "Favicon"
+				},
+				"fallbackImageUrl": "Preview image (Original view)",
 				"imageUrl": "Image URL (Default)",
 				"imageUrlPlaceholder": "https://...",
 				"browseImages": "Browse Images",
@@ -1232,7 +1244,7 @@
 			"logo": "Logo",
 			"favicon": "Favicon",
 			"identitySection": "Brand identity",
-			"identityHint": "Logos and favicons configured for your organization.",
+			"identityHint": "Choose \"Use organization branding\" to automatically show each organization's own logo or favicon.",
 			"galleryTitle": "Gallery",
 			"galleryHint": "All brand images you've uploaded.",
 			"emptyState": "You haven’t added any brand images yet.",

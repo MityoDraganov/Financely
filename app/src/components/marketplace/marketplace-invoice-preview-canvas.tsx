@@ -138,12 +138,12 @@ export function MarketplaceInvoicePreviewCanvas({
       }
 
       if (el.type === "image") {
-        const logoUrl = organization?.settings?.branding?.customLogo || organization?.logoUrl;
         if (el.binding) {
           const value = resolveOrganizationBindingValue(el.binding);
           if (value) return { ...el, src: value };
         }
-        if (logoUrl && (el.src === "[Your Image URL]" || el.src === "")) {
+        const logoUrl = organization?.settings?.branding?.customLogo || organization?.logoUrl;
+        if (!el.assetRef && logoUrl && (el.src === "[Your Image URL]" || el.src === "")) {
           return { ...el, src: logoUrl };
         }
       }
@@ -201,7 +201,11 @@ export function MarketplaceInvoicePreviewCanvas({
                     <InputElement element={el as Extract<TemplateElement, { type: "input" }>} />
                   )}
                   {el.type === "image" && (
-                    <ImageElement element={el as Extract<TemplateElement, { type: "image" }>} />
+                    <ImageElement
+                      element={el as Extract<TemplateElement, { type: "image" }>}
+                      organizationOverride={organization}
+                      resolutionMode={mode === "organization" ? "resolve-org-assets" : "preserve-original"}
+                    />
                   )}
                   {el.type === "box" && (
                     <BoxElement element={el as Extract<TemplateElement, { type: "box" }>} />

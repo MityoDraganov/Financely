@@ -47,6 +47,7 @@ import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx, resolveTemplateMarginsPx
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 import { loadGoogleFonts } from "@/utils/google-fonts";
 import { getDesignerDefaultValueForBinding } from "@/utils/designer-binding-defaults";
+import type { OrganizationImageAssetRef } from "@/utils/template-image-source";
 import {
 	alignSelection,
 	cycleSelection,
@@ -1960,7 +1961,6 @@ export default function TemplateDesignerPage() {
 							zIndex: 1,
 							visible: true,
 							src: "",
-							binding: defaultBinding,
 							objectFit: "contain",
 						}
 					: kind === "table"
@@ -3669,7 +3669,35 @@ export default function TemplateDesignerPage() {
 			handleImagePickerOpenChange(false);
 			return;
 		}
-		updateSelected({ ...targetElement, src: url });
+		updateSelected({
+			...targetElement,
+			src: url,
+			assetRef: null,
+		});
+		handleImagePickerOpenChange(false);
+	};
+
+	const handleSelectDynamicBrandImage = (
+		assetRef: OrganizationImageAssetRef,
+		fallbackUrl?: string
+	) => {
+		if (!currentTemplate || !imagePickerTargetElementId) return;
+		const currentElements = draftElements ?? currentTemplate.elements ?? [];
+		const targetElement = currentElements.find((el) => el.id === imagePickerTargetElementId);
+		if (!targetElement || targetElement.type !== "image") {
+			toast.error(t("emailDesigner.toast.imagePickerMissing"));
+			handleImagePickerOpenChange(false);
+			return;
+		}
+		updateSelected({
+			...targetElement,
+			assetRef,
+			// Keep creator preview in `src` for marketplace "Original" mode.
+			src: fallbackUrl || targetElement.src,
+			binding: "",
+			fieldId: "",
+			isCustomBinding: false,
+		});
 		handleImagePickerOpenChange(false);
 	};
 
@@ -4584,6 +4612,7 @@ export default function TemplateDesignerPage() {
 			onOpenChange={handleImagePickerOpenChange}
 			assets={brandAssets}
 			onSelect={handleSelectBrandImage}
+			onSelectDynamic={handleSelectDynamicBrandImage}
 			onUploadImage={handleBrandImageUpload}
 			isUploading={fileUpload.isUploading}
 			uploadState={uploadState}
