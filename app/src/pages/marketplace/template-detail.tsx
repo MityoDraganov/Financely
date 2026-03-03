@@ -4,13 +4,10 @@ import { useAddMarketplaceTemplate } from "@/hooks/use-add-marketplace-template"
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useIsMarketplaceTemplateAdded } from "@/hooks/use-is-marketplace-template-added";
 import { ReviewSection } from "@/components/marketplace/review-section";
-import { TemplatePreview } from "@/components/templates/template-preview";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Download, Star, Check, Sparkles, Globe, Tag, Calendar, Hash } from "lucide-react";
-import { useState, useMemo } from "react";
-import { TemplateData } from "@/core/entities/template";
-import { EmailTemplateData } from "@/core/entities/email-template";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export default function TemplateDetailPage() {
@@ -21,32 +18,6 @@ export default function TemplateDetailPage() {
   const addTemplate = useAddMarketplaceTemplate();
   const [isAdding, setIsAdding] = useState(false);
   const isAdded = useIsMarketplaceTemplateAdded(template, currentOrganization?.id);
-
-  const previewContext = useMemo(() => {
-    if (!template || template.type !== "invoice") return {};
-    const templateContent = template.templateContent as TemplateData;
-    const context: Record<string, unknown> = {};
-    if (templateContent.elements) {
-      templateContent.elements.forEach((element: { binding?: string; [key: string]: unknown }) => {
-        if (element.binding) {
-          const b = element.binding;
-          if (b.includes("seller")) context[b] = context[b] || "Sample Company";
-          else if (b.includes("buyer")) context[b] = context[b] || "Sample Customer";
-          else if (b.includes("invoiceNumber")) context[b] = "INV-001";
-          else if (b.includes("total") || b.includes("subtotal")) context[b] = 1000;
-          else if (b.includes("date")) context[b] = new Date().toISOString().split("T")[0];
-          else context[b] = `[${b}]`;
-        }
-      });
-    }
-    return context;
-  }, [template]);
-
-  const invoiceTemplateForPreview = useMemo(() => {
-    if (!template || template.type !== "invoice") return null;
-    const templateContent = template.templateContent as TemplateData;
-    return { ...templateContent, id: template.id };
-  }, [template]);
 
   const handleAddTemplate = async () => {
     if (!currentOrganization?.id || !id || !template) return;
@@ -231,47 +202,6 @@ export default function TemplateDetailPage() {
             </div>
 
             {/* Preview card */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-800">Preview</h2>
-                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">
-                  Sample data
-                </span>
-              </div>
-              <div className="p-6">
-                {template.type === "invoice" ? (
-                  <div className="rounded-xl overflow-auto border border-gray-100 bg-gray-50/50">
-                    {invoiceTemplateForPreview ? (
-                      <TemplatePreview
-                        template={invoiceTemplateForPreview}
-                        context={previewContext}
-                        zoom={0.6}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-                        Preview not available
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-xl overflow-hidden border border-gray-100 bg-white">
-                    {template.templateContent &&
-                    (template.templateContent as EmailTemplateData).htmlContent ? (
-                      <div
-                        className="email-preview"
-                        dangerouslySetInnerHTML={{
-                          __html: (template.templateContent as EmailTemplateData).htmlContent || "",
-                        }}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center py-16 text-sm text-gray-400">
-                        Preview not available
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Details card */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
