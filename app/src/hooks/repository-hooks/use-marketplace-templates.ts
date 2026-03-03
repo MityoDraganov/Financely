@@ -138,33 +138,36 @@ export const useMarketplaceTemplate = (templateId: string | undefined) => {
 /**
  * Hook to fetch user's own marketplace submissions (for contributor portal)
  * Returns all submissions including pending, published, rejected, etc.
+ * Polls every 3s while any submission has a non-terminal AI enrichment status.
  */
 export const useMyMarketplaceSubmissions = (userId: string | undefined) => {
   return useQuery<MarketplaceTemplate[]>({
     queryKey: ["marketplaceTemplates", "submissions", userId],
     queryFn: async () => {
       if (!userId) return [];
-      
-      console.log("Fetching submissions for userId:", userId);
-      
+
       const result = await marketplaceTemplateRepository.getAll({
         queryConstraints: [
           { field: "authorId", operator: "==", value: userId },
         ],
         orderBy: { field: "createdAt", direction: "desc" },
       });
-      
-      console.log("Repository result:", result);
-      
-      // Handle both array and paginated result
-      const submissions = Array.isArray(result) 
-        ? result 
+
+      const submissions = Array.isArray(result)
+        ? result
         : (result as unknown as { data?: MarketplaceTemplate[] })?.data || [];
-      console.log("Processed submissions:", submissions);
-      
+
       return submissions;
     },
     enabled: !!userId,
-    staleTime: 0, // Always refetch to get latest data
+    staleTime: 0,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const hasActive = data.some(
+        (t) => t.aiEnrichmentStatus === "pending" || t.aiEnrichmentStatus === "processing",
+      );
+      return hasActive ? 3000 : false;
+    },
   });
 };
