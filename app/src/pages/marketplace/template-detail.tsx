@@ -4,11 +4,14 @@ import { useAddMarketplaceTemplate } from "@/hooks/use-add-marketplace-template"
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useIsMarketplaceTemplateAdded } from "@/hooks/use-is-marketplace-template-added";
 import { ReviewSection } from "@/components/marketplace/review-section";
+import { MarketplaceInvoicePreviewCanvas } from "@/components/marketplace/marketplace-invoice-preview-canvas";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Download, Star, Check, Sparkles, Globe, Tag, Calendar, Hash } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { EmailTemplateData, TemplateData } from "@/core";
+import { getDefaultPrintMarginsPx } from "@/utils/print-margins";
 
 export default function TemplateDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -70,6 +73,35 @@ export default function TemplateDetailPage() {
   }
 
   const authorInitial = (template.isOfficial ? "F" : template.authorName?.[0] ?? "?").toUpperCase();
+
+  const invoiceTemplateForPreview = (() => {
+    if (template.type !== "invoice") return null;
+    if (!template.templateContent || typeof template.templateContent !== "object") return null;
+    try {
+      const content = template.templateContent as TemplateData;
+      if (!Array.isArray(content.elements)) return null;
+      return {
+        ...content,
+        id: template.id,
+        elements: content.elements,
+        pageSize: content.pageSize || "A4",
+        brand: content.brand || {
+          fonts: [],
+          colors: { primary: "#000000", secondary: "#666666", accent: "#000000" },
+          margins: getDefaultPrintMarginsPx(),
+        },
+      };
+    } catch {
+      return null;
+    }
+  })();
+
+  const canRenderEmailPreview = (() => {
+    if (template.type !== "email") return false;
+    if (!template.templateContent || typeof template.templateContent !== "object") return false;
+    const content = template.templateContent as EmailTemplateData;
+    return typeof content.htmlContent === "string" && content.htmlContent.length > 0;
+  })();
 
   return (
     <div className="min-h-screen" style={{ background: "#f5f5f3" }}>
@@ -202,6 +234,39 @@ export default function TemplateDetailPage() {
             </div>
 
             {/* Preview card */}
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-800">Template Preview</h2>
+                <span className="text-[11px] text-gray-400 font-medium">
+                  {template.type === "invoice" ? "Invoice Layout" : "Email Layout"}
+                </span>
+              </div>
+              <div className="bg-gray-50 p-4 sm:p-6">
+                <div className="w-full rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  {template.type === "invoice" && invoiceTemplateForPreview ? (
+                    <MarketplaceInvoicePreviewCanvas template={invoiceTemplateForPreview} />
+                  ) : template.type === "email" && canRenderEmailPreview ? (
+                    <iframe
+                      srcDoc={(template.templateContent as EmailTemplateData).htmlContent || ""}
+                      className="w-full border-0 bg-white"
+                      style={{ minHeight: 700 }}
+                      title={`Preview of ${template.title}`}
+                      sandbox="allow-same-origin"
+                    />
+                  ) : template.previewImages && template.previewImages.length > 0 ? (
+                    <img
+                      src={template.previewImages[0]}
+                      alt={template.title}
+                      className="w-full h-auto object-contain bg-white"
+                    />
+                  ) : (
+                    <div className="h-72 flex items-center justify-center text-sm text-gray-400">
+                      Preview unavailable for this template
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* Details card */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
