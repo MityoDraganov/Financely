@@ -14,6 +14,8 @@ import { typography, separators, components } from "../design-system";
 import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 import { FieldCombobox } from "@/components/designer/field-combobox";
 import { getCatalogField } from "@/core/entities/field-catalog";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { getDesignerDefaultValueForBinding } from "@/utils/designer-binding-defaults";
 
 interface InputElementProps {
 	element: Extract<TemplateElement, { type: "input" }>;
@@ -49,6 +51,7 @@ interface InputPropertiesProps {
 
 export function InputProperties({ element, onChange, isNarrow, allElements = [] }: InputPropertiesProps) {
 	const { t } = useTranslation();
+	const { data: currentOrganization } = useCurrentOrganization();
 	const inp = element;
 	
 	// Common position/size controls
@@ -228,6 +231,10 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 							fieldId={inp.fieldId}
 							onSelect={(fieldId, binding) => {
 								const field = getCatalogField(fieldId);
+								const defaultValue = getDesignerDefaultValueForBinding(
+									binding || fieldId,
+									currentOrganization ?? undefined,
+								);
 								const variant =
 									field?.format === "date"
 										? "date"
@@ -240,6 +247,7 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 									fieldId,
 									isCustomBinding: false,
 									variant,
+									placeholder: defaultValue ?? element.placeholder,
 								});
 							}}
 							onCustomBinding={(binding) => {

@@ -3,6 +3,7 @@ import type { Template } from "@/core";
 
 interface DesignerTemplateContextValue {
 	templates: Template[];
+	isTemplatesSubscribed: boolean;
 	currentTemplateId: string | undefined;
 	setCurrentTemplateId: (id: string | undefined) => void;
 	currentTemplate: Template | undefined;
@@ -15,6 +16,7 @@ const DesignerTemplateContext = createContext<DesignerTemplateContextValue | nul
 export function DesignerTemplateProvider({
 	children,
 	templates,
+	isTemplatesSubscribed,
 	currentTemplateId,
 	setCurrentTemplateId,
 	currentTemplate,
@@ -23,6 +25,7 @@ export function DesignerTemplateProvider({
 }: {
 	children: ReactNode;
 	templates: Template[];
+	isTemplatesSubscribed: boolean;
 	currentTemplateId: string | undefined;
 	setCurrentTemplateId: (id: string | undefined) => void;
 	currentTemplate: Template | undefined;
@@ -33,6 +36,7 @@ export function DesignerTemplateProvider({
 		<DesignerTemplateContext.Provider
 			value={{
 				templates,
+				isTemplatesSubscribed,
 				currentTemplateId,
 				setCurrentTemplateId,
 				currentTemplate,
@@ -49,4 +53,3 @@ export function useDesignerTemplate() {
 	const context = useContext(DesignerTemplateContext);
 	return context;
 }
-

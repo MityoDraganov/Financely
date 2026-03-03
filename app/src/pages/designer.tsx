@@ -19,7 +19,6 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { Template, TemplateData, TemplateElement } from "@/core";
 import { templateService } from "@/services/template-service";
 import { firebase } from "@/infrastructure";
-import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCreateTemplate } from "@/hooks/repository-hooks/use-create-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { usePresence } from "@/hooks/use-presence";
@@ -47,6 +46,7 @@ import { compileInvoiceBlocksToElements } from "@/services/template-compiler/inv
 import { DEFAULT_MARGIN_UNIT, getDefaultPrintMarginsPx, resolveTemplateMarginsPx } from "@/utils/print-margins";
 import { PAGE_SIZES_PX } from "@/utils/page-size-presets";
 import { loadGoogleFonts } from "@/utils/google-fonts";
+import { getDesignerDefaultValueForBinding } from "@/utils/designer-binding-defaults";
 import {
 	alignSelection,
 	cycleSelection,
@@ -187,7 +187,7 @@ export default function TemplateDesignerPage() {
 	const setContextCurrentTemplateId = designerTemplateContext?.setCurrentTemplateId ?? (() => {});
 	const contextOnTemplateChange = designerTemplateContext?.onTemplateChange ?? (() => {});
 	const contextHandleCreateNewTemplate = designerTemplateContext?.onCreateNewTemplate ?? (() => {});
-	const { isSubscribed } = useTemplates(orgId);
+	const isSubscribed = designerTemplateContext?.isTemplatesSubscribed ?? false;
 	const { activeUsers, updateCursor } = usePresence(state.currentTemplateId);
 	const authUser = useFirebaseAuthUser();
 	const { user: clerkUser } = useUser();
@@ -606,6 +606,9 @@ export default function TemplateDesignerPage() {
 		const binding = field.binding ?? field.id;
 		const label = field.label;
 		const normalizedKey = (field.id || binding).toLowerCase();
+		const bindingDefaultValue =
+			getDesignerDefaultValueForBinding(binding, currentOrg ?? undefined) ??
+			label;
 		const inferInputVariant = (): "text" | "number" | "date" => {
 			if (normalizedKey.includes("date")) return "date";
 			if (normalizedKey === "invoicenumber" || normalizedKey.endsWith("number")) {
@@ -767,7 +770,7 @@ export default function TemplateDesignerPage() {
 				rotation: 0,
 				zIndex: 1,
 				visible: true,
-				text: label,
+				text: bindingDefaultValue,
 				binding: binding,
 				fieldId: field.id,
 				isCustomBinding: false,

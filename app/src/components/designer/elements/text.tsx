@@ -15,6 +15,8 @@ import { TemplateElement } from "@/core";
 import { typography, spacing, separators, components } from "../design-system";
 import { GoogleFontPicker } from "@/components/designer/google-font-picker";
 import { FieldCombobox } from "@/components/designer/field-combobox";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { getDesignerDefaultValueForBinding } from "@/utils/designer-binding-defaults";
 
 interface TextElementProps {
 	element: Extract<TemplateElement, { type: "text" }>;
@@ -72,6 +74,7 @@ interface TextPropertiesProps {
 
 export function TextProperties({ element, onChange, isNarrow }: TextPropertiesProps) {
 	const { t: translate } = useTranslation();
+	const { data: currentOrganization } = useCurrentOrganization();
 	const t = element as Extract<TemplateElement, { type: "text" }>;
 
 	// Keep effect for any future external sync needs
@@ -160,11 +163,16 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 							value={t.binding}
 							fieldId={t.fieldId}
 							onSelect={(fieldId, binding) => {
+								const defaultValue = getDesignerDefaultValueForBinding(
+									binding || fieldId,
+									currentOrganization ?? undefined,
+								);
 								onChange({
 									...element,
 									binding: binding || undefined,
 									fieldId,
 									isCustomBinding: false,
+									text: defaultValue ?? element.text,
 								});
 							}}
 							onCustomBinding={(binding) => {

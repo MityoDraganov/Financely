@@ -48,31 +48,26 @@ export const useUserByClerkId = (clerkId: string | undefined) => {
     queryKey: ["users", "clerkId", clerkId],
     queryFn: async () => {
       if (!clerkId) return null;
-      console.log('Fetching user by Clerk ID:', clerkId);
       
       try {
         // First try to get by document ID (no index needed)
         // Based on the Clerk webhook, users are created with clerkId as document ID
         const user = await userRepository.get({ id: clerkId });
         if (user) {
-          console.log('User found by document ID:', user);
           return user;
         }
         
         // Fallback: query by clerkId field (requires index)
-        console.log('User not found by document ID, trying field query...');
         const users = await userRepository.getAll({
           queryConstraints: [
             { field: "clerkId", operator: "==", value: clerkId },
           ],
         });
-        console.log('User query result:', users);
         return users.length > 0 ? users[0] : null;
       } catch (error) {
-        console.error('Error fetching user by Clerk ID:', error);
+        console.error("Error fetching user by Clerk ID:", error);
         // If it's an index error, try the document ID approach
         if (error instanceof Error && error.message.includes('index')) {
-          console.log('Index error detected, trying document ID approach...');
           try {
             const user = await userRepository.get({ id: clerkId });
             return user;
@@ -222,4 +217,3 @@ export const useRemoveUserFromOrganization = () => {
     },
   });
 };
-

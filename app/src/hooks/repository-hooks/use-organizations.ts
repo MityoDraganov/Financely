@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthReady } from "@/hooks/use-auth-ready";
 import { useUser } from "@clerk/clerk-react";
 import { useUserByClerkId } from "./use-users";
-import { firebase } from "@/infrastructure";
 import type { CreateOrganizationPayload } from "@/core/ports/services/functions-service";
 import {
   logClientAuditFailure,
@@ -60,33 +59,13 @@ export const useUserOrganizations = (userId: string | undefined) => {
       if (!userId) return Promise.resolve([]);
       
       try {
-        const currentUser = firebase.auth.currentUser;
-        console.log('[QUERY DEBUG] useUserOrganizations: Starting query', {
-          userId,
-          firebaseAuthUid: currentUser?.uid,
-          isAuthenticated: currentUser !== null,
-        });
-        
-        const result = await organizationRepository.getAll({
+        return await organizationRepository.getAll({
           queryConstraints: [
             { field: "memberIds", operator: "array-contains", value: userId },
           ],
         });
-        
-        console.log('[QUERY DEBUG] useUserOrganizations: ✅ Success', {
-          resultCount: result.length,
-        });
-        return result;
       } catch (error) {
-        const currentUser = firebase.auth.currentUser;
-        console.error('[QUERY DEBUG] useUserOrganizations: ❌ Error', {
-          error,
-          userId,
-          firebaseAuthUid: currentUser?.uid,
-          isAuthenticated: currentUser !== null,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          errorCode: error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined,
-        });
+        console.error("useUserOrganizations failed:", error);
         throw error;
       }
     },
@@ -110,36 +89,15 @@ export const useOrganizationsByIds = (organizationIds: string[] | undefined) => 
       if (!organizationIds || organizationIds.length === 0) return Promise.resolve([]);
       
       try {
-        const currentUser = firebase.auth.currentUser;
-        console.log('[QUERY DEBUG] useOrganizationsByIds: Starting query', {
-          organizationIds,
-          firebaseAuthUid: currentUser?.uid,
-          isAuthenticated: currentUser !== null,
-        });
-        
         const organizations = await Promise.all(
           organizationIds.map(id => organizationRepository.get({ id }))
         );
         
         // Filter out null results (organizations that don't exist)
         const validOrganizations = organizations.filter(org => org !== null) as Organization[];
-        
-        console.log('[QUERY DEBUG] useOrganizationsByIds: ✅ Success', {
-          requested: organizationIds.length,
-          found: validOrganizations.length,
-        });
-        
         return validOrganizations;
       } catch (error) {
-        const currentUser = firebase.auth.currentUser;
-        console.error('[QUERY DEBUG] useOrganizationsByIds: ❌ Error', {
-          error,
-          organizationIds,
-          firebaseAuthUid: currentUser?.uid,
-          isAuthenticated: currentUser !== null,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          errorCode: error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined,
-        });
+        console.error("useOrganizationsByIds failed:", error);
         throw error;
       }
     },

@@ -201,22 +201,17 @@ export const templateService: TemplateService = {
 
   async listVersions(templateId) {
     if (!templateId) {
-      console.warn("listVersions called without templateId");
       return [];
     }
-    console.log("listVersions called with templateId:", templateId);
     try {
-      const result = await templateVersionRepository.getAll({
+      return await templateVersionRepository.getAll({
         queryConstraints: [{ field: "templateId", operator: "==", value: templateId }],
         orderBy: { field: "createdAt", direction: "desc" },
       });
-      console.log("listVersions result:", result, "count:", result.length);
-      return result;
     } catch (error) {
       console.error("Error fetching template versions:", error);
       // If query fails (e.g., missing index), try without orderBy as fallback
       try {
-        console.log("Retrying without orderBy...");
         const result = await templateVersionRepository.getAll({
           queryConstraints: [{ field: "templateId", operator: "==", value: templateId }],
         });
@@ -226,7 +221,6 @@ export const templateService: TemplateService = {
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bTime - aTime;
         });
-        console.log("listVersions fallback result:", sorted, "count:", sorted.length);
         return sorted;
       } catch (fallbackError) {
         console.error("Fallback query also failed:", fallbackError);

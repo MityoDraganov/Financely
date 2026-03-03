@@ -16,7 +16,7 @@ export default function DesignerWrapper() {
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id || "";
-	const { data: templates = [] } = useTemplates(orgId);
+	const { data: templates = [], isSubscribed: isTemplatesSubscribed } = useTemplates(orgId);
 	const createTemplate = useCreateTemplate();
 	const [currentTemplateId, setCurrentTemplateId] = useState<string | undefined>(templateIdFromUrl);
 	
@@ -91,6 +91,7 @@ export default function DesignerWrapper() {
 	return (
 		<DesignerTemplateProvider
 			templates={templates}
+			isTemplatesSubscribed={isTemplatesSubscribed}
 			currentTemplateId={currentTemplateId}
 			setCurrentTemplateId={setCurrentTemplateId}
 			currentTemplate={currentTemplate}

@@ -17,23 +17,19 @@ export const useTemplates = (orgId: string = "demo-org") => {
 	const query = useQuery({
 		queryKey: ["templates", orgId],
 		queryFn: async () => {
-			console.log("[USE-TEMPLATES] Initial fetch for orgId:", orgId);
-			const result = await templateRepository.getAll({
+			return templateRepository.getAll({
 				queryConstraints: [{ field: "orgId", operator: "==", value: orgId }],
 			});
-			console.log("[USE-TEMPLATES] Initial fetch result:", result);
-			return result;
 		},
+		enabled: !!orgId,
 	});
 
 	// Real-time subscription for collaborative updates
 	useEffect(() => {
 		if (!orgId) {
-			console.log("[USE-TEMPLATES] No orgId provided, skipping subscription");
 			return;
 		}
 
-		console.log("[USE-TEMPLATES] Setting up subscription for orgId:", orgId);
 		setIsSubscribed(true);
 
 		let unsubscribe: (() => void) | null = null;
@@ -42,18 +38,16 @@ export const useTemplates = (orgId: string = "demo-org") => {
 			unsubscribe = templateRepository.subscribeToAll(
 				orgId,
 				(templates: Template[]) => {
-					console.log("[USE-TEMPLATES] Real-time update received:", templates.length, "templates");
 					// Update the React Query cache with real-time data
 					queryClient.setQueryData(["templates", orgId], templates);
 				}
 			);
 		} catch (error) {
-			console.error("[USE-TEMPLATES] Failed to set up subscription:", error);
+			console.error("Failed to set up template subscription:", error);
 			setIsSubscribed(false);
 		}
 
 		return () => {
-			console.log("[USE-TEMPLATES] Cleaning up subscription for orgId:", orgId);
 			if (unsubscribe) {
 				unsubscribe();
 			}

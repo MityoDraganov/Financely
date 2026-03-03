@@ -92,6 +92,13 @@ function Input({
         const parsed = Number(trimmed);
         if (!Number.isFinite(parsed)) {
           setDraft(value == null ? "" : String(value));
+          onBlur?.(event);
+          return;
+        }
+
+        // Commit the exact blurred value as a final guard against stale parent state.
+        if (String(value ?? "") !== trimmed) {
+          onChange?.(event as unknown as React.ChangeEvent<HTMLInputElement>);
         }
 
         onBlur?.(event);

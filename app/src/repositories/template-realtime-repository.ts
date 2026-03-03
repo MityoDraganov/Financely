@@ -93,28 +93,14 @@ export function getTemplateRealtimeRepository(): TemplateRepository & {
      * Subscribe to all templates for an organization with real-time updates
      */
     subscribeToAll(orgId: string, callback: (templates: Template[]) => void) {
-      console.log("[TEMPLATE-REPO] Starting subscription for orgId:", orgId);
-      
-      // Subscribe to all templates and filter client-side
-      // This avoids index requirements and is fine for small datasets
       return realtimeDatabaseService.subscribeToCollection<Template>(
         TEMPLATES_PATH,
-        (allTemplates: Template[] | null) => {
-          if (!allTemplates) {
-            callback([]);
-            return;
-          }
-          
-          console.log("[TEMPLATE-REPO] Raw templates received:", allTemplates);
-          
-          // Filter by orgId client-side
-          const filtered = allTemplates.filter(t => t && t.orgId === orgId);
-          console.log("[TEMPLATE-REPO] Filtered templates:", filtered.length, "from", allTemplates.length, "total");
-          console.log("[TEMPLATE-REPO] Filtered templates data:", filtered);
-          callback(filtered);
+        (templates: Template[] | null) => callback(templates ?? []),
+        {
+          orderBy: "orgId",
+          equalTo: orgId,
         }
       );
     },
   };
 }
-

@@ -12,7 +12,6 @@ import {
   equalTo,
   limitToFirst,
   DataSnapshot,
-  off,
 } from "@firebase/database";
 
 export type RealtimeCallbackFn<T> = (data: T | null) => void;
@@ -33,14 +32,12 @@ function snapshotToData<T>(snapshot: DataSnapshot): T | null {
 
 function snapshotsToDataArray<T>(snapshot: DataSnapshot): T[] {
   if (!snapshot.exists()) {
-    console.log("[RTDB] Snapshot does not exist, returning empty array");
     return [];
   }
 
   const items: T[] = [];
   snapshot.forEach((childSnapshot) => {
     const data = childSnapshot.val();
-    console.log("[RTDB] Processing child snapshot:", childSnapshot.key, "data:", data);
     
     const normalized = {
       ...data,
@@ -50,7 +47,6 @@ function snapshotsToDataArray<T>(snapshot: DataSnapshot): T[] {
     items.push(normalized as T);
   });
 
-  console.log("[RTDB] Converted snapshots to array:", items.length, "items");
   return items;
 }
 
@@ -91,12 +87,10 @@ export const realtimeDatabaseService = {
   },
 
   async create<T>(path: string, data: T): Promise<string> {
-    console.log("[RTDB] Creating document at path:", path, "with data:", data);
     const listRef = ref(firebase.database, path);
     const newDocRef = push(listRef);
     
     const timestamp = new Date().toISOString();
-    console.log("[RTDB] Pushing data with key:", newDocRef.key);
   
     const hasEmptyElements = data && 
       typeof data === 'object' && 
@@ -113,7 +107,6 @@ export const realtimeDatabaseService = {
     
     try {
       await set(newDocRef, dataToStore);
-      console.log("[RTDB] Document created successfully with key:", newDocRef.key);
       return newDocRef.key!;
     } catch (error) {
       console.error("[RTDB] Failed to create document:", error);
@@ -160,7 +153,7 @@ export const realtimeDatabaseService = {
     });
 
     return () => {
-      off(docRef, "value", unsubscribe);
+      unsubscribe();
     };
   },
 
@@ -173,7 +166,6 @@ export const realtimeDatabaseService = {
       limit?: number;
     }
   ): RealtimeUnsubscribeFn {
-    console.log("[RTDB] Subscribing to collection:", path, "with options:", options);
     const queryRef = ref(firebase.database, path);
     
     if (options?.orderBy) {
@@ -188,9 +180,7 @@ export const realtimeDatabaseService = {
       }
 
       const unsubscribe = onValue(q, (snapshot) => {
-        console.log("[RTDB] Snapshot received for path:", path, "exists:", snapshot.exists());
         const data = snapshotsToDataArray<T>(snapshot);
-        console.log("[RTDB] Collection update received:", path, "items:", data.length);
         callback(data);
       }, (error) => {
         console.error("[RTDB] Error in subscription for path:", path, error);
@@ -199,15 +189,12 @@ export const realtimeDatabaseService = {
       });
 
       return () => {
-        console.log("[RTDB] Unsubscribing from collection:", path);
-        off(q, "value", unsubscribe);
+        unsubscribe();
       };
     }
 
     const unsubscribe = onValue(queryRef, (snapshot) => {
-      console.log("[RTDB] Snapshot received for path:", path, "exists:", snapshot.exists());
       const data = snapshotsToDataArray<T>(snapshot);
-      console.log("[RTDB] Collection update received:", path, "items:", data.length);
       callback(data);
     }, (error) => {
       console.error("[RTDB] Error in subscription for path:", path, error);
@@ -216,9 +203,7 @@ export const realtimeDatabaseService = {
     });
 
     return () => {
-      console.log("[RTDB] Unsubscribing from collection:", path);
-      off(queryRef, "value", unsubscribe);
+      unsubscribe();
     };
   },
 };
-
