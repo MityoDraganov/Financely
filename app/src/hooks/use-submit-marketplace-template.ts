@@ -13,13 +13,6 @@ export function useSubmitMarketplaceTemplate() {
       sourceTemplateType: "invoice" | "email";
       orgId: string;
       title: string;
-      description?: string;
-      shortDescription?: string;
-      category?: string;
-      tags?: string[];
-      language?: string;
-      country?: string;
-      previewImages?: string[];
     }) => {
       return functionsService.submitMarketplaceTemplate(payload);
     },
