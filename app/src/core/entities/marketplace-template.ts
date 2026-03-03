@@ -28,6 +28,7 @@ export const marketplaceTemplateDataSchema = z.object({
   rejectionReason: z.string().optional(),
   approvedBy: z.string().optional(),
   approvedAt: z.string().optional(),
+  aiEnrichmentStatus: z.enum(["pending", "processing", "done", "failed"]).default("pending"),
 });
 
 export type MarketplaceTemplateData = z.infer<typeof marketplaceTemplateDataSchema>;

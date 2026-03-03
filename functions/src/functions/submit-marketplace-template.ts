@@ -201,6 +201,7 @@ export const submitMarketplaceTemplate = onCall<
           downloadCount: 0,
           version: 1,
           publishedAt: now,
+          aiEnrichmentStatus: "pending",
         },
       });
 
