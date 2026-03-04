@@ -14,5 +14,6 @@ export default defineConfig({
   build: {
     sourcemap: true,
   },
-  cacheDir: '/tmp/vite-cache',
+  // Use a user-scoped temp cache to avoid stale/shared or locked global caches.
+  cacheDir: path.resolve(process.env.TMPDIR ?? "/tmp", "financely-vite-cache"),
 })

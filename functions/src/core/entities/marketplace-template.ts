@@ -6,6 +6,9 @@ export const marketplaceTemplateDataSchema = z.object({
   description: z.string().optional(),
   shortDescription: z.string().optional(),
   type: z.enum(["invoice", "email"]),
+  sourceTemplateId: z.string().optional(),
+  sourceTemplateType: z.enum(["invoice", "email"]).optional(),
+  sourceOrgId: z.string().optional(),
   authorId: z.string().min(1),
   authorName: z.string().min(1),
   isOfficial: z.boolean().default(false),
@@ -24,6 +27,7 @@ export const marketplaceTemplateDataSchema = z.object({
   ratingCount: z.number().int().min(0).default(0),
   downloadCount: z.number().int().min(0).default(0),
   version: z.number().int().min(1).default(1),
+  latestVersionId: z.string().optional(),
   publishedAt: z.string().optional(),
   rejectionReason: z.string().optional(),
   approvedBy: z.string().optional(),
@@ -35,3 +39,20 @@ export type MarketplaceTemplateData = z.infer<typeof marketplaceTemplateDataSche
 
 export const marketplaceTemplateSchema = baseEntitySchema.merge(marketplaceTemplateDataSchema);
 export type MarketplaceTemplate = z.infer<typeof marketplaceTemplateSchema>;
+
+export const marketplaceTemplateVersionDataSchema = z.object({
+  marketplaceTemplateId: z.string().min(1),
+  version: z.number().int().min(1),
+  type: z.enum(["invoice", "email"]),
+  title: z.string().min(1),
+  templateContent: z.record(z.string(), z.unknown()),
+  changelog: z.string().optional(),
+  sourceTemplateId: z.string().optional(),
+  sourceTemplateType: z.enum(["invoice", "email"]).optional(),
+  createdBy: z.string().optional(),
+  publishedAt: z.string().min(1),
+});
+
+export type MarketplaceTemplateVersionData = z.infer<typeof marketplaceTemplateVersionDataSchema>;
+export const marketplaceTemplateVersionSchema = baseEntitySchema.merge(marketplaceTemplateVersionDataSchema);
+export type MarketplaceTemplateVersion = z.infer<typeof marketplaceTemplateVersionSchema>;

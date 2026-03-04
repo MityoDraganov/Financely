@@ -19,6 +19,7 @@ export enum DatabaseCollection {
   EXTRACTION_JOBS = "extractionJobs",
   TEMPLATE_PATTERNS = "templatePatterns",
   MARKETPLACE_TEMPLATES = "marketplaceTemplates",
+  MARKETPLACE_TEMPLATE_VERSIONS = "marketplaceTemplateVersions",
   MARKETPLACE_REVIEWS = "marketplaceReviews",
   METAOBJECT_DEFINITIONS = "metaobjectDefinitions",
   METAOBJECTS = "metaobjects",

@@ -25,6 +25,7 @@ import { ChevronLeft, Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
 	EmailTemplate,
+	EmailTemplateData,
 	EmailTemplateBlock,
 	EmailSection,
 	EmailTemplateDesignTokens,
@@ -112,6 +113,99 @@ const sanitizePlaceholders = (
 	(placeholders ?? []).filter(
 		(placeholder) => !isLegacyArtifactPlaceholderKey(placeholder.key),
 	);
+
+const canonicalizeForSignature = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((item) => canonicalizeForSignature(item));
+	}
+	if (value && typeof value === "object") {
+		const input = value as Record<string, unknown>;
+		const output: Record<string, unknown> = {};
+		for (const key of Object.keys(input).sort()) {
+			const normalized = canonicalizeForSignature(input[key]);
+			if (normalized !== undefined) {
+				output[key] = normalized;
+			}
+		}
+		return output;
+	}
+	return value;
+};
+
+const removeUndefinedDeep = (obj: unknown): unknown => {
+	if (obj === null || obj === undefined) {
+		return null;
+	}
+	if (Array.isArray(obj)) {
+		return obj.map(removeUndefinedDeep).filter((item) => item !== undefined);
+	}
+	if (typeof obj === "object") {
+		const cleaned: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+			if (value !== undefined) {
+				cleaned[key] = removeUndefinedDeep(value);
+			}
+		}
+		return cleaned;
+	}
+	return obj;
+};
+
+const buildTemplateSavePayload = (
+	template: EmailTemplate,
+): {
+	data: Partial<EmailTemplateData>;
+	htmlContent: string;
+	saveSignature: string;
+	blocks: EmailTemplateBlock[];
+} => {
+	const blocks = Array.isArray(template.blocks) ? template.blocks : [];
+
+	let htmlContent = template.htmlContent || "";
+	if (blocks.length === 0) {
+		htmlContent = "";
+	} else if (!htmlContent || !htmlContent.trim()) {
+		htmlContent = convertBlocksToHtml(
+			blocks,
+			template.designTokens || defaultDesignTokens,
+			template.subject,
+			template.preheader,
+		);
+	}
+
+	const sections = blocks.reduce(
+		(acc, block) => {
+			acc[(block.section || "body") as "header" | "body" | "footer"].push(block.id);
+			return acc;
+		},
+		{
+			header: [] as string[],
+			body: [] as string[],
+			footer: [] as string[],
+		},
+	);
+
+	const data = removeUndefinedDeep({
+		name: template.name,
+		subject: template.subject || "Email",
+		preheader: template.preheader,
+		allowedContexts: template.allowedContexts ?? [],
+		htmlContent,
+		blocks,
+		designTokens: template.designTokens ?? defaultDesignTokens,
+		sections,
+		placeholders: sanitizePlaceholders(template.placeholders),
+	}) as Partial<EmailTemplateData>;
+
+	const saveSignature = JSON.stringify(canonicalizeForSignature(data));
+
+	return {
+		data,
+		htmlContent,
+		saveSignature,
+		blocks,
+	};
+};
 
 export default function EmailDesignerPage() {
 	const { t } = useTranslation();
@@ -217,55 +311,100 @@ export default function EmailDesignerPage() {
 		}
 		cloned.placeholders = sanitizePlaceholders(cloned.placeholders);
 		
-		// CRITICAL: If template has blocks already with proper sections structure, use them directly
-		// This is especially important for AI-generated templates that come with structured blocks
-		if (cloned.blocks && cloned.blocks.length > 0 && cloned.sections) {
-			// Check if blocks have proper section assignments
-			const blocksWithSections = cloned.blocks.filter(block => {
-				const section = block.section || "body";
-				return section === "header" || section === "body" || section === "footer";
-			});
-			
-			// If we have blocks with sections AND a sections object, use them as-is
-			// This preserves AI-generated structure
-			if (blocksWithSections.length > 0 && cloned.sections.header && cloned.sections.body && cloned.sections.footer) {
-				// Verify that sections object matches the blocks
-				const sectionIds = [
-					...(cloned.sections.header || []),
-					...(cloned.sections.body || []),
-					...(cloned.sections.footer || []),
-				];
-				const blockIds = cloned.blocks.map(b => b.id);
-				const allSectionIdsMatch = sectionIds.length > 0 && sectionIds.every(id => blockIds.includes(id));
-				
-				if (allSectionIdsMatch) {
-					// Blocks are already properly structured - use them directly without parsing HTML
-					console.log("[EMAIL-DESIGNER] Using pre-structured blocks from template (likely AI-generated)", {
-						header: cloned.sections.header.length,
-						body: cloned.sections.body.length,
-						footer: cloned.sections.footer.length,
-					});
-					
-					// Ensure HTML content exists (generate from blocks if needed)
-					if (!cloned.htmlContent || cloned.htmlContent.trim() === "") {
-						cloned.htmlContent = convertBlocksToHtml(
-							cloned.blocks,
-							cloned.designTokens || {
-								background: "#ffffff",
-								surface: "#f8fafc",
-								text: "#0f172a",
-								primary: "#2563eb",
-								fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-								borderRadius: 12,
-							},
-							cloned.subject,
-							cloned.preheader
-						);
-					}
-					
-					return cloned;
-				}
+		const inferSectionFromType = (type?: string): EmailSection => {
+			if (type === "subject" || type === "preheader" || type === "logo" || type === "navigation") {
+				return "header";
 			}
+			if (type === "footerText" || type === "socialLinks" || type === "unsubscribe") {
+				return "footer";
+			}
+			return "body";
+		};
+
+		const normalizeBlockSections = (
+			block: unknown,
+			parentSection: EmailSection = "body"
+		): EmailTemplateBlock => {
+			const sourceBlock = (block ?? {}) as Record<string, unknown>;
+			const typedBlock = sourceBlock as { section?: EmailSection; type?: string };
+			const blockSection = typedBlock.section ?? inferSectionFromType(typedBlock.type) ?? parentSection;
+
+			if (typedBlock.type === "columns") {
+				const columnsBlock = sourceBlock as Extract<EmailTemplateBlock, { type: "columns" }>;
+				return {
+					...columnsBlock,
+					section: blockSection,
+					columns: (columnsBlock.columns || []).map((column) => ({
+						...column,
+						blocks: (column.blocks || []).map((nested) =>
+							normalizeBlockSections(nested as EmailTemplateBlock, blockSection)
+						),
+					})),
+				} as EmailTemplateBlock;
+			}
+
+			if (typedBlock.type === "container") {
+				const containerBlock = sourceBlock as Extract<EmailTemplateBlock, { type: "container" }>;
+				return {
+					...containerBlock,
+					section: blockSection,
+					blocks: (containerBlock.blocks || []).map((nested) =>
+						normalizeBlockSections(nested as EmailTemplateBlock, blockSection)
+					),
+				} as EmailTemplateBlock;
+			}
+
+			return {
+				...sourceBlock,
+				section: blockSection,
+			} as EmailTemplateBlock;
+		};
+
+		const buildSectionsFromBlocks = (blocks: EmailTemplateBlock[]) => {
+			return blocks.reduce(
+				(acc, block) => {
+					acc[block.section ?? "body"].push(block.id);
+					return acc;
+				},
+				{
+					header: [] as string[],
+					body: [] as string[],
+					footer: [] as string[],
+				}
+			);
+		};
+
+		// Prefer existing saved blocks for visual editing and normalize section metadata.
+		// Re-parsing HTML on each real-time update can collapse structure and lose editor fidelity.
+		if (Array.isArray(cloned.blocks) && cloned.blocks.length > 0) {
+			cloned.blocks = cloned.blocks.map((block) => normalizeBlockSections(block));
+			cloned.sections = buildSectionsFromBlocks(cloned.blocks);
+
+			console.log("[EMAIL-DESIGNER] Using stored blocks from template", {
+				blocksCount: cloned.blocks.length,
+				header: cloned.sections.header.length,
+				body: cloned.sections.body.length,
+				footer: cloned.sections.footer.length,
+			});
+
+			// Ensure HTML content exists for send/export flows.
+			if (!cloned.htmlContent || cloned.htmlContent.trim() === "") {
+				cloned.htmlContent = convertBlocksToHtml(
+					cloned.blocks,
+					cloned.designTokens || {
+						background: "#ffffff",
+						surface: "#f8fafc",
+						text: "#0f172a",
+						primary: "#2563eb",
+						fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+						borderRadius: 12,
+					},
+					cloned.subject,
+					cloned.preheader
+				);
+			}
+
+			return cloned;
 		}
 		
 		// Get HTML content (source of truth)
@@ -362,6 +501,27 @@ export default function EmailDesignerPage() {
 	};
 	
 	const areOverridesSynced = (overrides: Partial<EmailTemplate>, base: EmailTemplate) => {
+		const canonicalize = (value: unknown): unknown => {
+			if (Array.isArray(value)) {
+				return value.map((item) => canonicalize(item));
+			}
+			if (value && typeof value === "object") {
+				const input = value as Record<string, unknown>;
+				const output: Record<string, unknown> = {};
+				for (const key of Object.keys(input).sort()) {
+					const normalized = canonicalize(input[key]);
+					if (normalized !== undefined) {
+						output[key] = normalized;
+					}
+				}
+				return output;
+			}
+			return value;
+		};
+
+		const deepEqual = (left: unknown, right: unknown) =>
+			JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
+
 		// Don't compare htmlContent - it's regenerated from blocks, so slight differences are expected
 		// Only compare the actual user-editable fields
 		if (overrides.name !== undefined && overrides.name !== base.name) {
@@ -373,21 +533,21 @@ export default function EmailDesignerPage() {
 		if (overrides.preheader !== undefined && overrides.preheader !== base.preheader) {
 			return false;
 		}
-		if (overrides.blocks && JSON.stringify(overrides.blocks) !== JSON.stringify(base.blocks ?? [])) {
+		if (overrides.blocks && !deepEqual(overrides.blocks, base.blocks ?? [])) {
 			return false;
 		}
-		if (overrides.sections && JSON.stringify(overrides.sections) !== JSON.stringify(base.sections ?? {})) {
+		if (overrides.sections && !deepEqual(overrides.sections, base.sections ?? {})) {
 			return false;
 		}
-		if (overrides.designTokens && JSON.stringify(overrides.designTokens) !== JSON.stringify(base.designTokens ?? defaultDesignTokens)) {
+		if (overrides.designTokens && !deepEqual(overrides.designTokens, base.designTokens ?? defaultDesignTokens)) {
 			return false;
 		}
-		if (overrides.placeholders && JSON.stringify(overrides.placeholders) !== JSON.stringify(base.placeholders ?? [])) {
+		if (overrides.placeholders && !deepEqual(overrides.placeholders, base.placeholders ?? [])) {
 			return false;
 		}
 		if (
 			overrides.allowedContexts &&
-			JSON.stringify(overrides.allowedContexts) !== JSON.stringify(base.allowedContexts ?? [])
+			!deepEqual(overrides.allowedContexts, base.allowedContexts ?? [])
 		) {
 			return false;
 		}
@@ -466,8 +626,7 @@ export default function EmailDesignerPage() {
 	useEffect(() => {
 		setDraftOverrides(null);
 		lastProcessedContentRef.current = "";
-		lastSavedHtmlRef.current = ""; // Reset saved HTML when template changes
-		isSavingRef.current = false; // Reset saving flag
+		lastSavedSignatureRef.current = ""; // Reset saved signature when template changes
 	}, [baseTemplate?.id]);
 
 
@@ -565,10 +724,8 @@ export default function EmailDesignerPage() {
 	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess]);
 
 	const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-	// Track if we're currently processing a save to prevent feedback loops
-	const isSavingRef = useRef<boolean>(false);
-	// Track the last saved HTML content to prevent unnecessary saves
-	const lastSavedHtmlRef = useRef<string>("");
+	// Track the last saved payload signature to prevent unnecessary saves
+	const lastSavedSignatureRef = useRef<string>("");
 
 	const hasChanges = useMemo(() => {
 		if (!draftOverrides) {
@@ -592,112 +749,50 @@ export default function EmailDesignerPage() {
 				return;
 			}
 
-			// Prevent save if we're already saving (avoid feedback loops)
-			if (isSavingRef.current) {
-				console.log("[EMAIL-DESIGNER] Save skipped - already saving");
+			// Check for invalid placeholder patterns before saving
+			const invalid = detectInvalidPlaceholders(
+				template.blocks ?? [],
+				template.subject,
+				template.preheader,
+			);
+			if (invalid.length > 0) {
+				const errorMessage = `Cannot save: Invalid placeholder patterns detected. Please fix empty placeholders like {{}} before saving.`;
+				console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
+				throw new Error(errorMessage);
+			}
+
+			const { data: savedData, htmlContent, saveSignature, blocks } = buildTemplateSavePayload(template);
+			if (
+				lastSavedSignatureRef.current === saveSignature &&
+				lastSavedSignatureRef.current !== ""
+			) {
+				console.log("[EMAIL-DESIGNER] Save skipped - payload unchanged");
 				return;
 			}
 
-			// Check if HTML content actually changed to avoid unnecessary saves
-			const currentHtml = template.htmlContent || "";
-			if (lastSavedHtmlRef.current === currentHtml && lastSavedHtmlRef.current !== "") {
-				console.log("[EMAIL-DESIGNER] Save skipped - HTML unchanged");
-				return;
-			}
-
-			isSavingRef.current = true;
-
-			try {
-				// Check for invalid placeholder patterns before saving
-				const invalid = detectInvalidPlaceholders(
-					template.blocks ?? [],
-					template.subject,
-					template.preheader
-				);
-				if (invalid.length > 0) {
-					const errorMessage = `Cannot save: Invalid placeholder patterns detected. Please fix empty placeholders like {{}} before saving.`;
-					console.error("[EMAIL-DESIGNER] Save blocked - invalid placeholders:", invalid);
-					throw new Error(errorMessage);
-				}
-
-				const timestamp = new Date().toISOString();
-				console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
-					timestamp,
-					templateId: template.id,
-					htmlLength: template.htmlContent?.length || 0,
-					blocksCount: template.blocks?.length ?? 0,
+			const timestamp = new Date().toISOString();
+			console.log("[EMAIL-DESIGNER] SAVE MUTATION START:", {
+				timestamp,
+				templateId: template.id,
+				htmlLength: htmlContent.length,
+				blocksCount: blocks.length,
 			});
-			
-			// HTML is the source of truth - convert blocks to HTML if needed
-			let htmlContent = template.htmlContent || "";
-			if ((!htmlContent || !htmlContent.trim()) && template.blocks && template.blocks.length > 0) {
-				htmlContent = convertBlocksToHtml(
-					template.blocks,
-					template.designTokens || defaultDesignTokens,
-					template.subject,
-					template.preheader
-				);
-			}
-			
-			// Ensure blocks is always an array (even if empty)
-			const blocks = Array.isArray(template.blocks) ? template.blocks : [];
-			
-			// Remove undefined values recursively (Firebase Realtime Database doesn't allow undefined)
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const removeUndefined = (obj: any): any => {
-				if (obj === null || obj === undefined) {
-					return null;
-				}
-				if (Array.isArray(obj)) {
-					return obj.map(removeUndefined).filter(item => item !== undefined);
-				}
-				if (typeof obj === "object") {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					const cleaned: any = {};
-					for (const [key, value] of Object.entries(obj)) {
-						if (value !== undefined) {
-							cleaned[key] = removeUndefined(value);
-						}
-					}
-					return cleaned;
-				}
-				return obj;
-			};
-			
-			// Always save all fields to ensure all property changes are persisted
-			const savedData = removeUndefined({
-				name: template.name,
-				subject: template.subject || "Email", // Ensure subject is never empty
-				preheader: template.preheader,
-				allowedContexts: template.allowedContexts ?? [],
-				htmlContent: htmlContent, // Save HTML as source of truth
-				blocks: blocks, // Always an array (can be empty if HTML can't be parsed)
-				designTokens: template.designTokens ?? defaultDesignTokens,
-				sections: template.sections,
-				placeholders: sanitizePlaceholders(template.placeholders), // Save placeholders
-			});
-			
+
 			console.log("[EMAIL-DESIGNER] Saving HTML:", {
 				templateId: template.id,
 				htmlLength: htmlContent.length,
-				blocksCount: savedData.blocks.length,
+				blocksCount: savedData.blocks?.length ?? 0,
 			});
-			
-				await emailTemplateService.updateDraft(template.id, savedData);
-				
-				// Update last saved HTML to prevent duplicate saves
-				lastSavedHtmlRef.current = htmlContent;
-				
-				console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
-					timestamp: new Date().toISOString(),
-					templateId: template.id,
-				});
-			} finally {
-				// Reset saving flag after a short delay to allow realtime updates to process
-				setTimeout(() => {
-					isSavingRef.current = false;
-				}, 1000);
-			}
+
+			await emailTemplateService.updateDraft(template.id, savedData);
+
+			// Update last saved signature to prevent duplicate saves
+			lastSavedSignatureRef.current = saveSignature;
+
+			console.log("[EMAIL-DESIGNER] SAVE MUTATION COMPLETE - HTML saved to database:", {
+				timestamp: new Date().toISOString(),
+				templateId: template.id,
+			});
 		},
 		onSuccess: async () => {
 			const timestamp = new Date().toISOString();
@@ -754,43 +849,51 @@ export default function EmailDesignerPage() {
 		}
 
 		// Avoid scheduling another auto-save if one is in progress
-		if (isSavePending || isSavingRef.current) {
+		if (isSavePending) {
 			return;
 		}
 
 		autoSaveTimerRef.current = setTimeout(() => {
 			// Double-check we're not already saving (race condition protection)
-			if (isSavingRef.current || isSavePending) {
+			if (isSavePending) {
 				return;
 			}
 
-			// Always regenerate HTML from blocks to ensure it's in sync
-			// This ensures that any property changes (design tokens, name, etc.) are reflected in HTML
-			const htmlContent = convertBlocksToHtml(
-				draftTemplate.blocks,
-				draftTemplate.designTokens || {
-					background: "#ffffff",
-					surface: "#f8fafc",
-					text: "#0f172a",
-					primary: "#2563eb",
-					fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-					borderRadius: 12,
-				},
-				draftTemplate.subject,
-				draftTemplate.preheader
-			);
-			
-			// Only save if HTML actually changed
-			if (lastSavedHtmlRef.current === htmlContent && lastSavedHtmlRef.current !== "") {
-				console.log("[EMAIL-DESIGNER] Auto-save skipped - HTML unchanged");
+			// Keep empty templates truly empty to avoid persisting scaffold-only wrapper tables.
+			// For non-empty blocks, regenerate HTML so properties stay in sync.
+			const htmlContent = draftTemplate.blocks.length === 0
+				? ""
+				: convertBlocksToHtml(
+						draftTemplate.blocks,
+						draftTemplate.designTokens || {
+							background: "#ffffff",
+							surface: "#f8fafc",
+							text: "#0f172a",
+							primary: "#2563eb",
+							fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+							borderRadius: 12,
+						},
+						draftTemplate.subject,
+						draftTemplate.preheader,
+					);
+
+			const { saveSignature } = buildTemplateSavePayload({
+				...draftTemplate,
+				htmlContent,
+			});
+			if (
+				lastSavedSignatureRef.current === saveSignature &&
+				lastSavedSignatureRef.current !== ""
+			) {
+				console.log("[EMAIL-DESIGNER] Auto-save skipped - payload unchanged");
 				return;
 			}
 			
 			// Save all fields including the regenerated HTML
 			autoSaveMutate({
-				...draftTemplate,
-				htmlContent, // Always use regenerated HTML to ensure sync
-			});
+					...draftTemplate,
+					htmlContent, // Always use regenerated HTML to ensure sync
+				});
 		}, AUTOSAVE_DEBOUNCE_MS); // debounce to avoid excessive writes
 
 		return () => {
@@ -2412,7 +2515,7 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			id: crypto.randomUUID(),
 			type: "table",
 			section: section,
-			dataSource: "", // e.g., "invoice.items", "products"
+			dataSource: "items",
 			columns: [
 				{
 					id: crypto.randomUUID(),
@@ -2435,7 +2538,17 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 				{
 					id: crypto.randomUUID(),
 					header: "Price",
-					binding: "price",
+					binding: "unitPrice",
+					type: "currency",
+					align: "right",
+					priority: "high",
+					format: "currency",
+					currency: "USD",
+				},
+				{
+					id: crypto.randomUUID(),
+					header: "Total",
+					binding: "total",
 					type: "currency",
 					align: "right",
 					priority: "high",

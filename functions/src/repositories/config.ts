@@ -17,6 +17,7 @@ export enum DatabaseCollection {
   EXTERNAL_SOURCE_CONFIGS = "externalSourceConfigs",
   EXTERNAL_SOURCE_CACHE = "externalSourceCache",
   MARKETPLACE_TEMPLATES = "marketplaceTemplates",
+  MARKETPLACE_TEMPLATE_VERSIONS = "marketplaceTemplateVersions",
   MARKETPLACE_REVIEWS = "marketplaceReviews",
   METAOBJECT_DEFINITIONS = "metaobjectDefinitions",
   METAOBJECTS = "metaobjects",

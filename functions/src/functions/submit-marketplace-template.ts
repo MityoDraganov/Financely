@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { verifyAuth } from "../utils/auth-utils";
 import { getDatabaseService } from "../services/database-service";
 import { getMarketplaceTemplateRepository } from "../repositories/marketplace-template-repository";
+import { getMarketplaceTemplateVersionRepository } from "../repositories/marketplace-template-version-repository";
 import { templateSanitizationService } from "../services/template-sanitization-service";
 import { loggerService } from "../services/logger-service";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
@@ -84,6 +85,9 @@ export const submitMarketplaceTemplate = onCall<
 
       const databaseService = getDatabaseService();
       const marketplaceTemplateRepo = getMarketplaceTemplateRepository(
+        databaseService
+      );
+      const marketplaceTemplateVersionRepo = getMarketplaceTemplateVersionRepository(
         databaseService
       );
 
@@ -169,6 +173,9 @@ export const submitMarketplaceTemplate = onCall<
         data: {
           title,
           type: sourceTemplateType,
+          sourceTemplateId,
+          sourceTemplateType,
+          sourceOrgId: orgId,
           authorId: userId,
           authorName,
           isOfficial: false,
@@ -186,8 +193,28 @@ export const submitMarketplaceTemplate = onCall<
         },
       });
 
+      const versionId = await marketplaceTemplateVersionRepo.create({
+        data: {
+          marketplaceTemplateId: submissionId,
+          version: 1,
+          type: sourceTemplateType,
+          title,
+          templateContent,
+          sourceTemplateId,
+          sourceTemplateType,
+          createdBy: userId,
+          publishedAt: now,
+        },
+      });
+
+      await marketplaceTemplateRepo.update({
+        id: submissionId,
+        data: { latestVersionId: versionId },
+      });
+
       loggerService.info("Marketplace template published", {
         submissionId,
+        versionId,
         userId,
         title,
         type: sourceTemplateType,

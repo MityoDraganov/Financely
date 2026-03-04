@@ -317,6 +317,27 @@ service cloud.firestore {
                        isOrgMember(resource.data.data.orgId) &&
                        isOwnerOrAdmin(resource.data.data.orgId);
     }
+    match /emailTemplateVersions/{versionId} {
+      allow read, write: if isAdmin();
+      // Allow list/query for authenticated users; org membership is enforced on per-doc get.
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() &&
+                    resource.data.data != null &&
+                    resource.data.data.orgId != null &&
+                    isOrgMember(resource.data.data.orgId);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.templateId != null &&
+                       request.resource.data.data != null &&
+                       request.resource.data.data.orgId != null &&
+                       isOrgMember(request.resource.data.data.orgId) &&
+                       hasRole(request.resource.data.data.orgId, 'member');
+      allow update: if false;
+      allow delete: if isAuthenticated() &&
+                       resource.data.data != null &&
+                       resource.data.data.orgId != null &&
+                       isOrgMember(resource.data.data.orgId) &&
+                       isOwnerOrAdmin(resource.data.data.orgId);
+    }
     match /organizations/{orgId}/auditLogs/{logId} {
       allow read, write: if isAdmin();
       allow read: if isAuthenticated() && isOrgMember(orgId);

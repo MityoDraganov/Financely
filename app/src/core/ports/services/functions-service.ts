@@ -1336,6 +1336,15 @@ export interface FunctionsService {
     message: string;
   }>;
 
+  publishMarketplaceTemplateVersion(payload: {
+    marketplaceTemplateId: string;
+    changelog?: string;
+  }): Promise<{
+    versionId: string;
+    version: number;
+    message: string;
+  }>;
+
   submitMarketplaceReview(payload: {
     templateId: string;
     rating: number;

@@ -196,6 +196,7 @@ export { listMarketplaceTemplates } from "./functions/list-marketplace-templates
 export { getMarketplaceTemplate } from "./functions/get-marketplace-template";
 export { addMarketplaceTemplate } from "./functions/add-marketplace-template";
 export { submitMarketplaceTemplate } from "./functions/submit-marketplace-template";
+export { publishMarketplaceTemplateVersion } from "./functions/publish-marketplace-template-version";
 export { featureMarketplaceTemplate, unfeatureMarketplaceTemplate } from "./functions/moderate-marketplace-template";
 export { submitMarketplaceReview, getMarketplaceReviews } from "./functions/marketplace-reviews";
 export { registerAsContributor, getContributorStatus } from "./functions/manage-contributor";

@@ -909,6 +909,16 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async publishMarketplaceTemplateVersion(payload) {
+    type PublishVersionPayload = Parameters<FunctionsService["publishMarketplaceTemplateVersion"]>[0];
+    type PublishVersionResponse = Awaited<ReturnType<FunctionsService["publishMarketplaceTemplateVersion"]>>;
+    const result = await httpsCallable<
+      PublishVersionPayload,
+      PublishVersionResponse
+    >(firebase.functions, "publishMarketplaceTemplateVersion")(payload);
+    return result.data;
+  },
+
   async submitMarketplaceReview(payload) {
     type SubmitReviewPayload = Parameters<FunctionsService["submitMarketplaceReview"]>[0];
     type SubmitReviewResponse = Awaited<ReturnType<FunctionsService["submitMarketplaceReview"]>>;

@@ -905,6 +905,20 @@ function elementToBlock(
 	// Don't use getComputedStyle - it's expensive, breaks in SSR, and picks up app CSS
 	// Only use inline styles from the element itself
 
+	const parseChildElementsToBlocks = (): EmailTemplateBlock[] => {
+		const childBlocks: EmailTemplateBlock[] = [];
+		const childElements = Array.from(element.children);
+		for (const child of childElements) {
+			const parsedChild = elementToBlock(child, section);
+			if (parsedChild) {
+				childBlocks.push(parsedChild);
+				continue;
+			}
+			childBlocks.push(...parseBlocksFromElement(child, section));
+		}
+		return childBlocks;
+	};
+
 	// Handle text elements - extract text content properly, handling nested elements
 	if (tagName === "p" || tagName === "strong" || tagName === "b" || tagName === "em" || tagName === "i" || 
 	    tagName === "h1" || tagName === "h2" || tagName === "h3" || tagName === "h4" || tagName === "h5" || tagName === "h6" ||
@@ -1156,7 +1170,7 @@ function elementToBlock(
 				justifyContent: "start",
 				gap: parseInt(styles.gap || "16") || 16,
 				padding: "md",
-				blocks: parseBlocksFromElement(element, section),
+				blocks: parseChildElementsToBlocks(),
 			};
 		}
 
@@ -1175,7 +1189,7 @@ function elementToBlock(
 
 	// For other elements, try to parse nested content more aggressively
 	// Try multiple strategies before giving up
-	const nestedBlocks = parseBlocksFromElement(element, section);
+	const nestedBlocks = parseChildElementsToBlocks();
 	if (nestedBlocks.length > 0) {
 		// If element has meaningful styling or is a structural element, wrap in container
 		const hasMeaningfulStyle = styles.backgroundColor || 

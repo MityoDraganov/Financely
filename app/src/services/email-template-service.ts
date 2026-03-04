@@ -40,6 +40,12 @@ const toEmailTemplateData = (template: EmailTemplate): EmailTemplateData => {
 	};
 };
 
+const isPermissionDeniedError = (error: unknown): boolean => {
+	if (!error || typeof error !== "object") return false;
+	const code = String((error as { code?: unknown }).code ?? "");
+	return code === "permission-denied" || code.endsWith("/permission-denied");
+};
+
 const getNextVersionNumber = async (templateId: string): Promise<number> => {
 	try {
 		const versions = await emailTemplateVersionRepository.getAll({
@@ -124,6 +130,10 @@ export const emailTemplateService = {
         orderBy: { field: "createdAt", direction: "desc" },
       });
     } catch (error) {
+      if (isPermissionDeniedError(error)) {
+        return [];
+      }
+
       console.warn("[EMAIL-TEMPLATE-SERVICE] Version query with orderBy failed, retrying:", error);
       const versions = await emailTemplateVersionRepository.getAll({
         queryConstraints: [{ field: "templateId", operator: "==", value: templateId }],

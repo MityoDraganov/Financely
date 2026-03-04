@@ -562,7 +562,7 @@ export default function ContributorPortalPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => navigate(`/marketplace/${submission.id}`)}
+                        onClick={() => navigate(`/marketplace/${submission.id}?view=publisher`)}
                         className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
                       >
                         <Eye className="h-3 w-3" />
