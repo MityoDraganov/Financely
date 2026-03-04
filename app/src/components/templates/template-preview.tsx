@@ -17,12 +17,14 @@ interface TemplatePreviewProps {
 	readonly template: Template;
 	readonly context: InvoicePreviewContext;
 	readonly zoom?: number;
+	readonly onFieldClick?: (binding: string) => void;
 }
 
 export function TemplatePreview({
 	template,
 	context,
 	zoom = 0.75,
+	onFieldClick,
 }: TemplatePreviewProps) {
 	const [fontMetricsVersion, setFontMetricsVersion] = React.useState(0);
 	const size = React.useMemo(() => {
@@ -91,6 +93,7 @@ export function TemplatePreview({
 			pageSize: size,
 			templateElements: template.elements ?? [],
 			margins,
+			onFieldClick,
 		};
 
 		return (

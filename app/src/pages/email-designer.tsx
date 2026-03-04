@@ -827,6 +827,26 @@ export default function EmailDesignerPage() {
 
 	const isSavePending = saveMutation.isPending;
 	const autoSaveMutate = saveMutation.mutate;
+	const currentDraftSaveSignature = useMemo(() => {
+		if (!draftTemplate) {
+			return "";
+		}
+		return buildTemplateSavePayload(draftTemplate).saveSignature;
+	}, [draftTemplate]);
+	const hasUnsavedChangesForHeader = (() => {
+		if (!draftTemplate || !hasChanges) {
+			return false;
+		}
+		// While the mutation is in-flight, keep "Unsaved changes" semantics true.
+		if (isSavePending) {
+			return true;
+		}
+		const lastSavedSignature = lastSavedSignatureRef.current;
+		if (!lastSavedSignature) {
+			return true;
+		}
+		return currentDraftSaveSignature !== lastSavedSignature;
+	})();
 
 	// Auto-save draft changes similar to the invoice template designer
 	useEffect(() => {
@@ -1921,7 +1941,7 @@ export default function EmailDesignerPage() {
 
 	const canvasContent = (
 		<div className="flex flex-col h-full min-h-0 bg-muted/10">
-			<EmailCanvasHeader
+				<EmailCanvasHeader
 				templates={safeTemplates}
 				currentTemplate={baseTemplate}
 				onTemplateChange={async (id: string) => {
@@ -1933,9 +1953,9 @@ export default function EmailDesignerPage() {
 				isMobile={isMobile}
 				isLive={isSubscribed}
 				activeUsers={activeUsers}
-				hasChanges={hasChanges}
-				isSaving={isSavePending}
-			/>
+					hasChanges={hasUnsavedChangesForHeader}
+					isSaving={isSavePending}
+				/>
 			{hasPreviewableDynamicSources && (
 				<div className="shrink-0 border-b border-border/70 bg-background px-4 py-2 flex items-center gap-3">
 					<div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">

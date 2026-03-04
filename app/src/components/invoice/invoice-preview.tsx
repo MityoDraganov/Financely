@@ -10,12 +10,14 @@ interface InvoicePreviewProps {
 	template: Template | undefined;
 	formData: Record<string, InvoiceDataValue>;
 	fullWidth?: boolean;
+	onFieldClick?: (binding: string) => void;
 }
 
 export function InvoicePreview({
 	template,
 	formData,
 	fullWidth = false,
+	onFieldClick,
 }: InvoicePreviewProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [zoom, setZoom] = useState(0.8);
@@ -91,6 +93,7 @@ export function InvoicePreview({
 						template={template}
 						context={previewContext}
 						zoom={zoom}
+						onFieldClick={onFieldClick}
 					/>
 				</div>
 		</div>

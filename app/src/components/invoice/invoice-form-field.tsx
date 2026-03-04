@@ -1,4 +1,4 @@
-import { Info, CheckCircle2, Sparkles, Lock, Zap } from "lucide-react";
+import { Info, CheckCircle2, Sparkles, Lock, Zap, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -6,6 +6,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { formatCurrency } from "@/utils/currencies";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { useState, useEffect, useRef } from "react";
@@ -152,6 +158,9 @@ export function InvoiceFormField({
 
 	const [isFilled, setIsFilled] = useState(false);
 	const [justFilled, setJustFilled] = useState(false);
+	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+	const justClosedDatePickerRef = useRef(false);
+	const focusFromPointerRef = useRef(false);
 
 	const inputRef = useRef<HTMLInputElement>(null);
 	const previousValueRef = useRef<InvoiceDataValue>(value);
@@ -350,69 +359,136 @@ export function InvoiceFormField({
 			</div>
 
 			{/* Input */}
-			<div className="relative group">
-				<input
-					ref={inputRef}
-					id={`binding-${field.path}`}
-					type={field.type}
-					value={localValue}
-					onChange={handleInputChange}
-					onBlur={handleBlur}
-					placeholder={`Enter ${field.label.toLowerCase()}`}
-					readOnly={isReadOnly}
-					className={cn(
-						"w-full px-3 py-2 text-sm rounded-md border bg-background",
-						"transition-all duration-150",
-						"focus:outline-none focus:ring-2 focus:ring-ring/60 focus:border-transparent",
-						"placeholder:text-muted-foreground/40",
-						// Filled state: subtle green left border
-						hasValue && !isReadOnly && !isAutoField &&
-							"border-l-2 border-l-green-500/50",
-						// Readonly states
-						isAutoField &&
-							"bg-muted/30 text-muted-foreground border-transparent cursor-default select-none",
-						isProductLocked && !isAutoField &&
-							"bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
-						// Editable default
-						!isReadOnly && "border-border hover:border-border/80"
-					)}
-				/>
-
-				{/* Success checkmark */}
-				{hasValue && !isReadOnly && !isAutoField && (
-					<div
+			{field.type === "date" ? (
+				<Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+					<PopoverTrigger asChild>
+						<div
+							id={`binding-${field.path}`}
+							role="button"
+							tabIndex={isReadOnly ? -1 : 0}
+							onPointerDown={() => {
+								focusFromPointerRef.current = true;
+								setTimeout(() => { focusFromPointerRef.current = false; }, 0);
+							}}
+							onFocus={() => {
+								if (!isReadOnly && !justClosedDatePickerRef.current && !focusFromPointerRef.current) {
+									setIsDatePickerOpen(true);
+								}
+							}}
+							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " || e.key === "F4") setIsDatePickerOpen(true); }}
+							className={cn(
+								"relative w-full px-3 py-2 pr-8 text-sm rounded-md border bg-background cursor-pointer select-none",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring/60 focus:border-transparent",
+								hasValue && !isReadOnly && !isAutoField && "border-l-2 border-l-green-500/50",
+								isProductLocked && !isAutoField && "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
+								!isReadOnly && "border-border hover:border-border/80",
+								isReadOnly && "opacity-60 cursor-default",
+							)}
+						>
+							{localValue ? (
+								<span>{new Date(localValue + "T00:00:00").toLocaleDateString("default", { year: "numeric", month: "short", day: "numeric" })}</span>
+							) : (
+								<span className="text-muted-foreground/40">Enter {field.label.toLowerCase()}</span>
+							)}
+							<div className={cn(
+								"absolute right-2.5 top-1/2 -translate-y-1/2",
+								hasValue && !isReadOnly && !isAutoField ? "text-green-500/70" : "text-muted-foreground/50"
+							)}>
+								{hasValue && !isReadOnly && !isAutoField ? (
+									<CheckCircle2 className={cn("h-3.5 w-3.5", justFilled && "inv-check-pop")} />
+								) : (
+									<CalendarDays className="h-3.5 w-3.5" />
+								)}
+							</div>
+						</div>
+					</PopoverTrigger>
+					<PopoverContent className="w-auto p-0" align="start">
+						<Calendar
+							mode="single"
+							selected={localValue ? new Date(localValue + "T00:00:00") : undefined}
+							onSelect={(date) => {
+								if (date) {
+									const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+									setLocalValue(iso);
+									onChange(iso);
+								} else {
+									setLocalValue("");
+									onChange("");
+								}
+								justClosedDatePickerRef.current = true;
+								setIsDatePickerOpen(false);
+								setTimeout(() => { justClosedDatePickerRef.current = false; }, 200);
+							}}
+							autoFocus
+						/>
+					</PopoverContent>
+				</Popover>
+			) : (
+				<div className="relative group">
+					<input
+						ref={inputRef}
+						id={`binding-${field.path}`}
+						type={field.type}
+						value={localValue}
+						onChange={handleInputChange}
+						onBlur={handleBlur}
+						placeholder={`Enter ${field.label.toLowerCase()}`}
+						readOnly={isReadOnly}
 						className={cn(
-							"absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500/70",
-							justFilled && "inv-check-pop"
+							"w-full px-3 py-2 text-sm rounded-md border bg-background",
+							"transition-all duration-150",
+							"focus:outline-none focus:ring-2 focus:ring-ring/60 focus:border-transparent",
+							"placeholder:text-muted-foreground/40",
+							// Filled state: subtle green left border
+							hasValue && !isReadOnly && !isAutoField &&
+								"border-l-2 border-l-green-500/50",
+							// Readonly states
+							isAutoField &&
+								"bg-muted/30 text-muted-foreground border-transparent cursor-default select-none",
+							isProductLocked && !isAutoField &&
+								"bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
+							// Editable default
+							!isReadOnly && "border-border hover:border-border/80"
 						)}
-					>
-						<CheckCircle2 className="h-3.5 w-3.5" />
-					</div>
-				)}
+					/>
 
-				{/* Product locked indicator */}
-				{isProductLocked && !isAutoField && (
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400 cursor-help">
-									<CheckCircle2 className="h-3.5 w-3.5" />
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>
-								<p className="text-xs">Populated from selected product</p>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				)}
+					{/* Success checkmark */}
+					{hasValue && !isReadOnly && !isAutoField && (
+						<div
+							className={cn(
+								"absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500/70",
+								justFilled && "inv-check-pop"
+							)}
+						>
+							<CheckCircle2 className="h-3.5 w-3.5" />
+						</div>
+					)}
 
-				{/* Auto-field sparkle indicator */}
-				{isAutoField && (
-					<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40">
-						<Info className="h-3.5 w-3.5" />
-					</div>
-				)}
-			</div>
+					{/* Product locked indicator */}
+					{isProductLocked && !isAutoField && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-600 dark:text-green-400 cursor-help">
+										<CheckCircle2 className="h-3.5 w-3.5" />
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p className="text-xs">Populated from selected product</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+
+					{/* Auto-field sparkle indicator */}
+					{isAutoField && (
+						<div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40">
+							<Info className="h-3.5 w-3.5" />
+						</div>
+					)}
+				</div>
+			)}
 
 			{/* Auto-calculate hint */}
 			{shouldAutoCalculate && suggestedValue !== undefined && (

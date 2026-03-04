@@ -443,6 +443,29 @@ const normalizeEditorValue = (value: string, multiline: boolean) => {
 	return value.replace(/\r?\n/g, " ");
 };
 
+const getDeleteRange = (
+	value: string,
+	cursor: number,
+	forward: boolean,
+): { start: number; end: number } => {
+	if (forward) {
+		if (cursor >= value.length) {
+			return { start: cursor, end: cursor };
+		}
+		const tokenMatch = /^\{\{[A-Za-z0-9_-]+\}\}/.exec(value.slice(cursor));
+		const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
+		return { start: cursor, end: cursor + deleteCount };
+	}
+
+	if (cursor <= 0) {
+		return { start: 0, end: 0 };
+	}
+	const before = value.slice(0, cursor);
+	const tokenMatch = /\{\{[A-Za-z0-9_-]+\}\}$/.exec(before);
+	const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
+	return { start: cursor - deleteCount, end: cursor };
+};
+
 const DynamicTokenizedEditor = ({
 	value,
 	placeholders,
@@ -466,6 +489,9 @@ const DynamicTokenizedEditor = ({
 }) => {
 	const editorRef = useRef<HTMLDivElement | null>(null);
 	const pendingCaretOffsetRef = useRef<number | null>(null);
+	const latestValueRef = useRef<string>(value);
+	const skipNextInputRef = useRef<boolean>(false);
+	const skipNextBeforeInputInsertRef = useRef<boolean>(false);
 	const dynamicSourcesByKey = useMemo(() => {
 		const lookup = new Map<string, DynamicSourceField>();
 		dynamicSources.forEach((source) => {
@@ -477,10 +503,26 @@ const DynamicTokenizedEditor = ({
 		return buildAvailableDynamicSourceOptions(dynamicSources, placeholders);
 	}, [dynamicSources, placeholders]);
 
+	useEffect(() => {
+		latestValueRef.current = value;
+	}, [value]);
+
 	const handleSetValue = useCallback((nextValue: string, nextCaretOffset?: number) => {
 		pendingCaretOffsetRef.current = nextCaretOffset ?? null;
-		onChange(normalizeEditorValue(nextValue, multiline));
+		const normalized = normalizeEditorValue(nextValue, multiline);
+		latestValueRef.current = normalized;
+		onChange(normalized);
 	}, [onChange, multiline]);
+
+	const insertTextAtCurrentSelection = useCallback((text: string) => {
+		const root = editorRef.current;
+		const selection = root ? getLogicalSelectionRange(root) : null;
+		const currentValue = latestValueRef.current;
+		const start = selection?.start ?? currentValue.length;
+		const end = selection?.end ?? start;
+		const nextValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+		handleSetValue(nextValue, start + text.length);
+	}, [handleSetValue]);
 
 	useEffect(() => {
 		if (!insertTokenHandlerRef) return;
@@ -488,9 +530,10 @@ const DynamicTokenizedEditor = ({
 			const root = editorRef.current;
 			const token = getDynamicTokenString(key);
 			const selection = root ? getLogicalSelectionRange(root) : null;
-			const start = selection?.start ?? value.length;
+			const currentValue = latestValueRef.current;
+			const start = selection?.start ?? currentValue.length;
 			const end = selection?.end ?? start;
-			const nextValue = value.slice(0, start) + token + value.slice(end);
+			const nextValue = currentValue.slice(0, start) + token + currentValue.slice(end);
 			handleSetValue(nextValue, start + token.length);
 			requestAnimationFrame(() => {
 				const editor = editorRef.current;
@@ -504,7 +547,7 @@ const DynamicTokenizedEditor = ({
 		return () => {
 			insertTokenHandlerRef.current = null;
 		};
-	}, [insertTokenHandlerRef, value, handleSetValue]);
+	}, [insertTokenHandlerRef, handleSetValue]);
 
 	useLayoutEffect(() => {
 		const editor = editorRef.current;
@@ -517,6 +560,10 @@ const DynamicTokenizedEditor = ({
 	}, [value]);
 
 	const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
+		if (skipNextInputRef.current) {
+			skipNextInputRef.current = false;
+			return;
+		}
 		const root = event.currentTarget;
 		const selection = getLogicalSelectionRange(root);
 		const nextValue = serializeEditorValue(root);
@@ -528,24 +575,154 @@ const DynamicTokenizedEditor = ({
 		const pastedText = event.clipboardData.getData("text/plain") ?? "";
 		const root = editorRef.current;
 		const selection = root ? getLogicalSelectionRange(root) : null;
-		const start = selection?.start ?? value.length;
+		const currentValue = latestValueRef.current;
+		const start = selection?.start ?? currentValue.length;
 		const end = selection?.end ?? start;
-		const nextValue = value.slice(0, start) + pastedText + value.slice(end);
+		const nextValue = currentValue.slice(0, start) + pastedText + currentValue.slice(end);
 		handleSetValue(nextValue, start + pastedText.length);
-	}, [value, handleSetValue]);
+	}, [handleSetValue]);
+
+	const handleCut = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
+		const root = editorRef.current;
+		if (!root) return;
+		const selection = getLogicalSelectionRange(root);
+		if (!selection || selection.start === selection.end) {
+			return;
+		}
+		event.preventDefault();
+		const currentValue = latestValueRef.current;
+		const selectedText = currentValue.slice(selection.start, selection.end);
+		event.clipboardData.setData("text/plain", selectedText);
+		handleSetValue(
+			currentValue.slice(0, selection.start) + currentValue.slice(selection.end),
+			selection.start,
+		);
+	}, [handleSetValue]);
+
+	const handleBeforeInput = useCallback((event: FormEvent<HTMLDivElement>) => {
+		const nativeEvent = event.nativeEvent as InputEvent;
+		const inputType = nativeEvent.inputType;
+		if (!inputType) {
+			return;
+		}
+
+		const root = event.currentTarget;
+		const selection = getLogicalSelectionRange(root);
+		const currentValue = latestValueRef.current;
+		const start = selection?.start ?? currentValue.length;
+		const end = selection?.end ?? start;
+		const hasSelection = start !== end;
+
+		const commit = (nextValue: string, caretOffset: number) => {
+			event.preventDefault();
+			skipNextInputRef.current = true;
+			handleSetValue(nextValue, caretOffset);
+		};
+
+		if (inputType === "insertText" || inputType === "insertReplacementText") {
+			if (skipNextBeforeInputInsertRef.current) {
+				skipNextBeforeInputInsertRef.current = false;
+				event.preventDefault();
+				return;
+			}
+			const inserted = nativeEvent.data ?? "";
+			if (!inserted) return;
+			commit(
+				currentValue.slice(0, start) + inserted + currentValue.slice(end),
+				start + inserted.length,
+			);
+			return;
+		}
+
+		if (inputType === "insertLineBreak" || inputType === "insertParagraph") {
+			event.preventDefault();
+			if (!multiline) return;
+			handleSetValue(
+				currentValue.slice(0, start) + "\n" + currentValue.slice(end),
+				start + 1,
+			);
+			return;
+		}
+
+		if (inputType === "deleteByCut") {
+			if (!hasSelection) return;
+			commit(
+				currentValue.slice(0, start) + currentValue.slice(end),
+				start,
+			);
+			return;
+		}
+
+		if (inputType === "deleteContentBackward") {
+			if (hasSelection) {
+				commit(
+					currentValue.slice(0, start) + currentValue.slice(end),
+					start,
+				);
+				return;
+			}
+			const range = getDeleteRange(currentValue, start, false);
+			if (range.start === range.end) {
+				event.preventDefault();
+				return;
+			}
+			commit(
+				currentValue.slice(0, range.start) + currentValue.slice(range.end),
+				range.start,
+			);
+			return;
+		}
+
+		if (inputType === "deleteContentForward") {
+			if (hasSelection) {
+				commit(
+					currentValue.slice(0, start) + currentValue.slice(end),
+					start,
+				);
+				return;
+			}
+			const range = getDeleteRange(currentValue, start, true);
+			if (range.start === range.end) {
+				event.preventDefault();
+				return;
+			}
+			commit(
+				currentValue.slice(0, range.start) + currentValue.slice(range.end),
+				range.start,
+			);
+			return;
+		}
+
+		if (inputType === "insertFromDrop" || inputType === "deleteByDrag") {
+			event.preventDefault();
+		}
+	}, [multiline, handleSetValue]);
 
 	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
 		const root = editorRef.current;
 		const selection = root ? getLogicalSelectionRange(root) : null;
-		const start = selection?.start ?? value.length;
+		const currentValue = latestValueRef.current;
+		const start = selection?.start ?? currentValue.length;
 		const end = selection?.end ?? start;
 		const hasSelection = start !== end;
 
 		if (event.key === "Enter") {
 			event.preventDefault();
 			if (!multiline) return;
-			const nextValue = value.slice(0, start) + "\n" + value.slice(end);
+			const nextValue = currentValue.slice(0, start) + "\n" + currentValue.slice(end);
 			handleSetValue(nextValue, start + 1);
+			return;
+		}
+
+		if (
+			event.key.length === 1 &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			!event.altKey
+		) {
+			event.preventDefault();
+			skipNextBeforeInputInsertRef.current = true;
+			insertTextAtCurrentSelection(event.key);
 			return;
 		}
 
@@ -554,31 +731,27 @@ const DynamicTokenizedEditor = ({
 		// removeChild reconciliation crash because React still holds refs to those DOM nodes.
 		if ((event.key === "Delete" || event.key === "Backspace") && hasSelection) {
 			event.preventDefault();
-			handleSetValue(value.slice(0, start) + value.slice(end), start);
+			handleSetValue(currentValue.slice(0, start) + currentValue.slice(end), start);
 			return;
 		}
 
 		// No selection: intercept to ensure whole tokens are deleted atomically.
 		if (event.key === "Delete" && !hasSelection) {
 			event.preventDefault();
-			if (start >= value.length) return;
-			const tokenMatch = /^\{\{[A-Za-z0-9_-]+\}\}/.exec(value.slice(start));
-			const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
-			handleSetValue(value.slice(0, start) + value.slice(start + deleteCount), start);
+			const range = getDeleteRange(currentValue, start, true);
+			if (range.start === range.end) return;
+			handleSetValue(currentValue.slice(0, range.start) + currentValue.slice(range.end), range.start);
 			return;
 		}
 
 		if (event.key === "Backspace" && !hasSelection) {
 			event.preventDefault();
-			if (start === 0) return;
-			const before = value.slice(0, start);
-			const tokenMatch = /\{\{[A-Za-z0-9_-]+\}\}$/.exec(before);
-			const deleteCount = tokenMatch ? tokenMatch[0].length : 1;
-			const newPos = start - deleteCount;
-			handleSetValue(value.slice(0, newPos) + value.slice(start), newPos);
+			const range = getDeleteRange(currentValue, start, false);
+			if (range.start === range.end) return;
+			handleSetValue(currentValue.slice(0, range.start) + currentValue.slice(range.end), range.start);
 			return;
 		}
-	}, [value, multiline, handleSetValue]);
+	}, [multiline, handleSetValue, insertTextAtCurrentSelection]);
 
 	const parts = useMemo(() => {
 		const parsed: ReactNode[] = [];
@@ -660,7 +833,10 @@ const DynamicTokenizedEditor = ({
 			].join(" ")}
 			style={multiline ? { minHeight: `${Math.max(rows, 3) * 1.4}rem` } : undefined}
 			onInput={handleInput}
+			onBeforeInput={handleBeforeInput}
 			onPaste={handlePaste}
+			onCut={handleCut}
+			onDrop={(event) => event.preventDefault()}
 			onKeyDown={handleKeyDown}
 			onBlur={() => {
 				pendingCaretOffsetRef.current = null;

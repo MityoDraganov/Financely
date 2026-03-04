@@ -25,6 +25,7 @@ type RenderContext = {
 	pageSize: { w: number; h: number };
 	templateElements: TemplateElement[];
 	margins: { top: number; right: number; bottom: number; left: number };
+	onFieldClick?: (binding: string) => void;
 };
 
 type ElementStyle = React.CSSProperties;
@@ -270,7 +271,8 @@ function calculateAdjustedY(
 function renderTextElement(
 	el: Extract<TemplateElement, { type: "text" }>,
 	style: ElementStyle,
-	context: InvoicePreviewContext
+	context: InvoicePreviewContext,
+	onFieldClick?: (binding: string) => void
 ): React.ReactNode {
 	loadGoogleFonts([el.typography.fontFamily]);
 	let display = el.text ?? "";
@@ -281,9 +283,16 @@ function renderTextElement(
 			? formatValue(bound, el.format.kind, el.format.currency, el.format.dateFormat)
 			: formatValue(bound, "none");
 	}
+
+	const isClickable = Boolean(el.binding && onFieldClick);
 	
 	return (
-		<div key={el.id} style={style}>
+		<div
+			key={el.id}
+			style={{ ...style, cursor: isClickable ? "pointer" : undefined }}
+			onClick={isClickable ? () => onFieldClick!(el.binding!) : undefined}
+			title={isClickable ? "Click to edit" : undefined}
+		>
 			<div
 				style={{
 					fontFamily: el.typography.fontFamily,
@@ -570,15 +579,22 @@ function renderIconElement(
 function renderInputElement(
 	el: Extract<TemplateElement, { type: "input" }>,
 	style: ElementStyle,
-	context: InvoicePreviewContext
+	context: InvoicePreviewContext,
+	onFieldClick?: (binding: string) => void
 ): React.ReactNode {
 	loadGoogleFonts([el.fontFamily || "Inter"]);
 	const boundValue = el.binding ? getByPath<unknown>(context, el.binding) : undefined;
 	const displayValue = boundValue != null ? formatValue(boundValue, "none") : "";
 	const textAlign = el.align || "left";
+	const isClickable = Boolean(el.binding && onFieldClick);
 	
 	return (
-		<div key={el.id} style={style}>
+		<div
+			key={el.id}
+			style={{ ...style, cursor: isClickable ? "pointer" : undefined }}
+			onClick={isClickable ? () => onFieldClick!(el.binding!) : undefined}
+			title={isClickable ? "Click to edit" : undefined}
+		>
 			<div
 				style={{
 					width: "100%",
@@ -609,7 +625,8 @@ function renderInputElement(
 function renderCurrencyElement(
 	el: Extract<TemplateElement, { type: "currency" }>,
 	style: ElementStyle,
-	context: InvoicePreviewContext
+	context: InvoicePreviewContext,
+	onFieldClick?: (binding: string) => void
 ): React.ReactNode {
 	loadGoogleFonts([el.fontFamily || "Inter"]);
 	const boundValue = el.binding ? getByPath<unknown>(context, el.binding) : undefined;
@@ -630,9 +647,15 @@ function renderCurrencyElement(
 	}
 	
 	const textAlign = el.align || "left";
+	const isClickable = Boolean(el.binding && onFieldClick);
 	
 	return (
-		<div key={el.id} style={style}>
+		<div
+			key={el.id}
+			style={{ ...style, cursor: isClickable ? "pointer" : undefined }}
+			onClick={isClickable ? () => onFieldClick!(el.binding!) : undefined}
+			title={isClickable ? "Click to edit" : undefined}
+		>
 			<div
 				style={{
 					width: "100%",
@@ -1082,7 +1105,7 @@ export function renderTemplateElement(
 	
 	switch (el.type) {
 		case "text":
-			return renderTextElement(el, style, context);
+			return renderTextElement(el, style, context, renderContext.onFieldClick);
 		case "image":
 			return renderImageElement(el, style, context);
 		case "box":
@@ -1094,9 +1117,9 @@ export function renderTemplateElement(
 		case "icon":
 			return renderIconElement(el, style);
 		case "input":
-			return renderInputElement(el, style, context);
+			return renderInputElement(el, style, context, renderContext.onFieldClick);
 		case "currency":
-			return renderCurrencyElement(el, style, context);
+			return renderCurrencyElement(el, style, context, renderContext.onFieldClick);
 		case "table":
 			return renderTableElement(el, style, renderContext);
 		case "spacer":

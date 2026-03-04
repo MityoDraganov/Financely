@@ -15,7 +15,7 @@ import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, FileText, Loader2, Plus, X } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, FileText, Loader2, Plus, X } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
 	Dialog,
@@ -102,6 +102,7 @@ export default function CreateInvoicePage() {
 	const [submitError, setSubmitError] = useState<string[] | null>(null);
 	const submitErrorRef = useRef<HTMLDivElement | null>(null);
 	const [warningsDismissed, setWarningsDismissed] = useState(false);
+	const [isPreviewMode, setIsPreviewMode] = useState(false);
 
 	// Get default currency from organization settings
 	const defaultCurrency = useMemo(() => {
@@ -941,6 +942,30 @@ export default function CreateInvoicePage() {
 	[formData]
 );
 
+	const sectionCompletion = useMemo(() => {
+		const sectionGroups = {
+			seller: ["seller.name", "seller.address", "seller.vatId", "seller.taxId"],
+			customer: ["customer.name", "customer.address", "customer.vatId"],
+			invoice: ["invoiceNumber", "invoiceDate", "dueDate", "currency"],
+			items: ["items"],
+			totals: ["total", "netAmount", "vatTotal", "grossTotal"],
+		} as const;
+
+		const missingIds = new Set(
+			(complianceValidation?.missingFields ?? []).map((field) => field.fieldId),
+		);
+
+		return Object.fromEntries(
+			Object.entries(sectionGroups).map(([section, fields]) => {
+				const missingCount = fields.filter((fieldId) => missingIds.has(fieldId)).length;
+				return [section, { missingCount, complete: missingCount === 0 }];
+			}),
+		) as Record<
+			keyof typeof sectionGroups,
+			{ missingCount: number; complete: boolean }
+		>;
+	}, [complianceValidation?.missingFields]);
+
 	// Auto-fill handler
 	const { handleAutoFill } = useInvoiceAutoFill({
 		formData,
@@ -1433,30 +1458,6 @@ export default function CreateInvoicePage() {
 		);
 	}
 
-	const sectionCompletion = useMemo(() => {
-		const sectionGroups = {
-			seller: ["seller.name", "seller.address", "seller.vatId", "seller.taxId"],
-			customer: ["customer.name", "customer.address", "customer.vatId"],
-			invoice: ["invoiceNumber", "invoiceDate", "dueDate", "currency"],
-			items: ["items"],
-			totals: ["total", "netAmount", "vatTotal", "grossTotal"],
-		} as const;
-
-		const missingIds = new Set(
-			(complianceValidation?.missingFields ?? []).map((field) => field.fieldId),
-		);
-
-		return Object.fromEntries(
-			Object.entries(sectionGroups).map(([section, fields]) => {
-				const missingCount = fields.filter((fieldId) => missingIds.has(fieldId)).length;
-				return [section, { missingCount, complete: missingCount === 0 }];
-			}),
-		) as Record<
-			keyof typeof sectionGroups,
-			{ missingCount: number; complete: boolean }
-		>;
-	}, [complianceValidation?.missingFields]);
-
 	const submitDisabled =
 		createInvoice.isPending ||
 		!selectedTemplate ||
@@ -1604,11 +1605,28 @@ export default function CreateInvoicePage() {
 		</form>
 	);
 
+	const handlePreviewFieldClick = useCallback((binding: string) => {
+		const el = document.getElementById(`binding-${binding}`);
+		if (el) {
+			el.scrollIntoView({ behavior: "smooth", block: "center" });
+			setTimeout(() => { el.focus(); }, 300);
+		}
+	}, []);
+
 	const previewContent = (
 		<InvoicePreview
 			template={selectedTemplate}
 			formData={formData}
 			fullWidth={isMobile && previewDialogOpen}
+			onFieldClick={handlePreviewFieldClick}
+		/>
+	);
+
+	const previewModeContent = (
+		<InvoicePreview
+			template={selectedTemplate}
+			formData={formData}
+			fullWidth
 		/>
 	);
 
@@ -1685,60 +1703,79 @@ export default function CreateInvoicePage() {
 								Fill in the details — your invoice updates live as you type.
 							</p>
 						</div>
-					</div>
-
-					<div className="grid gap-6 lg:grid-cols-3 items-start">
-						{/* Form Sidebar — left */}
-						<div className="space-y-6">
-							{formContent}
-						</div>
-
-						{/* Live Preview — right, 2/3 width */}
-						<div className="lg:col-span-2 inv-slide-up" style={{ animationDelay: "30ms" }}>
-							{previewContent}
-						</div>
-					</div>
-
-					{/* Line items tables — full width below the grid */}
-					{tablesContent}
-
-					{/* Desktop submit — full width, below tables */}
-					<div className="inv-slide-up" style={{ animationDelay: "200ms" }}>
-						<div className="space-y-3">
-							{submitErrorSummary}
-							{complianceWarningsAlert}
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="block w-full">
-										<Button
-											type="submit"
-											form="invoice-form"
-											className="w-full active:scale-[0.98]"
-											disabled={submitDisabled}
-											size="lg"
-										>
-											{createInvoice.isPending ? (
-												<>
-													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Creating Invoice…
-												</>
-											) : (
-												<>
-													<FileText className="mr-2 h-4 w-4" />
-													Create Invoice
-												</>
-											)}
-										</Button>
-									</span>
-								</TooltipTrigger>
-								{submitDisabledReason && (
-									<TooltipContent>{submitDisabledReason}</TooltipContent>
-								)}
-							</Tooltip>
-						</div>
-					</div>
+					
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setIsPreviewMode((v) => !v)}
+						className="gap-2 shrink-0"
+					>
+						{isPreviewMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+						{isPreviewMode ? "Exit Preview" : "Preview Mode"}
+					</Button>
 				</div>
-			)}
-		</div>
+
+				{isPreviewMode ? (
+					<div className="w-full bg-muted/40 rounded-xl border border-border/50 overflow-auto py-8">
+						{previewModeContent}
+					</div>
+				) : (
+					<>
+						<div className="grid gap-6 lg:grid-cols-3 items-start">
+							{/* Form Sidebar — left */}
+							<div className="space-y-6">
+								{formContent}
+							</div>
+	
+							{/* Live Preview — right, 2/3 width */}
+							<div className="lg:col-span-2 inv-slide-up" style={{ animationDelay: "30ms" }}>
+								{previewContent}
+							</div>
+						</div>
+	
+						{/* Line items tables — full width below the grid */}
+						{tablesContent}
+	
+						{/* Desktop submit — full width, below tables */}
+						<div className="inv-slide-up" style={{ animationDelay: "200ms" }}>
+							<div className="space-y-3">
+								{submitErrorSummary}
+								{complianceWarningsAlert}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="block w-full">
+											<Button
+												type="submit"
+												form="invoice-form"
+												className="w-full active:scale-[0.98]"
+												disabled={submitDisabled}
+												size="lg"
+											>
+												{createInvoice.isPending ? (
+													<>
+														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+														Creating Invoice…
+													</>
+												) : (
+													<>
+														<FileText className="mr-2 h-4 w-4" />
+														Create Invoice
+													</>
+												)}
+											</Button>
+										</span>
+									</TooltipTrigger>
+									{submitDisabledReason && (
+										<TooltipContent>{submitDisabledReason}</TooltipContent>
+									)}
+								</Tooltip>
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
+					</>
+				)}
 	);
 }
