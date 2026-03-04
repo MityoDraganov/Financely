@@ -55,8 +55,8 @@ export function InvoicePreview({
 			// Use full width if fullWidth prop is true, otherwise leave padding
 			const availableWidth = fullWidth ? containerWidth : containerWidth - 32;
 			const calculatedZoom = availableWidth / size.w;
-			// Clamp zoom between 0.3 and 1.5 for reasonable scaling
-			setZoom(Math.max(0.3, Math.min(1.5, calculatedZoom)));
+			// Prevent upscaling above 100% to avoid awkward zoom and horizontal overflow.
+			setZoom(Math.max(0.3, Math.min(1, calculatedZoom)));
 		};
 
 		updateZoom();
@@ -87,7 +87,7 @@ export function InvoicePreview({
 		<div className="w-full space-y-2">
 				<div
 					ref={containerRef}
-					className="w-full flex justify-center"
+					className="w-full flex justify-center overflow-x-hidden"
 				>
 					<TemplatePreview
 						template={template}

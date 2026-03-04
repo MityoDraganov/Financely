@@ -6,6 +6,40 @@ import type { TemplateElement } from "@/core";
  * Evaluates Excel-like formulas with field references
  */
 export class FormulaService {
+  private static resolvePathValue(
+    source: Record<string, unknown>,
+    path: string
+  ): unknown {
+    if (!path) return source;
+
+    const parts = path.split(".");
+    let current: unknown = source;
+
+    for (const part of parts) {
+      const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/);
+      if (arrayMatch) {
+        const arrayName = arrayMatch[1];
+        const index = parseInt(arrayMatch[2], 10);
+        if (current && typeof current === "object" && arrayName in current) {
+          const array = (current as Record<string, unknown>)[arrayName];
+          if (Array.isArray(array) && array[index] !== undefined) {
+            current = array[index];
+            continue;
+          }
+        }
+        return undefined;
+      }
+
+      if (current && typeof current === "object" && part in current) {
+        current = (current as Record<string, unknown>)[part];
+      } else {
+        return undefined;
+      }
+    }
+
+    return current;
+  }
+
   /**
    * Extract field references from a formula
    * Example matches:
@@ -23,8 +57,14 @@ export class FormulaService {
 
     if (!expression) return [];
 
-    // Extract ANY identifier-like token: words with optional dots and brackets
-    const matches = expression.match(/[A-Za-z_][A-Za-z0-9_.\[\]]*/g) ?? [];
+    // Extract binding-like references, including wildcard paths such as
+    // items[*].total and regular references like subtotal_value.
+    // This intentionally does not require a specific following character, so
+    // spaced expressions like "subtotal_value * 0.20" are handled.
+    const matches =
+      expression.match(
+        /[A-Za-z_][A-Za-z0-9_]*(?:\[[0-9*]+\])?(?:\.[A-Za-z0-9_]+(?:\[[0-9*]+\])?)*/g
+      ) ?? [];
 
     const unique = [...new Set(matches)]
       .filter((ref) => !this.isFunctionName(ref)) // skip function names (IF, SUM, etc.)
@@ -46,6 +86,31 @@ export class FormulaService {
     elements?: TemplateElement[],
     elementValues?: Map<string, number>
   ): number {
+    // Support wildcard references like items[*].total by aggregating values.
+    // This allows formulas such as "=items[*].total" without requiring SUM(...).
+    const wildcardMatch = reference.match(/^(.+)\[\*\](?:\.(.+))?$/);
+    if (wildcardMatch) {
+      const [, arrayPath, restPath] = wildcardMatch;
+      const arrayValue = this.resolvePathValue(formData, arrayPath);
+      if (!Array.isArray(arrayValue)) return 0;
+
+      return arrayValue.reduce((sum, item) => {
+        if (restPath) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return sum;
+          }
+          const resolved = this.resolvePathValue(
+            item as Record<string, unknown>,
+            restPath
+          );
+          const num = Number(resolved);
+          return sum + (isNaN(num) ? 0 : num);
+        }
+        const num = Number(item);
+        return sum + (isNaN(num) ? 0 : num);
+      }, 0);
+    }
+
     // Try element ID reference first
     if (elements && elementValues) {
       const element = elements.find((el) => el.id === reference);
@@ -56,31 +121,8 @@ export class FormulaService {
     }
 
     // Try binding path reference
-    const parts = reference.split(".");
-    let current: unknown = formData;
-
-    for (const part of parts) {
-      // Handle array indices like items[0]
-      const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/);
-      if (arrayMatch) {
-        const arrayName = arrayMatch[1];
-        const index = parseInt(arrayMatch[2], 10);
-        if (current && typeof current === "object" && arrayName in current) {
-          const array = (current as Record<string, unknown>)[arrayName];
-          if (Array.isArray(array) && array[index] !== undefined) {
-            current = array[index];
-            continue;
-          }
-        }
-        return 0;
-      }
-
-      if (current && typeof current === "object" && part in current) {
-        current = (current as Record<string, unknown>)[part];
-      } else {
-        return 0;
-      }
-    }
+    const current = this.resolvePathValue(formData, reference);
+    if (current === undefined) return 0;
 
     if (typeof current === "number") return current;
     if (typeof current === "string") {

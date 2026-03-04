@@ -11,6 +11,7 @@ import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-ser
 import { invoiceDataSchema } from "../core/entities/invoice";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
+import { toTemplateSnapshot } from "../services/invoice-template-snapshot-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import { EmailSendOptions } from "../services/email-service-types";
 import { defineSecret } from "firebase-functions/params";
@@ -345,6 +346,7 @@ export class ProposalExecutor implements ActionExecutor {
     const validatedData = invoiceDataSchema.parse({
       orgId,
       templateId,
+      templateSnapshot: toTemplateSnapshot(template),
       data: conversionResult.invoiceData,
       status: "draft",
     });
@@ -399,4 +401,3 @@ export class ProposalExecutor implements ActionExecutor {
     }, obj);
   }
 }
-

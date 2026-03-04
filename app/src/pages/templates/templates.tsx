@@ -52,7 +52,9 @@ import { CreateEmailTemplateDialog } from "@/components/email-designer/create-em
 import type { Template } from "@/core/entities/template";
 import type { EmailTemplate } from "@/core/entities/email-template";
 import {
+	EMAIL_TEMPLATE_TYPE_DEFINITIONS,
 	allowedContextsForTemplateType,
+	inferTemplateTypeFromAllowedContexts,
 	type EmailTemplateTypeId,
 } from "@/utils/email-template-compatibility";
 
@@ -888,6 +890,14 @@ export default function TemplatesPage() {
 							const isSelected = selectedEmailTemplateIds.has(
 								template.id,
 							);
+							const templateTypeId =
+								inferTemplateTypeFromAllowedContexts(
+									template.allowedContexts,
+								);
+							const templateTypeLabel =
+								EMAIL_TEMPLATE_TYPE_DEFINITIONS.find(
+									(type) => type.id === templateTypeId,
+								)?.label ?? "All Compatible";
 							return (
 								<Card
 									key={template.id}
@@ -1029,6 +1039,12 @@ export default function TemplatesPage() {
 															: t(
 																	"templates.email.status.draft",
 																)}
+													</Badge>
+													<Badge
+														variant="outline"
+														className="text-xs"
+													>
+														{templateTypeLabel}
 													</Badge>
 												</div>
 												<div className="flex items-center gap-3 text-xs text-muted-foreground">

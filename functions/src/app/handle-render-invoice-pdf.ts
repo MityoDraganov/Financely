@@ -1,9 +1,8 @@
 import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
-import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { getStorage } from "firebase-admin/storage";
-import { Template, TemplateElement } from "../core/entities/template";
+import { TemplateData, TemplateElement } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
 import puppeteer from "puppeteer";
 import chromium from "@sparticuz/chromium";
@@ -13,17 +12,22 @@ import { DataContext } from "../core/entities/data-context";
 import { paginateTemplate, type RenderPage } from "../utils/template-pagination";
 import { getTableGridTemplateColumns } from "../utils/table-column-width";
 import { getTableTextBehaviorInlineCss, normalizeTableTextBehavior } from "../utils/table-text-behavior";
+import {
+  loadLatestTemplateSnapshotVersion,
+  loadLiveTemplateSnapshot,
+  loadTemplateSnapshotFromVersionId,
+} from "../services/invoice-template-snapshot-service";
 
 /**
  * Generates HTML from template and invoice data with organization branding
  *
- * @param {Template} template - The template to use for rendering
+ * @param {TemplateData} template - The template snapshot to use for rendering
  * @param {Invoice} invoice - The invoice data to render
  * @param {Organization | null} organization - Organization for branding
  * @return {string} The generated HTML
  */
 function generateInvoiceHTML(
-  template: Template,
+  template: TemplateData,
   invoice: Invoice,
   organization: {
     logoUrl?: string;
@@ -988,7 +992,7 @@ function generateInvoiceHTML(
  * Application handler for rendering an invoice as PDF.
  *
  * This handler:
- * 1. Fetches the invoice and template from database
+ * 1. Fetches the invoice and resolves a frozen template snapshot
  * 2. Generates HTML from the template and invoice data
  * 3. Converts HTML to PDF using puppeteer
  * 4. Uploads PDF to Firebase Storage
@@ -1011,10 +1015,49 @@ export async function handleRenderInvoicePdf(
     throw new Error(`Invoice not found: ${invoiceId}`);
   }
 
-  // Fetch template from Realtime Database (templates are stored in RTDB, not Firestore)
-  const template = await realtimeDatabaseService.get<Template>("templates", invoice.templateId);
+  // Resolve frozen template snapshot, with fallbacks for legacy invoices.
+  let template: TemplateData | null = invoice.templateSnapshot ?? null;
+
+  if (!template && invoice.templateVersionId) {
+    template = await loadTemplateSnapshotFromVersionId({
+      databaseService,
+      templateVersionId: invoice.templateVersionId,
+      templateId: invoice.templateId,
+      orgId: invoice.orgId,
+    });
+  }
+
   if (!template) {
-    throw new Error(`Template not found: ${invoice.templateId}`);
+    template = await loadLatestTemplateSnapshotVersion({
+      databaseService,
+      templateId: invoice.templateId,
+      orgId: invoice.orgId,
+    });
+  }
+
+  if (!template) {
+    template = await loadLiveTemplateSnapshot({
+      templateId: invoice.templateId,
+      orgId: invoice.orgId,
+    });
+  }
+
+  if (!template) {
+    throw new Error(
+      `Template snapshot not found for invoice ${invoiceId}. Original template ${invoice.templateId} is unavailable.`
+    );
+  }
+
+  // Backfill snapshot for legacy invoices so subsequent renders are template-independent.
+  if (!invoice.templateSnapshot) {
+    try {
+      await invoiceRepository.update({
+        id: invoiceId,
+        data: { templateSnapshot: template } as Partial<Invoice>,
+      });
+    } catch {
+      // Ignore backfill failures; PDF generation can proceed with in-memory snapshot.
+    }
   }
 
   // Fetch organization for branding

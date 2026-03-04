@@ -3,7 +3,7 @@
  * Simple approach: process elements in order, place on pages based on their Y position
  */
 
-import type { Template, TemplateElement } from "../core/entities/template";
+import type { Template, TemplateData, TemplateElement } from "../core/entities/template";
 
 export type TableSlice = {
 	start: number;
@@ -70,7 +70,7 @@ function rowsThatFit(
  * Simple pagination: process elements in order, place on pages
  */
 export function paginateTemplate(
-	template: Template,
+	template: Template | TemplateData,
 	context: unknown,
 	pageSize: { w: number; h: number }
 ): RenderPage[] {

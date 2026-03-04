@@ -1,5 +1,6 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
+import { templateDataSchema } from "./template";
 import { validateInvoiceCompliance } from "@/utils/invoice-compliance";
 
 /**
@@ -47,6 +48,9 @@ export const invoiceDataSchema = z.object({
   
   // Optional reference to a specific template version
   templateVersionId: z.string().optional(),
+
+  // Frozen template snapshot used for rendering this invoice forever
+  templateSnapshot: templateDataSchema.optional(),
   
   // Dynamic data that matches template bindings
   // Structure depends entirely on the template's element bindings

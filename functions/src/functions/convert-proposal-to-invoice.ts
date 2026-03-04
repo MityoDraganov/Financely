@@ -16,6 +16,7 @@ import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-ser
 import { invoiceDataSchema } from "../core/entities/invoice";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
+import { toTemplateSnapshot } from "../services/invoice-template-snapshot-service";
 import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
@@ -171,6 +172,7 @@ export const convertProposalToInvoice = onCall<
       const validatedData = invoiceDataSchema.parse({
         orgId: organizationId, // Use orgId (not organizationId) as per invoice schema
         templateId,
+        templateSnapshot: toTemplateSnapshot(template),
         data: conversionResult.invoiceData,
         status: "draft",
       });

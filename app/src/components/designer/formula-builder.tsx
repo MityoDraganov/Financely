@@ -126,16 +126,21 @@ export function FormulaBuilder({
 						type: "currency" as const,
 					};
 				}
-				if (el.type === "table") {
-					return el.columns
-						.filter((col) => col.type === "number" || col.type === "currency")
-						.map((col) => ({
-							id: `${el.id}.${col.id}`,
-							label: `${el.itemsBinding || "items"}.${col.binding || col.header}`,
-							reference: `${el.itemsBinding || "items"}.${col.binding || col.header}`,
-							type: "table-column" as const,
-						}));
-				}
+					if (el.type === "table") {
+						return el.columns
+							.filter(
+								(col) =>
+									(col.type === "number" || col.type === "currency") &&
+									typeof col.binding === "string" &&
+									col.binding.trim().length > 0
+							)
+							.map((col) => ({
+								id: `${el.id}.${col.id}`,
+								label: `${el.itemsBinding || "items"}[*].${col.binding} (${col.header})`,
+								reference: `${el.itemsBinding || "items"}[*].${col.binding}`,
+								type: "table-column" as const,
+							}));
+					}
 				return null;
 			})
 			.flat()

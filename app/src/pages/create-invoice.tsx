@@ -1363,6 +1363,14 @@ export default function CreateInvoicePage() {
 		}
 	};
 
+	const handlePreviewFieldClick = useCallback((binding: string) => {
+		const el = document.getElementById(`binding-${binding}`);
+		if (el) {
+			el.scrollIntoView({ behavior: "smooth", block: "center" });
+			setTimeout(() => { el.focus(); }, 300);
+		}
+	}, []);
+
 	// Show loading state while organization or templates are loading
 	if (isOrgLoading || !invoiceTemplateContext) {
 		return (
@@ -1605,14 +1613,6 @@ export default function CreateInvoicePage() {
 		</form>
 	);
 
-	const handlePreviewFieldClick = useCallback((binding: string) => {
-		const el = document.getElementById(`binding-${binding}`);
-		if (el) {
-			el.scrollIntoView({ behavior: "smooth", block: "center" });
-			setTimeout(() => { el.focus(); }, 300);
-		}
-	}, []);
-
 	const previewContent = (
 		<InvoicePreview
 			template={selectedTemplate}
@@ -1626,7 +1626,6 @@ export default function CreateInvoicePage() {
 		<InvoicePreview
 			template={selectedTemplate}
 			formData={formData}
-			fullWidth
 		/>
 	);
 
@@ -1717,7 +1716,7 @@ export default function CreateInvoicePage() {
 				</div>
 
 				{isPreviewMode ? (
-					<div className="w-full bg-muted/40 rounded-xl border border-border/50 overflow-auto py-8">
+					<div className="w-full rounded-xl border bg-muted/30 p-4 sm:p-6">
 						{previewModeContent}
 					</div>
 				) : (
@@ -1772,10 +1771,10 @@ export default function CreateInvoicePage() {
 								</Tooltip>
 							</div>
 						</div>
-					</div>
-				)}
-			</div>
 					</>
 				)}
+				</div>
+			)}
+		</div>
 	);
 }

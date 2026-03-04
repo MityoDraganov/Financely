@@ -1981,6 +1981,7 @@ export default function TemplateDesignerPage() {
 									{
 										id: crypto.randomUUID(),
 										header: t('designer.tableColumns.column1'),
+										binding: "column1",
 										width: "50%",
 										align: "left",
 										type: "text",
@@ -1990,6 +1991,7 @@ export default function TemplateDesignerPage() {
 									{
 										id: crypto.randomUUID(),
 										header: t('designer.tableColumns.column2'),
+										binding: "column2",
 										width: "50%",
 										align: "left",
 										type: "text",
@@ -4462,8 +4464,8 @@ export default function TemplateDesignerPage() {
 						const tbl = elements.find((e) => e.id === tableId && e.type === "table") as Extract<TemplateElement, { type: "table" }> | undefined;
 						if (!tbl) return;
 						const baseColumns = tbl.columns.length > 0 ? tbl.columns : [
-							{ id: "c1", header: t('designer.tableColumns.column1'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
-							{ id: "c2", header: t('designer.tableColumns.column2'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c1", header: t('designer.tableColumns.column1'), binding: "column1", width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
+							{ id: "c2", header: t('designer.tableColumns.column2'), binding: "column2", width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const } },
 						];
 						const next = baseColumns.map((col) => col.id === columnId ? { ...col, header } : col);
 						// Update draft elements but don't save - save will happen when user edits in properties panel

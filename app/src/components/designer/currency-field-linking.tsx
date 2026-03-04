@@ -240,7 +240,7 @@ export function CurrencyFieldLinking({
                 </SelectTrigger>
                 <SelectContent>
                   {availableFields.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="__no-source-fields__" disabled>
                       No other currency columns available in this table
                     </SelectItem>
                   ) : (
@@ -335,4 +335,3 @@ export function CurrencyFieldLinking({
     </div>
   );
 }
-

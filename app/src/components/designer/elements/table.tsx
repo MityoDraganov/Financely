@@ -187,10 +187,18 @@ export function TableProperties({
 }: TablePropertiesProps) {
 	const { t } = useTranslation();
 	const tbl = element;
+	const toColumnBinding = (raw: string, fallback: string): string => {
+		const normalized = raw
+			.trim()
+			.replace(/[^A-Za-z0-9_]+/g, "_")
+			.replace(/^_+|_+$/g, "");
+		if (!normalized) return fallback;
+		return /^[A-Za-z_]/.test(normalized) ? normalized : `c_${normalized}`;
+	};
 	// Default columns for fallback
 	const defaultTwo = [
-		{ id: "c1", header: t('designer.tableColumns.column1'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
-		{ id: "c2", header: t('designer.tableColumns.column2'), width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c1", header: t('designer.tableColumns.column1'), binding: "column1", width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+		{ id: "c2", header: t('designer.tableColumns.column2'), binding: "column2", width: "50%", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 	];
 
 	const getBaseColumns = () => (tbl.columns && tbl.columns.length > 0)
@@ -505,6 +513,20 @@ export function TableProperties({
 										}}
 											className={components.inputHeight}
 									/>
+									</div>
+									<div className={`${components.field} col-span-full`}>
+										<Label className={typography.fieldLabel}>{t('designer.elementProperties.binding.dataBinding')}</Label>
+										<Input
+											placeholder="lineTotal"
+											value={c.binding ?? ""}
+											onChange={(e) => {
+												const binding = e.target.value.trim();
+												const base = (tbl.columns && tbl.columns.length > 0) ? tbl.columns : defaultTwo.map(d => ({ ...d, type: 'text' as const }));
+												const next = base.map((col) => col.id === c.id ? { ...col, binding: binding || undefined } : col);
+												onChange({ ...tbl, columns: next });
+											}}
+											className={components.inputHeight}
+										/>
 									</div>
 									<div className={components.field}>
 										<Label className={typography.fieldLabel}>{t('designer.elementProperties.table.column.width')}</Label>
@@ -1028,9 +1050,10 @@ export function TableProperties({
 						onClick={() => {
 							const columnNum = tbl.columns.length + 1;
 							const header = columnNum === 1 ? t('designer.tableColumns.column1') : columnNum === 2 ? t('designer.tableColumns.column2') : `${t('designer.elementProperties.table.columns')} ${columnNum}`;
+							const binding = toColumnBinding(header, `column${columnNum}`);
 							const next = [
 								...tbl.columns,
-									{ id: crypto.randomUUID(), header, width: "1fr", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
+									{ id: crypto.randomUUID(), header, binding, width: "1fr", align: "left" as const, type: "text" as const, format: { kind: "none" as const }, showTotal: false },
 							];
 							onChange({ ...tbl, columns: next });
 						}}

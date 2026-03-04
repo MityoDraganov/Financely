@@ -3,6 +3,10 @@ import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getProductRepository } from "../repositories/product-repository";
 import { loggerService } from "../services/logger-service";
+import {
+  loadLiveTemplateSnapshot,
+  loadTemplateSnapshotFromVersionId,
+} from "../services/invoice-template-snapshot-service";
 import { ZodError } from "zod";
 
 /**
@@ -29,9 +33,38 @@ export async function handleCreateInvoice(
     const databaseService = getDatabaseService();
     const invoiceRepository = getInvoiceRepository(databaseService);
 
+    // Freeze template at creation-time so future template edits/deletes do not affect this invoice.
+    let templateSnapshot;
+    if (validatedData.templateVersionId) {
+      templateSnapshot = await loadTemplateSnapshotFromVersionId({
+        databaseService,
+        templateVersionId: validatedData.templateVersionId,
+        templateId: validatedData.templateId,
+        orgId: validatedData.orgId,
+      });
+
+      if (!templateSnapshot) {
+        throw new Error(`Template version not found: ${validatedData.templateVersionId}`);
+      }
+    } else {
+      templateSnapshot = await loadLiveTemplateSnapshot({
+        templateId: validatedData.templateId,
+        orgId: validatedData.orgId,
+      });
+
+      if (!templateSnapshot) {
+        throw new Error(`Template not found: ${validatedData.templateId}`);
+      }
+    }
+
     // Create the invoice
     // Note: repository.create returns the document ID as a string
-    const invoiceId = await invoiceRepository.create({ data: validatedData });
+    const invoiceId = await invoiceRepository.create({
+      data: {
+        ...validatedData,
+        templateSnapshot,
+      },
+    });
 
     if (!invoiceId) {
       throw new Error("Failed to create invoice: No ID returned");
@@ -203,4 +236,3 @@ function extractItemsFromInvoiceData(
 
   return null;
 }
-
