@@ -73,8 +73,8 @@ export default function ProposalsPage() {
       <div className="py-6 pr-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('proposals.title')}</h1>
-            <p className="text-muted-foreground">{t('proposals.subtitleLoading')}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('proposals.title')}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t('proposals.subtitleLoading')}</p>
           </div>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -89,8 +89,8 @@ export default function ProposalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('proposals.title')}</h1>
-          <p className="text-muted-foreground">{t('proposals.subtitle')}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('proposals.title')}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('proposals.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowExportDialog(true)}>
@@ -240,4 +240,3 @@ export default function ProposalsPage() {
     </div>
   );
 }
-

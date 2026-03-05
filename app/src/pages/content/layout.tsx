@@ -24,8 +24,8 @@ export default function ContentLayout() {
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pb-5 sm:pb-6">
           <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Content</h1>
-            <p className="text-sm text-muted-foreground">Manage custom data structures and assets</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Content</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Manage custom data structures and assets</p>
           </div>
         </div>
 

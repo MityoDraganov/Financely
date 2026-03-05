@@ -187,8 +187,8 @@ export default function ProductsPage() {
       <div className="py-6 pr-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
-            <p className="text-muted-foreground">{t('products.manageProducts')}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('products.title')}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t('products.manageProducts')}</p>
           </div>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -221,8 +221,8 @@ export default function ProductsPage() {
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold">Add product metafield definition</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="text-2xl font-semibold tracking-tight">Add product metafield definition</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
               Define a new metafield that can be added to products
             </p>
           </div>
@@ -256,8 +256,8 @@ export default function ProductsPage() {
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-semibold">Product metafield definitions</h1>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h1 className="text-2xl font-semibold tracking-tight">Product metafield definitions</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Manage custom fields that can be added to products
               </p>
             </div>
@@ -321,8 +321,8 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">{t('products.subtitle')}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('products.title')}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('products.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsManagingMetafields(true)}>
