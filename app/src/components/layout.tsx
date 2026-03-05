@@ -129,6 +129,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 		() => location.pathname === "/marketplace",
 		[location.pathname]
 	);
+	const useInlineFitSidebar = useMemo(
+		() => isMarketplaceListPage || isDesignerPage,
+		[isMarketplaceListPage, isDesignerPage]
+	);
 	const invoiceTemplate = useInvoiceTemplate();
 	const designerTemplate = useDesignerTemplate();
 	const emailDesignerTemplate = useEmailDesignerTemplate();
@@ -346,7 +350,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 			<Sidebar
 				collapsible="icon"
-				desktopMode={isMarketplaceListPage ? "inline-fit" : "fixed"}
+				desktopMode={useInlineFitSidebar ? "inline-fit" : "fixed"}
 				className="max-w-fit"
 			>
 				<SidebarHeader className="flex flex-col gap-2 p-3 border-b min-w-0 overflow-x-hidden">

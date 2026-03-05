@@ -282,7 +282,7 @@ function Sidebar({
           reserveSpace &&
             (variant === "floating" || variant === "inset"
               ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-              : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"),
+              : "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(6)))]"),
         )}
         style={{ willChange: "width" }}
       />
