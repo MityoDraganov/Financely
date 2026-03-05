@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useUser } from "@clerk/clerk-react";
 import { useIsContributor } from "@/hooks/use-is-contributor";
-import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
 import { useRegisterContributor } from "@/hooks/use-register-contributor";
 import { useSubmitMarketplaceTemplate } from "@/hooks/use-submit-marketplace-template";
 import { useMyMarketplaceSubmissions } from "@/hooks/repository-hooks/use-marketplace-templates";
@@ -110,14 +108,11 @@ function StatusBadge({ template }: { template: MarketplaceTemplate }) {
 export default function ContributorPortalPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useUser();
-  const firebaseAuthUser = useFirebaseAuthUser();
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: isContributor = false, isLoading: isLoadingStatus } = useIsContributor();
   const queryClient = useQueryClient();
 
-  const userId = firebaseAuthUser?.uid || user?.id;
-  const { data: submissions = [] } = useMyMarketplaceSubmissions(userId);
+  const { data: submissions = [] } = useMyMarketplaceSubmissions(currentOrganization?.id);
 
   const registerContributor = useRegisterContributor();
   const submitTemplate = useSubmitMarketplaceTemplate();
@@ -582,9 +577,11 @@ export default function ContributorPortalPage() {
                                 );
                               await repository.delete({ id: submission.id });
                               toast.success("Template deleted successfully");
-                              queryClient.invalidateQueries({
-                                queryKey: ["marketplaceTemplates", "submissions", userId],
-                              });
+                              if (currentOrganization?.id) {
+                                queryClient.invalidateQueries({
+                                  queryKey: ["marketplaceTemplates", "submissions", currentOrganization.id],
+                                });
+                              }
                             } catch (error) {
                               toast.error("Failed to delete template", {
                                 description:

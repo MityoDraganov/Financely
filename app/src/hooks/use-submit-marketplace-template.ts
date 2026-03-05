@@ -1,11 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { functionsService } from "@/services/functions/functions-service";
 import { toast } from "sonner";
-import { useUser } from "@clerk/clerk-react";
 
 export function useSubmitMarketplaceTemplate() {
   const queryClient = useQueryClient();
-  const { user } = useUser();
 
   return useMutation({
     mutationFn: async (payload: {
@@ -16,17 +14,17 @@ export function useSubmitMarketplaceTemplate() {
     }) => {
       return functionsService.submitMarketplaceTemplate(payload);
     },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       // Invalidate queries to refresh submissions list
-      // Invalidate all submission queries (with any userId)
+      // Invalidate all submission queries (with any organizationId)
       queryClient.invalidateQueries({ 
         queryKey: ["marketplaceTemplates", "submissions"],
         exact: false, // Match all queries starting with this key
       });
-      // Also invalidate the specific user's submissions query
-      if (user?.id) {
+      // Also invalidate the specific organization's submissions query
+      if (variables?.orgId) {
         queryClient.invalidateQueries({ 
-          queryKey: ["marketplaceTemplates", "submissions", user.id],
+          queryKey: ["marketplaceTemplates", "submissions", variables.orgId],
         });
       }
       queryClient.invalidateQueries({ queryKey: ["marketplaceTemplates"] });

@@ -136,30 +136,51 @@ export const useMarketplaceTemplate = (templateId: string | undefined) => {
 };
 
 /**
- * Hook to fetch user's own marketplace submissions (for contributor portal)
+ * Hook to fetch organization-owned marketplace submissions (for contributor portal)
  * Returns all submissions including pending, published, rejected, etc.
  * Polls every 3s while any submission has a non-terminal AI enrichment status.
  */
-export const useMyMarketplaceSubmissions = (userId: string | undefined) => {
+export const useMyMarketplaceSubmissions = (organizationId: string | undefined) => {
   return useQuery<MarketplaceTemplate[]>({
-    queryKey: ["marketplaceTemplates", "submissions", userId],
+    queryKey: ["marketplaceTemplates", "submissions", organizationId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!organizationId) return [];
 
-      const result = await marketplaceTemplateRepository.getAll({
-        queryConstraints: [
-          { field: "authorId", operator: "==", value: userId },
-        ],
-        orderBy: { field: "createdAt", direction: "desc" },
+      const [ownedByOrganization, legacyOwnedBySourceOrg] = await Promise.all([
+        marketplaceTemplateRepository.getAll({
+          queryConstraints: [
+            { field: "organizationId", operator: "==", value: organizationId },
+          ],
+          orderBy: { field: "createdAt", direction: "desc" },
+        }),
+        marketplaceTemplateRepository.getAll({
+          queryConstraints: [
+            { field: "sourceOrgId", operator: "==", value: organizationId },
+          ],
+          orderBy: { field: "createdAt", direction: "desc" },
+        }),
+      ]);
+
+      const normalize = (result: unknown): MarketplaceTemplate[] =>
+        Array.isArray(result)
+          ? result
+          : (result as { data?: MarketplaceTemplate[] })?.data || [];
+
+      const merged = [...normalize(ownedByOrganization), ...normalize(legacyOwnedBySourceOrg)];
+      const uniqueById = new Map<string, MarketplaceTemplate>();
+      merged.forEach((template) => {
+        if (!uniqueById.has(template.id)) {
+          uniqueById.set(template.id, template);
+        }
       });
 
-      const submissions = Array.isArray(result)
-        ? result
-        : (result as unknown as { data?: MarketplaceTemplate[] })?.data || [];
-
-      return submissions;
+      return Array.from(uniqueById.values()).sort((left, right) => {
+        const leftCreated = Date.parse(left.createdAt || "");
+        const rightCreated = Date.parse(right.createdAt || "");
+        return (Number.isNaN(rightCreated) ? 0 : rightCreated) - (Number.isNaN(leftCreated) ? 0 : leftCreated);
+      });
     },
-    enabled: !!userId,
+    enabled: !!organizationId,
     staleTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data;

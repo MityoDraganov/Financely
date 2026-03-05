@@ -6,6 +6,7 @@ export const marketplaceTemplateDataSchema = z.object({
   description: z.string().optional(),
   shortDescription: z.string().optional(),
   type: z.enum(["invoice", "email"]),
+  organizationId: z.string().optional(),
   sourceTemplateId: z.string().optional(),
   sourceTemplateType: z.enum(["invoice", "email"]).optional(),
   sourceOrgId: z.string().optional(),

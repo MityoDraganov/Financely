@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { verifyAuth } from "../utils/auth-utils";
+import { verifyAuth, verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { getDatabaseService } from "../services/database-service";
 import { getMarketplaceTemplateRepository } from "../repositories/marketplace-template-repository";
 import { getMarketplaceTemplateVersionRepository } from "../repositories/marketplace-template-version-repository";
@@ -23,7 +23,7 @@ interface PublishMarketplaceTemplateVersionResponse {
 
 /**
  * Publish a new version for an existing marketplace template.
- * Requires the publisher to be the listing author and an approved contributor.
+ * Requires contributor status and owner/admin membership in the listing organization.
  */
 export const publishMarketplaceTemplateVersion = onCall<
   PublishMarketplaceTemplateVersionInput,
@@ -68,12 +68,18 @@ export const publishMarketplaceTemplateVersion = onCall<
         throw new HttpsError("not-found", "Marketplace template not found");
       }
 
-      if (marketplaceTemplate.authorId !== userId) {
+      const templateOrganizationId =
+        marketplaceTemplate.organizationId || marketplaceTemplate.sourceOrgId;
+      if (!templateOrganizationId) {
         throw new HttpsError(
-          "permission-denied",
-          "Only the listing publisher can create new versions"
+          "failed-precondition",
+          "Marketplace template is missing organization ownership information"
         );
       }
+
+      await verifyAuthAndOrgMembership(request, templateOrganizationId, {
+        requireOwnerOrAdmin: true,
+      });
 
       const sourceTemplateId = marketplaceTemplate.sourceTemplateId;
       const sourceTemplateType = marketplaceTemplate.sourceTemplateType || marketplaceTemplate.type;
@@ -155,6 +161,7 @@ export const publishMarketplaceTemplateVersion = onCall<
         id: marketplaceTemplateId,
         data: {
           templateContent: sanitizedContent,
+          organizationId: templateOrganizationId,
           version: nextVersion,
           latestVersionId: versionId,
           sourceTemplateId,
@@ -172,6 +179,7 @@ export const publishMarketplaceTemplateVersion = onCall<
         version: nextVersion,
         sourceTemplateId,
         sourceTemplateType,
+        organizationId: templateOrganizationId,
         sourceOrgId,
         userId,
       });

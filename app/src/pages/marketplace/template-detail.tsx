@@ -23,10 +23,11 @@ import {
 	Calendar,
 	Hash,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { EmailTemplateData, TemplateData } from "@/core";
 import { getDefaultPrintMarginsPx } from "@/utils/print-margins";
+import { buildMarketplaceEmailPreviewHtml } from "@/utils/marketplace-email-preview";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -66,6 +67,22 @@ export default function TemplateDetailPage() {
 			setIsAdding(false);
 		}
 	};
+
+	const emailTemplateForPreview = useMemo(() => {
+		if (!template || template.type !== "email") return null;
+		if (
+			!template.templateContent ||
+			typeof template.templateContent !== "object"
+		) {
+			return null;
+		}
+		return template.templateContent as EmailTemplateData;
+	}, [template]);
+
+	const renderedEmailPreviewHtml = useMemo(
+		() => buildMarketplaceEmailPreviewHtml(emailTemplateForPreview),
+		[emailTemplateForPreview],
+	);
 
 	/* ── Loading ── */
 	if (isLoading) {
@@ -111,9 +128,15 @@ export default function TemplateDetailPage() {
 	const authorInitial = (
 		template.isOfficial ? "F" : (template.authorName?.[0] ?? "?")
 	).toUpperCase();
+	const templateOwnerOrganizationId =
+		template.organizationId ?? template.sourceOrgId;
 	const isPublisherOrAdmin = Boolean(
 		authUser &&
-			(authUser.isTrueAdmin || template.authorId === authUser.uid),
+			(authUser.isTrueAdmin ||
+				(templateOwnerOrganizationId &&
+					currentOrganization?.id === templateOwnerOrganizationId) ||
+				(!templateOwnerOrganizationId &&
+					template.authorId === authUser.uid)),
 	);
 	const isPublisherView =
 		isPublisherOrAdmin && searchParams.get("view") === "publisher";
@@ -244,16 +267,7 @@ export default function TemplateDetailPage() {
 
 	const canRenderEmailPreview = (() => {
 		if (template.type !== "email") return false;
-		if (
-			!template.templateContent ||
-			typeof template.templateContent !== "object"
-		)
-			return false;
-		const content = template.templateContent as EmailTemplateData;
-		return (
-			typeof content.htmlContent === "string" &&
-			content.htmlContent.length > 0
-		);
+		return renderedEmailPreviewHtml.trim().length > 0;
 	})();
 
 	return (
@@ -477,11 +491,7 @@ export default function TemplateDetailPage() {
 									) : template.type === "email" &&
 									  canRenderEmailPreview ? (
 										<iframe
-											srcDoc={
-												(
-													template.templateContent as EmailTemplateData
-												).htmlContent || ""
-											}
+											srcDoc={renderedEmailPreviewHtml}
 											className="w-full border-0 bg-white"
 											style={{ minHeight: 700 }}
 											title={`Preview of ${template.title}`}

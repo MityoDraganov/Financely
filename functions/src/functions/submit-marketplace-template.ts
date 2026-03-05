@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
-import { verifyAuth } from "../utils/auth-utils";
+import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { getDatabaseService } from "../services/database-service";
 import { getMarketplaceTemplateRepository } from "../repositories/marketplace-template-repository";
 import { getMarketplaceTemplateVersionRepository } from "../repositories/marketplace-template-version-repository";
@@ -37,9 +37,6 @@ export const submitMarketplaceTemplate = onCall<
   },
   async (request) => {
     try {
-      // Verify authentication
-      const userId = await verifyAuth(request);
-
       const {
         sourceTemplateId,
         sourceTemplateType,
@@ -64,6 +61,10 @@ export const submitMarketplaceTemplate = onCall<
       if (!title) {
         throw new HttpsError("invalid-argument", "Title is required");
       }
+
+      const { userId } = await verifyAuthAndOrgMembership(request, orgId, {
+        requireOwnerOrAdmin: true,
+      });
 
       // Check if user is an approved contributor
       const db = getFirestore();
@@ -173,6 +174,7 @@ export const submitMarketplaceTemplate = onCall<
         data: {
           title,
           type: sourceTemplateType,
+          organizationId: orgId,
           sourceTemplateId,
           sourceTemplateType,
           sourceOrgId: orgId,
@@ -216,6 +218,7 @@ export const submitMarketplaceTemplate = onCall<
         submissionId,
         versionId,
         userId,
+        organizationId: orgId,
         title,
         type: sourceTemplateType,
       });
