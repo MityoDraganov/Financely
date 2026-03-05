@@ -409,7 +409,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				</SidebarContent>
 			</Sidebar>
 			<div
-				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? "pt-14" : ""}`}
+				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? `pt-14 ${useInlineFitSidebar ? "" : "pl-6"}` : ""}`}
 			>
 				{children}
 			</div>
