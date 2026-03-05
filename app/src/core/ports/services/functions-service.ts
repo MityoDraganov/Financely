@@ -136,7 +136,21 @@ export interface FunctionsService {
     invoiceId: string;
     toEmail: string;
     emailTemplateId?: string;
+    previewId?: string;
   }): Promise<{ sent: boolean }>;
+
+  previewInvoiceEmail(payload: {
+    invoiceId: string;
+    emailTemplateId: string;
+    toEmail?: string;
+  }): Promise<{
+    previewId: string;
+    subject: string;
+    html: string;
+    text: string;
+    toEmail: string;
+    expiresAt: string;
+  }>;
 
   sendProposalEmail(payload: {
     proposalId: string;

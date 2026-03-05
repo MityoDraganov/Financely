@@ -222,16 +222,46 @@ const getNestedValue = (source: unknown, path: string): unknown => {
 const getInvoiceValueByPath = (invoice: Invoice | undefined, path: string): unknown => {
 	if (!invoice || !path) return undefined;
 
-	if (path.startsWith("data.")) {
-		return getNestedValue(invoice.data, path.slice(5));
+	const candidatePaths = (() => {
+		const normalized = path.trim();
+		if (!normalized) return [] as string[];
+
+		const aliasGroups: Array<[string, string[]]> = [
+			["buyer.", ["buyer.", "customer.", "client."]],
+			["customer.", ["customer.", "buyer.", "client."]],
+			["client.", ["client.", "customer.", "buyer."]],
+		];
+
+		for (const [prefix, replacements] of aliasGroups) {
+			if (!normalized.startsWith(prefix)) continue;
+			const suffix = normalized.slice(prefix.length);
+			return replacements.map((replacement) => `${replacement}${suffix}`);
+		}
+
+		return [normalized];
+	})();
+
+	for (const candidatePath of candidatePaths) {
+		if (candidatePath.startsWith("data.")) {
+			const value = getNestedValue(invoice.data, candidatePath.slice(5));
+			if (value !== undefined) {
+				return value;
+			}
+			continue;
+		}
+
+		const directValue = getNestedValue(invoice, candidatePath);
+		if (directValue !== undefined) {
+			return directValue;
+		}
+
+		const dataValue = getNestedValue(invoice.data, candidatePath);
+		if (dataValue !== undefined) {
+			return dataValue;
+		}
 	}
 
-	const directValue = getNestedValue(invoice, path);
-	if (directValue !== undefined) {
-		return directValue;
-	}
-
-	return getNestedValue(invoice.data, path);
+	return undefined;
 };
 
 const getInvoiceCurrency = (invoice: Invoice): string => {

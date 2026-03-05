@@ -4,7 +4,7 @@ import { baseEntitySchema } from "./base";
 export const emailTemplateMappingDataSchema = z.object({
   orgId: z.string().min(1),
   emailTemplateId: z.string().min(1),
-  entityTemplateId: z.string().min(1),
+  entityTemplateId: z.string().optional(),
   entityType: z.string().min(1),
   mappings: z.record(z.string(), z.string()),
 });

@@ -94,6 +94,30 @@ export function escapeHtml(unsafe: string): string {
     .replace(/'/g, "&#039;");
 }
 
+const toKebabCaseCssProperty = (property: string): string =>
+  property.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+
+/**
+ * Normalize inline style declarations from camelCase (React-style) to kebab-case (CSS),
+ * so legacy templates render consistently in email clients.
+ */
+export function normalizeInlineStylePropertyNames(html: string): string {
+  if (!html || !html.includes("style=")) return html;
+
+  const normalizeStyleValue = (styleValue: string): string =>
+    styleValue.replace(/(^|;)\s*([a-z][a-zA-Z0-9]*)\s*:/g, (full, prefix: string, prop: string) => {
+      if (prop.startsWith("--") || prop.includes("-")) {
+        return `${prefix}${prop}:`;
+      }
+      return `${prefix}${toKebabCaseCssProperty(prop)}:`;
+    });
+
+  return html.replace(/style\s*=\s*(["'])([\s\S]*?)\1/gi, (_match, quote: string, styleValue: string) => {
+    const normalized = normalizeStyleValue(styleValue);
+    return `style=${quote}${normalized}${quote}`;
+  });
+}
+
 /**
  * Get a value from data using a binding path (supports dot notation and array indexing)
  * Examples:
@@ -290,13 +314,13 @@ export function processEmailTemplateFromContext(
     enableLogging = false,
   } = config;
 
-  let processedHtml = template.html;
+  let processedHtml = normalizeInlineStylePropertyNames(template.html);
   let processedSubject = template.subject;
   let processedPreheader = template.preheader || "";
 
   if (enableLogging) {
     logger.info("Processing email template from DataContext", {
-      htmlLength: template.html.length,
+      htmlLength: processedHtml.length,
       mappingsCount: Object.keys(mappings).length,
       mappings: Object.keys(mappings),
     });
@@ -351,80 +375,153 @@ export function processEmailTemplate(
     enableLogging = false,
   } = config;
 
-  let processedHtml = template.html;
+  let processedHtml = normalizeInlineStylePropertyNames(template.html);
   let processedSubject = template.subject;
   let processedPreheader = template.preheader || "";
 
   if (enableLogging) {
     logger.info("Processing email template", {
-      htmlLength: template.html.length,
-      hasDoctype: template.html.includes("<!DOCTYPE"),
-      hasHtmlTag: template.html.includes("<html"),
-      hasHeadTag: template.html.includes("<head"),
-      hasBodyTag: template.html.includes("<body"),
-      hasStyleTag: template.html.includes("<style"),
+      htmlLength: processedHtml.length,
+      hasDoctype: processedHtml.includes("<!DOCTYPE"),
+      hasHtmlTag: processedHtml.includes("<html"),
+      hasHeadTag: processedHtml.includes("<head"),
+      hasBodyTag: processedHtml.includes("<body"),
+      hasStyleTag: processedHtml.includes("<style"),
       mappingsCount: Object.keys(mappings).length,
       mappings: Object.keys(mappings),
       mappingsDetails: Object.entries(mappings).map(([key, value]) => ({
         placeholderKey: key,
         bindingPath: value,
       })),
-      templateHtmlPreview: template.html.substring(0, 500),
+      templateHtmlPreview: processedHtml.substring(0, 500),
     });
   }
 
-  // Replace placeholders in HTML, subject, and preheader
-  for (const [placeholderKey, bindingPath] of Object.entries(mappings)) {
-    // Create a pattern that matches {{placeholderKey}} exactly
-    const placeholderPattern = new RegExp(`\\{\\{${escapeRegex(placeholderKey)}\\}\\}`, "g");
-    
-    // Handle array wildcard notation like items[*].description -> items[0].description
-    let resolvedBindingPath = bindingPath;
-    if (bindingPath.includes("[*]")) {
-      resolvedBindingPath = bindingPath.replace("[*]", "[0]");
-      if (enableLogging) {
-        logger.info("Resolving array wildcard in binding path", {
-          placeholderKey,
-          originalBindingPath: bindingPath,
-          resolvedBindingPath,
-        });
+  const normalizePath = (path: string) =>
+    path.includes("[*]") ? path.replace(/\[\*\]/g, "[0]") : path;
+
+  const getScopedValue = (
+    token: string,
+    scope: Record<string, unknown>,
+  ): TemplateDataValue | undefined => {
+    if (!token) return undefined;
+    if (token === "@index") {
+      const indexValue = scope["@index"];
+      if (typeof indexValue === "number") return indexValue;
+      return undefined;
+    }
+
+    const tokenParts = token.split(".");
+    const scopeKey = tokenParts[0];
+    const scopedRoot = scope[scopeKey];
+
+    if (scopedRoot !== undefined) {
+      const remaining = tokenParts.slice(1).join(".");
+      if (!remaining) {
+        return scopedRoot as TemplateDataValue;
+      }
+      return getBindingValue(
+        { [scopeKey]: scopedRoot } as Record<string, TemplateDataValue | unknown>,
+        `${scopeKey}.${remaining}`,
+      );
+    }
+
+    return undefined;
+  };
+
+  const resolveTokenValue = (
+    token: string,
+    scope: Record<string, unknown>,
+  ): TemplateDataValue | undefined => {
+    const trimmedToken = token.trim();
+    if (!trimmedToken) return undefined;
+
+    const scopedValue = getScopedValue(trimmedToken, scope);
+    if (scopedValue !== undefined) {
+      return scopedValue;
+    }
+
+    const mappedPath = mappings[trimmedToken];
+    if (mappedPath) {
+      return getBindingValue(data, normalizePath(mappedPath));
+    }
+
+    // Support direct path-first tokens (e.g. {{email.invoice.number}})
+    const directPathValue = getBindingValue(data, normalizePath(trimmedToken));
+    if (directPathValue !== undefined) {
+      return directPathValue;
+    }
+
+    // Inside loops allow shorthand row fields like {{description}}
+    const scopeValues = Object.values(scope).filter(
+      (value) => value && typeof value === "object" && !Array.isArray(value),
+    );
+    for (const value of scopeValues) {
+      const rowCandidate = (value as Record<string, unknown>)[trimmedToken];
+      if (rowCandidate !== undefined) {
+        return rowCandidate as TemplateDataValue;
       }
     }
-    
-    const rawValue = getBindingValue(data, resolvedBindingPath);
-    const value = formatValueForEmail(rawValue, shouldEscapeHtml);
-    
-    if (enableLogging) {
-      logger.info("Processing placeholder", {
-        placeholderKey,
-        bindingPath,
-        resolvedBindingPath,
-        rawValueType: rawValue != null ? typeof rawValue : "null",
-        rawValuePreview: rawValue != null && typeof rawValue === "string" 
-          ? rawValue.substring(0, 100) 
-          : rawValue != null && typeof rawValue === "object" 
-            ? `[object with ${Object.keys(rawValue as Record<string, unknown>).length} keys]`
-            : String(rawValue),
-        formattedValuePreview: value.substring(0, 100),
-      });
+
+    return undefined;
+  };
+
+  const renderTokensInText = (
+    input: string,
+    scope: Record<string, unknown> = {},
+    preserveUnresolved: boolean = true,
+  ): string =>
+    input.replace(/{{\s*(?![#/])([^{}]+?)\s*}}/g, (match, rawToken: string) => {
+      const token = rawToken.trim();
+      const value = resolveTokenValue(token, scope);
+      if (value === undefined) {
+        return preserveUnresolved ? match : "";
+      }
+      return formatValueForEmail(value, shouldEscapeHtml);
+    });
+
+  const renderLoops = (
+    input: string,
+    scope: Record<string, unknown> = {},
+  ): string =>
+    input.replace(
+      /{{#each\s+([^\s}]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*}}([\s\S]*?){{\/each}}/g,
+      (_match, rawPath: string, alias: string, body: string) => {
+        const loopPath = rawPath.trim();
+        const resolvedLoopSource = resolveTokenValue(loopPath, scope);
+
+        if (resolvedLoopSource == null) {
+          return "";
+        }
+        if (!Array.isArray(resolvedLoopSource)) {
+          throw new Error(`Invalid loop path "${loopPath}" - expected array`);
+        }
+
+        return resolvedLoopSource
+          .map((item, index) => {
+            const scopedValues: Record<string, unknown> = {
+              ...scope,
+              [alias]: item,
+              "@index": index,
+            };
+            const loopContent = renderLoops(body, scopedValues);
+            return renderTokensInText(loopContent, scopedValues, false);
+          })
+          .join("");
+      },
+    );
+
+  const processTemplateText = (input: string): string => {
+    const expanded = renderLoops(input);
+    if (expanded.includes("{{#each") || expanded.includes("{{/each}}")) {
+      throw new Error("Invalid loop syntax in template");
     }
-    
-    // Log warning if value is an object (suggests mapping issue)
-    if (rawValue != null && typeof rawValue === "object" && !Array.isArray(rawValue)) {
-      const obj = rawValue as Record<string, unknown>;
-      logger.warn("Email template placeholder mapped to object - consider mapping to specific field", {
-        placeholderKey,
-        bindingPath,
-        resolvedBindingPath,
-        objectKeys: Object.keys(obj),
-        suggestion: `Map to a specific field like "${bindingPath}.description" or "${bindingPath}.name" instead`,
-      });
-    }
-    
-    processedHtml = processedHtml.replace(placeholderPattern, value);
-    processedSubject = processedSubject.replace(placeholderPattern, value);
-    processedPreheader = processedPreheader.replace(placeholderPattern, value);
-  }
+    return renderTokensInText(expanded);
+  };
+
+  processedHtml = processTemplateText(processedHtml);
+  processedSubject = processTemplateText(processedSubject);
+  processedPreheader = processTemplateText(processedPreheader);
 
   if (enableLogging) {
     logger.info("Email template processed", {
@@ -509,4 +606,3 @@ export function validateTemplateMappings(
   
   return missing;
 }
-

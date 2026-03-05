@@ -254,11 +254,26 @@
 		},
 		"email": {
 			"title": "Send via email",
+			"templateLabel": "Email Template",
+			"recipientLabel": "Recipient Email",
+			"loadingInvoice": "Loading invoice...",
+			"loadingOrg": "Loading organization...",
 			"placeholder": "recipient@example.com",
 			"send": "Send",
 			"sending": "Sending...",
 			"sent": "Invoice sent to {{email}}",
-			"sendFailed": "Failed to send email: {{error}}"
+			"sendFailed": "Failed to send email: {{error}}",
+			"previewTitle": "Recipient Email Preview",
+			"previewRefresh": "Refresh",
+			"previewOpen": "Open preview",
+			"previewSelectTemplate": "Select an email template to generate a recipient preview.",
+			"previewGenerating": "Generating exact send preview...",
+			"previewSubject": "Subject",
+			"previewRecipient": "Preview for",
+			"previewRecipientMismatch": "Recipient changed after preview. Click the eye icon to regenerate preview before sending.",
+			"previewExpired": "Preview expired. Click the eye icon to regenerate preview before sending.",
+			"previewMissing": "No preview generated yet.",
+			"previewLoadFailed": "Failed to generate email preview: {{error}}"
 		},
 		"messages": {
 			"previewFailed": "Failed to generate preview: {{error}}"

@@ -402,6 +402,37 @@ export const emailTemplateDesignTokensSchema = z.object({
 
 export type EmailTemplateDesignTokens = z.infer<typeof emailTemplateDesignTokensSchema>;
 
+export const emailTemplateCompatModeSchema = z.enum(["legacy_v1", "canonical_v1"]);
+export type EmailTemplateCompatMode = z.infer<typeof emailTemplateCompatModeSchema>;
+
+export const emailTemplateRequirementLoopSchema = z.object({
+  path: z.string().min(1),
+  alias: z.string().min(1),
+  rowFields: z.array(z.string().min(1)).default([]),
+  emptyBehavior: z.enum(["hide", "row"]).default("hide"),
+});
+
+export type EmailTemplateRequirementLoop = z.infer<typeof emailTemplateRequirementLoopSchema>;
+
+export const emailTemplateRequirementsSchema = z.object({
+  version: z.literal("v1").default("v1"),
+  compatMode: emailTemplateCompatModeSchema.default("canonical_v1"),
+  entityTypes: z.array(z.string().min(1)).default([]),
+  scalarPaths: z.array(z.string().min(1)).default([]),
+  loops: z.array(emailTemplateRequirementLoopSchema).default([]),
+  strict: z.boolean().default(true),
+  extractedAt: z.string().optional(),
+});
+
+export type EmailTemplateRequirements = z.infer<typeof emailTemplateRequirementsSchema>;
+
+export const emailTemplateRequirementsMetaSchema = z.object({
+  lastEvaluatedAt: z.string().optional(),
+  lastCompatibilitySample: z.record(z.string(), z.any()).optional(),
+});
+
+export type EmailTemplateRequirementsMeta = z.infer<typeof emailTemplateRequirementsMetaSchema>;
+
 export const emailTemplateDataSchema = z.object({
   orgId: z.string().min(1),
   brandId: z.string().optional(),
@@ -421,6 +452,10 @@ export const emailTemplateDataSchema = z.object({
   blocks: z.array(emailTemplateBlockSchema).default([]),
   designTokens: emailTemplateDesignTokensSchema.default({}),
   placeholders: z.array(emailTemplatePlaceholderSchema).default([]),
+  compatMode: emailTemplateCompatModeSchema.optional(),
+  requirements: emailTemplateRequirementsSchema.optional(),
+  requirementsMeta: emailTemplateRequirementsMetaSchema.optional(),
+  normalizationVersion: z.literal("email_vm_v1").optional(),
   // Sections structure - for organizing blocks
   sections: z.object({
     header: z.array(z.string()).default([]), // Array of block IDs

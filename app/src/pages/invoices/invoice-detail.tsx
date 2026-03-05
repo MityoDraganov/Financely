@@ -1,24 +1,32 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
-import { Link as LinkIcon, Send, Loader2, Copy, Check } from "lucide-react";
-import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink } from "@/hooks";
+import { Link as LinkIcon, Send, Loader2, Copy, Check, Eye } from "lucide-react";
+import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink, usePreviewInvoiceEmail } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { toast } from "sonner";
 import { EmailTemplateSelector } from "@/components/email-template/email-template-selector";
-import { getTemplateRealtimeRepository } from "@/repositories/template-realtime-repository";
-import type { TemplateElement } from "@/core";
 
 const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesReposity(databaseService);
-const templateRepository = getTemplateRealtimeRepository();
+
+type InvoiceEmailPreview = {
+    previewId: string;
+    subject: string;
+    html: string;
+    text: string;
+    toEmail: string;
+    expiresAt: string;
+    emailTemplateId: string;
+};
 
 export default function InvoiceDetailPage() {
     const { t } = useTranslation();
@@ -28,6 +36,8 @@ export default function InvoiceDetailPage() {
     const [shareLink, setShareLink] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [selectedEmailTemplateId, setSelectedEmailTemplateId] = useState<string | undefined>(undefined);
+    const [emailPreview, setEmailPreview] = useState<InvoiceEmailPreview | null>(null);
+    const [isEmailPreviewDialogOpen, setIsEmailPreviewDialogOpen] = useState(false);
 
     const { data: currentOrg } = useCurrentOrganization();
 
@@ -37,111 +47,10 @@ export default function InvoiceDetailPage() {
         enabled: !!id,
     });
 
-    // Fetch invoice template
-    const { data: invoiceTemplate, error: invoiceTemplateError, isLoading: isLoadingTemplate } = useQuery({
-        queryKey: ["templates", invoice?.templateId],
-        queryFn: async () => {
-            if (!invoice?.templateId) {
-                console.log("[INVOICE-DETAIL] No templateId in invoice:", invoice);
-                return null;
-            }
-            console.log("[INVOICE-DETAIL] Fetching template with ID:", invoice.templateId);
-            try {
-                const template = await templateRepository.get({ id: invoice.templateId });
-                console.log("[INVOICE-DETAIL] Template fetched:", template);
-                return template;
-            } catch (error) {
-                console.error("[INVOICE-DETAIL] Error fetching template:", error);
-                throw error;
-            }
-        },
-        enabled: !!invoice?.templateId,
-    });
-
-    console.log("[INVOICE-DETAIL] Invoice:", invoice);
-    console.log("[INVOICE-DETAIL] Invoice templateId:", invoice?.templateId);
-    console.log("[INVOICE-DETAIL] Invoice template:", invoiceTemplate);
-    console.log("[INVOICE-DETAIL] Invoice template error:", invoiceTemplateError);
-    console.log("[INVOICE-DETAIL] Is loading template:", isLoadingTemplate);
-
-    // Extract bindings from invoice template
-    const availableBindings = useMemo(() => {
-        if (!invoiceTemplate?.elements) return [];
-
-        const fields = new Map<string, { path: string; label: string; type: "text" | "number" | "date" }>();
-        const elements = invoiceTemplate.elements;
-
-        for (const element of elements) {
-            let binding: string | undefined;
-            let type: "text" | "number" | "date" = "text";
-
-            if (element.type === "text") {
-                const textEl = element as Extract<TemplateElement, { type: "text" }>;
-                binding = textEl.binding;
-            } else if (element.type === "input") {
-                const inputEl = element as Extract<TemplateElement, { type: "input" }>;
-                binding = inputEl.binding;
-                type =
-                    inputEl.variant === "number"
-                        ? "number"
-                        : inputEl.variant === "date"
-                            ? "date"
-                            : "text";
-            } else if (element.type === "currency") {
-                const currencyEl = element as Extract<TemplateElement, { type: "currency" }>;
-                binding = currencyEl.binding;
-                type = "number";
-            } else if (element.type === "table") {
-                const tableEl = element as Extract<TemplateElement, { type: "table" }>;
-                if (tableEl.itemsBinding) {
-                    // Add the items binding
-                    if (!fields.has(tableEl.itemsBinding)) {
-                        fields.set(tableEl.itemsBinding, {
-                            path: tableEl.itemsBinding,
-                            label: tableEl.itemsBinding
-                                .split(".")
-                                .pop()!
-                                .replace(/([A-Z])/g, " $1")
-                                .replace(/^./, (c) => c.toUpperCase()),
-                            type: "text",
-                        });
-                    }
-                    // Add column bindings with full path
-                    tableEl.columns?.forEach((col) => {
-                        if (col.binding) {
-                            const fullPath = `${tableEl.itemsBinding}[*].${col.binding}`;
-                            if (!fields.has(fullPath)) {
-                                fields.set(fullPath, {
-                                    path: fullPath,
-                                    label: `${col.binding} (${tableEl.itemsBinding})`,
-                                    type: col.type === "number" ? "number" : "text",
-                                });
-                            }
-                        }
-                    });
-                }
-                continue;
-            }
-
-            if (binding && !fields.has(binding)) {
-                fields.set(binding, {
-                    path: binding,
-                    label: binding
-                        .split(".")
-                        .pop()!
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (c) => c.toUpperCase()),
-                    type,
-                });
-            }
-        }
-
-        return Array.from(fields.values());
-    }, [invoiceTemplate]);
-
     const renderPdf = useRenderInvoicePdf();
     const sendEmail = useSendInvoiceEmail();
     const generateShareLink = useGenerateInvoiceShareLink();
+    const previewEmail = usePreviewInvoiceEmail();
 
     // Automatically load preview when invoice is available
     useEffect(() => {
@@ -161,19 +70,98 @@ export default function InvoiceDetailPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [invoice?.id, t]);
 
+    useEffect(() => {
+        if (!invoice || email.trim()) return;
+        const invoiceData = invoice.data as Record<string, unknown>;
+        const buyer = (invoiceData.buyer || invoiceData.customer) as Record<string, unknown> | undefined;
+        const defaultEmail = typeof buyer?.email === "string" ? buyer.email.trim() : "";
+        if (defaultEmail) {
+            setEmail(defaultEmail);
+        }
+    }, [invoice, email]);
+
+    const handleGenerateEmailPreview = useCallback((recipientOverride?: string, options?: { openDialog?: boolean }) => {
+        if (!invoice || !selectedEmailTemplateId) return;
+
+        previewEmail.mutate(
+            {
+                invoiceId: invoice.id,
+                emailTemplateId: selectedEmailTemplateId,
+                toEmail: recipientOverride?.trim() || undefined,
+            },
+            {
+                onSuccess: (result) => {
+                    setEmailPreview({
+                        ...result,
+                        emailTemplateId: selectedEmailTemplateId,
+                    });
+                    if (!email.trim()) {
+                        setEmail(result.toEmail);
+                    }
+                    if (options?.openDialog) {
+                        setIsEmailPreviewDialogOpen(true);
+                    }
+                },
+                onError: (error) => {
+                    setEmailPreview(null);
+                    toast.error(
+                        t("invoiceDetail.email.previewLoadFailed", "Failed to generate email preview: {{error}}", {
+                            error: error.message,
+                        }),
+                    );
+                },
+            },
+        );
+    }, [invoice, previewEmail, selectedEmailTemplateId, t]);
+
+    useEffect(() => {
+        if (!invoice || !selectedEmailTemplateId) {
+            setEmailPreview(null);
+            return;
+        }
+        handleGenerateEmailPreview(email.trim() || undefined);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [invoice?.id, selectedEmailTemplateId]);
+
+    const previewIsExpired = useMemo(() => {
+        if (!emailPreview?.expiresAt) return true;
+        const expiresAtMs = Date.parse(emailPreview.expiresAt);
+        if (Number.isNaN(expiresAtMs)) return true;
+        return expiresAtMs <= Date.now();
+    }, [emailPreview]);
+
+    const previewMatchesSelection = useMemo(() => {
+        if (!emailPreview || !selectedEmailTemplateId) return false;
+        if (emailPreview.emailTemplateId !== selectedEmailTemplateId) return false;
+        const normalizedRecipient = email.trim().toLowerCase();
+        const normalizedPreviewRecipient = emailPreview.toEmail.trim().toLowerCase();
+        return normalizedRecipient.length > 0 && normalizedRecipient === normalizedPreviewRecipient;
+    }, [email, emailPreview, selectedEmailTemplateId]);
+
+    const canSendEmail = Boolean(
+        email &&
+            selectedEmailTemplateId &&
+            emailPreview &&
+            previewMatchesSelection &&
+            !previewIsExpired &&
+            !sendEmail.isPending,
+    );
+
     const handleSendEmail = () => {
-        if (!invoice || !email || !selectedEmailTemplateId) return;
+        if (!invoice || !email || !selectedEmailTemplateId || !emailPreview) return;
         
         sendEmail.mutate(
             { 
                 invoiceId: invoice.id, 
                 toEmail: email,
                 emailTemplateId: selectedEmailTemplateId,
+                previewId: emailPreview.previewId,
             },
             {
                 onSuccess: () => {
                     toast.success(t('invoiceDetail.email.sent', { email }));
                     setEmail("");
+                    setEmailPreview(null);
                 },
                 onError: (error) => {
                     toast.error(t('invoiceDetail.email.sendFailed', { error: error.message }));
@@ -210,9 +198,6 @@ export default function InvoiceDetailPage() {
             toast.error(t('invoiceDetail.share.copyFailed'));
         }
     };
-
-    console.log("[INVOICE-DETAIL] Invoice template:", invoiceTemplate);
-    console.log("[INVOICE-DETAIL] Current organization:", currentOrg);
 
     return (
         <div className="container mx-auto py-8">
@@ -326,28 +311,20 @@ export default function InvoiceDetailPage() {
                                     <div className="text-sm text-muted-foreground">
                                         {t('invoiceDetail.email.loadingOrg', 'Loading organization...')}
                                     </div>
-                                ) : isLoadingTemplate ? (
-                                    <div className="text-sm text-muted-foreground">
-                                        {t('invoiceDetail.email.loadingTemplate', 'Loading template...')}
-                                    </div>
-                                ) : invoiceTemplateError ? (
-                                    <div className="text-sm text-destructive">
-                                        {t('invoiceDetail.email.templateError', 'Error loading template. Please refresh the page.')}
-                                    </div>
-                                ) : !invoiceTemplate ? (
-                                    <div className="text-sm text-muted-foreground">
-                                        {t('invoiceDetail.email.noTemplate', 'Template not found')}
-                                    </div>
                                 ) : (
                                     <EmailTemplateSelector
                                         orgId={currentOrg.id}
                                         entityTemplateId={invoice.templateId}
                                         entityType="invoice"
                                         compatibilityContext="invoice_send"
-                                        availableBindings={availableBindings}
+                                        availableBindings={[]}
                                         selectedTemplateId={selectedEmailTemplateId}
                                         entityData={invoice.data}
-                                        onTemplateChange={setSelectedEmailTemplateId}
+                                        onTemplateChange={(templateId) => {
+                                            setSelectedEmailTemplateId(templateId);
+                                            setEmailPreview(null);
+                                            setIsEmailPreviewDialogOpen(false);
+                                        }}
                                     />
                                 )}
                             </div>
@@ -362,26 +339,130 @@ export default function InvoiceDetailPage() {
                                     <Button 
                                         className="btn-primary" 
                                         onClick={handleSendEmail} 
-                                        disabled={!email || sendEmail.isPending || !selectedEmailTemplateId}
+                                        disabled={!canSendEmail}
                                     >
                                         <Send className="mr-2 h-4 w-4" /> 
                                         {sendEmail.isPending ? t('invoiceDetail.email.sending') : t('invoiceDetail.email.send')}
                                     </Button>
                                 </div>
                             </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label>{t("invoiceDetail.email.previewTitle", "Recipient Email Preview")}</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (!invoice) return;
+                                            if (!selectedEmailTemplateId) {
+                                                toast.error(
+                                                    t(
+                                                        "invoiceDetail.email.previewSelectTemplate",
+                                                        "Select an email template to generate a recipient preview.",
+                                                    ),
+                                                );
+                                                return;
+                                            }
+
+                                            const currentRecipient = email.trim().toLowerCase();
+                                            const previewRecipient = emailPreview?.toEmail.trim().toLowerCase() ?? "";
+                                            const recipientChanged =
+                                                currentRecipient.length > 0 && previewRecipient !== currentRecipient;
+                                            const templateChanged =
+                                                !!emailPreview && emailPreview.emailTemplateId !== selectedEmailTemplateId;
+                                            const shouldRegeneratePreview =
+                                                !emailPreview || previewIsExpired || recipientChanged || templateChanged;
+
+                                            if (!shouldRegeneratePreview) {
+                                                setIsEmailPreviewDialogOpen(true);
+                                                return;
+                                            }
+
+                                            handleGenerateEmailPreview(email.trim() || undefined, { openDialog: true });
+                                        }}
+                                        disabled={!invoice || previewEmail.isPending}
+                                        title={t("invoiceDetail.email.previewOpen", "Open preview")}
+                                        aria-label={t("invoiceDetail.email.previewOpen", "Open preview")}
+                                    >
+                                        {previewEmail.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Eye className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </div>
+
+                                {!selectedEmailTemplateId ? (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t("invoiceDetail.email.previewSelectTemplate", "Select an email template to generate a recipient preview.")}
+                                    </p>
+                                ) : previewEmail.isPending ? (
+                                    <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        {t("invoiceDetail.email.previewGenerating", "Generating exact send preview...")}
+                                    </div>
+                                ) : emailPreview ? (
+                                    <div className="space-y-2 rounded-md border p-3">
+                                        <div className="text-xs text-muted-foreground">
+                                            {t("invoiceDetail.email.previewSubject", "Subject")}:{" "}
+                                            <span className="font-medium text-foreground">{emailPreview.subject}</span>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {t("invoiceDetail.email.previewRecipient", "Preview for")}:{" "}
+                                            <span className="font-medium text-foreground">{emailPreview.toEmail}</span>
+                                        </div>
+                                        {!previewMatchesSelection && (
+                                            <p className="text-xs text-amber-600">
+                                                {t(
+                                                    "invoiceDetail.email.previewRecipientMismatch",
+                                                    "Recipient changed after preview. Click the eye icon to regenerate preview before sending.",
+                                                )}
+                                            </p>
+                                        )}
+                                        {previewIsExpired && (
+                                            <p className="text-xs text-amber-600">
+                                                {t("invoiceDetail.email.previewExpired", "Preview expired. Click the eye icon to regenerate preview before sending.")}
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t("invoiceDetail.email.previewMissing", "No preview generated yet.")}
+                                    </p>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
             </div>
+
+            <Dialog open={isEmailPreviewDialogOpen} onOpenChange={setIsEmailPreviewDialogOpen}>
+                <DialogContent className="h-[90vh] gap-0 overflow-hidden p-0 sm:max-w-5xl !flex !flex-col">
+                    <div className="shrink-0 border-b px-4 py-3">
+                        <DialogTitle className="text-base">{t("invoiceDetail.email.previewDialogTitle", "Email preview")}</DialogTitle>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {emailPreview?.subject || t("invoiceDetail.email.previewMissing", "No preview generated yet.")}
+                        </p>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-hidden bg-muted p-4">
+                        {emailPreview ? (
+                            <iframe
+                                key={emailPreview.previewId}
+                                title="invoice-email-preview-dialog"
+                                sandbox=""
+                                srcDoc={emailPreview.html}
+                                className="block h-full w-full rounded border bg-white"
+                            />
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                {t("invoiceDetail.email.previewMissing", "No preview generated yet.")}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
-
-
-
-
-
-
-
-
-

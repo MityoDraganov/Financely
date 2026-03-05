@@ -46,9 +46,11 @@ export class EmailTemplateMappingDuplicator extends BaseDuplicator<EmailTemplate
     }
 
     // Resolve entity template ID
-    const newEntityTemplateId = idMapping.getNewId(data.entityTemplateId);
-    if (newEntityTemplateId) {
-      data.entityTemplateId = newEntityTemplateId;
+    if (data.entityTemplateId) {
+      const newEntityTemplateId = idMapping.getNewId(data.entityTemplateId);
+      if (newEntityTemplateId) {
+        data.entityTemplateId = newEntityTemplateId;
+      }
     }
 
     return data;

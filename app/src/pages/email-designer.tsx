@@ -79,6 +79,7 @@ import {
 	formatProductPreviewLabel,
 	formatProposalPreviewLabel,
 } from "@/utils/email-preview-context";
+import { extractEmailTemplateRequirements } from "@/utils/email-template-requirements";
 import {
 	useEmailTemplateVersions,
 	useRestoreEmailTemplateVersion,
@@ -185,6 +186,7 @@ const buildTemplateSavePayload = (
 		},
 	);
 
+	const compatMode = template.compatMode ?? "legacy_v1";
 	const data = removeUndefinedDeep({
 		name: template.name,
 		subject: template.subject || "Email",
@@ -195,6 +197,18 @@ const buildTemplateSavePayload = (
 		designTokens: template.designTokens ?? defaultDesignTokens,
 		sections,
 		placeholders: sanitizePlaceholders(template.placeholders),
+		compatMode,
+		requirements:
+			compatMode === "canonical_v1"
+				? extractEmailTemplateRequirements({
+						subject: template.subject,
+						preheader: template.preheader,
+						htmlContent,
+						allowedContexts: template.allowedContexts ?? [],
+						compatMode: "canonical_v1",
+					})
+				: template.requirements,
+		normalizationVersion: "email_vm_v1" as const,
 	}) as Partial<EmailTemplateData>;
 
 	const saveSignature = JSON.stringify(canonicalizeForSignature(data));
@@ -2067,6 +2081,12 @@ export default function EmailDesignerPage() {
 					blocks={draftTemplate.blocks ?? []}
 					placeholders={placeholders}
 					previewPlaceholderValues={previewPlaceholderValues}
+					previewRecords={{
+						product: selectedProduct,
+						contact: selectedContact,
+						invoice: selectedInvoice,
+						proposal: selectedProposal,
+					}}
 					selectedBlockId={selectedBlockId}
 					onSelectBlock={(id) => {
 						handleSelectBlock(id);
@@ -2226,6 +2246,12 @@ export default function EmailDesignerPage() {
 											blocks={draftTemplate.blocks ?? []}
 											placeholders={placeholders}
 											previewPlaceholderValues={previewPlaceholderValues}
+											previewRecords={{
+												product: selectedProduct,
+												contact: selectedContact,
+												invoice: selectedInvoice,
+												proposal: selectedProposal,
+											}}
 												selectedBlockId={selectedBlockId}
 												onSelectBlock={(id) => {
 													handleSelectBlock(id);
@@ -2535,7 +2561,7 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			id: crypto.randomUUID(),
 			type: "table",
 			section: section,
-			dataSource: "items",
+			dataSource: "email.invoice.items",
 			columns: [
 				{
 					id: crypto.randomUUID(),

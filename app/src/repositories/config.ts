@@ -16,6 +16,7 @@ export enum DatabaseCollection {
   EMAIL_TEMPLATES = "emailTemplates",
   EMAIL_TEMPLATE_VERSIONS = "emailTemplateVersions",
   EMAIL_TEMPLATE_MAPPINGS = "emailTemplateMappings",
+  EMAIL_PREVIEW_SNAPSHOTS = "emailPreviewSnapshots",
   EXTRACTION_JOBS = "extractionJobs",
   TEMPLATE_PATTERNS = "templatePatterns",
   MARKETPLACE_TEMPLATES = "marketplaceTemplates",

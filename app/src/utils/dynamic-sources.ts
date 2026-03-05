@@ -53,6 +53,7 @@ type EntitySchemaConfig = {
   entityLabel: string;
   schema: z.ZodObject<z.ZodRawShape>;
   additionalFields?: AdditionalDynamicField[];
+  includeSchemaFields?: boolean;
 };
 
 const ENTITY_SCHEMAS: EntitySchemaConfig[] = [
@@ -70,23 +71,38 @@ const ENTITY_SCHEMAS: EntitySchemaConfig[] = [
     entity: "invoice",
     entityLabel: "Invoice",
     schema: invoiceDataSchema,
+    includeSchemaFields: false,
     additionalFields: [
       { path: "invoiceNumber", valueType: "string" },
       { path: "number", valueType: "string" },
       { path: "issueDate", valueType: "string" },
       { path: "invoiceDate", valueType: "string" },
       { path: "dueDate", valueType: "string" },
+      { path: "status", valueType: "string" },
+      { path: "reference", valueType: "string" },
       { path: "currency", valueType: "string" },
       { path: "seller.name", valueType: "string" },
+      { path: "seller.email", valueType: "string" },
+      { path: "seller.phone", valueType: "string" },
+      { path: "seller.taxIdVat", valueType: "string" },
+      { path: "seller.address", valueType: "string" },
       { path: "buyer.name", valueType: "string" },
-      { path: "customer.name", valueType: "string" },
-      { path: "client.name", valueType: "string" },
+      { path: "buyer.email", valueType: "string" },
+      { path: "buyer.phone", valueType: "string" },
+      { path: "buyer.taxIdVat", valueType: "string" },
+      { path: "buyer.address", valueType: "string" },
+      { path: "items", valueType: "array" },
       { path: "subtotal", valueType: "number" },
       { path: "taxTotal", valueType: "number" },
       { path: "vatTotal", valueType: "number" },
       { path: "netAmount", valueType: "number" },
+      { path: "discount", valueType: "number" },
       { path: "total", valueType: "number" },
       { path: "grossTotal", valueType: "number" },
+      { path: "paid", valueType: "number" },
+      { path: "paidAmount", valueType: "number" },
+      { path: "due", valueType: "number" },
+      { path: "amountDue", valueType: "number" },
     ],
   },
   {
@@ -252,6 +268,7 @@ const collectFieldsForSchema = ({
   entityLabel,
   schema,
   additionalFields,
+  includeSchemaFields = true,
 }: EntitySchemaConfig): DynamicSourceField[] => {
   const collected: DynamicSourceField[] = [];
 
@@ -292,7 +309,9 @@ const collectFieldsForSchema = ({
     });
   };
 
-  walkSchema(schema, [], true);
+  if (includeSchemaFields) {
+    walkSchema(schema, [], true);
+  }
 
   const existingPaths = new Set(collected.map((field) => field.path.toLowerCase()));
   (additionalFields ?? []).forEach((field) => {

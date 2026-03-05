@@ -1,5 +1,16 @@
 import { EmailTemplateBlock, EmailTemplateDesignTokens } from "@/core";
 
+const toKebabCaseCssProperty = (property: string): string =>
+	property.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+
+const styleObjectToInlineCss = (
+	styles: Record<string, string | number | undefined>
+): string =>
+	Object.entries(styles)
+		.filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
+		.map(([key, value]) => `${toKebabCaseCssProperty(key)}:${value}`)
+		.join("; ");
+
 /**
  * Convert EmailTemplate blocks to HTML
  */
@@ -121,7 +132,7 @@ function blockToHTML(
 				textAlign: textBlock.align || "left",
 			};
 			if (textBlock.backgroundColor) styles.backgroundColor = textBlock.backgroundColor;
-			const styleStr = Object.entries(styles).map(([k, v]) => `${k}:${v}`).join("; ");
+			const styleStr = styleObjectToInlineCss(styles);
 			const tag = textBlock.emphasize ? "strong" : "p";
 			return `${indentStr}<${tag} style="${styleStr}">${textBlock.content || ""}</${tag}>\n`;
 		}
@@ -137,7 +148,7 @@ function blockToHTML(
 				borderRadius: "999px",
 				backgroundColor: buttonBlock.variant === "primary" ? "#2d5a4f" : "#e5e7eb",
 			};
-			const styleStr = Object.entries(styles).map(([k, v]) => `${k}:${v}`).join("; ");
+			const styleStr = styleObjectToInlineCss(styles);
 			return `${indentStr}<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${buttonBlock.align || "center"}" style="margin:18px auto 8px auto;">\n${indentStr}  <tr>\n${indentStr}    <td align="center" bgcolor="${buttonBlock.variant === "primary" ? "#2d5a4f" : "#e5e7eb"}" style="border-radius:999px;">\n${indentStr}      <a href="${buttonBlock.url || "#"}" style="${styleStr}">${buttonBlock.label || ""}</a>\n${indentStr}    </td>\n${indentStr}  </tr>\n${indentStr}</table>\n`;
 		}
 		case "image": {
@@ -150,7 +161,7 @@ function blockToHTML(
 				border: "0",
 			};
 			if (imageBlock.borderRadius) styles.borderRadius = `${imageBlock.borderRadius}px`;
-			const styleStr = Object.entries(styles).map(([k, v]) => `${k}:${v}`).join("; ");
+			const styleStr = styleObjectToInlineCss(styles);
 			return `${indentStr}<img src="${imageBlock.src || ""}" alt="${imageBlock.alt || ""}" style="${styleStr}" />\n`;
 		}
 		case "logo": {
@@ -163,7 +174,7 @@ function blockToHTML(
 				marginBottom: "12px",
 			};
 			if (logoBlock.borderRadius) styles.borderRadius = `${logoBlock.borderRadius}px`;
-			const styleStr = Object.entries(styles).map(([k, v]) => `${k}:${v}`).join("; ");
+			const styleStr = styleObjectToInlineCss(styles);
 			const link = logoBlock.link ? `<a href="${logoBlock.link}" style="text-decoration:none; display:inline-block;">` : "";
 			const linkClose = logoBlock.link ? "</a>" : "";
 			return `${indentStr}${link}<img src="${logoBlock.src || ""}" alt="${logoBlock.alt || ""}" style="${styleStr}" />${linkClose}\n`;
@@ -243,6 +254,7 @@ function blockToHTML(
 			const columns = tableBlock.columns || [];
 			const style = tableBlock.style || {};
 			const spacing = tableBlock.spacing;
+			const dataSource = (tableBlock.dataSource || "").trim();
 			
 			// Padding map
 			const paddingMap = {
@@ -294,17 +306,18 @@ function blockToHTML(
 				html += `${indentStr}  </thead>\n`;
 			}
 			
-			// Body - data rows will be populated at render time from dataSource
-			// For now, show empty state or placeholder
+			// Body rows are rendered using explicit loop syntax so preview/runtime stay aligned.
 			html += `${indentStr}  <tbody>\n`;
 			if (columns.length === 0) {
 				html += `${indentStr}    <tr>\n`;
 				html += `${indentStr}      <td colspan="1" style="padding:${cellPadding}px; text-align:center; color:#9ca3af; font-style:italic;">${tableBlock.emptyMessage || "No columns defined"}</td>\n`;
 				html += `${indentStr}    </tr>\n`;
+			} else if (!dataSource) {
+				html += `${indentStr}    <tr>\n`;
+				html += `${indentStr}      <td colspan="${columns.length}" style="padding:${cellPadding}px; text-align:center; color:#9ca3af; font-style:italic;">${tableBlock.emptyMessage || "No data source configured"}</td>\n`;
+				html += `${indentStr}    </tr>\n`;
 			} else {
-				// Placeholder row - actual data will be inserted during email processing
-				// Use a special comment to mark this as a table that needs data expansion
-				html += `${indentStr}    <!-- TABLE_DATA_SOURCE:${tableBlock.dataSource || ""} -->\n`;
+				html += `${indentStr}    {{#each ${dataSource} as row}}\n`;
 				html += `${indentStr}    <tr>\n`;
 				for (const col of columns) {
 					const cellStyles: string[] = [
@@ -318,12 +331,13 @@ function blockToHTML(
 						cellStyles.push(`background-color:${style.alternatingRowBackground || "#f9fafb"}`);
 					}
 					html += `${indentStr}      <td style="${cellStyles.join("; ")}">`;
-					// Show placeholder based on column binding
-					const binding = col.binding || "value";
-					html += `{{${binding}}}`;
+					const binding = (col.binding || "value").trim();
+					const rowBinding = binding.startsWith("row.") ? binding : `row.${binding}`;
+					html += `{{${rowBinding}}}`;
 					html += `</td>\n`;
 				}
 				html += `${indentStr}    </tr>\n`;
+				html += `${indentStr}    {{/each}}\n`;
 			}
 			html += `${indentStr}  </tbody>\n`;
 			html += `${indentStr}</table>\n`;

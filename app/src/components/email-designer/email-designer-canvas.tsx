@@ -7,6 +7,10 @@ import {
 	EmailTypography,
 	EmailSpacing,
 	EmailBorder,
+	type Contact,
+	type Invoice,
+	type Product,
+	type Proposal,
 } from "@/core";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -57,6 +61,12 @@ type CanvasProps = {
   blocks: EmailTemplateBlock[];
 	placeholders?: EmailTemplatePlaceholder[];
 	previewPlaceholderValues?: Record<string, string>;
+	previewRecords?: {
+		product?: Product;
+		contact?: Contact;
+		invoice?: Invoice;
+		proposal?: Proposal;
+	};
   selectedBlockId?: string;
   onSelectBlock: (blockId: string) => void;
   designTokens: EmailTemplateDesignTokens;
@@ -90,10 +100,133 @@ function resolveDynamicText(
 	});
 }
 
+const getNestedValue = (source: unknown, path: string): unknown => {
+	if (!source || !path) return undefined;
+	const parts = path.split(".").filter(Boolean);
+	let current: unknown = source;
+	for (const part of parts) {
+		if (current == null) return undefined;
+		if (Array.isArray(current)) {
+			const index = Number(part);
+			if (Number.isNaN(index)) return undefined;
+			current = current[index];
+			continue;
+		}
+		if (typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[part];
+	}
+	return current;
+};
+
+const toRecord = (value: unknown): Record<string, unknown> | undefined => {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	return value as Record<string, unknown>;
+};
+
+const extractInvoiceItems = (invoice?: Invoice): Record<string, unknown>[] => {
+	if (!invoice) return [];
+	const invoiceRecord = invoice as unknown as Record<string, unknown>;
+	const invoiceData = toRecord(invoiceRecord.data) ?? {};
+	const candidates = [
+		getNestedValue(invoiceRecord, "email.invoice.items"),
+		getNestedValue(invoiceRecord, "items"),
+		getNestedValue(invoiceData, "items"),
+		getNestedValue(invoiceData, "lineItems"),
+		getNestedValue(invoiceData, "products"),
+	];
+	for (const candidate of candidates) {
+		if (Array.isArray(candidate)) {
+			return candidate
+				.map((row) => toRecord(row))
+				.filter((row): row is Record<string, unknown> => !!row);
+		}
+	}
+	return [];
+};
+
+const resolveTablePreviewRows = (
+	dataSource: string | undefined,
+	previewRecords: CanvasProps["previewRecords"],
+): Record<string, unknown>[] => {
+	if (!dataSource?.trim()) return [];
+
+	const invoiceRecord = previewRecords?.invoice as unknown as Record<string, unknown> | undefined;
+	const invoiceData = toRecord(invoiceRecord?.data) ?? {};
+	const proposalRecord = previewRecords?.proposal as unknown as Record<string, unknown> | undefined;
+	const contactRecord = (previewRecords?.contact as unknown as Record<string, unknown> | undefined) ?? {};
+	const productRecord = previewRecords?.product as unknown as Record<string, unknown> | undefined;
+	const items = extractInvoiceItems(previewRecords?.invoice);
+
+	const root: Record<string, unknown> = {
+		email: {
+			invoice: {
+				...(invoiceData ?? {}),
+				items,
+			},
+			proposal: proposalRecord ?? null,
+			recipient: {
+				name: getNestedValue(contactRecord, "name") ?? getNestedValue(contactRecord, "data.name") ?? null,
+				email: getNestedValue(contactRecord, "email") ?? getNestedValue(contactRecord, "data.email") ?? null,
+			},
+		},
+		invoice: {
+			...(invoiceRecord ?? {}),
+			...(invoiceData ?? {}),
+			data: invoiceData,
+			items,
+		},
+		proposal: proposalRecord ?? null,
+		contact: contactRecord ?? null,
+		customer: contactRecord ?? null,
+		product: productRecord ?? null,
+		products: productRecord ? [productRecord] : [],
+		items,
+	};
+
+	const resolved = getNestedValue(root, dataSource.trim());
+	if (!Array.isArray(resolved)) return [];
+	return resolved
+		.map((row) => toRecord(row))
+		.filter((row): row is Record<string, unknown> => !!row);
+};
+
+const formatPreviewCellValue = (
+	row: Record<string, unknown>,
+	column: Extract<EmailTemplateBlock, { type: "table" }>["columns"][number],
+): string => {
+	const rawBinding = (column.binding || "").trim();
+	const binding = rawBinding.startsWith("row.") ? rawBinding.slice(4) : rawBinding;
+	const rawValue = binding ? getNestedValue(row, binding) : undefined;
+	if (rawValue == null) return "";
+	if (column.type === "currency") {
+		const currency = (column.currency || "USD").toUpperCase();
+		const numeric = typeof rawValue === "number" ? rawValue : Number(rawValue);
+		if (Number.isFinite(numeric)) {
+			try {
+				return new Intl.NumberFormat(undefined, {
+					style: "currency",
+					currency,
+					maximumFractionDigits: 2,
+				}).format(numeric);
+			} catch {
+				return `${numeric} ${currency}`;
+			}
+		}
+	}
+	if (column.type === "number") {
+		const numeric = typeof rawValue === "number" ? rawValue : Number(rawValue);
+		if (Number.isFinite(numeric)) return String(numeric);
+	}
+	if (typeof rawValue === "string") return rawValue;
+	if (typeof rawValue === "number" || typeof rawValue === "boolean") return String(rawValue);
+	return "";
+};
+
 export function EmailDesignerCanvas({
   blocks,
 	placeholders = [],
 	previewPlaceholderValues = {},
+	previewRecords,
   selectedBlockId,
   onSelectBlock,
   designTokens,
@@ -264,6 +397,7 @@ export function EmailDesignerCanvas({
 													block={block}
 													designTokens={designTokens}
 													resolveDynamicValue={resolveDynamicValue}
+													previewRecords={previewRecords}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -369,6 +503,7 @@ export function EmailDesignerCanvas({
 													block={block}
 													designTokens={designTokens}
 													resolveDynamicValue={resolveDynamicValue}
+													previewRecords={previewRecords}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -472,6 +607,7 @@ export function EmailDesignerCanvas({
 													block={block}
 													designTokens={designTokens}
 													resolveDynamicValue={resolveDynamicValue}
+													previewRecords={previewRecords}
 													{...(block.type === "rawHtml" ? { onEditCustomHtml: () => handleEditCustomHtml(block.id) } : {})}
 												/>
                           </button>
@@ -516,11 +652,13 @@ function BlockPreview({
   block,
   designTokens,
 	resolveDynamicValue,
+	previewRecords,
   onEditCustomHtml,
 }: {
   block: EmailTemplateBlock;
   designTokens: EmailTemplateDesignTokens;
 	resolveDynamicValue: (value: string) => string;
+	previewRecords?: CanvasProps["previewRecords"];
   onEditCustomHtml?: () => void;
 }) {
   const { t } = useTranslation();
@@ -1447,12 +1585,13 @@ function BlockPreview({
 											(
 												nestedBlock: EmailTemplateBlock
 											) => (
-                      <BlockPreview
-                        key={nestedBlock.id}
-                        block={nestedBlock}
-                        designTokens={designTokens}
-                        resolveDynamicValue={resolveDynamicValue}
-                      />
+	                      <BlockPreview
+	                        key={nestedBlock.id}
+	                        block={nestedBlock}
+	                        designTokens={designTokens}
+	                        resolveDynamicValue={resolveDynamicValue}
+	                        previewRecords={previewRecords}
+	                      />
 											)
 										)}
                   </div>
@@ -1576,6 +1715,7 @@ function BlockPreview({
 	                    block={nestedBlock}
 	                    designTokens={designTokens}
 	                    resolveDynamicValue={resolveDynamicValue}
+	                    previewRecords={previewRecords}
 	                  />
 	                </div>
 									)
@@ -1677,6 +1817,7 @@ function BlockPreview({
 			const border = (tableBlock.border || {}) as EmailBorder;
 			const style = tableBlock.style || {};
 			const columns = tableBlock.columns || [];
+			const previewRows = resolveTablePreviewRows(tableBlock.dataSource, previewRecords);
 			const paddingMap = {
 				compact: 8,
 				comfortable: 12,
@@ -1775,7 +1916,7 @@ function BlockPreview({
 									</tr>
 								</thead>
 							)}
-							{/* Body - Show sample data or empty state */}
+							{/* Body - Show preview data for current data source */}
 							<tbody>
 							{columns.length === 0 ? (
 								<tr>
@@ -1791,9 +1932,22 @@ function BlockPreview({
 										{t("emailDesigner.properties.noColumns")}
 									</td>
 								</tr>
+								) : previewRows.length === 0 ? (
+									<tr>
+										<td
+											colSpan={columns.length}
+											style={{
+												padding: `${padding}px`,
+												textAlign: "center",
+												color: "#9ca3af",
+												fontStyle: "italic",
+											}}
+										>
+											{tableBlock.emptyMessage || t("emailDesigner.properties.emptyMessageDefault")}
+										</td>
+									</tr>
 								) : (
-									// Show 2 sample rows
-									[1, 2].map((rowIdx) => (
+									previewRows.slice(0, 4).map((row, rowIdx) => (
 										<tr
 											key={rowIdx}
 											style={{
@@ -1822,13 +1976,9 @@ function BlockPreview({
 																: "none",
 													}}
 												>
-													{col.type === "currency"
-														? `$${(
-																10.99 * rowIdx
-															).toFixed(2)}`
-														: col.type === "number"
-															? `${rowIdx}`
-															: col.header || t("emailDesigner.properties.sampleData")}
+													{formatPreviewCellValue(row, col) ||
+														col.header ||
+														t("emailDesigner.properties.sampleData")}
 												</td>
 											))}
 										</tr>
@@ -1839,7 +1989,7 @@ function BlockPreview({
 						{/* Data source indicator */}
 						{tableBlock.dataSource && (
 							<div className="px-2 py-1 bg-muted/50 text-xs text-muted-foreground border-t">
-								Data: {tableBlock.dataSource}
+								Data: {tableBlock.dataSource} {previewRows.length > 0 ? `(${previewRows.length} rows)` : ""}
 							</div>
 						)}
 					</div>

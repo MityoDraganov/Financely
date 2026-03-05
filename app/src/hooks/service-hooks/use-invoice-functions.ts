@@ -39,6 +39,16 @@ export const useSendInvoiceEmail = () => {
 };
 
 /**
+ * Hook to preview invoice email as a send-time snapshot
+ */
+export const usePreviewInvoiceEmail = () => {
+  return useMutation({
+    mutationKey: ["invoices", "previewEmail"],
+    mutationFn: functionsService.previewInvoiceEmail,
+  });
+};
+
+/**
  * Hook to generate a shareable link for an invoice
  */
 export const useGenerateInvoiceShareLink = () => {

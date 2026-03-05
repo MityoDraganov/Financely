@@ -18,6 +18,7 @@ import { realtimeDatabaseService } from "../infrastructure/realtime-database-ser
 import { getGenericRepository } from "../repositories/generic-repository";
 import { DatabaseCollection } from "../repositories/config";
 import type { InvoiceDataValue } from "../core";
+import type { QueryConstraint } from "../core/ports/services/database-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import {
   logAuditFailureForRequest,
@@ -30,6 +31,11 @@ import {
   renderTemplate,
 } from "../utils/email-template-rendering";
 import { evaluateTemplateCompatibility } from "../utils/email-template-compatibility";
+import { buildInvoiceEmailVm } from "../services/email-vm-builder";
+import {
+  evaluateTemplateRequirements,
+  extractEmailTemplateRequirements,
+} from "../utils/email-template-requirements";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -39,6 +45,22 @@ interface EmailTemplate {
   subject: string;
   preheader?: string;
   htmlContent: string;
+  updatedAt?: string | null;
+  compatMode?: "legacy_v1" | "canonical_v1";
+  requirements?: {
+    version: "v1";
+    compatMode: "legacy_v1" | "canonical_v1";
+    entityTypes: string[];
+    scalarPaths: string[];
+    loops: Array<{
+      path: string;
+      alias: string;
+      rowFields: string[];
+      emptyBehavior?: "hide" | "row";
+    }>;
+    strict: boolean;
+    extractedAt?: string;
+  };
   placeholders?: Array<{
     id: string;
     key: string;
@@ -57,9 +79,31 @@ interface EmailTemplateMapping {
   id: string;
   orgId: string;
   emailTemplateId: string;
-  entityTemplateId: string;
+  entityTemplateId?: string;
   entityType: string;
   mappings: Record<string, string>;
+  updatedAt?: string | null;
+}
+
+interface EmailPreviewSnapshot {
+  id: string;
+  orgId: string;
+  entityType: "invoice";
+  invoiceId: string;
+  emailTemplateId: string;
+  toEmail: string;
+  subject: string;
+  html: string;
+  text: string;
+  pdfUrl: string;
+  invoiceUpdatedAt: string | null;
+  emailTemplateUpdatedAt: string | null;
+  mappingId: string | null;
+  mappingUpdatedAt: string | null;
+  mappingFingerprint: string;
+  fingerprint: string;
+  createdByUserId: string;
+  expiresAt: string;
 }
 
 // Define secrets using Firebase Functions Secret Manager
@@ -71,6 +115,7 @@ interface SendInvoiceEmailPayload {
   invoiceId: string;
   toEmail: string;
   emailTemplateId?: string;
+  previewId?: string;
 }
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
@@ -78,6 +123,83 @@ const toRecord = (value: unknown): Record<string, unknown> | undefined => {
     return undefined;
   }
   return value as Record<string, unknown>;
+};
+
+const buildMappingQueryConstraints = (
+  orgId: string,
+  emailTemplateId: string,
+  invoiceTemplateId: string | undefined,
+): QueryConstraint[] => {
+  const queryConstraints: QueryConstraint[] = [
+    { field: "orgId", operator: "==", value: orgId },
+    { field: "emailTemplateId", operator: "==", value: emailTemplateId },
+    { field: "entityType", operator: "==", value: "invoice" },
+  ];
+  if (invoiceTemplateId) {
+    queryConstraints.push({
+      field: "entityTemplateId",
+      operator: "==",
+      value: invoiceTemplateId,
+    });
+  }
+  return queryConstraints;
+};
+
+const buildMappingFingerprint = (mapping: EmailTemplateMapping | null): string => {
+  if (!mapping?.id) return "none";
+  return `${mapping.id}:${mapping.updatedAt ?? ""}`;
+};
+
+const buildEmailPreviewFingerprint = ({
+  invoiceUpdatedAt,
+  emailTemplateUpdatedAt,
+  mappingFingerprint,
+  toEmail,
+}: {
+  invoiceUpdatedAt: string | null | undefined;
+  emailTemplateUpdatedAt: string | null | undefined;
+  mappingFingerprint: string;
+  toEmail: string;
+}): string => {
+  const normalizedEmail = toEmail.trim().toLowerCase();
+  return [
+    invoiceUpdatedAt ?? "",
+    emailTemplateUpdatedAt ?? "",
+    mappingFingerprint,
+    normalizedEmail,
+  ].join("|");
+};
+
+const extractPdfPathFromUrl = (pdfUrl: string, bucketName: string): string => {
+  if (pdfUrl.startsWith("gs://")) {
+    return pdfUrl.replace(`gs://${bucketName}/`, "");
+  }
+
+  if (pdfUrl.includes("storage.googleapis.com")) {
+    const urlParts = pdfUrl.split("storage.googleapis.com/");
+    if (urlParts.length > 1) {
+      return urlParts[1].split("?")[0].replace(`${bucketName}/`, "");
+    }
+    throw new Error("Could not extract PDF path from URL");
+  }
+
+  if (pdfUrl.includes("/o/")) {
+    const urlParts = pdfUrl.split("/o/");
+    if (urlParts.length > 1) {
+      return decodeURIComponent(urlParts[1].split("?")[0]);
+    }
+    throw new Error("Could not extract PDF path from URL");
+  }
+
+  const urlMatch = pdfUrl.match(new RegExp(`${bucketName}/([^?]+)`));
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+  const parts = pdfUrl.split(`${bucketName}/`);
+  if (parts.length > 1) {
+    return parts[1].split("?")[0];
+  }
+  throw new Error(`Could not extract PDF path from URL: ${pdfUrl}`);
 };
 
 
@@ -116,7 +238,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
     let auditInvoiceNumber: string | undefined;
     let auditToEmail: string | undefined;
     try {
-      const { invoiceId, toEmail, emailTemplateId } = request.data;
+      const { invoiceId, toEmail, emailTemplateId, previewId } = request.data;
       auditInvoiceId = invoiceId;
       auditToEmail = toEmail;
 
@@ -163,53 +285,57 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         }
       }
 
-      // Generate PDF
-      logger.info("Generating PDF for invoice", { invoiceId });
-      const pdfUrl = await handleRenderInvoicePdf(invoiceId);
+      const previewSnapshotRepository = getGenericRepository<
+        EmailPreviewSnapshot,
+        Omit<EmailPreviewSnapshot, "id">
+      >(() => DatabaseCollection.EMAIL_PREVIEW_SNAPSHOTS, databaseService);
+      const emailTemplateMappingRepository = getGenericRepository<
+        EmailTemplateMapping,
+        Omit<EmailTemplateMapping, "id">
+      >(() => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS, databaseService);
+
+      let previewSnapshot: EmailPreviewSnapshot | null = null;
+      if (previewId) {
+        previewSnapshot = await previewSnapshotRepository.get({ id: previewId });
+        if (!previewSnapshot) {
+          throw new HttpsError("failed-precondition", "Email preview session not found");
+        }
+        if (previewSnapshot.entityType !== "invoice") {
+          throw new HttpsError("failed-precondition", "Invalid email preview session");
+        }
+        if (previewSnapshot.orgId !== invoice.orgId || previewSnapshot.invoiceId !== invoice.id) {
+          throw new HttpsError("failed-precondition", "Email preview does not match this invoice");
+        }
+        if (request.auth?.uid && previewSnapshot.createdByUserId !== request.auth.uid) {
+          throw new HttpsError("permission-denied", "Email preview belongs to a different user");
+        }
+        if (!previewSnapshot.expiresAt || Date.parse(previewSnapshot.expiresAt) <= Date.now()) {
+          throw new HttpsError("failed-precondition", "Email preview has expired. Refresh preview");
+        }
+      }
+
+      const resolvedEmailTemplateId = emailTemplateId ?? previewSnapshot?.emailTemplateId;
+      if (
+        previewSnapshot &&
+        emailTemplateId &&
+        emailTemplateId !== previewSnapshot.emailTemplateId
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Selected template does not match generated email preview",
+        );
+      }
+
+      let pdfUrl = previewSnapshot?.pdfUrl ?? "";
+      if (!pdfUrl) {
+        logger.info("Generating PDF for invoice", { invoiceId });
+        pdfUrl = await handleRenderInvoicePdf(invoiceId);
+      }
 
       // Download PDF from storage to attach to email
       const storage = getStorage();
       const bucket = storage.bucket();
-      
-      // Extract the path from the URL
-      // PDF URL format: https://storage.googleapis.com/{bucketName}/{orgId}/{invoiceId}.pdf
-      let pdfPath: string;
-      if (pdfUrl.startsWith("gs://")) {
-        // gs:// format
-        pdfPath = pdfUrl.replace(`gs://${bucket.name}/`, "");
-      } else if (pdfUrl.includes("storage.googleapis.com")) {
-        // Public URL format: https://storage.googleapis.com/{bucketName}/{path}
-        const urlParts = pdfUrl.split("storage.googleapis.com/");
-        if (urlParts.length > 1) {
-          pdfPath = urlParts[1].split("?")[0].replace(`${bucket.name}/`, "");
-        } else {
-          throw new Error("Could not extract PDF path from URL");
-        }
-      } else if (pdfUrl.includes("/o/")) {
-        // Firebase Storage URL format
-        const urlParts = pdfUrl.split("/o/");
-        if (urlParts.length > 1) {
-          pdfPath = decodeURIComponent(urlParts[1].split("?")[0]);
-        } else {
-          throw new Error("Could not extract PDF path from URL");
-        }
-      } else {
-        // Try to extract from bucket name and path
-        const bucketName = bucket.name;
-        const urlMatch = pdfUrl.match(new RegExp(`${bucketName}/([^?]+)`));
-        if (urlMatch) {
-          pdfPath = urlMatch[1];
-        } else {
-          // Fallback: assume the URL contains the path after the bucket name
-          const parts = pdfUrl.split(`${bucketName}/`);
-          if (parts.length > 1) {
-            pdfPath = parts[1].split("?")[0];
-          } else {
-            throw new Error(`Could not extract PDF path from URL: ${pdfUrl}`);
-          }
-        }
-      }
-
+      const pdfPath = extractPdfPathFromUrl(pdfUrl, bucket.name);
       const file = bucket.file(pdfPath);
       const [pdfBuffer] = await file.download();
 
@@ -246,11 +372,64 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       let html = "";
       let text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
 
-      // Check if custom email template is provided
-      if (emailTemplateId && invoice.templateId) {
+      if (previewSnapshot) {
+        if (!resolvedEmailTemplateId) {
+          throw new HttpsError("failed-precondition", "Email preview is missing template context");
+        }
+        if (previewSnapshot.toEmail.trim().toLowerCase() !== toEmail.trim().toLowerCase()) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Recipient changed after preview. Refresh preview before sending",
+          );
+        }
+
         const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
           "emailTemplates",
-          emailTemplateId,
+          resolvedEmailTemplateId,
+        );
+        if (!emailTemplate) {
+          throw new HttpsError("failed-precondition", "Selected email template was not found");
+        }
+        if (emailTemplate.orgId && emailTemplate.orgId !== invoice.orgId) {
+          throw new HttpsError(
+            "permission-denied",
+            "Selected email template does not belong to this organization",
+          );
+        }
+
+        const currentMappings = await emailTemplateMappingRepository.getAll({
+          queryConstraints: buildMappingQueryConstraints(
+            invoice.orgId,
+            resolvedEmailTemplateId,
+            invoice.templateId,
+          ),
+        });
+        const currentMapping = Array.isArray(currentMappings) ? currentMappings[0] : null;
+        const currentMappingFingerprint = buildMappingFingerprint(currentMapping);
+        const currentFingerprint = buildEmailPreviewFingerprint({
+          invoiceUpdatedAt: invoice.updatedAt ?? null,
+          emailTemplateUpdatedAt: emailTemplate.updatedAt ?? null,
+          mappingFingerprint: currentMappingFingerprint,
+          toEmail,
+        });
+
+        if (currentFingerprint !== previewSnapshot.fingerprint) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Invoice/template data changed after preview. Refresh preview before sending",
+          );
+        }
+
+        subject = previewSnapshot.subject;
+        html = previewSnapshot.html;
+        text = previewSnapshot.text;
+      }
+
+      // Check if custom email template is provided (render path)
+      if (!previewSnapshot && resolvedEmailTemplateId) {
+        const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
+          "emailTemplates",
+          resolvedEmailTemplateId,
         );
 
         if (!emailTemplate) {
@@ -273,70 +452,141 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         }
 
         try {
-          // Fetch email template mapping from Firestore
-          const emailTemplateMappingRepository = getGenericRepository<EmailTemplateMapping, Omit<EmailTemplateMapping, "id">>(
-            () => DatabaseCollection.EMAIL_TEMPLATE_MAPPINGS,
-            databaseService
-          );
-
+          const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
           const mappings = await emailTemplateMappingRepository.getAll({
-            queryConstraints: [
-              { field: "orgId", operator: "==", value: invoice.orgId },
-              { field: "emailTemplateId", operator: "==", value: emailTemplateId },
-              { field: "entityTemplateId", operator: "==", value: invoice.templateId },
-              { field: "entityType", operator: "==", value: "invoice" },
-            ],
+            queryConstraints: buildMappingQueryConstraints(
+              invoice.orgId,
+              resolvedEmailTemplateId,
+              invoice.templateId,
+            ),
           });
 
           const mapping = Array.isArray(mappings) ? mappings[0] : null;
+          const mergedMappings = mapping?.mappings
+            ? mergeMappings(mapping.mappings, sourceMappings)
+            : sourceMappings;
 
-          if (mapping && mapping.mappings) {
-            const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
-            const mergedMappings = mergeMappings(mapping.mappings, sourceMappings);
-            const buyerData = toRecord(invoiceData.buyer);
-            const customerData = toRecord(invoiceData.customer) ?? buyerData;
-
-            const renderData = buildRenderDataWithAliases(
-              {
-                ...invoiceData,
-              },
-              {
-                invoice: invoiceData as Record<string, unknown>,
-                buyer: buyerData,
-                customer: customerData,
-                organization: toRecord(organization),
-              },
-            );
-
-            const rendered = renderTemplate(emailTemplate, mergedMappings, renderData, {
-              escapeHtml: true,
-              enableLogging: true,
-            });
-
-            subject = rendered.subject || `Invoice #${invoiceNumber}`;
-            html = rendered.html;
-            text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
-          } else {
-            // Template exists but no mapping found, fall through to default
-            logger.warn("Email template found but no mapping configured", {
-              emailTemplateId,
-              invoiceId,
-              templateId: invoice.templateId,
-            });
-            throw new Error("Email template mapping not found");
+          if (
+            Object.keys(mergedMappings).length === 0 &&
+            (emailTemplate.placeholders?.length ?? 0) > 0
+          ) {
+            throw new Error("No field mappings available for this email template");
           }
-        } catch (error) {
-          // Fall through to default template if custom template fails
-          logger.warn("Failed to use custom email template, using default", {
-            error: error instanceof Error ? error.message : "Unknown error",
-            emailTemplateId,
+
+          const buyerData = toRecord(invoiceData.buyer);
+          const customerData = toRecord(invoiceData.customer) ?? buyerData;
+          const invoiceEntityData: Record<string, unknown> = {
+            ...(invoiceData as Record<string, unknown>),
+            buyer: buyerData ?? customerData,
+            customer: customerData ?? buyerData,
+          };
+          const recipientCompanyName =
+            typeof customerData?.name === "string" ? customerData.name : undefined;
+          const { emailVm } = buildInvoiceEmailVm({
+            orgId: invoice.orgId,
+            invoiceId: invoice.id,
+            invoiceStatus: invoice.status,
+            invoiceData: invoiceData as Record<string, unknown>,
+            invoiceTemplateSnapshot: invoice.templateSnapshot,
+            organization: toRecord(organization),
+            recipient: {
+              name: customerName,
+              email: toEmail,
+              company: recipientCompanyName,
+            },
+            links: {
+              viewUrl: invoiceUrl,
+              payUrl: invoiceUrl,
+              pdfUrl,
+            },
           });
-          // Continue to default template generation below
+
+          const renderData = buildRenderDataWithAliases(
+            {
+              ...invoiceEntityData,
+              ...emailVm,
+            },
+            {
+              invoice: invoiceEntityData,
+              buyer: invoiceEntityData.buyer as Record<string, unknown> | undefined,
+              customer: invoiceEntityData.customer as Record<string, unknown> | undefined,
+              organization: toRecord(organization),
+              email: emailVm.email,
+            },
+          );
+
+          const compatMode = emailTemplate.compatMode === "canonical_v1" ? "canonical_v1" : "legacy_v1";
+          if (compatMode === "canonical_v1") {
+            const requirements =
+              emailTemplate.requirements ??
+              extractEmailTemplateRequirements({
+                subject: emailTemplate.subject,
+                preheader: emailTemplate.preheader,
+                htmlContent: emailTemplate.htmlContent,
+                allowedContexts: compatibility.requiredAllowedContextKeys,
+                compatMode,
+              });
+
+            const diagnostics = evaluateTemplateRequirements({
+              requirements,
+              data: renderData,
+              templateId: emailTemplate.id,
+              entityType: "invoice",
+              context: {
+                orgId: invoice.orgId,
+                invoiceId: invoice.id,
+                invoiceTemplateId: invoice.templateId ?? null,
+              },
+            });
+
+            if (diagnostics) {
+              throw new Error(JSON.stringify(diagnostics));
+            }
+          }
+
+          const rendered = renderTemplate(emailTemplate, mergedMappings, renderData, {
+            escapeHtml: true,
+            enableLogging: true,
+          });
+
+          subject = rendered.subject || `Invoice #${invoiceNumber}`;
+          html = rendered.html;
+          text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
+        } catch (error) {
+          const details =
+            error instanceof Error && error.message.startsWith("{")
+              ? (() => {
+                  try {
+                    return JSON.parse(error.message);
+                  } catch {
+                    return undefined;
+                  }
+                })()
+              : undefined;
+
+          logger.error("Failed to render selected invoice email template", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            emailTemplateId: resolvedEmailTemplateId,
+            invoiceId,
+            details,
+          });
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected invoice email template could not be rendered with this invoice data",
+            details,
+          );
         }
       }
 
       // Use default template if custom template not provided or failed
       if (!html || html === "") {
+        if (resolvedEmailTemplateId || previewSnapshot) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected invoice email template rendered empty content",
+          );
+        }
+
         if (brandingConfig) {
           // Use branded email template
           subject = `Invoice #${invoiceNumber} - Payment Due`;
@@ -439,7 +689,8 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
             sourceDetails: "sendInvoiceEmail",
             customFields: {
               toEmail,
-              emailTemplateId,
+              emailTemplateId: resolvedEmailTemplateId,
+              previewId: previewId ?? null,
             },
           },
         });
@@ -460,7 +711,8 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
             sourceDetails: "sendInvoiceEmail",
             customFields: {
               toEmail,
-              emailTemplateId,
+              emailTemplateId: resolvedEmailTemplateId,
+              previewId: previewId ?? null,
             },
           },
         });
@@ -494,6 +746,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
           customFields: {
             toEmail: auditToEmail,
             emailTemplateId: request.data?.emailTemplateId,
+            previewId: request.data?.previewId,
           },
         },
       });

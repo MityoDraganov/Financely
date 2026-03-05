@@ -9,7 +9,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Settings } from "lucide-react";
-import { EmailTemplate } from "@/core";
+import { EmailTemplate, InvoiceDataValue, type QueryConstraint } from "@/core";
 import { EmailTemplateMappingDialog } from "./email-template-mapping-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { serviceHost } from "@/services";
@@ -30,11 +30,9 @@ type BindingField = {
 	type: "text" | "number" | "date";
 };
 
-import { InvoiceDataValue } from "@/core";
-
 type EmailTemplateSelectorProps = {
 	orgId: string;
-	entityTemplateId: string;
+	entityTemplateId?: string;
 	entityType: string;
 	compatibilityContext: EmailTemplateCompatibilityContext;
 	availableBindings: BindingField[];
@@ -94,8 +92,22 @@ export function EmailTemplateSelector({
 		return compatibleTemplates.find((t: EmailTemplate) => t.id === selectedTemplateId);
 	}, [selectedTemplateId, compatibleTemplates]);
 
+	const templateIsSelfContained = useMemo(() => {
+		if (selectedTemplate?.compatMode === "canonical_v1") {
+			return true;
+		}
+		const placeholders = selectedTemplate?.placeholders ?? [];
+		if (placeholders.length === 0) return true;
+		return placeholders.every(
+			(placeholder) =>
+				placeholder.source?.type === "entity_field" &&
+				!!placeholder.source.entity &&
+				!!placeholder.source.path,
+		);
+	}, [selectedTemplate]);
+
 	// Fetch existing mapping
-	const { data: existingMapping, error: initialMappingsError, isLoading: isLoadingMapping } = useQuery({
+	const { data: existingMapping } = useQuery({
 		queryKey: [
 			"email-template-mapping",
 			orgId,
@@ -103,74 +115,46 @@ export function EmailTemplateSelector({
 			selectedTemplateId,
 		],
 		queryFn: async () => {
-			if (!selectedTemplateId) {
-				console.log("[EmailTemplateSelector] No template selected, skipping mapping fetch");
-				return null;
+			if (!selectedTemplateId) return null;
+			const queryConstraints: QueryConstraint[] = [
+				{ field: "orgId", operator: "==", value: orgId },
+				{ field: "emailTemplateId", operator: "==", value: selectedTemplateId },
+				{ field: "entityType", operator: "==", value: entityType },
+			];
+			if (entityTemplateId) {
+				queryConstraints.push({
+					field: "entityTemplateId",
+					operator: "==",
+					value: entityTemplateId,
+				});
 			}
 
-			console.group("[EmailTemplateSelector] Fetching existing mapping");
-			console.log("Query parameters:", {
-				orgId,
-				emailTemplateId: selectedTemplateId,
-				entityTemplateId,
-				entityType,
-			});
-
 			const mappings = await emailTemplateMappingRepository.getAll({
-				queryConstraints: [
-					{ field: "orgId", operator: "==", value: orgId },
-					{ field: "emailTemplateId", operator: "==", value: selectedTemplateId },
-					{ field: "entityTemplateId", operator: "==", value: entityTemplateId },
-					{ field: "entityType", operator: "==", value: entityType },
-				],
+				queryConstraints,
 			});
 
-			console.log("Raw query result:", {
-				mappings,
-				isArray: Array.isArray(mappings),
-				length: Array.isArray(mappings) ? mappings.length : "N/A",
-			});
-
-			const mapping = Array.isArray(mappings) ? (mappings[0] || null) : null;
-			
-			console.log("Processed mapping:", {
-				found: !!mapping,
-				mappingId: mapping?.id,
-				mappingObject: mapping,
-				mappings: mapping?.mappings || {},
-				mappingsKeys: mapping ? Object.keys(mapping.mappings || {}) : [],
-				mappingsCount: mapping ? Object.keys(mapping.mappings || {}).length : 0,
-				fullMappingDetails: mapping ? JSON.stringify(mapping, null, 2) : "null",
-			});
-			console.groupEnd();
-
-			return mapping;
+			return Array.isArray(mappings) ? (mappings[0] || null) : null;
 		},
-		enabled: !!orgId && !!entityTemplateId && !!selectedTemplateId,
-	});
-
-	if (initialMappingsError) {
-		console.error("[EmailTemplateSelector] Error fetching mappings:", initialMappingsError);
-	}
-	
-	console.log("[EmailTemplateSelector] Mapping query state:", {
-		isLoading: isLoadingMapping,
-		hasError: !!initialMappingsError,
-		hasData: !!existingMapping,
-		existingMapping: existingMapping,
-		mappings: existingMapping?.mappings,
-	});
+			enabled: !!orgId && !!entityTemplateId && !!selectedTemplateId && !templateIsSelfContained,
+		});
 
 	// Check if template needs mapping when selected (only auto-open if no existing mapping)
 	// Don't auto-open if user manually closed the dialog
 	const [hasManuallyClosed, setHasManuallyClosed] = useState(false);
 	
 	useEffect(() => {
-		if (selectedTemplate && !existingMapping && selectedTemplate.placeholders.length > 0 && !hasManuallyClosed) {
+		const placeholders = selectedTemplate?.placeholders ?? [];
+		if (
+			selectedTemplate &&
+			!templateIsSelfContained &&
+			!existingMapping &&
+			placeholders.length > 0 &&
+			!hasManuallyClosed
+		) {
 			// Template is selected but has no mapping - auto-open dialog
 			setMappingDialogOpen(true);
 		}
-	}, [selectedTemplate, existingMapping, hasManuallyClosed]);
+	}, [selectedTemplate, templateIsSelfContained, existingMapping, hasManuallyClosed]);
 
 	// Reset manual close flag when template changes
 	useEffect(() => {
@@ -187,9 +171,9 @@ export function EmailTemplateSelector({
 		const mappingData = {
 			orgId,
 			emailTemplateId: selectedTemplateId,
-			entityTemplateId,
 			entityType,
 			mappings,
+			...(entityTemplateId ? { entityTemplateId } : {}),
 		};
 
 		if (existingMapping) {
@@ -214,29 +198,14 @@ export function EmailTemplateSelector({
 	};
 
 	const handleEditMapping = () => {
-		console.group("[EmailTemplateSelector] Opening mapping dialog");
-		console.log("Template info:", {
-			selectedTemplateId,
-			templateName: selectedTemplate?.name,
-			placeholdersCount: selectedTemplate?.placeholders.length || 0,
-			placeholders: selectedTemplate?.placeholders.map(p => ({ key: p.key, label: p.label })),
-		});
-		console.log("Existing mapping info:", {
-			hasExistingMapping: !!existingMapping,
-			mappingId: existingMapping?.id,
-			existingMappings: existingMapping?.mappings || {},
-			mappingsKeys: existingMapping ? Object.keys(existingMapping.mappings || {}) : [],
-			mappingsCount: existingMapping ? Object.keys(existingMapping.mappings || {}).length : 0,
-			fullMappingObject: existingMapping ? JSON.stringify(existingMapping, null, 2) : "null",
-		});
-		console.groupEnd();
 		setMappingDialogOpen(true);
 	};
 
 	// Show edit button when a template is selected and has placeholders
 	const canEditMapping =
 		selectedTemplate &&
-		selectedTemplate.placeholders.length > 0;
+		!templateIsSelfContained &&
+		(selectedTemplate.placeholders?.length ?? 0) > 0;
 
 	return (
 		<div className="flex items-center gap-2">
@@ -285,31 +254,7 @@ export function EmailTemplateSelector({
 					placeholders={selectedTemplate.placeholders}
 					availableBindings={availableBindings}
 					entityData={entityData}
-					initialMappings={(() => {
-						const mappings = existingMapping?.mappings || {};
-						console.group("[EmailTemplateSelector] Setting initial mappings in dialog");
-						console.log("Mapping source:", {
-							hasExistingMapping: !!existingMapping,
-							mappingId: existingMapping?.id,
-							rawMappings: existingMapping?.mappings,
-						});
-						console.log("Mappings to pass:", {
-							mappings,
-							mappingsKeys: Object.keys(mappings),
-							mappingsCount: Object.keys(mappings).length,
-							mappingsEntries: Object.entries(mappings),
-						});
-						console.log("Placeholders expecting mappings:", {
-							placeholders: selectedTemplate.placeholders.map(p => ({
-								key: p.key,
-								label: p.label,
-								hasMapping: p.key in mappings,
-								mappingValue: mappings[p.key],
-							})),
-						});
-						console.groupEnd();
-						return mappings;
-					})()}
+					initialMappings={existingMapping?.mappings || {}}
 					onSave={handleMappingSave}
 				/>
 			)}

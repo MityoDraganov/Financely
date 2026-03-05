@@ -40,7 +40,8 @@ type EmailTableColumn = EmailTableBlock["columns"][number];
 const EMAIL_TABLE_CUSTOM_OPTION = "__custom__";
 
 const EMAIL_TABLE_DATA_SOURCE_PRESETS = [
-	{ value: "items", label: "Invoice line items (items)" },
+	{ value: "email.invoice.items", label: "Invoice items (recommended)" },
+	{ value: "items", label: "Invoice items (items)" },
 	{ value: "invoice.data.items", label: "Invoice line items (invoice.data.items)" },
 	{ value: "invoice.items", label: "Invoice line items (invoice.items)" },
 	{ value: "products", label: "Products (products)" },
@@ -182,48 +183,20 @@ const formatDynamicLabel = (
 
 const buildAvailableDynamicSourceOptions = (
 	dynamicSources: DynamicSourceField[],
-	placeholders: EmailTemplatePlaceholder[],
 ): DynamicSourceOption[] => {
-	const sourceByKey = new Map<string, DynamicSourceField | null>();
+	const sourceByKey = new Map<string, DynamicSourceField>();
 	dynamicSources.forEach((source) => {
 		sourceByKey.set(source.placeholderKey.toLowerCase(), source);
 	});
-	placeholders.forEach((placeholder) => {
-		const key = placeholder.key.toLowerCase();
-		if (!sourceByKey.has(key)) {
-			sourceByKey.set(key, null);
-		}
-	});
 
-	return Array.from(sourceByKey.entries()).map(([key, dynamicSource]) => {
-		if (dynamicSource) {
-			return {
-				key: dynamicSource.placeholderKey,
-				label: dynamicSource.label,
-				description: dynamicSource.description,
-				dynamicSource,
-				categoryKey: dynamicSource.entity,
-				categoryLabel: dynamicSource.entityLabel,
-			};
-		}
-		const placeholderEntry = placeholders.find(
-			(placeholder) => placeholder.key.toLowerCase() === key
-		);
-		const sourceEntity = placeholderEntry?.source?.type === "entity_field"
-			? placeholderEntry.source.entity
-			: undefined;
-		const sourceEntityLabel = sourceEntity
-			? sourceEntity.charAt(0).toUpperCase() + sourceEntity.slice(1)
-			: "Custom";
-		return {
-			key: placeholderEntry?.key ?? key,
-			label: placeholderEntry?.label?.trim() || placeholderEntry?.key || key,
-			description: placeholderEntry?.description,
-			dynamicSource: null,
-			categoryKey: sourceEntity || "custom",
-			categoryLabel: sourceEntityLabel,
-		};
-	});
+	return Array.from(sourceByKey.values()).map((dynamicSource) => ({
+		key: dynamicSource.placeholderKey,
+		label: dynamicSource.label,
+		description: dynamicSource.description,
+		dynamicSource,
+		categoryKey: dynamicSource.entity,
+		categoryLabel: dynamicSource.entityLabel,
+	}));
 };
 
 const removeDynamicTokenAt = (
@@ -500,8 +473,8 @@ const DynamicTokenizedEditor = ({
 		return lookup;
 	}, [dynamicSources]);
 	const availableSources = useMemo<DynamicSourceOption[]>(() => {
-		return buildAvailableDynamicSourceOptions(dynamicSources, placeholders);
-	}, [dynamicSources, placeholders]);
+		return buildAvailableDynamicSourceOptions(dynamicSources);
+	}, [dynamicSources]);
 
 	useEffect(() => {
 		latestValueRef.current = value;
@@ -866,8 +839,8 @@ const PlaceholderInsertButton = ({
 		onInsert(key);
 	}, [onInsert]);
 	const availableSources = useMemo<DynamicSourceOption[]>(() => {
-		return buildAvailableDynamicSourceOptions(dynamicSources, placeholders);
-	}, [dynamicSources, placeholders]);
+		return buildAvailableDynamicSourceOptions(dynamicSources);
+	}, [dynamicSources]);
 
 	return (
 		<DynamicSourceInsertMenu
@@ -2751,7 +2724,7 @@ export function EmailBlockProperties({
                           className="h-7 text-xs"
                           onClick={() =>
                             updateTableBlock({
-                              dataSource: "items",
+                              dataSource: "email.invoice.items",
                               columns: createInvoiceLineItemColumns(),
                             })
                           }
@@ -2964,116 +2937,6 @@ export function EmailBlockProperties({
                       )}
                     </div>
                     <Separator />
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">{t("emailDesigner.properties.styling")}</Label>
-                      <div className="space-y-2">
-                        <Label className="text-xs">{t("emailDesigner.properties.borderStyle")}</Label>
-                        <Select
-                          value={tableBlock.style?.borderStyle || "light"}
-                          onValueChange={(value: "none" | "light" | "strong") => {
-                            updateTableBlock({
-                              style: {
-                                ...tableBlock.style,
-                                borderStyle: value,
-                              },
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t("emailDesigner.properties.none")}</SelectItem>
-                            <SelectItem value="light">{t("emailDesigner.properties.light")}</SelectItem>
-                            <SelectItem value="strong">{t("emailDesigner.properties.strong")}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">{t("emailDesigner.properties.paddingDensity")}</Label>
-                        <Select
-                          value={tableBlock.style?.paddingDensity || "comfortable"}
-                          onValueChange={(value: "compact" | "comfortable" | "spacious") => {
-                            updateTableBlock({
-                              style: {
-                                ...tableBlock.style,
-                                paddingDensity: value,
-                              },
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="compact">{t("emailDesigner.properties.compact")}</SelectItem>
-                            <SelectItem value="comfortable">{t("emailDesigner.properties.comfortable")}</SelectItem>
-                            <SelectItem value="spacious">{t("emailDesigner.properties.spacious")}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">{t("emailDesigner.properties.alternatingRows")}</Label>
-                        <Switch
-                          checked={tableBlock.style?.alternatingRows || false}
-                          onCheckedChange={(checked) => {
-                            updateTableBlock({
-                              style: {
-                                ...tableBlock.style,
-                                alternatingRows: checked,
-                              },
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">{t("emailDesigner.properties.showBorders")}</Label>
-                        <Switch
-                          checked={tableBlock.style?.showBorders !== false}
-                          onCheckedChange={(checked) => {
-                            updateTableBlock({
-                              style: {
-                                ...tableBlock.style,
-                                showBorders: checked,
-                              },
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <Separator />
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">{t("emailDesigner.properties.responsive")}</Label>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">{t("emailDesigner.properties.stackOnMobile")}</Label>
-                        <Switch
-                          checked={tableBlock.responsive?.stackOnMobile !== false}
-                          onCheckedChange={(checked) => {
-                            updateTableBlock({
-                              responsive: {
-                                ...tableBlock.responsive,
-                                stackOnMobile: checked,
-                              },
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">{t("emailDesigner.properties.hideLowPriorityColumns")}</Label>
-                        <Switch
-                          checked={tableBlock.responsive?.hideLowPriorityColumns !== false}
-                          onCheckedChange={(checked) => {
-                            updateTableBlock({
-                              responsive: {
-                                ...tableBlock.responsive,
-                                hideLowPriorityColumns: checked,
-                              },
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <Separator />
                     <div className="space-y-2">
                       <Label>{t("emailDesigner.properties.emptyMessage")}</Label>
                       <Input
@@ -3083,11 +2946,128 @@ export function EmailBlockProperties({
                       />
                     </div>
                     <Separator />
-                    {renderBackgroundColorControls()}
-                    <Separator />
-                    {renderSpacingControls()}
-                    <Separator />
-                    {renderBorderControls()}
+                    <details className="group rounded-md border border-border/60 p-3">
+                      <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+                        {t("emailDesigner.properties.advancedTableSettings", "Advanced table settings")}
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        <div className="space-y-3">
+                          <Label className="text-sm font-semibold">{t("emailDesigner.properties.styling")}</Label>
+                          <div className="space-y-2">
+                            <Label className="text-xs">{t("emailDesigner.properties.borderStyle")}</Label>
+                            <Select
+                              value={tableBlock.style?.borderStyle || "light"}
+                              onValueChange={(value: "none" | "light" | "strong") => {
+                                updateTableBlock({
+                                  style: {
+                                    ...tableBlock.style,
+                                    borderStyle: value,
+                                  },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">{t("emailDesigner.properties.none")}</SelectItem>
+                                <SelectItem value="light">{t("emailDesigner.properties.light")}</SelectItem>
+                                <SelectItem value="strong">{t("emailDesigner.properties.strong")}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">{t("emailDesigner.properties.paddingDensity")}</Label>
+                            <Select
+                              value={tableBlock.style?.paddingDensity || "comfortable"}
+                              onValueChange={(value: "compact" | "comfortable" | "spacious") => {
+                                updateTableBlock({
+                                  style: {
+                                    ...tableBlock.style,
+                                    paddingDensity: value,
+                                  },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="compact">{t("emailDesigner.properties.compact")}</SelectItem>
+                                <SelectItem value="comfortable">{t("emailDesigner.properties.comfortable")}</SelectItem>
+                                <SelectItem value="spacious">{t("emailDesigner.properties.spacious")}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">{t("emailDesigner.properties.alternatingRows")}</Label>
+                            <Switch
+                              checked={tableBlock.style?.alternatingRows || false}
+                              onCheckedChange={(checked) => {
+                                updateTableBlock({
+                                  style: {
+                                    ...tableBlock.style,
+                                    alternatingRows: checked,
+                                  },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">{t("emailDesigner.properties.showBorders")}</Label>
+                            <Switch
+                              checked={tableBlock.style?.showBorders !== false}
+                              onCheckedChange={(checked) => {
+                                updateTableBlock({
+                                  style: {
+                                    ...tableBlock.style,
+                                    showBorders: checked,
+                                  },
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <Separator />
+                        <div className="space-y-3">
+                          <Label className="text-sm font-semibold">{t("emailDesigner.properties.responsive")}</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">{t("emailDesigner.properties.stackOnMobile")}</Label>
+                            <Switch
+                              checked={tableBlock.responsive?.stackOnMobile !== false}
+                              onCheckedChange={(checked) => {
+                                updateTableBlock({
+                                  responsive: {
+                                    ...tableBlock.responsive,
+                                    stackOnMobile: checked,
+                                  },
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">{t("emailDesigner.properties.hideLowPriorityColumns")}</Label>
+                            <Switch
+                              checked={tableBlock.responsive?.hideLowPriorityColumns !== false}
+                              onCheckedChange={(checked) => {
+                                updateTableBlock({
+                                  responsive: {
+                                    ...tableBlock.responsive,
+                                    hideLowPriorityColumns: checked,
+                                  },
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <Separator />
+                        {renderBackgroundColorControls()}
+                        <Separator />
+                        {renderSpacingControls()}
+                        <Separator />
+                        {renderBorderControls()}
+                      </div>
+                    </details>
                   </>
                 );
               })()}

@@ -17,6 +17,11 @@ import {
   renderTemplate,
 } from "../utils/email-template-rendering";
 import { evaluateTemplateCompatibility } from "../utils/email-template-compatibility";
+import { buildProposalEmailVm } from "../services/email-vm-builder";
+import {
+  evaluateTemplateRequirements,
+  extractEmailTemplateRequirements,
+} from "../utils/email-template-requirements";
 import {
   generateBrandedEmailHTML,
   getEmailBrandingConfig,
@@ -43,6 +48,21 @@ interface EmailTemplate {
   subject?: string;
   preheader?: string;
   htmlContent?: string;
+  compatMode?: "legacy_v1" | "canonical_v1";
+  requirements?: {
+    version: "v1";
+    compatMode: "legacy_v1" | "canonical_v1";
+    entityTypes: string[];
+    scalarPaths: string[];
+    loops: Array<{
+      path: string;
+      alias: string;
+      rowFields: string[];
+      emptyBehavior?: "hide" | "row";
+    }>;
+    strict: boolean;
+    extractedAt?: string;
+  };
   placeholders?: Array<{
     key?: string;
     source?: {
@@ -221,9 +241,21 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
         try {
           const sourceMappings = buildSourceMappingsFromPlaceholders(emailTemplate.placeholders);
           const mappings = mergeMappings(undefined, sourceMappings);
+          const { emailVm } = buildProposalEmailVm({
+            orgId,
+            proposalId: proposalId,
+            proposal: toRecord(proposal) ?? {},
+            organization: toRecord(organization),
+            recipient: {
+              name: customerName,
+              email: toEmail,
+              company: toStringValue(customerRecord?.company ?? customerRecord?.name) || undefined,
+            },
+          });
           const renderData = buildRenderDataWithAliases(
             {
               ...(toRecord(proposal) ?? {}),
+              ...emailVm,
             },
             {
               proposal: toRecord(proposal),
@@ -231,8 +263,37 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
               contact: customerRecord,
               customer: customerRecord,
               organization: toRecord(organization),
+              email: emailVm.email,
             },
           );
+
+          const compatMode = emailTemplate.compatMode === "canonical_v1" ? "canonical_v1" : "legacy_v1";
+          if (compatMode === "canonical_v1") {
+            const requirements =
+              emailTemplate.requirements ??
+              extractEmailTemplateRequirements({
+                subject: emailTemplate.subject,
+                preheader: emailTemplate.preheader,
+                htmlContent: emailTemplate.htmlContent,
+                allowedContexts: compatibility.requiredAllowedContextKeys,
+                compatMode,
+              });
+
+            const diagnostics = evaluateTemplateRequirements({
+              requirements,
+              data: renderData,
+              templateId: emailTemplate.id,
+              entityType: "proposal",
+              context: {
+                orgId,
+                proposalId,
+              },
+            });
+
+            if (diagnostics) {
+              throw new Error(JSON.stringify(diagnostics));
+            }
+          }
 
           const rendered = renderTemplate(emailTemplate, mappings, renderData, {
             escapeHtml: true,
@@ -243,15 +304,39 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
           html = rendered.html;
           text = rendered.preheader || text;
         } catch (error) {
-          logger.warn("Failed to render proposal email template, falling back to default", {
+          const details =
+            error instanceof Error && error.message.startsWith("{")
+              ? (() => {
+                  try {
+                    return JSON.parse(error.message);
+                  } catch {
+                    return undefined;
+                  }
+                })()
+              : undefined;
+
+          logger.error("Failed to render selected proposal email template", {
             proposalId,
             emailTemplateId,
             error: error instanceof Error ? error.message : String(error),
+            details,
           });
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected proposal email template could not be rendered with this proposal data",
+            details,
+          );
         }
       }
 
       if (!html) {
+        if (emailTemplateId) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Selected proposal email template rendered empty content",
+          );
+        }
+
         const content = `
           <div style="color: #111827;">
             <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">

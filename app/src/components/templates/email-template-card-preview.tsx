@@ -2,6 +2,24 @@ import { Component, ErrorInfo, ReactNode } from "react";
 import { Mail } from "lucide-react";
 import type { EmailTemplate } from "@/core/entities/email-template";
 
+const toKebabCaseCssProperty = (property: string): string =>
+  property.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+
+const normalizeInlineStylePropertyNames = (html: string): string => {
+  if (!html || !html.includes("style=")) return html;
+  const normalizeStyleValue = (styleValue: string): string =>
+    styleValue.replace(/(^|;)\s*([a-z][a-zA-Z0-9]*)\s*:/g, (_full, prefix: string, prop: string) => {
+      if (prop.startsWith("--") || prop.includes("-")) {
+        return `${prefix}${prop}:`;
+      }
+      return `${prefix}${toKebabCaseCssProperty(prop)}:`;
+    });
+  return html.replace(/style\s*=\s*(["'])([\s\S]*?)\1/gi, (_match, quote: string, styleValue: string) => {
+    const normalized = normalizeStyleValue(styleValue);
+    return `style=${quote}${normalized}${quote}`;
+  });
+};
+
 interface Props {
   template: EmailTemplate;
   children?: ReactNode;
@@ -53,7 +71,7 @@ export function EmailTemplateCardPreview({ template }: EmailTemplateCardPreviewP
   }
 
   // Extract HTML content
-  const htmlContent = template.htmlContent || "";
+  const htmlContent = normalizeInlineStylePropertyNames(template.htmlContent || "");
 
   // Calculate scale to fit card width (matching invoice template scale)
   const emailWidth = 600; // Standard email width

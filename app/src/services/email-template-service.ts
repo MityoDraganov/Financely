@@ -35,6 +35,10 @@ const toEmailTemplateData = (template: EmailTemplate): EmailTemplateData => {
 		blocks: template.blocks ?? [],
 		designTokens: template.designTokens,
 		placeholders: template.placeholders ?? [],
+		compatMode: template.compatMode,
+		requirements: template.requirements,
+		requirementsMeta: template.requirementsMeta,
+		normalizationVersion: template.normalizationVersion,
 		sections: template.sections,
 		marketplaceTemplateId: template.marketplaceTemplateId,
 	};
@@ -75,7 +79,13 @@ export const emailTemplateService = {
   },
   async create(data: EmailTemplateData) {
     try {
-      const id = await emailTemplateRepository.create({ data });
+      const id = await emailTemplateRepository.create({
+        data: {
+          ...data,
+          compatMode: data.compatMode ?? "canonical_v1",
+          normalizationVersion: data.normalizationVersion ?? "email_vm_v1",
+        },
+      });
 
       await logClientAuditSuccess({
         organizationId: data.orgId,
@@ -113,6 +123,8 @@ export const emailTemplateService = {
     const draftData = {
       ...data,
       status: "draft" as const,
+      compatMode: data.compatMode ?? "canonical_v1",
+      normalizationVersion: data.normalizationVersion ?? "email_vm_v1",
     };
     return emailTemplateService.create(draftData);
   },

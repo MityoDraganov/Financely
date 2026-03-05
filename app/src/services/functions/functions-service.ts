@@ -73,6 +73,21 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async previewInvoiceEmail(payload) {
+    const result = await httpsCallable<
+      typeof payload,
+      {
+        previewId: string;
+        subject: string;
+        html: string;
+        text: string;
+        toEmail: string;
+        expiresAt: string;
+      }
+    >(firebase.functions, "previewInvoiceEmail")(payload);
+    return result.data;
+  },
+
   async sendProposalEmail(payload) {
     const result = await httpsCallable<typeof payload, { sent: boolean }>(
       firebase.functions,

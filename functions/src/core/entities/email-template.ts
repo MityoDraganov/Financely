@@ -1,6 +1,30 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
 
+export const emailTemplateCompatModeSchema = z.enum(["legacy_v1", "canonical_v1"]);
+
+export const emailTemplateRequirementLoopSchema = z.object({
+  path: z.string().min(1),
+  alias: z.string().min(1),
+  rowFields: z.array(z.string().min(1)).default([]),
+  emptyBehavior: z.enum(["hide", "row"]).default("hide"),
+});
+
+export const emailTemplateRequirementsSchema = z.object({
+  version: z.literal("v1").default("v1"),
+  compatMode: emailTemplateCompatModeSchema.default("canonical_v1"),
+  entityTypes: z.array(z.string().min(1)).default([]),
+  scalarPaths: z.array(z.string().min(1)).default([]),
+  loops: z.array(emailTemplateRequirementLoopSchema).default([]),
+  strict: z.boolean().default(true),
+  extractedAt: z.string().optional(),
+});
+
+export const emailTemplateRequirementsMetaSchema = z.object({
+  lastEvaluatedAt: z.string().optional(),
+  lastCompatibilitySample: z.record(z.string(), z.any()).optional(),
+});
+
 export const emailTemplateDataSchema = z.object({
   orgId: z.string().min(1),
   brandId: z.string().optional(),
@@ -18,6 +42,10 @@ export const emailTemplateDataSchema = z.object({
   blocks: z.array(z.any()).default([]),
   designTokens: z.record(z.string(), z.any()).default({}),
   placeholders: z.array(z.any()).default([]),
+  compatMode: emailTemplateCompatModeSchema.optional(),
+  requirements: emailTemplateRequirementsSchema.optional(),
+  requirementsMeta: emailTemplateRequirementsMetaSchema.optional(),
+  normalizationVersion: z.literal("email_vm_v1").optional(),
   sections: z.object({
     header: z.array(z.string()).default([]),
     body: z.array(z.string()).default([]),

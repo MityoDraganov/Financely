@@ -14,6 +14,11 @@ import {
   extractRequiredTemplateEntities,
   hasAllRequiredEntities,
 } from "../utils/email-template-compatibility";
+import { buildWorkflowEmailVm } from "../services/email-vm-builder";
+import {
+  evaluateTemplateRequirements,
+  extractEmailTemplateRequirements,
+} from "../utils/email-template-requirements";
 
 export interface EmailExecutorConfig {
   mode?: "manual" | "template";
@@ -130,6 +135,21 @@ export class EmailExecutor implements ActionExecutor {
           subject?: string;
           preheader?: string;
           htmlContent?: string;
+          compatMode?: "legacy_v1" | "canonical_v1";
+          requirements?: {
+            version: "v1";
+            compatMode: "legacy_v1" | "canonical_v1";
+            entityTypes: string[];
+            scalarPaths: string[];
+            loops: Array<{
+              path: string;
+              alias: string;
+              rowFields: string[];
+              emptyBehavior?: "hide" | "row";
+            }>;
+            strict: boolean;
+            extractedAt?: string;
+          };
           placeholders?: Array<{
             key?: string;
             source?: {
@@ -155,6 +175,34 @@ export class EmailExecutor implements ActionExecutor {
             `Email template requires unavailable entities for this workflow run: ${missingEntities.join(", ")}`,
           );
         }
+        const compatMode = emailTemplate.compatMode === "canonical_v1" ? "canonical_v1" : "legacy_v1";
+        if (compatMode === "canonical_v1") {
+          const requirements =
+            emailTemplate.requirements ??
+            extractEmailTemplateRequirements({
+              subject: emailTemplate.subject,
+              preheader: emailTemplate.preheader,
+              htmlContent: emailTemplate.htmlContent,
+              compatMode,
+            });
+          const diagnostics = evaluateTemplateRequirements({
+            requirements,
+            data: renderData,
+            templateId: emailTemplate.id,
+            entityType: "workflow",
+            context: {
+              runId,
+              actionId: action.id,
+            },
+          });
+
+          if (diagnostics) {
+            throw new Error(
+              `Workflow email template requirements not satisfied: ${JSON.stringify(diagnostics)}`,
+            );
+          }
+        }
+
         const rendered = renderTemplate(emailTemplate, mappings, renderData, {
           escapeHtml: true,
           enableLogging: true,
@@ -309,11 +357,13 @@ export class EmailExecutor implements ActionExecutor {
       this.toRecord(context.data);
     const proposalAlias = this.toRecord(context.proposal);
     const productAlias = this.toRecord(context.product);
+    const { emailVm } = buildWorkflowEmailVm({ context });
 
     return buildRenderDataWithAliases(
       {
         ...context,
         ...(invoiceAlias ?? {}),
+        ...emailVm,
       },
       {
         invoice: invoiceAlias,
@@ -322,6 +372,7 @@ export class EmailExecutor implements ActionExecutor {
         proposal: proposalAlias,
         product: productAlias,
         organization: organizationFromDataContext,
+        email: emailVm.email,
       },
     );
   }

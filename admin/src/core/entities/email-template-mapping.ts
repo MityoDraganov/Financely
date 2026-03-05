@@ -19,7 +19,8 @@ export const emailTemplateMappingDataSchema = z.object({
   emailTemplateId: z.string().min(1),
   
   // The entity template this mapping is for (e.g., invoice template ID)
-  entityTemplateId: z.string().min(1),
+  // Optional so path-first templates can be reused across different entity templates.
+  entityTemplateId: z.string().optional(),
   
   // Entity type (e.g., "invoice", "quote", etc.)
   entityType: z.string().min(1),
@@ -34,4 +35,3 @@ export type EmailTemplateMappingData = z.infer<typeof emailTemplateMappingDataSc
 
 export const emailTemplateMappingSchema = baseEntitySchema.merge(emailTemplateMappingDataSchema);
 export type EmailTemplateMapping = z.infer<typeof emailTemplateMappingSchema>;
-
