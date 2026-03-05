@@ -44,6 +44,7 @@ import ContributorPortalPage from "./pages/marketplace/contributor-portal";
 import WorkflowsPage from "./pages/workflows/workflows-page";
 import WorkflowTemplatesPage from "./pages/workflows/workflow-templates-page";
 import WorkflowExecutionPage from "./pages/workflows/workflow-execution-page";
+import WorkflowCreatePage from "./pages/workflows/workflow-create-page";
 // import SiteBuilderPage from "./pages/site-builder/site-builder-page";
 import IntegrationsWrapper from "./pages/integrations/integrations-wrapper";
 import { Navigate, useParams } from "react-router-dom";
@@ -370,6 +371,16 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<WorkflowTemplatesPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/workflows/create"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<WorkflowCreatePage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

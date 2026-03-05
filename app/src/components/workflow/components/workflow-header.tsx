@@ -66,8 +66,8 @@ export function WorkflowHeader({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex min-w-[320px] flex-[2_1_24rem] flex-col gap-2">
             <Label htmlFor="name">{t('workflows.builder.fields.name')}</Label>
             <Input
               id="name"
@@ -76,7 +76,36 @@ export function WorkflowHeader({
               placeholder={t('workflows.builder.fields.namePlaceholder')}
             />
           </div>
-          <div>
+
+          <div className="flex min-w-[220px] flex-[1_1_16rem] flex-col gap-2">
+            <Label htmlFor="trigger">{t('workflows.builder.fields.trigger')}</Label>
+            <Select
+              value={workflow.trigger?.type || "manual.trigger"}
+              onValueChange={(value) => onUpdateWorkflow({ 
+                trigger: { type: value as WorkflowTriggerType } 
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRIGGER_GROUPS.map((group) => (
+                  <div key={group.id}>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
+                      {getTriggerGroupLabel(group.id)}
+                    </div>
+                    {group.triggers.map((trigger) => (
+                      <SelectItem key={trigger.value} value={trigger.value} className="pl-6">
+                        {getTriggerLabel(trigger.value)}
+                      </SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex min-w-[220px] flex-[1_1_16rem] flex-col gap-2">
             <Label htmlFor="category">{t('workflows.builder.fields.category')}</Label>
             <Select
               value={workflow.category || "general"}
@@ -96,7 +125,7 @@ export function WorkflowHeader({
           </div>
         </div>
         
-        <div>
+        <div className="flex flex-col gap-2">
           <Label htmlFor="description">{t('workflows.builder.fields.description')}</Label>
           <Textarea
             id="description"
@@ -105,34 +134,6 @@ export function WorkflowHeader({
             placeholder={t('workflows.builder.fields.descriptionPlaceholder')}
             rows={3}
           />
-        </div>
-
-        <div>
-          <Label htmlFor="trigger">{t('workflows.builder.fields.trigger')}</Label>
-          <Select
-            value={workflow.trigger?.type || "manual.trigger"}
-            onValueChange={(value) => onUpdateWorkflow({ 
-              trigger: { type: value as WorkflowTriggerType } 
-            })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TRIGGER_GROUPS.map((group) => (
-                <div key={group.id}>
-                  <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
-                    {getTriggerGroupLabel(group.id)}
-                  </div>
-                  {group.triggers.map((trigger) => (
-                    <SelectItem key={trigger.value} value={trigger.value} className="pl-6">
-                      {getTriggerLabel(trigger.value)}
-                    </SelectItem>
-                  ))}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </CardContent>
     </Card>

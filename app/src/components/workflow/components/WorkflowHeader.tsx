@@ -75,7 +75,7 @@ export default function WorkflowHeader({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="name">Workflow Name *</Label>
             <Input
               id="name"
@@ -84,7 +84,7 @@ export default function WorkflowHeader({
               placeholder="Enter workflow name"
             />
           </div>
-          <div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="category">Category</Label>
             <Select
               value={workflow.category || "general"}
@@ -104,7 +104,7 @@ export default function WorkflowHeader({
           </div>
         </div>
         
-        <div>
+        <div className="flex flex-col gap-2">
           <Label htmlFor="description">Description</Label>
           <Textarea
             id="description"
@@ -115,7 +115,7 @@ export default function WorkflowHeader({
           />
         </div>
 
-        <div>
+        <div className="flex flex-col gap-2 w-fit">
           <Label htmlFor="trigger">Trigger *</Label>
           <Select
             value={workflow.trigger?.type || "manual.trigger"}
