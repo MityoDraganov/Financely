@@ -208,6 +208,7 @@ export const previewInvoiceEmail = onCall<
 
     const organization = await organizationRepository.get({ id: invoice.orgId });
     const pdfUrl = await handleRenderInvoicePdf(invoiceId);
+    const invoiceAfterPdfRender = (await invoiceRepository.get({ id: invoiceId })) ?? invoice;
 
     const invoiceData = invoice.data as Record<string, InvoiceDataValue>;
     const buyer = (invoiceData.buyer || invoiceData.customer) as
@@ -358,7 +359,7 @@ export const previewInvoiceEmail = onCall<
 
       const mappingFingerprint = buildMappingFingerprint(mapping);
       const fingerprint = buildEmailPreviewFingerprint({
-        invoiceUpdatedAt: invoice.updatedAt ?? null,
+        invoiceUpdatedAt: invoiceAfterPdfRender.updatedAt ?? null,
         emailTemplateUpdatedAt: emailTemplate.updatedAt ?? null,
         mappingFingerprint,
         toEmail: resolvedToEmail,
@@ -381,7 +382,7 @@ export const previewInvoiceEmail = onCall<
           html,
           text,
           pdfUrl,
-          invoiceUpdatedAt: invoice.updatedAt ?? null,
+          invoiceUpdatedAt: invoiceAfterPdfRender.updatedAt ?? null,
           emailTemplateUpdatedAt: emailTemplate.updatedAt ?? null,
           mappingId: mapping?.id ?? null,
           mappingUpdatedAt: mapping?.updatedAt ?? null,
