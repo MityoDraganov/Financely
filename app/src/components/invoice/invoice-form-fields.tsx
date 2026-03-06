@@ -201,9 +201,8 @@ export function InvoiceFormFields({
 	calculatedTotals,
 	defaultCurrency,
 }: InvoiceFormFieldsProps) {
-	if (bindings.length === 0) return null;
-
 	const groups = useMemo(() => groupBindings(bindings), [bindings]);
+	if (bindings.length === 0) return null;
 
 	let sectionIndex = 0;
 

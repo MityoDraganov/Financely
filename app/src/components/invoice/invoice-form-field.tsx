@@ -58,94 +58,6 @@ export function InvoiceFormField({
 	const isObjectValue =
 		typeof value === "object" && value !== null && !Array.isArray(value);
 
-	// Handle address fields with object values
-	if (isAddressField && isObjectValue) {
-		const addressObj = value as Record<string, InvoiceDataValue>;
-		return (
-			<div className="space-y-1.5">
-				<label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-					{field.label}
-				</label>
-				<div className="space-y-2">
-					<input
-						type="text"
-						placeholder={t("invoiceFormField.address.street")}
-						value={String(addressObj.street ?? "")}
-						onChange={(e) =>
-							onChange({ ...addressObj, street: e.target.value })
-						}
-						className={cn(
-							"w-full px-3 py-2 text-sm rounded-md border bg-background",
-							"transition-all duration-150",
-							"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-							"placeholder:text-muted-foreground/40"
-						)}
-					/>
-					<div className="grid grid-cols-2 gap-2">
-						<input
-							type="text"
-							placeholder={t("invoiceFormField.address.city")}
-							value={String(addressObj.city ?? "")}
-							onChange={(e) =>
-								onChange({ ...addressObj, city: e.target.value })
-							}
-							className={cn(
-								"w-full px-3 py-2 text-sm rounded-md border bg-background",
-								"transition-all duration-150",
-								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-								"placeholder:text-muted-foreground/40"
-							)}
-						/>
-						<input
-							type="text"
-							placeholder={t("invoiceFormField.address.state")}
-							value={String(addressObj.state ?? "")}
-							onChange={(e) =>
-								onChange({ ...addressObj, state: e.target.value })
-							}
-							className={cn(
-								"w-full px-3 py-2 text-sm rounded-md border bg-background",
-								"transition-all duration-150",
-								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-								"placeholder:text-muted-foreground/40"
-							)}
-						/>
-					</div>
-					<div className="grid grid-cols-2 gap-2">
-						<input
-							type="text"
-							placeholder={t("invoiceFormField.address.zipCode")}
-							value={String(addressObj.zipCode ?? "")}
-							onChange={(e) =>
-								onChange({ ...addressObj, zipCode: e.target.value })
-							}
-							className={cn(
-								"w-full px-3 py-2 text-sm rounded-md border bg-background",
-								"transition-all duration-150",
-								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-								"placeholder:text-muted-foreground/40"
-							)}
-						/>
-						<input
-							type="text"
-							placeholder={t("invoiceFormField.address.country")}
-							value={String(addressObj.country ?? "")}
-							onChange={(e) =>
-								onChange({ ...addressObj, country: e.target.value })
-							}
-							className={cn(
-								"w-full px-3 py-2 text-sm rounded-md border bg-background",
-								"transition-all duration-150",
-								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-								"placeholder:text-muted-foreground/40"
-							)}
-						/>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	// Use local state to preserve cursor position during typing
 	const [localValue, setLocalValue] = useState<string>(() => {
 		if (field.type === "number") {
@@ -293,6 +205,94 @@ export function InvoiceFormField({
 	const hasValue =
 		localValue !== "" && localValue !== null && localValue !== undefined;
 	const isAutoField = field.isLinkedCurrency || field.hasFormula;
+
+	// Handle address fields with object values
+	if (isAddressField && isObjectValue) {
+		const addressObj = value as Record<string, InvoiceDataValue>;
+		return (
+			<div className="space-y-1.5">
+				<label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+					{field.label}
+				</label>
+				<div className="space-y-2">
+					<input
+						type="text"
+						placeholder={t("invoiceFormField.address.street")}
+						value={String(addressObj.street ?? "")}
+						onChange={(e) =>
+							onChange({ ...addressObj, street: e.target.value })
+						}
+						className={cn(
+							"w-full px-3 py-2 text-sm rounded-md border bg-background",
+							"transition-all duration-150",
+							"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+							"placeholder:text-muted-foreground/40"
+						)}
+					/>
+					<div className="grid grid-cols-2 gap-2">
+						<input
+							type="text"
+							placeholder={t("invoiceFormField.address.city")}
+							value={String(addressObj.city ?? "")}
+							onChange={(e) =>
+								onChange({ ...addressObj, city: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
+						/>
+						<input
+							type="text"
+							placeholder={t("invoiceFormField.address.state")}
+							value={String(addressObj.state ?? "")}
+							onChange={(e) =>
+								onChange({ ...addressObj, state: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
+						/>
+					</div>
+					<div className="grid grid-cols-2 gap-2">
+						<input
+							type="text"
+							placeholder={t("invoiceFormField.address.zipCode")}
+							value={String(addressObj.zipCode ?? "")}
+							onChange={(e) =>
+								onChange({ ...addressObj, zipCode: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
+						/>
+						<input
+							type="text"
+							placeholder={t("invoiceFormField.address.country")}
+							value={String(addressObj.country ?? "")}
+							onChange={(e) =>
+								onChange({ ...addressObj, country: e.target.value })
+							}
+							className={cn(
+								"w-full px-3 py-2 text-sm rounded-md border bg-background",
+								"transition-all duration-150",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+								"placeholder:text-muted-foreground/40"
+							)}
+						/>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-1.5">
