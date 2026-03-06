@@ -16,6 +16,7 @@ Copy the script tag from **Integrations → Share & Embed tab** in the Financely
   data-widget-id="YOUR_WIDGET_ID"
   data-api-url="https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net"
   data-app-url="https://financely.app"
+  data-embed-mode="inline"
 ></script>
 ```
 
@@ -30,6 +31,7 @@ Place this tag anywhere in your HTML where you want the widget to render. The sc
 | `data-widget-id` | Yes | The ID of the specific widget to render. Found in **Share & Embed** |
 | `data-api-url` | Yes | Base URL for the Firebase Cloud Functions API |
 | `data-app-url` | Yes | Origin of the Financely app — always `https://financely.app` |
+| `data-embed-mode` | No | `inline` renders at the script position; `modal` renders a floating button that opens the form |
 
 <Warning>
 Always copy the full snippet directly from the **Share & Embed** tab. Do not construct the script manually — the `data-org-id` and `data-widget-id` values must match exactly.
@@ -53,15 +55,30 @@ The embed script loads the **currently published version** of the widget at rend
 
 ```html
 <iframe
-  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID"
+  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID?embed=1"
   width="100%"
-  height="600"
   frameborder="0"
-  style="border: none;"
+  scrolling="no"
+  style="border:0;display:block;overflow:hidden;min-height:120px;"
 ></iframe>
+<script>
+  (function () {
+    var iframe = document.currentScript.previousElementSibling;
+    if (!iframe) return;
+    function onMessage(event) {
+      var data = event.data || {};
+      if (data.source !== "financely-widget" || data.type !== "resize") return;
+      if (event.source !== iframe.contentWindow) return;
+      var nextHeight = Number(data.height);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      iframe.style.height = Math.ceil(nextHeight) + "px";
+    }
+    window.addEventListener("message", onMessage);
+  })();
+</script>
 ```
 
-Adjust the `height` value to match your widget's content length.
+`embed=1` renders only the form (without the full hosted page layout), and the resize script keeps iframe height matched to form content.
 
 ## Content Security Policy (CSP)
 

@@ -400,7 +400,7 @@ export default function IntegrationsPage() {
 		const appUrl = window.location.origin;
 		let script = `<script src="${widgetLoaderUrl}" data-org-id="${organization.id}" data-api-url="${apiUrl}"`;
 		if (effectiveWidgetId) {
-			script += ` data-widget-id="${effectiveWidgetId}" data-app-url="${appUrl}"`;
+			script += ` data-widget-id="${effectiveWidgetId}" data-app-url="${appUrl}" data-embed-mode="inline"`;
 		}
 		script += `></script>`;
 		return script;

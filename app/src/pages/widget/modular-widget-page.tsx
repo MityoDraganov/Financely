@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { CheckCircle2, Shield, Clock, Star, Check, Lock, ArrowRight } from "lucide-react";
 import { LoadingScreen } from "@/components/loading-screen";
 import { WidgetSchemaRenderer } from "@/components/widget-schema-renderer";
@@ -20,7 +20,6 @@ import type {
 	WidgetPageSchemaBlock,
 	WidgetPagePolicyLinksBlock,
 	WidgetPageSidePanelBlock,
-	WidgetPageSchemaWidgetFormBlock,
 	WidgetPageTrustSignal,
 } from "@/core/entities/widget-definition";
 
@@ -135,7 +134,7 @@ function migrateToSchema(config: WidgetPageConfig | null, widgetName: string): W
 					subtitle:
 						config.formSubtitle ??
 						"Fill in the details below and we'll get back to you.",
-				} satisfies WidgetPageSchemaWidgetFormBlock,
+				} satisfies WidgetPageSchemaBlock,
 			];
 		return { ...config.schema, main: withForm };
 	}
@@ -602,6 +601,12 @@ export default function ModularWidgetPage() {
 		organizationId: string;
 		widgetId: string;
 	}>();
+	const location = useLocation();
+	const isEmbedMode = useMemo(() => {
+		const params = new URLSearchParams(location.search);
+		const embedParam = (params.get("embed") || "").toLowerCase();
+		return embedParam === "1" || embedParam === "true" || embedParam === "yes";
+	}, [location.search]);
 	const [config, setConfig] = useState<{
 		branding: BrandingData;
 		pageConfig: WidgetPageConfig | null;
@@ -622,6 +627,89 @@ export default function ModularWidgetPage() {
 	const [submitError, setSubmitError] = useState<string | null>(null);
 
 	const apiUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
+
+	useEffect(() => {
+		if (!isEmbedMode) return;
+		const root = document.documentElement;
+		const body = document.body;
+		const hadDark = root.classList.contains("dark");
+		const hadLight = root.classList.contains("light");
+		const prevRootBg = root.style.backgroundColor;
+		const prevBodyBg = body.style.backgroundColor;
+		const prevBodyMargin = body.style.margin;
+		root.classList.remove("dark");
+		root.classList.add("light");
+		root.style.backgroundColor = "transparent";
+		body.style.backgroundColor = "transparent";
+		body.style.margin = "0";
+		return () => {
+			root.classList.remove("light");
+			root.style.backgroundColor = prevRootBg;
+			body.style.backgroundColor = prevBodyBg;
+			body.style.margin = prevBodyMargin;
+			if (hadDark) {
+				root.classList.add("dark");
+			} else if (hadLight) {
+				root.classList.add("light");
+			}
+		};
+	}, [isEmbedMode]);
+
+	useEffect(() => {
+		if (!isEmbedMode) return;
+		const postHeight = () => {
+			const doc = document.documentElement;
+			const body = document.body;
+			const height = Math.ceil(
+				Math.max(
+					doc?.scrollHeight ?? 0,
+					doc?.offsetHeight ?? 0,
+					body?.scrollHeight ?? 0,
+					body?.offsetHeight ?? 0,
+				),
+			);
+			if (window.parent && window.parent !== window) {
+				window.parent.postMessage(
+					{
+						source: "financely-widget",
+						type: "resize",
+						height,
+					},
+					"*",
+				);
+			}
+		};
+
+		const rafPostHeight = () => {
+			window.requestAnimationFrame(() => {
+				window.requestAnimationFrame(postHeight);
+			});
+		};
+
+		rafPostHeight();
+		const observer =
+			typeof ResizeObserver !== "undefined"
+				? new ResizeObserver(() => rafPostHeight())
+				: null;
+		if (observer && document.body) observer.observe(document.body);
+
+		const mutationObserver = new MutationObserver(() => rafPostHeight());
+		if (document.body) {
+			mutationObserver.observe(document.body, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				characterData: true,
+			});
+		}
+		window.addEventListener("resize", rafPostHeight);
+
+		return () => {
+			observer?.disconnect();
+			mutationObserver.disconnect();
+			window.removeEventListener("resize", rafPostHeight);
+		};
+	}, [isEmbedMode, submitStatus, submitError, config]);
 
 	useEffect(() => {
 		if (!organizationId || !widgetId) return;
@@ -663,6 +751,9 @@ export default function ModularWidgetPage() {
 	}, [organizationId, widgetId]);
 
 	if (!organizationId || !widgetId) {
+		if (isEmbedMode) {
+			return <div style={{ padding: "8px", color: "#dc2626" }}>Missing organization or widget</div>;
+		}
 		return (
 			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
 				<p className="text-destructive">Missing organization or widget</p>
@@ -677,12 +768,18 @@ export default function ModularWidgetPage() {
 			normalizedError.includes("widget is draft") ||
 			normalizedError.includes("widget in draft");
 		if (isDraftWidgetError) {
+			if (isEmbedMode) {
+				return <div style={{ padding: "8px", color: "#6b7280" }}>This form is not published yet.</div>;
+			}
 			return (
 				<NotPublishedPage
 					branding={errorBranding}
 					draftConfig={errorPageConfig?.draftState}
 				/>
 			);
+		}
+		if (isEmbedMode) {
+			return <div style={{ padding: "8px", color: "#dc2626" }}>{configError}</div>;
 		}
 		return (
 			<div className="min-h-screen w-screen max-w-none flex items-center justify-center bg-muted/30 p-6">
@@ -692,6 +789,9 @@ export default function ModularWidgetPage() {
 	}
 
 	if (!config) {
+		if (isEmbedMode) {
+			return <div style={{ padding: "8px", color: "#6b7280" }}>Loading form...</div>;
+		}
 		return <LoadingScreen />;
 	}
 
@@ -759,6 +859,29 @@ export default function ModularWidgetPage() {
 		successColor: accent,
 	};
 
+	if (isEmbedMode) {
+		return (
+			<EmbeddedFormLayout
+				primary={primary}
+				submitStatus={submitStatus}
+				submitMessage={submitMessage}
+				successMessage={config.widget.actions.success?.message}
+				onResetSubmit={() => setSubmitStatus("idle")}
+			>
+				<WidgetSchemaRenderer
+					pages={config.widget.pages}
+					actions={config.widget.actions}
+					styling={themeStyling}
+					onSubmit={handleSubmit}
+					organizationId={organizationId}
+					submitting={submitting}
+					submitError={submitError}
+					multiStepOptions={config.widget.multiStepOptions}
+				/>
+			</EmbeddedFormLayout>
+		);
+	}
+
 	return (
 		<BrandedLayout
 			branding={config.branding}
@@ -813,6 +936,85 @@ interface SchemaDrivenLayoutProps {
 	successMessage?: string;
 	onResetSubmit: () => void;
 	children: React.ReactNode;
+}
+
+interface EmbeddedFormLayoutProps {
+	primary: string;
+	submitStatus: "idle" | "success" | "error";
+	submitMessage: string;
+	successMessage?: string;
+	onResetSubmit: () => void;
+	children: React.ReactNode;
+}
+
+function EmbeddedFormLayout({
+	primary,
+	submitStatus,
+	submitMessage,
+	successMessage,
+	onResetSubmit,
+	children,
+}: EmbeddedFormLayoutProps) {
+	return (
+		<div
+			style={{
+				width: "100%",
+				padding: 0,
+				margin: 0,
+				backgroundColor: "transparent",
+				color: "#111827",
+				fontFamily: "system-ui, sans-serif",
+			}}
+		>
+			{submitStatus === "success" ? (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						textAlign: "center",
+						padding: "10px 0",
+					}}
+				>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							width: "56px",
+							height: "56px",
+							borderRadius: "9999px",
+							backgroundColor: `${primary}1a`,
+							marginBottom: "12px",
+						}}
+					>
+						<CheckCircle2 size={28} color={primary} />
+					</div>
+					<h2 style={{ margin: "0 0 8px", fontSize: "24px", fontWeight: 600 }}>
+						All done!
+					</h2>
+					<p style={{ margin: "0 0 14px", color: "#4b5563" }}>
+						{submitMessage || successMessage || "Thank you for your submission."}
+					</p>
+					<button
+						onClick={onResetSubmit}
+						style={{
+							border: "none",
+							background: "transparent",
+							color: primary,
+							textDecoration: "underline",
+							cursor: "pointer",
+							fontSize: "14px",
+						}}
+					>
+						Submit another response
+					</button>
+				</div>
+			) : (
+				children
+			)}
+		</div>
+	);
 }
 
 function SchemaDrivenLayout({

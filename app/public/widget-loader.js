@@ -3,7 +3,7 @@
  * Embeds customizable widgets into any website
  * 
  * Usage:
- * <script src="https://your-domain.com/widget-loader.js" data-org-id="YOUR_ORG_ID" data-api-url="https://us-central1-YOUR_PROJECT.cloudfunctions.net"></script>
+ * <script src="https://your-domain.com/widget-loader.js" data-org-id="YOUR_ORG_ID" data-api-url="https://us-central1-YOUR_PROJECT.cloudfunctions.net" data-embed-mode="inline"></script>
  */
 
 (function() {
@@ -15,6 +15,7 @@
     apiUrl: null,
     widgetConfig: null,
     language: null, // Override language (e.g., 'bg', 'es', 'fr')
+    embedMode: 'modal',
   };
 
   // Get configuration from script tag
@@ -27,6 +28,11 @@
     config.widgetId = currentScript.getAttribute('data-widget-id');
     config.appUrl = currentScript.getAttribute('data-app-url') || (config.widgetId ? window.location.origin : null);
     config.language = currentScript.getAttribute('data-language');
+    config.embedMode = (
+      currentScript.getAttribute('data-embed-mode') ||
+      currentScript.getAttribute('data-display-mode') ||
+      'modal'
+    ).toLowerCase();
   }
 
   if (!config.orgId) {
@@ -920,10 +926,42 @@
     };
   }
 
-  // Modular widget: open widget page in iframe (integration widgets with pages)
+  // Modular widget: open embedded form in iframe
+  function attachIframeAutoResize(iframe) {
+    const minHeight = 120;
+    function onMessage(event) {
+      const data = event && event.data;
+      if (!data || data.source !== 'financely-widget' || data.type !== 'resize') return;
+      if (event.source !== iframe.contentWindow) return;
+      const nextHeight = Number(data.height);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      iframe.style.height = Math.max(minHeight, Math.ceil(nextHeight)) + 'px';
+    }
+    window.addEventListener('message', onMessage);
+  }
+
   function initModularWidget() {
     if (!config.widgetId || !config.appUrl) return;
-    const iframeUrl = config.appUrl.replace(/\/$/, '') + '/widget/' + encodeURIComponent(config.orgId) + '/modular/' + encodeURIComponent(config.widgetId);
+    const widgetUrl = config.appUrl.replace(/\/$/, '') + '/widget/' + encodeURIComponent(config.orgId) + '/modular/' + encodeURIComponent(config.widgetId);
+    const iframeUrl = widgetUrl + (widgetUrl.indexOf('?') === -1 ? '?embed=1' : '&embed=1');
+    if (config.embedMode === 'inline') {
+      const iframe = document.createElement('iframe');
+      iframe.src = iframeUrl;
+      iframe.title = 'Form';
+      iframe.setAttribute('name', 'financely-form-view');
+      iframe.setAttribute('id', 'financely-form-view');
+      iframe.setAttribute('loading', 'lazy');
+      iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      iframe.setAttribute('scrolling', 'no');
+      iframe.style.cssText = 'width:100%;height:120px;border:none;display:block;overflow:hidden;';
+      attachIframeAutoResize(iframe);
+      if (currentScript && currentScript.parentNode) {
+        currentScript.parentNode.insertBefore(iframe, currentScript.nextSibling);
+      } else {
+        document.body.appendChild(iframe);
+      }
+      return;
+    }
     const button = document.createElement('button');
     button.className = 'financely-widget-button financely-widget-modular bottom-right';
     button.setAttribute('aria-label', 'Open form');
@@ -1024,4 +1062,3 @@
     init();
   }
 })();
-

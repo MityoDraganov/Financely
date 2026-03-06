@@ -36,13 +36,30 @@ export function ShareEmbedSection({
 	const shareableLink = widgetIdForLink
 		? `${window.location.origin}/widget/${organizationId}/modular/${widgetIdForLink}`
 		: `${window.location.origin}/widget/${organizationId}`;
+	const iframeEmbedLink = `${shareableLink}?embed=1`;
 
 	const iframeSnippet = `<iframe
-  src="${shareableLink}"
+  src="${iframeEmbedLink}"
   width="100%"
-  height="500"
   frameborder="0"
-></iframe>`;
+  scrolling="no"
+  style="border:0;display:block;overflow:hidden;min-height:120px;"
+></iframe>
+<script>
+  (function () {
+    var iframe = document.currentScript.previousElementSibling;
+    if (!iframe) return;
+    function onMessage(event) {
+      var data = event.data || {};
+      if (data.source !== "financely-widget" || data.type !== "resize") return;
+      if (event.source !== iframe.contentWindow) return;
+      var nextHeight = Number(data.height);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      iframe.style.height = Math.ceil(nextHeight) + "px";
+    }
+    window.addEventListener("message", onMessage);
+  })();
+</script>`;
 
 	const handleCopy = (text: string, type: "script" | "iframe" | "link") => {
 		navigator.clipboard.writeText(text);

@@ -110,6 +110,7 @@ The script embed is the standard way to add a widget to your website. Copy the c
   data-widget-id="YOUR_WIDGET_ID"
   data-api-url="https://us-central1-YOUR_PROJECT.cloudfunctions.net"
   data-app-url="https://financely.app"
+  data-embed-mode="inline"
 ></script>
 ```
 
@@ -121,11 +122,27 @@ For platforms that block external scripts (Wix, Squarespace), use the iFrame emb
 
 ```html
 <iframe
-  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID"
+  src="https://financely.app/widget/YOUR_ORG_ID/modular/YOUR_WIDGET_ID?embed=1"
   width="100%"
-  height="600"
   frameborder="0"
+  scrolling="no"
+  style="border:0;display:block;overflow:hidden;min-height:120px;"
 ></iframe>
+<script>
+  (function () {
+    var iframe = document.currentScript.previousElementSibling;
+    if (!iframe) return;
+    function onMessage(event) {
+      var data = event.data || {};
+      if (data.source !== "financely-widget" || data.type !== "resize") return;
+      if (event.source !== iframe.contentWindow) return;
+      var nextHeight = Number(data.height);
+      if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+      iframe.style.height = Math.ceil(nextHeight) + "px";
+    }
+    window.addEventListener("message", onMessage);
+  })();
+</script>
 ```
 
 ### Platform quick-start guides
