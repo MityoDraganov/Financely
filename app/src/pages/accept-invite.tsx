@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { CheckCircle, XCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { useOnboardingStore } from "@/hooks/use-onboarding-store";
 const PENDING_INVITE_KEY = "pendingInviteCode";
 
 export default function AcceptInvitePage() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isLoaded, isSignedIn } = useAuth();
@@ -124,14 +126,14 @@ export default function AcceptInvitePage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <XCircle className="h-6 w-6 text-red-600" />
             </div>
-            <CardTitle>Invalid Invite Link</CardTitle>
+            <CardTitle>{t("acceptInvite.invalid.title")}</CardTitle>
             <CardDescription>
-              This invite link is invalid or has expired.
+              {t("acceptInvite.invalid.description")}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button onClick={() => navigate("/")} className="w-full">
-              Go to Dashboard
+              {t("acceptInvite.common.goToDashboard")}
             </Button>
           </CardContent>
         </Card>
@@ -160,8 +162,8 @@ export default function AcceptInvitePage() {
           <div className="h-8 flex items-center justify-center">
             <p className="text-gray-600 dark:text-gray-400 text-lg font-medium">
               {status === "checking-auth" 
-                ? "Verifying your authentication..." 
-                : "Accepting your invitation..."
+                ? t("acceptInvite.loading.verifyingAuth")
+                : t("acceptInvite.loading.acceptingInvitation")
               }
             </p>
           </div>
@@ -178,14 +180,14 @@ export default function AcceptInvitePage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
               <XCircle className="h-6 w-6 text-red-600" />
             </div>
-            <CardTitle>Failed to Accept Invite</CardTitle>
+            <CardTitle>{t("acceptInvite.error.title")}</CardTitle>
             <CardDescription>
-              There was an error accepting the invitation. The link may have expired or been revoked.
+              {t("acceptInvite.error.description")}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-3">
             <Button onClick={() => navigate("/dashboard")} className="w-full">
-              Go to Dashboard
+              {t("acceptInvite.common.goToDashboard")}
             </Button>
             <Button 
               variant="outline" 
@@ -195,7 +197,7 @@ export default function AcceptInvitePage() {
               }} 
               className="w-full"
             >
-              Try Again
+              {t("acceptInvite.common.tryAgain")}
             </Button>
           </CardContent>
         </Card>
@@ -225,14 +227,14 @@ export default function AcceptInvitePage() {
           {/* Success Message */}
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              Welcome to the Team!
+              {t("acceptInvite.success.title")}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-lg font-medium max-w-md mx-auto">
-              You've successfully joined the organization. You can now access all the features and collaborate with your team.
+              {t("acceptInvite.success.description")}
             </p>
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-2">
               <Users className="h-4 w-4" />
-              <span>You're now part of the team</span>
+              <span>{t("acceptInvite.success.badge")}</span>
             </div>
           </div>
 
@@ -242,7 +244,7 @@ export default function AcceptInvitePage() {
               onClick={() => navigate("/dashboard")} 
               className="bg-[#166534] hover:bg-[#14532d] dark:bg-[#22c55e] dark:hover:bg-[#16a34a] text-white px-8 py-2"
             >
-              Go to Dashboard
+              {t("acceptInvite.common.goToDashboard")}
             </Button>
           </div>
         </div>

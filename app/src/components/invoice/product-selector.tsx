@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,11 +31,14 @@ export function ProductSelector({
   products,
   value,
   onValueChange,
-  placeholder = "Select a product...",
+  placeholder,
   className,
 }: ProductSelectorProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const effectivePlaceholder =
+    placeholder || t("productSelector.selectProduct");
 
   const selectedProduct = products.find((p) => p.id === value);
 
@@ -63,7 +67,7 @@ export function ProductSelector({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Package className="h-4 w-4 shrink-0" />
             <span className="truncate">
-              {selectedProduct ? selectedProduct.name : placeholder}
+              {selectedProduct ? selectedProduct.name : effectivePlaceholder}
             </span>
           </div>
           <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -72,12 +76,12 @@ export function ProductSelector({
       <PopoverContent className="w-[400px] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search products by name, SKU, or category..."
+            placeholder={t("productSelector.searchPlaceholder")}
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
           <CommandList>
-            <CommandEmpty>No products found.</CommandEmpty>
+            <CommandEmpty>{t("productSelector.noProductsFound")}</CommandEmpty>
             <CommandGroup>
               {filteredProducts.map((product) => (
                 <CommandItem
@@ -97,7 +101,7 @@ export function ProductSelector({
                         <span className="font-medium truncate">{product.name}</span>
                         {product.sku && (
                           <span className="text-xs text-muted-foreground shrink-0">
-                            SKU: {product.sku}
+                            {t("productSelector.skuLabel", { sku: product.sku })}
                           </span>
                         )}
                       </div>
@@ -117,7 +121,9 @@ export function ProductSelector({
                         )}
                         {product.trackInventory && product.stockQuantity !== undefined && (
                           <span className="text-xs text-muted-foreground">
-                            • Stock: {product.stockQuantity}
+                            {t("productSelector.stockLabel", {
+                              count: product.stockQuantity,
+                            })}
                           </span>
                         )}
                       </div>
@@ -138,4 +144,3 @@ export function ProductSelector({
     </Popover>
   );
 }
-

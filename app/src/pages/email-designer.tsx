@@ -1665,16 +1665,16 @@ export default function EmailDesignerPage() {
 	);
 	const defaultProductLabel = autoSelectedProduct
 		? formatProductPreviewLabel(autoSelectedProduct)
-		: "No matching product";
+		: t("emailDesigner.previewContext.noMatchingProduct");
 	const defaultContactLabel = autoSelectedContact
 		? formatContactPreviewLabel(autoSelectedContact)
-		: "No matching contact";
+		: t("emailDesigner.previewContext.noMatchingContact");
 	const defaultInvoiceLabel = autoSelectedInvoice
 		? formatInvoicePreviewLabel(autoSelectedInvoice)
-		: "No matching invoice";
+		: t("emailDesigner.previewContext.noMatchingInvoice");
 	const defaultProposalLabel = autoSelectedProposal
 		? formatProposalPreviewLabel(autoSelectedProposal)
-		: "No matching proposal";
+		: t("emailDesigner.previewContext.noMatchingProposal");
 
 	useEffect(() => {
 		if (!draftTemplate?.id) return;
@@ -1701,8 +1701,12 @@ export default function EmailDesignerPage() {
 		return (
 			<div className="py-6 pr-6 space-y-4">
 				<div className="text-destructive">
-					<h2 className="text-xl font-bold">Context Error</h2>
-					<p className="text-sm">Email designer context is not available. Please refresh the page.</p>
+					<h2 className="text-xl font-bold">
+						{t("emailDesigner.contextError.title")}
+					</h2>
+					<p className="text-sm">
+						{t("emailDesigner.contextError.description")}
+					</p>
 				</div>
 			</div>
 		);
@@ -1974,7 +1978,9 @@ export default function EmailDesignerPage() {
 				<div className="shrink-0 border-b border-border/70 bg-background px-4 py-2 flex items-center gap-3">
 					<div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
 						<Eye className="h-3.5 w-3.5" />
-						<span className="font-medium">Preview with</span>
+						<span className="font-medium">
+							{t("emailDesigner.previewContext.previewWith")}
+						</span>
 					</div>
 					<div className="flex items-center gap-2 flex-wrap">
 						{usesProductSources && (
@@ -1987,11 +1993,16 @@ export default function EmailDesignerPage() {
 								onValueChange={handlePreviewProductChange}
 							>
 								<SelectTrigger className="h-7 text-xs w-52 bg-background">
-									<SelectValue placeholder="Product" />
+									<SelectValue
+										placeholder={t("emailDesigner.previewContext.product")}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
-										<span className="text-muted-foreground">Auto:</span>{" "}{defaultProductLabel}
+										<span className="text-muted-foreground">
+											{t("emailDesigner.previewContext.autoPrefix")}
+										</span>{" "}
+										{defaultProductLabel}
 									</SelectItem>
 									{previewProductOptions.map((option) => (
 										<SelectItem key={option.id} value={option.id} className="text-xs">
@@ -2011,11 +2022,16 @@ export default function EmailDesignerPage() {
 								onValueChange={handlePreviewContactChange}
 							>
 								<SelectTrigger className="h-7 text-xs w-52 bg-background">
-									<SelectValue placeholder="Contact" />
+									<SelectValue
+										placeholder={t("emailDesigner.previewContext.contact")}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
-										<span className="text-muted-foreground">Auto:</span>{" "}{defaultContactLabel}
+										<span className="text-muted-foreground">
+											{t("emailDesigner.previewContext.autoPrefix")}
+										</span>{" "}
+										{defaultContactLabel}
 									</SelectItem>
 									{previewContactOptions.map((option) => (
 										<SelectItem key={option.id} value={option.id} className="text-xs">
@@ -2035,11 +2051,16 @@ export default function EmailDesignerPage() {
 								onValueChange={handlePreviewInvoiceChange}
 							>
 								<SelectTrigger className="h-7 text-xs w-52 bg-background">
-									<SelectValue placeholder="Invoice" />
+									<SelectValue
+										placeholder={t("emailDesigner.previewContext.invoice")}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
-										<span className="text-muted-foreground">Auto:</span>{" "}{defaultInvoiceLabel}
+										<span className="text-muted-foreground">
+											{t("emailDesigner.previewContext.autoPrefix")}
+										</span>{" "}
+										{defaultInvoiceLabel}
 									</SelectItem>
 									{previewInvoiceOptions.map((option) => (
 										<SelectItem key={option.id} value={option.id} className="text-xs">
@@ -2059,11 +2080,16 @@ export default function EmailDesignerPage() {
 								onValueChange={handlePreviewProposalChange}
 							>
 								<SelectTrigger className="h-7 text-xs w-52 bg-background">
-									<SelectValue placeholder="Proposal" />
+									<SelectValue
+										placeholder={t("emailDesigner.previewContext.proposal")}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={AUTO_PREVIEW_VALUE} className="text-xs">
-										<span className="text-muted-foreground">Auto:</span>{" "}{defaultProposalLabel}
+										<span className="text-muted-foreground">
+											{t("emailDesigner.previewContext.autoPrefix")}
+										</span>{" "}
+										{defaultProposalLabel}
 									</SelectItem>
 									{previewProposalOptions.map((option) => (
 										<SelectItem key={option.id} value={option.id} className="text-xs">

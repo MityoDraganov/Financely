@@ -542,6 +542,7 @@
 			"currency": "Currency",
 			"leadId": "Lead ID",
 			"invoiceId": "Invoice ID",
+			"viewInvoice": "View Invoice",
 			"actions": "Actions",
 			"convertToInvoice": "Convert to Invoice (AI)",
 			"message": "Message:"
@@ -560,16 +561,52 @@
 			"orgNotFound": "Organization not found",
 			"generateFailed": "Failed to generate invoice: {{error}}"
 		},
+		"email": {
+			"title": "Send Proposal Email",
+			"recipientLabel": "Recipient email",
+			"recipientPlaceholder": "customer@example.com",
+			"recipientRequired": "Recipient email is required",
+			"proposalNotFound": "Proposal not found",
+			"templateLabel": "Email template (optional)",
+			"templatePlaceholder": "Use default proposal email",
+			"defaultTemplate": "Default proposal email",
+			"noCompatibleTemplates": "No compatible templates found",
+			"send": "Send Email",
+			"sending": "Sending…",
+			"sentTo": "Proposal email sent to {{email}}",
+			"sendFailed": "Failed to send proposal email: {{error}}"
+		},
 		"review": {
 			"title": "Review & Edit Invoice",
 			"description": "Review and edit the AI-generated invoice data before creating the invoice.",
 			"invoiceNumber": "Invoice Number",
 			"sellerInfo": "Seller Information",
 			"customerInfo": "Customer Information",
+			"templateNotFound": "Template not found",
+			"noSellerFields": "No seller/supplier fields found in template",
+			"noCustomerFields": "No customer/buyer fields found in template",
+			"enterField": "Enter {{field}}",
+			"unknownError": "Unknown error",
+			"zipCode": "Zip Code",
 			"invoiceDetails": "Invoice Details",
+			"invoiceDetailsFields": {
+				"invoiceNumber": "Invoice Number",
+				"invoiceDate": "Invoice Date",
+				"issueDate": "Issue Date",
+				"dueDate": "Due Date",
+				"currency": "Currency"
+			},
 			"items": "Items",
 			"itemsEditable": "Items can be edited after creating the invoice.",
 			"totals": "Totals",
+			"totalsFields": {
+				"subtotal": "Subtotal",
+				"netAmount": "Net Amount",
+				"taxTotal": "Tax Total",
+				"vatTotal": "VAT Total",
+				"total": "Total",
+				"grossTotal": "Gross Total"
+			},
 			"cancel": "Cancel",
 			"create": "Create Invoice",
 			"creating": "Creating...",
@@ -581,6 +618,151 @@
 			"unknown": "Unknown",
 			"tax": "+ {{tax}}% tax"
 		}
+	},
+	"invoiceUploadFlow": {
+		"header": {
+			"templateTitle": "Create Template from Invoice",
+			"invoiceTitle": "Create Invoice from Upload",
+			"templateDescription": "Upload an invoice to generate a reusable template",
+			"invoiceDescription": "Upload an invoice to automatically create an invoice"
+		},
+		"modelSelector": {
+			"auto": "Auto",
+			"loadingModels": "Loading models...",
+			"searchPlaceholder": "Search models...",
+			"noModelFound": "No model found.",
+			"modeHeading": "Mode"
+		},
+		"models": {
+			"titleTemplate": "AI Model for Template Generation",
+			"titleInvoice": "AI Models for Upload Flow",
+			"descriptionTemplate": "Select the model used to generate templates from uploaded invoices. Models are loaded live from Gemini and OpenAI.",
+			"descriptionInvoice": "Select models for extraction and template generation. Models are loaded live from Gemini and OpenAI.",
+			"extractionLabel": "Extraction model",
+			"templateLabel": "Template model",
+			"geminiBadge": "Gemini: {{value}}",
+			"openAiBadge": "OpenAI: {{value}}",
+			"modelsCount_one": "{{count}} model",
+			"modelsCount_other": "{{count}} models",
+			"unavailable": "Unavailable",
+			"loadFailed": "Could not load models. You can retry.",
+			"taskTemplate": "Task: template generation",
+			"taskInvoice": "Tasks: extraction + template generation",
+			"appliedPerRequest": "Applied per request only"
+		},
+		"steps": {
+			"upload": "Upload",
+			"analyze": "Analyze",
+			"extract": "Extract",
+			"match": "Match",
+			"complete": "Complete"
+		},
+		"upload": {
+			"title": "Upload Invoice File",
+			"description": "Upload a PDF or image file of your invoice"
+		},
+		"extract": {
+			"title": "Extraction Status",
+			"description": "Extracting data from your invoice"
+		},
+		"match": {
+			"title": "Template Match Found",
+			"description": "We found a matching template for this invoice",
+			"foundCount_one": "Found {{count}} matching template",
+			"foundCount_other": "Found {{count}} matching templates",
+			"percentMatch": "{{percent}}% match",
+			"creatingInvoice": "Creating Invoice...",
+			"useTemplate": "Use This Template",
+			"generateNewTemplate": "Generate New Template"
+		},
+		"previewTemplate": {
+			"title": "Template Generation",
+			"description": "We analyze your invoice visually in one AI pass and build a block-based template.",
+			"generating": "Generating template from invoice layout...",
+			"generated": "Template generated. Review and accept the preview.",
+			"failed": "Template generation failed. Please upload again or retry."
+		},
+		"previewInvoice": {
+			"title": "Extracted Data",
+			"description": "Review the extracted data and generate a template. You can edit both field names and values.",
+			"noData": "No data extracted yet."
+		},
+		"toasts": {
+			"templateCreated": "Template created successfully",
+			"createTemplateFailed": "Failed to create template",
+			"invoiceCreated": "Invoice created successfully",
+			"createInvoiceFailed": "Failed to create invoice"
+		},
+		"errors": {
+			"organizationNotFound": "Organization not found",
+			"unknownError": "Unknown error"
+		},
+		"common": {
+			"retry": "Retry"
+		},
+		"generatedTemplateName": "Template from {{fileName}}",
+		"generatedTemplateFallback": "Invoice"
+	},
+	"acceptInvite": {
+		"invalid": {
+			"title": "Invalid Invite Link",
+			"description": "This invite link is invalid or has expired."
+		},
+		"loading": {
+			"verifyingAuth": "Verifying your authentication...",
+			"acceptingInvitation": "Accepting your invitation..."
+		},
+		"error": {
+			"title": "Failed to Accept Invite",
+			"description": "There was an error accepting the invitation. The link may have expired or been revoked."
+		},
+		"success": {
+			"title": "Welcome to the Team!",
+			"description": "You've successfully joined the organization. You can now access all the features and collaborate with your team.",
+			"badge": "You're now part of the team"
+		},
+		"common": {
+			"goToDashboard": "Go to Dashboard",
+			"tryAgain": "Try Again"
+		}
+	},
+	"productSelector": {
+		"selectProduct": "Select a product...",
+		"searchPlaceholder": "Search products by name, SKU, or category...",
+		"noProductsFound": "No products found.",
+		"skuLabel": "SKU: {{sku}}",
+		"stockLabel": "• Stock: {{count}}"
+	},
+	"invoiceTableRow": {
+		"mappingProduct": "Mapping product…",
+		"productPlaceholder": "Product…",
+		"quantityExceedsStock": "Quantity ({{quantity}}) exceeds stock ({{stock}})",
+		"autoCalculated": "Auto-calculated by formula",
+		"linkedAutoConverted": "Linked — auto-converted",
+		"fromProduct": "From product",
+		"removeRowAria": "Remove row"
+	},
+	"invoiceFormField": {
+		"address": {
+			"street": "Street address",
+			"city": "City",
+			"state": "State / Province",
+			"zipCode": "ZIP / Postal code",
+			"country": "Country"
+		},
+		"badges": {
+			"formula": "formula",
+			"linked": "linked",
+			"product": "product"
+		},
+		"tooltips": {
+			"formula": "This field is auto-calculated by a formula",
+			"linked": "This field is linked to another currency field",
+			"populatedFromProduct": "Populated from selected product"
+		},
+		"autoCalculate": "Auto-calculate",
+		"enterField": "Enter {{field}}",
+		"suggested": "Suggested:"
 	},
 	"templates": {
 		"title": "Templates",
@@ -642,6 +824,8 @@
 			"clear": "Clear selection",
 			"selectAll": "Select all",
 			"deselectAll": "Deselect all",
+			"selectedCount_one": "{{count}} template selected",
+			"selectedCount_other": "{{count}} templates selected",
 			"title": "Delete {{count}} template?",
 			"title_plural": "Delete {{count}} templates?",
 			"description": "Are you sure you want to delete {{count}} selected template? This action cannot be undone.",
@@ -651,6 +835,18 @@
 			"deleting": "Deleting...",
 			"success": "Successfully deleted {{count}} template",
 			"success_plural": "Successfully deleted {{count}} templates"
+		},
+		"aiUpload": {
+			"title": "Generate from Invoice",
+			"description": "Upload an invoice PDF or image and automatically generate a template",
+			"points": {
+				"upload": "Upload invoice PDF or image",
+				"extract": "AI extracts all invoice data automatically",
+				"generate": "Template generated with matching bindings"
+			},
+			"button": "Upload Invoice",
+			"bannerTitle": "Generate from Invoice:",
+			"bannerDescription": "Upload an invoice PDF or image to create a matching template automatically."
 		}
 	},
 	"designer": {
@@ -1121,6 +1317,22 @@
 			"description": "There are no email templates yet. Start by creating one and customize it in the designer.",
 			"action": "Create email template"
 		},
+		"contextError": {
+			"title": "Context Error",
+			"description": "Email designer context is not available. Please refresh the page."
+		},
+		"previewContext": {
+			"previewWith": "Preview with",
+			"autoPrefix": "Auto:",
+			"product": "Product",
+			"contact": "Contact",
+			"invoice": "Invoice",
+			"proposal": "Proposal",
+			"noMatchingProduct": "No matching product",
+			"noMatchingContact": "No matching contact",
+			"noMatchingInvoice": "No matching invoice",
+			"noMatchingProposal": "No matching proposal"
+		},
 		"properties": {
 			"title": "Block settings",
 			"empty": "Select a block to edit its content.",
@@ -1415,6 +1627,9 @@
 		},
 		"execution": {
 			"title": "Workflow Execution",
+			"errors": {
+				"unknown": "Unknown error"
+			},
 			"notFound": {
 				"title": "Workflow not found",
 				"description": "The workflow you're looking for doesn't exist or has been deleted.",
@@ -1451,11 +1666,14 @@
 					"trigger": "Trigger:",
 					"steps": "Steps:",
 					"created": "Created:",
+					"lastUpdated": "Last Updated:",
+					"notAvailable": "N/A",
 					"tags": "Tags:"
 				},
 				"steps": {
 					"title": "Workflow Steps",
 					"description": "The sequence of actions in this workflow",
+					"empty": "No steps configured yet.",
 					"actions": "{{count}} action",
 					"actionsPlural": "{{count}} actions"
 				}
@@ -1560,6 +1778,7 @@
 				"visualView": "Visual View",
 				"listView": "List",
 				"noActions": "No actions",
+				"noActionsConfigured": "No actions configured",
 				"addFirstStep": "Add the first step"
 			},
 			"actions": {
@@ -2025,6 +2244,8 @@
 		},
 		"widgets": {
 			"saveConfiguration": "Save Widget Configuration",
+			"selectOrCreate": "Select or create a widget",
+			"selectOrCreateDesc": "Choose a widget from the list or create one from a template.",
 			"defaultLabels": {
 				"name": "Name",
 				"email": "Email",
@@ -3248,6 +3469,201 @@
 			"brandingSaveFailed": "Failed to save branding. Continuing anyway..."
 		}
 	},
+	"contentPages": {
+		"layout": {
+			"title": "Content",
+			"subtitle": "Manage custom data structures and assets",
+			"tabs": {
+				"metaobjects": "Metaobjects & Metafields",
+				"files": "Files"
+			}
+		},
+		"metaobjects": {
+			"actions": {
+				"delete": "Delete"
+			},
+			"card": {
+				"view": "View",
+				"edit": "Edit",
+				"delete": "Delete",
+				"fieldCountSingular": "{{count}} field",
+				"fieldCountPlural": "{{count}} fields"
+			},
+			"deleteDialog": {
+				"title": "Delete metaobject definition",
+				"description": "This action cannot be undone. This will permanently delete the metaobject definition and all associated data.",
+				"warningTitle": "Warning",
+				"warningDescription": "To confirm deletion, please type {{definitionName}} in the field below.",
+				"definitionNameLabel": "Definition name",
+				"delete": "Delete",
+				"deleting": "Deleting..."
+			},
+			"form": {
+				"editTitle": "Edit metaobject definition",
+				"addTitle": "Add metaobject definition",
+				"editDescription": "Update the metaobject definition and its fields",
+				"addDescription": "Define a new metaobject definition with custom fields",
+				"nameLabel": "Name *",
+				"namePlaceholder": "e.g., Product Feature",
+				"descriptionLabel": "Description",
+				"descriptionPlaceholder": "Optional description",
+				"fieldsLabel": "Fields *",
+				"addField": "Add field",
+				"fieldLabel": "Field label *",
+				"fieldLabelPlaceholder": "e.g., Title",
+				"cardinalityLabel": "Cardinality",
+				"cardinalityOne": "One value",
+				"cardinalityList": "List of values",
+				"fieldTypeLabel": "Field type *",
+				"fieldTypePlaceholder": "Select field type",
+				"noFieldsMessage": "No fields added yet. Click \"Add field\" to get started.",
+				"update": "Update",
+				"create": "Create"
+			},
+			"fieldType": {
+				"listPrefix": "List · "
+			},
+			"fieldTypeSelector": {
+				"placeholder": "Select field type",
+				"searchPlaceholder": "Search field types...",
+				"empty": "No field type found.",
+				"selectedMark": "✓",
+				"categories": {
+					"recommended": "Recommended",
+					"text": "Text",
+					"media": "Media",
+					"reference": "Reference",
+					"number": "Number",
+					"link": "Link",
+					"dateTime": "Date and time",
+					"other": "Other",
+					"advanced": "Advanced"
+				},
+				"labels": {
+					"singleLineText": "Single line text",
+					"multiLineText": "Multi-line text",
+					"integer": "Integer",
+					"imageFile": "Image (File)",
+					"metaobject": "Metaobject",
+					"richText": "Rich text",
+					"choiceListSingleLine": "Choice list (Single line text)",
+					"emailSingleLine": "Email (Single line text)",
+					"file": "File",
+					"videoFile": "Video (File)",
+					"product": "Product",
+					"collection": "Collection",
+					"blogPost": "Blog post",
+					"page": "Page",
+					"customer": "Customer",
+					"order": "Order",
+					"company": "Company",
+					"productVariant": "Product variant",
+					"mixedReference": "Mixed reference",
+					"id": "ID",
+					"money": "Money",
+					"decimal": "Decimal",
+					"rating": "Rating",
+					"weight": "Weight",
+					"volume": "Volume",
+					"dimension": "Dimension",
+					"link": "Link",
+					"url": "URL",
+					"date": "Date",
+					"dateTime": "Date and time",
+					"trueOrFalse": "True or false",
+					"color": "Color",
+					"json": "JSON"
+				}
+			},
+			"entities": {
+				"contacts": "Contacts",
+				"products": "Products",
+				"contactsLower": "contacts",
+				"productsLower": "products"
+			},
+			"toasts": {
+				"organizationRequired": "Organization is required",
+				"created": "Metaobject definition created",
+				"createFailed": "Failed to create metaobject definition",
+				"updated": "Metaobject definition updated",
+				"updateFailed": "Failed to update metaobject definition",
+				"deleted": "Metaobject definition deleted",
+				"deleteFailed": "Failed to delete metaobject definition",
+				"metafieldDeleted": "Metafield deleted",
+				"metafieldDeleteFailed": "Failed to delete metafield"
+			},
+			"metafields": {
+				"headerTitle": "Metafields",
+				"subtitle": "Built-in entity extensions",
+				"description": "Attach extra data fields to contacts and products",
+				"entities": {
+					"contactsDescription": "Custom fields attached to contact records",
+					"productsDescription": "Custom fields attached to product records",
+					"metafieldCountSingular": "{{count}} metafield",
+					"metafieldCountPlural": "{{count}} metafields"
+				},
+				"drillIn": {
+					"definitionsLabel": "Metafield definitions",
+					"addMetafield": "Add metafield",
+					"add": "Add",
+					"searchPlaceholder": "Search metafields...",
+					"fieldCountSingular": "{{count}} field",
+					"fieldCountPlural": "{{count}} fields"
+				},
+				"empty": {
+					"noMetafieldsFound": "No metafields found",
+					"noMetafieldsYet": "No metafields yet",
+					"tryDifferentSearch": "Try a different search term",
+					"noDefinitionsForEntity": "No metafield definitions for {{entity}} have been created yet"
+				}
+			},
+			"metaobjects": {
+				"headerTitle": "Metaobjects",
+				"subtitle": "Custom data types",
+				"description": "Structured schemas with configurable field definitions",
+				"newDefinition": "New definition",
+				"new": "New",
+				"searchPlaceholder": "Search definitions...",
+				"empty": {
+					"noDefinitionsFound": "No definitions found",
+					"noDefinitionsYet": "No metaobject definitions yet",
+					"tryDifferentSearch": "Try a different search term",
+					"defineCustomType": "Define a custom structured data type with its own field schema"
+				}
+			}
+		},
+		"files": {
+			"searchPlaceholder": "Search files...",
+			"filters": {
+				"allTypes": "All types",
+				"images": "Images",
+				"videos": "Videos",
+				"generic": "Generic",
+				"filterByType": "Filter by type"
+			},
+			"count": {
+				"fileSingular": "{{count}} file",
+				"filePlural": "{{count}} files"
+			},
+			"deleteDialog": {
+				"title": "Delete file?",
+				"descriptionWithFilename": "This will permanently delete \"{{filename}}\" from storage.",
+				"descriptionWithoutFilename": "This will permanently delete this file from storage.",
+				"delete": "Delete",
+				"deleting": "Deleting..."
+			},
+			"toasts": {
+				"deleteSuccess": "File deleted successfully",
+				"deleteFailed": "Failed to delete file"
+			},
+			"empty": {
+				"noFilesFound": "No files found",
+				"noFilesUploaded": "No files uploaded yet",
+				"adjustSearch": "Try adjusting your search or filter",
+				"uploadedAppear": "Uploaded files will appear here"
+			}
+		}
+	},
 	"layout": {
 		"navigation": {
 			"dashboard": "Dashboard",
@@ -3258,6 +3674,7 @@
 			"proposals": "Proposals",
 			"templates": "Templates",
 			"marketplace": "Marketplace",
+			"content": "Content",
 			"workflows": "Workflows",
 			"siteBuilder": "Integrations",
 			"analytics": "Analytics",

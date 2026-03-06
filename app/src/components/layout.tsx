@@ -176,7 +176,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				icon: FileText,
 			},
 			{
-				title: t("layout.navigation.marketplace") || "Marketplace",
+				title: t("layout.navigation.marketplace"),
 				href: "/marketplace",
 				icon: Store,
 			},
@@ -201,7 +201,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			// 	icon: Database,
 			// },
 			{
-				title: "Content",
+				title: t("layout.navigation.content"),
 				href: "/content/metaobjects",
 				icon: FolderOpen,
 			},
@@ -351,7 +351,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 			<Sidebar
 				collapsible="icon"
 				desktopMode={useInlineFitSidebar ? "inline-fit" : "fixed"}
-				className="max-w-fit"
+				className={useInlineFitSidebar ? "max-w-fit" : undefined}
 			>
 				<SidebarHeader className="flex flex-col gap-2 p-3 border-b min-w-0 overflow-x-hidden">
 					<div className="flex items-center justify-between w-full min-w-0 group-data-[collapsible=icon]:justify-center">
@@ -409,7 +409,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				</SidebarContent>
 			</Sidebar>
 			<div
-				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${isMobile ? `pt-14 ${useInlineFitSidebar ? "" : "pl-6"}` : ""}`}
+				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${
+					isMobile
+						? `pt-14 ${useInlineFitSidebar ? "" : "pl-6"}`
+						: useInlineFitSidebar
+							? ""
+							: "pl-6"
+				}`}
 			>
 				{children}
 			</div>

@@ -1,18 +1,20 @@
 import { Outlet, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Database, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function ContentLayout() {
+  const { t } = useTranslation();
   const location = useLocation();
 
   const tabs = [
     {
-      title: "Metaobjects & Metafields",
+      title: t("contentPages.layout.tabs.metaobjects", "Metaobjects & Metafields"),
       href: "/content/metaobjects",
       icon: Database,
     },
     {
-      title: "Files",
+      title: t("contentPages.layout.tabs.files", "Files"),
       href: "/content/files",
       icon: FileText,
     },
@@ -24,8 +26,12 @@ export default function ContentLayout() {
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 pb-5 sm:pb-6">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Content</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Manage custom data structures and assets</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {t("contentPages.layout.title", "Content")}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {t("contentPages.layout.subtitle", "Manage custom data structures and assets")}
+            </p>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ export function DeleteMetaobjectDefinitionDialog({
   onConfirm,
   isPending = false,
 }: DeleteMetaobjectDefinitionDialogProps) {
+  const { t } = useTranslation();
   const [confirmText, setConfirmText] = useState("");
   const isMatch = confirmText.trim() === definitionName.trim();
 
@@ -50,22 +52,33 @@ export function DeleteMetaobjectDefinitionDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete metaobject definition</AlertDialogTitle>
+          <AlertDialogTitle>
+            {t("contentPages.metaobjects.deleteDialog.title", "Delete metaobject definition")}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete the metaobject definition and all associated data.
+            {t(
+              "contentPages.metaobjects.deleteDialog.description",
+              "This action cannot be undone. This will permanently delete the metaobject definition and all associated data.",
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Warning</AlertTitle>
+          <AlertTitle>{t("contentPages.metaobjects.deleteDialog.warningTitle", "Warning")}</AlertTitle>
           <AlertDescription>
-            To confirm deletion, please type <strong>{definitionName}</strong> in the field below.
+            {t(
+              "contentPages.metaobjects.deleteDialog.warningDescription",
+              "To confirm deletion, please type {{definitionName}} in the field below.",
+              { definitionName },
+            )}
           </AlertDescription>
         </Alert>
 
         <div className="space-y-2">
-          <Label htmlFor="confirm-name">Definition name</Label>
+          <Label htmlFor="confirm-name">
+            {t("contentPages.metaobjects.deleteDialog.definitionNameLabel", "Definition name")}
+          </Label>
           <Input
             id="confirm-name"
             value={confirmText}
@@ -76,13 +89,17 @@ export function DeleteMetaobjectDefinitionDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>
+            {t("common.cancel", "Cancel")}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={!isMatch || isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isPending ? "Deleting..." : "Delete"}
+            {isPending
+              ? t("contentPages.metaobjects.deleteDialog.deleting", "Deleting...")
+              : t("contentPages.metaobjects.deleteDialog.delete", "Delete")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

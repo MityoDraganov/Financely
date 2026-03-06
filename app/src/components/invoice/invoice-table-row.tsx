@@ -1,4 +1,5 @@
 import { Loader2, Trash2, Sparkles, Lock, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
 	Tooltip,
 	TooltipContent,
@@ -174,6 +175,7 @@ export function InvoiceTableRow({
 	hasProducts,
 	onRemoveRow,
 }: InvoiceTableRowProps) {
+	const { t } = useTranslation();
 	const product = selectedProductId
 		? products.find((p) => p.id === selectedProductId)
 		: undefined;
@@ -266,7 +268,7 @@ export function InvoiceTableRow({
 				<div className="absolute inset-0 bg-background/70 backdrop-blur-[1px] flex items-center justify-center z-10">
 					<div className="flex items-center gap-2 text-xs text-muted-foreground">
 						<Loader2 className="h-3.5 w-3.5 animate-spin" />
-						Mapping product…
+						{t("invoiceTableRow.mappingProduct")}
 					</div>
 				</div>
 			)}
@@ -278,7 +280,7 @@ export function InvoiceTableRow({
 						products={products}
 						value={selectedProductId}
 						onValueChange={onProductSelect}
-						placeholder="Product…"
+						placeholder={t("invoiceTableRow.productPlaceholder")}
 						className="h-7 border-0 shadow-none bg-transparent text-xs px-1.5 hover:bg-muted/50 rounded-md"
 					/>
 				</div>
@@ -360,8 +362,10 @@ export function InvoiceTableRow({
 											</TooltipTrigger>
 											<TooltipContent>
 												<p className="text-xs">
-													Quantity ({quantityValue}) exceeds stock (
-													{availableStock})
+													{t("invoiceTableRow.quantityExceedsStock", {
+														quantity: quantityValue,
+														stock: availableStock,
+													})}
 												</p>
 											</TooltipContent>
 										</Tooltip>
@@ -374,8 +378,8 @@ export function InvoiceTableRow({
 											<TooltipContent>
 												<p className="text-xs">
 													{hasFormula
-														? "Auto-calculated by formula"
-														: "Linked — auto-converted"}
+														? t("invoiceTableRow.autoCalculated")
+														: t("invoiceTableRow.linkedAutoConverted")}
 												</p>
 												{hasFormula &&
 													typeof cellValue === "number" && (
@@ -400,7 +404,9 @@ export function InvoiceTableRow({
 												<Lock className="h-2.5 w-2.5 text-green-500/60 pointer-events-auto cursor-help" />
 											</TooltipTrigger>
 											<TooltipContent>
-												<p className="text-xs">From product</p>
+												<p className="text-xs">
+													{t("invoiceTableRow.fromProduct")}
+												</p>
 												{product && (
 													<p className="text-xs text-muted-foreground">
 														{product.name}
@@ -429,7 +435,7 @@ export function InvoiceTableRow({
 					type="button"
 					onClick={onRemoveRow}
 					className="inv-delete-btn p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-					aria-label="Remove row"
+					aria-label={t("invoiceTableRow.removeRowAria")}
 				>
 					<Trash2 className="h-3.5 w-3.5" />
 				</button>

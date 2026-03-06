@@ -482,11 +482,9 @@ export default function TemplatesPage() {
 						</div>
 						{selectedTemplateIds.size > 0 && (
 							<span className="text-sm text-muted-foreground">
-								{selectedTemplateIds.size}{" "}
-								{selectedTemplateIds.size === 1
-									? "template"
-									: "templates"}{" "}
-								selected
+								{t("templates.bulkDelete.selectedCount", {
+									count: selectedTemplateIds.size,
+								})}
 							</span>
 						)}
 					</div>
@@ -514,11 +512,10 @@ export default function TemplatesPage() {
 							<CardHeader>
 								<CardTitle className="flex items-center gap-2">
 									<Sparkles className="h-5 w-5 text-primary" />
-									Generate from Invoice
+									{t("templates.aiUpload.title")}
 								</CardTitle>
 								<CardDescription>
-									Upload an invoice PDF or image and
-									automatically generate a template
+									{t("templates.aiUpload.description")}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -527,25 +524,19 @@ export default function TemplatesPage() {
 										<span className="text-primary mt-0.5">
 											•
 										</span>
-										<span>Upload invoice PDF or image</span>
+										<span>{t("templates.aiUpload.points.upload")}</span>
 									</li>
 									<li className="flex items-start gap-2">
 										<span className="text-primary mt-0.5">
 											•
 										</span>
-										<span>
-											AI extracts all invoice data
-											automatically
-										</span>
+										<span>{t("templates.aiUpload.points.extract")}</span>
 									</li>
 									<li className="flex items-start gap-2">
 										<span className="text-primary mt-0.5">
 											•
 										</span>
-										<span>
-											Template generated with matching
-											bindings
-										</span>
+										<span>{t("templates.aiUpload.points.generate")}</span>
 									</li>
 								</ul>
 								<Button
@@ -553,7 +544,7 @@ export default function TemplatesPage() {
 									className="w-full"
 								>
 									<Upload className="h-4 w-4 mr-2" />
-									Upload Invoice
+									{t("templates.aiUpload.button")}
 								</Button>
 							</CardContent>
 						</Card>
@@ -566,11 +557,9 @@ export default function TemplatesPage() {
 								<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
 									<div className="flex-1 space-y-1.5">
 										<h3 className="font-semibold text-base text-foreground">
-											Generate from Invoice:{" "}
+											{t("templates.aiUpload.bannerTitle")}{" "}
 											<span className="font-normal text-muted-foreground">
-												Upload an invoice PDF or image
-												to create a matching template
-												automatically.
+												{t("templates.aiUpload.bannerDescription")}
 											</span>
 										</h3>
 									</div>
@@ -580,7 +569,7 @@ export default function TemplatesPage() {
 										className="font-medium shadow-sm whitespace-nowrap"
 									>
 										<Upload className="h-4 w-4 mr-2" />
-										Upload Invoice
+										{t("templates.aiUpload.button")}
 									</Button>
 								</div>
 							</div>

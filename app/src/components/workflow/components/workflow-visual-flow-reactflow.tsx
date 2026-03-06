@@ -82,6 +82,7 @@ const getStepTypeIcon = (stepType: WorkflowStep['type']) => {
 
 // Custom Node Components - n8n style
 const WorkflowNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdit?: () => void; onDelete?: () => void; errors?: string[]; isExecuting?: boolean }>) => {
+  const { t } = useTranslation();
   const { step, onEdit, onDelete, errors = [], isExecuting = false } = data;
   const StepTypeIcon = getStepTypeIcon(step.type);
 
@@ -106,8 +107,8 @@ const WorkflowNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdit
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight">
             {step.actions.length > 0 
-              ? (step.actions[0].name || step.actions[0].type.split('.').pop() || `Step ${step.order + 1}`)
-              : (step.name || `Step ${step.order + 1}`)
+              ? (step.actions[0].name || step.actions[0].type.split('.').pop() || t("workflows.builder.steps.step", { number: step.order + 1 }))
+              : (step.name || t("workflows.builder.steps.step", { number: step.order + 1 }))
             }
             {step.actions.length > 1 && (
               <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">
@@ -163,7 +164,7 @@ const WorkflowNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdit
         
         {step.actions.length === 0 && step.type === 'action' && (
           <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-            No actions configured
+            {t("workflows.builder.steps.noActionsConfigured")}
           </p>
         )}
       </div>
@@ -174,6 +175,7 @@ const WorkflowNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdit
 };
 
 const ConditionNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdit?: () => void; onDelete?: () => void; errors?: string[]; isExecuting?: boolean; onAddBranchStep?: (branch: "true" | "false") => void }>) => {
+  const { t } = useTranslation();
   const { step, onEdit, onDelete, errors = [], isExecuting = false } = data;
 
   return (
@@ -239,7 +241,7 @@ const ConditionNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; onEdi
           <div className="transform rotate-45">
             <GitBranch className="w-4 h-4 mx-auto mb-1.5 text-purple-600 dark:text-purple-400" />
             <p className="text-[10px] font-medium text-gray-900 dark:text-gray-100 mb-1.5 line-clamp-1">
-              {step.name || "Condition"}
+              {step.name || t("workflows.builder.stepEditor.stepTypes.condition")}
             </p>
             {step.conditions && step.conditions.length > 0 && (
               <div className="space-y-0.5 max-h-16 overflow-y-auto">
@@ -323,6 +325,7 @@ const AddStepButtonNode = ({ data }: NodeProps<{ conditionStepId: string; branch
 };
 
 const BranchStepNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; branch: "true" | "false"; onEdit?: () => void; onDelete?: () => void; errors?: string[]; isExecuting?: boolean }>) => {
+  const { t } = useTranslation();
   const { step, branch, onEdit, onDelete, errors = [], isExecuting = false } = data;
   const StepTypeIcon = getStepTypeIcon(step.type);
   const branchColor = branch === "true" ? "green" : "red";
@@ -345,8 +348,8 @@ const BranchStepNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; bran
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
             {step.actions.length > 0 
-              ? (step.actions[0].name || step.actions[0].type.split('.').pop() || `Step ${step.order + 1}`)
-              : (step.name || `Step ${step.order + 1}`)
+              ? (step.actions[0].name || step.actions[0].type.split('.').pop() || t("workflows.builder.steps.step", { number: step.order + 1 }))
+              : (step.name || t("workflows.builder.steps.step", { number: step.order + 1 }))
             }
             {step.actions.length > 1 && (
               <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">
@@ -391,7 +394,7 @@ const BranchStepNode = ({ data, selected }: NodeProps<{ step: WorkflowStep; bran
         
         {step.actions.length === 0 && step.type === 'action' && (
           <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-            No actions configured
+            {t("workflows.builder.steps.noActionsConfigured")}
           </p>
         )}
       </div>
@@ -754,4 +757,3 @@ export function WorkflowVisualFlowReactFlow({
     </ReactFlowProvider>
   );
 }
-

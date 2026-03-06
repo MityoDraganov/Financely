@@ -30,7 +30,6 @@ import {
 	PathProperties,
 } from "@/components/designer/elements";
 import { CurrencyProperties } from "@/components/designer/elements/currency";
-import { FieldCombobox } from "@/components/designer/field-combobox";
 import type { Organization } from "@/core";
 import { typography, spacing, separators, components, colors } from "./design-system";
 import {
@@ -874,11 +873,7 @@ function ElementProperties({
 
 	if (
 		element.type === "spacer" ||
-		element.type === "pageBreak" ||
-		element.type === "qrCode" ||
-		element.type === "barcode" ||
-		element.type === "signature" ||
-		element.type === "stamp"
+		element.type === "pageBreak"
 	) {
 		return (
 			<BasicElementProperties
@@ -901,17 +896,13 @@ function BasicElementProperties({
 }: {
 	element: Extract<
 		TemplateElement,
-		{ type: "spacer" | "pageBreak" | "qrCode" | "barcode" | "signature" | "stamp" }
+		{ type: "spacer" | "pageBreak" }
 	>;
 	onChange: (partial: Partial<TemplateElement>) => void;
 }) {
 	const titleByType: Record<typeof element.type, string> = {
 		spacer: "Spacer",
 		pageBreak: "Page Break",
-		qrCode: "QR Code",
-		barcode: "Barcode",
-		signature: "Signature",
-		stamp: "Stamp",
 	};
 
 	return (
@@ -937,64 +928,6 @@ function BasicElementProperties({
 					</div>
 				</div>
 			</section>
-			{element.type === "qrCode" && (
-				<section className={components.subsection}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Content</Label>
-						<Input value={element.content} onChange={(e) => onChange({ content: e.target.value })} className={components.inputHeight} />
-					</div>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Binding</Label>
-						<FieldCombobox
-							value={element.binding}
-							fieldId={element.fieldId}
-							onSelect={(fieldId, binding) =>
-								onChange({ binding, fieldId, isCustomBinding: false })
-							}
-							onCustomBinding={(binding) =>
-								onChange({ binding, fieldId: undefined, isCustomBinding: true })
-							}
-						/>
-					</div>
-				</section>
-			)}
-			{element.type === "barcode" && (
-				<section className={components.subsection}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Value</Label>
-						<Input value={element.value} onChange={(e) => onChange({ value: e.target.value })} className={components.inputHeight} />
-					</div>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Binding</Label>
-						<FieldCombobox
-							value={element.binding}
-							fieldId={element.fieldId}
-							onSelect={(fieldId, binding) =>
-								onChange({ binding, fieldId, isCustomBinding: false })
-							}
-							onCustomBinding={(binding) =>
-								onChange({ binding, fieldId: undefined, isCustomBinding: true })
-							}
-						/>
-					</div>
-				</section>
-			)}
-			{element.type === "signature" && (
-				<section className={components.subsection}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Placeholder</Label>
-						<Input value={element.placeholderText} onChange={(e) => onChange({ placeholderText: e.target.value })} className={components.inputHeight} />
-					</div>
-				</section>
-			)}
-			{element.type === "stamp" && (
-				<section className={components.subsection}>
-					<div className={components.field}>
-						<Label className={typography.fieldLabel}>Text</Label>
-						<Input value={element.text} onChange={(e) => onChange({ text: e.target.value })} className={components.inputHeight} />
-					</div>
-				</section>
-			)}
 		</div>
 	);
 }

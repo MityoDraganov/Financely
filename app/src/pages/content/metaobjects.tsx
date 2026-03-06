@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Search,
   Database,
@@ -89,9 +90,9 @@ function fieldTypeIcon(type: string) {
   return Layers;
 }
 
-function fieldTypeLabel(type: string): string {
+function fieldTypeLabel(type: string, listPrefix: string): string {
   return type
-    .replace(/^list\./, "List · ")
+    .replace(/^list\./, listPrefix)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -115,6 +116,7 @@ function MetafieldRow({
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }) {
+  const { t } = useTranslation();
   const Icon = fieldTypeIcon(definition.type);
   return (
     <div className="group flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-muted/40 transition-colors border-b border-border/60 last:border-0">
@@ -131,7 +133,10 @@ function MetafieldRow({
         variant="secondary"
         className="text-xs font-mono shrink-0 hidden sm:flex bg-muted/60 text-muted-foreground border-0"
       >
-        {fieldTypeLabel(definition.type)}
+        {fieldTypeLabel(
+          definition.type,
+          t("contentPages.metaobjects.fieldType.listPrefix", "List · "),
+        )}
       </Badge>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -151,7 +156,7 @@ function MetafieldRow({
             onClick={() => onDelete(definition.id)}
           >
             <Trash2 className="mr-2 h-3.5 w-3.5" />
-            Delete
+            {t("contentPages.metaobjects.actions.delete", "Delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -167,6 +172,7 @@ function EntityCard({
   fieldCount,
   isLoading,
   accentClass,
+  fieldCountLabel,
   onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -175,6 +181,7 @@ function EntityCard({
   fieldCount: number;
   isLoading: boolean;
   accentClass: string;
+  fieldCountLabel: (count: number) => string;
   onClick: () => void;
 }) {
   return (
@@ -199,10 +206,9 @@ function EntityCard({
           {isLoading ? (
             <Skeleton className="h-3 w-16" />
           ) : (
-            <>
-              <span className="font-semibold text-foreground tabular-nums">{fieldCount}</span>{" "}
-              metafield{fieldCount !== 1 ? "s" : ""}
-            </>
+            <span className="font-semibold text-foreground tabular-nums">
+              {fieldCountLabel(fieldCount)}
+            </span>
           )}
         </span>
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
@@ -213,6 +219,7 @@ function EntityCard({
 
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function MetaobjectsPage() {
+  const { t } = useTranslation();
   const { currentOrganization } = useOrganizationContext();
   const orgId = currentOrganization?.id;
 
@@ -266,8 +273,15 @@ export default function MetaobjectsPage() {
   const activeEntityLabel =
     view.kind === "metafields"
       ? view.entityKey === "contacts"
-        ? "Contacts"
-        : "Products"
+        ? t("contentPages.metaobjects.entities.contacts", "Contacts")
+        : t("contentPages.metaobjects.entities.products", "Products")
+      : "";
+
+  const activeEntityLabelLower =
+    view.kind === "metafields"
+      ? view.entityKey === "contacts"
+        ? t("contentPages.metaobjects.entities.contactsLower", "contacts")
+        : t("contentPages.metaobjects.entities.productsLower", "products")
       : "";
 
   // ── Delete confirmation dialog ────────────────────────────────────────
@@ -279,7 +293,12 @@ export default function MetaobjectsPage() {
   const handleCreateMetaobjectDef = async (
     data: CreateMetaobjectDefinitionInput | UpdateMetaobjectDefinitionInput,
   ) => {
-    if (!orgId) { toast.error("Organization is required"); return; }
+    if (!orgId) {
+      toast.error(
+        t("contentPages.metaobjects.toasts.organizationRequired", "Organization is required"),
+      );
+      return;
+    }
     const cd = data as CreateMetaobjectDefinitionInput;
     try {
       await createMetaobjectDef.mutateAsync({
@@ -289,10 +308,15 @@ export default function MetaobjectsPage() {
         fieldDefinitions: cd.fieldDefinitions,
         access: { admin: "MERCHANT_READ_WRITE", storefront: "PRIVATE" },
       });
-      toast.success("Metaobject definition created");
+      toast.success(t("contentPages.metaobjects.toasts.created", "Metaobject definition created"));
       setView({ kind: "main" });
     } catch {
-      toast.error("Failed to create metaobject definition");
+      toast.error(
+        t(
+          "contentPages.metaobjects.toasts.createFailed",
+          "Failed to create metaobject definition",
+        ),
+      );
     }
   };
 
@@ -302,20 +326,30 @@ export default function MetaobjectsPage() {
     if (view.kind !== "edit-metaobject-definition") return;
     try {
       await updateMetaobjectDef.mutateAsync({ id: view.id, data });
-      toast.success("Metaobject definition updated");
+      toast.success(t("contentPages.metaobjects.toasts.updated", "Metaobject definition updated"));
       setView({ kind: "main" });
     } catch {
-      toast.error("Failed to update metaobject definition");
+      toast.error(
+        t(
+          "contentPages.metaobjects.toasts.updateFailed",
+          "Failed to update metaobject definition",
+        ),
+      );
     }
   };
 
   const handleDeleteMetaobjectDef = async (id: string) => {
     try {
       await deleteMetaobjectDef.mutateAsync(id);
-      toast.success("Metaobject definition deleted");
+      toast.success(t("contentPages.metaobjects.toasts.deleted", "Metaobject definition deleted"));
       setDeleteDialogId(null);
     } catch {
-      toast.error("Failed to delete metaobject definition");
+      toast.error(
+        t(
+          "contentPages.metaobjects.toasts.deleteFailed",
+          "Failed to delete metaobject definition",
+        ),
+      );
     }
   };
 
@@ -327,9 +361,14 @@ export default function MetaobjectsPage() {
       } else {
         await deleteProductMF.mutateAsync(id);
       }
-      toast.success("Metafield deleted");
+      toast.success(t("contentPages.metaobjects.toasts.metafieldDeleted", "Metafield deleted"));
     } catch {
-      toast.error("Failed to delete metafield");
+      toast.error(
+        t(
+          "contentPages.metaobjects.toasts.metafieldDeleteFailed",
+          "Failed to delete metafield",
+        ),
+      );
     }
   };
 
@@ -394,14 +433,16 @@ export default function MetaobjectsPage() {
                 {activeEntityLabel}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Metafield definitions
+                {t("contentPages.metaobjects.metafields.drillIn.definitionsLabel", "Metafield definitions")}
               </p>
             </div>
           </div>
           <Button size="sm" className="h-8 shrink-0" disabled>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            <span className="hidden sm:inline">Add metafield</span>
-            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">
+              {t("contentPages.metaobjects.metafields.drillIn.addMetafield", "Add metafield")}
+            </span>
+            <span className="sm:hidden">{t("contentPages.metaobjects.metafields.drillIn.add", "Add")}</span>
           </Button>
         </div>
 
@@ -410,7 +451,7 @@ export default function MetaobjectsPage() {
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search metafields…"
+              placeholder={t("contentPages.metaobjects.metafields.drillIn.searchPlaceholder", "Search metafields…")}
               value={metafieldSearch}
               onChange={(e) => setMetafieldSearch(e.target.value)}
               className="pl-9 h-8 text-sm"
@@ -418,7 +459,9 @@ export default function MetaobjectsPage() {
           </div>
           {!isLoading && (
             <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-              {raw.length} field{raw.length !== 1 ? "s" : ""}
+              {raw.length === 1
+                ? t("contentPages.metaobjects.metafields.drillIn.fieldCountSingular", "{{count}} field", { count: raw.length })
+                : t("contentPages.metaobjects.metafields.drillIn.fieldCountPlural", "{{count}} fields", { count: raw.length })}
             </span>
           )}
         </div>
@@ -444,12 +487,18 @@ export default function MetaobjectsPage() {
                 <Layers className="h-4.5 w-4.5 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium text-foreground mb-1">
-                {metafieldSearch ? "No metafields found" : "No metafields yet"}
+                {metafieldSearch
+                  ? t("contentPages.metaobjects.metafields.empty.noMetafieldsFound", "No metafields found")
+                  : t("contentPages.metaobjects.metafields.empty.noMetafieldsYet", "No metafields yet")}
               </p>
               <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
                 {metafieldSearch
-                  ? "Try a different search term"
-                  : `No metafield definitions for ${activeEntityLabel.toLowerCase()} have been created yet`}
+                  ? t("contentPages.metaobjects.metafields.empty.tryDifferentSearch", "Try a different search term")
+                  : t(
+                      "contentPages.metaobjects.metafields.empty.noDefinitionsForEntity",
+                      "No metafield definitions for {{entity}} have been created yet",
+                      { entity: activeEntityLabelLower },
+                    )}
               </p>
             </div>
           ) : (
@@ -474,32 +523,51 @@ export default function MetaobjectsPage() {
       {/* ── SECTION 1: Metafields ── */}
       <section className="space-y-4">
         <div className="space-y-0.5">
-          <SectionLabel>Metafields</SectionLabel>
+          <SectionLabel>{t("contentPages.metaobjects.metafields.headerTitle", "Metafields")}</SectionLabel>
           <p className="text-sm text-foreground font-medium mt-1">
-            Built-in entity extensions
+            {t("contentPages.metaobjects.metafields.subtitle", "Built-in entity extensions")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Attach extra data fields to contacts and products
+            {t(
+              "contentPages.metaobjects.metafields.description",
+              "Attach extra data fields to contacts and products",
+            )}
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <EntityCard
             icon={Users}
-            label="Contacts"
-            description="Custom fields attached to contact records"
+            label={t("contentPages.metaobjects.entities.contacts", "Contacts")}
+            description={t(
+              "contentPages.metaobjects.metafields.entities.contactsDescription",
+              "Custom fields attached to contact records",
+            )}
             fieldCount={contactMetafields.length}
             isLoading={loadingContactMF}
             accentClass="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+            fieldCountLabel={(count) =>
+              count === 1
+                ? t("contentPages.metaobjects.metafields.entities.metafieldCountSingular", "{{count}} metafield", { count })
+                : t("contentPages.metaobjects.metafields.entities.metafieldCountPlural", "{{count}} metafields", { count })
+            }
             onClick={() => setView({ kind: "metafields", entityKey: "contacts" })}
           />
           <EntityCard
             icon={Package}
-            label="Products"
-            description="Custom fields attached to product records"
+            label={t("contentPages.metaobjects.entities.products", "Products")}
+            description={t(
+              "contentPages.metaobjects.metafields.entities.productsDescription",
+              "Custom fields attached to product records",
+            )}
             fieldCount={productMetafields.length}
             isLoading={loadingProductMF}
             accentClass="bg-violet-500/10 text-violet-600 dark:text-violet-400"
+            fieldCountLabel={(count) =>
+              count === 1
+                ? t("contentPages.metaobjects.metafields.entities.metafieldCountSingular", "{{count}} metafield", { count })
+                : t("contentPages.metaobjects.metafields.entities.metafieldCountPlural", "{{count}} metafields", { count })
+            }
             onClick={() => setView({ kind: "metafields", entityKey: "products" })}
           />
         </div>
@@ -512,12 +580,15 @@ export default function MetaobjectsPage() {
       <section className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
-            <SectionLabel>Metaobjects</SectionLabel>
+            <SectionLabel>{t("contentPages.metaobjects.metaobjects.headerTitle", "Metaobjects")}</SectionLabel>
             <p className="text-sm text-foreground font-medium mt-1">
-              Custom data types
+              {t("contentPages.metaobjects.metaobjects.subtitle", "Custom data types")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Structured schemas with configurable field definitions
+              {t(
+                "contentPages.metaobjects.metaobjects.description",
+                "Structured schemas with configurable field definitions",
+              )}
             </p>
           </div>
           <Button
@@ -526,8 +597,10 @@ export default function MetaobjectsPage() {
             onClick={() => setView({ kind: "create-metaobject-definition" })}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            <span className="hidden sm:inline">New definition</span>
-            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">
+              {t("contentPages.metaobjects.metaobjects.newDefinition", "New definition")}
+            </span>
+            <span className="sm:hidden">{t("contentPages.metaobjects.metaobjects.new", "New")}</span>
           </Button>
         </div>
 
@@ -535,7 +608,7 @@ export default function MetaobjectsPage() {
         <div className="relative max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search definitions…"
+            placeholder={t("contentPages.metaobjects.metaobjects.searchPlaceholder", "Search definitions…")}
             value={metaobjectSearch}
             onChange={(e) => setMetaobjectSearch(e.target.value)}
             className="pl-9 h-8 text-sm"
@@ -559,12 +632,17 @@ export default function MetaobjectsPage() {
                 <Database className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium text-foreground mb-1">
-                {metaobjectSearch ? "No definitions found" : "No metaobject definitions yet"}
+                {metaobjectSearch
+                  ? t("contentPages.metaobjects.metaobjects.empty.noDefinitionsFound", "No definitions found")
+                  : t("contentPages.metaobjects.metaobjects.empty.noDefinitionsYet", "No metaobject definitions yet")}
               </p>
               <p className="text-xs text-muted-foreground mb-5 max-w-xs leading-relaxed">
                 {metaobjectSearch
-                  ? "Try a different search term"
-                  : "Define a custom structured data type with its own field schema"}
+                  ? t("contentPages.metaobjects.metaobjects.empty.tryDifferentSearch", "Try a different search term")
+                  : t(
+                      "contentPages.metaobjects.metaobjects.empty.defineCustomType",
+                      "Define a custom structured data type with its own field schema",
+                    )}
               </p>
               {!metaobjectSearch && (
                 <Button
@@ -572,7 +650,7 @@ export default function MetaobjectsPage() {
                   onClick={() => setView({ kind: "create-metaobject-definition" })}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  New definition
+                  {t("contentPages.metaobjects.metaobjects.newDefinition", "New definition")}
                 </Button>
               )}
             </div>

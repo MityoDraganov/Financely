@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, GripVertical, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,7 @@ export function MetaobjectDefinitionForm({
   onCancel,
   isPending = false,
 }: MetaobjectDefinitionFormProps) {
+  const { t } = useTranslation();
   const isEditMode = !!initialData;
 
   const [formData, setFormData] = useState<Partial<CreateMetaobjectDefinitionInput>>({
@@ -58,12 +60,20 @@ export function MetaobjectDefinitionForm({
         </Button>
         <div>
           <h1 className="text-2xl font-semibold">
-            {isEditMode ? "Edit metaobject definition" : "Add metaobject definition"}
+            {isEditMode
+              ? t("contentPages.metaobjects.form.editTitle", "Edit metaobject definition")
+              : t("contentPages.metaobjects.form.addTitle", "Add metaobject definition")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isEditMode
-              ? "Update the metaobject definition and its fields"
-              : "Define a new metaobject definition with custom fields"}
+              ? t(
+                  "contentPages.metaobjects.form.editDescription",
+                  "Update the metaobject definition and its fields",
+                )
+              : t(
+                  "contentPages.metaobjects.form.addDescription",
+                  "Define a new metaobject definition with custom fields",
+                )}
           </p>
         </div>
       </div>
@@ -72,27 +82,29 @@ export function MetaobjectDefinitionForm({
         <CardContent className="p-6 space-y-6">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t("contentPages.metaobjects.form.nameLabel", "Name *")}</Label>
               <Input
                 id="name"
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Product Feature"
+                placeholder={t("contentPages.metaobjects.form.namePlaceholder", "e.g., Product Feature")}
               />
             </div>
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">
+                {t("contentPages.metaobjects.form.descriptionLabel", "Description")}
+              </Label>
               <Textarea
                 id="description"
                 value={formData.description || ""}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Optional description"
+                placeholder={t("contentPages.metaobjects.form.descriptionPlaceholder", "Optional description")}
               />
             </div>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Fields *</Label>
+                <Label>{t("contentPages.metaobjects.form.fieldsLabel", "Fields *")}</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -111,7 +123,7 @@ export function MetaobjectDefinitionForm({
                   }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Add field
+                  {t("contentPages.metaobjects.form.addField", "Add field")}
                 </Button>
               </div>
 
@@ -121,7 +133,7 @@ export function MetaobjectDefinitionForm({
                     <GripVertical className="h-5 w-5 text-muted-foreground mt-2 cursor-move" />
                     <div className="flex-1 space-y-3">
                       <div>
-                        <Label>Field label *</Label>
+                        <Label>{t("contentPages.metaobjects.form.fieldLabel", "Field label *")}</Label>
                         <Input
                           value={field.name || ""}
                           onChange={(e) => {
@@ -129,12 +141,12 @@ export function MetaobjectDefinitionForm({
                             updated[index] = { ...field, name: e.target.value };
                             setFormData({ ...formData, fieldDefinitions: updated });
                           }}
-                          placeholder="e.g., Title"
+                          placeholder={t("contentPages.metaobjects.form.fieldLabelPlaceholder", "e.g., Title")}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <Label>Cardinality</Label>
+                          <Label>{t("contentPages.metaobjects.form.cardinalityLabel", "Cardinality")}</Label>
                           <Select
                             value={field.type?.startsWith("list.") ? "list" : "one"}
                             onValueChange={(value) => {
@@ -153,13 +165,17 @@ export function MetaobjectDefinitionForm({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="one">One value</SelectItem>
-                              <SelectItem value="list">List of values</SelectItem>
+                              <SelectItem value="one">
+                                {t("contentPages.metaobjects.form.cardinalityOne", "One value")}
+                              </SelectItem>
+                              <SelectItem value="list">
+                                {t("contentPages.metaobjects.form.cardinalityList", "List of values")}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
-                          <Label>Field type *</Label>
+                          <Label>{t("contentPages.metaobjects.form.fieldTypeLabel", "Field type *")}</Label>
                           <FieldTypeSelector
                             value={
                               field.type?.startsWith("list.")
@@ -175,6 +191,7 @@ export function MetaobjectDefinitionForm({
                               };
                               setFormData({ ...formData, fieldDefinitions: updated });
                             }}
+                            placeholder={t("contentPages.metaobjects.form.fieldTypePlaceholder", "Select field type")}
                           />
                         </div>
                       </div>
@@ -191,7 +208,7 @@ export function MetaobjectDefinitionForm({
                           className="rounded border-gray-300"
                         />
                         <Label htmlFor={`required-${index}`} className="text-sm font-normal cursor-pointer">
-                          Required
+                          {t("common.required", "Required")}
                         </Label>
                       </div>
                     </div>
@@ -210,7 +227,10 @@ export function MetaobjectDefinitionForm({
                 ))}
                 {(!formData.fieldDefinitions || formData.fieldDefinitions.length === 0) && (
                   <div className="text-center py-8 text-muted-foreground text-sm">
-                    No fields added yet. Click "Add field" to get started.
+                    {t(
+                      "contentPages.metaobjects.form.noFieldsMessage",
+                      'No fields added yet. Click "Add field" to get started.',
+                    )}
                   </div>
                 )}
               </div>
@@ -219,10 +239,12 @@ export function MetaobjectDefinitionForm({
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={onCancel}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button onClick={handleSubmit} disabled={isPending}>
-              {isEditMode ? "Update" : "Create"}
+              {isEditMode
+                ? t("contentPages.metaobjects.form.update", "Update")
+                : t("contentPages.metaobjects.form.create", "Create")}
             </Button>
           </div>
         </CardContent>

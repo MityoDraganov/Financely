@@ -126,11 +126,11 @@ export default function ProposalDetailPage() {
 
   const handleSendProposalEmail = () => {
     if (!proposalRecipientEmail.trim()) {
-      toast.error("Recipient email is required");
+      toast.error(t("proposalDetail.email.recipientRequired"));
       return;
     }
     if (!proposal) {
-      toast.error("Proposal not found");
+      toast.error(t("proposalDetail.email.proposalNotFound"));
       return;
     }
     sendProposalEmail.mutate(
@@ -144,10 +144,16 @@ export default function ProposalDetailPage() {
       },
       {
         onSuccess: () => {
-          toast.success(`Proposal email sent to ${proposalRecipientEmail.trim()}`);
+          toast.success(
+            t("proposalDetail.email.sentTo", {
+              email: proposalRecipientEmail.trim(),
+            }),
+          );
         },
         onError: (error) => {
-          toast.error(`Failed to send proposal email: ${error.message}`);
+          toast.error(
+            t("proposalDetail.email.sendFailed", { error: error.message }),
+          );
         },
       },
     );
@@ -238,7 +244,7 @@ export default function ProposalDetailPage() {
           {proposal.invoiceId && (
             <Button variant="outline" size="sm" onClick={() => navigate(`/invoices/${proposal.invoiceId}`)}>
               <Receipt className="h-4 w-4 mr-2" />
-              View Invoice
+              {t("proposalDetail.sections.viewInvoice")}
               <ChevronRight className="h-3 w-3 ml-1" />
             </Button>
           )}
@@ -600,7 +606,7 @@ export default function ProposalDetailPage() {
                       return (
                         <div className="pt-3 border-t space-y-2">
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            Additional Info
+                            {t("proposalDetail.sections.additionalInfo")}
                           </p>
                           {extraFields.map(([key, value]) => {
                             let displayValue: string;
@@ -637,32 +643,40 @@ export default function ProposalDetailPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                 <Send className="h-3.5 w-3.5" />
-                Send Proposal Email
+                {t("proposalDetail.email.title")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Recipient email</Label>
+                <Label className="text-xs text-muted-foreground">
+                  {t("proposalDetail.email.recipientLabel")}
+                </Label>
                 <Input
                   type="email"
                   value={proposalRecipientEmail}
                   onChange={(e) => setProposalRecipientEmail(e.target.value)}
-                  placeholder="customer@example.com"
+                  placeholder={t("proposalDetail.email.recipientPlaceholder")}
                   className="h-9"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Email template (optional)</Label>
+                <Label className="text-xs text-muted-foreground">
+                  {t("proposalDetail.email.templateLabel")}
+                </Label>
                 {isEmailTemplatesLoading ? (
                   <Skeleton className="h-9 w-full" />
                 ) : (
                   <Select value={selectedProposalEmailTemplateId} onValueChange={setSelectedProposalEmailTemplateId}>
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Use default proposal email" />
+                      <SelectValue
+                        placeholder={t("proposalDetail.email.templatePlaceholder")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Default proposal email</SelectItem>
+                      <SelectItem value="__none__">
+                        {t("proposalDetail.email.defaultTemplate")}
+                      </SelectItem>
                       {compatibleProposalEmailTemplates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name || template.id}
@@ -670,7 +684,7 @@ export default function ProposalDetailPage() {
                       ))}
                       {compatibleProposalEmailTemplates.length === 0 && (
                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          No compatible templates found
+                          {t("proposalDetail.email.noCompatibleTemplates")}
                         </div>
                       )}
                     </SelectContent>
@@ -686,12 +700,12 @@ export default function ProposalDetailPage() {
                 {sendProposalEmail.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending…
+                    {t("proposalDetail.email.sending")}
                   </>
                 ) : (
                   <>
                     <Mail className="h-4 w-4 mr-2" />
-                    Send Email
+                    {t("proposalDetail.email.send")}
                   </>
                 )}
               </Button>
@@ -765,7 +779,10 @@ export default function ProposalDetailPage() {
                   setConvertDialogOpen(false);
                   setReviewDialogOpen(true);
                 } catch (error) {
-                  const message = error instanceof Error ? error.message : "Unknown error";
+                  const message =
+                    error instanceof Error
+                      ? error.message
+                      : t("proposalDetail.review.unknownError");
                   toast.error(t('proposalDetail.convert.generateFailed', { error: message }));
                 }
               }}
@@ -814,13 +831,25 @@ export default function ProposalDetailPage() {
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.sellerInfo')}</h3>
                   {(() => {
                     const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
-                    if (!selectedTemplate) return <p className="text-sm text-muted-foreground">Template not found</p>;
+                    if (!selectedTemplate) {
+                      return (
+                        <p className="text-sm text-muted-foreground">
+                          {t("proposalDetail.review.templateNotFound")}
+                        </p>
+                      );
+                    }
 
                     const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
                     const sellerBindings = Array.from(allBindings).filter(binding =>
                       binding.startsWith("seller.") || binding.startsWith("supplier.")
                     );
-                    if (sellerBindings.length === 0) return <p className="text-sm text-muted-foreground">No seller/supplier fields found in template</p>;
+                    if (sellerBindings.length === 0) {
+                      return (
+                        <p className="text-sm text-muted-foreground">
+                          {t("proposalDetail.review.noSellerFields")}
+                        </p>
+                      );
+                    }
 
                     const fieldGroups = new Map<string, string[]>();
                     const simpleFields: string[] = [];
@@ -889,7 +918,9 @@ export default function ProposalDetailPage() {
                                   setBindingValue(newData, binding, e.target.value);
                                   setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                 }}
-                                placeholder={`Enter ${label.toLowerCase()}`}
+                                placeholder={t("proposalDetail.review.enterField", {
+                                  field: label.toLowerCase(),
+                                })}
                               />
                             </div>
                           );
@@ -906,7 +937,13 @@ export default function ProposalDetailPage() {
                                 {fields.map((fieldName) => {
                                   const fullBinding = `${basePath}.${fieldName}`;
                                   const fieldValue = groupObj[fieldName] || "";
-                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                                  const fieldLabel =
+                                    fieldName === "zipCode"
+                                      ? t("proposalDetail.review.zipCode")
+                                      : fieldName
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                        fieldName.slice(1).replace(/([A-Z])/g, " $1");
                                   return (
                                     <Input
                                       key={fullBinding}
@@ -917,7 +954,9 @@ export default function ProposalDetailPage() {
                                         setBindingValue(newData, basePath, { ...currentGroup, [fieldName]: e.target.value } as InvoiceDataValue);
                                         setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                       }}
-                                      placeholder={`Enter ${fieldLabel.toLowerCase()}`}
+                                      placeholder={t("proposalDetail.review.enterField", {
+                                        field: fieldLabel.toLowerCase(),
+                                      })}
                                     />
                                   );
                                 })}
@@ -937,13 +976,25 @@ export default function ProposalDetailPage() {
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.customerInfo')}</h3>
                   {(() => {
                     const selectedTemplate = templates?.find(t => t.id === generatedInvoiceData.templateId);
-                    if (!selectedTemplate) return <p className="text-sm text-muted-foreground">Template not found</p>;
+                    if (!selectedTemplate) {
+                      return (
+                        <p className="text-sm text-muted-foreground">
+                          {t("proposalDetail.review.templateNotFound")}
+                        </p>
+                      );
+                    }
 
                     const allBindings = extractTemplateBindings(selectedTemplate.elements ?? []);
                     const customerBindings = Array.from(allBindings).filter(binding =>
                       binding.startsWith("customer.") || binding.startsWith("buyer.")
                     );
-                    if (customerBindings.length === 0) return <p className="text-sm text-muted-foreground">No customer/buyer fields found in template</p>;
+                    if (customerBindings.length === 0) {
+                      return (
+                        <p className="text-sm text-muted-foreground">
+                          {t("proposalDetail.review.noCustomerFields")}
+                        </p>
+                      );
+                    }
 
                     const fieldGroups = new Map<string, string[]>();
                     const simpleFields: string[] = [];
@@ -1012,7 +1063,9 @@ export default function ProposalDetailPage() {
                                   setBindingValue(newData, binding, e.target.value);
                                   setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                 }}
-                                placeholder={`Enter ${label.toLowerCase()}`}
+                                placeholder={t("proposalDetail.review.enterField", {
+                                  field: label.toLowerCase(),
+                                })}
                               />
                             </div>
                           );
@@ -1029,7 +1082,13 @@ export default function ProposalDetailPage() {
                                 {fields.map((fieldName) => {
                                   const fullBinding = `${basePath}.${fieldName}`;
                                   const fieldValue = groupObj[fieldName] || "";
-                                  const fieldLabel = fieldName === "zipCode" ? "Zip Code" : fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, " $1");
+                                  const fieldLabel =
+                                    fieldName === "zipCode"
+                                      ? t("proposalDetail.review.zipCode")
+                                      : fieldName
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                        fieldName.slice(1).replace(/([A-Z])/g, " $1");
                                   return (
                                     <Input
                                       key={fullBinding}
@@ -1040,7 +1099,9 @@ export default function ProposalDetailPage() {
                                         setBindingValue(newData, basePath, { ...currentGroup, [fieldName]: e.target.value } as InvoiceDataValue);
                                         setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
                                       }}
-                                      placeholder={`Enter ${fieldLabel.toLowerCase()}`}
+                                      placeholder={t("proposalDetail.review.enterField", {
+                                        field: fieldLabel.toLowerCase(),
+                                      })}
                                     />
                                   );
                                 })}
@@ -1058,24 +1119,36 @@ export default function ProposalDetailPage() {
                 {/* Invoice Details */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.invoiceDetails')}</h3>
-                  {["invoiceNumber", "invoiceDate", "issueDate", "dueDate", "currency"].map((key) => {
-                    const value = generatedInvoiceData.invoiceData[key];
-                    if (value === undefined) return null;
-                    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1");
-                    return (
-                      <div key={key} className="space-y-2">
-                        <Label>{label}</Label>
-                        <Input
-                          value={String(value || "")}
-                          onChange={(e) => {
-                            const newData = { ...generatedInvoiceData.invoiceData };
-                            setBindingValue(newData, key, e.target.value);
-                            setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
+                  {(() => {
+                    const invoiceDetailLabels: Record<string, string> = {
+                      invoiceNumber: t("proposalDetail.review.invoiceDetailsFields.invoiceNumber"),
+                      invoiceDate: t("proposalDetail.review.invoiceDetailsFields.invoiceDate"),
+                      issueDate: t("proposalDetail.review.invoiceDetailsFields.issueDate"),
+                      dueDate: t("proposalDetail.review.invoiceDetailsFields.dueDate"),
+                      currency: t("proposalDetail.review.invoiceDetailsFields.currency"),
+                    };
+                    return ["invoiceNumber", "invoiceDate", "issueDate", "dueDate", "currency"].map((key) => {
+                      const value = generatedInvoiceData.invoiceData[key];
+                      if (value === undefined) return null;
+                      const label =
+                        invoiceDetailLabels[key] ||
+                        key.charAt(0).toUpperCase() +
+                          key.slice(1).replace(/([A-Z])/g, " $1");
+                      return (
+                        <div key={key} className="space-y-2">
+                          <Label>{label}</Label>
+                          <Input
+                            value={String(value || "")}
+                            onChange={(e) => {
+                              const newData = { ...generatedInvoiceData.invoiceData };
+                              setBindingValue(newData, key, e.target.value);
+                              setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
+                            }}
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
 
                 <Separator />
@@ -1115,25 +1188,38 @@ export default function ProposalDetailPage() {
                 {/* Totals */}
                 <div className="space-y-2">
                   <h3 className="font-semibold text-lg">{t('proposalDetail.review.totals')}</h3>
-                  {["subtotal", "netAmount", "taxTotal", "vatTotal", "total", "grossTotal"].map((key) => {
-                    const value = generatedInvoiceData.invoiceData[key];
-                    if (value === undefined) return null;
-                    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1");
-                    return (
-                      <div key={key} className="flex items-center justify-between">
-                        <Label>{label}</Label>
-                        <Input
-                          value={String(value || "")}
-                          onChange={(e) => {
-                            const newData = { ...generatedInvoiceData.invoiceData };
-                            setBindingValue(newData, key, e.target.value);
-                            setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
-                          }}
-                          className="w-32"
-                        />
-                      </div>
-                    );
-                  })}
+                  {(() => {
+                    const totalsLabels: Record<string, string> = {
+                      subtotal: t("proposalDetail.review.totalsFields.subtotal"),
+                      netAmount: t("proposalDetail.review.totalsFields.netAmount"),
+                      taxTotal: t("proposalDetail.review.totalsFields.taxTotal"),
+                      vatTotal: t("proposalDetail.review.totalsFields.vatTotal"),
+                      total: t("proposalDetail.review.totalsFields.total"),
+                      grossTotal: t("proposalDetail.review.totalsFields.grossTotal"),
+                    };
+                    return ["subtotal", "netAmount", "taxTotal", "vatTotal", "total", "grossTotal"].map((key) => {
+                      const value = generatedInvoiceData.invoiceData[key];
+                      if (value === undefined) return null;
+                      const label =
+                        totalsLabels[key] ||
+                        key.charAt(0).toUpperCase() +
+                          key.slice(1).replace(/([A-Z])/g, " $1");
+                      return (
+                        <div key={key} className="flex items-center justify-between">
+                          <Label>{label}</Label>
+                          <Input
+                            value={String(value || "")}
+                            onChange={(e) => {
+                              const newData = { ...generatedInvoiceData.invoiceData };
+                              setBindingValue(newData, key, e.target.value);
+                              setGeneratedInvoiceData({ ...generatedInvoiceData, invoiceData: newData });
+                            }}
+                            className="w-32"
+                          />
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </ScrollArea>
@@ -1178,7 +1264,10 @@ export default function ProposalDetailPage() {
                   }
                   navigate(`/invoices/${result.id}`);
                 } catch (error) {
-                  const message = error instanceof Error ? error.message : "Unknown error";
+                  const message =
+                    error instanceof Error
+                      ? error.message
+                      : t("proposalDetail.review.unknownError");
                   toast.error(t('proposalDetail.review.createFailed', { error: message }));
                 }
               }}

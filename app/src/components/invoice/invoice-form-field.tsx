@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatCurrency } from "@/utils/currencies";
 import type { InvoiceDataValue } from "@/core/entities/invoice";
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface BindingField {
@@ -51,6 +52,7 @@ export function InvoiceFormField({
 	suggestedValue,
 	defaultCurrency,
 }: InvoiceFormFieldProps) {
+	const { t } = useTranslation();
 	const isAddressField =
 		field.path.endsWith(".address") || field.path.endsWith("address");
 	const isObjectValue =
@@ -67,7 +69,7 @@ export function InvoiceFormField({
 				<div className="space-y-2">
 					<input
 						type="text"
-						placeholder="Street address"
+						placeholder={t("invoiceFormField.address.street")}
 						value={String(addressObj.street ?? "")}
 						onChange={(e) =>
 							onChange({ ...addressObj, street: e.target.value })
@@ -82,7 +84,7 @@ export function InvoiceFormField({
 					<div className="grid grid-cols-2 gap-2">
 						<input
 							type="text"
-							placeholder="City"
+							placeholder={t("invoiceFormField.address.city")}
 							value={String(addressObj.city ?? "")}
 							onChange={(e) =>
 								onChange({ ...addressObj, city: e.target.value })
@@ -96,7 +98,7 @@ export function InvoiceFormField({
 						/>
 						<input
 							type="text"
-							placeholder="State / Province"
+							placeholder={t("invoiceFormField.address.state")}
 							value={String(addressObj.state ?? "")}
 							onChange={(e) =>
 								onChange({ ...addressObj, state: e.target.value })
@@ -112,7 +114,7 @@ export function InvoiceFormField({
 					<div className="grid grid-cols-2 gap-2">
 						<input
 							type="text"
-							placeholder="ZIP / Postal code"
+							placeholder={t("invoiceFormField.address.zipCode")}
 							value={String(addressObj.zipCode ?? "")}
 							onChange={(e) =>
 								onChange({ ...addressObj, zipCode: e.target.value })
@@ -126,7 +128,7 @@ export function InvoiceFormField({
 						/>
 						<input
 							type="text"
-							placeholder="Country"
+							placeholder={t("invoiceFormField.address.country")}
 							value={String(addressObj.country ?? "")}
 							onChange={(e) =>
 								onChange({ ...addressObj, country: e.target.value })
@@ -314,14 +316,16 @@ export function InvoiceFormField({
 										) : (
 											<Sparkles className="h-2.5 w-2.5" />
 										)}
-										{field.hasFormula ? "formula" : "linked"}
+										{field.hasFormula
+											? t("invoiceFormField.badges.formula")
+											: t("invoiceFormField.badges.linked")}
 									</span>
 								</TooltipTrigger>
 								<TooltipContent>
 									<p className="text-xs">
 										{field.hasFormula
-											? "This field is auto-calculated by a formula"
-											: "This field is linked to another currency field"}
+											? t("invoiceFormField.tooltips.formula")
+											: t("invoiceFormField.tooltips.linked")}
 									</p>
 								</TooltipContent>
 							</Tooltip>
@@ -334,11 +338,13 @@ export function InvoiceFormField({
 								<TooltipTrigger asChild>
 									<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 leading-none cursor-help">
 										<Lock className="h-2.5 w-2.5" />
-										product
+										{t("invoiceFormField.badges.product")}
 									</span>
 								</TooltipTrigger>
 								<TooltipContent>
-									<p className="text-xs">Populated from selected product</p>
+									<p className="text-xs">
+										{t("invoiceFormField.tooltips.populatedFromProduct")}
+									</p>
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -353,7 +359,7 @@ export function InvoiceFormField({
 						className="h-5 px-2 text-[10px] font-medium text-primary hover:text-primary"
 						onClick={onAutoCalculate}
 					>
-						Auto-calculate
+						{t("invoiceFormField.autoCalculate")}
 					</Button>
 				)}
 			</div>
@@ -389,7 +395,11 @@ export function InvoiceFormField({
 							{localValue ? (
 								<span>{new Date(localValue + "T00:00:00").toLocaleDateString("default", { year: "numeric", month: "short", day: "numeric" })}</span>
 							) : (
-								<span className="text-muted-foreground/40">Enter {field.label.toLowerCase()}</span>
+								<span className="text-muted-foreground/40">
+									{t("invoiceFormField.enterField", {
+										field: field.label.toLowerCase(),
+									})}
+								</span>
 							)}
 							<div className={cn(
 								"absolute right-2.5 top-1/2 -translate-y-1/2",
@@ -433,7 +443,9 @@ export function InvoiceFormField({
 						value={localValue}
 						onChange={handleInputChange}
 						onBlur={handleBlur}
-						placeholder={`Enter ${field.label.toLowerCase()}`}
+						placeholder={t("invoiceFormField.enterField", {
+							field: field.label.toLowerCase(),
+						})}
 						readOnly={isReadOnly}
 						className={cn(
 							"w-full px-3 py-2 text-sm rounded-md border bg-background",
@@ -475,7 +487,9 @@ export function InvoiceFormField({
 									</div>
 								</TooltipTrigger>
 								<TooltipContent>
-									<p className="text-xs">Populated from selected product</p>
+									<p className="text-xs">
+										{t("invoiceFormField.tooltips.populatedFromProduct")}
+									</p>
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -493,7 +507,7 @@ export function InvoiceFormField({
 			{/* Auto-calculate hint */}
 			{shouldAutoCalculate && suggestedValue !== undefined && (
 				<p className="text-[11px] text-muted-foreground pl-0.5">
-					Suggested:{" "}
+					{t("invoiceFormField.suggested")}{" "}
 					<button
 						type="button"
 						onClick={onAutoCalculate}

@@ -62,13 +62,13 @@ const STATUS_STYLES: Record<string, string> = {
   archived: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
-function getErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
   if (!error) return "";
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
     return String(error.message);
   }
-  return "Unknown error";
+  return fallbackMessage;
 }
 
 export default function WorkflowExecutionPage() {
@@ -193,7 +193,9 @@ export default function WorkflowExecutionPage() {
         <Card className="border-rose-200 bg-rose-50">
           <CardHeader>
             <CardTitle className="text-rose-700">{t("workflows.execution.notFound.title")}</CardTitle>
-            <CardDescription className="text-rose-600">{getErrorMessage(error)}</CardDescription>
+            <CardDescription className="text-rose-600">
+              {getErrorMessage(error, t("workflows.execution.errors.unknown"))}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" onClick={() => navigate("/workflows")}>
@@ -416,13 +418,15 @@ export default function WorkflowExecutionPage() {
                     {t("workflows.execution.overview.details.created")}
                   </span>
                   <span className="text-sm font-medium text-foreground">
-                    {workflow.createdAt ? formatDateTable(workflow.createdAt) : "N/A"}
+                    {workflow.createdAt ? formatDateTable(workflow.createdAt) : t("workflows.execution.overview.details.notAvailable")}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
-                  <span className="text-sm text-muted-foreground">Last Updated</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t("workflows.execution.overview.details.lastUpdated")}
+                  </span>
                   <span className="text-sm font-medium text-foreground">
-                    {workflow.updatedAt ? formatDateTable(workflow.updatedAt) : "N/A"}
+                    {workflow.updatedAt ? formatDateTable(workflow.updatedAt) : t("workflows.execution.overview.details.notAvailable")}
                   </span>
                 </div>
 
@@ -451,7 +455,7 @@ export default function WorkflowExecutionPage() {
               <CardContent>
                 {workflow.steps.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                    No steps configured yet.
+                    {t("workflows.execution.overview.steps.empty")}
                   </div>
                 ) : (
                   <div className="space-y-3">

@@ -526,6 +526,7 @@
 			"currency": "Валута",
 			"leadId": "ID на потенциален клиент",
 			"invoiceId": "ID на фактура",
+			"viewInvoice": "Виж фактурата",
 			"actions": "Действия",
 			"convertToInvoice": "Конвертирай във фактура (AI)",
 			"message": "Съобщение:"
@@ -544,16 +545,52 @@
 			"orgNotFound": "Организацията не е намерена",
 			"generateFailed": "Неуспешно генериране на фактура: {{error}}"
 		},
+		"email": {
+			"title": "Изпрати офертата по имейл",
+			"recipientLabel": "Имейл на получателя",
+			"recipientPlaceholder": "customer@example.com",
+			"recipientRequired": "Имейлът на получателя е задължителен",
+			"proposalNotFound": "Офертата не е намерена",
+			"templateLabel": "Имейл шаблон (по избор)",
+			"templatePlaceholder": "Използвай имейла по подразбиране за оферта",
+			"defaultTemplate": "Имейл по подразбиране за оферта",
+			"noCompatibleTemplates": "Няма съвместими шаблони",
+			"send": "Изпрати имейл",
+			"sending": "Изпращане…",
+			"sentTo": "Имейл за офертата е изпратен до {{email}}",
+			"sendFailed": "Неуспешно изпращане на имейл за офертата: {{error}}"
+		},
 		"review": {
 			"title": "Преглед и редактиране на фактура",
 			"description": "Прегледайте и редактирайте данните за фактурата, генерирани с AI, преди да създадете фактурата.",
 			"invoiceNumber": "Номер на фактура",
 			"sellerInfo": "Информация за продавача",
 			"customerInfo": "Информация за клиента",
+			"templateNotFound": "Шаблонът не е намерен",
+			"noSellerFields": "В шаблона няма намерени полета за продавач/доставчик",
+			"noCustomerFields": "В шаблона няма намерени полета за клиент/купувач",
+			"enterField": "Въведете {{field}}",
+			"unknownError": "Неизвестна грешка",
+			"zipCode": "Пощенски код",
 			"invoiceDetails": "Детайли на фактура",
+			"invoiceDetailsFields": {
+				"invoiceNumber": "Номер на фактура",
+				"invoiceDate": "Дата на фактура",
+				"issueDate": "Дата на издаване",
+				"dueDate": "Падеж",
+				"currency": "Валута"
+			},
 			"items": "Артикули",
 			"itemsEditable": "Артикулите могат да бъдат редактирани след създаването на фактурата.",
 			"totals": "Общо",
+			"totalsFields": {
+				"subtotal": "Междинна сума",
+				"netAmount": "Нетна сума",
+				"taxTotal": "Общо данък",
+				"vatTotal": "Общо ДДС",
+				"total": "Общо",
+				"grossTotal": "Брутна сума"
+			},
 			"cancel": "Отказ",
 			"create": "Създай фактура",
 			"creating": "Създаване...",
@@ -565,6 +602,151 @@
 			"unknown": "Неизвестен",
 			"tax": "+ {{tax}}% данък"
 		}
+	},
+	"invoiceUploadFlow": {
+		"header": {
+			"templateTitle": "Създай шаблон от фактура",
+			"invoiceTitle": "Създай фактура от качен файл",
+			"templateDescription": "Качете фактура, за да генерирате шаблон за повторна употреба",
+			"invoiceDescription": "Качете фактура, за да създадете автоматично фактура"
+		},
+		"modelSelector": {
+			"auto": "Автоматично",
+			"loadingModels": "Зареждане на модели...",
+			"searchPlaceholder": "Търси модели...",
+			"noModelFound": "Няма намерен модел.",
+			"modeHeading": "Режим"
+		},
+		"models": {
+			"titleTemplate": "AI модел за генериране на шаблон",
+			"titleInvoice": "AI модели за потока на качване",
+			"descriptionTemplate": "Изберете модела, използван за генериране на шаблони от качени фактури. Моделите се зареждат в реално време от Gemini и OpenAI.",
+			"descriptionInvoice": "Изберете модели за извличане и генериране на шаблон. Моделите се зареждат в реално време от Gemini и OpenAI.",
+			"extractionLabel": "Модел за извличане",
+			"templateLabel": "Модел за шаблон",
+			"geminiBadge": "Gemini: {{value}}",
+			"openAiBadge": "OpenAI: {{value}}",
+			"modelsCount_one": "{{count}} модел",
+			"modelsCount_other": "{{count}} модела",
+			"unavailable": "Недостъпен",
+			"loadFailed": "Моделите не могат да бъдат заредени. Можете да опитате отново.",
+			"taskTemplate": "Задача: генериране на шаблон",
+			"taskInvoice": "Задачи: извличане + генериране на шаблон",
+			"appliedPerRequest": "Прилага се само за текущата заявка"
+		},
+		"steps": {
+			"upload": "Качване",
+			"analyze": "Анализ",
+			"extract": "Извличане",
+			"match": "Съвпадение",
+			"complete": "Готово"
+		},
+		"upload": {
+			"title": "Качи файл с фактура",
+			"description": "Качете PDF или изображение на вашата фактура"
+		},
+		"extract": {
+			"title": "Статус на извличане",
+			"description": "Извличане на данни от вашата фактура"
+		},
+		"match": {
+			"title": "Намерено е съвпадение на шаблон",
+			"description": "Намерихме подходящ шаблон за тази фактура",
+			"foundCount_one": "Намерен е {{count}} съвпадащ шаблон",
+			"foundCount_other": "Намерени са {{count}} съвпадащи шаблона",
+			"percentMatch": "{{percent}}% съвпадение",
+			"creatingInvoice": "Създаване на фактура...",
+			"useTemplate": "Използвай този шаблон",
+			"generateNewTemplate": "Генерирай нов шаблон"
+		},
+		"previewTemplate": {
+			"title": "Генериране на шаблон",
+			"description": "Анализираме вашата фактура визуално в един AI pass и създаваме блоков шаблон.",
+			"generating": "Генериране на шаблон от оформлението на фактурата...",
+			"generated": "Шаблонът е генериран. Прегледайте и приемете визуализацията.",
+			"failed": "Генерирането на шаблон е неуспешно. Качете отново или опитайте пак."
+		},
+		"previewInvoice": {
+			"title": "Извлечени данни",
+			"description": "Прегледайте извлечените данни и генерирайте шаблон. Можете да редактирате както имената на полетата, така и стойностите.",
+			"noData": "Все още няма извлечени данни."
+		},
+		"toasts": {
+			"templateCreated": "Шаблонът е създаден успешно",
+			"createTemplateFailed": "Неуспешно създаване на шаблон",
+			"invoiceCreated": "Фактурата е създадена успешно",
+			"createInvoiceFailed": "Неуспешно създаване на фактура"
+		},
+		"errors": {
+			"organizationNotFound": "Организацията не е намерена",
+			"unknownError": "Неизвестна грешка"
+		},
+		"common": {
+			"retry": "Опитай отново"
+		},
+		"generatedTemplateName": "Шаблон от {{fileName}}",
+		"generatedTemplateFallback": "Фактура"
+	},
+	"acceptInvite": {
+		"invalid": {
+			"title": "Невалиден линк за покана",
+			"description": "Този линк за покана е невалиден или е изтекъл."
+		},
+		"loading": {
+			"verifyingAuth": "Потвърждаваме вашата автентикация...",
+			"acceptingInvitation": "Приемаме вашата покана..."
+		},
+		"error": {
+			"title": "Неуспешно приемане на поканата",
+			"description": "Възникна грешка при приемането на поканата. Възможно е линкът да е изтекъл или отменен."
+		},
+		"success": {
+			"title": "Добре дошли в екипа!",
+			"description": "Успешно се присъединихте към организацията. Вече можете да използвате всички функции и да работите с екипа си.",
+			"badge": "Вече сте част от екипа"
+		},
+		"common": {
+			"goToDashboard": "Към таблото",
+			"tryAgain": "Опитай отново"
+		}
+	},
+	"productSelector": {
+		"selectProduct": "Изберете продукт...",
+		"searchPlaceholder": "Търсене по име, SKU или категория...",
+		"noProductsFound": "Няма намерени продукти.",
+		"skuLabel": "SKU: {{sku}}",
+		"stockLabel": "• Наличност: {{count}}"
+	},
+	"invoiceTableRow": {
+		"mappingProduct": "Свързване на продукт…",
+		"productPlaceholder": "Продукт…",
+		"quantityExceedsStock": "Количеството ({{quantity}}) надвишава наличността ({{stock}})",
+		"autoCalculated": "Автоматично изчислено по формула",
+		"linkedAutoConverted": "Свързано — автоматично конвертирано",
+		"fromProduct": "От продукт",
+		"removeRowAria": "Премахни ред"
+	},
+	"invoiceFormField": {
+		"address": {
+			"street": "Улица и номер",
+			"city": "Град",
+			"state": "Област / Регион",
+			"zipCode": "Пощенски код",
+			"country": "Държава"
+		},
+		"badges": {
+			"formula": "формула",
+			"linked": "свързано",
+			"product": "продукт"
+		},
+		"tooltips": {
+			"formula": "Това поле се изчислява автоматично по формула",
+			"linked": "Това поле е свързано с друго валутно поле",
+			"populatedFromProduct": "Попълнено от избрания продукт"
+		},
+		"autoCalculate": "Автоизчисли",
+		"enterField": "Въведете {{field}}",
+		"suggested": "Предложено:"
 	},
 	"templates": {
 		"title": "Шаблони",
@@ -626,6 +808,8 @@
 			"clear": "Изчисти избора",
 			"selectAll": "Избери всички",
 			"deselectAll": "Премахни всички",
+			"selectedCount_one": "{{count}} избран шаблон",
+			"selectedCount_other": "{{count}} избрани шаблона",
 			"title": "Изтриване на {{count}} шаблон?",
 			"title_plural": "Изтриване на {{count}} шаблона?",
 			"description": "Сигурни ли сте, че искате да изтриете {{count}} избран шаблон? Това действие не може да бъде отменено.",
@@ -635,6 +819,18 @@
 			"deleting": "Изтриване...",
 			"success": "Успешно изтрит {{count}} шаблон",
 			"success_plural": "Успешно изтрити {{count}} шаблона"
+		},
+		"aiUpload": {
+			"title": "Генериране от фактура",
+			"description": "Качете PDF или изображение на фактура и автоматично генерирайте шаблон",
+			"points": {
+				"upload": "Качете PDF или изображение на фактура",
+				"extract": "AI извлича автоматично всички данни от фактурата",
+				"generate": "Шаблонът се генерира с подходящи връзки"
+			},
+			"button": "Качи фактура",
+			"bannerTitle": "Генериране от фактура:",
+			"bannerDescription": "Качете PDF или изображение на фактура, за да създадете автоматично съвпадащ шаблон."
 		}
 	},
 	"designer": {
@@ -1104,6 +1300,22 @@
 			"description": "Все още няма имейл шаблони. Създайте шаблон и го персонализирайте в дизайнера.",
 			"action": "Създай имейл шаблон"
 		},
+		"contextError": {
+			"title": "Грешка в контекста",
+			"description": "Контекстът на имейл дизайнера не е наличен. Моля, презаредете страницата."
+		},
+		"previewContext": {
+			"previewWith": "Преглед с",
+			"autoPrefix": "Автоматично:",
+			"product": "Продукт",
+			"contact": "Контакт",
+			"invoice": "Фактура",
+			"proposal": "Оферта",
+			"noMatchingProduct": "Няма съвпадащ продукт",
+			"noMatchingContact": "Няма съвпадащ контакт",
+			"noMatchingInvoice": "Няма съвпадаща фактура",
+			"noMatchingProposal": "Няма съвпадаща оферта"
+		},
 		"properties": {
 			"title": "Настройки на блока",
 			"empty": "Изберете блок, за да редактирате съдържанието му.",
@@ -1397,6 +1609,9 @@
 		},
 		"execution": {
 			"title": "Изпълнение на работен поток",
+			"errors": {
+				"unknown": "Неизвестна грешка"
+			},
 			"notFound": {
 				"title": "Работен поток не е намерен",
 				"description": "Работният поток, който търсите, не съществува или е изтрит.",
@@ -1433,11 +1648,14 @@
 					"trigger": "Тригер:",
 					"steps": "Стъпки:",
 					"created": "Създадено:",
+					"lastUpdated": "Последно обновено:",
+					"notAvailable": "Н/Д",
 					"tags": "Етикети:"
 				},
 				"steps": {
 					"title": "Стъпки на работен поток",
 					"description": "Последователността от действия в този работен поток",
+					"empty": "Все още няма конфигурирани стъпки.",
 					"actions": "{{count}} действие",
 					"actionsPlural": "{{count}} действия"
 				}
@@ -1542,6 +1760,7 @@
 				"visualView": "Визуален изглед",
 				"listView": "Списък",
 				"noActions": "Няма действия",
+				"noActionsConfigured": "Няма конфигурирани действия",
 				"addFirstStep": "Добавете първата стъпка"
 			},
 			"actions": {
@@ -2007,6 +2226,8 @@
 		},
 		"widgets": {
 			"saveConfiguration": "Запази конфигурация на джаджа",
+			"selectOrCreate": "Изберете или създайте джаджа",
+			"selectOrCreateDesc": "Изберете джаджа от списъка или създайте нова от шаблон.",
 			"defaultLabels": {
 				"name": "Име",
 				"email": "Имейл",
@@ -3218,16 +3439,212 @@
 			"brandingSaveFailed": "Неуспешно запазване на брандинга. Продължаваме въпреки това..."
 		}
 	},
+	"contentPages": {
+		"layout": {
+			"title": "Съдържание",
+			"subtitle": "Управлявайте персонализирани структури от данни и файлове",
+			"tabs": {
+				"metaobjects": "Метаобекти и метаполета",
+				"files": "Файлове"
+			}
+		},
+		"metaobjects": {
+			"actions": {
+				"delete": "Изтрий"
+			},
+			"card": {
+				"view": "Преглед",
+				"edit": "Редакция",
+				"delete": "Изтрий",
+				"fieldCountSingular": "{{count}} поле",
+				"fieldCountPlural": "{{count}} полета"
+			},
+			"deleteDialog": {
+				"title": "Изтриване на дефиниция на метаобект",
+				"description": "Това действие не може да бъде отменено. Дефиницията на метаобект и всички свързани данни ще бъдат изтрити завинаги.",
+				"warningTitle": "Внимание",
+				"warningDescription": "За да потвърдите изтриването, въведете {{definitionName}} в полето по-долу.",
+				"definitionNameLabel": "Име на дефиницията",
+				"delete": "Изтрий",
+				"deleting": "Изтриване..."
+			},
+			"form": {
+				"editTitle": "Редактиране на дефиниция на метаобект",
+				"addTitle": "Добавяне на дефиниция на метаобект",
+				"editDescription": "Обновете дефиницията на метаобект и нейните полета",
+				"addDescription": "Създайте нова дефиниция на метаобект с персонализирани полета",
+				"nameLabel": "Име *",
+				"namePlaceholder": "напр. Характеристика на продукт",
+				"descriptionLabel": "Описание",
+				"descriptionPlaceholder": "Описание (по избор)",
+				"fieldsLabel": "Полета *",
+				"addField": "Добави поле",
+				"fieldLabel": "Етикет на поле *",
+				"fieldLabelPlaceholder": "напр. Заглавие",
+				"cardinalityLabel": "Кардиналност",
+				"cardinalityOne": "Една стойност",
+				"cardinalityList": "Списък от стойности",
+				"fieldTypeLabel": "Тип поле *",
+				"fieldTypePlaceholder": "Изберете тип поле",
+				"noFieldsMessage": "Все още няма добавени полета. Натиснете \"Добави поле\", за да започнете.",
+				"update": "Обнови",
+				"create": "Създай"
+			},
+			"fieldType": {
+				"listPrefix": "Списък · "
+			},
+			"fieldTypeSelector": {
+				"placeholder": "Изберете тип поле",
+				"searchPlaceholder": "Търси типове полета...",
+				"empty": "Няма намерен тип поле.",
+				"selectedMark": "✓",
+				"categories": {
+					"recommended": "Препоръчани",
+					"text": "Текст",
+					"media": "Медия",
+					"reference": "Референция",
+					"number": "Число",
+					"link": "Връзка",
+					"dateTime": "Дата и час",
+					"other": "Други",
+					"advanced": "Разширени"
+				},
+				"labels": {
+					"singleLineText": "Едноредов текст",
+					"multiLineText": "Многоредов текст",
+					"integer": "Цяло число",
+					"imageFile": "Изображение (файл)",
+					"metaobject": "Метаобект",
+					"richText": "Форматиран текст",
+					"choiceListSingleLine": "Списък с избор (едноредов текст)",
+					"emailSingleLine": "Имейл (едноредов текст)",
+					"file": "Файл",
+					"videoFile": "Видео (файл)",
+					"product": "Продукт",
+					"collection": "Колекция",
+					"blogPost": "Публикация в блог",
+					"page": "Страница",
+					"customer": "Клиент",
+					"order": "Поръчка",
+					"company": "Компания",
+					"productVariant": "Вариант на продукт",
+					"mixedReference": "Смесена референция",
+					"id": "ID",
+					"money": "Пари",
+					"decimal": "Десетично число",
+					"rating": "Оценка",
+					"weight": "Тегло",
+					"volume": "Обем",
+					"dimension": "Размер",
+					"link": "Връзка",
+					"url": "URL",
+					"date": "Дата",
+					"dateTime": "Дата и час",
+					"trueOrFalse": "Вярно или невярно",
+					"color": "Цвят",
+					"json": "JSON"
+				}
+			},
+			"entities": {
+				"contacts": "Контакти",
+				"products": "Продукти",
+				"contactsLower": "контакти",
+				"productsLower": "продукти"
+			},
+			"toasts": {
+				"organizationRequired": "Организацията е задължителна",
+				"created": "Дефиницията на метаобект е създадена",
+				"createFailed": "Неуспешно създаване на дефиниция на метаобект",
+				"updated": "Дефиницията на метаобект е обновена",
+				"updateFailed": "Неуспешно обновяване на дефиниция на метаобект",
+				"deleted": "Дефиницията на метаобект е изтрита",
+				"deleteFailed": "Неуспешно изтриване на дефиниция на метаобект",
+				"metafieldDeleted": "Метаполето е изтрито",
+				"metafieldDeleteFailed": "Неуспешно изтриване на метаполе"
+			},
+			"metafields": {
+				"headerTitle": "Метаполета",
+				"subtitle": "Вградени разширения на обекти",
+				"description": "Добавете допълнителни полета към контакти и продукти",
+				"entities": {
+					"contactsDescription": "Персонализирани полета, свързани с контактите",
+					"productsDescription": "Персонализирани полета, свързани с продуктите",
+					"metafieldCountSingular": "{{count}} метаполе",
+					"metafieldCountPlural": "{{count}} метаполета"
+				},
+				"drillIn": {
+					"definitionsLabel": "Дефиниции на метаполета",
+					"addMetafield": "Добави метаполе",
+					"add": "Добави",
+					"searchPlaceholder": "Търси метаполета...",
+					"fieldCountSingular": "{{count}} поле",
+					"fieldCountPlural": "{{count}} полета"
+				},
+				"empty": {
+					"noMetafieldsFound": "Няма намерени метаполета",
+					"noMetafieldsYet": "Все още няма метаполета",
+					"tryDifferentSearch": "Опитайте с друга дума за търсене",
+					"noDefinitionsForEntity": "Все още няма създадени дефиниции на метаполета за {{entity}}"
+				}
+			},
+			"metaobjects": {
+				"headerTitle": "Метаобекти",
+				"subtitle": "Персонализирани типове данни",
+				"description": "Структурирани схеми с конфигурируеми дефиниции на полета",
+				"newDefinition": "Нова дефиниция",
+				"new": "Нова",
+				"searchPlaceholder": "Търси дефиниции...",
+				"empty": {
+					"noDefinitionsFound": "Няма намерени дефиниции",
+					"noDefinitionsYet": "Все още няма дефиниции на метаобекти",
+					"tryDifferentSearch": "Опитайте с друга дума за търсене",
+					"defineCustomType": "Дефинирайте персонализиран структуриран тип данни със собствена схема на полета"
+				}
+			}
+		},
+		"files": {
+			"searchPlaceholder": "Търси файлове...",
+			"filters": {
+				"allTypes": "Всички типове",
+				"images": "Изображения",
+				"videos": "Видеа",
+				"generic": "Общи",
+				"filterByType": "Филтрирай по тип"
+			},
+			"count": {
+				"fileSingular": "{{count}} файл",
+				"filePlural": "{{count}} файла"
+			},
+			"deleteDialog": {
+				"title": "Изтриване на файл?",
+				"descriptionWithFilename": "Това ще изтрие завинаги \"{{filename}}\" от хранилището.",
+				"descriptionWithoutFilename": "Това ще изтрие завинаги този файл от хранилището.",
+				"delete": "Изтрий",
+				"deleting": "Изтриване..."
+			},
+			"toasts": {
+				"deleteSuccess": "Файлът е изтрит успешно",
+				"deleteFailed": "Неуспешно изтриване на файл"
+			},
+			"empty": {
+				"noFilesFound": "Няма намерени файлове",
+				"noFilesUploaded": "Все още няма качени файлове",
+				"adjustSearch": "Опитайте да промените търсенето или филтъра",
+				"uploadedAppear": "Качените файлове ще се появят тук"
+			}
+		}
+	},
 	"layout": {
 		"navigation": {
 			"dashboard": "Табло",
 			"products": "Продукти",
 			"invoices": "Фактури",
 			"contacts": "Контакти",
-			"leads": "Потенциални клиенти",
+			"leads": "Лийдове",
 			"proposals": "Оферти",
 			"templates": "Шаблони",
 			"marketplace": "Пазар",
+			"content": "Съдържание",
 			"workflows": "Автоматизации",
 			"siteBuilder": "Интеграции",
 			"analytics": "Аналитика",

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Plus, Layout } from "lucide-react";
+import { Loader2, Sparkles, Plus, Layout, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -32,6 +32,7 @@ function DesignAreaContent({
 	effectiveWidgetId,
 	organizationId,
 	getEmbedScript,
+	onDeleteWidget,
 }: {
 	showBuilder: boolean;
 	showPropertiesPanel: boolean;
@@ -39,6 +40,7 @@ function DesignAreaContent({
 	effectiveWidgetId: string | undefined;
 	organizationId: string;
 	getEmbedScript: () => string;
+	onDeleteWidget: (widgetId: string) => Promise<void>;
 }) {
 	const { t } = useTranslation();
 	const widgetDesigner = useWidgetDesigner();
@@ -59,6 +61,7 @@ function DesignAreaContent({
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedOption, setSelectedOption] = useState<TemplateOption | null>({ kind: "blank" });
 	const [isDialogPending, setIsDialogPending] = useState(false);
+	const [deletingWidgetId, setDeletingWidgetId] = useState<string | null>(null);
 
 	const handleOpenCreateDialog = () => {
 		setSelectedOption({ kind: "blank" });
@@ -77,6 +80,15 @@ function DesignAreaContent({
 			setCreateDialogOpen(false);
 		} finally {
 			setIsDialogPending(false);
+		}
+	};
+
+	const handleDeleteFromCard = async (widgetId: string) => {
+		setDeletingWidgetId(widgetId);
+		try {
+			await onDeleteWidget(widgetId);
+		} finally {
+			setDeletingWidgetId((prev) => (prev === widgetId ? null : prev));
 		}
 	};
 
@@ -228,12 +240,39 @@ function DesignAreaContent({
 										onCancel={() => setCreateDialogOpen(false)}
 									/>
 									{definitions.map((d) => (
-										<button
+										<div
 											key={d.id}
-											type="button"
 											onClick={() => onWidgetChange(d.id)}
-											className="group flex flex-col items-stretch min-h-[180px] rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:shadow-md hover:border-primary/25 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+											onKeyDown={(e) => {
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													onWidgetChange(d.id);
+												}
+											}}
+											role="button"
+											tabIndex={0}
+											className="group relative flex flex-col items-stretch min-h-[180px] rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:shadow-md hover:border-primary/25 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+											aria-label={t("siteBuilder.widgets.openWidget", "Open widget")}
 										>
+											<div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-10">
+												<Button
+													variant="secondary"
+													size="icon"
+													className="h-8 w-8 text-destructive hover:text-destructive bg-background/95 backdrop-blur-sm"
+													onClick={(e) => {
+														e.stopPropagation();
+														void handleDeleteFromCard(d.id);
+													}}
+													disabled={deletingWidgetId !== null}
+													aria-label={t("siteBuilder.widgets.deleteWidget", "Delete widget")}
+												>
+													{deletingWidgetId === d.id ? (
+														<Loader2 className="h-4 w-4 animate-spin" />
+													) : (
+														<Trash2 className="h-4 w-4" />
+													)}
+												</Button>
+											</div>
 											<div className="flex items-start gap-3 min-w-0">
 												<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/80 group-hover:bg-primary/10 transition-colors">
 													<Layout className="h-5 w-5 text-muted-foreground" />
@@ -256,7 +295,7 @@ function DesignAreaContent({
 														: t("siteBuilder.widgetStatus.draft", "Draft")}
 												</span>
 											</div>
-										</button>
+										</div>
 									))}
 								</>
 							)}
@@ -411,6 +450,7 @@ export default function IntegrationsPage() {
 						effectiveWidgetId={effectiveWidgetId}
 						organizationId={organization?.id ?? ""}
 						getEmbedScript={getEmbedScript}
+						onDeleteWidget={handleDeleteWidget}
 					/>
 				</div>
 			</WidgetBuilderProvider>

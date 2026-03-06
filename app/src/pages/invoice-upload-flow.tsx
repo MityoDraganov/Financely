@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { 
   useExtractInvoiceData,
   useExtractionJob 
@@ -67,6 +68,7 @@ function ModelSelector({
   disabled?: boolean;
   onChange: (next: TaskRoutingState) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -90,7 +92,7 @@ function ModelSelector({
 
   const currentLabel =
     value.provider === "auto" || value.model === "auto"
-      ? "Auto"
+      ? t("invoiceUploadFlow.modelSelector.auto")
       : selectedModel
         ? `${selectedModel.displayName} (${selectedModel.provider})`
         : `${value.provider}:${value.model}`;
@@ -108,7 +110,9 @@ function ModelSelector({
             className="w-full justify-between"
           >
             <span className="truncate text-left">
-              {loading ? "Loading models..." : currentLabel}
+              {loading
+                ? t("invoiceUploadFlow.modelSelector.loadingModels")
+                : currentLabel}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -116,13 +120,17 @@ function ModelSelector({
         <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Search models..."
+              placeholder={t("invoiceUploadFlow.modelSelector.searchPlaceholder")}
               value={searchQuery}
               onValueChange={setSearchQuery}
             />
             <CommandList>
-              <CommandEmpty>No model found.</CommandEmpty>
-              <CommandGroup heading="Mode">
+              <CommandEmpty>
+                {t("invoiceUploadFlow.modelSelector.noModelFound")}
+              </CommandEmpty>
+              <CommandGroup
+                heading={t("invoiceUploadFlow.modelSelector.modeHeading")}
+              >
                 <CommandItem
                   value="auto"
                   onSelect={() => {
@@ -131,7 +139,9 @@ function ModelSelector({
                     setSearchQuery("");
                   }}
                 >
-                  <span className="flex-1">Auto</span>
+                  <span className="flex-1">
+                    {t("invoiceUploadFlow.modelSelector.auto")}
+                  </span>
                   <Check
                     className={cn(
                       "h-4 w-4",
@@ -201,6 +211,7 @@ function ModelSelector({
 }
 
 export default function InvoiceUploadFlowPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -243,7 +254,7 @@ export default function InvoiceUploadFlowPage() {
     queryKey: ["ai-models", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) {
-        throw new Error("Organization not found");
+        throw new Error(t("invoiceUploadFlow.errors.organizationNotFound"));
       }
       return functionsService.listAiModels({
         organizationId: currentOrganization.id,
@@ -329,7 +340,10 @@ export default function InvoiceUploadFlowPage() {
         ai: toRuntimeAiSelection(templateTaskConfig),
         options: {
           style: "modern",
-          templateName: `Template from ${job?.fileName || "Invoice"}`,
+          templateName: t("invoiceUploadFlow.generatedTemplateName", {
+            fileName:
+              job?.fileName || t("invoiceUploadFlow.generatedTemplateFallback"),
+          }),
         },
         createTemplate: false, // Don't create yet, show preview first
       });
@@ -364,12 +378,15 @@ export default function InvoiceUploadFlowPage() {
         await handleCreateInvoiceFromExtraction(templateId, updatedData);
       } else {
         // Template flow - just navigate back
-        toast.success("Template created successfully");
+        toast.success(t("invoiceUploadFlow.toasts.templateCreated"));
         navigate(returnTo);
       }
     } catch (error) {
-      toast.error("Failed to create template", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      toast.error(t("invoiceUploadFlow.toasts.createTemplateFailed"), {
+        description:
+          error instanceof Error
+            ? error.message
+            : t("invoiceUploadFlow.errors.unknownError"),
       });
     }
   };
@@ -384,8 +401,11 @@ export default function InvoiceUploadFlowPage() {
     templateService.createDraft(templateToCreate).then((templateId) => {
       navigate(`/designer/${templateId}`);
     }).catch((error) => {
-      toast.error("Failed to create template", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      toast.error(t("invoiceUploadFlow.toasts.createTemplateFailed"), {
+        description:
+          error instanceof Error
+            ? error.message
+            : t("invoiceUploadFlow.errors.unknownError"),
       });
     });
   };
@@ -402,11 +422,14 @@ export default function InvoiceUploadFlowPage() {
         status: "draft",
       });
 
-      toast.success("Invoice created successfully");
+      toast.success(t("invoiceUploadFlow.toasts.invoiceCreated"));
       navigate(`/invoices/${result.id}`);
     } catch (error) {
-      toast.error("Failed to create invoice", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      toast.error(t("invoiceUploadFlow.toasts.createInvoiceFailed"), {
+        description:
+          error instanceof Error
+            ? error.message
+            : t("invoiceUploadFlow.errors.unknownError"),
       });
     }
   };
@@ -431,12 +454,14 @@ export default function InvoiceUploadFlowPage() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">
-              {flowType === "template" ? "Create Template from Invoice" : "Create Invoice from Upload"}
+              {flowType === "template"
+                ? t("invoiceUploadFlow.header.templateTitle")
+                : t("invoiceUploadFlow.header.invoiceTitle")}
             </h1>
             <p className="text-muted-foreground">
               {flowType === "template" 
-                ? "Upload an invoice to generate a reusable template"
-                : "Upload an invoice to automatically create an invoice"}
+                ? t("invoiceUploadFlow.header.templateDescription")
+                : t("invoiceUploadFlow.header.invoiceDescription")}
             </p>
           </div>
         </div>
@@ -444,19 +469,21 @@ export default function InvoiceUploadFlowPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {flowType === "template" ? "AI Model for Template Generation" : "AI Models for Upload Flow"}
+              {flowType === "template"
+                ? t("invoiceUploadFlow.models.titleTemplate")
+                : t("invoiceUploadFlow.models.titleInvoice")}
             </CardTitle>
             <CardDescription>
               {flowType === "template"
-                ? "Select the model used to generate templates from uploaded invoices. Models are loaded live from Gemini and OpenAI."
-                : "Select models for extraction and template generation. Models are loaded live from Gemini and OpenAI."}
+                ? t("invoiceUploadFlow.models.descriptionTemplate")
+                : t("invoiceUploadFlow.models.descriptionInvoice")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className={`grid grid-cols-1 ${flowType === "invoice" ? "md:grid-cols-2" : ""} gap-4`}>
               {flowType === "invoice" && (
                 <ModelSelector
-                  label="Extraction model"
+                  label={t("invoiceUploadFlow.models.extractionLabel")}
                   value={extractionTaskConfig}
                   models={aiModels}
                   loading={isAiModelsLoading}
@@ -465,7 +492,7 @@ export default function InvoiceUploadFlowPage() {
                 />
               )}
               <ModelSelector
-                label="Template model"
+                label={t("invoiceUploadFlow.models.templateLabel")}
                 value={templateTaskConfig}
                 models={aiModels}
                 loading={isAiModelsLoading}
@@ -476,19 +503,31 @@ export default function InvoiceUploadFlowPage() {
             {aiModelsData && (
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">
-                  Gemini: {aiModelsData.providers.gemini.available ? `${aiModelsData.providers.gemini.count} models` : "Unavailable"}
+                  {t("invoiceUploadFlow.models.geminiBadge", {
+                    value: aiModelsData.providers.gemini.available
+                      ? t("invoiceUploadFlow.models.modelsCount", {
+                          count: aiModelsData.providers.gemini.count,
+                        })
+                      : t("invoiceUploadFlow.models.unavailable"),
+                  })}
                 </Badge>
                 <Badge variant="outline">
-                  OpenAI: {aiModelsData.providers.openai.available ? `${aiModelsData.providers.openai.count} models` : "Unavailable"}
+                  {t("invoiceUploadFlow.models.openAiBadge", {
+                    value: aiModelsData.providers.openai.available
+                      ? t("invoiceUploadFlow.models.modelsCount", {
+                          count: aiModelsData.providers.openai.count,
+                        })
+                      : t("invoiceUploadFlow.models.unavailable"),
+                  })}
                 </Badge>
               </div>
             )}
             {isAiModelsError && (
               <Alert>
                 <AlertDescription className="flex items-center justify-between gap-3">
-                  <span>Could not load models. You can retry.</span>
+                  <span>{t("invoiceUploadFlow.models.loadFailed")}</span>
                   <Button variant="outline" size="sm" onClick={() => void refetchAiModels()}>
-                    Retry
+                    {t("invoiceUploadFlow.common.retry")}
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -496,10 +535,12 @@ export default function InvoiceUploadFlowPage() {
             <div className="flex items-center gap-3">
               <Badge variant="outline">
                 {flowType === "template"
-                  ? "Task: template generation"
-                  : "Tasks: extraction + template generation"}
+                  ? t("invoiceUploadFlow.models.taskTemplate")
+                  : t("invoiceUploadFlow.models.taskInvoice")}
               </Badge>
-              <Badge variant="secondary">Applied per request only</Badge>
+              <Badge variant="secondary">
+                {t("invoiceUploadFlow.models.appliedPerRequest")}
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -514,7 +555,9 @@ export default function InvoiceUploadFlowPage() {
             }`}>
               {step !== "upload" ? <CheckCircle2 className="h-4 w-4" /> : "1"}
             </div>
-            <span className="font-medium">Upload</span>
+            <span className="font-medium">
+              {t("invoiceUploadFlow.steps.upload")}
+            </span>
           </div>
           <div className="w-12 h-px bg-border" />
           <div className={`flex items-center gap-2 transition-colors ${["extract", "match", "preview", "complete"].includes(step) ? "text-foreground" : "text-muted-foreground"}`}>
@@ -525,7 +568,11 @@ export default function InvoiceUploadFlowPage() {
             }`}>
               {["match", "preview", "complete"].includes(step) ? <CheckCircle2 className="h-4 w-4" /> : "2"}
             </div>
-            <span className="font-medium">{flowType === "template" ? "Analyze" : "Extract"}</span>
+            <span className="font-medium">
+              {flowType === "template"
+                ? t("invoiceUploadFlow.steps.analyze")
+                : t("invoiceUploadFlow.steps.extract")}
+            </span>
           </div>
           {flowType === "invoice" && (
             <>
@@ -538,7 +585,9 @@ export default function InvoiceUploadFlowPage() {
                 }`}>
                   {["preview", "complete"].includes(step) ? <CheckCircle2 className="h-4 w-4" /> : "3"}
                 </div>
-                <span className="font-medium">Match</span>
+                <span className="font-medium">
+                  {t("invoiceUploadFlow.steps.match")}
+                </span>
               </div>
             </>
           )}
@@ -551,7 +600,9 @@ export default function InvoiceUploadFlowPage() {
             }`}>
               {step === "complete" ? <CheckCircle2 className="h-4 w-4" /> : flowType === "template" ? "3" : "4"}
             </div>
-            <span className="font-medium">Complete</span>
+            <span className="font-medium">
+              {t("invoiceUploadFlow.steps.complete")}
+            </span>
           </div>
         </div>
 
@@ -561,10 +612,10 @@ export default function InvoiceUploadFlowPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5" />
-                Upload Invoice File
+                {t("invoiceUploadFlow.upload.title")}
               </CardTitle>
               <CardDescription>
-                Upload a PDF or image file of your invoice
+                {t("invoiceUploadFlow.upload.description")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -580,9 +631,9 @@ export default function InvoiceUploadFlowPage() {
         {step === "extract" && jobId && (
           <Card>
             <CardHeader>
-              <CardTitle>Extraction Status</CardTitle>
+              <CardTitle>{t("invoiceUploadFlow.extract.title")}</CardTitle>
               <CardDescription>
-                Extracting data from your invoice
+                {t("invoiceUploadFlow.extract.description")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -601,16 +652,18 @@ export default function InvoiceUploadFlowPage() {
         {step === "match" && matchedTemplates.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Template Match Found</CardTitle>
+              <CardTitle>{t("invoiceUploadFlow.match.title")}</CardTitle>
               <CardDescription>
-                We found a matching template for this invoice
+                {t("invoiceUploadFlow.match.description")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Found {matchedTemplates.length} matching template{matchedTemplates.length > 1 ? "s" : ""}
+                  {t("invoiceUploadFlow.match.foundCount", {
+                    count: matchedTemplates.length,
+                  })}
                 </AlertDescription>
               </Alert>
 
@@ -629,7 +682,9 @@ export default function InvoiceUploadFlowPage() {
                         <div className="text-sm text-muted-foreground">{match.reason}</div>
                       </div>
                       <Badge variant={idx === 0 ? "default" : "secondary"}>
-                        {(match.confidence * 100).toFixed(0)}% match
+                        {t("invoiceUploadFlow.match.percentMatch", {
+                          percent: (match.confidence * 100).toFixed(0),
+                        })}
                       </Badge>
                     </div>
                   </div>
@@ -645,12 +700,12 @@ export default function InvoiceUploadFlowPage() {
                   {createInvoice.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating Invoice...
+                      {t("invoiceUploadFlow.match.creatingInvoice")}
                     </>
                   ) : (
                     <>
                       <FileText className="h-4 w-4 mr-2" />
-                      Use This Template
+                      {t("invoiceUploadFlow.match.useTemplate")}
                     </>
                   )}
                 </Button>
@@ -658,7 +713,7 @@ export default function InvoiceUploadFlowPage() {
                   variant="outline"
                   onClick={() => setStep("preview")}
                 >
-                  Generate New Template
+                  {t("invoiceUploadFlow.match.generateNewTemplate")}
                 </Button>
               </div>
             </CardContent>
@@ -670,9 +725,9 @@ export default function InvoiceUploadFlowPage() {
           <>
             <Card>
               <CardHeader>
-                <CardTitle>Template Generation</CardTitle>
+                <CardTitle>{t("invoiceUploadFlow.previewTemplate.title")}</CardTitle>
                 <CardDescription>
-                  We analyze your invoice visually in one AI pass and build a block-based template.
+                  {t("invoiceUploadFlow.previewTemplate.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -680,20 +735,20 @@ export default function InvoiceUploadFlowPage() {
                   <div className="flex items-center justify-center gap-3 py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
-                      Generating template from invoice layout...
+                      {t("invoiceUploadFlow.previewTemplate.generating")}
                     </p>
                   </div>
                 ) : generatedTemplate ? (
                   <Alert>
                     <CheckCircle2 className="h-4 w-4" />
                     <AlertDescription>
-                      Template generated. Review and accept the preview.
+                      {t("invoiceUploadFlow.previewTemplate.generated")}
                     </AlertDescription>
                   </Alert>
                 ) : (
                   <Alert variant="destructive">
                     <AlertDescription>
-                      Template generation failed. Please upload again or retry.
+                      {t("invoiceUploadFlow.previewTemplate.failed")}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -721,9 +776,9 @@ export default function InvoiceUploadFlowPage() {
           <>
             <Card>
               <CardHeader>
-                <CardTitle>Extracted Data</CardTitle>
+                <CardTitle>{t("invoiceUploadFlow.previewInvoice.title")}</CardTitle>
                 <CardDescription>
-                  Review the extracted data and generate a template. You can edit both field names and values.
+                  {t("invoiceUploadFlow.previewInvoice.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -736,7 +791,7 @@ export default function InvoiceUploadFlowPage() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground text-center p-8">
-                    No data extracted yet.
+                    {t("invoiceUploadFlow.previewInvoice.noData")}
                   </p>
                 )}
               </CardContent>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,18 +19,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const FILE_TYPE_OPTIONS = [
-  { value: "all", label: "All types" },
-  { value: "IMAGE", label: "Images" },
-  { value: "VIDEO", label: "Videos" },
-  { value: "GENERIC", label: "Generic" },
-];
-
 export default function FilesPage() {
+  const { t } = useTranslation();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
   const [pendingDeleteFileId, setPendingDeleteFileId] = useState<string | null>(null);
+  const fileTypeOptions = [
+    { value: "all", label: t("contentPages.files.filters.allTypes", "All types") },
+    { value: "IMAGE", label: t("contentPages.files.filters.images", "Images") },
+    { value: "VIDEO", label: t("contentPages.files.filters.videos", "Videos") },
+    { value: "GENERIC", label: t("contentPages.files.filters.generic", "Generic") },
+  ];
 
   const { data: files = [], isLoading, error } = useOrganizationStorageFiles(currentOrganization?.id);
   if (error) {
@@ -63,10 +64,13 @@ export default function FilesPage() {
 
     try {
       await deleteFile.mutateAsync(pendingDeleteFileId);
-      toast.success("File deleted successfully");
+      toast.success(t("contentPages.files.toasts.deleteSuccess", "File deleted successfully"));
       setPendingDeleteFileId(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to delete file";
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("contentPages.files.toasts.deleteFailed", "Failed to delete file");
       toast.error(message);
     }
   };
@@ -78,7 +82,7 @@ export default function FilesPage() {
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search files…"
+            placeholder={t("contentPages.files.searchPlaceholder", "Search files…")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-8 text-sm"
@@ -86,10 +90,10 @@ export default function FilesPage() {
         </div>
         <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
           <SelectTrigger className="w-[130px] sm:w-[150px] h-8 text-sm">
-            <SelectValue placeholder="Filter by type" />
+            <SelectValue placeholder={t("contentPages.files.filters.filterByType", "Filter by type")} />
           </SelectTrigger>
           <SelectContent>
-            {FILE_TYPE_OPTIONS.map((opt) => (
+            {fileTypeOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -98,7 +102,9 @@ export default function FilesPage() {
         </Select>
         {!isLoading && (
           <span className="text-xs text-muted-foreground shrink-0 tabular-nums hidden sm:block">
-            {filteredFiles.length} file{filteredFiles.length !== 1 ? "s" : ""}
+            {filteredFiles.length === 1
+              ? t("contentPages.files.count.fileSingular", "{{count}} file", { count: filteredFiles.length })
+              : t("contentPages.files.count.filePlural", "{{count}} files", { count: filteredFiles.length })}
           </span>
         )}
       </div>
@@ -111,20 +117,32 @@ export default function FilesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogTitle>{t("contentPages.files.deleteDialog.title", "Delete file?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete
-              {pendingDeleteFile ? ` "${pendingDeleteFile.filename}"` : " this file"} from storage.
+              {pendingDeleteFile
+                ? t(
+                    "contentPages.files.deleteDialog.descriptionWithFilename",
+                    'This will permanently delete "{{filename}}" from storage.',
+                    { filename: pendingDeleteFile.filename },
+                  )
+                : t(
+                    "contentPages.files.deleteDialog.descriptionWithoutFilename",
+                    "This will permanently delete this file from storage.",
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteFile.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteFile.isPending}>
+              {t("common.cancel", "Cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={deleteFile.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteFile.isPending ? "Deleting..." : "Delete"}
+              {deleteFile.isPending
+                ? t("contentPages.files.deleteDialog.deleting", "Deleting...")
+                : t("contentPages.files.deleteDialog.delete", "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -151,12 +169,14 @@ export default function FilesPage() {
               <FileText className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">
-              {searchTerm || fileTypeFilter !== "all" ? "No files found" : "No files uploaded yet"}
+              {searchTerm || fileTypeFilter !== "all"
+                ? t("contentPages.files.empty.noFilesFound", "No files found")
+                : t("contentPages.files.empty.noFilesUploaded", "No files uploaded yet")}
             </p>
             <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
               {searchTerm || fileTypeFilter !== "all"
-                ? "Try adjusting your search or filter"
-                : "Uploaded files will appear here"}
+                ? t("contentPages.files.empty.adjustSearch", "Try adjusting your search or filter")
+                : t("contentPages.files.empty.uploadedAppear", "Uploaded files will appear here")}
             </p>
           </div>
         </div>
