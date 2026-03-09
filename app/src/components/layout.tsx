@@ -398,10 +398,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 							</div>
 							{/* UserButton only on desktop - on mobile it's in the header */}
 							{!isMobile && (
-								<SidebarMenuItem className="flex justify-center items-center w-full">
-									<UserButton
-										showName={state === "expanded"}
-									/>
+								<SidebarMenuItem className="flex justify-center items-center w-full min-w-0 overflow-hidden">
+									<div className="min-w-0 overflow-hidden w-full">
+										<UserButton
+											showName={state === "expanded"}
+											appearance={{
+												elements: {
+													userButtonTrigger: "w-full max-w-full overflow-hidden",
+													userButtonBox: "min-w-0 overflow-hidden w-full",
+													userButtonOuterIdentifier: "truncate max-w-[10rem]",
+												},
+											}}
+										/>
+									</div>
 								</SidebarMenuItem>
 							)}
 						</SidebarGroup>
