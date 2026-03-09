@@ -1,13 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { functionsService } from "@/services/functions/functions-service";
+import { getWidgetDefinitionRepository } from "@/repositories/widget-definition-repository";
+import { serviceHost } from "@/services";
 
-export type WidgetDefinitionListItem = {
-	id: string;
-	orgId: string;
-	name: string;
-	status: string;
-	publishedVersionId: string | null;
-};
+const databaseService = serviceHost.getDatabaseService();
+const widgetDefinitionRepository = getWidgetDefinitionRepository(databaseService);
+export type { WidgetDefinitionListItem } from "@/repositories/widget-definition-repository";
 
 /**
  * Fetches widget definitions for an organization.
@@ -17,12 +14,7 @@ export function useWidgetDefinitions(organizationId: string) {
 
 	const query = useQuery({
 		queryKey: ["widget-definitions", organizationId],
-		queryFn: async () => {
-			const result = await functionsService.listWidgetDefinitions({
-				organizationId,
-			});
-			return result.definitions as WidgetDefinitionListItem[];
-		},
+		queryFn: () => widgetDefinitionRepository.listByOrganization(organizationId),
 		enabled: Boolean(organizationId),
 	});
 

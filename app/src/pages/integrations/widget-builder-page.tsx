@@ -14,6 +14,8 @@ import {
 import { Loader2, Plus, GripVertical, Trash2, ArrowLeft, FileText, MessageSquare, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { functionsService } from "@/services/functions/functions-service";
+import { getWidgetDefinitionRepository } from "@/repositories/widget-definition-repository";
+import { serviceHost } from "@/services";
 import { WIDGET_TEMPLATES } from "@/core/widget-templates";
 import { buildDefaultWidgetPageConfig } from "@/utils/widget-page-config-defaults";
 import type {
@@ -84,6 +86,10 @@ const DEFAULT_ACTIONS: WidgetVersionActions = {
 	success: { message: "Thank you!" },
 };
 
+const databaseService = serviceHost.getDatabaseService();
+const widgetDefinitionRepository =
+	getWidgetDefinitionRepository(databaseService);
+
 export default function WidgetBuilderPage() {
 	const { widgetId } = useParams<{ widgetId?: string }>();
 	const navigate = useNavigate();
@@ -108,9 +114,13 @@ export default function WidgetBuilderPage() {
 	useEffect(() => {
 		if (!organization?.id) return;
 		if (!widgetId) {
-			functionsService
-				.listWidgetDefinitions({ organizationId: organization.id })
-				.then((r) => setDefinitions(r.definitions))
+			widgetDefinitionRepository
+				.listByOrganization(organization.id)
+				.then((items) =>
+					setDefinitions(
+						items.map(({ id, name, status }) => ({ id, name, status })),
+					),
+				)
 				.catch(() => toast.error("Failed to load widgets"))
 				.finally(() => setLoading(false));
 			return;

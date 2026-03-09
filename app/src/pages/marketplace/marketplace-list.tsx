@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useMarketplaceTemplates } from "@/hooks/repository-hooks/use-marketplace-templates";
@@ -26,6 +26,7 @@ import {
 export default function MarketplaceListPage() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const [typeFilter, setTypeFilter] = useState<"all" | "invoice" | "email">(
 		"all",
 	);
@@ -47,9 +48,18 @@ export default function MarketplaceListPage() {
 	const templates = result?.templates || [];
 	const hasNextPage = result?.hasNextPage || false;
 	const hasPreviousPage = result?.hasPreviousPage || false;
+	const scrollToTop = () => {
+		scrollContainerRef.current?.scrollTo({
+			top: 0,
+			behavior: "smooth",
+		});
+	};
 
 	return (
-		<div className="min-h-screen" style={{ background: "#f5f5f3" }}>
+		<div
+			ref={scrollContainerRef}
+			className="h-[calc(100dvh-3.5rem)] md:h-screen overflow-y-auto overflow-x-hidden bg-background"
+		>
 			{/* ── Hero Section ── */}
 			<div
 				className="relative overflow-hidden"
@@ -98,8 +108,8 @@ export default function MarketplaceListPage() {
 
 						{/* Hero Search */}
 						<div className="w-full max-w-lg mt-1">
-							<div className="relative flex items-center bg-white rounded-xl shadow-2xl shadow-black/20 overflow-hidden border border-white/10">
-								<Search className="absolute left-4 h-4 w-4 text-gray-400 pointer-events-none z-10 shrink-0" />
+							<div className="relative flex items-center bg-background/95 rounded-xl shadow-2xl shadow-black/20 overflow-hidden border border-border/60">
+								<Search className="absolute left-4 h-4 w-4 text-muted-foreground pointer-events-none z-10 shrink-0" />
 								<input
 									type="text"
 									placeholder={
@@ -111,31 +121,22 @@ export default function MarketplaceListPage() {
 										setSearch(e.target.value);
 										setPage(1);
 									}}
-									className="flex-1 pl-11 pr-4 py-3.5 text-sm text-gray-900 bg-transparent outline-none placeholder:text-gray-400"
+									className="flex-1 pl-11 pr-4 py-3.5 text-sm text-foreground bg-transparent outline-none placeholder:text-muted-foreground/70"
 								/>
-								<button
+								<Button
+									type="button"
+									size="sm"
 									onClick={() =>
 										navigate("/marketplace/contributor")
 									}
-									className="flex items-center gap-1.5 px-4 py-2 mr-1.5 rounded-lg text-white text-xs font-semibold transition-colors shrink-0"
-									style={{ background: "hsl(143,64%,22%)" }}
-									onMouseEnter={(e) =>
-										((
-											e.currentTarget as HTMLButtonElement
-										).style.background = "hsl(143,64%,18%)")
-									}
-									onMouseLeave={(e) =>
-										((
-											e.currentTarget as HTMLButtonElement
-										).style.background = "hsl(143,64%,22%)")
-									}
+									className="h-8 mr-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground"
 								>
 									<Plus className="h-3.5 w-3.5" />
 									<span className="hidden sm:inline">
 										{t("marketplace.shareTemplate") ||
 											"Share Template"}
 									</span>
-								</button>
+								</Button>
 							</div>
 						</div>
 						{/* 
@@ -153,11 +154,11 @@ export default function MarketplaceListPage() {
 			</div>
 
 			{/* ── Sticky Filter Bar ── */}
-			<div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
+			<div className="sticky top-0 z-20 bg-background/90 backdrop-blur-md border-b border-border shadow-sm">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="flex items-center justify-between gap-4 py-2.5">
 						{/* Type filter segments */}
-						<div className="flex items-center gap-0.5 p-1 bg-gray-100 rounded-xl">
+						<div className="flex items-center gap-0.5 p-1 bg-muted rounded-xl">
 							{(
 								[
 									{
@@ -185,8 +186,8 @@ export default function MarketplaceListPage() {
 									}}
 									className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
 										typeFilter === value
-											? "bg-white shadow text-gray-900"
-											: "text-gray-500 hover:text-gray-700"
+											? "bg-background shadow text-foreground"
+											: "text-muted-foreground hover:text-foreground"
 									}`}
 								>
 									<Icon className="h-3.5 w-3.5 shrink-0" />
@@ -203,8 +204,8 @@ export default function MarketplaceListPage() {
 								setPage(1);
 							}}
 						>
-							<SelectTrigger className="w-[150px] h-8 text-xs border-gray-200 bg-white gap-1.5">
-								<TrendingUp className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+							<SelectTrigger className="w-[150px] h-8 text-xs border-border bg-background gap-1.5">
+								<TrendingUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -240,19 +241,15 @@ export default function MarketplaceListPage() {
 					/* ── Empty State ── */
 					<div className="flex flex-col items-center justify-center py-28 text-center">
 						<div
-							className="w-20 h-20 rounded-2xl flex items-center justify-center mb-5"
-							style={{ background: "hsl(143,64%,24%,0.07)" }}
+							className="w-20 h-20 rounded-2xl flex items-center justify-center mb-5 bg-primary/10"
 						>
-							<Search
-								className="h-8 w-8"
-								style={{ color: "hsl(143,64%,24%)" }}
-							/>
+							<Search className="h-8 w-8 text-primary" />
 						</div>
-						<h3 className="text-base font-semibold text-gray-900 mb-2">
+						<h3 className="text-base font-semibold text-foreground mb-2">
 							{t("marketplace.noTemplates") ||
 								"No templates found"}
 						</h3>
-						<p className="text-sm text-gray-400 max-w-xs">
+						<p className="text-sm text-muted-foreground max-w-xs">
 							{search
 								? `No results for "${search}". Try different keywords.`
 								: "Check back later — new templates are added regularly."}
@@ -260,8 +257,7 @@ export default function MarketplaceListPage() {
 						{search && (
 							<button
 								onClick={() => setSearch("")}
-								className="mt-4 text-sm font-medium transition-colors"
-								style={{ color: "hsl(143,64%,24%)" }}
+								className="mt-4 text-sm font-medium transition-colors text-primary hover:text-primary/80"
 							>
 								Clear search
 							</button>
@@ -271,14 +267,14 @@ export default function MarketplaceListPage() {
 					<>
 						{/* Results meta */}
 						<div className="flex items-center justify-between">
-							<p className="text-xs text-gray-400">
+							<p className="text-xs text-muted-foreground">
 								{templates.length} template
 								{templates.length !== 1 ? "s" : ""}
 								{search && (
 									<>
 										{" "}
 										for{" "}
-										<strong className="text-gray-600 font-medium">
+										<strong className="text-foreground font-medium">
 											"{search}"
 										</strong>
 									</>
@@ -304,21 +300,15 @@ export default function MarketplaceListPage() {
 									size="sm"
 									onClick={() => {
 										setPage((p) => Math.max(1, p - 1));
-										window.scrollTo({
-											top: 0,
-											behavior: "smooth",
-										});
+										scrollToTop();
 									}}
 									disabled={!hasPreviousPage}
-									className="h-9 w-9 p-0 rounded-lg border-gray-200"
+									className="h-9 w-9 p-0 rounded-lg border-border"
 								>
 									<ChevronLeft className="h-4 w-4" />
 								</Button>
 
-								<span
-									className="h-9 w-9 flex items-center justify-center rounded-lg text-sm font-semibold text-white"
-									style={{ background: "hsl(143,64%,24%)" }}
-								>
+								<span className="h-9 w-9 flex items-center justify-center rounded-lg text-sm font-semibold bg-primary text-primary-foreground">
 									{page}
 								</span>
 
@@ -327,13 +317,10 @@ export default function MarketplaceListPage() {
 									size="sm"
 									onClick={() => {
 										setPage((p) => p + 1);
-										window.scrollTo({
-											top: 0,
-											behavior: "smooth",
-										});
+										scrollToTop();
 									}}
 									disabled={!hasNextPage}
-									className="h-9 w-9 p-0 rounded-lg border-gray-200"
+									className="h-9 w-9 p-0 rounded-lg border-border"
 								>
 									<ChevronRight className="h-4 w-4" />
 								</Button>

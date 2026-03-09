@@ -15,14 +15,14 @@ interface TemplateCardProps {
 
 const TYPE_STYLES = {
   invoice: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
+    bg: "bg-blue-50 dark:bg-blue-950/40",
+    text: "text-blue-700 dark:text-blue-300",
     dot: "bg-blue-500",
     label: "Invoice",
   },
   email: {
-    bg: "bg-violet-50",
-    text: "text-violet-700",
+    bg: "bg-violet-50 dark:bg-violet-950/40",
+    text: "text-violet-700 dark:text-violet-300",
     dot: "bg-violet-500",
     label: "Email",
   },
@@ -95,19 +95,19 @@ export function TemplateCard({ template }: TemplateCardProps) {
   return (
     <div
       className={cn(
-        "group relative flex flex-col bg-white rounded-2xl overflow-hidden cursor-pointer",
-        "border border-gray-100/80",
+        "group relative flex flex-col bg-card text-card-foreground rounded-2xl overflow-hidden cursor-pointer",
+        "border border-border",
         "transition-all duration-300 ease-out",
-        "hover:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.16)] hover:-translate-y-0.5 hover:border-gray-200"
+        "hover:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.16)] hover:-translate-y-0.5 hover:border-border/80"
       )}
       onClick={() => navigate(`/marketplace/${template.id}`)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* ── Preview area ── */}
-      <div className="relative h-44 bg-gray-50 overflow-hidden shrink-0">
+      <div className="relative h-44 bg-muted/40 overflow-hidden shrink-0">
         {template.type === "invoice" && invoiceTemplateForPreview ? (
-          <div className="w-full h-full bg-white overflow-hidden relative">
+          <div className="w-full h-full bg-background overflow-hidden relative">
             <div
               className="absolute inset-0"
             >
@@ -118,7 +118,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             </div>
           </div>
         ) : template.type === "email" && canRenderPreview ? (
-          <div className="w-full h-full bg-white overflow-hidden relative">
+          <div className="w-full h-full bg-background overflow-hidden relative">
             <iframe
               srcDoc={(template.templateContent as EmailTemplateData).htmlContent || ""}
               className="w-full h-full border-0 origin-top-left pointer-events-none transition-transform duration-500 group-hover:scale-[1.04]"
@@ -136,8 +136,8 @@ export function TemplateCard({ template }: TemplateCardProps) {
           />
         ) : (
           /* Placeholder */
-          <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-gray-50 to-gray-100/60 p-4 gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-muted/40 to-muted/70 p-4 gap-3">
+            <div className="w-12 h-12 rounded-xl bg-background shadow-sm flex items-center justify-center border border-border/60">
               {template.type === "invoice" ? (
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -158,7 +158,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
                 </svg>
               )}
             </div>
-            <span className="text-[11px] font-medium text-gray-500 text-center line-clamp-2">
+            <span className="text-[11px] font-medium text-muted-foreground text-center line-clamp-2">
               {template.title}
             </span>
           </div>
@@ -171,7 +171,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             isHovered ? "opacity-100" : "opacity-0"
           )}
         >
-          <span className="inline-flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-gray-800 shadow-sm">
+          <span className="inline-flex items-center gap-1 bg-background/95 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-foreground shadow-sm">
             View details
             <ArrowUpRight className="h-3 w-3" />
           </span>
@@ -180,10 +180,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
         {/* Status badges */}
         <div className="absolute top-2.5 left-2.5 flex gap-1.5">
           {template.isOfficial && (
-            <span
-              className="px-2 py-0.5 rounded-md text-white text-[10px] font-bold tracking-wide"
-              style={{ background: "hsl(143,64%,22%)" }}
-            >
+            <span className="px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-bold tracking-wide">
               Official
             </span>
           )}
@@ -211,7 +208,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
             {type.label}
           </span>
           {template.category && (
-            <span className="text-[10px] text-gray-400 font-medium truncate">
+            <span className="text-[10px] text-muted-foreground font-medium truncate">
               {template.category}
             </span>
           )}
@@ -219,10 +216,10 @@ export function TemplateCard({ template }: TemplateCardProps) {
 
         {/* Title & description */}
         <div className="flex-1 min-h-0">
-          <h3 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 mb-1">
+          <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 mb-1">
             {template.title}
           </h3>
-          <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-2">
+          <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2">
             {template.shortDescription || template.description || "No description available"}
           </p>
         </div>
@@ -230,18 +227,17 @@ export function TemplateCard({ template }: TemplateCardProps) {
         {/* Author */}
         <div className="flex items-center gap-2">
           <div
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-            style={{ background: "hsl(143,64%,30%)" }}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-primary-foreground shrink-0 bg-primary"
           >
             {initials}
           </div>
-          <span className="text-[11px] text-gray-500 truncate">
+          <span className="text-[11px] text-muted-foreground truncate">
             {template.isOfficial ? "Financely" : template.authorName}
           </span>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-gray-100" />
+        <div className="border-t border-border" />
 
         {/* Stats + action */}
         <div className="flex items-center justify-between gap-2">
@@ -249,12 +245,12 @@ export function TemplateCard({ template }: TemplateCardProps) {
             {template.ratingCount > 0 && (
               <span className="flex items-center gap-1 text-[11px]">
                 <Star className="h-3 w-3 fill-amber-400 text-amber-400 shrink-0" />
-                <span className="font-semibold text-gray-700">
+                <span className="font-semibold text-foreground">
                   {template.ratingAverage.toFixed(1)}
                 </span>
               </span>
             )}
-            <span className="flex items-center gap-1 text-[11px] text-gray-400">
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Download className="h-3 w-3 shrink-0" />
               {template.downloadCount}
             </span>
@@ -266,10 +262,10 @@ export function TemplateCard({ template }: TemplateCardProps) {
             className={cn(
               "h-7 px-3 rounded-lg text-[11px] font-bold transition-all duration-150 shrink-0",
               isAdded
-                ? "bg-green-50 text-green-700 border border-green-200 cursor-default"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 cursor-default"
                 : !currentOrganization?.id
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-gray-900 text-white hover:bg-gray-700 active:scale-95"
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
             )}
           >
             {isAdded ? (
