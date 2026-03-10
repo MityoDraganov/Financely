@@ -6,11 +6,10 @@ import { useOnboardingStore } from "@/hooks/use-onboarding-store";
 import { useShallow } from "zustand/react/shallow";
 
 interface SignUpStepProps {
-  isCreating?: boolean;
   onBack?: () => void;
 }
 
-export function SignUpStep({ isCreating = false, onBack }: SignUpStepProps) {
+export function SignUpStep({ onBack }: SignUpStepProps) {
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { brandingData, formData } = useOnboardingStore(
     useShallow((state) => ({

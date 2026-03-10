@@ -235,7 +235,6 @@ export function PreSignupOnboardingFlow() {
         {currentStep === STEPS.SIGN_UP && (
           <SignUpStep
             key="signup"
-            isCreating={isCreatingOrg}
             onBack={() => {
               const path = useOnboardingStore.getState().path;
               setCurrentStep(path === "join" ? STEPS.JOIN_ORG : STEPS.TEMPLATE_SUGGESTIONS);
