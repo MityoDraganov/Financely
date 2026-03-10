@@ -1,11 +1,12 @@
 export { WelcomeStep } from "./welcome-step";
 export { ChoosePathStep } from "./choose-path-step";
-export { BenefitsStep } from "./benefits-step";
-export { CreateOrgStep } from "./create-org-step";
 export { BrandingStep } from "./branding-step";
-export { InviteStep } from "./invite-step";
 export { JoinOrgStep } from "./join-org-step";
 export { SignUpStep } from "./sign-up-step";
 export { PaywallStep } from "./paywall-step";
 export { SuccessStep } from "./success-step";
 export { OnboardingLanguageSelector } from "./onboarding-language-selector";
+export { BusinessDetailsStep } from "./business-details-step";
+export { BusinessDescriptionStep } from "./business-description-step";
+export { TemplateSuggestionsStep } from "./template-suggestions-step";
+export { InviteMembersStep } from "./invite-members-step";

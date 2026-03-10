@@ -192,6 +192,9 @@ export { getImportJob } from "./functions/get-import-job";
 // Organization duplication functions
 export { duplicateOrganization } from "./functions/duplicate-organization";
 
+// Onboarding functions
+export { interpretBusinessDescription } from "./functions/interpret-business-description";
+
 // Marketplace functions
 export { listMarketplaceTemplates } from "./functions/list-marketplace-templates";
 export { getMarketplaceTemplate } from "./functions/get-marketplace-template";

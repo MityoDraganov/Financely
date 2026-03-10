@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
+import { Building2, Users, ArrowRight, Check } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 interface ChoosePathStepProps {
   onCreate: () => void;
@@ -10,77 +10,96 @@ interface ChoosePathStepProps {
 }
 
 export function ChoosePathStep({ onCreate, onJoin }: ChoosePathStepProps) {
-  const { t } = useTranslation();
-  
+  const [selected, setSelected] = useState<"create" | "join" | null>(null);
+
+  const handleContinue = () => {
+    if (selected === "create") onCreate();
+    else if (selected === "join") onJoin();
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      className="flex flex-col flex-1 justify-center gap-8"
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.35 }}
     >
-      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
-        <CardHeader className="text-center pb-8">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 shrink-0">
-            <Building2 className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-card-foreground mb-4 break-words">
-            {t("onboarding.choosePath.title")}
-          </CardTitle>
-          <CardDescription className="text-base sm:text-lg text-muted-foreground break-words">
-            {t("onboarding.choosePath.description")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 min-w-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {/* Create Organization Option */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="group cursor-pointer"
-              onClick={onCreate}
-            >
-              <Card className="border-2 border-transparent group-hover:border-primary/20 transition-all duration-200 h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Building2 className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.createOrg.title")}</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {t("onboarding.choosePath.createOrg.description")}
-                  </p>
-                  <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
-                    {t("onboarding.choosePath.createOrg.button")}
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
+      <div className="space-y-2">
+        <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+          How are you joining?
+        </h2>
+        <p className="text-muted-foreground text-base">
+          Choose the option that fits your situation.
+        </p>
+      </div>
 
-            {/* Join Organization Option */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="group cursor-pointer"
-              onClick={onJoin}
-            >
-              <Card className="border-2 border-transparent group-hover:border-primary/20 transition-all duration-200 h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Users className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-card-foreground mb-2">{t("onboarding.choosePath.joinOrg.title")}</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {t("onboarding.choosePath.joinOrg.description")}
-                  </p>
-                  <Button className="w-full bg-[#166534] hover:bg-[#0e4424]">
-                    {t("onboarding.choosePath.joinOrg.button")}
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {[
+          {
+            id: "create" as const,
+            icon: Building2,
+            title: "Create a new workspace",
+            desc: "Set up Financely for your business. Configure your brand, templates, and preferences.",
+            cta: "Start fresh",
+          },
+          {
+            id: "join" as const,
+            icon: Users,
+            title: "Join an existing workspace",
+            desc: "Someone shared an invite link or code with you. Enter it to join their workspace.",
+            cta: "Enter invite code",
+          },
+        ].map(({ id, icon: Icon, title, desc, cta }) => (
+          <motion.button
+            key={id}
+            type="button"
+            onClick={() => setSelected(id)}
+            className={cn(
+              "relative text-left p-5 rounded-2xl border-2 transition-all duration-200",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              selected === id
+                ? "border-primary bg-primary/5 shadow-lg"
+                : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/60"
+            )}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            {selected === id && (
+              <motion.div
+                className="absolute top-4 right-4 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <Check className="w-3 h-3 text-white" />
+              </motion.div>
+            )}
+
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+              <Icon className="w-5 h-5 text-primary" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1.5">{title}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-primary">
+              {cta}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </motion.button>
+        ))}
+      </div>
+
+      <div>
+        <Button
+          onClick={handleContinue}
+          disabled={!selected}
+          size="lg"
+          className="rounded-xl px-8 gap-2 text-base"
+        >
+          Continue
+          <ArrowRight className="w-5 h-5" />
+        </Button>
+      </div>
     </motion.div>
   );
 }

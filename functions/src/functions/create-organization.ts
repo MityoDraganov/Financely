@@ -14,7 +14,6 @@ import {
 
 interface CreateOrganizationPayload {
   name: string;
-  description?: string;
   website?: string;
   settings?: {
     brandColors?: {
@@ -22,6 +21,15 @@ interface CreateOrganizationPayload {
       secondary?: string;
       accent?: string;
     };
+    branding?: {
+      customLogo?: string;
+      description?: string;
+      [key: string]: any;
+    };
+    country?: string;
+    currency?: string;
+    businessType?: string;
+    starterTemplates?: string[];
     [key: string]: any;
   };
 }
@@ -105,10 +113,18 @@ export const createOrganization = onCall<
         accent: payload.settings?.brandColors?.accent ?? DEFAULT_BRAND_COLORS.accent,
       };
 
+      // Build branding object — brandImages is required by the entity schema (default [])
+      const incomingBranding = payload.settings?.branding ?? {};
+      const brandingEntry = {
+        branding: {
+          brandImages: [] as string[],
+          ...incomingBranding,
+        },
+      };
+
       // Prepare organization data using centralized defaults
       const orgData: OrganizationData = {
         name: payload.name.trim(),
-        ...(payload.description && { description: payload.description.trim() }),
         ...(payload.website && { website: payload.website.trim() }),
         memberIds: [auth.uid], // Add creator as member
         status: "active",
@@ -119,6 +135,7 @@ export const createOrganization = onCall<
         },
         settings: {
           brandColors,
+          ...brandingEntry,
           defaultCurrency: DEFAULT_ORGANIZATION_SETTINGS.defaultCurrency,
           defaultLanguage: DEFAULT_ORGANIZATION_SETTINGS.defaultLanguage,
           defaultTimezone: DEFAULT_ORGANIZATION_SETTINGS.defaultTimezone,
@@ -126,6 +143,11 @@ export const createOrganization = onCall<
           invoiceNumberStart: DEFAULT_ORGANIZATION_SETTINGS.invoiceNumberStart,
           features: { ...DEFAULT_ORGANIZATION_SETTINGS.features },
           ai: { ...DEFAULT_ORGANIZATION_SETTINGS.ai },
+          // Whitelist onboarding-collected fields
+          ...(payload.settings?.country && { country: payload.settings.country }),
+          ...(payload.settings?.currency && { currency: payload.settings.currency }),
+          ...(payload.settings?.businessType && { businessType: payload.settings.businessType }),
+          ...(payload.settings?.starterTemplates?.length && { starterTemplates: payload.settings.starterTemplates }),
         },
         usage: {
           templateCount: 0,

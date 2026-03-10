@@ -7,7 +7,6 @@ export interface DeleteResponse {
 
 export interface CreateOrganizationPayload {
   name: string;
-  description?: string;
   website?: string;
   settings?: {
     brandColors?: {
@@ -15,6 +14,15 @@ export interface CreateOrganizationPayload {
       secondary?: string;
       accent?: string;
     };
+    branding?: {
+      customLogo?: string;
+      description?: string;
+      [key: string]: any;
+    };
+    country?: string;
+    currency?: string;
+    businessType?: string;
+    starterTemplates?: string[];
     [key: string]: any;
   };
 }
@@ -1427,6 +1435,20 @@ export interface FunctionsService {
       storefrontApiAccess?: boolean;
     };
   }): Promise<{ id: string }>;
+
+  /**
+   * Interpret a business description using AI during onboarding.
+   * No organization required — used pre-signup.
+   */
+  interpretBusinessDescription(payload: {
+    description: string;
+  }): Promise<{
+    businessType: string;
+    industry: string;
+    suggestedServices: string[];
+    documentTypes: string[];
+    templateKeywords: string[];
+  }>;
 
   /**
    * Create a Stripe Checkout session for subscription purchase.

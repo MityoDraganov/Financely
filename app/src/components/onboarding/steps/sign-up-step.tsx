@@ -1,115 +1,136 @@
 import { motion } from "framer-motion";
 import { SignUp, useAuth } from "@clerk/clerk-react";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Loader2 } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { Shield, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/hooks/use-onboarding-store";
+import { useShallow } from "zustand/react/shallow";
 
 interface SignUpStepProps {
   isCreating?: boolean;
+  onBack?: () => void;
 }
 
-export function SignUpStep({ isCreating = false }: SignUpStepProps) {
-  const { t } = useTranslation();
+export function SignUpStep({ isCreating = false, onBack }: SignUpStepProps) {
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
-  const store = useOnboardingStore.getState();
+  const { brandingData, formData } = useOnboardingStore(
+    useShallow((state) => ({
+      brandingData: state.brandingData,
+      formData: state.formData,
+    }))
+  );
 
-  // Determine redirect URL after sign-up
-  // After sign-up, user will be redirected back to /onboarding
+  const store = useOnboardingStore.getState();
   let afterSignUpUrl = "/onboarding";
   if (store.inviteCode) {
     afterSignUpUrl = `/onboarding?inviteCode=${store.inviteCode}`;
   }
-
   const signInUrl = `/sign-in?redirect_url=${encodeURIComponent(afterSignUpUrl)}`;
 
-  console.log("[SignUpStep] Sign-up configuration:", {
-    afterSignUpUrl,
-    signInUrl,
-    inviteCode: store.inviteCode,
-    currentStep: store.currentStep,
-    path: store.path,
-    formDataName: store.formData.name,
-    isSignedIn,
-    isAuthLoaded,
-    timestamp: new Date().toISOString(),
-  });
-
-  // Show loading state when creating organization
-  if (isAuthLoaded && isSignedIn && isCreating) {
+  // Signed in — show loading state immediately; org creation is either imminent or in progress.
+  // Never return null here: there is a brief window between Clerk completing and isCreating
+  // being set by the parent effect, which would produce a blank screen.
+  if (isAuthLoaded && isSignedIn) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        className="flex flex-col flex-1 justify-center items-center gap-6 text-center"
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.4 }}
-        className="space-y-4"
+        exit={{ opacity: 0, y: -16 }}
+        transition={{ duration: 0.35 }}
       >
-        <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
-          <CardHeader className="text-center pb-4">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 shrink-0">
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
-            </div>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-card-foreground mb-2 break-words px-2">
-              {t("onboarding.signUp.creatingOrg", { defaultValue: "Creating your workspace..." })}
-            </CardTitle>
-            <CardDescription className="text-sm sm:text-base text-muted-foreground break-words px-2">
-              {t("onboarding.signUp.creatingOrgDesc", { 
-                defaultValue: "Please wait while we set everything up for you." 
-              })}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Loader2 className="w-7 h-7 text-primary animate-spin" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">
+            Setting up your workspace…
+          </h2>
+          <p className="text-muted-foreground text-base">
+            Just a moment while we get everything ready.
+          </p>
+        </div>
       </motion.div>
     );
   }
 
-  // Don't render SignUp component if user is already signed in (organization creation in progress)
-  // This prevents Clerk from redirecting and causing a loop
-  if (isAuthLoaded && isSignedIn) {
-    console.log("[SignUpStep] User already signed in, waiting for organization creation");
-    return null;
-  }
+  const orgName = formData.name.trim();
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      className="flex justify-between gap-5"
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-4"
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.35 }}
     >
-      {/* Header Card */}
-      <Card className="border-border/20 bg-card/95 backdrop-blur-sm shadow-2xl overflow-visible min-w-0">
-        <CardHeader className="text-center pb-4">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 shrink-0">
-            <Shield className="h-6 w-6 text-primary" />
+      {/* Header — same pattern as every other step */}
+      <div>
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="mb-4 -ml-2 text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
+        )}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground">Last step</span>
           </div>
-          <CardTitle className="text-xl sm:text-2xl font-bold text-card-foreground mb-2 break-words px-2">
-            {t("onboarding.signUp.title", { defaultValue: "Almost there! 🎉" })}
-          </CardTitle>
-          <CardDescription className="text-sm sm:text-base text-muted-foreground break-words px-2">
-            {t("onboarding.signUp.description", { 
-              defaultValue: "One final step to unlock your workspace and start automating your finances." 
-            })}
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {/* Clerk SignUp Component - No Card Wrapper */}
-      <div className="flex justify-center">
-        <div className="w-full max-w-md">
-          <SignUp 
-            afterSignUpUrl={afterSignUpUrl}
-            signInUrl={signInUrl}
-            routing="virtual"
-            appearance={{
-              elements: {
-                rootBox: "mx-auto",
-              }
-            }}
-          />
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+            Create your account
+          </h2>
+          <p className="text-muted-foreground text-base max-w-md">
+            {orgName ? (
+              <>
+                Your <span className="font-medium text-foreground">{orgName}</span> workspace is
+                ready — sign up to save it.
+              </>
+            ) : (
+              "Your workspace is ready — sign up to save it and start sending invoices."
+            )}
+          </p>
         </div>
+        {/* Workspace ready pill */}
+        {orgName && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="inline-flex items-center gap-2 self-start px-3 py-2 rounded-xl bg-muted/60 border border-border"
+          >
+            <div
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: brandingData.primaryColor }}
+            />
+            <span className="text-sm font-medium text-foreground">{orgName}</span>
+            <Sparkles className="w-3.5 h-3.5 text-muted-foreground ml-1" />
+            <span className="text-xs text-muted-foreground">ready</span>
+          </motion.div>
+        )}
+      </div>
+
+    
+      <div className="w-full max-w-md">
+        <SignUp
+          afterSignUpUrl={afterSignUpUrl}
+          signInUrl={signInUrl}
+          routing="virtual"
+          appearance={{
+            variables: {
+              colorPrimary: brandingData.primaryColor || "#166534",
+              borderRadius: "0.75rem",
+              fontFamily: "inherit",
+              fontSize: "14px",
+            },
+          }}
+        />
       </div>
     </motion.div>
   );

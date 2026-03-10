@@ -2,17 +2,19 @@ import { useTranslation } from "react-i18next";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useContactsByOrg } from "@/hooks/repository-hooks/use-contacts";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/metric-card";
-import { 
-  FileText, 
-  Plus, 
-  Brush, 
-  DollarSign, 
+import { ActivationGuide } from "@/components/dashboard/activation-guide";
+import {
+  FileText,
+  Plus,
+  Brush,
+  DollarSign,
   Settings,
   ArrowRight
 } from "lucide-react";
@@ -25,6 +27,7 @@ export default function DashboardPage() {
   const { data: currentOrganization, isLoading: isOrgLoading } = useCurrentOrganization();
   const { data: invoices, isLoading: isInvoicesLoading } = useInvoices(currentOrganization?.id);
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
+  const { data: contacts } = useContactsByOrg(currentOrganization?.id);
 
   // Calculate dashboard metrics from real data
   const totalInvoices = invoices?.length || 0;
@@ -89,6 +92,16 @@ export default function DashboardPage() {
           {t('dashboard.subtitle')}
         </p>
       </div>
+
+      {/* Activation guide — shown to new orgs until all tasks are done */}
+      {currentOrganization?.id && (
+        <ActivationGuide
+          orgId={currentOrganization.id}
+          invoiceCount={invoices?.length ?? 0}
+          templateCount={templates?.length ?? 0}
+          contactCount={contacts?.length ?? 0}
+        />
+      )}
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3 min-w-0">

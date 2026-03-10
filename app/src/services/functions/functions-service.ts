@@ -992,6 +992,16 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async interpretBusinessDescription(payload) {
+    type InterpretPayload = Parameters<FunctionsService["interpretBusinessDescription"]>[0];
+    type InterpretResponse = Awaited<ReturnType<FunctionsService["interpretBusinessDescription"]>>;
+    const result = await httpsCallable<InterpretPayload, InterpretResponse>(
+      firebase.functions,
+      "interpretBusinessDescription",
+    )(payload);
+    return result.data;
+  },
+
   async createCheckoutSession(payload) {
     type CreateCheckoutSessionPayload = Parameters<FunctionsService["createCheckoutSession"]>[0];
     const result = await httpsCallable<
