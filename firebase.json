@@ -36,6 +36,13 @@
     ],
     "rewrites": [
       {
+        "source": "/email-image",
+        "function": {
+          "functionId": "proxyStorageImage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { loggerService } from "../services/logger-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import { defineSecret } from "firebase-functions/params";
@@ -9,6 +10,10 @@ import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
 } from "../utils/audit-log-helper";
+import {
+  getEmailBrandingConfig,
+  generateInviteEmailHTML,
+} from "../utils/branding-email";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -20,10 +25,73 @@ interface SendInviteEmailPayload {
   organizationId: string;
 }
 
+interface ParsedDataImage {
+  contentType: string;
+  extension: string;
+  buffer: Buffer;
+}
+
+const MAX_DATA_IMAGE_BYTES = 2 * 1024 * 1024;
+
+function parseDataImageUrl(dataUrl: string): ParsedDataImage | null {
+  const match = dataUrl.match(/^data:([^;,]+)(;base64)?,(.+)$/i);
+  if (!match) return null;
+
+  const rawType = (match[1] || "").trim().toLowerCase();
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || "";
+
+  if (!rawType.startsWith("image/")) return null;
+
+  const contentType = rawType === "image/jpg" ? "image/jpeg" : rawType;
+
+  let buffer: Buffer;
+  try {
+    buffer = isBase64
+      ? Buffer.from(payload, "base64")
+      : Buffer.from(decodeURIComponent(payload), "utf8");
+  } catch {
+    return null;
+  }
+
+  const extensionByType: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/svg+xml": "svg",
+    "image/avif": "avif",
+    "image/x-icon": "ico",
+  };
+
+  return {
+    contentType,
+    extension: extensionByType[contentType] || "img",
+    buffer,
+  };
+}
+
+function getHostedImageOrigin(fromEmail: string): string {
+  const domain = fromEmail.split("@")[1]?.trim().toLowerCase();
+  if (!domain) return "https://financely.app";
+
+  // Use sending domain only when it is a Financely-managed domain.
+  if (domain.endsWith("financely.app")) {
+    return `https://${domain}`;
+  }
+
+  return "https://financely.app";
+}
+
+function buildHostedEmailImageUrl(origin: string, storagePath: string): string {
+  return `${origin}/email-image?path=${encodeURIComponent(storagePath)}`;
+}
+
 export const sendInviteEmail = onCall<SendInviteEmailPayload>(
-  { 
+  {
     region: "us-central1",
-    secrets: [resendApiKey, resendFromEmail, resendFromName]
+    secrets: [resendApiKey, resendFromEmail, resendFromName],
   },
   async (request) => {
     const startTime = Date.now();
@@ -33,6 +101,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
     let auditInviterId: string | undefined;
     let auditInviterName: string | undefined;
     let auditInviterEmail: string | undefined;
+
     try {
       const { inviteId, organizationId } = request.data;
       auditOrganizationId = organizationId;
@@ -42,10 +111,8 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         throw new HttpsError("invalid-argument", "inviteId and organizationId are required");
       }
 
-      // Get invite data from Firestore
       const db = getFirestore();
       const inviteDoc = await db.collection("invites").doc(inviteId).get();
-      
       if (!inviteDoc.exists) {
         throw new HttpsError("not-found", "Invite not found");
       }
@@ -57,7 +124,6 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
       auditInviteCode = inviteData.code;
       auditInviterId = inviteData.invitedBy;
 
-      // Get organization data
       const orgDoc = await db.collection("organizations").doc(organizationId).get();
       if (!orgDoc.exists) {
         throw new HttpsError("not-found", "Organization not found");
@@ -68,39 +134,110 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         throw new HttpsError("not-found", "Organization data not found");
       }
 
-      // Get inviter data
       const inviterDoc = await db.collection("users").doc(inviteData.invitedBy).get();
       const inviterData = inviterDoc.exists ? inviterDoc.data() : null;
       auditInviterName = inviterData?.name;
       auditInviterEmail = inviterData?.email;
 
-      // Initialize email service
       const emailService = new ResendEmailService({
         apiKey: resendApiKey.value(),
         defaultFromEmail: resendFromEmail.value(),
         defaultFromName: resendFromName.value(),
       });
 
-      // Prepare email content
-      // Use code instead of token - invites have a code field, not token
       if (!inviteData.code) {
         throw new HttpsError("internal", "Invite code is missing");
       }
-      const inviteUrl = `https://financely.app/accept-invite?code=${inviteData.code}`;
-      const subject = `You're invited to join ${orgData.name}`;
-      const html = `
-        <h1>You're Invited!</h1>
-        <p><strong>${inviterData?.name || "A team member"}</strong> has invited you to join <strong>${orgData.name}</strong>.</p>
-        <p>As a ${inviteData.role || ORGANIZATION_ROLES.MEMBER}, you'll have access to:</p>
-        <ul>
-          <li>Organization dashboard and tools</li>
-          <li>Collaborative features</li>
-          <li>Team communication channels</li>
-        </ul>
-        <p><a href="${inviteUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Accept Invitation</a></p>
-      `;
 
-      // Send the email
+      const inviteUrl = `https://financely.app/accept-invite?code=${inviteData.code}`;
+      const subject = `You're invited to join ${orgData.name} on Financely`;
+      const hostedImageOrigin = getHostedImageOrigin(resendFromEmail.value());
+
+      const branding = getEmailBrandingConfig({
+        ...orgData,
+        id: organizationId,
+        createdAt: orgData.createdAt || new Date().toISOString(),
+        updatedAt: orgData.updatedAt || new Date().toISOString(),
+      } as Parameters<typeof getEmailBrandingConfig>[0]);
+
+      const expirationDate = inviteData.expiresAt
+        ? new Date(inviteData.expiresAt).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })
+        : undefined;
+
+      const rawLogoUrl: string | undefined =
+        orgData.settings?.branding?.customLogo || orgData.logoUrl;
+      let organizationLogoUrl: string | null = null;
+
+      if (rawLogoUrl) {
+        if (rawLogoUrl.startsWith("data:image/")) {
+          const parsedDataImage = parseDataImageUrl(rawLogoUrl);
+          if (!parsedDataImage) {
+            loggerService.warn("Invalid data-image URL for invite logo", {
+              inviteId,
+              organizationId,
+            });
+          } else if (parsedDataImage.buffer.length > MAX_DATA_IMAGE_BYTES) {
+            loggerService.warn("Invite data-image logo exceeds max size", {
+              inviteId,
+              organizationId,
+              sizeBytes: parsedDataImage.buffer.length,
+              maxBytes: MAX_DATA_IMAGE_BYTES,
+            });
+          } else {
+            const storagePath =
+              `organizations/${organizationId}/email-assets/invites/` +
+              `${inviteId}-${Date.now()}.${parsedDataImage.extension}`;
+
+            const bucket = getStorage().bucket();
+            const file = bucket.file(storagePath);
+            await file.save(parsedDataImage.buffer, {
+              metadata: {
+                contentType: parsedDataImage.contentType,
+                metadata: {
+                  organizationId,
+                  inviteId,
+                  source: "invite-data-url-logo",
+                  uploadedAt: new Date().toISOString(),
+                },
+              },
+            });
+
+            organizationLogoUrl = buildHostedEmailImageUrl(hostedImageOrigin, storagePath);
+          }
+        }
+
+        if (!organizationLogoUrl) {
+          try {
+            const logoCheck = await fetch(rawLogoUrl, {
+              method: "HEAD",
+              signal: AbortSignal.timeout(3000),
+            });
+            if (logoCheck.ok) {
+              organizationLogoUrl = rawLogoUrl;
+            }
+          } catch {
+            // Not reachable — leave null so the initial avatar is shown.
+          }
+        }
+      }
+
+      const html = generateInviteEmailHTML(
+        {
+          inviterName: inviterData?.name || "A team member",
+          inviterEmail: inviterData?.email,
+          organizationName: orgData.name,
+          organizationLogoUrl,
+          role: inviteData.role || ORGANIZATION_ROLES.MEMBER,
+          inviteLink: inviteUrl,
+          expirationDate,
+        },
+        branding
+      );
+
       const emailResult = await emailService.sendEmail({
         to: { email: inviteData.email, name: inviteData.name },
         from: { email: resendFromEmail.value(), name: resendFromName.value() },
@@ -108,7 +245,6 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         html,
       });
 
-      // Check if email was actually sent
       if (!emailResult.success) {
         loggerService.error("Failed to send invite email", {
           inviteId,
@@ -116,10 +252,9 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
           error: emailResult.error,
           organizationName: orgData.name,
         });
-        throw new HttpsError("internal", `Failed to send invite email: ${emailResult.error || 'Unknown error'}`);
+        throw new HttpsError("internal", `Failed to send invite email: ${emailResult.error || "Unknown error"}`);
       }
 
-      // Update invite status to "sent"
       await db.collection("invites").doc(inviteId).update({
         status: "sent",
         sentAt: new Date().toISOString(),
@@ -137,7 +272,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
             auditInviterId,
             auditInviterId,
             auditInviterEmail || `unknown-${auditInviterId}@financely.local`,
-            auditInviterName || "Unknown User",
+            auditInviterName || "Unknown User"
           )
         : undefined;
 
@@ -174,7 +309,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
             auditInviterId,
             auditInviterId,
             auditInviterEmail || `unknown-${auditInviterId}@financely.local`,
-            auditInviterName || "Unknown User",
+            auditInviterName || "Unknown User"
           )
         : undefined;
 
@@ -197,11 +332,11 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         },
         fallbackUserContext: fallbackAuditUserContext,
       });
-      
+
       if (error instanceof HttpsError) {
         throw error;
       }
-      
+
       throw new HttpsError("internal", `Failed to send invite email: ${error}`);
     }
   }

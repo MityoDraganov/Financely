@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -131,18 +132,18 @@ export function InviteMembersStep({ organizationId, onNext, onBack }: InviteMemb
               {/* Email input with inline validation icon */}
               <div className="relative flex-1">
                 <Input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder={`teammate${index + 1}@company.com`}
                   value={row.email}
                   onChange={(e) => updateRow(row.id, { email: e.target.value })}
                   onBlur={() => blurRow(row.id)}
-                  className={`rounded-xl pr-9 transition-colors ${
-                    showInvalid
-                      ? "border-destructive focus-visible:ring-destructive/30"
-                      : showValid
-                      ? "border-green-500 focus-visible:ring-green-500/30"
-                      : ""
-                  }`}
+                  className={cn(
+                    "rounded-xl pr-9 transition-colors",
+                    showInvalid && "border-destructive focus-visible:ring-destructive/30",
+                    showValid && "border-green-500 focus-visible:ring-green-500/30",
+                  )}
                 />
                 {(showValid || showInvalid) && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

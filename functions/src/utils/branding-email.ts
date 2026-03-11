@@ -15,6 +15,9 @@ function getOrganizationLogo(organization?: Organization | null): string | null 
   if (organization?.settings?.branding?.customLogo) {
     return organization.settings.branding.customLogo;
   }
+  if (organization?.logoUrl) {
+    return organization.logoUrl;
+  }
   return null;
 }
 
@@ -247,46 +250,232 @@ export function generateWelcomeEmailHTML(
 export function generateInviteEmailHTML(
   inviteData: {
     inviterName: string;
+    inviterEmail?: string;
     organizationName: string;
+    organizationLogoUrl?: string | null;
     role: string;
     inviteLink?: string;
     expirationDate?: string;
   },
   branding: EmailBrandingConfig
 ): string {
-  const buttonHTML = inviteData.inviteLink
-    ? `<p style="margin: 24px 0 0 0;">
-         ${generateBrandedButton("Accept Invitation", inviteData.inviteLink, branding)}
+  const roleLabel =
+    inviteData.role.charAt(0).toUpperCase() +
+    inviteData.role.slice(1).toLowerCase();
+
+  const orgInitial = inviteData.organizationName.charAt(0).toUpperCase();
+  const inviterInitial = inviteData.inviterName.charAt(0).toUpperCase();
+
+  // Firebase Storage URLs contain bare `&` (e.g. `?alt=media&token=…`).
+  // In HTML attributes `&` must be `&amp;` — Gmail's strict parser drops
+  // the entire src attribute if it finds an unencoded ampersand.
+  const safeLogoUrl = inviteData.organizationLogoUrl?.replace(/&/g, "&amp;");
+
+  const orgLogoSection = safeLogoUrl
+    ? `<img src="${safeLogoUrl}" alt="${inviteData.organizationName}" width="64" height="64"
+         style="width: 64px; height: 64px; border-radius: 12px; object-fit: cover; border: 2px solid #e5e7eb; display: block; margin: 0 auto;" />`
+    : `<div style="width: 64px; height: 64px; border-radius: 12px; background-color: ${branding.primaryColor};
+         color: #ffffff; font-size: 26px; font-weight: 700; line-height: 64px; text-align: center;
+         display: inline-block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">${orgInitial}</div>`;
+
+  const expirationSection = inviteData.expirationDate
+    ? `<p style="margin: 20px 0 0 0; font-size: 13px; color: #9ca3af; text-align: center;">
+         &#x23F0;&nbsp; This invitation expires on <strong style="color: #6b7280;">${inviteData.expirationDate}</strong>
        </p>`
     : "";
 
-  const expirationHTML = inviteData.expirationDate
-    ? `<p style="margin: 24px 0 0 0; font-size: 14px; color: #6b7280;">
-         This invitation will expire on ${inviteData.expirationDate}
-       </p>`
-    : "";
+  const ctaSection = inviteData.inviteLink
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+         <tr>
+           <td style="border-radius: 8px; background-color: ${branding.primaryColor};">
+             <a href="${inviteData.inviteLink}"
+                style="display: inline-block; padding: 14px 36px; background-color: ${branding.primaryColor};
+                       color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;
+                       font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                       letter-spacing: 0.01em;">
+               Accept Invitation
+             </a>
+           </td>
+         </tr>
+       </table>
+       ${expirationSection}`
+    : expirationSection;
 
-  const content = `
-<div style="color: #111827;">
-  <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: ${branding.primaryColor};">
-    You're Invited!
-  </h1>
-  <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.5; color: #374151;">
-    <strong>${inviteData.inviterName}</strong> has invited you to join <strong>${inviteData.organizationName}</strong>.
-  </p>
-  <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.5; color: #374151;">
-    As a ${inviteData.role}, you'll have access to:
-  </p>
-  <ul style="margin: 0 0 24px 0; padding-left: 24px; font-size: 16px; line-height: 1.8; color: #374151;">
-    <li>Organization dashboard and tools</li>
-    <li>Collaborative features</li>
-    <li>Team communication channels</li>
-  </ul>
-  ${buttonHTML}
-  ${expirationHTML}
-</div>
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're invited to join ${branding.companyName}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+
+  <!-- Top accent bar -->
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+    <tr><td style="height: 4px; background-color: ${branding.primaryColor};"></td></tr>
+  </table>
+
+  <!-- Financely header -->
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+         style="background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
+    <tr>
+      <td style="padding: 18px 40px; max-width: 600px; margin: 0 auto;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto;">
+          <tr>
+            <td style="vertical-align: middle;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 10px;">
+                    <img src="https://financely.app/financely-f.svg"
+                         alt="Financely" width="32" height="32"
+                         style="width: 32px; height: 32px; border-radius: 6px; display: block;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-size: 18px; font-weight: 800; color: #1a7a3c;
+                                 letter-spacing: -0.5px;">Financely</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="text-align: right;">
+              <span style="font-size: 12px; color: #9ca3af;">Team Invitation</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Main content wrapper -->
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 40px 20px;">
+    <tr>
+      <td>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"
+               style="margin: 0 auto; background-color: #ffffff; border-radius: 16px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+                      overflow: hidden;">
+
+          <!-- Hero section: org identity -->
+          <tr>
+            <td style="padding: 48px 40px 36px; text-align: center;
+                       background: linear-gradient(160deg, ${branding.primaryColor}08 0%, #ffffff 60%);">
+              ${orgLogoSection}
+              <p style="margin: 20px 0 6px 0; font-size: 14px; font-weight: 500; color: #9ca3af;
+                         text-transform: uppercase; letter-spacing: 0.08em;">You're invited to join</p>
+              <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">
+                ${inviteData.organizationName}
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr><td style="height: 1px; background-color: #f3f4f6;"></td></tr>
+
+          <!-- Inviter card -->
+          <tr>
+            <td style="padding: 28px 40px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+                     style="background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+                <tr>
+                  <td style="padding: 20px 24px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="width: 48px; vertical-align: top;">
+                          <div style="width: 44px; height: 44px; border-radius: 50%;
+                                      background-color: ${branding.primaryColor}20;
+                                      color: ${branding.primaryColor}; font-size: 18px; font-weight: 700;
+                                      line-height: 44px; text-align: center; display: inline-block;">${inviterInitial}</div>
+                        </td>
+                        <td style="padding-left: 14px; vertical-align: middle;">
+                          <p style="margin: 0 0 2px 0; font-size: 15px; font-weight: 600; color: #111827;">
+                            ${inviteData.inviterName}
+                          </p>
+                          ${inviteData.inviterEmail
+                            ? `<p style="margin: 0 0 6px 0; font-size: 13px; color: #6b7280;">${inviteData.inviterEmail}</p>`
+                            : ""}
+                          <p style="margin: 0; font-size: 13px; color: #6b7280;">
+                            invited you as&nbsp;
+                            <span style="display: inline-block; padding: 2px 10px; background-color: ${branding.primaryColor}15;
+                                         color: ${branding.primaryColor}; border-radius: 20px; font-weight: 600;
+                                         font-size: 12px; letter-spacing: 0.02em;">${roleLabel}</span>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- What you get access to -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <p style="margin: 0 0 16px 0; font-size: 14px; font-weight: 600; color: #374151;
+                         text-transform: uppercase; letter-spacing: 0.06em;">What you'll have access to</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                ${[
+                  ["Invoices & Quotes", "Create, send, and track professional invoices"],
+                  ["Financial Reports", "Real-time analytics, P&L, and cash flow insights"],
+                  ["Client Management", "Contacts, deal pipelines, and document history"],
+                  ["Workflow Automation", "Automate recurring tasks and approvals"],
+                ]
+                  .map(
+                    ([title, desc]) => `
+                <tr>
+                  <td style="padding: 8px 0; vertical-align: top; width: 28px;">
+                    <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%;
+                                 background-color: ${branding.primaryColor}15; color: ${branding.primaryColor};
+                                 text-align: center; line-height: 20px; font-size: 12px; font-weight: 700;">&#10003;</span>
+                  </td>
+                  <td style="padding: 8px 0 8px 8px; vertical-align: top;">
+                    <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 600; color: #111827;">${title}</p>
+                    <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.4;">${desc}</p>
+                  </td>
+                </tr>`
+                  )
+                  .join("")}
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA section -->
+          <tr>
+            <td style="padding: 0 40px 48px; text-align: center;">
+              ${ctaSection}
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"
+               style="margin: 24px auto 0;">
+          <tr>
+            <td style="padding: 0 20px; text-align: center;">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af;">
+                Sent via
+                <img src="https://financely.app/financely-f.svg"
+                     alt="" width="14" height="14"
+                     style="width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; display: inline-block; margin: 0 2px 1px;" />
+                <a href="https://financely.app" style="color: #1a7a3c; text-decoration: none; font-weight: 600;">Financely</a>
+                &nbsp;&middot;&nbsp; The financial platform for modern teams
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #d1d5db; line-height: 1.6;">
+                ${branding.footerText}
+                <br>If you didn't expect this invitation, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
   `.trim();
-
-  return generateBrandedEmailHTML(content, branding);
 }
-
