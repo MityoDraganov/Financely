@@ -1,6 +1,29 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
 
+export const productPublicQrSchema = z.object({
+  assetUrl: z.string().url().optional(),
+  payloadMode: z.enum(["hybrid", "text-only"]).default("hybrid"),
+  payloadHash: z.string().optional(),
+  generatedAt: z.string().optional(),
+  storagePath: z.string().optional(),
+  version: z.number().int().min(1).default(1),
+});
+
+export const productPublicPageSchema = z.object({
+  slug: z.string().optional(),
+  slugAliases: z.array(z.string()).default([]),
+  state: z.enum(["published", "unavailable"]).default("unavailable"),
+  canonicalPath: z.string().optional(),
+  canonicalUrl: z.string().url().optional(),
+  payloadHash: z.string().optional(),
+  version: z.number().int().min(1).default(1),
+  lastSyncRequestedAt: z.string().optional(),
+  lastPublishedAt: z.string().optional(),
+  lastUnavailableAt: z.string().optional(),
+  qr: productPublicQrSchema.optional(),
+});
+
 export const productDataSchema = z.object({
   // Organization ID for multi-tenancy
   organizationId: z.string().min(1, "Organization ID is required"),
@@ -46,6 +69,9 @@ export const productDataSchema = z.object({
   
   // Cost (for profit calculation)
   cost: z.number().min(0).optional(),
+
+  // Public product page metadata
+  publicPage: productPublicPageSchema.optional(),
 });
 
 export type ProductData = z.infer<typeof productDataSchema>;
@@ -59,4 +85,3 @@ export type Product = z.infer<typeof productSchema>;
 export type CreateProductInput = Omit<ProductData, "status"> & {
   status?: ProductData["status"];
 };
-

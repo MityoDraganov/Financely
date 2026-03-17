@@ -8,6 +8,10 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions";
 import { getBrandContextCache } from "../services/brand-context-cache";
+import { getOrganizationRepository } from "../repositories/organization-repository";
+import { getProductRepository } from "../repositories/product-repository";
+import { getDatabaseService } from "../services/database-service";
+import { normalizeSlugAliases, slugifySegment } from "../services/public-product-page-service";
 
 /**
  * Triggered when an organization document is updated.
@@ -27,6 +31,82 @@ export const onOrganizationUpdated = onDocumentUpdated(
     }
 
     try {
+      const databaseService = getDatabaseService();
+      const organizationRepository = getOrganizationRepository(databaseService);
+
+      const before = event.data?.before.data() as Record<string, unknown> | undefined;
+      const after = event.data?.after.data() as Record<string, unknown> | undefined;
+      if (!after) return;
+
+      const beforePublicPages = (before?.settings as {
+        publicPages?: { orgSlug?: string; orgSlugAliases?: string[]; domainPreference?: "custom-first" | "app-only" };
+      } | undefined)?.publicPages;
+      const afterPublicPages = (after.settings as {
+        publicPages?: { orgSlug?: string; orgSlugAliases?: string[]; domainPreference?: "custom-first" | "app-only" };
+      } | undefined)?.publicPages;
+
+      const previousSlug = slugifySegment(beforePublicPages?.orgSlug || (before?.name as string | undefined) || "");
+      const currentRequestedSlug = slugifySegment(
+        afterPublicPages?.orgSlug || (after.name as string | undefined) || "",
+      );
+      const mergedAliases = normalizeSlugAliases(
+        previousSlug && previousSlug !== currentRequestedSlug
+          ? [...(afterPublicPages?.orgSlugAliases || []), previousSlug]
+          : afterPublicPages?.orgSlugAliases || [],
+        currentRequestedSlug,
+      );
+
+      const normalizedPublicPages = {
+        orgSlug: currentRequestedSlug,
+        orgSlugAliases: mergedAliases,
+        domainPreference: afterPublicPages?.domainPreference || "custom-first",
+      };
+
+      const existingNormalized = {
+        orgSlug: afterPublicPages?.orgSlug || "",
+        orgSlugAliases: afterPublicPages?.orgSlugAliases || [],
+        domainPreference: afterPublicPages?.domainPreference || "custom-first",
+      };
+
+      if (JSON.stringify(normalizedPublicPages) !== JSON.stringify(existingNormalized)) {
+        const nextSettings = {
+          ...(after.settings as Record<string, unknown>),
+          publicPages: normalizedPublicPages,
+        };
+        await organizationRepository.update({
+          id: organizationId,
+          data: { settings: nextSettings as any },
+        });
+
+        const productRepository = getProductRepository(databaseService);
+        const orgProducts = await productRepository.getAll({
+          queryConstraints: [{ field: "organizationId", operator: "==", value: organizationId }],
+        });
+        const syncTimestamp = new Date().toISOString();
+        await Promise.all(
+          orgProducts.map((product) =>
+            productRepository.update({
+              id: product.id,
+              data: {
+                publicPage: {
+                  slug: product.publicPage?.slug,
+                  slugAliases: product.publicPage?.slugAliases || [],
+                  state: product.publicPage?.state || (product.status === "active" ? "published" : "unavailable"),
+                  canonicalPath: product.publicPage?.canonicalPath,
+                  canonicalUrl: product.publicPage?.canonicalUrl,
+                  payloadHash: product.publicPage?.payloadHash,
+                  version: product.publicPage?.version || 1,
+                  lastSyncRequestedAt: syncTimestamp,
+                  lastPublishedAt: product.publicPage?.lastPublishedAt,
+                  lastUnavailableAt: product.publicPage?.lastUnavailableAt,
+                  qr: product.publicPage?.qr,
+                },
+              },
+            }),
+          ),
+        );
+      }
+
       const cache = getBrandContextCache();
       cache.invalidate(organizationId);
       
@@ -42,4 +122,3 @@ export const onOrganizationUpdated = onDocumentUpdated(
     }
   }
 );
-

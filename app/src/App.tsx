@@ -25,6 +25,8 @@ import ProposalsPage from "./pages/proposals/proposals";
 import ProposalDetailPage from "./pages/proposals/proposal-detail";
 import ProductsPage from "./pages/products/products";
 import ProductDetailPage from "./pages/products/product-detail";
+import ProductMetafieldsPage from "./pages/products/products-metafields";
+import PublicProductPage from "./pages/products/public-product-page";
 import SettingsLayout from "./pages/settings/layout";
 import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
@@ -173,6 +175,10 @@ function App() {
 												path="/widget/:organizationId/:widgetType"
 												element={<WidgetPage />}
 											/>
+											<Route
+												path="/p/:orgSlug/:productSlug"
+												element={<PublicProductPage />}
+											/>
 
 											<Route
 												path="/dashboard"
@@ -277,6 +283,16 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<ProductsPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/products/metafields"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<ProductMetafieldsPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

@@ -136,6 +136,10 @@ export const createOrganization = onCall<
         settings: {
           brandColors,
           ...brandingEntry,
+          publicPages: {
+            orgSlugAliases: [],
+            domainPreference: "custom-first",
+          },
           defaultCurrency: DEFAULT_ORGANIZATION_SETTINGS.defaultCurrency,
           defaultLanguage: DEFAULT_ORGANIZATION_SETTINGS.defaultLanguage,
           defaultTimezone: DEFAULT_ORGANIZATION_SETTINGS.defaultTimezone,

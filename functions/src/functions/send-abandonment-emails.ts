@@ -1,6 +1,7 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
+import { getAppOrigin } from "../config/app-url";
 import {
   sendAbandonmentEmail,
   findAbandonedOnboarding,
@@ -79,7 +80,7 @@ export const sendAbandonmentEmails = onSchedule(
   async () => {
     logger.info("Starting abandonment email check");
 
-    const appUrl = process.env.APP_URL || "https://app.financely.com";
+    const appUrl = getAppOrigin();
     const config = {
       apiKey: resendApiKey.value(),
       fromEmail: resendFromEmail.value(),

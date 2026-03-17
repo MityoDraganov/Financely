@@ -14,6 +14,7 @@ import {
   getEmailBrandingConfig,
   generateInviteEmailHTML,
 } from "../utils/branding-email";
+import { APP_ORIGIN, buildAppUrl } from "../config/app-url";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -74,14 +75,14 @@ function parseDataImageUrl(dataUrl: string): ParsedDataImage | null {
 
 function getHostedImageOrigin(fromEmail: string): string {
   const domain = fromEmail.split("@")[1]?.trim().toLowerCase();
-  if (!domain) return "https://financely.app";
+  if (!domain) return APP_ORIGIN;
 
   // Use sending domain only when it is a Financely-managed domain.
   if (domain.endsWith("financely.app")) {
     return `https://${domain}`;
   }
 
-  return "https://financely.app";
+  return APP_ORIGIN;
 }
 
 function buildHostedEmailImageUrl(origin: string, storagePath: string): string {
@@ -149,7 +150,7 @@ export const sendInviteEmail = onCall<SendInviteEmailPayload>(
         throw new HttpsError("internal", "Invite code is missing");
       }
 
-      const inviteUrl = `https://financely.app/accept-invite?code=${inviteData.code}`;
+      const inviteUrl = `${buildAppUrl("/accept-invite")}?code=${inviteData.code}`;
       const subject = `You're invited to join ${orgData.name} on Financely`;
       const hostedImageOrigin = getHostedImageOrigin(resendFromEmail.value());
 

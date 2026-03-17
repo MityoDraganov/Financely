@@ -3546,7 +3546,7 @@
 					"imageFile": "Image (File)",
 					"metaobject": "Metaobject",
 					"richText": "Rich text",
-					"choiceListSingleLine": "Choice list (Single line text)",
+					"choiceListSingleLine": "Select",
 					"emailSingleLine": "Email (Single line text)",
 					"file": "File",
 					"videoFile": "Video (File)",

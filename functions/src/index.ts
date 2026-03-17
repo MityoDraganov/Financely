@@ -61,6 +61,7 @@ export { createOrganization } from "./functions/create-organization";
 // Invite functions
 export { createInvite } from "./functions/create-invite";
 export { acceptInvite } from "./functions/accept-invite";
+export { generateResumeLink } from "./functions/generate-resume-link";
 export { revokeInvite } from "./functions/revoke-invite";
 export { revokeMember } from "./functions/revoke-member";
 export { transferOrganizationOwnership } from "./functions/transfer-organization-ownership";
@@ -68,6 +69,7 @@ export { transferOrganizationOwnership } from "./functions/transfer-organization
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";
 export { sendWelcomeEmail } from "./functions/send-welcome-email";
+export { sendAbandonmentEmails } from "./functions/send-abandonment-emails";
 
 // Clerk webhook functions
 export { onClerkWebhookEvent } from "./functions/clerk/on-clerk-event-webhook";
@@ -105,10 +107,12 @@ export { improveText } from "./functions/improve-text";
 export { deleteBrandSite } from "./functions/delete-brand-site";
 export { cleanupPreviewSites } from "./functions/cleanup-preview-sites";
 export { onBrandSiteCreated, onBrandSiteUpdated } from "./functions/brand-site-processor";
+export { onBrandSitePublicDomainUpdated } from "./functions/on-brand-site-public-domain-updated";
 export { publishBrandSite } from "./functions/publish-brand-site";
 
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";
+export { getPublicProductPage } from "./functions/get-public-product-page";
 export { submitWidgetForm } from "./functions/submit-widget-form";
 export { submitModularWidget } from "./functions/submit-modular-widget";
 export { deployManualSite } from "./functions/deploy-manual-site";
@@ -179,6 +183,8 @@ export { auditDocumentChanges } from "./functions/firestore-audit-triggers";
 // Brand context cache invalidation triggers
 export { onOrganizationUpdated } from "./functions/on-organization-updated";
 export { onProductWritten } from "./functions/on-product-updated";
+export { onProductMetafieldWritten, onProductMetafieldDefinitionWritten } from "./functions/on-product-metafields-updated";
+export { backfillProductPublicPages } from "./functions/backfill-product-public-pages";
 
 // Billing and usage functions
 export { getUsageHistory } from "./functions/get-usage-history";

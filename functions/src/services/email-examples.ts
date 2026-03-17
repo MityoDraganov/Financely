@@ -4,6 +4,7 @@
  */
 
 import { logger } from "firebase-functions";
+import { APP_ORIGIN } from "../config/app-url";
 import { ResendEmailService } from "./resend-email-service";
 import { EmailExecutor } from "../executors/email-executor";
 
@@ -68,7 +69,7 @@ export async function sendTemplateEmail(
       <ul>
         <li>Email: ${recipientEmail}</li>
         <li>App: ${templateData.appName || 'Financely'}</li>
-        <li>Dashboard: <a href="${templateData.dashboardUrl || 'https://app.financely.com'}">Access Dashboard</a></li>
+        <li>Dashboard: <a href="${templateData.dashboardUrl || APP_ORIGIN}">Access Dashboard</a></li>
       </ul>
     `;
 

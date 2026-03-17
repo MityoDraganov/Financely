@@ -37,6 +37,7 @@ export function ProductForm({
   const isEditMode = !!initialData;
   const imageUpload = useFileUpload();
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [publicSlug, setPublicSlug] = useState(initialData?.publicPage?.slug || "");
 
   const [formData, setFormData] = useState<Partial<CreateProductInput>>({
     name: initialData?.name || "",
@@ -44,14 +45,14 @@ export function ProductForm({
     price: initialData?.price || 0,
     currency: initialData?.currency || "USD",
     sku: initialData?.sku || "",
-    stockQuantity: initialData?.stockQuantity,
+    stockQuantity: initialData?.stockQuantity ?? undefined,
     trackInventory: initialData?.trackInventory || false,
     category: initialData?.category || "",
     status: initialData?.status || "active",
     images: initialData?.images || [],
-    lowStockThreshold: initialData?.lowStockThreshold,
-    cost: initialData?.cost,
-    taxRate: initialData?.taxRate,
+    lowStockThreshold: initialData?.lowStockThreshold ?? undefined,
+    cost: initialData?.cost ?? undefined,
+    taxRate: initialData?.taxRate ?? undefined,
   });
 
   const { data: metafieldDefinitions = [], error: metafieldDefinitionsError } = useProductMetafieldDefinitions(organizationId);
@@ -210,6 +211,7 @@ export function ProductForm({
     }
 
     let productId: string;
+    const trimmedPublicSlug = publicSlug.trim();
 
     if (isEditMode) {
       const updateData: Partial<CreateProductInput> = {
@@ -223,11 +225,21 @@ export function ProductForm({
 
       if (formData.description !== undefined) updateData.description = formData.description;
       if (formData.sku !== undefined) updateData.sku = formData.sku;
-      if (formData.stockQuantity !== undefined) updateData.stockQuantity = formData.stockQuantity;
-      if (formData.lowStockThreshold !== undefined) updateData.lowStockThreshold = formData.lowStockThreshold;
+      if (formData.stockQuantity != null) updateData.stockQuantity = formData.stockQuantity;
+      if (formData.lowStockThreshold != null) updateData.lowStockThreshold = formData.lowStockThreshold;
       if (formData.category !== undefined) updateData.category = formData.category;
-      if (formData.cost !== undefined) updateData.cost = formData.cost;
-      if (formData.taxRate !== undefined) updateData.taxRate = formData.taxRate;
+      if (formData.cost != null) updateData.cost = formData.cost;
+      if (formData.taxRate != null) updateData.taxRate = formData.taxRate;
+      if (trimmedPublicSlug) {
+        updateData.publicPage = initialData?.publicPage
+          ? { ...initialData.publicPage, slug: trimmedPublicSlug }
+          : {
+              slug: trimmedPublicSlug,
+              slugAliases: [],
+              state: (formData.status || "active") === "active" ? "published" : "unavailable",
+              version: 1,
+            };
+      }
 
       await onSubmit(updateData);
       productId = initialData!.id;
@@ -239,15 +251,23 @@ export function ProductForm({
         price: formData.price!,
         currency: formData.currency || "USD",
         sku: formData.sku,
-        stockQuantity: formData.stockQuantity,
         trackInventory: formData.trackInventory ?? false,
         category: formData.category,
         status: formData.status || "active",
         images: formData.images || [],
         tags: [],
-        lowStockThreshold: formData.lowStockThreshold,
-        cost: formData.cost,
-        taxRate: formData.taxRate,
+        ...(formData.stockQuantity != null && { stockQuantity: formData.stockQuantity }),
+        ...(formData.lowStockThreshold != null && { lowStockThreshold: formData.lowStockThreshold }),
+        ...(formData.cost != null && { cost: formData.cost }),
+        ...(formData.taxRate != null && { taxRate: formData.taxRate }),
+        ...(trimmedPublicSlug && {
+          publicPage: {
+            slug: trimmedPublicSlug,
+            slugAliases: [],
+            state: (formData.status || "active") === "active" ? "published" : "unavailable",
+            version: 1,
+          },
+        }),
       };
 
       const result = await onSubmit(createData);
@@ -338,6 +358,19 @@ export function ProductForm({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="publicSlug">Public page slug (optional)</Label>
+              <Input
+                id="publicSlug"
+                value={publicSlug}
+                onChange={(e) => setPublicSlug(e.target.value)}
+                placeholder="custom-product-slug"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used for shared URL path. Leave empty to auto-generate from product name.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="description">{t('products.form.description')}</Label>
               <Textarea
                 id="description"
@@ -416,7 +449,7 @@ export function ProductForm({
                   id="stockQuantity"
                   type="number"
                   min="0"
-                  value={formData.stockQuantity || ""}
+                  value={formData.stockQuantity ?? ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, stockQuantity: e.target.value ? parseInt(e.target.value) : undefined }))}
                   placeholder={t('products.form.stockQuantityPlaceholder')}
                 />

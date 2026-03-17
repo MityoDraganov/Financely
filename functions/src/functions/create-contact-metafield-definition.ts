@@ -37,11 +37,57 @@ export const createContactMetafieldDefinition = onCall<CreateContactMetafieldDef
         throw new HttpsError("invalid-argument", "Metaobject definition ID is required when type is metaobject_reference");
       }
 
+      if (payload.type === "single_line_text_field_choice_list") {
+        const selectOptions = payload.options?.selectOptions;
+        if (!Array.isArray(selectOptions) || selectOptions.length === 0) {
+          throw new HttpsError(
+            "invalid-argument",
+            "At least one select option is required when type is single_line_text_field_choice_list",
+          );
+        }
+
+        const hasInvalidOption = selectOptions.some(
+          (option) =>
+            !option ||
+            typeof option.label !== "string" ||
+            option.label.trim().length === 0 ||
+            typeof option.value !== "string" ||
+            option.value.trim().length === 0,
+        );
+        if (hasInvalidOption) {
+          throw new HttpsError(
+            "invalid-argument",
+            "Each select option must include non-empty label and value",
+          );
+        }
+
+        const normalizedValues = selectOptions.map((option) => option.value.trim());
+        if (new Set(normalizedValues).size !== normalizedValues.length) {
+          throw new HttpsError("invalid-argument", "Select option values must be unique");
+        }
+      }
+
+      if (payload.type === "date") {
+        const selectionMode = payload.options?.dateConfig?.selectionMode ?? "single";
+        const precision = payload.options?.dateConfig?.precision ?? "date";
+        const validSelectionModes = new Set(["single", "period"]);
+        const validPrecisions = new Set(["date", "month"]);
+
+        if (!validSelectionModes.has(selectionMode)) {
+          throw new HttpsError("invalid-argument", "Invalid date selection mode");
+        }
+        if (!validPrecisions.has(precision)) {
+          throw new HttpsError("invalid-argument", "Invalid date precision");
+        }
+      }
+
       loggerService.info("Creating contact metafield definition", {
         organizationId: payload.organizationId,
         name: payload.name,
         type: payload.type,
         metaobjectDefinitionId: payload.metaobjectDefinitionId,
+        selectOptionCount: payload.options?.selectOptions?.length || 0,
+        dateConfig: payload.options?.dateConfig,
       });
 
       const definitionId = await handleCreateContactMetafieldDefinition(payload);

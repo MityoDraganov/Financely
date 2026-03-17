@@ -1,44 +1,34 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { Search, Package, Plus, Edit, Trash2, Download, Database, Image as ImageIcon, Tag, Star, ChevronLeft } from "lucide-react";
+import { Search, Package, Plus, Edit, Trash2, Download, Database, Image as ImageIcon, Tag, ExternalLink, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { useProductsByOrg, useDeleteProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
-import { CreateProductInput, CreateProductMetafieldDefinitionInput, UpdateProductMetafieldDefinitionInput } from "@/core";
+import { CreateProductInput } from "@/core";
 import { toast } from "sonner";
 import { formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
 import { ExportDialog } from "@/components/export-import/export-dialog";
-import { 
-  useProductMetafieldDefinitions, 
-  useDeleteProductMetafieldDefinition,
-  useProductMetafields
-} from "@/hooks/repository-hooks/use-product-metafields";
-import { useCreateProductMetafieldDefinition } from "@/hooks/service-hooks/use-product-metafield-functions";
 import { ProductForm } from "@/components/products/product-form";
-import { MetafieldDisplay } from "@/components/metafields/metafield-display";
-import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
+import { functionsService } from "@/services/functions/functions-service";
 
 export default function ProductsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { formatDateTable, formatDateTime } = useDateFormatting();
+  const { formatDateTable } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<{ id: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [isManagingMetafields, setIsManagingMetafields] = useState(false);
-  const [isCreatingMetafield, setIsCreatingMetafield] = useState(false);
+  const [didTriggerPublicPageBackfill, setDidTriggerPublicPageBackfill] = useState(false);
+  const [isRegeneratingPublicPages, setIsRegeneratingPublicPages] = useState(false);
 
   const { data: products = [], isLoading, error } = useProductsByOrg(currentOrganization?.id);
   console.log(error);
@@ -46,10 +36,57 @@ export default function ProductsPage() {
   
   const createProductMutation = useCreateProduct();
   const deleteProductMutation = useDeleteProduct();
-  
-  const selectedProductData = selectedProduct
-    ? products.find((p) => p.id === selectedProduct.id)
-    : null;
+
+  const productsMissingPublicPage = useMemo(() => {
+    return products.filter((product) => {
+      const publicPage = product.publicPage;
+      if (!publicPage) return true;
+      if (!publicPage.slugAliases) return true;
+      if (!publicPage.state) return true;
+      if (product.status === "active") {
+        if (!publicPage.slug || !publicPage.canonicalPath || !publicPage.canonicalUrl) return true;
+      }
+      return false;
+    });
+  }, [products]);
+
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+    if (didTriggerPublicPageBackfill) return;
+    if (products.length === 0) return;
+    if (productsMissingPublicPage.length === 0) return;
+
+    const sessionKey = `product-public-page-backfill:${currentOrganization.id}`;
+    if (sessionStorage.getItem(sessionKey) === "done") {
+      setDidTriggerPublicPageBackfill(true);
+      return;
+    }
+
+    setDidTriggerPublicPageBackfill(true);
+
+    functionsService
+      .backfillProductPublicPages({
+        organizationId: currentOrganization.id,
+        productIds: productsMissingPublicPage.map((product) => product.id),
+      })
+      .then((result) => {
+        sessionStorage.setItem(sessionKey, "done");
+        if (result.queuedCount > 0) {
+          toast.success(`Queued public page generation for ${result.queuedCount} product(s).`);
+        }
+      })
+      .catch((error) => {
+        setDidTriggerPublicPageBackfill(false);
+        toast.error(
+          `Failed to queue public page generation: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      });
+  }, [
+    currentOrganization?.id,
+    didTriggerPublicPageBackfill,
+    products,
+    productsMissingPublicPage,
+  ]);
 
   // Filter products - memoized to prevent recalculation on every render
   const filteredProducts = useMemo(() => {
@@ -124,63 +161,27 @@ export default function ProductsPage() {
     navigate(`/products/${productId}`);
   };
 
-
-  const { data: metafieldDefinitions = [], error: metafieldDefinitionsError } = useProductMetafieldDefinitions(currentOrganization?.id);
-  if (metafieldDefinitionsError) {
-    console.error(metafieldDefinitionsError);
-  }
-  
-  const { data: selectedProductMetafields = [] } = useProductMetafields(
-    currentOrganization?.id,
-    selectedProduct?.id
-  );
-  const createMetafieldDefinition = useCreateProductMetafieldDefinition();
-  const deleteMetafieldDefinition = useDeleteProductMetafieldDefinition();
-
-  const handleCreateMetafieldDefinition = async (data: CreateProductMetafieldDefinitionInput | UpdateProductMetafieldDefinitionInput) => {
-    if (!currentOrganization?.id) {
-      toast.error("Organization is required");
-      return;
-    }
-
+  const handleRegeneratePublicPages = async () => {
+    if (!currentOrganization?.id) return;
     try {
-      if ('organizationId' in data) {
-        await createMetafieldDefinition.mutateAsync(data as CreateProductMetafieldDefinitionInput);
+      setIsRegeneratingPublicPages(true);
+      const result = await functionsService.backfillProductPublicPages({
+        organizationId: currentOrganization.id,
+        force: true,
+      });
+      if (result.queuedCount > 0) {
+        toast.success(`Regeneration queued for ${result.queuedCount} product(s).`);
       } else {
-        throw new Error("Update not supported in this context");
+        toast.success("No products needed regeneration.");
       }
-      toast.success("Product metafield definition created successfully");
-      setIsCreatingMetafield(false);
     } catch (error) {
-      console.error("Failed to create product metafield definition:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to create product metafield definition: ${errorMessage}`);
+      toast.error(
+        `Failed to queue regeneration: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsRegeneratingPublicPages(false);
     }
   };
-
-  const handleDeleteMetafieldDefinition = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this metafield definition?")) {
-      return;
-    }
-
-    try {
-      await deleteMetafieldDefinition.mutateAsync(id);
-      toast.success("Metafield definition deleted successfully");
-    } catch {
-      toast.error("Failed to delete metafield definition");
-    }
-  };
-
-  // Get unique categories from products
-  const productCategories = useMemo(() => {
-    const categories = new Set<string>();
-    products.forEach((product) => {
-      if (product.category) {
-        categories.add(product.category);
-      }
-    });
-    return Array.from(categories).sort();
-  }, [products]);
 
   if (isLoading) {
     return (
@@ -209,113 +210,6 @@ export default function ProductsPage() {
     );
   }
 
-  if (isCreatingMetafield) {
-    return (
-      <div className="py-6 pr-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCreatingMetafield(false)}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Add product metafield definition</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Define a new metafield that can be added to products
-            </p>
-          </div>
-        </div>
-
-        <Card>
-          <CardContent className="p-6">
-            <MetafieldDefinitionForm
-              onSubmit={handleCreateMetafieldDefinition}
-              onCancel={() => setIsCreatingMetafield(false)}
-              isPending={createMetafieldDefinition.isPending}
-              organizationId={currentOrganization?.id || ""}
-              availableCategories={productCategories}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isManagingMetafields) {
-    return (
-      <div className="py-6 pr-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsManagingMetafields(false)}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Product metafield definitions</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Manage custom fields that can be added to products
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setIsCreatingMetafield(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add metafield definition
-          </Button>
-        </div>
-
-        {metafieldDefinitions.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Database className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No metafield definitions found</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {metafieldDefinitions.map((def) => (
-              <Card key={def.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-lg">{def.name}</h3>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteMetafieldDefinition(def.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {def.description && (
-                    <p className="text-sm text-muted-foreground mb-4">{def.description}</p>
-                  )}
-                  {def.categoryAssignments && def.categoryAssignments.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Categories:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {def.categoryAssignments.map((cat) => (
-                          <Badge key={cat} variant="secondary" className="text-xs">
-                            {cat}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="py-6 pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
@@ -325,7 +219,15 @@ export default function ProductsPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{t('products.subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsManagingMetafields(true)}>
+          <Button
+            variant="outline"
+            onClick={handleRegeneratePublicPages}
+            disabled={isRegeneratingPublicPages || !currentOrganization?.id}
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            {isRegeneratingPublicPages ? "Regenerating..." : "Regenerate Public Pages"}
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/products/metafields")}>
             <Database className="h-4 w-4 mr-2" />
             Metafields
           </Button>
@@ -504,6 +406,17 @@ export default function ProductsPage() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
+                              {product.publicPage?.canonicalUrl && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Open public page"
+                                  onClick={() => window.open(product.publicPage?.canonicalUrl, "_blank", "noopener,noreferrer")}
+                                  className="h-8 w-8 p-0 shrink-0"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -624,6 +537,16 @@ export default function ProductsPage() {
                           <Edit className="h-4 w-4 mr-2" />
                           {t('products.actions.edit')}
                         </Button>
+                        {product.publicPage?.canonicalUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(product.publicPage?.canonicalUrl, "_blank", "noopener,noreferrer")}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Public
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -641,198 +564,6 @@ export default function ProductsPage() {
             </div>
           </>
         )}
-
-      {/* Product Detail Dialog */}
-      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{t('products.details.title')}</DialogTitle>
-            <DialogDescription>
-              {t('products.details.description')}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedProductData ? (
-            <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-2 -mr-2">
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.productName')}</Label>
-                  <p className="font-medium">{selectedProductData.name}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.sku')}</Label>
-                  <p className="font-medium">{selectedProductData.sku || "—"}</p>
-                </div>
-              </div>
-
-              {selectedProductData.description && (
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.descriptionLabel')}</Label>
-                  <p className="mt-1">{selectedProductData.description}</p>
-                </div>
-              )}
-
-              {/* Pricing */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.price')}</Label>
-                  <p className="font-medium text-lg">
-                    {formatCurrency(selectedProductData.price, selectedProductData.currency)}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.currency')}</Label>
-                  <p className="font-medium">{selectedProductData.currency}</p>
-                </div>
-              </div>
-
-              {/* Inventory */}
-              {selectedProductData.trackInventory && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">{t('products.details.stockQuantity')}</Label>
-                    <p className="font-medium">
-                      {selectedProductData.stockQuantity ?? 0}
-                      {selectedProductData.lowStockThreshold && 
-                       selectedProductData.stockQuantity !== undefined &&
-                       selectedProductData.stockQuantity <= selectedProductData.lowStockThreshold && (
-                        <Badge variant="destructive" className="ml-2">{t('products.details.lowStock')}</Badge>
-                      )}
-                    </p>
-                  </div>
-                  {selectedProductData.lowStockThreshold && (
-                    <div>
-                      <Label className="text-muted-foreground">{t('products.details.lowStockThreshold')}</Label>
-                      <p className="font-medium">{selectedProductData.lowStockThreshold}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Category & Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.category')}</Label>
-                  <p className="font-medium">{selectedProductData.category || "—"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.status')}</Label>
-                  <Badge className={getStatusColor(selectedProductData.status)}>
-                    {t(`products.status.${selectedProductData.status}`)}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Images */}
-              {selectedProductData.images && selectedProductData.images.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.productImages')}</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
-                    {selectedProductData.images.map((image, index) => (
-                      <div key={index} className="relative group">
-                        <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
-                          <img
-                            src={image}
-                            alt={`${selectedProductData.name} ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          {index === 0 && (
-                            <div className="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current" />
-                              <span>{t('products.images.featured')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Additional Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {selectedProductData.cost !== undefined && (
-                  <div>
-                    <Label className="text-muted-foreground">{t('products.details.cost')}</Label>
-                    <p className="font-medium">
-                      {formatCurrency(selectedProductData.cost, selectedProductData.currency)}
-                    </p>
-                  </div>
-                )}
-                {selectedProductData.taxRate !== undefined && (
-                  <div>
-                    <Label className="text-muted-foreground">{t('products.details.taxRate')}</Label>
-                    <p className="font-medium">{selectedProductData.taxRate}%</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              {selectedProductData.tags && selectedProductData.tags.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground">{t('products.details.tags')}</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {selectedProductData.tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Metafields */}
-              {selectedProductMetafields.length > 0 && (
-                <div className="pt-4 border-t">
-                  <Label className="text-muted-foreground mb-4 block">Metafields</Label>
-                  <div className="space-y-4">
-                    {selectedProductMetafields.map((metafield) => {
-                      const definition = metafieldDefinitions.find((def) => def.id === metafield.definitionId);
-                      if (!definition) return null;
-                      return (
-                        <MetafieldDisplay
-                          key={metafield.id}
-                          metafield={metafield}
-                          definition={definition}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Dates */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
-                {selectedProductData.createdAt && (
-                  <div>
-                    <Label className="text-muted-foreground">{t('products.details.created')}</Label>
-                    <p className="font-medium">
-                      {formatDateTime(selectedProductData.createdAt)}
-                    </p>
-                  </div>
-                )}
-                {selectedProductData.updatedAt && (
-                  <div>
-                    <Label className="text-muted-foreground">{t('products.details.lastUpdated')}</Label>
-                    <p className="font-medium">
-                      {formatDateTime(selectedProductData.updatedAt)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">{t('products.details.loading')}</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedProduct(null)}>
-              {t('products.details.close')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ExportDialog
         open={showExportDialog}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Type, AlignLeft, Hash, File, Link2, Calendar, ToggleLeft, Palette, Code, Database, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ const fieldTypes: FieldTypeOption[] = [
   { value: "multi_line_text_field", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.multiLineText", labelDefault: "Multi-line text", icon: AlignLeft, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
   { value: "rich_text_field", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.richText", labelDefault: "Rich text", icon: Type, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
   { value: "single_line_text_field", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.singleLineText", labelDefault: "Single line text", icon: Type, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
-  { value: "single_line_text_field_choice_list", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.choiceListSingleLine", labelDefault: "Choice list (Single line text)", icon: Type, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
+  { value: "single_line_text_field_choice_list", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.choiceListSingleLine", labelDefault: "Select", icon: Type, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
   { value: "single_line_text_field_email", labelKey: "contentPages.metaobjects.fieldTypeSelector.labels.emailSingleLine", labelDefault: "Email (Single line text)", icon: Type, categoryKey: "contentPages.metaobjects.fieldTypeSelector.categories.text", categoryDefault: "Text", categoryOrder: 1 },
 
   // Media
@@ -93,6 +93,16 @@ export function FieldTypeSelector({ value, onSelect, placeholder = "Select field
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const container = triggerRef.current?.closest<HTMLElement>(
+      "[data-slot='sheet-content'], [data-slot='dialog-content'], [data-slot='drawer-content']",
+    ) ?? null;
+    setPortalContainer(container);
+  }, [open]);
 
   const translatedFieldTypes = fieldTypes.map((field) => ({
     ...field,
@@ -131,6 +141,7 @@ export function FieldTypeSelector({ value, onSelect, placeholder = "Select field
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -143,8 +154,8 @@ export function FieldTypeSelector({ value, onSelect, placeholder = "Select field
           <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50 rotate-90" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start">
-        <Command>
+      <PopoverContent className="w-[400px] p-0" align="start" container={portalContainer}>
+        <Command className="max-h-[380px]">
           <CommandInput
             placeholder={t("contentPages.metaobjects.fieldTypeSelector.searchPlaceholder", "Search field types...")}
             value={search}

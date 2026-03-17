@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
+import { buildAppUrl } from "../config/app-url";
 import { generateMagicLink } from "../services/magic-link-service";
 import {
   logAuditFailureForRequest,
@@ -38,7 +39,7 @@ export const generateResumeLink = onCall<GenerateResumeLinkPayload>(
       }
 
       const token = await generateMagicLink(progressId, email);
-      const resumeUrl = `${process.env.APP_URL || "https://app.financely.com"}/onboarding/resume/${token}`;
+      const resumeUrl = buildAppUrl(`/onboarding/resume/${token}`);
 
       logger.info("Magic link generated", {
         progressId,

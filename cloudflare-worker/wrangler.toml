@@ -15,6 +15,12 @@ compatibility_date = "2024-01-01"
 [env.production]
 name = "financely-sites-worker"
 
+[vars]
+# Used for /p/{orgSlug}/{productSlug} dynamic product pages
+FIREBASE_PROJECT_ID = "financely-31ac6"
+# Optional override:
+# PUBLIC_PRODUCT_API_BASE = "https://us-central1-financely-31ac6.cloudfunctions.net/getPublicProductPage"
+
 # KV namespace for hostname -> brandSiteId:versionId mappings
 [[kv_namespaces]]
 binding = "SITE_HOSTS"
@@ -26,4 +32,3 @@ preview_id = "50c08093bedf425ca772af8e410a503e"  # Preview KV namespace ID
 binding = "SITES_BUCKET"
 bucket_name = "financely-sites"  # Replace with your actual bucket name
 preview_bucket_name = "financely-sites-preview"  # Optional, for preview environments
-

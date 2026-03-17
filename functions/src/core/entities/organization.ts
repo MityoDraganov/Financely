@@ -49,6 +49,20 @@ export const organizationDataSchema = z.object({
           secondary: "#6b7280",
           accent: "#10b981",
         }),
+
+      // Public product page settings
+      publicPages: z
+        .object({
+          orgSlug: z.string().optional(),
+          orgSlugAliases: z.array(z.string()).default([]),
+          domainPreference: z
+            .enum(["custom-first", "app-only"])
+            .default("custom-first"),
+        })
+        .default({
+          orgSlugAliases: [],
+          domainPreference: "custom-first",
+        }),
       
       // Advanced branding and white-label options
       branding: z
@@ -406,6 +420,10 @@ export const organizationDataSchema = z.object({
         primary: "#2563eb",
         secondary: "#6b7280",
         accent: "#10b981",
+      },
+      publicPages: {
+        orgSlugAliases: [],
+        domainPreference: "custom-first",
       },
       defaultCurrency: "USD",
       defaultLanguage: "en",

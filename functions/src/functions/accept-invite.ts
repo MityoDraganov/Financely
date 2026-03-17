@@ -8,6 +8,7 @@ import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
 } from "../utils/audit-log-helper";
+import { buildAppUrl } from "../config/app-url";
 
 const resendApiKey = defineSecret("RESEND_API_KEY");
 const resendFromEmail = defineSecret("RESEND_FROM_EMAIL");
@@ -215,7 +216,7 @@ export const acceptInvite = onCall<AcceptInvitePayload, Promise<AcceptInviteResp
             });
 
             const userName = userData.name || userData.displayName || "there";
-            const dashboardUrl = "https://financely.app/dashboard";
+            const dashboardUrl = buildAppUrl("/dashboard");
             const subject = `Welcome to ${orgData.name}, ${userName}!`;
             const html = `
               <h1>Welcome ${userName}!</h1>

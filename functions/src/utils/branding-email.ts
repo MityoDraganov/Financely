@@ -1,4 +1,5 @@
 import { Organization } from "../core/entities/organization";
+import { APP_ORIGIN } from "../config/app-url";
 
 export interface EmailBrandingConfig {
   logoUrl: string | null;
@@ -328,7 +329,7 @@ export function generateInviteEmailHTML(
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="vertical-align: middle; padding-right: 10px;">
-                    <img src="https://financely.app/financely-f.svg"
+                    <img src="${APP_ORIGIN}/financely-f.svg"
                          alt="Financely" width="32" height="32"
                          style="width: 32px; height: 32px; border-radius: 6px; display: block;" />
                   </td>
@@ -457,10 +458,10 @@ export function generateInviteEmailHTML(
             <td style="padding: 0 20px; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af;">
                 Sent via
-                <img src="https://financely.app/financely-f.svg"
+                <img src="${APP_ORIGIN}/financely-f.svg"
                      alt="" width="14" height="14"
                      style="width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; display: inline-block; margin: 0 2px 1px;" />
-                <a href="https://financely.app" style="color: #1a7a3c; text-decoration: none; font-weight: 600;">Financely</a>
+                <a href="${APP_ORIGIN}" style="color: #1a7a3c; text-decoration: none; font-weight: 600;">Financely</a>
                 &nbsp;&middot;&nbsp; The financial platform for modern teams
               </p>
               <p style="margin: 0; font-size: 12px; color: #d1d5db; line-height: 1.6;">

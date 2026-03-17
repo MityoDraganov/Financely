@@ -63,6 +63,12 @@ export const RATE_LIMIT_CONFIG: Record<string, FunctionRateLimitConfig> = {
       windowSeconds: 3600, // per hour
     },
   },
+  "get-public-product-page": {
+    perIp: {
+      maxRequests: 120, // 120 requests
+      windowSeconds: 60, // per minute
+    },
+  },
   "get-analytics-config": {
     perIp: {
       maxRequests: 60, // 60 requests
@@ -85,6 +91,7 @@ export const REQUEST_SIZE_LIMITS: Record<string, number> = {
   "submit-widget-form": 50 * 1024, // 50 KB - enough for form data
   "store-analytics-event": 10 * 1024, // 10 KB - analytics events should be compact
   "get-widget-config": 1024, // 1 KB - query params only
+  "get-public-product-page": 2048, // 2 KB - query params only
   "get-analytics-config": 1024, // 1 KB - query params only
 };
 
@@ -101,4 +108,3 @@ export function getRateLimitConfig(functionName: string): FunctionRateLimitConfi
 export function getRequestSizeLimit(functionName: string): number {
   return REQUEST_SIZE_LIMITS[functionName] || 10 * 1024; // Default 10 KB
 }
-

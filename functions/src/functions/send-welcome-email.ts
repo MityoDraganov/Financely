@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loggerService } from "../services/logger-service";
 import { ResendEmailService } from "../services/resend-email-service";
 import { defineSecret } from "firebase-functions/params";
+import { buildAppUrl } from "../config/app-url";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -60,7 +61,7 @@ export const sendWelcomeEmail = onCall<SendWelcomeEmailPayload>(
 
       // Prepare email content
       const userName = userData.name || userData.displayName || "there";
-      const dashboardUrl = "https://financely.app/dashboard";
+      const dashboardUrl = buildAppUrl("/dashboard");
       const subject = `Welcome to ${orgData.name}, ${userName}!`;
       const html = `
         <h1>Welcome ${userName}!</h1>

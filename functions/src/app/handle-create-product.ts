@@ -3,6 +3,7 @@ import { getDatabaseService } from "../services/database-service";
 import { getProductRepository } from "../repositories/product-repository";
 import { getBrandContextCache } from "../services/brand-context-cache";
 import { ZodError } from "zod";
+import { removeUndefinedValues } from "../utils/remove-undefined-values";
 
 /**
  * Application handler for creating a product.
@@ -21,8 +22,30 @@ export async function handleCreateProduct(
   payload: CreateProductInput
 ): Promise<string> {
   try {
+    const normalizedPayload = removeUndefinedValues({
+      ...payload,
+      description: payload.description ?? undefined,
+      sku: payload.sku ?? undefined,
+      barcode: payload.barcode ?? undefined,
+      stockQuantity: payload.stockQuantity ?? undefined,
+      lowStockThreshold: payload.lowStockThreshold ?? undefined,
+      category: payload.category ?? undefined,
+      weight: payload.weight ?? undefined,
+      taxRate: payload.taxRate ?? undefined,
+      cost: payload.cost ?? undefined,
+      dimensions: payload.dimensions
+        ? {
+            ...payload.dimensions,
+            length: payload.dimensions.length ?? undefined,
+            width: payload.dimensions.width ?? undefined,
+            height: payload.dimensions.height ?? undefined,
+            unit: payload.dimensions.unit ?? undefined,
+          }
+        : undefined,
+    });
+
     // Validate the payload
-    const validatedData = productDataSchema.parse(payload);
+    const validatedData = productDataSchema.parse(normalizedPayload);
 
     // Get database service and repository
     const databaseService = getDatabaseService();
@@ -55,4 +78,3 @@ export async function handleCreateProduct(
     throw error;
   }
 }
-

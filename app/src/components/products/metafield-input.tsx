@@ -1,18 +1,21 @@
 import { useState, useRef } from "react";
-import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video } from "lucide-react";
+import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverAnchor, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { Calendar } from "@/components/ui/calendar";
 import { MetafieldDefinition } from "@/core";
 import { useMetaobjects, useMetaobjectDefinitions, useCreateMetaobject } from "@/hooks/repository-hooks/use-metaobjects";
 import { toast } from "sonner";
 import { CreateMetaobjectEntryDialog } from "./create-metaobject-entry-dialog";
 import { SelectFileDialog } from "./select-file-dialog";
+import type { DateRange } from "react-day-picker";
 
 interface MetafieldInputProps {
   definition: MetafieldDefinition;
@@ -22,6 +25,85 @@ interface MetafieldInputProps {
   organizationId?: string;
 }
 
+type SelectOption = {
+  label: string;
+  value: string;
+};
+
+type DateSelectionMode = "single" | "period";
+type DatePrecision = "date" | "month";
+type DateConfig = {
+  selectionMode: DateSelectionMode;
+  precision: DatePrecision;
+};
+
+type YearMonth = {
+  year: number;
+  month: number;
+};
+
+const EMPTY_SELECT_VALUE = "__metafield_empty_value__";
+const PERIOD_SEPARATOR = "..";
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const DEFAULT_DATE_CONFIG: DateConfig = {
+  selectionMode: "single",
+  precision: "date",
+};
+
+const formatDateValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateValue = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const parseDateRangeValue = (value: string): DateRange | null => {
+  if (!value.includes(PERIOD_SEPARATOR)) return null;
+  const [fromRaw, toRaw] = value.split(PERIOD_SEPARATOR);
+  if (!fromRaw || !toRaw) return null;
+  const from = parseDateValue(fromRaw);
+  const to = parseDateValue(toRaw);
+  if (!from || !to) return null;
+  return { from, to };
+};
+
+const formatYearMonthValue = (year: number, month: number): string => {
+  return `${year}-${String(month).padStart(2, "0")}`;
+};
+
+const parseYearMonthValue = (value: string): YearMonth | null => {
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+  return { year, month };
+};
+
+const parseYearMonthRangeValue = (value: string): { start: YearMonth; end: YearMonth } | null => {
+  if (!value.includes(PERIOD_SEPARATOR)) return null;
+  const [startRaw, endRaw] = value.split(PERIOD_SEPARATOR);
+  if (!startRaw || !endRaw) return null;
+  const start = parseYearMonthValue(startRaw);
+  const end = parseYearMonthValue(endRaw);
+  if (!start || !end) return null;
+  return { start, end };
+};
+
+const compareYearMonth = (a: YearMonth, b: YearMonth): number => {
+  if (a.year !== b.year) return a.year - b.year;
+  return a.month - b.month;
+};
+
+const formatReadableYearMonth = (value: YearMonth): string => `${MONTH_LABELS[value.month - 1]} ${value.year}`;
+
 const getTypeLabel = (type: string): string => {
   const isList = type.startsWith("list.");
   const baseType = isList ? type.replace("list.", "") : type;
@@ -30,7 +112,7 @@ const getTypeLabel = (type: string): string => {
     single_line_text_field: "Single line text",
     multi_line_text_field: "Multi-line text",
     rich_text_field: "Rich text",
-    single_line_text_field_choice_list: "Choice list",
+    single_line_text_field_choice_list: "Select",
     single_line_text_field_email: "Email",
     number_integer: "Integer",
     number_decimal: "Decimal",
@@ -55,7 +137,7 @@ const getTypeLabel = (type: string): string => {
     mixed_reference: "Mixed reference",
     link: "Link",
     url: "URL",
-    date: "Date",
+    date: "Date / period",
     date_time: "Date and time",
     boolean: "True or false",
     color: "Color",
@@ -69,6 +151,17 @@ const getTypeLabel = (type: string): string => {
 export function MetafieldInput({ definition, value, onChange, error, organizationId }: MetafieldInputProps) {
   const isListType = definition.type.startsWith("list.");
   const baseType = isListType ? definition.type.replace("list.", "") : definition.type;
+  const rawSelectOptions = (definition.options?.selectOptions || []) as SelectOption[];
+  const selectOptions = rawSelectOptions
+    .map((option) => ({
+      label: option.label.trim(),
+      value: option.value.trim(),
+    }))
+    .filter((option) => option.label.length > 0 && option.value.length > 0);
+  const dateConfig: DateConfig = {
+    selectionMode: definition.options?.dateConfig?.selectionMode || DEFAULT_DATE_CONFIG.selectionMode,
+    precision: definition.options?.dateConfig?.precision || DEFAULT_DATE_CONFIG.precision,
+  };
   
   const { data: metaobjects = [], error: metaobjectsError } = useMetaobjects(organizationId);
   if (metaobjectsError) {
@@ -93,6 +186,9 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
   const createMetaobjectMutation = useCreateMetaobject();
   const [fileDialogOpen, setFileDialogOpen] = useState(false);
   const [fileDialogFieldType, setFileDialogFieldType] = useState<"file_reference" | "file_reference_image" | "file_reference_video" | null>(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
+  const [pendingMonthPeriodStart, setPendingMonthPeriodStart] = useState<string | null>(null);
 
   const handleChange = (newValue: unknown) => {
     onChange(newValue);
@@ -479,11 +575,242 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
     );
   };
 
+  const renderDateInput = (currentValue: unknown, onValueChange: (val: unknown) => void) => {
+    const rawValue = typeof currentValue === "string" ? currentValue : "";
+
+    if (dateConfig.precision === "date") {
+      const selectedDate = parseDateValue(rawValue);
+      const selectedRange = parseDateRangeValue(rawValue);
+      const displayValue = dateConfig.selectionMode === "single"
+        ? (selectedDate ? selectedDate.toLocaleDateString() : rawValue)
+        : (selectedRange?.from && selectedRange?.to
+          ? `${selectedRange.from.toLocaleDateString()} - ${selectedRange.to.toLocaleDateString()}`
+          : rawValue);
+
+      return (
+        <div className="space-y-2">
+          <Popover
+            open={isDatePickerOpen}
+            onOpenChange={(open) => {
+              setIsDatePickerOpen(open);
+              if (!open) setPendingMonthPeriodStart(null);
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Input
+                readOnly
+                role="button"
+                value={displayValue || ""}
+                onFocus={() => setIsDatePickerOpen(true)}
+                onClick={() => setIsDatePickerOpen(true)}
+                placeholder={dateConfig.selectionMode === "period" ? "Select start and end dates" : "Select a date"}
+                className={error ? "border-destructive cursor-pointer" : "cursor-pointer"}
+              />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              {dateConfig.selectionMode === "single" ? (
+                <Calendar
+                  mode="single"
+                  selected={selectedDate || undefined}
+                  onSelect={(selected) => {
+                    if (!selected) {
+                      onValueChange(undefined);
+                      return;
+                    }
+                    onValueChange(formatDateValue(selected));
+                    setIsDatePickerOpen(false);
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <Calendar
+                  mode="range"
+                  selected={selectedRange || undefined}
+                  onSelect={(selected) => {
+                    if (!selected?.from || !selected?.to) return;
+                    const start = selected.from <= selected.to ? selected.from : selected.to;
+                    const end = selected.from <= selected.to ? selected.to : selected.from;
+                    onValueChange(`${formatDateValue(start)}${PERIOD_SEPARATOR}${formatDateValue(end)}`);
+                    setIsDatePickerOpen(false);
+                  }}
+                  numberOfMonths={2}
+                  autoFocus
+                />
+              )}
+            </PopoverContent>
+          </Popover>
+          {(currentValue != null && currentValue !== "") ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onValueChange(undefined);
+                setPendingMonthPeriodStart(null);
+              }}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              Clear
+            </Button>
+          ) : null}
+        </div>
+      );
+    }
+
+    const selectedMonth = parseYearMonthValue(rawValue);
+    const selectedMonthRange = parseYearMonthRangeValue(rawValue);
+    const triggerLabel = dateConfig.selectionMode === "single"
+      ? (selectedMonth ? formatReadableYearMonth(selectedMonth) : rawValue)
+      : (selectedMonthRange
+        ? `${formatReadableYearMonth(selectedMonthRange.start)} - ${formatReadableYearMonth(selectedMonthRange.end)}`
+        : rawValue);
+
+    const monthCells = MONTH_LABELS.map((monthLabel, index) => {
+      const monthNumber = index + 1;
+      const clicked = { year: monthPickerYear, month: monthNumber };
+      const clickedValue = formatYearMonthValue(clicked.year, clicked.month);
+
+      const pendingStart = pendingMonthPeriodStart ? parseYearMonthValue(pendingMonthPeriodStart) : null;
+      const isPendingStart = !!pendingStart && pendingStart.year === clicked.year && pendingStart.month === clicked.month;
+
+      const isSingleSelected = dateConfig.selectionMode === "single"
+        && !!selectedMonth
+        && selectedMonth.year === clicked.year
+        && selectedMonth.month === clicked.month;
+
+      const isInRange = dateConfig.selectionMode === "period" && !!selectedMonthRange
+        && compareYearMonth(clicked, selectedMonthRange.start) >= 0
+        && compareYearMonth(clicked, selectedMonthRange.end) <= 0;
+
+      const isRangeEdge = dateConfig.selectionMode === "period" && !!selectedMonthRange
+        && (
+          (selectedMonthRange.start.year === clicked.year && selectedMonthRange.start.month === clicked.month)
+          || (selectedMonthRange.end.year === clicked.year && selectedMonthRange.end.month === clicked.month)
+        );
+
+      return (
+        <Button
+          key={`${monthPickerYear}-${monthNumber}`}
+          type="button"
+          variant="ghost"
+          className={[
+            "justify-center",
+            isSingleSelected || isPendingStart || isRangeEdge ? "bg-primary text-primary-foreground hover:bg-primary/90" : "",
+            !isRangeEdge && isInRange ? "bg-muted" : "",
+          ].join(" ").trim()}
+          onClick={() => {
+            if (dateConfig.selectionMode === "single") {
+              onValueChange(clickedValue);
+              setIsDatePickerOpen(false);
+              return;
+            }
+
+            if (!pendingMonthPeriodStart) {
+              setPendingMonthPeriodStart(clickedValue);
+              return;
+            }
+
+            const startParsed = parseYearMonthValue(pendingMonthPeriodStart);
+            if (!startParsed) {
+              setPendingMonthPeriodStart(clickedValue);
+              return;
+            }
+            const orderedStart = compareYearMonth(startParsed, clicked) <= 0 ? startParsed : clicked;
+            const orderedEnd = compareYearMonth(startParsed, clicked) <= 0 ? clicked : startParsed;
+            onValueChange(
+              `${formatYearMonthValue(orderedStart.year, orderedStart.month)}${PERIOD_SEPARATOR}${formatYearMonthValue(orderedEnd.year, orderedEnd.month)}`,
+            );
+            setPendingMonthPeriodStart(null);
+            setIsDatePickerOpen(false);
+          }}
+        >
+          {monthLabel}
+        </Button>
+      );
+    });
+
+    return (
+      <div className="space-y-2">
+        <Popover
+          open={isDatePickerOpen}
+          onOpenChange={(open) => {
+            setIsDatePickerOpen(open);
+            if (!open) setPendingMonthPeriodStart(null);
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Input
+              readOnly
+              role="button"
+              value={triggerLabel || ""}
+              onFocus={() => {
+                const initialYear = selectedMonth?.year || selectedMonthRange?.start.year || new Date().getFullYear();
+                setMonthPickerYear(initialYear);
+                setIsDatePickerOpen(true);
+              }}
+              onClick={() => setIsDatePickerOpen(true)}
+              placeholder={dateConfig.selectionMode === "period" ? "Select month range" : "Select month"}
+              className={error ? "border-destructive cursor-pointer" : "cursor-pointer"}
+            />
+          </PopoverTrigger>
+          <PopoverContent className="w-[320px] p-3 space-y-3" align="start">
+            <div className="flex items-center justify-between">
+              <Button type="button" variant="ghost" size="icon" onClick={() => setMonthPickerYear((year) => year - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-sm font-medium">{monthPickerYear}</div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setMonthPickerYear((year) => year + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {monthCells}
+            </div>
+            {dateConfig.selectionMode === "period" && pendingMonthPeriodStart && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  Start: {
+                    (() => {
+                      const start = parseYearMonthValue(pendingMonthPeriodStart);
+                      return start ? formatReadableYearMonth(start) : pendingMonthPeriodStart;
+                    })()
+                  }
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setPendingMonthPeriodStart(null)}
+                >
+                  Reset start
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+        {(currentValue != null && currentValue !== "") ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onValueChange(undefined);
+              setPendingMonthPeriodStart(null);
+            }}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            Clear
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderSingleInput = (type: string, currentValue: unknown, onValueChange: (val: unknown) => void, isList: boolean = false) => {
     switch (type) {
       case "single_line_text_field":
       case "single_line_text_field_email":
-      case "single_line_text_field_choice_list":
       case "url":
       case "link":
         return (
@@ -494,6 +821,54 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
             className={error ? "border-destructive" : ""}
           />
         );
+
+      case "single_line_text_field_choice_list": {
+        const normalizedValue = currentValue === null || currentValue === undefined
+          ? EMPTY_SELECT_VALUE
+          : String(currentValue);
+        const hasCurrentOption = normalizedValue !== EMPTY_SELECT_VALUE
+          && selectOptions.some((option) => option.value === normalizedValue);
+
+        return (
+          <div className="space-y-2">
+            <Select
+              value={normalizedValue}
+              onValueChange={(selectedValue) =>
+                onValueChange(selectedValue === EMPTY_SELECT_VALUE ? undefined : selectedValue)
+              }
+            >
+              <SelectTrigger className={error ? "border-destructive" : ""}>
+                <SelectValue placeholder="Select an option" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={EMPTY_SELECT_VALUE}>No selection</SelectItem>
+                {selectOptions.map((option, optionIndex) => (
+                  <SelectItem key={`${option.value}-${optionIndex}`} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+                {!hasCurrentOption && normalizedValue !== EMPTY_SELECT_VALUE && (
+                  <SelectItem value={normalizedValue}>{`Current: ${normalizedValue}`}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {selectOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">No select options configured for this field definition.</p>
+            )}
+            {(currentValue != null && currentValue !== "") ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onValueChange(undefined)}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
+        );
+      }
 
       case "multi_line_text_field":
       case "rich_text_field":
@@ -566,27 +941,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
         );
 
       case "date":
-        return (
-          <div className="space-y-2">
-            <Input
-              type="date"
-              value={currentValue === null || currentValue === undefined ? "" : typeof currentValue === "string" ? currentValue.split("T")[0] : String(currentValue)}
-              onChange={(e) => onValueChange(e.target.value || undefined)}
-              className={error ? "border-destructive" : ""}
-            />
-            {(currentValue != null && currentValue !== "") ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onValueChange(undefined)}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                Clear
-              </Button>
-            ) : null}
-          </div>
-        );
+        return renderDateInput(currentValue, onValueChange);
 
       case "date_time":
         return (
@@ -822,6 +1177,8 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
         return 0;
       case "json":
         return {};
+      case "single_line_text_field_choice_list":
+        return selectOptions[0]?.value || "";
       default:
         return "";
     }

@@ -675,6 +675,22 @@ export interface FunctionsService {
   }): Promise<{ id: string }>;
 
   /**
+   * Queue one-time public-page metadata generation for existing products.
+   * This only queues products that are missing/incomplete unless force=true.
+   */
+  backfillProductPublicPages(payload: {
+    organizationId: string;
+    productIds?: string[];
+    force?: boolean;
+  }): Promise<{
+    scannedCount: number;
+    queuedCount: number;
+    skippedCount: number;
+    failedCount: number;
+    triggeredProductIds: string[];
+  }>;
+
+  /**
    * Get analytics metrics for an organization
    */
   getAnalyticsMetrics(payload: {
@@ -1421,6 +1437,14 @@ export interface FunctionsService {
     metaobjectDefinitionId?: string;
     options?: {
       storefrontApiAccess?: boolean;
+      selectOptions?: Array<{
+        label: string;
+        value: string;
+      }>;
+      dateConfig?: {
+        selectionMode?: "single" | "period";
+        precision?: "date" | "month";
+      };
     };
   }): Promise<{ id: string }>;
 
@@ -1433,6 +1457,14 @@ export interface FunctionsService {
     metaobjectDefinitionId?: string;
     options?: {
       storefrontApiAccess?: boolean;
+      selectOptions?: Array<{
+        label: string;
+        value: string;
+      }>;
+      dateConfig?: {
+        selectionMode?: "single" | "period";
+        precision?: "date" | "month";
+      };
     };
   }): Promise<{ id: string }>;
 

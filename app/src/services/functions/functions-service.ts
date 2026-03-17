@@ -509,6 +509,16 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async backfillProductPublicPages(payload) {
+    type BackfillProductPublicPagesPayload = Parameters<FunctionsService["backfillProductPublicPages"]>[0];
+    type BackfillProductPublicPagesResponse = Awaited<ReturnType<FunctionsService["backfillProductPublicPages"]>>;
+    const result = await httpsCallable<
+      BackfillProductPublicPagesPayload,
+      BackfillProductPublicPagesResponse
+    >(firebase.functions, "backfillProductPublicPages")(payload);
+    return result.data;
+  },
+
   async convertProposalToInvoice(payload) {
     type ConvertProposalToInvoicePayload = Parameters<FunctionsService["convertProposalToInvoice"]>[0];
     const result = await httpsCallable<

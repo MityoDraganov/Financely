@@ -57,6 +57,37 @@ export const METAFIELD_TYPE_VALUES = [
 export const metafieldTypeSchema = z.enum(METAFIELD_TYPE_VALUES);
 export type MetafieldType = z.infer<typeof metafieldTypeSchema>;
 
+export const metafieldSelectOptionSchema = z.object({
+  label: z.string().min(1, "Option label is required"),
+  value: z.string().min(1, "Option value is required"),
+});
+
+export const metafieldDateSelectionModeSchema = z.enum(["single", "period"]);
+export const metafieldDatePrecisionSchema = z.enum(["date", "month"]);
+
+export const metafieldDateConfigSchema = z.object({
+  selectionMode: metafieldDateSelectionModeSchema.default("single"),
+  precision: metafieldDatePrecisionSchema.default("date"),
+}).default({
+  selectionMode: "single",
+  precision: "date",
+});
+
+export const metafieldOptionsSchema = z.object({
+  storefrontApiAccess: z.boolean().default(false),
+  publicVisible: z.boolean().default(false),
+  selectOptions: z.array(metafieldSelectOptionSchema).default([]),
+  dateConfig: metafieldDateConfigSchema,
+}).default({
+  storefrontApiAccess: false,
+  publicVisible: false,
+  selectOptions: [],
+  dateConfig: {
+    selectionMode: "single",
+    precision: "date",
+  },
+});
+
 export const metafieldDefinitionDataSchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),
   name: z.string().min(1, "Name is required"),
@@ -67,11 +98,7 @@ export const metafieldDefinitionDataSchema = z.object({
     (value) => (value === null ? undefined : value),
     z.string().optional(),
   ),
-  options: z.object({
-    storefrontApiAccess: z.boolean().default(false),
-  }).default({
-    storefrontApiAccess: false,
-  }),
+  options: metafieldOptionsSchema,
 });
 
 export type MetafieldDefinitionData = z.infer<typeof metafieldDefinitionDataSchema>;
