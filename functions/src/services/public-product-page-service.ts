@@ -187,7 +187,7 @@ export function buildPublicProductSnapshot(
 
     visibleMetafields.push({
       definitionId: definition.id,
-      name: definition.name,
+      name: definition.label || definition.name,
       type: definition.type,
       description: definition.description,
       value: metafield.value,

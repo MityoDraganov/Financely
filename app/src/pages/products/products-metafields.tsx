@@ -22,6 +22,8 @@ import {
   SlidersHorizontal,
   ChevronRight,
   AlertTriangle,
+  Globe,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -430,6 +432,23 @@ function DefinitionSheet({
                   <p className="text-sm font-mono">{formatTypeName(definition.type)}</p>
                 </div>
 
+                <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+                  definition.options?.publicVisible
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-stone-200 bg-stone-50 text-stone-500"
+                }`}>
+                  {definition.options?.publicVisible ? (
+                    <Globe className="h-4 w-4 shrink-0 text-emerald-600" />
+                  ) : (
+                    <EyeOff className="h-4 w-4 shrink-0 text-stone-400" />
+                  )}
+                  <span>
+                    {definition.options?.publicVisible
+                      ? "Visible on public product pages"
+                      : "Hidden from public product pages — enable in edit to show this field"}
+                  </span>
+                </div>
+
                 {definition.options?.storefrontApiAccess && (
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
                     <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
@@ -696,6 +715,17 @@ export default function ProductMetafieldsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{def.name}</span>
                       <TypeBadge type={def.type} />
+                      {def.options?.publicVisible ? (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700">
+                          <Globe className="h-3 w-3" />
+                          Public
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-xs font-medium text-stone-400">
+                          <EyeOff className="h-3 w-3" />
+                          Hidden
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                       {def.description ? (

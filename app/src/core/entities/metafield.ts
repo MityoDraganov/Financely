@@ -91,6 +91,7 @@ export const metafieldOptionsSchema = z.object({
 export const metafieldDefinitionDataSchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),
   name: z.string().min(1, "Name is required"),
+  label: z.string().optional(),
   type: metafieldTypeSchema,
   description: z.string().optional(),
   categoryAssignments: z.array(z.string()).default([]),

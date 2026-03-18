@@ -229,6 +229,7 @@ export function ProductMetafieldDefinitionForm({
 
   const [formData, setFormData] = useState<Partial<CreateMetafieldDefinitionInput>>({
     name: initialData?.name || "",
+    label: initialData?.label || "",
     type: initialData?.type || "single_line_text_field",
     description: initialData?.description || "",
     categoryAssignments: initialData?.categoryAssignments || [],
@@ -250,6 +251,7 @@ export function ProductMetafieldDefinitionForm({
     if (initialData) {
       setFormData({
         name: initialData.name,
+        label: initialData.label || "",
         type: initialData.type,
         description: initialData.description,
         categoryAssignments: initialData.categoryAssignments || [],
@@ -294,6 +296,7 @@ export function ProductMetafieldDefinitionForm({
     if (isEditMode) {
       await onSubmit({
         name: formData.name,
+        label: formData.label || undefined,
         type: formData.type,
         description: formData.description,
         categoryAssignments: formData.categoryAssignments,
@@ -304,6 +307,7 @@ export function ProductMetafieldDefinitionForm({
       await onSubmit({
         organizationId,
         name: formData.name,
+        label: formData.label || undefined,
         type: formData.type!,
         description: formData.description,
         categoryAssignments: formData.categoryAssignments || [],
@@ -402,6 +406,23 @@ export function ProductMetafieldDefinitionForm({
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="e.g., Product Feature"
         />
+      </div>
+
+      {/* Label */}
+      <div>
+        <Label htmlFor="metafield-label">
+          Label{" "}
+          <span className="font-normal text-muted-foreground">(public display name)</span>
+        </Label>
+        <Input
+          id="metafield-label"
+          value={formData.label || ""}
+          onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+          placeholder={formData.name || "Shown on public product pages — defaults to Name if empty"}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Overrides the field name shown to visitors on public product pages.
+        </p>
       </div>
 
       {/* Type */}
