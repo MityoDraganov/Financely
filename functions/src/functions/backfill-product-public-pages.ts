@@ -3,6 +3,7 @@ import { logger } from "firebase-functions";
 import { Product } from "../core/entities/product";
 import { getProductRepository } from "../repositories/product-repository";
 import { getDatabaseService } from "../services/database-service";
+import { PUBLIC_PRODUCT_QR_PACKET_VERSION } from "../services/public-product-page-service";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 
 type BackfillProductPublicPagesInput = {
@@ -31,6 +32,8 @@ function productNeedsPublicPageBackfill(product: Product): boolean {
     if (!publicPage.slug || publicPage.slug.trim().length === 0) return true;
     if (!publicPage.canonicalPath || publicPage.canonicalPath.trim().length === 0) return true;
     if (!publicPage.canonicalUrl || publicPage.canonicalUrl.trim().length === 0) return true;
+    if (!publicPage.qr?.assetUrl) return true;
+    if ((publicPage.qr?.packetVersion || 1) < PUBLIC_PRODUCT_QR_PACKET_VERSION) return true;
   }
 
   return false;

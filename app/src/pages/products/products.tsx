@@ -18,6 +18,8 @@ import { ExportDialog } from "@/components/export-import/export-dialog";
 import { ProductForm } from "@/components/products/product-form";
 import { functionsService } from "@/services/functions/functions-service";
 
+const PUBLIC_PRODUCT_QR_PACKET_VERSION = 3;
+
 export default function ProductsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -45,6 +47,8 @@ export default function ProductsPage() {
       if (!publicPage.state) return true;
       if (product.status === "active") {
         if (!publicPage.slug || !publicPage.canonicalPath || !publicPage.canonicalUrl) return true;
+        if (!publicPage.qr?.assetUrl) return true;
+        if ((publicPage.qr?.packetVersion || 1) < PUBLIC_PRODUCT_QR_PACKET_VERSION) return true;
       }
       return false;
     });
@@ -56,7 +60,7 @@ export default function ProductsPage() {
     if (products.length === 0) return;
     if (productsMissingPublicPage.length === 0) return;
 
-    const sessionKey = `product-public-page-backfill:${currentOrganization.id}`;
+    const sessionKey = `product-public-page-backfill:${currentOrganization.id}:v${PUBLIC_PRODUCT_QR_PACKET_VERSION}`;
     if (sessionStorage.getItem(sessionKey) === "done") {
       setDidTriggerPublicPageBackfill(true);
       return;

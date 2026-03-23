@@ -11,6 +11,8 @@ import {
 	Weight,
 	X,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { buildQrCodeServerUrl } from "@/services/qr-code-url";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { projectId } from "@/infrastructure/firebase";
@@ -538,6 +540,14 @@ export default function PublicProductPage() {
 		}
 	})();
 
+	const qrValue = data.canonicalUrl;
+	const qrDownloadUrl = buildQrCodeServerUrl(qrValue, {
+		size: 768,
+		level: "M",
+		marginSize: 0,
+		format: "png",
+	});
+
 	return (
 		<>
 			<style>{`
@@ -864,23 +874,28 @@ export default function PublicProductPage() {
 					)}
 
 					{/* ── QR Code ── */}
-					{data.product.qr?.assetUrl && (
+					{qrValue && (
 						<>
 							<Separator className="my-10 sm:my-14 bg-stone-200" />
 							<div className="pp-fade pp-fade-3 flex items-start gap-5">
 								{/* QR image — fixed size with white quiet zone, never cropped */}
 								<a
-									href={data.product.qr.assetUrl}
+									href={qrDownloadUrl}
 									target="_blank"
-									download={`${fields.name}-qr.png`}
+									rel="noopener noreferrer"
+									download={`${fields.name}-qr-client.png`}
 									title="Download QR code"
 									className="shrink-0 border border-stone-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
 								>
-									<img
-										src={data.product.qr.assetUrl}
-										alt="Product QR Code"
-										className="h-48 w-48 object-contain block"
-									/>
+									<div className="h-48 w-48 bg-white grid place-items-center">
+										<QRCodeSVG
+											value={qrValue}
+											size={192}
+											level="M"
+											marginSize={0}
+											title="Product QR code"
+										/>
+									</div>
 								</a>
 								<div className="space-y-1 pt-1">
 									<div className="flex items-center gap-1.5">
@@ -894,9 +909,10 @@ export default function PublicProductPage() {
 										this page.
 									</p>
 									<a
-										href={data.product.qr.assetUrl}
+										href={qrDownloadUrl}
 										target="_blank"
-										download={`${fields.name}-qr.png`}
+										rel="noopener noreferrer"
+										download={`${fields.name}-qr-client.png`}
 										title="Download QR code"
                     className="pp-underline-link text-stone-400"
 									>
@@ -904,6 +920,20 @@ export default function PublicProductPage() {
 											Click to download as PNG.
 										</p>
 									</a>
+									{data.product.qr?.assetUrl && (
+										<a
+											href={data.product.qr.assetUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+											download={`${fields.name}-qr-server.png`}
+											title="Download stored QR asset"
+											className="pp-underline-link text-stone-400"
+										>
+											<p className="text-xs">
+												Download stored server PNG.
+											</p>
+										</a>
+									)}
 								</div>
 							</div>
 						</>

@@ -10,7 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, ExternalLink, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
+import { buildQrCodeServerUrl } from "@/services/qr-code-url";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +74,16 @@ export default function ProductDetailPage() {
     );
   }
 
+  const qrValue = product.publicPage?.canonicalUrl || null;
+  const qrDownloadUrl = qrValue
+    ? buildQrCodeServerUrl(qrValue, {
+        size: 768,
+        level: "M",
+        marginSize: 0,
+        format: "png",
+      })
+    : null;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -103,22 +115,33 @@ export default function ProductDetailPage() {
                   <div>QR generated: {product.publicPage?.qr?.generatedAt || "—"}</div>
                   <div>QR mode: {product.publicPage?.qr?.payloadMode || "—"}</div>
                 </div>
-                {product.publicPage?.qr?.assetUrl ? (
-                  <a
-                    href={product.publicPage.qr.assetUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex flex-col items-center gap-2"
-                  >
-                    <img
-                      src={product.publicPage.qr.assetUrl}
-                      alt={`${product.name} QR code`}
-                      className="h-28 w-28 rounded border object-cover"
-                    />
-                    <span className="text-xs text-muted-foreground">Open or download QR</span>
-                  </a>
+                {qrValue ? (
+                  <div className="inline-flex flex-col items-center gap-2">
+                    <a href={qrDownloadUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+                      <div className="h-28 w-28 rounded border bg-white grid place-items-center">
+                        <QRCodeSVG
+                          value={qrValue}
+                          size={96}
+                          level="M"
+                          marginSize={0}
+                          title={`${product.name} QR code`}
+                        />
+                      </div>
+                    </a>
+                    <span className="text-xs text-muted-foreground">URL QR (opens public page)</span>
+                    {product.publicPage?.qr?.assetUrl && (
+                      <a
+                        href={product.publicPage.qr.assetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-muted-foreground underline underline-offset-4"
+                      >
+                        Open stored server PNG
+                      </a>
+                    )}
+                  </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">QR asset is being prepared.</div>
+                  <div className="text-xs text-muted-foreground">QR cannot be generated until canonical URL exists.</div>
                 )}
               </div>
             </>

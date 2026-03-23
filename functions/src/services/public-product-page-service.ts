@@ -9,6 +9,9 @@ import { ProductMetafield } from "../core/entities/product-metafield";
 
 const HYBRID_QR_MAX_CHARS = 2200;
 const TEXT_QR_MAX_CHARS = 1800;
+export const PUBLIC_PRODUCT_QR_PACKET_VERSION = 3;
+const OFFLINE_PACKET_MARKER = `FINANCELY_PUBLIC_PRODUCT_PACKET_V${PUBLIC_PRODUCT_QR_PACKET_VERSION}`;
+const ABSOLUTE_URL_PATTERN = /\bhttps?:\/\/[^\s]+/gi;
 
 export type PublicMetafieldView = {
   definitionId: string;
@@ -45,6 +48,7 @@ export type QrPayloadBuildResult = {
   payload: string;
   mode: "hybrid" | "text-only";
   payloadHash: string;
+  packetVersion: number;
   richPacket: string;
   plainText: string;
 };
@@ -218,23 +222,65 @@ export function buildPublicProductSnapshot(
   };
 }
 
+function parseCanonicalLocation(canonicalUrl: string): { host: string; path: string } {
+  try {
+    const parsed = new URL(canonicalUrl);
+    const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return {
+      host: parsed.host,
+      path: path || "/",
+    };
+  } catch {
+    const withoutScheme = canonicalUrl.replace(/^https?:\/\//i, "");
+    const firstSlash = withoutScheme.indexOf("/");
+    if (firstSlash === -1) {
+      return { host: withoutScheme, path: "/" };
+    }
+
+    const host = withoutScheme.slice(0, firstSlash);
+    const path = withoutScheme.slice(firstSlash) || "/";
+    return { host, path };
+  }
+}
+
+function defangAbsoluteUrl(url: string): string {
+  const withoutScheme = url.replace(/^https?:\/\//i, "");
+  const cleaned = withoutScheme.replace(/\/+$/g, "");
+  return cleaned.replace(/\./g, "[.]").replace(/\//g, " / ");
+}
+
+function sanitizeTextForQr(value: string): string {
+  return value.replace(ABSOLUTE_URL_PATTERN, (match) => `[link ${defangAbsoluteUrl(match)}]`);
+}
+
+function splitHostLabels(host: string): string[] {
+  return host
+    .split(".")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function toPublicPlainText(canonicalUrl: string, snapshot: PublicProductSnapshot): string {
+  const location = parseCanonicalLocation(canonicalUrl);
+  const hostLabels = splitHostLabels(location.host);
   const lines: string[] = [];
   lines.push("Financely Product Card (Offline)");
-  lines.push(`URL: ${canonicalUrl}`);
+  lines.push("Online page reference (manual entry when online):");
+  if (hostLabels.length > 0) lines.push(`- Host labels: ${hostLabels.join(" / ")}`);
+  lines.push(`- Path: ${location.path}`);
   lines.push("");
-  lines.push(`Name: ${snapshot.fields.name}`);
-  if (snapshot.fields.description) lines.push(`Description: ${snapshot.fields.description}`);
-  lines.push(`Price: ${snapshot.fields.price} ${snapshot.fields.currency}`);
-  if (snapshot.fields.category) lines.push(`Category: ${snapshot.fields.category}`);
-  if (snapshot.fields.sku) lines.push(`SKU: ${snapshot.fields.sku}`);
-  if (snapshot.fields.barcode) lines.push(`Barcode: ${snapshot.fields.barcode}`);
+  lines.push(`Name: ${sanitizeTextForQr(snapshot.fields.name)}`);
+  if (snapshot.fields.description) lines.push(`Description: ${sanitizeTextForQr(snapshot.fields.description)}`);
+  lines.push(`Price: ${snapshot.fields.price} ${sanitizeTextForQr(snapshot.fields.currency)}`);
+  if (snapshot.fields.category) lines.push(`Category: ${sanitizeTextForQr(snapshot.fields.category)}`);
+  if (snapshot.fields.sku) lines.push(`SKU: ${sanitizeTextForQr(snapshot.fields.sku)}`);
+  if (snapshot.fields.barcode) lines.push(`Barcode: ${sanitizeTextForQr(snapshot.fields.barcode)}`);
 
   if (snapshot.metafields.length > 0) {
     lines.push("");
     lines.push("Metafields:");
     for (const metafield of snapshot.metafields) {
-      lines.push(`- ${metafield.name}: ${metafield.displayValue}`);
+      lines.push(`- ${sanitizeTextForQr(metafield.name)}: ${sanitizeTextForQr(metafield.displayValue)}`);
     }
   }
 
@@ -257,24 +303,51 @@ export function buildQrPayload(
   canonicalUrl: string,
   snapshot: PublicProductSnapshot,
 ): QrPayloadBuildResult {
+  const location = parseCanonicalLocation(canonicalUrl);
+  const hostLabels = splitHostLabels(location.host);
   const plainText = toPublicPlainText(canonicalUrl, snapshot);
+  const safeFields = compactObject({
+    name: sanitizeTextForQr(snapshot.fields.name),
+    description: snapshot.fields.description ? sanitizeTextForQr(snapshot.fields.description) : undefined,
+    price: snapshot.fields.price,
+    currency: sanitizeTextForQr(snapshot.fields.currency),
+    sku: snapshot.fields.sku ? sanitizeTextForQr(snapshot.fields.sku) : undefined,
+    barcode: snapshot.fields.barcode ? sanitizeTextForQr(snapshot.fields.barcode) : undefined,
+    category: snapshot.fields.category ? sanitizeTextForQr(snapshot.fields.category) : undefined,
+    tags: snapshot.fields.tags?.map((tag) => sanitizeTextForQr(tag)),
+    taxRate: snapshot.fields.taxRate,
+    weight: snapshot.fields.weight,
+    dimensions: snapshot.fields.dimensions,
+  });
+  const safeMetafields = snapshot.metafields.map((metafield) =>
+    compactObject({
+      definitionId: metafield.definitionId,
+      name: sanitizeTextForQr(metafield.name),
+      type: metafield.type,
+      description: metafield.description ? sanitizeTextForQr(metafield.description) : undefined,
+      displayValue: sanitizeTextForQr(metafield.displayValue),
+    }),
+  );
   const richPacket = JSON.stringify({
-    version: 1,
+    version: PUBLIC_PRODUCT_QR_PACKET_VERSION,
     kind: "financely.publicProduct",
-    canonicalUrl,
+    canonicalRoute: {
+      hostLabels,
+      path: location.path,
+    },
     productId: snapshot.productId,
     organizationId: snapshot.organizationId,
-    fields: snapshot.fields,
-    metafields: snapshot.metafields,
+    fields: safeFields,
+    metafields: safeMetafields,
   });
 
-  const hybrid = `${canonicalUrl}\n\n[[FINANCELY_RICH_JSON]]\n${richPacket}\n\n[[FINANCELY_TEXT_FALLBACK]]\n${plainText}`;
+  const hybrid = `${OFFLINE_PACKET_MARKER}\n\n${plainText}\n\n[[FINANCELY_RICH_JSON]]\n${richPacket}`;
   let payload = hybrid;
   let mode: "hybrid" | "text-only" = "hybrid";
 
   if (hybrid.length > HYBRID_QR_MAX_CHARS) {
     const compactText = truncateAtLineBoundaries(plainText, TEXT_QR_MAX_CHARS);
-    payload = `${canonicalUrl}\n\n${compactText}`;
+    payload = `${OFFLINE_PACKET_MARKER}\n\n${compactText}`;
     mode = "text-only";
   }
 
@@ -282,6 +355,7 @@ export function buildQrPayload(
     payload,
     mode,
     payloadHash: createHash("sha256").update(payload).digest("hex"),
+    packetVersion: PUBLIC_PRODUCT_QR_PACKET_VERSION,
     richPacket,
     plainText,
   };

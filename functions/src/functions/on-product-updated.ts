@@ -19,6 +19,7 @@ import {
   buildPublicProductSnapshot,
   buildQrPayload,
   normalizeSlugAliases,
+  PUBLIC_PRODUCT_QR_PACKET_VERSION,
   resolvePublicProductBaseUrl,
   slugifySegment,
   storePublicQrAsset,
@@ -163,6 +164,7 @@ export const onProductWritten = onDocumentWritten(
             assetUrl?: string;
             payloadMode: "hybrid" | "text-only";
             payloadHash?: string;
+            packetVersion: number;
             generatedAt?: string;
             storagePath?: string;
             version: number;
@@ -187,13 +189,15 @@ export const onProductWritten = onDocumentWritten(
         const unchangedQr =
           existingQr?.payloadHash === qrPayload.payloadHash &&
           existingQr?.assetUrl &&
-          existingQr?.payloadMode === qrPayload.mode;
+          existingQr?.payloadMode === qrPayload.mode &&
+          (existingQr?.packetVersion || 1) === qrPayload.packetVersion;
 
         if (unchangedQr) {
           qr = {
             assetUrl: existingQr.assetUrl,
             payloadMode: existingQr.payloadMode,
             payloadHash: existingQr.payloadHash,
+            packetVersion: existingQr.packetVersion || PUBLIC_PRODUCT_QR_PACKET_VERSION,
             generatedAt: existingQr.generatedAt,
             storagePath: existingQr.storagePath,
             version: existingQr.version || 1,
@@ -206,6 +210,7 @@ export const onProductWritten = onDocumentWritten(
               assetUrl,
               payloadMode: qrPayload.mode,
               payloadHash: qrPayload.payloadHash,
+              packetVersion: qrPayload.packetVersion,
               generatedAt: now,
               storagePath,
               version: (existingQr?.version || 0) + 1,
@@ -220,6 +225,7 @@ export const onProductWritten = onDocumentWritten(
               assetUrl: currentProduct.publicPage?.qr?.assetUrl,
               payloadMode: qrPayload.mode,
               payloadHash: qrPayload.payloadHash,
+              packetVersion: qrPayload.packetVersion,
               generatedAt: currentProduct.publicPage?.qr?.generatedAt,
               storagePath: currentProduct.publicPage?.qr?.storagePath,
               version: currentProduct.publicPage?.qr?.version || 1,

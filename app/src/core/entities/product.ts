@@ -5,6 +5,7 @@ export const productPublicQrSchema = z.object({
   assetUrl: z.string().url().optional(),
   payloadMode: z.enum(["hybrid", "text-only"]).default("hybrid"),
   payloadHash: z.string().optional(),
+  packetVersion: z.number().int().min(1).default(1),
   generatedAt: z.string().optional(),
   storagePath: z.string().optional(),
   version: z.number().int().min(1).default(1),
