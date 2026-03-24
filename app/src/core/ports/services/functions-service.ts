@@ -1441,12 +1441,13 @@ export interface FunctionsService {
         label: string;
         value: string;
       }>;
-      dateConfig?: {
-        selectionMode?: "single" | "period";
-        precision?: "date" | "month";
-      };
-    };
-  }): Promise<{ id: string }>;
+	      dateConfig?: {
+	        selectionMode?: "single" | "period";
+	        precision?: "date" | "month";
+	        displayMode?: "numeric" | "localized";
+	      };
+	    };
+	  }): Promise<{ id: string }>;
 
   createContactMetafieldDefinition(payload: {
     organizationId: string;
@@ -1461,12 +1462,13 @@ export interface FunctionsService {
         label: string;
         value: string;
       }>;
-      dateConfig?: {
-        selectionMode?: "single" | "period";
-        precision?: "date" | "month";
-      };
-    };
-  }): Promise<{ id: string }>;
+	      dateConfig?: {
+	        selectionMode?: "single" | "period";
+	        precision?: "date" | "month";
+	        displayMode?: "numeric" | "localized";
+	      };
+	    };
+	  }): Promise<{ id: string }>;
 
   /**
    * Interpret a business description using AI during onboarding.

@@ -24,14 +24,21 @@ function productNeedsPublicPageBackfill(product: Product): boolean {
   const publicPage = product.publicPage;
 
   if (!publicPage) return true;
+  if (!publicPage.slugCanonical) return true;
   if (!Array.isArray(publicPage.slugAliases)) return true;
+  if (!Array.isArray(publicPage.slugLookup) || publicPage.slugLookup.length === 0) return true;
+  if (!publicPage.orgSlugCanonical) return true;
   if (typeof publicPage.version !== "number" || publicPage.version < 1) return true;
   if (publicPage.state !== "published" && publicPage.state !== "unavailable") return true;
 
   if (product.status === "active") {
     if (!publicPage.slug || publicPage.slug.trim().length === 0) return true;
+    if (!publicPage.collectionSlug || publicPage.collectionSlug.trim().length === 0) return true;
+    if (!publicPage.collectionLabel || publicPage.collectionLabel.trim().length === 0) return true;
     if (!publicPage.canonicalPath || publicPage.canonicalPath.trim().length === 0) return true;
     if (!publicPage.canonicalUrl || publicPage.canonicalUrl.trim().length === 0) return true;
+    if (!publicPage.listingCard) return true;
+    if (!publicPage.detailSnapshot) return true;
     if (!publicPage.qr?.assetUrl) return true;
     if ((publicPage.qr?.packetVersion || 1) < PUBLIC_PRODUCT_QR_PACKET_VERSION) return true;
   }
@@ -42,11 +49,18 @@ function productNeedsPublicPageBackfill(product: Product): boolean {
 function buildTouchedPublicPage(product: Product, syncTimestamp: string): NonNullable<Product["publicPage"]> {
   return {
     slug: product.publicPage?.slug,
+    slugCanonical: product.publicPage?.slugCanonical,
     slugAliases: product.publicPage?.slugAliases || [],
+    slugLookup: product.publicPage?.slugLookup || [],
+    orgSlugCanonical: product.publicPage?.orgSlugCanonical,
+    collectionSlug: product.publicPage?.collectionSlug,
+    collectionLabel: product.publicPage?.collectionLabel,
     state: product.publicPage?.state || (product.status === "active" ? "published" : "unavailable"),
     canonicalPath: product.publicPage?.canonicalPath,
     canonicalUrl: product.publicPage?.canonicalUrl,
     payloadHash: product.publicPage?.payloadHash,
+    listingCard: product.publicPage?.listingCard,
+    detailSnapshot: product.publicPage?.detailSnapshot,
     version: product.publicPage?.version || 1,
     lastSyncRequestedAt: syncTimestamp,
     lastPublishedAt: product.publicPage?.lastPublishedAt,

@@ -11,7 +11,11 @@ import { getBrandContextCache } from "../services/brand-context-cache";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getProductRepository } from "../repositories/product-repository";
 import { getDatabaseService } from "../services/database-service";
-import { normalizeSlugAliases, slugifySegment } from "../services/public-product-page-service";
+import { normalizeSlugAliases } from "../services/public-product-page-service";
+import {
+  normalizePublicOrgSlug,
+  resolveUniqueOrganizationSlug,
+} from "../services/organization-public-slug-service";
 
 /**
  * Triggered when an organization document is updated.
@@ -45,14 +49,26 @@ export const onOrganizationUpdated = onDocumentUpdated(
         publicPages?: { orgSlug?: string; orgSlugAliases?: string[]; domainPreference?: "custom-first" | "app-only" };
       } | undefined)?.publicPages;
 
-      const previousSlug = slugifySegment(beforePublicPages?.orgSlug || (before?.name as string | undefined) || "");
-      const currentRequestedSlug = slugifySegment(
-        afterPublicPages?.orgSlug || (after.name as string | undefined) || "",
+      const afterName = (after.name as string | undefined) || "";
+      const previousSlug = normalizePublicOrgSlug(
+        beforePublicPages?.orgSlug || (before?.name as string | undefined) || "",
+        organizationId,
       );
+      const requestedSlug = normalizePublicOrgSlug(
+        afterPublicPages?.orgSlug || afterName,
+        organizationId,
+      );
+      const currentRequestedSlug = await resolveUniqueOrganizationSlug({
+        requestedSlug,
+        fallbackName: afterName,
+        organizationId,
+      });
       const mergedAliases = normalizeSlugAliases(
-        previousSlug && previousSlug !== currentRequestedSlug
-          ? [...(afterPublicPages?.orgSlugAliases || []), previousSlug]
-          : afterPublicPages?.orgSlugAliases || [],
+        [
+          ...(afterPublicPages?.orgSlugAliases || []),
+          ...(previousSlug && previousSlug !== currentRequestedSlug ? [previousSlug] : []),
+          ...(requestedSlug && requestedSlug !== currentRequestedSlug ? [requestedSlug] : []),
+        ],
         currentRequestedSlug,
       );
 
@@ -90,11 +106,18 @@ export const onOrganizationUpdated = onDocumentUpdated(
               data: {
                 publicPage: {
                   slug: product.publicPage?.slug,
+                  slugCanonical: product.publicPage?.slugCanonical,
                   slugAliases: product.publicPage?.slugAliases || [],
+                  slugLookup: product.publicPage?.slugLookup || [],
+                  orgSlugCanonical: product.publicPage?.orgSlugCanonical,
+                  collectionSlug: product.publicPage?.collectionSlug,
+                  collectionLabel: product.publicPage?.collectionLabel,
                   state: product.publicPage?.state || (product.status === "active" ? "published" : "unavailable"),
                   canonicalPath: product.publicPage?.canonicalPath,
                   canonicalUrl: product.publicPage?.canonicalUrl,
                   payloadHash: product.publicPage?.payloadHash,
+                  listingCard: product.publicPage?.listingCard,
+                  detailSnapshot: product.publicPage?.detailSnapshot,
                   version: product.publicPage?.version || 1,
                   lastSyncRequestedAt: syncTimestamp,
                   lastPublishedAt: product.publicPage?.lastPublishedAt,

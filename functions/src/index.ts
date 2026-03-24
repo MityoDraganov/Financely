@@ -185,6 +185,7 @@ export { onOrganizationUpdated } from "./functions/on-organization-updated";
 export { onProductWritten } from "./functions/on-product-updated";
 export { onProductMetafieldWritten, onProductMetafieldDefinitionWritten } from "./functions/on-product-metafields-updated";
 export { backfillProductPublicPages } from "./functions/backfill-product-public-pages";
+export { backfillOrganizationPublicSlugs } from "./functions/backfill-organization-public-slugs";
 
 // Billing and usage functions
 export { getUsageHistory } from "./functions/get-usage-history";

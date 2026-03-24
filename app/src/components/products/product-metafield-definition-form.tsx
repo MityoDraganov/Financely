@@ -49,7 +49,11 @@ const SELECT_METAFIELD_TYPE: MetafieldDefinition["type"] = "single_line_text_fie
 const DATE_METAFIELD_TYPE: MetafieldDefinition["type"] = "date";
 
 type SelectOption = { label: string; value: string };
-type DateConfig = { selectionMode: "single" | "period"; precision: "date" | "month" };
+type DateConfig = {
+  selectionMode: "single" | "period";
+  precision: "date" | "month";
+  displayMode: "numeric" | "localized";
+};
 type DeleteAction = "migrate" | "clear";
 
 type PendingDelete = {
@@ -60,7 +64,11 @@ type PendingDelete = {
   migrateTo: string;
 };
 
-const DEFAULT_DATE_CONFIG: DateConfig = { selectionMode: "single", precision: "date" };
+const DEFAULT_DATE_CONFIG: DateConfig = {
+  selectionMode: "single",
+  precision: "date",
+  displayMode: "numeric",
+};
 
 const createEmptySelectOption = (): SelectOption => ({ label: "", value: "" });
 
@@ -81,6 +89,7 @@ const getInitialDateConfig = (definition?: MetafieldDefinition): DateConfig => {
   return {
     selectionMode: dc?.selectionMode || DEFAULT_DATE_CONFIG.selectionMode,
     precision: dc?.precision || DEFAULT_DATE_CONFIG.precision,
+    displayMode: dc?.displayMode || DEFAULT_DATE_CONFIG.displayMode,
   };
 };
 
@@ -290,6 +299,7 @@ export function ProductMetafieldDefinitionForm({
       dateConfig: {
         selectionMode: formData.options?.dateConfig?.selectionMode || DEFAULT_DATE_CONFIG.selectionMode,
         precision: formData.options?.dateConfig?.precision || DEFAULT_DATE_CONFIG.precision,
+        displayMode: formData.options?.dateConfig?.displayMode || DEFAULT_DATE_CONFIG.displayMode,
       },
     };
 
@@ -347,6 +357,7 @@ export function ProductMetafieldDefinitionForm({
   const dateConfig = {
     selectionMode: formData.options?.dateConfig?.selectionMode || DEFAULT_DATE_CONFIG.selectionMode,
     precision: formData.options?.dateConfig?.precision || DEFAULT_DATE_CONFIG.precision,
+    displayMode: formData.options?.dateConfig?.displayMode || DEFAULT_DATE_CONFIG.displayMode,
   } as DateConfig;
 
   // Delete button logic: free delete if not in use; dialog if in use
@@ -462,7 +473,7 @@ export function ProductMetafieldDefinitionForm({
       {formData.type === DATE_METAFIELD_TYPE && (
         <div className="space-y-3 rounded-lg border p-3">
           <Label>Date behavior</Label>
-          <div className="grid gap-3 md:grid-cols-2 md:w-[70%]">
+          <div className="grid gap-3 grid-cols-1">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Value mode</Label>
               <Select
@@ -493,9 +504,24 @@ export function ProductMetafieldDefinitionForm({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Display format</Label>
+              <Select
+                value={dateConfig.displayMode}
+                onValueChange={(value: DateConfig["displayMode"]) =>
+                  updateDateConfig({ ...dateConfig, displayMode: value })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="numeric">Numeric</SelectItem>
+                  <SelectItem value="localized">Localized month names</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Month mode is useful for periods like April–May and does not require an exact day.
+            Numeric keeps ISO-like values. Localized shows month names using visitor language.
           </p>
         </div>
       )}

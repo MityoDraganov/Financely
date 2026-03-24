@@ -1,27 +1,44 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { AlertCircle, Building2, Package, Ruler, Weight } from "lucide-react";
 import {
-	AlertCircle,
-	Building2,
-	Check,
-	ExternalLink,
-	Package,
-	QrCode,
-	Ruler,
-	Weight,
-	X,
-} from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { buildQrCodeServerUrl } from "@/services/qr-code-url";
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { projectId } from "@/infrastructure/firebase";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type PublicBreadcrumbItem = {
+	label: string;
+	path?: string;
+};
 
-type PublicProductResponse =
+type PublicListingCard = {
+	id: string;
+	name: string;
+	price: number;
+	currency: string;
+	image?: string;
+	category?: string;
+	canonicalPath: string;
+	canonicalUrl: string;
+	createdAt?: string;
+	updatedAt?: string;
+};
+
+type PublicCatalogResponse =
 	| {
-			kind: "ok";
+			kind: "redirect";
+			canonicalPath: string;
+			canonicalUrl: string;
+	  }
+	| {
+			kind: "org_products";
 			canonicalPath: string;
 			canonicalUrl: string;
 			seo: {
@@ -37,10 +54,82 @@ type PublicProductResponse =
 				orgSlug: string;
 				logoUrl?: string;
 			};
+			breadcrumb: PublicBreadcrumbItem[];
+			collections: Array<{
+				slug: string;
+				label: string;
+				count: number;
+				path: string;
+			}>;
+			listing: {
+				items: PublicListingCard[];
+				pagination: {
+					limit: number;
+					hasMore: boolean;
+					nextCursor?: string;
+				};
+			};
+	  }
+	| {
+			kind: "collection_products";
+			canonicalPath: string;
+			canonicalUrl: string;
+			seo: {
+				title: string;
+				description: string;
+				canonicalUrl: string;
+				image?: string;
+				robots: string;
+			};
+			organization: {
+				id: string;
+				name: string;
+				orgSlug: string;
+				logoUrl?: string;
+			};
+			breadcrumb: PublicBreadcrumbItem[];
+			collection: {
+				slug: string;
+				label: string;
+				path: string;
+			};
+			collections: Array<{
+				slug: string;
+				label: string;
+				count: number;
+				path: string;
+			}>;
+			listing: {
+				items: PublicListingCard[];
+				pagination: {
+					limit: number;
+					hasMore: boolean;
+					nextCursor?: string;
+				};
+			};
+	  }
+	| {
+			kind: "product_detail";
+			canonicalPath: string;
+			canonicalUrl: string;
+			seo: {
+				title: string;
+				description: string;
+				canonicalUrl: string;
+				image?: string;
+				robots: string;
+			};
+			organization: {
+				id: string;
+				name: string;
+				orgSlug: string;
+				logoUrl?: string;
+			};
+			breadcrumb: PublicBreadcrumbItem[];
 			product: {
 				id: string;
-				state: "published";
-				fields: {
+				state: "published" | "unavailable";
+				fields?: {
 					name: string;
 					description?: string;
 					price: number;
@@ -59,49 +148,16 @@ type PublicProductResponse =
 						unit?: "cm" | "in" | "m";
 					};
 				};
-				metafields: Array<{
+				metafields?: Array<{
 					definitionId: string;
 					name: string;
 					type: string;
 					description?: string;
-					value: unknown;
+					value?: unknown;
 					displayValue: string;
 				}>;
-				qr?: {
-					assetUrl?: string;
-					payloadMode?: "hybrid" | "text-only";
-					generatedAt?: string;
-					payloadHash?: string;
-				};
-			};
-	  }
-	| {
-			kind: "redirect";
-			canonicalPath: string;
-			canonicalUrl: string;
-	  }
-	| {
-			kind: "unavailable";
-			canonicalPath: string;
-			canonicalUrl: string;
-			seo: {
-				title: string;
-				description: string;
-				canonicalUrl: string;
-				robots: string;
-			};
-			organization: {
-				id: string;
-				name: string;
-				orgSlug: string;
-			};
-			product: {
-				id: string;
-				state: "unavailable";
 			};
 	  };
-
-// ─── SEO helpers (unchanged) ──────────────────────────────────────────────────
 
 function upsertMeta(name: string, content: string): void {
 	let element = document.head.querySelector(
@@ -127,64 +183,38 @@ function upsertCanonical(href: string): void {
 	element.href = href;
 }
 
-// ─── Metafield type helpers ───────────────────────────────────────────────────
+function formatPrice(price: number, currency: string): string {
+	try {
+		return new Intl.NumberFormat(undefined, {
+			style: "currency",
+			currency,
+			minimumFractionDigits: 2,
+		}).format(price);
+	} catch {
+		return `${price} ${currency}`;
+	}
+}
 
 function getMetafieldCategory(
 	type: string,
 ):
-	| "text"
-	| "number"
-	| "media"
-	| "link"
 	| "date"
 	| "boolean"
 	| "color"
 	| "json"
 	| "list"
-	| "other" {
+	| "link"
+	| "media"
+	| "text" {
 	if (type.startsWith("list.")) return "list";
-	if (
-		[
-			"single_line_text_field",
-			"multi_line_text_field",
-			"rich_text_field",
-			"single_line_text_field_choice_list",
-			"single_line_text_field_email",
-		].includes(type)
-	)
-		return "text";
-	if (
-		[
-			"number_integer",
-			"number_decimal",
-			"id",
-			"money",
-			"rating",
-			"weight",
-			"volume",
-			"dimension",
-		].includes(type)
-	)
-		return "number";
-	if (
-		[
-			"file_reference",
-			"file_reference_image",
-			"file_reference_video",
-		].includes(type)
-	)
-		return "media";
-	if (type.includes("_reference") || type === "mixed_reference")
-		return "text";
-	if (["link", "url"].includes(type)) return "link";
-	if (["date", "date_time"].includes(type)) return "date";
 	if (type === "boolean") return "boolean";
 	if (type === "color") return "color";
 	if (type === "json") return "json";
-	return "other";
+	if (type === "date" || type === "date_time") return "date";
+	if (type === "link" || type === "url") return "link";
+	if (type.includes("file_reference")) return "media";
+	return "text";
 }
-
-// ─── Metafield value renderer ─────────────────────────────────────────────────
 
 function MetafieldValue({
 	type,
@@ -198,149 +228,87 @@ function MetafieldValue({
 	const category = getMetafieldCategory(type);
 
 	if (category === "boolean") {
-		const isTrue =
+		const positive =
 			value === true ||
 			displayValue.toLowerCase() === "true" ||
-			displayValue === "1" ||
 			displayValue.toLowerCase() === "yes";
 		return (
 			<span
-				className={`inline-flex items-center gap-1.5 text-sm font-medium ${isTrue ? "text-emerald-600" : "text-stone-400"}`}
+				className={`text-sm ${positive ? "text-emerald-600" : "text-stone-500"}`}
 			>
-				{isTrue ? (
-					<Check className="h-4 w-4" />
-				) : (
-					<X className="h-4 w-4" />
-				)}
-				{isTrue ? "Yes" : "No"}
+				{positive ? "Yes" : "No"}
 			</span>
 		);
 	}
 
 	if (category === "color") {
 		return (
-			<div className="flex items-center gap-2.5">
+			<div className="flex items-center gap-2">
 				<span
-					className="h-5 w-5 rounded-full border border-black/10 shadow-inner shrink-0"
+					className="h-4 w-4 rounded-full border border-black/10"
 					style={{ background: displayValue }}
 				/>
-				<span className="font-mono text-sm text-stone-600">
+				<span className="font-mono text-sm text-stone-700">
 					{displayValue}
 				</span>
 			</div>
 		);
 	}
 
-	if (category === "link") {
+	if (category === "json") {
+		return (
+			<pre className="rounded-md border border-stone-200 bg-stone-50 p-2 text-xs text-stone-700 whitespace-pre-wrap break-words">
+				{displayValue}
+			</pre>
+		);
+	}
+
+	if (category === "date") {
+		const date = new Date(displayValue);
+		if (!isNaN(date.getTime())) {
+			return (
+				<span className="text-sm text-stone-700">
+					{date.toLocaleDateString()}
+				</span>
+			);
+		}
+	}
+
+	if (category === "list") {
+		const values = displayValue
+			.split(",")
+			.map((entry) => entry.trim())
+			.filter(Boolean);
+		return (
+			<div className="flex flex-wrap gap-1.5">
+				{values.map((entry) => (
+					<span
+						key={entry}
+						className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600"
+					>
+						{entry}
+					</span>
+				))}
+			</div>
+		);
+	}
+
+	if (category === "link" || category === "media") {
 		const href = typeof value === "string" ? value : displayValue;
 		return (
 			<a
 				href={href}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="inline-flex items-center gap-1 text-sm text-stone-700 hover:text-stone-900 underline underline-offset-2"
+				className="text-sm text-stone-700 underline underline-offset-2"
 			>
 				{displayValue || href}
-				<ExternalLink className="h-3 w-3 shrink-0" />
 			</a>
 		);
 	}
 
-	if (category === "date") {
-		try {
-			const date = new Date(displayValue || String(value));
-			if (!isNaN(date.getTime())) {
-				return (
-					<span className="text-sm text-stone-700">
-						{date.toLocaleDateString(undefined, {
-							year: "numeric",
-							month: "long",
-							day: "numeric",
-						})}
-					</span>
-				);
-			}
-		} catch {
-			// fall through
-		}
-		return <span className="text-sm text-stone-700">{displayValue}</span>;
-	}
-
-	if (category === "media") {
-		const url = typeof value === "string" ? value : displayValue;
-		if (url && /\.(png|jpg|jpeg|gif|webp|svg)(\?.*)?$/i.test(url)) {
-			return (
-				<img
-					src={url}
-					alt=""
-					className="h-20 w-20 rounded-lg border border-stone-200 object-cover"
-				/>
-			);
-		}
-		return (
-			<a
-				href={url}
-				target="_blank"
-				rel="noopener noreferrer"
-				className="inline-flex items-center gap-1 text-sm text-stone-700 hover:text-stone-900 underline underline-offset-2"
-			>
-				View file <ExternalLink className="h-3 w-3 shrink-0" />
-			</a>
-		);
-	}
-
-	if (category === "json") {
-		let formatted = displayValue;
-		try {
-			const parsed =
-				typeof value === "string" ? JSON.parse(value) : value;
-			formatted = JSON.stringify(parsed, null, 2);
-		} catch {
-			// use displayValue
-		}
-		return (
-			<pre className="text-xs bg-stone-50 rounded-lg border border-stone-200 p-3 overflow-x-auto max-h-32 font-mono whitespace-pre-wrap break-words text-stone-700">
-				{formatted}
-			</pre>
-		);
-	}
-
-	if (category === "list") {
-		let items: string[] = [];
-		try {
-			if (typeof value === "string") items = JSON.parse(value);
-			else if (Array.isArray(value))
-				items = (value as unknown[]).map(String);
-		} catch {
-			items = displayValue
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-		}
-		if (items.length > 0) {
-			return (
-				<div className="flex flex-wrap gap-1.5">
-					{items.map((item, i) => (
-						<span
-							key={i}
-							className="inline-flex items-center rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600"
-						>
-							{item}
-						</span>
-					))}
-				</div>
-			);
-		}
-	}
-
-	return (
-		<span className="text-sm text-stone-700 whitespace-pre-wrap break-words">
-			{displayValue}
-		</span>
-	);
+	return <span className="text-sm text-stone-700">{displayValue}</span>;
 }
-
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function PageSkeleton() {
 	return (
@@ -351,41 +319,12 @@ function PageSkeleton() {
 					<Skeleton className="h-4 w-32" />
 				</div>
 			</div>
-			<main className="w-full px-4 sm:px-10 py-8 sm:py-14">
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
-					<div className="space-y-3">
-						<Skeleton className="aspect-square w-full rounded-2xl" />
-						<div className="flex gap-2">
-							{[1, 2, 3].map((i) => (
-								<Skeleton
-									key={i}
-									className="h-16 w-16 rounded-lg"
-								/>
-							))}
-						</div>
-					</div>
-					<div className="space-y-5 pt-2">
-						<Skeleton className="h-4 w-20 rounded-full" />
-						<Skeleton className="h-12 w-4/5" />
-						<Skeleton className="h-8 w-1/3" />
-						<Skeleton className="h-px w-full" />
-						<div className="space-y-2">
-							<Skeleton className="h-4 w-full" />
-							<Skeleton className="h-4 w-full" />
-							<Skeleton className="h-4 w-3/4" />
-						</div>
-					</div>
-				</div>
-				<div className="my-10 h-px bg-stone-200" />
-				<div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-					{[1, 2, 3, 4, 5].map((i) => (
-						<div
-							key={i}
-							className="rounded-xl border border-stone-200 bg-white p-4 space-y-2"
-						>
-							<Skeleton className="h-3 w-20" />
-							<Skeleton className="h-5 w-3/4" />
-						</div>
+			<main className="w-full px-4 sm:px-10 py-8 sm:py-14 space-y-6">
+				<Skeleton className="h-5 w-64" />
+				<Skeleton className="h-10 w-56" />
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+					{[1, 2, 3, 4].map((i) => (
+						<Skeleton key={i} className="h-72 w-full rounded-xl" />
 					))}
 				</div>
 			</main>
@@ -393,14 +332,78 @@ function PageSkeleton() {
 	);
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+function PageHeader({
+	name,
+	logoUrl,
+}: {
+	name: string;
+	logoUrl?: string;
+}) {
+	return (
+		<header className="sticky top-0 z-10 border-b border-stone-200/80 bg-white/90 backdrop-blur-sm">
+			<div className="w-full px-4 sm:px-10 py-3 flex items-center gap-2.5">
+				{logoUrl ? (
+					<img
+						src={logoUrl}
+						alt={name}
+						className="h-7 w-7 rounded-md object-cover"
+					/>
+				) : (
+					<div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-900">
+						<Building2 className="h-3.5 w-3.5 text-white" />
+					</div>
+				)}
+				<span className="text-sm font-medium text-stone-600">{name}</span>
+			</div>
+		</header>
+	);
+}
+
+function BreadcrumbBar({ items }: { items?: PublicBreadcrumbItem[] }) {
+	const safeItems = (items ?? []).filter(
+		(item): item is PublicBreadcrumbItem =>
+			Boolean(item) &&
+			typeof item.label === "string" &&
+			item.label.trim().length > 0,
+	);
+	if (safeItems.length === 0) return null;
+	return (
+		<Breadcrumb className="rounded-md border border-stone-200 bg-white px-3 py-2">
+			<BreadcrumbList className="text-xs sm:text-sm text-stone-600">
+				{safeItems.map((item, idx) => {
+					const last = idx === safeItems.length - 1;
+					return (
+						<BreadcrumbItem key={`${item.label}-${idx}`}>
+							{last || !item.path ? (
+								<BreadcrumbPage className="font-medium text-stone-900">
+									{item.label}
+								</BreadcrumbPage>
+							) : (
+								<BreadcrumbLink
+									asChild
+									className="text-stone-600 hover:text-stone-900"
+								>
+									<Link to={item.path}>{item.label}</Link>
+								</BreadcrumbLink>
+							)}
+							{!last && (
+								<BreadcrumbSeparator className="text-stone-400" />
+							)}
+						</BreadcrumbItem>
+					);
+				})}
+			</BreadcrumbList>
+		</Breadcrumb>
+	);
+}
 
 export default function PublicProductPage() {
-	const { orgSlug = "", productSlug = "" } = useParams();
+	const { orgSlug = "", productSlug = "", collectionSlug = "" } = useParams();
 	const navigate = useNavigate();
-	const [data, setData] = useState<PublicProductResponse | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const location = useLocation();
+	const [data, setData] = useState<PublicCatalogResponse | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 	const [activeImageIdx, setActiveImageIdx] = useState(0);
 
 	const endpoint = useMemo(
@@ -415,21 +418,23 @@ export default function PublicProductPage() {
 		setError(null);
 		setActiveImageIdx(0);
 
-		const url = new URL(endpoint);
-		url.searchParams.set("orgSlug", orgSlug);
-		url.searchParams.set("productSlug", productSlug);
-		url.searchParams.set("mode", "json");
+		const query = new URLSearchParams();
+		query.set("orgSlug", orgSlug);
+		if (productSlug) query.set("productSlug", productSlug);
+		if (collectionSlug) query.set("collectionSlug", collectionSlug);
+		const pageCursor = new URLSearchParams(location.search).get("cursor");
+		if (pageCursor) query.set("cursor", pageCursor);
+		query.set("mode", "json");
 
-		fetch(url.toString())
-			.then(async (response) => {
-				if (!response.ok) {
-					const body = await response.json().catch(() => null);
+		fetch(`${endpoint}?${query.toString()}`)
+			.then(async (res) => {
+				if (!res.ok) {
+					const body = await res.json().catch(() => null);
 					throw new Error(
-						body?.error ||
-							`Failed to load page (${response.status})`,
+						body?.error || `Failed to load page (${res.status})`,
 					);
 				}
-				return response.json() as Promise<PublicProductResponse>;
+				return res.json() as Promise<PublicCatalogResponse>;
 			})
 			.then((payload) => {
 				if (cancelled) return;
@@ -454,7 +459,7 @@ export default function PublicProductPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [endpoint, navigate, orgSlug, productSlug]);
+	}, [collectionSlug, endpoint, location.search, navigate, orgSlug, productSlug]);
 
 	useEffect(() => {
 		if (!data || data.kind === "redirect") return;
@@ -485,42 +490,207 @@ export default function PublicProductPage() {
 		);
 	}
 
-	if (!data) return null;
+	if (!data || data.kind === "redirect") return null;
 
-	if (data.kind === "unavailable") {
+	if (data.kind === "org_products" || data.kind === "collection_products") {
+		const listing = data.listing.items;
+		const activeCollectionSlug =
+			data.kind === "collection_products" ? data.collection.slug : null;
+		const breadcrumbItems =
+			data.breadcrumb && data.breadcrumb.length > 0
+				? data.breadcrumb
+				: data.kind === "collection_products"
+					? [
+							{ label: "Home", path: "/" },
+							{
+								label: "All Products",
+								path: `/p/${data.organization.orgSlug}`,
+							},
+							{ label: data.collection.label },
+						]
+					: [
+							{ label: "Home", path: "/" },
+							{ label: "All Products" },
+						];
+		const nextCursor = data.listing.pagination.nextCursor;
+		const nextPageTo = nextCursor
+			? `${data.canonicalPath}?cursor=${encodeURIComponent(nextCursor)}`
+			: null;
+
 		return (
-			<div
-				className="min-h-screen w-full flex items-center justify-center p-6"
-				style={{ background: "#f9f8f6" }}
-			>
-				<div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8 text-center">
-					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-stone-100">
-						<Package className="h-6 w-6 text-stone-400" />
+			<div className="min-h-screen" style={{ background: "#f9f8f6" }}>
+				<PageHeader
+					name={data.organization.name}
+					logoUrl={data.organization.logoUrl}
+				/>
+				<main className="w-full px-4 sm:px-10 py-8 sm:py-12">
+					<div className="space-y-6">
+						<BreadcrumbBar items={breadcrumbItems} />
+						<h1 className="text-3xl sm:text-4xl text-stone-900">
+							{data.kind === "collection_products"
+								? data.collection.label
+								: "All Products"}
+						</h1>
+
+						<div className="flex flex-wrap gap-2">
+							<Link
+								to={data.canonicalPath.replace(/\/c\/[^/]+$/, "")}
+								className={`rounded-full border px-3 py-1.5 text-sm ${
+									activeCollectionSlug
+										? "border-stone-300 text-stone-700 bg-white"
+										: "border-stone-900 text-stone-900 bg-white"
+								}`}
+							>
+								All Products
+							</Link>
+							{data.collections.map((collection) => (
+								<Link
+									key={collection.slug}
+									to={collection.path}
+									className={`rounded-full border px-3 py-1.5 text-sm ${
+										activeCollectionSlug === collection.slug
+											? "border-stone-900 text-stone-900 bg-white"
+											: "border-stone-300 text-stone-700 bg-white"
+									}`}
+								>
+									{collection.label} ({collection.count})
+								</Link>
+							))}
+						</div>
+
+						{listing.length === 0 ? (
+							<div className="rounded-xl border border-stone-200 bg-white p-6">
+								<h2 className="text-lg text-stone-900 mb-1">
+									No products yet
+								</h2>
+								<p className="text-sm text-stone-500">
+									No public products are available for this
+									view.
+								</p>
+							</div>
+						) : (
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+								{listing.map((product) => (
+									<Link
+										key={product.id}
+										to={product.canonicalPath}
+										className="overflow-hidden rounded-xl border border-stone-200 bg-white"
+									>
+										<div className="aspect-square bg-stone-50">
+											{product.image ? (
+												<img
+													src={product.image}
+													alt={product.name}
+													className="h-full w-full object-cover"
+												/>
+											) : (
+												<div className="h-full w-full flex items-center justify-center text-stone-300">
+													<Package className="h-8 w-8" />
+												</div>
+											)}
+										</div>
+										<div className="p-3 space-y-1.5">
+											{product.category && (
+												<p className="text-[11px] uppercase tracking-wide text-stone-400">
+													{product.category}
+												</p>
+											)}
+											<p className="text-sm text-stone-900">
+												{product.name}
+											</p>
+											<p className="text-sm font-medium text-stone-800">
+												{formatPrice(
+													product.price,
+													product.currency,
+												)}
+											</p>
+										</div>
+									</Link>
+								))}
+							</div>
+						)}
+
+						{nextPageTo && (
+							<div>
+								<Link
+									to={nextPageTo}
+									className="inline-flex rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-700"
+								>
+									Next page
+								</Link>
+							</div>
+						)}
 					</div>
-					<h2
-						className="text-2xl text-stone-900 mb-2"
-						style={{
-							fontFamily: "'Cormorant Garamond', Georgia, serif",
-							fontWeight: 500,
-						}}
-					>
-						Product Unavailable
-					</h2>
-					<p className="text-sm text-stone-500">
-						{data.organization.name} has not published this product
-						right now.
-					</p>
-				</div>
+				</main>
 			</div>
 		);
 	}
 
-	if (data.kind !== "ok") return null;
+	if (data.product.state === "unavailable") {
+		const breadcrumbItems =
+			data.breadcrumb && data.breadcrumb.length > 0
+				? data.breadcrumb
+				: [
+						{ label: "Home", path: "/" },
+						{
+							label: "All Products",
+							path: `/p/${data.organization.orgSlug}`,
+						},
+					];
+		return (
+			<div
+				className="min-h-screen w-full"
+				style={{ background: "#f9f8f6" }}
+			>
+				<PageHeader
+					name={data.organization.name}
+					logoUrl={data.organization.logoUrl}
+				/>
+				<main className="w-full px-4 sm:px-10 py-8 sm:py-12">
+					<div className="space-y-6">
+						<BreadcrumbBar items={breadcrumbItems} />
+						<div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-8">
+							<div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-stone-100">
+								<Package className="h-6 w-6 text-stone-400" />
+							</div>
+							<h2 className="text-2xl text-stone-900 mb-2">
+								Product Unavailable
+							</h2>
+							<p className="text-sm text-stone-500">
+								{data.organization.name} has not published this
+								product right now.
+							</p>
+						</div>
+					</div>
+				</main>
+			</div>
+		);
+	}
 
-	const { fields, metafields } = data.product;
-	const { organization } = data;
+	const fields = data.product.fields;
+	const metafields = data.product.metafields ?? [];
+	if (!fields) return null;
+	const breadcrumbItems =
+		data.breadcrumb && data.breadcrumb.length > 0
+			? data.breadcrumb
+			: [
+					{ label: "Home", path: "/" },
+					{
+						label: "All Products",
+						path: `/p/${data.organization.orgSlug}`,
+					},
+					...(fields.category
+						? [
+								{
+									label: fields.category,
+								},
+							]
+						: []),
+					{ label: fields.name },
+				];
+
 	const images = fields.images ?? [];
-	const activeImage = images[activeImageIdx];
+	const activeImage = images[activeImageIdx] || images[0];
 	const hasDimensions =
 		fields.dimensions &&
 		(fields.dimensions.length != null ||
@@ -528,115 +698,28 @@ export default function PublicProductPage() {
 			fields.dimensions.height != null);
 	const hasSpecs = fields.weight != null || hasDimensions;
 
-	const formattedPrice = (() => {
-		try {
-			return new Intl.NumberFormat(undefined, {
-				style: "currency",
-				currency: fields.currency,
-				minimumFractionDigits: 2,
-			}).format(fields.price);
-		} catch {
-			return `${fields.price} ${fields.currency}`;
-		}
-	})();
-
-	const qrValue = data.canonicalUrl;
-	const qrDownloadUrl = buildQrCodeServerUrl(qrValue, {
-		size: 768,
-		level: "M",
-		marginSize: 0,
-		format: "png",
-	});
-
 	return (
-		<>
-			<style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+		<div className="min-h-screen" style={{ background: "#f9f8f6" }}>
+			<PageHeader
+				name={data.organization.name}
+				logoUrl={data.organization.logoUrl}
+			/>
+			<main className="w-full px-4 sm:px-10 py-8 sm:py-12">
+				<div className="space-y-6">
+					<BreadcrumbBar items={breadcrumbItems} />
 
-        .pp-root { font-family: 'DM Sans', system-ui, sans-serif; }
-        .pp-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
-
-        @keyframes pp-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .pp-fade { animation: pp-in 0.35s ease both; }
-        .pp-fade-1 { animation-delay: 0.05s; }
-        .pp-fade-2 { animation-delay: 0.12s; }
-        .pp-fade-3 { animation-delay: 0.20s; }
-
-        @keyframes pp-img-in {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        .pp-main-img { animation: pp-img-in 0.2s ease; }
-
-        .pp-underline-link {
-          position: relative;
-          display: inline-block;
-        }
-        .pp-underline-link::after {
-          content: '';
-          position: absolute;
-          left: 0;
-          bottom: -1px;
-          width: 100%;
-          height: 1px;
-          background: currentColor;
-          transform: scaleX(0);
-          transform-origin: left center;
-          transition: transform 0.25s ease;
-        }
-        .pp-underline-link:hover::after {
-          transform: scaleX(1);
-        }
-      `}</style>
-
-			<div
-				className="pp-root min-h-screen"
-				style={{ background: "#f9f8f6" }}
-			>
-				{/* Org header */}
-				<header className="sticky top-0 z-10 border-b border-stone-200/80 bg-white/90 backdrop-blur-sm">
-					<div className="w-full px-4 sm:px-10 py-3 flex items-center gap-2.5">
-						{organization.logoUrl ? (
-							<img
-								src={organization.logoUrl}
-								alt={organization.name}
-								className="h-7 w-7 rounded-md object-cover"
-							/>
-						) : (
-							<div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-900">
-								<Building2 className="h-3.5 w-3.5 text-white" />
-							</div>
-						)}
-						<span className="text-sm font-medium text-stone-600">
-							{organization.name}
-						</span>
-					</div>
-				</header>
-
-				<main className="w-full px-4 sm:px-10 py-8 sm:py-14">
-					{/* ── Hero ── */}
 					<div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-8 lg:gap-16 items-start">
-						{/* Image gallery */}
-						<div className="pp-fade space-y-3">
+						<div className="space-y-3">
 							<div className="relative overflow-hidden rounded-2xl border border-stone-200 bg-white aspect-square">
 								{activeImage ? (
 									<img
-										key={activeImage}
 										src={activeImage}
 										alt={fields.name}
-										className="pp-main-img h-full w-full object-cover"
+										className="h-full w-full object-cover"
 									/>
 								) : (
-									<div className="flex h-full w-full items-center justify-center">
-										<div className="flex flex-col items-center gap-3 text-stone-300">
-											<Package className="h-16 w-16" />
-											<span className="text-sm">
-												No image
-											</span>
-										</div>
+									<div className="h-full w-full flex items-center justify-center text-stone-300">
+										<Package className="h-16 w-16" />
 									</div>
 								)}
 							</div>
@@ -645,14 +728,14 @@ export default function PublicProductPage() {
 								<div className="flex gap-2 overflow-x-auto pb-1">
 									{images.map((img, idx) => (
 										<button
-											key={idx}
+											key={img}
 											onClick={() =>
 												setActiveImageIdx(idx)
 											}
-											className={`shrink-0 h-16 w-16 overflow-hidden rounded-lg border-2 transition-all ${
+											className={`h-16 w-16 overflow-hidden rounded-lg border-2 ${
 												idx === activeImageIdx
 													? "border-stone-800"
-													: "border-stone-200 hover:border-stone-400"
+													: "border-stone-200"
 											}`}
 										>
 											<img
@@ -666,32 +749,21 @@ export default function PublicProductPage() {
 							)}
 						</div>
 
-						{/* Product info */}
-						<div className="pp-fade pp-fade-1 space-y-5 lg:pt-2">
-							{/* Category badge */}
+						<div className="space-y-5 lg:pt-2">
 							{fields.category && (
-								<div>
-									<span className="inline-flex items-center rounded-full border border-stone-200 bg-white px-3 py-0.5 text-xs font-medium text-stone-600">
-										{fields.category}
-									</span>
-								</div>
+								<span className="inline-flex rounded-full border border-stone-200 bg-white px-3 py-0.5 text-xs text-stone-600">
+									{fields.category}
+								</span>
 							)}
-
-							{/* Product name */}
-							<h1
-								className="pp-serif text-4xl sm:text-5xl leading-tight text-stone-900"
-								style={{ fontWeight: 400 }}
-							>
+							<h1 className="text-4xl sm:text-5xl text-stone-900">
 								{fields.name}
 							</h1>
-
-							{/* Price */}
 							<div className="flex items-baseline gap-3">
-								<span
-									className="pp-serif text-3xl text-stone-900"
-									style={{ fontWeight: 600 }}
-								>
-									{formattedPrice}
+								<span className="text-3xl text-stone-900">
+									{formatPrice(
+										fields.price,
+										fields.currency,
+									)}
 								</span>
 								{fields.taxRate != null && (
 									<span className="text-xs text-stone-400">
@@ -699,23 +771,20 @@ export default function PublicProductPage() {
 									</span>
 								)}
 							</div>
-
 							<Separator className="bg-stone-200" />
 
-							{/* Description */}
 							{fields.description && (
 								<p className="text-sm leading-relaxed text-stone-600 whitespace-pre-wrap">
 									{fields.description}
 								</p>
 							)}
 
-							{/* Tags */}
 							{fields.tags && fields.tags.length > 0 && (
 								<div className="flex flex-wrap gap-1.5">
 									{fields.tags.map((tag) => (
 										<span
 											key={tag}
-											className="inline-flex items-center rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-600"
+											className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-600"
 										>
 											{tag}
 										</span>
@@ -723,33 +792,19 @@ export default function PublicProductPage() {
 								</div>
 							)}
 
-							{/* SKU / Barcode */}
-							{(fields.sku || fields.barcode) && (
+							{fields.barcode && (
 								<div className="space-y-1.5 rounded-xl border border-stone-200/80 bg-stone-50/80 px-4 py-3">
-									{fields.sku && (
-										<div className="flex items-center justify-between text-xs">
-											<span className="uppercase tracking-wide font-medium text-stone-400">
-												SKU
-											</span>
-											<span className="font-mono text-stone-700">
-												{fields.sku}
-											</span>
-										</div>
-									)}
-									{fields.barcode && (
-										<div className="flex items-center justify-between text-xs">
-											<span className="uppercase tracking-wide font-medium text-stone-400">
-												Barcode
-											</span>
-											<span className="font-mono text-stone-700">
-												{fields.barcode}
-											</span>
-										</div>
-									)}
+									<div className="flex items-center justify-between text-xs">
+										<span className="uppercase tracking-wide text-stone-400">
+											Barcode
+										</span>
+										<span className="font-mono text-stone-700">
+											{fields.barcode}
+										</span>
+									</div>
 								</div>
 							)}
 
-							{/* Metafields */}
 							{metafields.length > 0 && (
 								<>
 									<Separator className="bg-stone-200" />
@@ -763,7 +818,7 @@ export default function PublicProductPage() {
 													{mf.name}
 												</p>
 												{mf.description && (
-													<p className="text-xs text-stone-400 leading-relaxed">
+													<p className="text-xs text-stone-400">
 														{mf.description}
 													</p>
 												)}
@@ -782,15 +837,11 @@ export default function PublicProductPage() {
 						</div>
 					</div>
 
-					{/* ── Specifications ── */}
 					{hasSpecs && (
 						<>
-							<Separator className="my-10 sm:my-14 bg-stone-200" />
-							<div className="pp-fade pp-fade-2 space-y-5">
-								<h2
-									className="pp-serif text-2xl text-stone-900"
-									style={{ fontWeight: 400 }}
-								>
+							<Separator className="my-2 bg-stone-200" />
+							<div className="space-y-4">
+								<h2 className="text-2xl text-stone-900">
 									Specifications
 								</h2>
 								<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -798,11 +849,11 @@ export default function PublicProductPage() {
 										<div className="rounded-xl border border-stone-200 bg-white p-4">
 											<div className="flex items-center gap-1.5 mb-2">
 												<Weight className="h-3.5 w-3.5 text-stone-400" />
-												<span className="text-xs font-medium uppercase tracking-wide text-stone-400">
+												<span className="text-xs uppercase tracking-wide text-stone-400">
 													Weight
 												</span>
 											</div>
-											<p className="text-sm font-medium text-stone-800">
+											<p className="text-sm text-stone-800">
 												{fields.weight} g
 											</p>
 										</div>
@@ -814,11 +865,11 @@ export default function PublicProductPage() {
 												<div className="rounded-xl border border-stone-200 bg-white p-4">
 													<div className="flex items-center gap-1.5 mb-2">
 														<Ruler className="h-3.5 w-3.5 text-stone-400" />
-														<span className="text-xs font-medium uppercase tracking-wide text-stone-400">
+														<span className="text-xs uppercase tracking-wide text-stone-400">
 															Length
 														</span>
 													</div>
-													<p className="text-sm font-medium text-stone-800">
+													<p className="text-sm text-stone-800">
 														{
 															fields.dimensions
 																.length
@@ -833,11 +884,11 @@ export default function PublicProductPage() {
 												<div className="rounded-xl border border-stone-200 bg-white p-4">
 													<div className="flex items-center gap-1.5 mb-2">
 														<Ruler className="h-3.5 w-3.5 text-stone-400" />
-														<span className="text-xs font-medium uppercase tracking-wide text-stone-400">
+														<span className="text-xs uppercase tracking-wide text-stone-400">
 															Width
 														</span>
 													</div>
-													<p className="text-sm font-medium text-stone-800">
+													<p className="text-sm text-stone-800">
 														{
 															fields.dimensions
 																.width
@@ -852,11 +903,11 @@ export default function PublicProductPage() {
 												<div className="rounded-xl border border-stone-200 bg-white p-4">
 													<div className="flex items-center gap-1.5 mb-2">
 														<Ruler className="h-3.5 w-3.5 text-stone-400" />
-														<span className="text-xs font-medium uppercase tracking-wide text-stone-400">
+														<span className="text-xs uppercase tracking-wide text-stone-400">
 															Height
 														</span>
 													</div>
-													<p className="text-sm font-medium text-stone-800">
+													<p className="text-sm text-stone-800">
 														{
 															fields.dimensions
 																.height
@@ -872,91 +923,8 @@ export default function PublicProductPage() {
 							</div>
 						</>
 					)}
-
-					{/* ── QR Code ── */}
-					{qrValue && (
-						<>
-							<Separator className="my-10 sm:my-14 bg-stone-200" />
-							<div className="pp-fade pp-fade-3 flex items-start gap-5">
-								{/* QR image — fixed size with white quiet zone, never cropped */}
-								<a
-									href={qrDownloadUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									download={`${fields.name}-qr-client.png`}
-									title="Download QR code"
-									className="shrink-0 border border-stone-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-								>
-									<div className="h-48 w-48 bg-white grid place-items-center">
-										<QRCodeSVG
-											value={qrValue}
-											size={192}
-											level="M"
-											marginSize={0}
-											title="Product QR code"
-										/>
-									</div>
-								</a>
-								<div className="space-y-1 pt-1">
-									<div className="flex items-center gap-1.5">
-										<QrCode className="h-3.5 w-3.5 text-stone-400" />
-										<span className="text-xs font-medium uppercase tracking-wide text-stone-400">
-											QR Code
-										</span>
-									</div>
-									<p className="text-sm text-stone-700">
-										Point your camera at this code to open
-										this page.
-									</p>
-									<a
-										href={qrDownloadUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										download={`${fields.name}-qr-client.png`}
-										title="Download QR code"
-                    className="pp-underline-link text-stone-400"
-									>
-										<p className="text-xs">
-											Click to download as PNG.
-										</p>
-									</a>
-									{data.product.qr?.assetUrl && (
-										<a
-											href={data.product.qr.assetUrl}
-											target="_blank"
-											rel="noopener noreferrer"
-											download={`${fields.name}-qr-server.png`}
-											title="Download stored QR asset"
-											className="pp-underline-link text-stone-400"
-										>
-											<p className="text-xs">
-												Download stored server PNG.
-											</p>
-										</a>
-									)}
-								</div>
-							</div>
-						</>
-					)}
-
-					<div className="mt-16 pb-8 flex items-center justify-center gap-2 text-xs text-stone-300">
-						<span>{organization.name}</span>
-						<span>·</span>
-						<span>Powered by</span>
-						<a
-							href="https://financely.app"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							<img
-								src="/financely-logo.svg"
-								alt="Financely"
-								className="h-3.5"
-							/>
-						</a>
-					</div>
-				</main>
-			</div>
-		</>
+				</div>
+			</main>
+		</div>
 	);
 }

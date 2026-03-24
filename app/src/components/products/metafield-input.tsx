@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, GripVertical, Image as ImageIcon, File as FileIcon, Video } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,20 +35,20 @@ type DatePrecision = "date" | "month";
 type DateConfig = {
   selectionMode: DateSelectionMode;
   precision: DatePrecision;
+  displayMode: "numeric" | "localized";
 };
 
-type YearMonth = {
-  year: number;
+type MonthToken = {
   month: number;
+  year?: number;
 };
 
 const EMPTY_SELECT_VALUE = "__metafield_empty_value__";
 const PERIOD_SEPARATOR = "..";
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 const DEFAULT_DATE_CONFIG: DateConfig = {
   selectionMode: "single",
   precision: "date",
+  displayMode: "numeric",
 };
 
 const formatDateValue = (date: Date): string => {
@@ -74,35 +74,78 @@ const parseDateRangeValue = (value: string): DateRange | null => {
   return { from, to };
 };
 
-const formatYearMonthValue = (year: number, month: number): string => {
-  return `${year}-${String(month).padStart(2, "0")}`;
+const formatMonthValue = (month: number): string => String(month).padStart(2, "0");
+
+const parseMonthValue = (value: string): MonthToken | null => {
+  const compact = value.trim();
+  const monthOnlyMatch = compact.match(/^(\d{2})$/);
+  if (monthOnlyMatch) {
+    const month = Number(monthOnlyMatch[1]);
+    if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+    return { month };
+  }
+
+  const yearMonthMatch = compact.match(/^(\d{4})-(\d{2})$/);
+  if (yearMonthMatch) {
+    const year = Number(yearMonthMatch[1]);
+    const month = Number(yearMonthMatch[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+    return { month, year };
+  }
+
+  return null;
 };
 
-const parseYearMonthValue = (value: string): YearMonth | null => {
-  const match = value.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
-  return { year, month };
+const splitMonthPeriod = (value: string): [string, string] | null => {
+  if (value.includes(PERIOD_SEPARATOR)) {
+    const [startRaw, endRaw] = value.split(PERIOD_SEPARATOR);
+    if (!startRaw || !endRaw) return null;
+    return [startRaw.trim(), endRaw.trim()];
+  }
+  if (value.includes(" - ")) {
+    const [startRaw, endRaw] = value.split(" - ");
+    if (!startRaw || !endRaw) return null;
+    return [startRaw.trim(), endRaw.trim()];
+  }
+  return null;
 };
 
-const parseYearMonthRangeValue = (value: string): { start: YearMonth; end: YearMonth } | null => {
-  if (!value.includes(PERIOD_SEPARATOR)) return null;
-  const [startRaw, endRaw] = value.split(PERIOD_SEPARATOR);
-  if (!startRaw || !endRaw) return null;
-  const start = parseYearMonthValue(startRaw);
-  const end = parseYearMonthValue(endRaw);
+const parseMonthRangeValue = (value: string): { start: MonthToken; end: MonthToken } | null => {
+  const period = splitMonthPeriod(value);
+  if (!period) return null;
+  const [startRaw, endRaw] = period;
+  const start = parseMonthValue(startRaw);
+  const end = parseMonthValue(endRaw);
   if (!start || !end) return null;
   return { start, end };
 };
 
-const compareYearMonth = (a: YearMonth, b: YearMonth): number => {
-  if (a.year !== b.year) return a.year - b.year;
-  return a.month - b.month;
+const compareMonth = (a: MonthToken, b: MonthToken): number => a.month - b.month;
+
+const monthLocale =
+  typeof navigator !== "undefined" && navigator.language
+    ? navigator.language
+    : "en";
+
+const monthName = (month: number, format: "short" | "long"): string => {
+  try {
+    return new Intl.DateTimeFormat(monthLocale, { month: format }).format(
+      new Date(Date.UTC(2000, month - 1, 1)),
+    );
+  } catch {
+    return String(month).padStart(2, "0");
+  }
 };
 
-const formatReadableYearMonth = (value: YearMonth): string => `${MONTH_LABELS[value.month - 1]} ${value.year}`;
+const formatMonthToken = (value: MonthToken, dateConfig: DateConfig): string => {
+  if (dateConfig.displayMode === "localized") {
+    const label = monthName(value.month, "long");
+    return value.year ? `${label} ${value.year}` : label;
+  }
+
+  const numeric = String(value.month).padStart(2, "0");
+  return value.year ? `${value.year}-${numeric}` : numeric;
+};
 
 const getTypeLabel = (type: string): string => {
   const isList = type.startsWith("list.");
@@ -161,6 +204,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
   const dateConfig: DateConfig = {
     selectionMode: definition.options?.dateConfig?.selectionMode || DEFAULT_DATE_CONFIG.selectionMode,
     precision: definition.options?.dateConfig?.precision || DEFAULT_DATE_CONFIG.precision,
+    displayMode: definition.options?.dateConfig?.displayMode || DEFAULT_DATE_CONFIG.displayMode,
   };
   
   const { data: metaobjects = [], error: metaobjectsError } = useMetaobjects(organizationId);
@@ -187,7 +231,6 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
   const [fileDialogOpen, setFileDialogOpen] = useState(false);
   const [fileDialogFieldType, setFileDialogFieldType] = useState<"file_reference" | "file_reference_image" | "file_reference_video" | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [monthPickerYear, setMonthPickerYear] = useState(new Date().getFullYear());
   const [pendingMonthPeriodStart, setPendingMonthPeriodStart] = useState<string | null>(null);
 
   const handleChange = (newValue: unknown) => {
@@ -657,40 +700,39 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
       );
     }
 
-    const selectedMonth = parseYearMonthValue(rawValue);
-    const selectedMonthRange = parseYearMonthRangeValue(rawValue);
+    const selectedMonth = parseMonthValue(rawValue);
+    const selectedMonthRange = parseMonthRangeValue(rawValue);
     const triggerLabel = dateConfig.selectionMode === "single"
-      ? (selectedMonth ? formatReadableYearMonth(selectedMonth) : rawValue)
+      ? (selectedMonth ? formatMonthToken(selectedMonth, dateConfig) : rawValue)
       : (selectedMonthRange
-        ? `${formatReadableYearMonth(selectedMonthRange.start)} - ${formatReadableYearMonth(selectedMonthRange.end)}`
+        ? `${formatMonthToken(selectedMonthRange.start, dateConfig)} - ${formatMonthToken(selectedMonthRange.end, dateConfig)}`
         : rawValue);
 
-    const monthCells = MONTH_LABELS.map((monthLabel, index) => {
+    const monthCells = Array.from({ length: 12 }, (_, index) => {
       const monthNumber = index + 1;
-      const clicked = { year: monthPickerYear, month: monthNumber };
-      const clickedValue = formatYearMonthValue(clicked.year, clicked.month);
+      const clicked: MonthToken = { month: monthNumber };
+      const clickedValue = formatMonthValue(clicked.month);
 
-      const pendingStart = pendingMonthPeriodStart ? parseYearMonthValue(pendingMonthPeriodStart) : null;
-      const isPendingStart = !!pendingStart && pendingStart.year === clicked.year && pendingStart.month === clicked.month;
+      const pendingStart = pendingMonthPeriodStart ? parseMonthValue(pendingMonthPeriodStart) : null;
+      const isPendingStart = !!pendingStart && pendingStart.month === clicked.month;
 
       const isSingleSelected = dateConfig.selectionMode === "single"
         && !!selectedMonth
-        && selectedMonth.year === clicked.year
         && selectedMonth.month === clicked.month;
 
       const isInRange = dateConfig.selectionMode === "period" && !!selectedMonthRange
-        && compareYearMonth(clicked, selectedMonthRange.start) >= 0
-        && compareYearMonth(clicked, selectedMonthRange.end) <= 0;
+        && compareMonth(clicked, selectedMonthRange.start) >= 0
+        && compareMonth(clicked, selectedMonthRange.end) <= 0;
 
       const isRangeEdge = dateConfig.selectionMode === "period" && !!selectedMonthRange
         && (
-          (selectedMonthRange.start.year === clicked.year && selectedMonthRange.start.month === clicked.month)
-          || (selectedMonthRange.end.year === clicked.year && selectedMonthRange.end.month === clicked.month)
+          selectedMonthRange.start.month === clicked.month
+          || selectedMonthRange.end.month === clicked.month
         );
 
       return (
         <Button
-          key={`${monthPickerYear}-${monthNumber}`}
+          key={monthNumber}
           type="button"
           variant="ghost"
           className={[
@@ -710,21 +752,21 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
               return;
             }
 
-            const startParsed = parseYearMonthValue(pendingMonthPeriodStart);
+            const startParsed = parseMonthValue(pendingMonthPeriodStart);
             if (!startParsed) {
               setPendingMonthPeriodStart(clickedValue);
               return;
             }
-            const orderedStart = compareYearMonth(startParsed, clicked) <= 0 ? startParsed : clicked;
-            const orderedEnd = compareYearMonth(startParsed, clicked) <= 0 ? clicked : startParsed;
+            const orderedStart = compareMonth(startParsed, clicked) <= 0 ? startParsed : clicked;
+            const orderedEnd = compareMonth(startParsed, clicked) <= 0 ? clicked : startParsed;
             onValueChange(
-              `${formatYearMonthValue(orderedStart.year, orderedStart.month)}${PERIOD_SEPARATOR}${formatYearMonthValue(orderedEnd.year, orderedEnd.month)}`,
+              `${formatMonthValue(orderedStart.month)}${PERIOD_SEPARATOR}${formatMonthValue(orderedEnd.month)}`,
             );
             setPendingMonthPeriodStart(null);
             setIsDatePickerOpen(false);
           }}
         >
-          {monthLabel}
+          {dateConfig.displayMode === "localized" ? monthName(monthNumber, "short") : String(monthNumber).padStart(2, "0")}
         </Button>
       );
     });
@@ -743,26 +785,13 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
               readOnly
               role="button"
               value={triggerLabel || ""}
-              onFocus={() => {
-                const initialYear = selectedMonth?.year || selectedMonthRange?.start.year || new Date().getFullYear();
-                setMonthPickerYear(initialYear);
-                setIsDatePickerOpen(true);
-              }}
+              onFocus={() => setIsDatePickerOpen(true)}
               onClick={() => setIsDatePickerOpen(true)}
               placeholder={dateConfig.selectionMode === "period" ? "Select month range" : "Select month"}
               className={error ? "border-destructive cursor-pointer" : "cursor-pointer"}
             />
           </PopoverTrigger>
           <PopoverContent className="w-[320px] p-3 space-y-3" align="start">
-            <div className="flex items-center justify-between">
-              <Button type="button" variant="ghost" size="icon" onClick={() => setMonthPickerYear((year) => year - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="text-sm font-medium">{monthPickerYear}</div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setMonthPickerYear((year) => year + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
             <div className="grid grid-cols-3 gap-2">
               {monthCells}
             </div>
@@ -771,8 +800,8 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
                 <span>
                   Start: {
                     (() => {
-                      const start = parseYearMonthValue(pendingMonthPeriodStart);
-                      return start ? formatReadableYearMonth(start) : pendingMonthPeriodStart;
+                      const start = parseMonthValue(pendingMonthPeriodStart);
+                      return start ? formatMonthToken(start, dateConfig) : pendingMonthPeriodStart;
                     })()
                   }
                 </span>

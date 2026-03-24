@@ -48,11 +48,18 @@ export const onBrandSitePublicDomainUpdated = onDocumentWritten(
             data: {
               publicPage: {
                 slug: product.publicPage?.slug,
+                slugCanonical: product.publicPage?.slugCanonical,
                 slugAliases: product.publicPage?.slugAliases || [],
+                slugLookup: product.publicPage?.slugLookup || [],
+                orgSlugCanonical: product.publicPage?.orgSlugCanonical,
+                collectionSlug: product.publicPage?.collectionSlug,
+                collectionLabel: product.publicPage?.collectionLabel,
                 state: product.publicPage?.state || (product.status === "active" ? "published" : "unavailable"),
                 canonicalPath: product.publicPage?.canonicalPath,
                 canonicalUrl: product.publicPage?.canonicalUrl,
                 payloadHash: product.publicPage?.payloadHash,
+                listingCard: product.publicPage?.listingCard,
+                detailSnapshot: product.publicPage?.detailSnapshot,
                 version: product.publicPage?.version || 1,
                 lastSyncRequestedAt: syncTimestamp,
                 lastPublishedAt: product.publicPage?.lastPublishedAt,

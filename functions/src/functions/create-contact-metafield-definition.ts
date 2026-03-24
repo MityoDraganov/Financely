@@ -70,14 +70,19 @@ export const createContactMetafieldDefinition = onCall<CreateContactMetafieldDef
       if (payload.type === "date") {
         const selectionMode = payload.options?.dateConfig?.selectionMode ?? "single";
         const precision = payload.options?.dateConfig?.precision ?? "date";
+        const displayMode = payload.options?.dateConfig?.displayMode ?? "numeric";
         const validSelectionModes = new Set(["single", "period"]);
         const validPrecisions = new Set(["date", "month"]);
+        const validDisplayModes = new Set(["numeric", "localized"]);
 
         if (!validSelectionModes.has(selectionMode)) {
           throw new HttpsError("invalid-argument", "Invalid date selection mode");
         }
         if (!validPrecisions.has(precision)) {
           throw new HttpsError("invalid-argument", "Invalid date precision");
+        }
+        if (!validDisplayModes.has(displayMode)) {
+          throw new HttpsError("invalid-argument", "Invalid date display mode");
         }
       }
 

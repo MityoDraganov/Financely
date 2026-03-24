@@ -17,9 +17,9 @@ name = "financely-sites-worker"
 
 [vars]
 # Used for /p/{orgSlug}/{productSlug} dynamic product pages
-FIREBASE_PROJECT_ID = "financely-31ac6"
+FIREBASE_PROJECT_ID = "invoicegenerator-8d7ce"
 # Optional override:
-# PUBLIC_PRODUCT_API_BASE = "https://us-central1-financely-31ac6.cloudfunctions.net/getPublicProductPage"
+# PUBLIC_PRODUCT_API_BASE = "https://us-central1-invoicegenerator-8d7ce.cloudfunctions.net/getPublicProductPage"
 
 # KV namespace for hostname -> brandSiteId:versionId mappings
 [[kv_namespaces]]

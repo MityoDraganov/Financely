@@ -5,18 +5,26 @@ import { getProductRepository } from "../repositories/product-repository";
 import { getDatabaseService } from "../services/database-service";
 
 function buildTouchedPublicPage(product: Product, syncTimestamp: string): NonNullable<Product["publicPage"]> {
+  const existing = product.publicPage;
   return {
-    slug: product.publicPage?.slug,
-    slugAliases: product.publicPage?.slugAliases || [],
-    state: product.publicPage?.state || (product.status === "active" ? "published" : "unavailable"),
-    canonicalPath: product.publicPage?.canonicalPath,
-    canonicalUrl: product.publicPage?.canonicalUrl,
-    payloadHash: product.publicPage?.payloadHash,
-    version: product.publicPage?.version || 1,
+    slug: existing?.slug,
+    slugCanonical: existing?.slugCanonical,
+    slugAliases: existing?.slugAliases || [],
+    slugLookup: existing?.slugLookup || [],
+    orgSlugCanonical: existing?.orgSlugCanonical,
+    collectionSlug: existing?.collectionSlug,
+    collectionLabel: existing?.collectionLabel,
+    state: existing?.state || (product.status === "active" ? "published" : "unavailable"),
+    canonicalPath: existing?.canonicalPath,
+    canonicalUrl: existing?.canonicalUrl,
+    payloadHash: existing?.payloadHash,
+    listingCard: existing?.listingCard,
+    detailSnapshot: existing?.detailSnapshot,
+    version: existing?.version || 1,
     lastSyncRequestedAt: syncTimestamp,
-    lastPublishedAt: product.publicPage?.lastPublishedAt,
-    lastUnavailableAt: product.publicPage?.lastUnavailableAt,
-    qr: product.publicPage?.qr,
+    lastPublishedAt: existing?.lastPublishedAt,
+    lastUnavailableAt: existing?.lastUnavailableAt,
+    qr: existing?.qr,
   };
 }
 

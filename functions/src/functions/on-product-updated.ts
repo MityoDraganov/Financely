@@ -15,11 +15,15 @@ import { getProductRepository } from "../repositories/product-repository";
 import { getBrandContextCache } from "../services/brand-context-cache";
 import { getDatabaseService } from "../services/database-service";
 import {
+  buildCollectionSummaries,
   buildCanonicalProductPath,
+  buildPublicProductListingCard,
   buildPublicProductSnapshot,
+  buildSlugLookup,
   buildQrPayload,
   normalizeSlugAliases,
   PUBLIC_PRODUCT_QR_PACKET_VERSION,
+  resolvePublicCollection,
   resolvePublicProductBaseUrl,
   slugifySegment,
   storePublicQrAsset,
@@ -81,8 +85,29 @@ export const onProductWritten = onDocumentWritten(
         changeType,
       });
 
-      // Deleted products don't need public page regeneration.
       if (!event.data?.after?.exists) {
+        try {
+          const organization = await organizationRepository.get({ id: organizationId });
+          if (organization) {
+            const orgSlug = slugifySegment(
+              organization.settings?.publicPages?.orgSlug || organization.name,
+            );
+            const orgProducts = await productRepository.getAll({
+              queryConstraints: [{ field: "organizationId", operator: "==", value: organizationId }],
+            });
+            const collectionSummaries = buildCollectionSummaries(orgProducts);
+            await databaseService.set("publicCatalogs", organization.id, {
+              organizationId: organization.id,
+              orgSlugCanonical: orgSlug,
+              collections: collectionSummaries,
+            });
+          }
+        } catch (catalogError) {
+          logger.warn("Failed to refresh public catalog index after product delete", {
+            organizationId,
+            error: catalogError instanceof Error ? catalogError.message : "Unknown error",
+          });
+        }
         return;
       }
 
@@ -151,6 +176,8 @@ export const onProductWritten = onDocumentWritten(
       });
       const baseUrl = resolvePublicProductBaseUrl(organization, brandSites);
       const canonicalUrl = `${baseUrl}${canonicalPath}`;
+      const collection = resolvePublicCollection(currentProduct.category);
+      const slugLookup = buildSlugLookup(uniqueSlug, slugAliases);
       const now = new Date().toISOString();
       const shouldBePublished = currentProduct.status === "active";
       const nextState: "published" | "unavailable" = shouldBePublished ? "published" : "unavailable";
@@ -170,6 +197,12 @@ export const onProductWritten = onDocumentWritten(
             version: number;
           }
         | undefined;
+      let detailSnapshot:
+        | {
+            fields: ReturnType<typeof buildPublicProductSnapshot>["fields"];
+            metafields: ReturnType<typeof buildPublicProductSnapshot>["metafields"];
+          }
+        | undefined;
 
       if (shouldBePublished) {
         const metafields = await productMetafieldRepository.getAll({
@@ -182,6 +215,10 @@ export const onProductWritten = onDocumentWritten(
           queryConstraints: [{ field: "organizationId", operator: "==", value: organization.id }],
         });
         const snapshot = buildPublicProductSnapshot(currentProduct, metafields, definitions);
+        detailSnapshot = {
+          fields: snapshot.fields,
+          metafields: snapshot.metafields,
+        };
         const qrPayload = buildQrPayload(canonicalUrl, snapshot);
         payloadHash = qrPayload.payloadHash;
 
@@ -233,14 +270,26 @@ export const onProductWritten = onDocumentWritten(
           }
         }
       }
+      const listingCard = buildPublicProductListingCard(
+        currentProduct,
+        canonicalPath,
+        canonicalUrl,
+      );
 
       const nextPublicPageBase: NonNullable<Product["publicPage"]> = {
         slug: uniqueSlug,
+        slugCanonical: uniqueSlug,
         slugAliases,
+        slugLookup,
+        orgSlugCanonical: orgSlug,
+        collectionSlug: collection.slug,
+        collectionLabel: collection.label,
         state: nextState,
         canonicalPath,
         canonicalUrl,
         payloadHash: shouldBePublished ? payloadHash : undefined,
+        listingCard,
+        detailSnapshot: shouldBePublished ? detailSnapshot : currentProduct.publicPage?.detailSnapshot,
         version: currentProduct.publicPage?.version || 1,
         lastSyncRequestedAt: currentProduct.publicPage?.lastSyncRequestedAt,
         lastPublishedAt: becamePublished ? now : currentProduct.publicPage?.lastPublishedAt,
@@ -266,6 +315,21 @@ export const onProductWritten = onDocumentWritten(
         await productRepository.update({
           id: currentProduct.id,
           data: { publicPage: nextPublicPage },
+        });
+      }
+
+      try {
+        const collectionSummaries = buildCollectionSummaries(orgProducts);
+        await databaseService.set("publicCatalogs", organization.id, {
+          organizationId: organization.id,
+          orgSlugCanonical: orgSlug,
+          collections: collectionSummaries,
+        });
+      } catch (catalogError) {
+        logger.warn("Failed to refresh public catalog index", {
+          organizationId: organization.id,
+          productId: currentProduct.id,
+          error: catalogError instanceof Error ? catalogError.message : "Unknown error",
         });
       }
     } catch (error) {

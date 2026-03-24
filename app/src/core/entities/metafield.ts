@@ -64,13 +64,16 @@ export const metafieldSelectOptionSchema = z.object({
 
 export const metafieldDateSelectionModeSchema = z.enum(["single", "period"]);
 export const metafieldDatePrecisionSchema = z.enum(["date", "month"]);
+export const metafieldDateDisplayModeSchema = z.enum(["numeric", "localized"]);
 
 export const metafieldDateConfigSchema = z.object({
   selectionMode: metafieldDateSelectionModeSchema.default("single"),
   precision: metafieldDatePrecisionSchema.default("date"),
+  displayMode: metafieldDateDisplayModeSchema.default("numeric"),
 }).default({
   selectionMode: "single",
   precision: "date",
+  displayMode: "numeric",
 });
 
 export const metafieldOptionsSchema = z.object({
@@ -85,6 +88,7 @@ export const metafieldOptionsSchema = z.object({
   dateConfig: {
     selectionMode: "single",
     precision: "date",
+    displayMode: "numeric",
   },
 });
 

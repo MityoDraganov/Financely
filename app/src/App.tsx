@@ -176,6 +176,14 @@ function App() {
 												element={<WidgetPage />}
 											/>
 											<Route
+												path="/p/:orgSlug"
+												element={<PublicProductPage />}
+											/>
+											<Route
+												path="/p/:orgSlug/c/:collectionSlug"
+												element={<PublicProductPage />}
+											/>
+											<Route
 												path="/p/:orgSlug/:productSlug"
 												element={<PublicProductPage />}
 											/>

@@ -11,6 +11,7 @@ import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
 } from "../utils/audit-log-helper";
+import { resolveUniqueOrganizationSlug } from "../services/organization-public-slug-service";
 
 interface CreateOrganizationPayload {
   name: string;
@@ -121,6 +122,10 @@ export const createOrganization = onCall<
           ...incomingBranding,
         },
       };
+      const orgSlug = await resolveUniqueOrganizationSlug({
+        requestedSlug: payload.name.trim(),
+        fallbackName: payload.name.trim(),
+      });
 
       // Prepare organization data using centralized defaults
       const orgData: OrganizationData = {
@@ -137,6 +142,7 @@ export const createOrganization = onCall<
           brandColors,
           ...brandingEntry,
           publicPages: {
+            orgSlug,
             orgSlugAliases: [],
             domainPreference: "custom-first",
           },

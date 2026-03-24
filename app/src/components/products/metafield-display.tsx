@@ -17,32 +17,61 @@ type SelectOption = {
 type DateConfig = {
   selectionMode: "single" | "period";
   precision: "date" | "month";
+  displayMode: "numeric" | "localized";
 };
 
-type YearMonth = {
-  year: number;
+type MonthToken = {
   month: number;
+  year?: number;
 };
 
 const PERIOD_SEPARATOR = "..";
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 const parseDateValue = (value: string): Date | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const parsed = new Date(`${value}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const parseYearMonthValue = (value: string): YearMonth | null => {
-  const match = value.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
+const parseMonthToken = (value: string): MonthToken | null => {
+  const compact = value.trim();
+  const monthOnlyMatch = compact.match(/^(\d{2})$/);
+  if (monthOnlyMatch) {
+    const month = Number(monthOnlyMatch[1]);
+    if (!Number.isFinite(month) || month < 1 || month > 12) return null;
+    return { month };
+  }
+
+  const yearMonthMatch = compact.match(/^(\d{4})-(\d{2})$/);
+  if (!yearMonthMatch) return null;
+  const year = Number(yearMonthMatch[1]);
+  const month = Number(yearMonthMatch[2]);
   if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
   return { year, month };
 };
 
-const formatYearMonth = (value: YearMonth): string => `${MONTH_LABELS[value.month - 1]} ${value.year}`;
+const monthLocale =
+  typeof navigator !== "undefined" && navigator.language
+    ? navigator.language
+    : "en";
+
+const monthName = (month: number): string => {
+  try {
+    return new Intl.DateTimeFormat(monthLocale, { month: "long" }).format(
+      new Date(Date.UTC(2000, month - 1, 1)),
+    );
+  } catch {
+    return String(month).padStart(2, "0");
+  }
+};
+
+const formatMonthToken = (value: MonthToken, dateConfig: DateConfig): string => {
+  if (dateConfig.displayMode === "localized") {
+    const label = monthName(value.month);
+    return value.year ? `${label} ${value.year}` : label;
+  }
+  const numeric = String(value.month).padStart(2, "0");
+  return value.year ? `${value.year}-${numeric}` : numeric;
+};
 
 export function MetafieldDisplay({ metafield, definition }: MetafieldDisplayProps) {
   const metaobjectId = definition.type === "metaobject_reference" && typeof metafield.value === "string" ? metafield.value : undefined;
@@ -51,18 +80,25 @@ export function MetafieldDisplay({ metafield, definition }: MetafieldDisplayProp
   const dateConfig: DateConfig = {
     selectionMode: definition.options?.dateConfig?.selectionMode || "single",
     precision: definition.options?.dateConfig?.precision || "date",
+    displayMode: definition.options?.dateConfig?.displayMode || "numeric",
   };
 
   const formatDateValue = (value: string): string => {
     if (dateConfig.precision === "month") {
-      if (dateConfig.selectionMode === "period" && value.includes(PERIOD_SEPARATOR)) {
-        const [startRaw, endRaw] = value.split(PERIOD_SEPARATOR);
-        const start = startRaw ? parseYearMonthValue(startRaw) : null;
-        const end = endRaw ? parseYearMonthValue(endRaw) : null;
-        if (start && end) return `${formatYearMonth(start)} - ${formatYearMonth(end)}`;
+      if (dateConfig.selectionMode === "period") {
+        let startRaw = "";
+        let endRaw = "";
+        if (value.includes(PERIOD_SEPARATOR)) {
+          [startRaw, endRaw] = value.split(PERIOD_SEPARATOR);
+        } else if (value.includes(" - ")) {
+          [startRaw, endRaw] = value.split(" - ");
+        }
+        const start = startRaw ? parseMonthToken(startRaw) : null;
+        const end = endRaw ? parseMonthToken(endRaw) : null;
+        if (start && end) return `${formatMonthToken(start, dateConfig)} - ${formatMonthToken(end, dateConfig)}`;
       }
-      const singleMonth = parseYearMonthValue(value);
-      if (singleMonth) return formatYearMonth(singleMonth);
+      const singleMonth = parseMonthToken(value);
+      if (singleMonth) return formatMonthToken(singleMonth, dateConfig);
       return value;
     }
 

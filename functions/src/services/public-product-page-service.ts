@@ -20,6 +20,7 @@ export type PublicMetafieldView = {
   description?: string;
   value: unknown;
   displayValue: string;
+  dateDisplayMode?: "numeric" | "localized";
 };
 
 export type PublicProductFields = {
@@ -42,6 +43,25 @@ export type PublicProductSnapshot = {
   organizationId: string;
   fields: PublicProductFields;
   metafields: PublicMetafieldView[];
+};
+
+export type PublicCollectionSummary = {
+  slug: string;
+  label: string;
+  count: number;
+};
+
+export type PublicProductListingCard = {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  image?: string;
+  category?: string;
+  canonicalPath: string;
+  canonicalUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type QrPayloadBuildResult = {
@@ -80,6 +100,14 @@ export function normalizeSlugAliases(
 
 export function buildCanonicalProductPath(orgSlug: string, productSlug: string): string {
   return `/p/${orgSlug}/${productSlug}`;
+}
+
+export function buildCanonicalOrgProductsPath(orgSlug: string): string {
+  return `/p/${orgSlug}`;
+}
+
+export function buildCanonicalCollectionPath(orgSlug: string, collectionSlug: string): string {
+  return `/p/${orgSlug}/c/${collectionSlug}`;
 }
 
 export function getAppBaseUrl(): string {
@@ -196,6 +224,9 @@ export function buildPublicProductSnapshot(
       description: definition.description,
       value: metafield.value,
       displayValue: formatMetafieldValue(metafield.value, definition),
+      dateDisplayMode: definition.type === "date"
+        ? definition.options?.dateConfig?.displayMode || "numeric"
+        : undefined,
     });
   }
 
@@ -220,6 +251,92 @@ export function buildPublicProductSnapshot(
     fields,
     metafields: visibleMetafields,
   };
+}
+
+export function resolvePublicCollection(category: string | undefined): {
+  slug: string;
+  label: string;
+} {
+  const normalized = category?.trim();
+  if (!normalized) {
+    return {
+      slug: "uncategorized",
+      label: "Uncategorized",
+    };
+  }
+  return {
+    slug: slugifySegment(normalized),
+    label: normalized,
+  };
+}
+
+export function buildSlugLookup(slugCanonical: string, slugAliases: string[]): string[] {
+  const deduped = new Set<string>();
+  const canonical = slugifySegment(slugCanonical);
+  if (canonical) deduped.add(canonical);
+  for (const alias of slugAliases) {
+    const normalized = slugifySegment(alias);
+    if (!normalized) continue;
+    deduped.add(normalized);
+  }
+  return Array.from(deduped);
+}
+
+export function buildCollectionSummaries(
+  products: Array<Pick<Product, "status" | "category">>,
+): PublicCollectionSummary[] {
+  const bySlug = new Map<string, { label: string; count: number }>();
+  for (const product of products) {
+    if (product.status !== "active") continue;
+    const collection = resolvePublicCollection(product.category);
+    const existing = bySlug.get(collection.slug);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    bySlug.set(collection.slug, { label: collection.label, count: 1 });
+  }
+
+  return Array.from(bySlug.entries())
+    .map(([slug, entry]) => ({
+      slug,
+      label: entry.label,
+      count: entry.count,
+    }))
+    .sort((a, b) => {
+      if (a.slug === "uncategorized" && b.slug !== "uncategorized") return 1;
+      if (b.slug === "uncategorized" && a.slug !== "uncategorized") return -1;
+      return a.label.localeCompare(b.label);
+    });
+}
+
+export function buildPublicProductListingCard(
+  product: Product,
+  canonicalPath: string,
+  canonicalUrl: string,
+): PublicProductListingCard {
+  const createdAtRaw = product.createdAt as unknown;
+  const updatedAtRaw = product.updatedAt as unknown;
+  return compactObject<PublicProductListingCard>({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    currency: product.currency,
+    image: product.images?.[0],
+    category: product.category,
+    canonicalPath,
+    canonicalUrl,
+    createdAt: typeof createdAtRaw === "string"
+      ? createdAtRaw
+      : createdAtRaw instanceof Date
+        ? createdAtRaw.toISOString()
+        : undefined,
+    updatedAt: typeof updatedAtRaw === "string"
+      ? updatedAtRaw
+      : updatedAtRaw instanceof Date
+        ? updatedAtRaw.toISOString()
+        : undefined,
+  });
 }
 
 function parseCanonicalLocation(canonicalUrl: string): { host: string; path: string } {

@@ -24,8 +24,15 @@ export default {
     try {
       const url = new URL(request.url);
       const host = request.headers.get("Host");
+      const path = url.pathname;
 
-      console.log(`[Worker] Request received: ${request.method} ${url.pathname}, Host: ${host}`);
+      console.log(`[Worker] Request received: ${request.method} ${path}, Host: ${host}`);
+
+      // Public catalog routes are dynamic and do not require brand-site KV host mapping.
+      // Handle them first so workers.dev and direct route testing work.
+      if (path.startsWith("/p/")) {
+        return await handlePublicProductPath(request, url, env);
+      }
 
       if (!host) {
         return new Response("Missing host header", { status: 400 });
@@ -82,27 +89,23 @@ export default {
       // Build R2 key based on path
       // For root path, serve index.html
       // For other paths, try the path directly, then try path/index.html for subdirectories
-      let path = url.pathname;
-
-      if (path.startsWith("/p/")) {
-        return await handlePublicProductPath(url, env);
-      }
+      let sitePath = path;
       
       // Normalize path: ensure it starts with / and remove trailing slashes (except root)
-      if (!path.startsWith("/")) {
-        path = `/${path}`;
+      if (!sitePath.startsWith("/")) {
+        sitePath = `/${sitePath}`;
       }
-      if (path !== "/" && path.endsWith("/")) {
-        path = path.slice(0, -1);
+      if (sitePath !== "/" && sitePath.endsWith("/")) {
+        sitePath = sitePath.slice(0, -1);
       }
       
       // For root, use index.html
-      if (path === "/") {
-        path = "/index.html";
+      if (sitePath === "/") {
+        sitePath = "/index.html";
       }
       
       // Build R2 key
-      const normalizedPath = path;
+      const normalizedPath = sitePath;
       let r2Key = `sites/${brandSiteId}/${versionId}${normalizedPath}`;
       console.log(`[Worker] Fetching from R2: ${r2Key}`);
 
@@ -193,9 +196,30 @@ function buildResponse(object: R2ObjectBody): Response {
   return new Response(object.body, { headers });
 }
 
+type WorkerBreadcrumbItem = {
+  label: string;
+  path?: string;
+};
+
+type WorkerListingCard = {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  image?: string;
+  category?: string;
+  canonicalPath: string;
+  canonicalUrl: string;
+};
+
 type WorkerPublicProductResponse =
   | {
-      kind: "ok";
+      kind: "redirect";
+      canonicalPath: string;
+      canonicalUrl: string;
+    }
+  | {
+      kind: "org_products";
       canonicalPath: string;
       canonicalUrl: string;
       seo: {
@@ -211,10 +235,82 @@ type WorkerPublicProductResponse =
         orgSlug: string;
         logoUrl?: string;
       };
+      breadcrumb?: WorkerBreadcrumbItem[];
+      collections: Array<{
+        slug: string;
+        label: string;
+        count: number;
+        path: string;
+      }>;
+      listing: {
+        items: WorkerListingCard[];
+        pagination: {
+          limit: number;
+          hasMore: boolean;
+          nextCursor?: string;
+        };
+      };
+    }
+  | {
+      kind: "collection_products";
+      canonicalPath: string;
+      canonicalUrl: string;
+      seo: {
+        title: string;
+        description: string;
+        canonicalUrl: string;
+        image?: string;
+        robots: string;
+      };
+      organization: {
+        id: string;
+        name: string;
+        orgSlug: string;
+        logoUrl?: string;
+      };
+      breadcrumb?: WorkerBreadcrumbItem[];
+      collection: {
+        slug: string;
+        label: string;
+        path: string;
+      };
+      collections: Array<{
+        slug: string;
+        label: string;
+        count: number;
+        path: string;
+      }>;
+      listing: {
+        items: WorkerListingCard[];
+        pagination: {
+          limit: number;
+          hasMore: boolean;
+          nextCursor?: string;
+        };
+      };
+    }
+  | {
+      kind: "product_detail";
+      canonicalPath: string;
+      canonicalUrl: string;
+      seo: {
+        title: string;
+        description: string;
+        canonicalUrl: string;
+        image?: string;
+        robots: string;
+      };
+      organization: {
+        id: string;
+        name: string;
+        orgSlug: string;
+        logoUrl?: string;
+      };
+      breadcrumb?: WorkerBreadcrumbItem[];
       product: {
         id: string;
-        state: "published";
-        fields: {
+        state: "published" | "unavailable";
+        fields?: {
           name: string;
           description?: string;
           price: number;
@@ -225,38 +321,13 @@ type WorkerPublicProductResponse =
           tags?: string[];
           images?: string[];
         };
-        metafields: Array<{
+        metafields?: Array<{
           definitionId: string;
           name: string;
           type: string;
           description?: string;
           displayValue: string;
         }>;
-      };
-    }
-  | {
-      kind: "redirect";
-      canonicalPath: string;
-      canonicalUrl: string;
-    }
-  | {
-      kind: "unavailable";
-      canonicalPath: string;
-      canonicalUrl: string;
-      seo: {
-        title: string;
-        description: string;
-        canonicalUrl: string;
-        robots: string;
-      };
-      organization: {
-        id: string;
-        name: string;
-        orgSlug: string;
-      };
-      product: {
-        id: string;
-        state: "unavailable";
       };
     };
 
@@ -269,8 +340,185 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function formatPrice(price: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+    }).format(price);
+  } catch {
+    return `${price} ${currency}`;
+  }
+}
+
+function renderBreadcrumb(items?: WorkerBreadcrumbItem[]): string {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  const safeItems = items.filter((item) => item && typeof item.label === "string" && item.label.trim().length > 0);
+  if (safeItems.length === 0) return "";
+  return `<nav class="breadcrumb" aria-label="Breadcrumb">${safeItems
+    .map((item, idx) => {
+      const isLast = idx === safeItems.length - 1;
+      const label = escapeHtml(item.label);
+      if (isLast || !item.path) {
+        return `<span class="crumb current">${label}</span>`;
+      }
+      return `<a class="crumb" href="${escapeHtml(item.path)}">${label}</a>`;
+    })
+    .join('<span class="sep">/</span>')}</nav>`;
+}
+
+function renderCollectionNav(
+  collections: Array<{ slug: string; label: string; count: number; path: string }>,
+  activeCollectionSlug?: string,
+): string {
+  return `<div class="collections">${collections
+    .map((entry) => {
+      const active = activeCollectionSlug === entry.slug;
+      return `<a class="collection-pill${active ? " active" : ""}" href="${escapeHtml(entry.path)}">
+        <span>${escapeHtml(entry.label)}</span>
+        <span class="count">${escapeHtml(String(entry.count))}</span>
+      </a>`;
+    })
+    .join("")}</div>`;
+}
+
+function renderListingCards(items: WorkerListingCard[]): string {
+  if (items.length === 0) {
+    return `<section class="empty-card"><h2>No products yet</h2><p>No public products are available for this view.</p></section>`;
+  }
+
+  return `<section class="grid">${items
+    .map((item) => {
+      const image = item.image
+        ? `<img class="card-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />`
+        : `<div class="card-image card-image-empty">No image</div>`;
+      return `<a class="product-card" href="${escapeHtml(item.canonicalPath)}">
+        ${image}
+        <div class="card-content">
+          ${item.category ? `<p class="category">${escapeHtml(item.category)}</p>` : ""}
+          <h3>${escapeHtml(item.name)}</h3>
+          <p class="price">${escapeHtml(formatPrice(item.price, item.currency))}</p>
+        </div>
+      </a>`;
+    })
+    .join("")}</section>`;
+}
+
+function fallbackBreadcrumb(payload: Exclude<WorkerPublicProductResponse, { kind: "redirect" }>): WorkerBreadcrumbItem[] {
+  if (payload.kind === "org_products") {
+    return [
+      { label: "Home", path: "/" },
+      { label: "All Products" },
+    ];
+  }
+
+  const orgProductsPath = `/p/${payload.organization.orgSlug}`;
+  if (payload.kind === "collection_products") {
+    return [
+      { label: "Home", path: "/" },
+      { label: "All Products", path: orgProductsPath },
+      { label: payload.collection.label },
+    ];
+  }
+
+  const items: WorkerBreadcrumbItem[] = [
+    { label: "Home", path: "/" },
+    { label: "All Products", path: orgProductsPath },
+  ];
+  const category = payload.product.fields?.category;
+  if (typeof category === "string" && category.trim().length > 0) {
+    items.push({ label: category.trim() });
+  }
+  items.push({ label: payload.product.fields?.name || "Product" });
+  return items;
+}
+
+function resolveBreadcrumb(payload: Exclude<WorkerPublicProductResponse, { kind: "redirect" }>): WorkerBreadcrumbItem[] {
+  if (Array.isArray(payload.breadcrumb) && payload.breadcrumb.length > 0) {
+    return payload.breadcrumb;
+  }
+  return fallbackBreadcrumb(payload);
+}
+
 function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
-  if (payload.kind === "unavailable") {
+  if (payload.kind === "redirect") {
+    return `<!doctype html><html><head><meta charset="utf-8" /><title>Redirecting…</title></head><body>Redirecting…</body></html>`;
+  }
+
+  const breadcrumb = resolveBreadcrumb(payload);
+  if (payload.kind === "org_products" || payload.kind === "collection_products") {
+    const heading =
+      payload.kind === "collection_products"
+        ? `${escapeHtml(payload.collection.label)}`
+        : "All Products";
+    const collectionNav = renderCollectionNav(
+      payload.collections,
+      payload.kind === "collection_products" ? payload.collection.slug : undefined,
+    );
+    const listing = renderListingCards(payload.listing.items);
+    const nextPageLink = payload.listing.pagination.nextCursor
+      ? (() => {
+          const next = new URL(payload.canonicalPath, "https://financely.app");
+          next.searchParams.set("cursor", payload.listing.pagination.nextCursor || "");
+          return `<div class="pager"><a href="${escapeHtml(next.pathname + next.search)}">Next Page</a></div>`;
+        })()
+      : "";
+
+    return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(payload.seo.title)}</title>
+    <meta name="description" content="${escapeHtml(payload.seo.description)}" />
+    <meta name="robots" content="${escapeHtml(payload.seo.robots)}" />
+    <link rel="canonical" href="${escapeHtml(payload.seo.canonicalUrl)}" />
+    ${payload.seo.image ? `<meta property="og:image" content="${escapeHtml(payload.seo.image)}" />` : ""}
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: #f4f5f7; color: #111827; }
+      .container { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+      .org { margin: 0 0 6px; color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+      h1 { margin: 0 0 14px; font-size: 30px; line-height: 1.2; }
+      .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; margin: 0 0 14px; }
+      .crumb { color: #4b5563; text-decoration: none; }
+      .crumb:hover { color: #111827; }
+      .crumb.current { color: #111827; }
+      .sep { color: #9ca3af; }
+      .collections { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+      .collection-pill { display: inline-flex; gap: 8px; align-items: center; text-decoration: none; border: 1px solid #d1d5db; border-radius: 999px; padding: 6px 10px; color: #374151; background: #fff; font-size: 13px; }
+      .collection-pill .count { color: #6b7280; }
+      .collection-pill.active { border-color: #111827; color: #111827; }
+      .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+      .product-card { display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(17, 24, 39, 0.04); }
+      .card-image { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: #f9fafb; }
+      .card-image-empty { display: grid; place-items: center; color: #9ca3af; font-size: 13px; }
+      .card-content { padding: 12px; }
+      .category { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+      h3 { margin: 5px 0 6px; font-size: 16px; line-height: 1.35; }
+      .price { margin: 0; font-size: 14px; color: #111827; font-weight: 600; }
+      .empty-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; }
+      .empty-card h2 { margin: 0 0 6px; font-size: 20px; }
+      .empty-card p { margin: 0; color: #6b7280; }
+      .pager { margin-top: 18px; }
+      .pager a { display: inline-block; text-decoration: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; background: #fff; color: #111827; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      ${renderBreadcrumb(breadcrumb)}
+      <p class="org">${escapeHtml(payload.organization.name)}</p>
+      <h1>${heading}</h1>
+      ${collectionNav}
+      ${listing}
+      ${nextPageLink}
+    </main>
+  </body>
+</html>`;
+  }
+
+  if (payload.product.state === "unavailable") {
     return `<!doctype html>
 <html lang="en">
   <head>
@@ -284,12 +532,17 @@ function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
       body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: #f5f6f8; color: #111827; }
       .container { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
       .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; }
+      .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; margin: 0 0 14px; }
+      .crumb { color: #4b5563; text-decoration: none; }
+      .crumb.current { color: #111827; }
+      .sep { color: #9ca3af; }
       h1 { margin: 0 0 8px 0; font-size: 24px; }
       p { margin: 0; color: #4b5563; }
     </style>
   </head>
   <body>
     <main class="container">
+      ${renderBreadcrumb(breadcrumb)}
       <section class="card">
         <h1>This product is currently unavailable</h1>
         <p>${escapeHtml(payload.organization.name)} has not published this product right now.</p>
@@ -299,14 +552,10 @@ function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
 </html>`;
   }
 
-  if (payload.kind !== "ok") {
-    return `<!doctype html><html><head><meta charset="utf-8" /><title>Redirecting…</title></head><body>Redirecting…</body></html>`;
-  }
-
-  const image = payload.product.fields.images?.[0];
-  const tags = payload.product.fields.tags || [];
+  const fields = payload.product.fields;
   const metafields = payload.product.metafields || [];
-
+  const image = fields?.images?.[0];
+  const tags = fields?.tags || [];
   const tagHtml = tags.length
     ? `<div class="tags">${tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>`
     : "";
@@ -336,6 +585,11 @@ function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
       :root { color-scheme: light; }
       body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: #f3f4f6; color: #111827; }
       .container { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+      .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; margin: 0 0 14px; }
+      .crumb { color: #4b5563; text-decoration: none; }
+      .crumb:hover { color: #111827; }
+      .crumb.current { color: #111827; }
+      .sep { color: #9ca3af; }
       .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(17,24,39,0.04); }
       .content { padding: 20px; }
       .org { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin: 0 0 6px; }
@@ -356,18 +610,18 @@ function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
   </head>
   <body>
     <main class="container">
+      ${renderBreadcrumb(breadcrumb)}
       <article class="card">
-        ${image ? `<img class="hero" src="${escapeHtml(image)}" alt="${escapeHtml(payload.product.fields.name)}" />` : ""}
+        ${image ? `<img class="hero" src="${escapeHtml(image)}" alt="${escapeHtml(fields?.name || "Product image")}" />` : ""}
         <div class="content">
           <p class="org">${escapeHtml(payload.organization.name)}</p>
-          <h1>${escapeHtml(payload.product.fields.name)}</h1>
-          <p class="price">${escapeHtml(String(payload.product.fields.price))} ${escapeHtml(payload.product.fields.currency)}</p>
+          <h1>${escapeHtml(fields?.name || "Product")}</h1>
+          <p class="price">${escapeHtml(formatPrice(fields?.price || 0, fields?.currency || "USD"))}</p>
           <div class="meta-strip">
-            ${payload.product.fields.category ? `<span class="meta-pill">Category: ${escapeHtml(payload.product.fields.category)}</span>` : ""}
-            ${payload.product.fields.sku ? `<span class="meta-pill">SKU: ${escapeHtml(payload.product.fields.sku)}</span>` : ""}
-            ${payload.product.fields.barcode ? `<span class="meta-pill">Barcode: ${escapeHtml(payload.product.fields.barcode)}</span>` : ""}
+            ${fields?.category ? `<span class="meta-pill">Category: ${escapeHtml(fields.category)}</span>` : ""}
+            ${fields?.barcode ? `<span class="meta-pill">Barcode: ${escapeHtml(fields.barcode)}</span>` : ""}
           </div>
-          ${payload.product.fields.description ? `<p class="desc">${escapeHtml(payload.product.fields.description)}</p>` : ""}
+          ${fields?.description ? `<p class="desc">${escapeHtml(fields.description)}</p>` : ""}
           ${tagHtml}
           ${metafieldHtml}
         </div>
@@ -377,14 +631,28 @@ function renderWorkerProductHtml(payload: WorkerPublicProductResponse): string {
 </html>`;
 }
 
-async function handlePublicProductPath(url: URL, env: Env): Promise<Response> {
+async function handlePublicProductPath(request: Request, url: URL, env: Env): Promise<Response> {
   const segments = url.pathname.split("/").filter(Boolean);
-  if (segments.length < 3 || segments[0] !== "p") {
+  if (segments[0] !== "p") {
     return new Response("Not found", { status: 404 });
   }
 
-  const orgSlug = segments[1];
-  const productSlug = segments[2];
+  let orgSlug = "";
+  let productSlug = "";
+  let collectionSlug = "";
+
+  if (segments.length === 2) {
+    orgSlug = segments[1];
+  } else if (segments.length === 4 && segments[2] === "c") {
+    orgSlug = segments[1];
+    collectionSlug = segments[3];
+  } else if (segments.length === 3) {
+    orgSlug = segments[1];
+    productSlug = segments[2];
+  } else {
+    return new Response("Not found", { status: 404 });
+  }
+
   const defaultApi =
     env.FIREBASE_PROJECT_ID
       ? `https://us-central1-${env.FIREBASE_PROJECT_ID}.cloudfunctions.net/getPublicProductPage`
@@ -396,24 +664,56 @@ async function handlePublicProductPath(url: URL, env: Env): Promise<Response> {
 
   const apiUrl = new URL(apiBase);
   apiUrl.searchParams.set("orgSlug", orgSlug);
-  apiUrl.searchParams.set("productSlug", productSlug);
+  if (productSlug) {
+    apiUrl.searchParams.set("productSlug", productSlug);
+  }
+  if (collectionSlug) {
+    apiUrl.searchParams.set("collectionSlug", collectionSlug);
+  }
+  const cursor = url.searchParams.get("cursor");
+  if (cursor) {
+    apiUrl.searchParams.set("cursor", cursor);
+  }
   apiUrl.searchParams.set("mode", "json");
 
   const apiResponse = await fetch(apiUrl.toString(), {
     method: "GET",
     headers: {
       "Accept": "application/json",
+      ...(request.headers.get("Accept-Language")
+        ? { "Accept-Language": request.headers.get("Accept-Language") as string }
+        : {}),
     },
   });
 
   if (!apiResponse.ok) {
+    let upstreamError = "";
+    try {
+      const payload = (await apiResponse.json()) as { error?: string };
+      if (typeof payload?.error === "string") {
+        upstreamError = payload.error;
+      }
+    } catch {
+      // Ignore parse failures and fall back to generic messages.
+    }
     if (apiResponse.status === 404) {
-      return new Response("Product page not found", {
+      return new Response(
+        upstreamError
+          ? `Public page not found: ${upstreamError}`
+          : "Public page not found",
+        {
         status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        },
+      );
+    }
+    if (upstreamError) {
+      return new Response(`Failed to load public catalog page: ${upstreamError}`, {
+        status: 502,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
-    return new Response("Failed to load public product page", {
+    return new Response("Failed to load public catalog page", {
       status: 502,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
@@ -428,5 +728,6 @@ async function handlePublicProductPath(url: URL, env: Env): Promise<Response> {
   const headers = new Headers();
   headers.set("Content-Type", "text/html; charset=utf-8");
   headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+  headers.set("Vary", "Accept-Language");
   return new Response(html, { status: 200, headers });
 }

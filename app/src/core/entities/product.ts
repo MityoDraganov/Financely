@@ -11,13 +11,66 @@ export const productPublicQrSchema = z.object({
   version: z.number().int().min(1).default(1),
 });
 
+const productPublicListingCardSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number(),
+  currency: z.string(),
+  image: z.string().url().optional(),
+  category: z.string().optional(),
+  canonicalPath: z.string(),
+  canonicalUrl: z.string().url(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+const productPublicDetailSnapshotSchema = z.object({
+  fields: z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    price: z.number(),
+    currency: z.string(),
+    sku: z.string().optional(),
+    barcode: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    images: z.array(z.string().url()).optional(),
+    taxRate: z.number().optional(),
+    weight: z.number().optional(),
+    dimensions: z.object({
+      length: z.number().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+      unit: z.enum(["cm", "in", "m"]).default("cm"),
+    }).optional(),
+  }),
+  metafields: z.array(
+    z.object({
+      definitionId: z.string(),
+      name: z.string(),
+      type: z.string(),
+      description: z.string().optional(),
+      value: z.unknown(),
+      displayValue: z.string(),
+      dateDisplayMode: z.enum(["numeric", "localized"]).optional(),
+    }),
+  ).default([]),
+});
+
 export const productPublicPageSchema = z.object({
   slug: z.string().optional(),
+  slugCanonical: z.string().optional(),
   slugAliases: z.array(z.string()).default([]),
+  slugLookup: z.array(z.string()).default([]),
+  orgSlugCanonical: z.string().optional(),
+  collectionSlug: z.string().optional(),
+  collectionLabel: z.string().optional(),
   state: z.enum(["published", "unavailable"]).default("unavailable"),
   canonicalPath: z.string().optional(),
   canonicalUrl: z.string().url().optional(),
   payloadHash: z.string().optional(),
+  listingCard: productPublicListingCardSchema.optional(),
+  detailSnapshot: productPublicDetailSnapshotSchema.optional(),
   version: z.number().int().min(1).default(1),
   lastSyncRequestedAt: z.string().optional(),
   lastPublishedAt: z.string().optional(),

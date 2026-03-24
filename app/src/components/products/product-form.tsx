@@ -230,16 +230,17 @@ export function ProductForm({
       if (formData.category !== undefined) updateData.category = formData.category;
       if (formData.cost != null) updateData.cost = formData.cost;
       if (formData.taxRate != null) updateData.taxRate = formData.taxRate;
-      if (trimmedPublicSlug) {
-        updateData.publicPage = initialData?.publicPage
-          ? { ...initialData.publicPage, slug: trimmedPublicSlug }
-          : {
-              slug: trimmedPublicSlug,
-              slugAliases: [],
-              state: (formData.status || "active") === "active" ? "published" : "unavailable",
-              version: 1,
-            };
-      }
+	      if (trimmedPublicSlug) {
+	        updateData.publicPage = initialData?.publicPage
+	          ? { ...initialData.publicPage, slug: trimmedPublicSlug }
+	          : {
+	              slug: trimmedPublicSlug,
+	              slugAliases: [],
+	              slugLookup: [],
+	              state: (formData.status || "active") === "active" ? "published" : "unavailable",
+	              version: 1,
+	            };
+	      }
 
       await onSubmit(updateData);
       productId = initialData!.id;
@@ -260,14 +261,15 @@ export function ProductForm({
         ...(formData.lowStockThreshold != null && { lowStockThreshold: formData.lowStockThreshold }),
         ...(formData.cost != null && { cost: formData.cost }),
         ...(formData.taxRate != null && { taxRate: formData.taxRate }),
-        ...(trimmedPublicSlug && {
-          publicPage: {
-            slug: trimmedPublicSlug,
-            slugAliases: [],
-            state: (formData.status || "active") === "active" ? "published" : "unavailable",
-            version: 1,
-          },
-        }),
+	        ...(trimmedPublicSlug && {
+	          publicPage: {
+	            slug: trimmedPublicSlug,
+	            slugAliases: [],
+	            slugLookup: [],
+	            state: (formData.status || "active") === "active" ? "published" : "unavailable",
+	            version: 1,
+	          },
+	        }),
       };
 
       const result = await onSubmit(createData);

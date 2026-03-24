@@ -22,6 +22,21 @@ import { DuplicateOrganizationDialog } from "@/components/organization/duplicate
 import { isAdminOrOwner } from "@/core/roles";
 
 type OrganizationGeneralForm = z.infer<ReturnType<typeof getOrganizationGeneralSchema>>;
+const PUBLIC_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PUBLIC_SLUG_MAX_LENGTH = 64;
+
+function normalizePublicSlug(value: string): string {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, PUBLIC_SLUG_MAX_LENGTH)
+    .replace(/-+$/g, "");
+  return normalized;
+}
 
 function getOrganizationGeneralSchema() {
   return z.object({
@@ -35,6 +50,12 @@ function getOrganizationGeneralSchema() {
     state: z.string().optional(),
     zipCode: z.string().optional(),
     country: z.string().optional(),
+    publicSlug: z
+      .string()
+      .max(PUBLIC_SLUG_MAX_LENGTH, `Slug must be ${PUBLIC_SLUG_MAX_LENGTH} characters or less`)
+      .regex(PUBLIC_SLUG_PATTERN, "Use lowercase letters, numbers, and single hyphens only")
+      .optional()
+      .or(z.literal("")),
   });
 }
 
@@ -61,6 +82,8 @@ export default function OrganizationGeneralPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<OrganizationGeneralForm>({
     resolver: zodResolver(organizationGeneralSchema),
@@ -75,8 +98,11 @@ export default function OrganizationGeneralPage() {
       state: "",
       zipCode: "",
       country: "",
+      publicSlug: "",
     },
   });
+  const publicSlugInput = watch("publicSlug") || "";
+  const publicSlugPreview = normalizePublicSlug(publicSlugInput) || normalizePublicSlug(organization?.name || "");
 
   // Watch for changes to detect unsaved changes
   useEffect(() => {
@@ -98,6 +124,7 @@ export default function OrganizationGeneralPage() {
         state: address?.state || "",
         zipCode: address?.zipCode || "",
         country: address?.country || "",
+        publicSlug: organization.settings?.publicPages?.orgSlug || "",
       });
     }
   }, [organization, reset]);
@@ -148,6 +175,13 @@ export default function OrganizationGeneralPage() {
         updateData["settings.address"] = address;
       } else if (organization.settings?.address) {
         updateData["settings.address"] = deleteField();
+      }
+
+      const normalizedPublicSlug = normalizePublicSlug(data.publicSlug?.trim() || "");
+      if (normalizedPublicSlug) {
+        updateData["settings.publicPages.orgSlug"] = normalizedPublicSlug;
+      } else if (organization.settings?.publicPages?.orgSlug) {
+        updateData["settings.publicPages.orgSlug"] = deleteField();
       }
 
       await updateOrganization.mutateAsync({
@@ -221,6 +255,34 @@ export default function OrganizationGeneralPage() {
                   <p className="text-sm text-red-600">{errors.website.message}</p>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="publicSlug">Public catalog slug</Label>
+              <Input
+                id="publicSlug"
+                {...register("publicSlug", {
+                  onBlur: (event) => {
+                    const normalized = normalizePublicSlug(event.target.value || "");
+                    setValue("publicSlug", normalized, {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                      shouldValidate: true,
+                    });
+                  },
+                })}
+                placeholder="your-business-name"
+                className={errors.publicSlug ? "border-red-500" : ""}
+              />
+              <p className="text-xs text-muted-foreground">
+                Public URL: /p/{publicSlugPreview || "<slug>"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                If this slug is already in use, a numeric suffix is added automatically.
+              </p>
+              {errors.publicSlug && (
+                <p className="text-sm text-red-600">{errors.publicSlug.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
