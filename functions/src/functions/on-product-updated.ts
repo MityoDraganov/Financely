@@ -92,6 +92,8 @@ export const onProductWritten = onDocumentWritten(
             const orgSlug = slugifySegment(
               organization.settings?.publicPages?.orgSlug || organization.name,
             );
+            const orgSlugAliases =
+              organization.settings?.publicPages?.orgSlugAliases || [];
             const orgProducts = await productRepository.getAll({
               queryConstraints: [{ field: "organizationId", operator: "==", value: organizationId }],
             });
@@ -99,6 +101,7 @@ export const onProductWritten = onDocumentWritten(
             await databaseService.set("publicCatalogs", organization.id, {
               organizationId: organization.id,
               orgSlugCanonical: orgSlug,
+              orgSlugAliases,
               collections: collectionSummaries,
             });
           }
@@ -320,9 +323,12 @@ export const onProductWritten = onDocumentWritten(
 
       try {
         const collectionSummaries = buildCollectionSummaries(orgProducts);
+        const orgSlugAliases =
+          organization.settings?.publicPages?.orgSlugAliases || [];
         await databaseService.set("publicCatalogs", organization.id, {
           organizationId: organization.id,
           orgSlugCanonical: orgSlug,
+          orgSlugAliases,
           collections: collectionSummaries,
         });
       } catch (catalogError) {

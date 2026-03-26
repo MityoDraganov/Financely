@@ -1,0 +1,15 @@
+{
+  "allProducts": "Всички продукти",
+  "noProductsTitle": "Няма продукти",
+  "noProductsDescription": "Няма налични публични продукти за тази категория.",
+  "nextPage": "Следваща страница",
+  "productUnavailable": "Продуктът не е наличен",
+  "productUnavailableDescription": "{{name}} не е публикувал този продукт в момента.",
+  "specifications": "Спецификации",
+  "barcode": "Баркод",
+  "weight": "Тегло",
+  "length": "Дължина",
+  "width": "Ширина",
+  "height": "Височина",
+  "tax": "+ {{rate}}% данък"
+}

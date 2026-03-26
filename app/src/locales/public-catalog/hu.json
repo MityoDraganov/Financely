@@ -1,0 +1,15 @@
+{
+  "allProducts": "Összes termék",
+  "noProductsTitle": "Még nincsenek termékek",
+  "noProductsDescription": "Ehhez a nézethez nem érhetők el nyilvános termékek.",
+  "nextPage": "Következő oldal",
+  "productUnavailable": "A termék nem elérhető",
+  "productUnavailableDescription": "{{name}} jelenleg nem tette közzé ezt a terméket.",
+  "specifications": "Műszaki adatok",
+  "barcode": "Vonalkód",
+  "weight": "Súly",
+  "length": "Hossz",
+  "width": "Szélesség",
+  "height": "Magasság",
+  "tax": "+ {{rate}}% adó"
+}

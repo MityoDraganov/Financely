@@ -1,0 +1,15 @@
+{
+  "allProducts": "Svi proizvodi",
+  "noProductsTitle": "Još nema proizvoda",
+  "noProductsDescription": "Nema dostupnih javnih proizvoda za ovaj prikaz.",
+  "nextPage": "Sledeća stranica",
+  "productUnavailable": "Proizvod nije dostupan",
+  "productUnavailableDescription": "{{name}} trenutno nije objavio ovaj proizvod.",
+  "specifications": "Specifikacije",
+  "barcode": "Bar kod",
+  "weight": "Težina",
+  "length": "Dužina",
+  "width": "Širina",
+  "height": "Visina",
+  "tax": "+ {{rate}}% PDV"
+}

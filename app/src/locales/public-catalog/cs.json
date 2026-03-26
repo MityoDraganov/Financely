@@ -1,0 +1,15 @@
+{
+  "allProducts": "Všechny produkty",
+  "noProductsTitle": "Zatím žádné produkty",
+  "noProductsDescription": "Pro toto zobrazení nejsou dostupné žádné veřejné produkty.",
+  "nextPage": "Další stránka",
+  "productUnavailable": "Produkt není dostupný",
+  "productUnavailableDescription": "{{name}} tento produkt momentálně nezveřejnil.",
+  "specifications": "Specifikace",
+  "barcode": "Čárový kód",
+  "weight": "Hmotnost",
+  "length": "Délka",
+  "width": "Šířka",
+  "height": "Výška",
+  "tax": "+ {{rate}}% daň"
+}

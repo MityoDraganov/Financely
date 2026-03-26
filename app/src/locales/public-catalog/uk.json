@@ -1,0 +1,15 @@
+{
+  "allProducts": "Всі товари",
+  "noProductsTitle": "Товарів поки немає",
+  "noProductsDescription": "Немає доступних публічних товарів для цього перегляду.",
+  "nextPage": "Наступна сторінка",
+  "productUnavailable": "Товар недоступний",
+  "productUnavailableDescription": "{{name}} не опублікував цей товар наразі.",
+  "specifications": "Характеристики",
+  "barcode": "Штрихкод",
+  "weight": "Вага",
+  "length": "Довжина",
+  "width": "Ширина",
+  "height": "Висота",
+  "tax": "+ {{rate}}% податок"
+}

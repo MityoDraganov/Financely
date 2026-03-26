@@ -1,0 +1,15 @@
+{
+  "allProducts": "Tüm ürünler",
+  "noProductsTitle": "Henüz ürün yok",
+  "noProductsDescription": "Bu görünüm için mevcut genel ürün yok.",
+  "nextPage": "Sonraki sayfa",
+  "productUnavailable": "Ürün mevcut değil",
+  "productUnavailableDescription": "{{name}} bu ürünü şu an için yayınlamadı.",
+  "specifications": "Özellikler",
+  "barcode": "Barkod",
+  "weight": "Ağırlık",
+  "length": "Uzunluk",
+  "width": "Genişlik",
+  "height": "Yükseklik",
+  "tax": "+ %{{rate}} vergi"
+}

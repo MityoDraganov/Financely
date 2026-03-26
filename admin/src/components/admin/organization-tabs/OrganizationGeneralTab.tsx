@@ -40,6 +40,7 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
     name: organization.name || "",
     description: organization.description || "",
     status: (organization.status || "active") as "active" | "suspended" | "deleted",
+    defaultLanguage: organization.settings?.defaultLanguage || "en",
   });
 
   const createdAt = organization.createdAt
@@ -53,6 +54,7 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
       name: organization.name || "",
       description: organization.description || "",
       status: (organization.status || "active") as "active" | "suspended" | "deleted",
+      defaultLanguage: organization.settings?.defaultLanguage || "en",
     });
     setIsEditDialogOpen(true);
   };
@@ -62,11 +64,15 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
       name?: string;
       description?: string;
       status?: "active" | "suspended" | "deleted";
+      settings?: Record<string, unknown>;
     } = {};
 
     if (editData.name !== organization.name) updates.name = editData.name;
     if (editData.description !== organization.description) updates.description = editData.description;
     if (editData.status !== organization.status) updates.status = editData.status;
+    if (editData.defaultLanguage !== (organization.settings?.defaultLanguage || "en")) {
+      updates.settings = { defaultLanguage: editData.defaultLanguage };
+    }
 
     if (Object.keys(updates).length === 0) {
       setIsEditDialogOpen(false);
@@ -288,6 +294,39 @@ export function OrganizationGeneralTab({ organization }: OrganizationGeneralTabP
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="suspended">Suspended</SelectItem>
                   <SelectItem value="deleted">Deleted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-language">Default Language</Label>
+              <Select
+                value={editData.defaultLanguage}
+                onValueChange={(value) => setEditData({ ...editData, defaultLanguage: value })}
+              >
+                <SelectTrigger id="edit-language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bg">Bulgarian (bg)</SelectItem>
+                  <SelectItem value="cs">Czech (cs)</SelectItem>
+                  <SelectItem value="de">German (de)</SelectItem>
+                  <SelectItem value="el">Greek (el)</SelectItem>
+                  <SelectItem value="en">English (en)</SelectItem>
+                  <SelectItem value="es">Spanish (es)</SelectItem>
+                  <SelectItem value="fr">French (fr)</SelectItem>
+                  <SelectItem value="hr">Croatian (hr)</SelectItem>
+                  <SelectItem value="hu">Hungarian (hu)</SelectItem>
+                  <SelectItem value="it">Italian (it)</SelectItem>
+                  <SelectItem value="nl">Dutch (nl)</SelectItem>
+                  <SelectItem value="pl">Polish (pl)</SelectItem>
+                  <SelectItem value="pt">Portuguese (pt)</SelectItem>
+                  <SelectItem value="ro">Romanian (ro)</SelectItem>
+                  <SelectItem value="ru">Russian (ru)</SelectItem>
+                  <SelectItem value="sk">Slovak (sk)</SelectItem>
+                  <SelectItem value="sl">Slovenian (sl)</SelectItem>
+                  <SelectItem value="sr">Serbian (sr)</SelectItem>
+                  <SelectItem value="tr">Turkish (tr)</SelectItem>
+                  <SelectItem value="uk">Ukrainian (uk)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,0 +1,15 @@
+{
+  "allProducts": "Όλα τα προϊόντα",
+  "noProductsTitle": "Δεν υπάρχουν προϊόντα",
+  "noProductsDescription": "Δεν υπάρχουν διαθέσιμα δημόσια προϊόντα για αυτή την προβολή.",
+  "nextPage": "Επόμενη σελίδα",
+  "productUnavailable": "Το προϊόν δεν είναι διαθέσιμο",
+  "productUnavailableDescription": "Η {{name}} δεν έχει δημοσιεύσει αυτό το προϊόν αυτή τη στιγμή.",
+  "specifications": "Προδιαγραφές",
+  "barcode": "Γραμμωτός κώδικας",
+  "weight": "Βάρος",
+  "length": "Μήκος",
+  "width": "Πλάτος",
+  "height": "Ύψος",
+  "tax": "+ {{rate}}% φόρος"
+}

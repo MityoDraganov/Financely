@@ -1,0 +1,15 @@
+{
+  "allProducts": "Все товары",
+  "noProductsTitle": "Товаров пока нет",
+  "noProductsDescription": "Нет доступных публичных товаров для этого просмотра.",
+  "nextPage": "Следующая страница",
+  "productUnavailable": "Товар недоступен",
+  "productUnavailableDescription": "{{name}} не опубликовал этот товар в данный момент.",
+  "specifications": "Характеристики",
+  "barcode": "Штрихкод",
+  "weight": "Вес",
+  "length": "Длина",
+  "width": "Ширина",
+  "height": "Высота",
+  "tax": "+ {{rate}}% налог"
+}

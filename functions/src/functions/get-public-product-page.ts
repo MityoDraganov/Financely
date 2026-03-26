@@ -22,6 +22,7 @@ import {
   resolvePublicProductBaseUrl,
   slugifySegment,
 } from "../services/public-product-page-service";
+import { getListingProductsWithFallback } from "./public-catalog/listing-query";
 import {
   checkRequestSize,
   extractIpFromRequest,
@@ -907,40 +908,32 @@ export const getPublicProductPage = onRequest(
         } else {
           const requestedCollectionSlug = pageKind === "collection_products" ? collectionSlug : undefined;
           const collectionFilter = requestedCollectionSlug || undefined;
-
-          let query = db
-            .collection("products")
-            .where("organizationId", "==", organization.id)
-            .where("status", "==", "active");
-
-          if (collectionFilter) {
-            query = query.where("publicPage.collectionSlug", "==", collectionFilter);
-          }
-
-          query = query
-            .orderBy("createdAt", "desc")
-            .orderBy(FieldPath.documentId(), "asc")
-            .limit(PAGE_SIZE + 1);
-
-          if (cursor) {
-            query = query.startAfter(cursor.createdAt, cursor.id);
-          }
-
-          const listingSnapshot = await query.get();
-          const listedProducts = listingSnapshot.docs.map((entry) => snapshotToData<Product>(entry));
-          const hasMore = listedProducts.length > PAGE_SIZE;
-          const pageProducts = hasMore ? listedProducts.slice(0, PAGE_SIZE) : listedProducts;
-          const tail = pageProducts[pageProducts.length - 1];
-          const nextCursor = hasMore && tail ? buildCursor(tail.createdAt, tail.id) : undefined;
-          const listingItems = pageProducts.map((product) =>
-            buildListingCard(product, canonicalOrgSlug, baseUrl),
-          );
+          const listingResult = await getListingProductsWithFallback({
+            db,
+            organizationId: organization.id,
+            collectionFilter,
+            cursor,
+            pageSize: PAGE_SIZE,
+            buildCursor,
+          });
+          const listingItems = listingResult.products.flatMap((product) => {
+            try {
+              return [buildListingCard(product, canonicalOrgSlug, baseUrl)];
+            } catch (error) {
+              logger.warn("Skipping invalid product in public listing payload", {
+                organizationId: organization.id,
+                productId: product.id,
+                reason: error instanceof Error ? error.message : "Unknown error",
+              });
+              return [];
+            }
+          });
 
           if (pageKind === "collection_products") {
             const summary = collections.find((entry) => entry.slug === collectionSlug);
             const collectionLabel =
               summary?.label ||
-              pageProducts[0]?.publicPage?.collectionLabel ||
+              listingResult.products[0]?.publicPage?.collectionLabel ||
               (collectionSlug === "uncategorized"
                 ? "Uncategorized"
                 : collectionSlug
@@ -993,8 +986,8 @@ export const getPublicProductPage = onRequest(
                   items: listingItems,
                   pagination: {
                     limit: PAGE_SIZE,
-                    hasMore,
-                    nextCursor,
+                    hasMore: listingResult.hasMore,
+                    nextCursor: listingResult.nextCursor,
                   },
                 },
               };
@@ -1020,8 +1013,8 @@ export const getPublicProductPage = onRequest(
                 items: listingItems,
                 pagination: {
                   limit: PAGE_SIZE,
-                  hasMore,
-                  nextCursor,
+                  hasMore: listingResult.hasMore,
+                  nextCursor: listingResult.nextCursor,
                 },
               },
             };

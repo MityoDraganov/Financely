@@ -7,6 +7,7 @@ export * from "./repository-hooks/use-organizations";
 export * from "./repository-hooks/use-users";
 export * from "./repository-hooks/use-workflows";
 export * from "./repository-hooks/use-analytics-config";
+export * from "./repository-hooks/use-public-catalog-page";
 
 // Service hooks
 export * from "./service-hooks/use-invoice-functions";

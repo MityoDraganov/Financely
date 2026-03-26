@@ -63,6 +63,7 @@ type PaletteItemConfig = {
 	labelDefault?: string;
 	addedToastKey?: string;
 	addedToastDefault?: string;
+	hidden?: boolean;
 };
 
 const PALETTE_ITEMS: PaletteItemConfig[] = [
@@ -146,6 +147,7 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		iconClassName: "text-neutral-600",
 		labelKey: "designer.sidebar.pageBreak",
 		labelDefault: "Page Break",
+		hidden: true,
 	},
 	{
 		type: "qrCode",
@@ -153,6 +155,7 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		iconClassName: "text-neutral-600",
 		labelKey: "designer.sidebar.qrCode",
 		labelDefault: "QR Code",
+		hidden: true,
 	},
 	{
 		type: "barcode",
@@ -160,6 +163,7 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		iconClassName: "text-neutral-600",
 		labelKey: "designer.sidebar.barcode",
 		labelDefault: "Barcode",
+		hidden: true,
 	},
 	{
 		type: "signature",
@@ -167,6 +171,7 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		iconClassName: "text-muted-foreground",
 		labelKey: "designer.sidebar.signature",
 		labelDefault: "Signature",
+		hidden: true,
 	},
 	{
 		type: "stamp",
@@ -174,6 +179,7 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		iconClassName: "text-muted-foreground",
 		labelKey: "designer.sidebar.stamp",
 		labelDefault: "Stamp",
+		hidden: true,
 	},
 ];
 
@@ -383,7 +389,7 @@ export function TemplateSidebar({
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
 				<div className="grid grid-cols-1 gap-2.5">
-					{PALETTE_ITEMS.map((item) => {
+					{PALETTE_ITEMS.filter((item) => !item.hidden).map((item) => {
 						const Icon = item.icon;
 						return (
 							<Button

@@ -129,16 +129,6 @@ export default function ProductDetailPage() {
                       </div>
                     </a>
                     <span className="text-xs text-muted-foreground">URL QR (opens public page)</span>
-                    {product.publicPage?.qr?.assetUrl && (
-                      <a
-                        href={product.publicPage.qr.assetUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-muted-foreground underline underline-offset-4"
-                      >
-                        Open stored server PNG
-                      </a>
-                    )}
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground">QR cannot be generated until canonical URL exists.</div>

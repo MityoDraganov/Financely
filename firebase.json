@@ -16,7 +16,7 @@
     }
   ],
   "firestore": {
-    "database": "default",
+    "database": "(default)",
     "location": "europe-central2",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
@@ -39,6 +39,13 @@
         "source": "/email-image",
         "function": {
           "functionId": "proxyStorageImage",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/p/**",
+        "function": {
+          "functionId": "servePublicCatalog",
           "region": "us-central1"
         }
       },

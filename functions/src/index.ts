@@ -112,7 +112,13 @@ export { publishBrandSite } from "./functions/publish-brand-site";
 
 // Widget functions
 export { getWidgetConfig } from "./functions/get-widget-config";
-export { getPublicProductPage } from "./functions/get-public-product-page";
+export {
+  getPublicProductPage,
+  getPublicProductPage as getPublicOrgProductsPage,
+  getPublicProductPage as getPublicCollectionProductsPage,
+  getPublicProductPage as getPublicProductDetailPage,
+} from "./functions/get-public-product-page";
+export { servePublicCatalog } from "./functions/serve-public-catalog";
 export { submitWidgetForm } from "./functions/submit-widget-form";
 export { submitModularWidget } from "./functions/submit-modular-widget";
 export { deployManualSite } from "./functions/deploy-manual-site";

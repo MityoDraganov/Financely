@@ -1,0 +1,15 @@
+{
+  "allProducts": "Všetky produkty",
+  "noProductsTitle": "Zatiaľ žiadne produkty",
+  "noProductsDescription": "Pre toto zobrazenie nie sú dostupné žiadne verejné produkty.",
+  "nextPage": "Ďalšia stránka",
+  "productUnavailable": "Produkt nie je dostupný",
+  "productUnavailableDescription": "{{name}} momentálne nezverejnil tento produkt.",
+  "specifications": "Špecifikácie",
+  "barcode": "Čiarový kód",
+  "weight": "Hmotnosť",
+  "length": "Dĺžka",
+  "width": "Šírka",
+  "height": "Výška",
+  "tax": "+ {{rate}}% daň"
+}

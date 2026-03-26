@@ -1,0 +1,15 @@
+{
+  "allProducts": "Toate produsele",
+  "noProductsTitle": "Niciun produs încă",
+  "noProductsDescription": "Nu există produse publice disponibile pentru această vizualizare.",
+  "nextPage": "Pagina următoare",
+  "productUnavailable": "Produs indisponibil",
+  "productUnavailableDescription": "{{name}} nu a publicat acest produs momentan.",
+  "specifications": "Specificații",
+  "barcode": "Cod de bare",
+  "weight": "Greutate",
+  "length": "Lungime",
+  "width": "Lățime",
+  "height": "Înălțime",
+  "tax": "+ {{rate}}% taxă"
+}

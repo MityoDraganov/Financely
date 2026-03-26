@@ -26,7 +26,10 @@ import ProposalDetailPage from "./pages/proposals/proposal-detail";
 import ProductsPage from "./pages/products/products";
 import ProductDetailPage from "./pages/products/product-detail";
 import ProductMetafieldsPage from "./pages/products/products-metafields";
-import PublicProductPage from "./pages/products/public-product-page";
+import CollectionsPage from "./pages/products/collections";
+import PublicOrgProductsPage from "./pages/products/public-org-products-page";
+import PublicCollectionProductsPage from "./pages/products/public-collection-products-page";
+import PublicProductDetailPage from "./pages/products/public-product-detail-page";
 import SettingsLayout from "./pages/settings/layout";
 import OrganizationGeneralPage from "./pages/settings/organization/general";
 import OrganizationBrandingPage from "./pages/settings/organization/branding";
@@ -177,15 +180,15 @@ function App() {
 											/>
 											<Route
 												path="/p/:orgSlug"
-												element={<PublicProductPage />}
+												element={<PublicOrgProductsPage />}
 											/>
 											<Route
 												path="/p/:orgSlug/c/:collectionSlug"
-												element={<PublicProductPage />}
+												element={<PublicCollectionProductsPage />}
 											/>
 											<Route
 												path="/p/:orgSlug/:productSlug"
-												element={<PublicProductPage />}
+												element={<PublicProductDetailPage />}
 											/>
 
 											<Route
@@ -291,6 +294,16 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<ProductsPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/products/collections"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<CollectionsPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

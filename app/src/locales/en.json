@@ -3668,6 +3668,7 @@
 		"navigation": {
 			"dashboard": "Dashboard",
 			"products": "Products",
+			"collections": "Collections",
 			"invoices": "Invoices",
 			"contacts": "Contacts",
 			"leads": "Leads",
@@ -3689,6 +3690,22 @@
 			"newTemplate": "New template"
 		},
 		"preview": "Preview"
+	},
+	"collections": {
+		"title": "Collections",
+		"subtitle": "Collections are automatically built from your product categories.",
+		"loading": "Loading collections...",
+		"count": "collections",
+		"product": "product",
+		"products": "products",
+		"viewProducts": "View products",
+		"openPublic": "Open public page",
+		"infoText": "Collections are derived from the categories you assign to products. To create a new collection, add a category to a product — it will appear here automatically.",
+		"empty": {
+			"title": "No collections yet",
+			"description": "Assign categories to your products to automatically generate collections visible in your public catalog.",
+			"action": "Go to products"
+		}
 	},
 	"marketplace": {
 		"badge": "Template Marketplace",

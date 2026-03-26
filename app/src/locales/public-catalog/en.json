@@ -1,0 +1,15 @@
+{
+  "allProducts": "All Products",
+  "noProductsTitle": "No products yet",
+  "noProductsDescription": "No public products are available for this view.",
+  "nextPage": "Next page",
+  "productUnavailable": "Product Unavailable",
+  "productUnavailableDescription": "{{name}} has not published this product right now.",
+  "specifications": "Specifications",
+  "barcode": "Barcode",
+  "weight": "Weight",
+  "length": "Length",
+  "width": "Width",
+  "height": "Height",
+  "tax": "+ {{rate}}% tax"
+}

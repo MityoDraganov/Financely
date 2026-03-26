@@ -73,8 +73,15 @@ export type QrPayloadBuildResult = {
   plainText: string;
 };
 
-export function slugifySegment(value: string): string {
-  const normalized = value
+export function slugifySegment(value: unknown): string {
+  const input =
+    typeof value === "string"
+      ? value
+      : typeof value === "number" || typeof value === "boolean"
+        ? String(value)
+        : "";
+
+  const normalized = input
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -283,18 +290,21 @@ export function buildSlugLookup(slugCanonical: string, slugAliases: string[]): s
 }
 
 export function buildCollectionSummaries(
-  products: Array<Pick<Product, "status" | "category">>,
+  products: Array<Pick<Product, "status" | "category" | "publicPage">>,
 ): PublicCollectionSummary[] {
   const bySlug = new Map<string, { label: string; count: number }>();
   for (const product of products) {
     if (product.status !== "active") continue;
-    const collection = resolvePublicCollection(product.category);
-    const existing = bySlug.get(collection.slug);
+    const fallback = resolvePublicCollection(product.category);
+    const slug = slugifySegment(product.publicPage?.collectionSlug || fallback.slug);
+    if (slug === "uncategorized") continue;
+    const label = product.publicPage?.collectionLabel || fallback.label;
+    const existing = bySlug.get(slug);
     if (existing) {
       existing.count += 1;
       continue;
     }
-    bySlug.set(collection.slug, { label: collection.label, count: 1 });
+    bySlug.set(slug, { label, count: 1 });
   }
 
   return Array.from(bySlug.entries())

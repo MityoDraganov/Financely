@@ -25,6 +25,7 @@ import {
 	//Database,
 	Store,
 	FolderOpen,
+	CornerDownRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -51,6 +52,8 @@ import { HelpButton } from "@/components/help-button";
 
 // Navigation items will be created with translations inside the component
 
+type SubNavChild = { href: string; title: string };
+
 // Memoized navigation item component to prevent unnecessary re-renders
 const NavItem = memo(
 	({
@@ -59,12 +62,15 @@ const NavItem = memo(
 		toggleSidebar,
 		title,
 	}: {
-		item: { href: string; icon: React.ComponentType };
+		item: { href: string; icon: React.ComponentType; children?: SubNavChild[] };
 		isMobile: boolean;
 		toggleSidebar: () => void;
 		title: string;
 	}) => {
 		const location = useLocation();
+		const { state } = useSidebar();
+		const isSidebarCollapsed = state === "collapsed";
+
 		const isActive = useMemo(() => {
 			const pathname = location.pathname;
 			// Exact match
@@ -82,6 +88,13 @@ const NavItem = memo(
 			return false;
 		}, [location.pathname, item.href]);
 
+		const activeChildHref = useMemo(
+			() => item.children?.find((c) => location.pathname === c.href)?.href ?? null,
+			[item.children, location.pathname]
+		);
+
+		const showChildren = !isSidebarCollapsed && !!item.children?.length && isActive;
+
 		const handleClick = useCallback(() => {
 			if (isMobile) {
 				toggleSidebar();
@@ -89,14 +102,31 @@ const NavItem = memo(
 		}, [isMobile, toggleSidebar]);
 
 		return (
-			<SidebarMenuItem>
-				<SidebarMenuButton asChild tooltip={title} isActive={isActive}>
-					<Link to={item.href} onClick={handleClick}>
-						<item.icon />
-						<span>{title}</span>
-					</Link>
-				</SidebarMenuButton>
-			</SidebarMenuItem>
+			<>
+				<SidebarMenuItem>
+					<SidebarMenuButton asChild tooltip={title} isActive={isActive}>
+						<Link to={item.href} onClick={handleClick}>
+							<item.icon />
+							<span>{title}</span>
+						</Link>
+					</SidebarMenuButton>
+				</SidebarMenuItem>
+				{showChildren &&
+					item.children!.map((child) => (
+						<SidebarMenuItem key={child.href} className="pl-4">
+							<SidebarMenuButton
+								asChild
+								isActive={activeChildHref === child.href}
+								className="text-muted-foreground data-[active=true]:text-foreground h-7"
+							>
+								<Link to={child.href} onClick={handleClick}>
+									<CornerDownRight className="h-3 w-3 shrink-0" />
+									<span className="text-sm">{child.title}</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					))}
+			</>
 		);
 	}
 );
@@ -149,6 +179,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				title: t("layout.navigation.products"),
 				href: "/products",
 				icon: Package,
+				children: [
+					{
+						href: "/products/collections",
+						title: t("layout.navigation.collections"),
+					},
+				],
 			},
 			{
 				title: t("layout.navigation.templates"),

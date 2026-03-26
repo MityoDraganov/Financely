@@ -1,0 +1,15 @@
+{
+  "allProducts": "Alle producten",
+  "noProductsTitle": "Nog geen producten",
+  "noProductsDescription": "Geen openbare producten beschikbaar voor deze weergave.",
+  "nextPage": "Volgende pagina",
+  "productUnavailable": "Product niet beschikbaar",
+  "productUnavailableDescription": "{{name}} heeft dit product momenteel niet gepubliceerd.",
+  "specifications": "Specificaties",
+  "barcode": "Streepjescode",
+  "weight": "Gewicht",
+  "length": "Lengte",
+  "width": "Breedte",
+  "height": "Hoogte",
+  "tax": "+ {{rate}}% btw"
+}

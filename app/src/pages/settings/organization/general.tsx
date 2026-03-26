@@ -5,7 +5,17 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@clerk/clerk-react";
-import { Globe, Mail, Phone, Copy } from "lucide-react";
+import { Globe, Mail, Phone, Copy, ChevronsUpDown, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { languages } from "@/utils/languages";
 import { deleteField } from "firebase/firestore";
 import type { Organization } from "@/core";
 
@@ -56,6 +66,7 @@ function getOrganizationGeneralSchema() {
       .regex(PUBLIC_SLUG_PATTERN, "Use lowercase letters, numbers, and single hyphens only")
       .optional()
       .or(z.literal("")),
+    defaultLanguage: z.string(),
   });
 }
 
@@ -67,6 +78,7 @@ export default function OrganizationGeneralPage() {
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
+  const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false);
   
   const organizationGeneralSchema = getOrganizationGeneralSchema();
 
@@ -99,9 +111,11 @@ export default function OrganizationGeneralPage() {
       zipCode: "",
       country: "",
       publicSlug: "",
+      defaultLanguage: "en",
     },
   });
   const publicSlugInput = watch("publicSlug") || "";
+  const defaultLanguage = watch("defaultLanguage") || "en";
   const publicSlugPreview = normalizePublicSlug(publicSlugInput) || normalizePublicSlug(organization?.name || "");
 
   // Watch for changes to detect unsaved changes
@@ -125,6 +139,7 @@ export default function OrganizationGeneralPage() {
         zipCode: address?.zipCode || "",
         country: address?.country || "",
         publicSlug: organization.settings?.publicPages?.orgSlug || "",
+        defaultLanguage: organization.settings?.defaultLanguage || "en",
       });
     }
   }, [organization, reset]);
@@ -183,6 +198,8 @@ export default function OrganizationGeneralPage() {
       } else if (organization.settings?.publicPages?.orgSlug) {
         updateData["settings.publicPages.orgSlug"] = deleteField();
       }
+
+      updateData["settings.defaultLanguage"] = data.defaultLanguage || "en";
 
       await updateOrganization.mutateAsync({
         id: organization.id,
@@ -394,6 +411,78 @@ export default function OrganizationGeneralPage() {
                 {...register("country")}
                 placeholder={t('settings.organization.general.address.countryPlaceholder')}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Localization */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Localization</CardTitle>
+            <CardDescription className="text-sm">
+              Controls how dates and months appear on your public catalog pages.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-w-xs">
+              <Label>Public catalog language</Label>
+              <Popover open={languagePopoverOpen} onOpenChange={setLanguagePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={languagePopoverOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {(() => {
+                      const lang = languages.find((l) => l.code === defaultLanguage);
+                      return lang ? `${lang.flag} ${lang.name}` : "Select language";
+                    })()}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-0" align="start">
+                  <Command filter={(value, search) => {
+                    const lang = languages.find((l) => l.code === value);
+                    if (!lang) return 0;
+                    const q = search.toLowerCase();
+                    return (
+                      lang.code.toLowerCase().includes(q) ||
+                      lang.name.toLowerCase().includes(q) ||
+                      lang.nativeName.toLowerCase().includes(q)
+                    ) ? 1 : 0;
+                  }}>
+                    <CommandInput placeholder="Search by name, code, or native name…" />
+                    <CommandList>
+                      <CommandEmpty>No language found.</CommandEmpty>
+                      <CommandGroup>
+                        {languages.map((lang) => (
+                          <CommandItem
+                            key={lang.code}
+                            value={lang.code}
+                            onSelect={(value) => {
+                              setValue("defaultLanguage", value, { shouldDirty: true });
+                              setLanguagePopoverOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 shrink-0 ${defaultLanguage === lang.code ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <span className="mr-2">{lang.flag}</span>
+                            <span>{lang.name}</span>
+                            <span className="ml-1 text-muted-foreground">({lang.nativeName})</span>
+                            <span className="ml-auto text-xs text-muted-foreground">{lang.code}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                Month and date names on your public catalog will display in this language.
+              </p>
             </div>
           </CardContent>
         </Card>
