@@ -84,6 +84,13 @@
 			"currencyPlaceholder": "Изберете валута",
 			"category": "Категория",
 			"categoryPlaceholder": "Категория на продукт",
+			"categorySearchPlaceholder": "Търсете категории или въведете нова...",
+			"categoryHint": "Изберете съществуваща категория или създайте нова за по-подреден каталог.",
+			"categoryCreateGroup": "Създаване",
+			"categoryExistingGroup": "Съществуващи категории",
+			"categoryCreateOption": "Създай \"{{value}}\"",
+			"categoryNoResults": "Няма съвпадащи категории",
+			"categoryClear": "Изчисти категорията",
 			"status": "Статус",
 			"statusPlaceholder": "Изберете статус",
 			"stockQuantity": "Количество на склад",
@@ -185,6 +192,12 @@
 			"updateFailed": "Неуспешна актуализация на продукт: {{error}}",
 			"deleteFailed": "Неуспешно изтриване на продукт: {{error}}",
 			"deleteConfirm": "Сигурни ли сте, че искате да изтриете този продукт?"
+		},
+		"slugChangeDialog": {
+			"title": "Да променя ли слъга на продукта?",
+			"description": "Промяната на слъга ще генерира нов QR код за публичната страница на продукта.",
+			"cancel": "Запази текущия слъг",
+			"confirm": "Промени слъга"
 		},
 		"labels": {
 			"low": "Ниско"

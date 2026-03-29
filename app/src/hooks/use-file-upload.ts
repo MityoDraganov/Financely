@@ -16,9 +16,11 @@ export interface UseFileUploadResult {
 }
 
 export function useFileUpload(): UseFileUploadResult {
-  const [isUploading, setIsUploading] = useState(false);
+  const [activeUploads, setActiveUploads] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const isUploading = activeUploads > 0;
 
   const uploadFile = useCallback(async (
     file: File,
@@ -27,8 +29,7 @@ export function useFileUpload(): UseFileUploadResult {
       validationMode?: "default" | "image" | "video" | "any";
     },
   ): Promise<string | null> => {
-    setIsUploading(true);
-    setUploadProgress(0);
+    setActiveUploads((c) => c + 1);
     setError(null);
 
     try {
@@ -83,12 +84,12 @@ export function useFileUpload(): UseFileUploadResult {
       }
 
       setUploadProgress(100);
-      setIsUploading(false);
+      setActiveUploads((c) => c - 1);
       return url;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to upload file";
       setError(errorMessage);
-      setIsUploading(false);
+      setActiveUploads((c) => c - 1);
       setUploadProgress(0);
       return null;
     }

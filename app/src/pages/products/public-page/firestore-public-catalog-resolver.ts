@@ -6,6 +6,7 @@ import type {
   ProductMetafield,
 } from "@/core";
 import { firebase } from "@/infrastructure/firebase";
+import { slugifyPublicSegment } from "@/utils/slug";
 import {
   collection,
   doc,
@@ -61,24 +62,7 @@ function mapDoc<T>(snapshot: QueryDocumentSnapshot<DocumentData>): T {
   } as T;
 }
 
-function slugifySegment(value: unknown): string {
-  const input =
-    typeof value === "string"
-      ? value
-      : typeof value === "number" || typeof value === "boolean"
-        ? String(value)
-        : "";
-
-  const normalized = input
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-
-  return normalized || "item";
-}
+const slugifySegment = slugifyPublicSegment;
 
 function buildCanonicalProductPath(orgSlug: string, productSlug: string): string {
   return `/p/${orgSlug}/${productSlug}`;
@@ -107,6 +91,23 @@ function resolvePublicCollection(category: string | undefined): {
   return {
     slug: slugifySegment(normalized),
     label: normalized,
+  };
+}
+
+function resolveProductCollection(product: Product): {
+  slug: string;
+  label: string;
+} {
+  const live = resolvePublicCollection(product.category);
+  const hasLiveCategory = Boolean(product.category?.trim());
+  if (hasLiveCategory) {
+    return live;
+  }
+
+  const fallbackSlug = slugifySegment(product.publicPage?.collectionSlug || live.slug);
+  return {
+    slug: fallbackSlug || "uncategorized",
+    label: product.publicPage?.collectionLabel || live.label,
   };
 }
 
@@ -422,6 +423,72 @@ async function getCatalogCollections(organizationId: string): Promise<PublicColl
   }
 }
 
+async function getLiveCollectionSummaries(
+  organizationId: string,
+): Promise<PublicCollectionSummary[]> {
+  const db = firebase.firestore;
+  const bySlug = new Map<string, { label: string; count: number }>();
+  let scanned = 0;
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+
+  while (scanned < LISTING_FALLBACK_SCAN_MAX_DOCS) {
+    const constraints: QueryConstraint[] = [
+      where("organizationId", "==", organizationId),
+      where("status", "==", "active"),
+      where("publicPage.state", "==", "published"),
+      orderBy(documentId(), "asc"),
+      limit(LISTING_FALLBACK_SCAN_BATCH_SIZE),
+    ];
+    if (lastDoc) {
+      constraints.push(startAfter(lastDoc));
+    }
+
+    const snapshot = await getDocs(query(collection(db, "products"), ...constraints));
+    if (snapshot.empty) break;
+
+    for (const entry of snapshot.docs) {
+      scanned += 1;
+      const product = mapDoc<Product>(entry);
+      if (product.organizationId !== organizationId) {
+        if (scanned >= LISTING_FALLBACK_SCAN_MAX_DOCS) break;
+        continue;
+      }
+
+      const resolvedCollection = resolveProductCollection(product);
+      if (!resolvedCollection.slug || resolvedCollection.slug === "uncategorized") {
+        if (scanned >= LISTING_FALLBACK_SCAN_MAX_DOCS) break;
+        continue;
+      }
+
+      const existing = bySlug.get(resolvedCollection.slug);
+      if (existing) {
+        existing.count += 1;
+        if (!existing.label && resolvedCollection.label) {
+          existing.label = resolvedCollection.label;
+        }
+      } else {
+        bySlug.set(resolvedCollection.slug, {
+          label: resolvedCollection.label,
+          count: 1,
+        });
+      }
+
+      if (scanned >= LISTING_FALLBACK_SCAN_MAX_DOCS) break;
+    }
+
+    lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    if (snapshot.size < LISTING_FALLBACK_SCAN_BATCH_SIZE) break;
+  }
+
+  return Array.from(bySlug.entries())
+    .map(([slug, entry]) => ({
+      slug,
+      label: entry.label || humanizeCollectionSlug(slug),
+      count: entry.count,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function buildCollectionNavigation(
   canonicalOrgSlug: string,
   collections: PublicCollectionSummary[],
@@ -465,6 +532,7 @@ function buildListingCard(
   const canonicalPath = buildCanonicalProductPath(canonicalOrgSlug, canonicalProductSlug);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
   const listingCard = product.publicPage?.listingCard;
+  const resolvedCollection = resolveProductCollection(product);
 
   if (listingCard) {
     return {
@@ -476,7 +544,7 @@ function buildListingCard(
       price: typeof listingCard.price === "number" ? listingCard.price : product.price,
       currency: listingCard.currency || product.currency,
       image: listingCard.image || product.images?.[0],
-      category: listingCard.category || product.category,
+      category: product.category || listingCard.category || resolvedCollection.label,
       createdAt: listingCard.createdAt || toIsoDate(product.createdAt),
       updatedAt: listingCard.updatedAt || toIsoDate(product.updatedAt),
     };
@@ -488,7 +556,7 @@ function buildListingCard(
     price: product.price,
     currency: product.currency,
     image: product.images?.[0],
-    category: product.category,
+    category: product.category || resolvedCollection.label,
     canonicalPath,
     canonicalUrl,
     createdAt: toIsoDate(product.createdAt),
@@ -790,9 +858,7 @@ function buildListingResult(
 }
 
 function resolveProductCollectionSlug(product: Product): string {
-  return slugifySegment(
-    product.publicPage?.collectionSlug || resolvePublicCollection(product.category).slug,
-  );
+  return slugifySegment(resolveProductCollection(product).slug);
 }
 
 async function getListingProductsWithFallback(params: {
@@ -804,28 +870,27 @@ async function getListingProductsWithFallback(params: {
   const { organizationId, collectionFilter, cursor, pageSize } = params;
   const db = firebase.firestore;
 
-  try {
-    const constraints: QueryConstraint[] = [
-      where("organizationId", "==", organizationId),
-      where("status", "==", "active"),
-      where("publicPage.state", "==", "published"),
-    ];
-    if (collectionFilter) {
-      constraints.push(where("publicPage.collectionSlug", "==", collectionFilter));
-    }
-    constraints.push(orderBy("createdAt", "desc"));
-    constraints.push(orderBy(documentId(), "asc"));
-    constraints.push(limit(pageSize + 1));
-    if (cursor) {
-      constraints.push(startAfter(cursor.createdAt, cursor.id));
-    }
+  if (!collectionFilter) {
+    try {
+      const constraints: QueryConstraint[] = [
+        where("organizationId", "==", organizationId),
+        where("status", "==", "active"),
+        where("publicPage.state", "==", "published"),
+      ];
+      constraints.push(orderBy("createdAt", "desc"));
+      constraints.push(orderBy(documentId(), "asc"));
+      constraints.push(limit(pageSize + 1));
+      if (cursor) {
+        constraints.push(startAfter(cursor.createdAt, cursor.id));
+      }
 
-    const snapshot = await getDocs(query(collection(db, "products"), ...constraints));
-    const listedProducts = snapshot.docs.map((entry) => mapDoc<Product>(entry));
-    return buildListingResult(listedProducts, pageSize);
-  } catch (error) {
-    if (!isFirestoreIndexError(error)) {
-      throw error;
+      const snapshot = await getDocs(query(collection(db, "products"), ...constraints));
+      const listedProducts = snapshot.docs.map((entry) => mapDoc<Product>(entry));
+      return buildListingResult(listedProducts, pageSize);
+    } catch (error) {
+      if (!isFirestoreIndexError(error)) {
+        throw error;
+      }
     }
   }
 
@@ -933,12 +998,20 @@ export async function resolvePublicCatalogPage(params: {
     organization.settings?.publicPages?.orgSlug || organization.name,
   );
   const baseUrl = getAppBaseUrl();
+  const rawMultiCurrency = organization.settings?.multiCurrency;
   const organizationPayload = {
     id: organization.id,
     name: organization.name,
     orgSlug: canonicalOrgSlug,
     logoUrl: organization.settings?.branding?.customLogo || organization.logoUrl,
     locale,
+    multiCurrency:
+      rawMultiCurrency?.enabled && rawMultiCurrency.pairs.length > 0
+        ? {
+            enabled: true,
+            pairs: rawMultiCurrency.pairs,
+          }
+        : undefined,
   };
 
   if (pageKind === "product_detail") {
@@ -992,14 +1065,14 @@ export async function resolvePublicCatalogPage(params: {
       };
     }
 
-    const resolvedCollection = resolvePublicCollection(product.category);
-    const collectionSlugRaw = product.publicPage?.collectionSlug || resolvedCollection.slug;
+    const resolvedCollection = resolveProductCollection(product);
+    const collectionSlugRaw = resolvedCollection.slug;
     const collectionData =
       collectionSlugRaw === "uncategorized"
         ? null
         : {
             slug: collectionSlugRaw,
-            label: product.publicPage?.collectionLabel || resolvedCollection.label,
+            label: resolvedCollection.label,
             path: buildCanonicalCollectionPath(canonicalOrgSlug, collectionSlugRaw),
           };
 
@@ -1072,9 +1145,12 @@ export async function resolvePublicCatalogPage(params: {
     };
   }
 
+  const liveCollections = await getLiveCollectionSummaries(organization.id);
+  const catalogIndexCollections =
+    liveCollections.length === 0 ? await getCatalogCollections(organization.id) : [];
   const collections = buildCollectionNavigation(
     canonicalOrgSlug,
-    await getCatalogCollections(organization.id),
+    liveCollections.length > 0 ? liveCollections : catalogIndexCollections,
   );
 
   if (pageKind === "org_products" && canonicalOrgSlug !== orgSlug) {
@@ -1101,7 +1177,9 @@ export async function resolvePublicCatalogPage(params: {
     const summary = collections.find((entry) => entry.slug === collectionSlug);
     const collectionLabel =
       summary?.label ||
-      listingResult.products[0]?.publicPage?.collectionLabel ||
+      (listingResult.products[0]
+        ? resolveProductCollection(listingResult.products[0]).label
+        : undefined) ||
       humanizeCollectionSlug(collectionSlug);
     const canonicalPath = buildCanonicalCollectionPath(canonicalOrgSlug, collectionSlug);
     const canonicalUrl = `${baseUrl}${canonicalPath}`;

@@ -75,6 +75,8 @@ const parseDateRangeValue = (value: string): DateRange | null => {
 };
 
 const formatMonthValue = (month: number): string => String(month).padStart(2, "0");
+const formatMonthTokenValue = (token: MonthToken): string =>
+  token.year ? `${token.year}-${formatMonthValue(token.month)}` : formatMonthValue(token.month);
 
 const parseMonthValue = (value: string): MonthToken | null => {
   const compact = value.trim();
@@ -120,7 +122,13 @@ const parseMonthRangeValue = (value: string): { start: MonthToken; end: MonthTok
   return { start, end };
 };
 
-const compareMonth = (a: MonthToken, b: MonthToken): number => a.month - b.month;
+const isMonthWithinPeriod = (month: number, startMonth: number, endMonth: number): boolean => {
+  if (startMonth <= endMonth) {
+    return month >= startMonth && month <= endMonth;
+  }
+
+  return month >= startMonth || month <= endMonth;
+};
 
 const monthLocale =
   typeof navigator !== "undefined" && navigator.language
@@ -231,7 +239,6 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
   const [fileDialogOpen, setFileDialogOpen] = useState(false);
   const [fileDialogFieldType, setFileDialogFieldType] = useState<"file_reference" | "file_reference_image" | "file_reference_video" | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [pendingMonthPeriodStart, setPendingMonthPeriodStart] = useState<string | null>(null);
 
   const handleChange = (newValue: unknown) => {
     onChange(newValue);
@@ -634,10 +641,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
         <div className="space-y-2">
           <Popover
             open={isDatePickerOpen}
-            onOpenChange={(open) => {
-              setIsDatePickerOpen(open);
-              if (!open) setPendingMonthPeriodStart(null);
-            }}
+            onOpenChange={setIsDatePickerOpen}
           >
             <PopoverTrigger asChild>
               <Input
@@ -687,10 +691,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => {
-                onValueChange(undefined);
-                setPendingMonthPeriodStart(null);
-              }}
+              onClick={() => onValueChange(undefined)}
               className="text-muted-foreground hover:text-destructive"
             >
               Clear
@@ -702,83 +703,82 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
 
     const selectedMonth = parseMonthValue(rawValue);
     const selectedMonthRange = parseMonthRangeValue(rawValue);
+    const periodStart = selectedMonthRange?.start;
+    const periodEnd = selectedMonthRange?.end;
     const triggerLabel = dateConfig.selectionMode === "single"
       ? (selectedMonth ? formatMonthToken(selectedMonth, dateConfig) : rawValue)
       : (selectedMonthRange
         ? `${formatMonthToken(selectedMonthRange.start, dateConfig)} - ${formatMonthToken(selectedMonthRange.end, dateConfig)}`
         : rawValue);
 
-    const monthCells = Array.from({ length: 12 }, (_, index) => {
-      const monthNumber = index + 1;
-      const clicked: MonthToken = { month: monthNumber };
-      const clickedValue = formatMonthValue(clicked.month);
-
-      const pendingStart = pendingMonthPeriodStart ? parseMonthValue(pendingMonthPeriodStart) : null;
-      const isPendingStart = !!pendingStart && pendingStart.month === clicked.month;
-
-      const isSingleSelected = dateConfig.selectionMode === "single"
-        && !!selectedMonth
-        && selectedMonth.month === clicked.month;
-
-      const isInRange = dateConfig.selectionMode === "period" && !!selectedMonthRange
-        && compareMonth(clicked, selectedMonthRange.start) >= 0
-        && compareMonth(clicked, selectedMonthRange.end) <= 0;
-
-      const isRangeEdge = dateConfig.selectionMode === "period" && !!selectedMonthRange
-        && (
-          selectedMonthRange.start.month === clicked.month
-          || selectedMonthRange.end.month === clicked.month
-        );
-
-      return (
-        <Button
-          key={monthNumber}
-          type="button"
-          variant="ghost"
-          className={[
-            "justify-center",
-            isSingleSelected || isPendingStart || isRangeEdge ? "bg-primary text-primary-foreground hover:bg-primary/90" : "",
-            !isRangeEdge && isInRange ? "bg-muted" : "",
-          ].join(" ").trim()}
-          onClick={() => {
-            if (dateConfig.selectionMode === "single") {
-              onValueChange(clickedValue);
-              setIsDatePickerOpen(false);
-              return;
-            }
-
-            if (!pendingMonthPeriodStart) {
-              setPendingMonthPeriodStart(clickedValue);
-              return;
-            }
-
-            const startParsed = parseMonthValue(pendingMonthPeriodStart);
-            if (!startParsed) {
-              setPendingMonthPeriodStart(clickedValue);
-              return;
-            }
-            const orderedStart = compareMonth(startParsed, clicked) <= 0 ? startParsed : clicked;
-            const orderedEnd = compareMonth(startParsed, clicked) <= 0 ? clicked : startParsed;
-            onValueChange(
-              `${formatMonthValue(orderedStart.month)}${PERIOD_SEPARATOR}${formatMonthValue(orderedEnd.month)}`,
-            );
-            setPendingMonthPeriodStart(null);
-            setIsDatePickerOpen(false);
-          }}
-        >
-          {dateConfig.displayMode === "localized" ? monthName(monthNumber, "short") : String(monthNumber).padStart(2, "0")}
-        </Button>
+    const updateMonthRange = (nextStart: MonthToken, nextEnd: MonthToken) => {
+      onValueChange(
+        `${formatMonthTokenValue(nextStart)}${PERIOD_SEPARATOR}${formatMonthTokenValue(nextEnd)}`,
       );
-    });
+    };
+
+    const renderMonthCells = (panel: "single" | "start" | "end") =>
+      Array.from({ length: 12 }, (_, index) => {
+        const monthNumber = index + 1;
+        const clicked: MonthToken = { month: monthNumber };
+        const clickedValue = formatMonthValue(clicked.month);
+
+        const isSingleSelected = panel === "single"
+          && !!selectedMonth
+          && selectedMonth.month === clicked.month;
+        const isRangeStart = panel === "start" && !!periodStart && periodStart.month === clicked.month;
+        const isRangeEnd = panel === "end" && !!periodEnd && periodEnd.month === clicked.month;
+        const isRangeEdge = isRangeStart || isRangeEnd;
+        const isInRange = panel !== "single"
+          && !!periodStart
+          && !!periodEnd
+          && isMonthWithinPeriod(clicked.month, periodStart.month, periodEnd.month);
+
+        const monthState = isSingleSelected || isRangeEdge
+          ? "selected"
+          : isInRange
+            ? "range"
+            : "idle";
+
+        return (
+          <Button
+            key={`${panel}-${monthNumber}`}
+            type="button"
+            variant="ghost"
+            aria-pressed={monthState !== "idle"}
+            className={[
+              "h-11 justify-center rounded-md border text-base font-semibold transition-colors sm:h-10 sm:text-sm",
+              monthState === "selected" ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90" : "",
+              monthState === "range" ? "border-primary/20 bg-primary/10 text-foreground hover:bg-primary/15" : "",
+              monthState === "idle" ? "border-border/60 bg-muted/50 text-foreground hover:bg-accent hover:text-accent-foreground" : "",
+            ].join(" ").trim()}
+            onClick={() => {
+              if (panel === "single") {
+                onValueChange(clickedValue);
+                setIsDatePickerOpen(false);
+                return;
+              }
+
+              if (panel === "start") {
+                const nextEnd = periodEnd ?? clicked;
+                updateMonthRange(clicked, nextEnd);
+                return;
+              }
+
+              const nextStart = periodStart ?? clicked;
+              updateMonthRange(nextStart, clicked);
+            }}
+          >
+            {dateConfig.displayMode === "localized" ? monthName(monthNumber, "short") : String(monthNumber).padStart(2, "0")}
+          </Button>
+        );
+      });
 
     return (
       <div className="space-y-2">
         <Popover
           open={isDatePickerOpen}
-          onOpenChange={(open) => {
-            setIsDatePickerOpen(open);
-            if (!open) setPendingMonthPeriodStart(null);
-          }}
+          onOpenChange={setIsDatePickerOpen}
         >
           <PopoverTrigger asChild>
             <Input
@@ -791,29 +791,51 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
               className={error ? "border-destructive cursor-pointer" : "cursor-pointer"}
             />
           </PopoverTrigger>
-          <PopoverContent className="w-[320px] p-3 space-y-3" align="start">
-            <div className="grid grid-cols-3 gap-2">
-              {monthCells}
-            </div>
-            {dateConfig.selectionMode === "period" && pendingMonthPeriodStart && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  Start: {
-                    (() => {
-                      const start = parseMonthValue(pendingMonthPeriodStart);
-                      return start ? formatMonthToken(start, dateConfig) : pendingMonthPeriodStart;
-                    })()
-                  }
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setPendingMonthPeriodStart(null)}
-                >
-                  Reset start
-                </Button>
+          <PopoverContent
+            className={dateConfig.selectionMode === "period"
+              ? "w-[min(42rem,calc(100vw-2rem))] p-4 space-y-4"
+              : "w-[min(26rem,calc(100vw-2rem))] p-4 space-y-4"}
+            align="start"
+          >
+            {dateConfig.selectionMode === "period" ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Start month</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {periodStart ? formatMonthToken(periodStart, dateConfig) : "Not set"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {renderMonthCells("start")}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">End month</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {periodEnd ? formatMonthToken(periodEnd, dateConfig) : "Not set"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {renderMonthCells("end")}
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {selectedMonthRange ? (
+                    <>
+                      Selected period: <span className="font-semibold text-foreground">{formatMonthToken(selectedMonthRange.start, dateConfig)} - {formatMonthToken(selectedMonthRange.end, dateConfig)}</span>
+                    </>
+                  ) : (
+                    "Select a start month and an end month."
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {renderMonthCells("single")}
               </div>
             )}
           </PopoverContent>
@@ -823,10 +845,7 @@ export function MetafieldInput({ definition, value, onChange, error, organizatio
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => {
-              onValueChange(undefined);
-              setPendingMonthPeriodStart(null);
-            }}
+            onClick={() => onValueChange(undefined)}
             className="text-muted-foreground hover:text-destructive"
           >
             Clear

@@ -189,7 +189,7 @@ export default function ProductsPage() {
 
   if (isLoading) {
     return (
-      <div className="py-6 pr-6 space-y-6">
+      <div className="py-4 sm:py-6 pr-6 pl-0 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('products.title')}</h1>
@@ -215,31 +215,47 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="py-6 pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+    <div className="py-4 sm:py-6 pr-6 pl-0 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('products.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('products.subtitle')}</p>
+          <p className="text-sm text-muted-foreground">{t('products.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
           <Button
             variant="outline"
+            size="default"
+            className="h-11 sm:h-9 sm:text-sm flex-1 sm:flex-none"
             onClick={handleRegeneratePublicPages}
             disabled={isRegeneratingPublicPages || !currentOrganization?.id}
           >
             <RefreshCcw className="h-4 w-4 mr-2" />
             {isRegeneratingPublicPages ? "Regenerating..." : "Regenerate Public Pages"}
           </Button>
-          <Button variant="outline" onClick={() => navigate("/products/metafields")}>
+          <Button
+            variant="outline"
+            size="default"
+            className="h-11 sm:h-9 sm:text-sm flex-1 sm:flex-none"
+            onClick={() => navigate("/products/metafields")}
+          >
             <Database className="h-4 w-4 mr-2" />
             Metafields
           </Button>
-          <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+          <Button
+            variant="outline"
+            size="default"
+            className="h-11 sm:h-9 sm:text-sm flex-1 sm:flex-none"
+            onClick={() => setShowExportDialog(true)}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button onClick={() => setIsCreating(true)}>
+          <Button
+            size="default"
+            className="h-11 sm:h-9 sm:text-sm w-full sm:w-auto"
+            onClick={() => setIsCreating(true)}
+          >
             <Plus className="h-4 w-4 mr-2" />
             {t('products.newProduct')}
           </Button>
@@ -530,12 +546,13 @@ export default function ProductsPage() {
                       </div>
 
                       <div
-                        className="flex items-center justify-end space-x-2 pt-2 border-t"
+                        className="flex flex-wrap gap-2 pt-3 border-t"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="default"
+                          className="h-11 flex-1 min-w-[80px]"
                           onClick={() => handleEditProduct(product.id)}
                         >
                           <Edit className="h-4 w-4 mr-2" />
@@ -544,7 +561,8 @@ export default function ProductsPage() {
                         {product.publicPage?.canonicalUrl && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="default"
+                            className="h-11 flex-1 min-w-[80px]"
                             onClick={() => window.open(product.publicPage?.canonicalUrl, "_blank", "noopener,noreferrer")}
                           >
                             <ExternalLink className="h-4 w-4 mr-2" />
@@ -553,7 +571,8 @@ export default function ProductsPage() {
                         )}
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="default"
+                          className="h-11 flex-1 min-w-[80px]"
                           onClick={() => handleDeleteProduct(product.id)}
                           disabled={deleteProductMutation.isPending}
                         >

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import i18n from "@/i18n/config";
 import { AlertCircle, Building2, ChevronLeft, ChevronRight, Package, Ruler, Weight, X, ZoomIn } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type PanInfo } from "framer-motion";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,26 +14,197 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCurrency } from "@/utils/currencies";
 import {
   PublicBreadcrumbItem,
   PublicCatalogListingData,
   PublicCatalogProductDetailData,
+  PublicMultiCurrencyConfig,
 } from "./types";
 
 function usePublicT(locale: string) {
   return i18n.getFixedT(locale, "publicCatalog");
 }
 
-function formatPrice(price: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(price);
-  } catch {
-    return `${price} ${currency}`;
+const CURRENCY_POSITION_OVERRIDES: Partial<Record<string, "prefix" | "suffix">> = {
+  BGN: "suffix",
+  EUR: "prefix",
+};
+
+const imagePreloadCache = new Set<string>();
+const imagePreloadInFlight = new Set<string>();
+
+type ImageFetchPriority = "high" | "low" | "auto";
+
+function preloadImage(src?: string, priority: ImageFetchPriority = "auto") {
+  if (
+    !src ||
+    imagePreloadCache.has(src) ||
+    imagePreloadInFlight.has(src) ||
+    typeof window === "undefined"
+  ) {
+    return;
   }
+
+  const img = new Image();
+  img.decoding = "async";
+  imagePreloadInFlight.add(src);
+  if ("fetchPriority" in img) {
+    (img as HTMLImageElement & { fetchPriority?: ImageFetchPriority }).fetchPriority = priority;
+  }
+
+  let finalized = false;
+  const finalize = () => {
+    if (finalized) return;
+    finalized = true;
+    imagePreloadInFlight.delete(src);
+    imagePreloadCache.add(src);
+  };
+  const fail = () => {
+    imagePreloadInFlight.delete(src);
+  };
+
+  img.onload = finalize;
+  img.onerror = fail;
+  img.src = src;
+
+  if (typeof img.decode === "function") {
+    void img.decode().then(finalize).catch(() => {});
+  }
+}
+
+function preloadImages(urls: string[], featured?: string) {
+  if (typeof window === "undefined") return;
+
+  const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
+  if (uniqueUrls.length === 0) return;
+
+  const primary = featured && uniqueUrls.includes(featured) ? featured : uniqueUrls[0];
+  if (primary) preloadImage(primary, "high");
+
+  const rest = uniqueUrls.filter((url) => url !== primary);
+  if (rest.length === 0) return;
+
+  window.setTimeout(() => {
+    rest.forEach((url) => preloadImage(url, "low"));
+  }, 0);
+}
+
+function getCurrencyToken(currencyCode: string, locale?: string): string {
+  const knownCurrency = getCurrency(currencyCode);
+  if (knownCurrency?.symbol) return knownCurrency.symbol;
+
+  try {
+    return new Intl.NumberFormat(locale ?? "en-US", {
+      style: "currency",
+      currency: currencyCode,
+      currencyDisplay: "narrowSymbol",
+    })
+      .formatToParts(0)
+      .find((part) => part.type === "currency")?.value ?? currencyCode;
+  } catch {
+    return currencyCode;
+  }
+}
+
+function resolveCurrencyPosition(currencyCode: string, locale?: string): "prefix" | "suffix" {
+  const overridden = CURRENCY_POSITION_OVERRIDES[currencyCode];
+  if (overridden) return overridden;
+
+  try {
+    const parts = new Intl.NumberFormat(locale ?? "en-US", {
+      style: "currency",
+      currency: currencyCode,
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).formatToParts(1234.56);
+
+    const currencyIndex = parts.findIndex((part) => part.type === "currency");
+    const firstNumberIndex = parts.findIndex((part) => part.type === "integer");
+
+    if (currencyIndex >= 0 && firstNumberIndex >= 0) {
+      return currencyIndex < firstNumberIndex ? "prefix" : "suffix";
+    }
+  } catch {
+    // Fall through to safe default.
+  }
+
+  return "prefix";
+}
+
+function formatPrice(price: number, currency: string, locale?: string): string {
+  const normalizedCurrency = currency.toUpperCase();
+  const knownCurrency = getCurrency(normalizedCurrency);
+  const decimals = knownCurrency?.decimalDigits ?? 2;
+  const token = getCurrencyToken(normalizedCurrency, locale);
+
+  try {
+    const amount = new Intl.NumberFormat(locale ?? "en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(price);
+
+    return resolveCurrencyPosition(normalizedCurrency, locale) === "prefix"
+      ? `${token} ${amount}`
+      : `${amount} ${token}`;
+  } catch {
+    return `${price.toFixed(decimals)} ${normalizedCurrency}`;
+  }
+}
+
+function buildConvertedPrices(
+  price: number,
+  productCurrency: string,
+  multiCurrency: PublicMultiCurrencyConfig,
+): Array<{ currency: string; price: number }> {
+  return multiCurrency.pairs
+    .filter((pair) => pair.from === productCurrency && pair.to !== productCurrency && pair.rate > 0)
+    .map((pair) => ({ currency: pair.to, price: price * pair.rate }));
+}
+
+/**
+ * Renders the base price + any conversion prices at equal font size,
+ * in close proximity, each with its currency symbol — satisfying
+ * Art. 16 (1) dual-currency display requirements.
+ *
+ * priceClassName controls the size; all amounts (base + conversions) share it.
+ */
+function PriceDisplay({
+  price,
+  productCurrency,
+  multiCurrency,
+  locale,
+  priceClassName,
+  taxRate,
+  taxLabel,
+}: {
+  price: number;
+  productCurrency: string;
+  multiCurrency?: PublicMultiCurrencyConfig;
+  locale?: string;
+  /** Tailwind classes applied to every price amount (base + conversions). */
+  priceClassName: string;
+  taxRate?: number | null;
+  taxLabel?: string;
+}) {
+  const conversions = multiCurrency
+    ? buildConvertedPrices(price, productCurrency, multiCurrency)
+    : [];
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+      <span className={priceClassName}>{formatPrice(price, productCurrency, locale)}</span>
+      {conversions.map(({ currency, price: converted }) => (
+        <span key={currency} className={priceClassName}>
+          ({formatPrice(converted, currency, locale)})
+        </span>
+      ))}
+      {taxRate != null && taxLabel && (
+        <span className="text-xs text-stone-400 ml-1">{taxLabel}</span>
+      )}
+    </div>
+  );
 }
 
 function getMetafieldCategory(
@@ -233,16 +404,8 @@ function BreadcrumbBar({ items }: { items?: PublicBreadcrumbItem[] }) {
 export function PublicCatalogListingView({ data, transitioning = false }: { data: PublicCatalogListingData; transitioning?: boolean }) {
   const t = usePublicT(data.organization.locale);
   const listing = data.listing.items;
+  const multiCurrency = data.organization.multiCurrency;
   const activeCollectionSlug = data.kind === "collection_products" ? data.collection.slug : null;
-  const breadcrumbItems =
-    data.breadcrumb && data.breadcrumb.length > 0
-      ? data.breadcrumb
-      : data.kind === "collection_products"
-        ? [
-            { label: t("allProducts"), path: `/p/${data.organization.orgSlug}` },
-            { label: data.collection.label },
-          ]
-        : [{ label: t("allProducts") }];
 
   const nextCursor = data.listing.pagination.nextCursor;
   const nextPageTo = nextCursor
@@ -257,7 +420,6 @@ export function PublicCatalogListingView({ data, transitioning = false }: { data
       <PageHeader name={data.organization.name} logoUrl={data.organization.logoUrl} />
       <main className="w-full px-4 sm:px-10 py-8 sm:py-12">
         <div className="space-y-6">
-          <BreadcrumbBar items={breadcrumbItems} />
           <h1 className="text-3xl sm:text-4xl text-stone-900">
             {data.kind === "collection_products" ? data.collection.label : t("allProducts")}
           </h1>
@@ -319,9 +481,13 @@ export function PublicCatalogListingView({ data, transitioning = false }: { data
                     </div>
                     <div className="p-3 space-y-1">
                       <p className="text-sm text-stone-900">{product.name}</p>
-                      <p className="text-sm font-medium text-stone-800">
-                        {formatPrice(product.price, product.currency)}
-                      </p>
+                      <PriceDisplay
+                        price={product.price}
+                        productCurrency={product.currency}
+                        multiCurrency={multiCurrency}
+                        locale={data.organization.locale}
+                        priceClassName="text-sm font-medium text-stone-800"
+                      />
                     </div>
                   </Link>
                 ))}
@@ -356,7 +522,6 @@ function ImageLightbox({
 }) {
   const [idx, setIdx] = useState(initialIndex);
   const [direction, setDirection] = useState(0);
-  const pointerStart = useRef<number | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -364,6 +529,13 @@ function ImageLightbox({
       document.body.style.overflow = "";
     };
   }, []);
+
+  useEffect(() => {
+    if (images.length === 0) return;
+    preloadImages(images, images[idx] ?? images[0]);
+    preloadImage(images[(idx + 1) % images.length], "high");
+    preloadImage(images[(idx - 1 + images.length) % images.length], "high");
+  }, [idx, images]);
 
   const navigate = useCallback(
     (dir: number) => {
@@ -384,14 +556,13 @@ function ImageLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, [navigate, onClose]);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerStart.current = e.clientX;
-  };
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (pointerStart.current === null) return;
-    const delta = e.clientX - pointerStart.current;
-    if (Math.abs(delta) > 40) navigate(delta < 0 ? 1 : -1);
-    pointerStart.current = null;
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (images.length <= 1) return;
+    const deltaX = info.offset.x;
+    const deltaY = info.offset.y;
+    const horizontalSwipe = Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY);
+    if (!horizontalSwipe) return;
+    navigate(deltaX < 0 ? 1 : -1);
   };
 
   const cubicBezier = [0.32, 0.72, 0, 1] as const;
@@ -417,8 +588,6 @@ function ImageLightbox({
 
       <div
         className="relative z-10 flex h-full w-full items-center justify-center"
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
       >
         {/* Close */}
         <button
@@ -437,7 +606,7 @@ function ImageLightbox({
         )}
 
         {/* Image area */}
-        <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-14 py-14 sm:px-20 sm:py-16">
+        <div className="relative flex h-screen w-screen max-h-screen max-w-screen items-center justify-center overflow-hidden">
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.img
               key={idx}
@@ -446,9 +615,17 @@ function ImageLightbox({
               initial="enter"
               animate="center"
               exit="exit"
+              drag={images.length > 1 ? "x" : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.2}
+              dragMomentum={false}
+              onDragEnd={handleDragEnd}
               src={images[idx]}
               alt={`Image ${idx + 1}`}
-              className="max-h-full max-w-full select-none rounded-xl object-contain shadow-2xl"
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+              className="h-screen w-screen max-h-screen max-w-screen select-none object-contain touch-pan-y"
               draggable={false}
             />
           </AnimatePresence>
@@ -459,14 +636,14 @@ function ImageLightbox({
           <>
             <button
               onClick={(e) => { e.stopPropagation(); navigate(-1); }}
-              className="absolute left-3 top-1/2 z-20 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              className="absolute left-4 top-1/2 z-30 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
               aria-label="Previous image"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); navigate(1); }}
-              className="absolute right-3 top-1/2 z-20 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              className="absolute right-4 top-1/2 z-30 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
               aria-label="Next image"
             >
               <ChevronRight className="h-5 w-5" />
@@ -503,6 +680,20 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
   const t = usePublicT(data.organization.locale);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const fields = data.product.fields;
+  const images = useMemo(() => fields?.images ?? [], [fields?.images]);
+  const activeImage = images[activeImageIdx] || images[0];
+
+  useEffect(() => {
+    if (data.product.state === "unavailable" || !fields || !activeImage) return;
+
+    preloadImages(images, activeImage);
+    preloadImage(activeImage, "high");
+    if (images.length > 1) {
+      preloadImage(images[(activeImageIdx + 1) % images.length], "high");
+      preloadImage(images[(activeImageIdx - 1 + images.length) % images.length], "high");
+    }
+  }, [activeImage, activeImageIdx, data.product.state, fields, images]);
 
   if (data.product.state === "unavailable") {
     const breadcrumbItems =
@@ -531,7 +722,6 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
     );
   }
 
-  const fields = data.product.fields;
   if (!fields) return null;
 
   const metafields = data.product.metafields ?? [];
@@ -544,8 +734,6 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
           { label: fields.name },
         ];
 
-  const images = fields.images ?? [];
-  const activeImage = images[activeImageIdx] || images[0];
   const hasDimensions =
     fields.dimensions &&
     (fields.dimensions.length != null ||
@@ -568,7 +756,21 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
               >
                 {activeImage ? (
                   <>
-                    <img src={activeImage} alt={fields.name} className="w-full h-auto object-contain" />
+                    {images.map((img, idx) => (
+                      <img
+                        key={`${img}-${idx}`}
+                        src={img}
+                        alt={idx === activeImageIdx ? fields.name : ""}
+                        aria-hidden={idx !== activeImageIdx}
+                        className={`w-full h-auto object-contain ${
+                          idx === activeImageIdx ? "block" : "hidden"
+                        }`}
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority={idx === activeImageIdx ? "high" : "low"}
+                        draggable={false}
+                      />
+                    ))}
                     <div className="absolute inset-0 flex items-start justify-end p-3 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm">
                         <ZoomIn className="h-3.5 w-3.5" />
@@ -592,7 +794,14 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
                         idx === activeImageIdx ? "border-stone-800" : "border-stone-200"
                       }`}
                     >
-                      <img src={img} alt="" className="h-full w-full object-cover" />
+                      <img
+                        src={img}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        fetchPriority="low"
+                      />
                     </button>
                   ))}
                 </div>
@@ -606,11 +815,20 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
                 </span>
               )}
               <h1 className="text-4xl sm:text-5xl text-stone-900">{fields.name}</h1>
-              <div className="flex items-baseline gap-3">
-                <span className="text-3xl text-stone-900">{formatPrice(fields.price, fields.currency)}</span>
-                {fields.taxRate != null && (
-                  <span className="text-xs text-stone-400">{t("tax", { rate: String(fields.taxRate) })}</span>
-                )}
+              <div className="space-y-1">
+                <PriceDisplay
+                  price={fields.price}
+                  productCurrency={fields.currency}
+                  multiCurrency={data.organization.multiCurrency}
+                  locale={data.organization.locale}
+                  priceClassName="text-3xl text-stone-900"
+                  taxRate={fields.taxRate}
+                  taxLabel={
+                    fields.taxRate != null
+                      ? t("tax", { rate: String(fields.taxRate) })
+                      : undefined
+                  }
+                />
               </div>
               <Separator className="bg-stone-200" />
 

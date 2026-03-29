@@ -474,6 +474,26 @@ export const organizationDataSchema = z.object({
             .default([]),
         })
         .optional(),
+
+      // Multi-currency display settings for public catalog
+      multiCurrency: z
+        .object({
+          enabled: z.boolean().default(false),
+          /** Explicit conversion pairs (e.g. [{ from: "EUR", to: "BGN", rate: 1.9558 }]) */
+          pairs: z
+            .array(
+              z.object({
+                from: z.string().min(1),
+                to: z.string().min(1),
+                rate: z.number().positive(),
+              }),
+            )
+            .default([]),
+        })
+        .default({
+          enabled: false,
+          pairs: [],
+        }),
     })
     .default({
       brandColors: {

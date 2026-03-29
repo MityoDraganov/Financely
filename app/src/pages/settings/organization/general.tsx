@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@clerk/clerk-react";
-import { Globe, Mail, Phone, Copy, ChevronsUpDown, Check } from "lucide-react";
+import { Globe, Mail, Phone, Copy, ChevronsUpDown, Check, Plus, Trash2, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -18,6 +18,8 @@ import {
 import { languages } from "@/utils/languages";
 import { deleteField } from "firebase/firestore";
 import type { Organization } from "@/core";
+import { CURRENCIES, getExchangeRate } from "@/utils/currencies";
+import { Switch } from "@/components/ui/switch";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +69,64 @@ function getOrganizationGeneralSchema() {
       .optional()
       .or(z.literal("")),
     defaultLanguage: z.string(),
+    multiCurrencyEnabled: z.boolean(),
+    multiCurrencyPairs: z.array(
+      z.object({
+        from: z.string().min(1),
+        to: z.string().min(1),
+        rate: z.number().positive("Rate must be greater than 0"),
+      })
+    ),
   });
+}
+
+function CurrencyCombobox({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = CURRENCIES.find((c) => c.code === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          className="w-full justify-between font-normal h-9"
+        >
+          <span className="truncate">
+            {selected ? `${selected.code} · ${selected.name}` : "Select currency"}
+          </span>
+          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command filter={(val, search) => {
+          const cur = CURRENCIES.find((c) => c.code === val);
+          if (!cur) return 0;
+          const q = search.toLowerCase();
+          return (cur.code.toLowerCase().includes(q) || cur.name.toLowerCase().includes(q)) ? 1 : 0;
+        }}>
+          <CommandInput placeholder="Search currency…" />
+          <CommandList>
+            <CommandEmpty>No currency found.</CommandEmpty>
+            <CommandGroup>
+              {CURRENCIES.map((cur) => (
+                <CommandItem
+                  key={cur.code}
+                  value={cur.code}
+                  onSelect={(code) => { onChange(code); setOpen(false); }}
+                >
+                  <Check className={`mr-2 h-4 w-4 shrink-0 ${value === cur.code ? "opacity-100" : "opacity-0"}`} />
+                  <span className="font-mono text-xs mr-2 w-10">{cur.code}</span>
+                  <span className="text-sm">{cur.name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{cur.symbol}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function OrganizationGeneralPage() {
@@ -79,6 +138,7 @@ export default function OrganizationGeneralPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false);
+  const [fetchingRates, setFetchingRates] = useState<Set<string>>(new Set());
   
   const organizationGeneralSchema = getOrganizationGeneralSchema();
 
@@ -96,6 +156,7 @@ export default function OrganizationGeneralPage() {
     reset,
     setValue,
     watch,
+    control,
     formState: { errors, isDirty },
   } = useForm<OrganizationGeneralForm>({
     resolver: zodResolver(organizationGeneralSchema),
@@ -112,11 +173,34 @@ export default function OrganizationGeneralPage() {
       country: "",
       publicSlug: "",
       defaultLanguage: "en",
+      multiCurrencyEnabled: false,
+      multiCurrencyPairs: [],
     },
+  });
+  const { fields: currencyPairFields, append: appendCurrencyPair, remove: removeCurrencyPair } = useFieldArray({
+    control,
+    name: "multiCurrencyPairs",
   });
   const publicSlugInput = watch("publicSlug") || "";
   const defaultLanguage = watch("defaultLanguage") || "en";
+  const multiCurrencyEnabled = watch("multiCurrencyEnabled");
   const publicSlugPreview = normalizePublicSlug(publicSlugInput) || normalizePublicSlug(organization?.name || "");
+  const fetchLiveRate = async (from: string, to: string, index: number) => {
+    const key = `${from}-${to}`;
+    setFetchingRates((prev) => new Set(prev).add(key));
+    try {
+      const rate = await getExchangeRate(from, to);
+      setValue(`multiCurrencyPairs.${index}.rate`, rate, { shouldDirty: true });
+    } catch {
+      toast.error(`Could not fetch live rate for ${from} → ${to}`);
+    } finally {
+      setFetchingRates((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   // Watch for changes to detect unsaved changes
   useEffect(() => {
@@ -127,6 +211,7 @@ export default function OrganizationGeneralPage() {
   useEffect(() => {
     if (organization) {
       const address = organization.settings?.address;
+      const savedMultiCurrency = organization.settings?.multiCurrency;
       reset({
         name: organization.name || "",
         description: organization.description || "",
@@ -140,6 +225,8 @@ export default function OrganizationGeneralPage() {
         country: address?.country || "",
         publicSlug: organization.settings?.publicPages?.orgSlug || "",
         defaultLanguage: organization.settings?.defaultLanguage || "en",
+        multiCurrencyEnabled: savedMultiCurrency?.enabled ?? false,
+        multiCurrencyPairs: savedMultiCurrency?.pairs ?? [],
       });
     }
   }, [organization, reset]);
@@ -200,6 +287,11 @@ export default function OrganizationGeneralPage() {
       }
 
       updateData["settings.defaultLanguage"] = data.defaultLanguage || "en";
+
+      updateData["settings.multiCurrency"] = {
+        enabled: data.multiCurrencyEnabled,
+        pairs: data.multiCurrencyEnabled ? data.multiCurrencyPairs : [],
+      };
 
       await updateOrganization.mutateAsync({
         id: organization.id,
@@ -484,6 +576,122 @@ export default function OrganizationGeneralPage() {
                 Month and date names on your public catalog will display in this language.
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Multi-Currency */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Multi-Currency Pricing</CardTitle>
+            <CardDescription className="text-sm">
+              Define conversion pairs. When a product is priced in the left currency, the converted price is shown alongside it on your public catalog.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Enable multi-currency display</Label>
+                <p className="text-xs text-muted-foreground">
+                  Converted prices appear below the product price on listing cards and detail pages.
+                </p>
+              </div>
+              <Switch
+                checked={multiCurrencyEnabled}
+                onCheckedChange={(checked) =>
+                  setValue("multiCurrencyEnabled", checked, { shouldDirty: true })
+                }
+              />
+            </div>
+
+            {multiCurrencyEnabled && (
+              <div className="space-y-3">
+                {currencyPairFields.length > 0 && (
+                  <div className="space-y-2">
+                    {/* Header */}
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-2 px-1">
+                      <span className="text-xs text-muted-foreground">From</span>
+                      <span className="text-xs text-muted-foreground text-center w-4">=</span>
+                      <span className="text-xs text-muted-foreground">To (rate)</span>
+                      <span />
+                      <span />
+                    </div>
+
+                    {currencyPairFields.map((field, index) => {
+                      const isFetching = fetchingRates.has(`${field.from}-${field.to}`);
+                      const fromValue = watch(`multiCurrencyPairs.${index}.from`);
+                      const toValue = watch(`multiCurrencyPairs.${index}.to`);
+                      return (
+                        <div key={field.id} className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-start gap-2">
+                          {/* From currency picker */}
+                          <CurrencyCombobox
+                            value={fromValue}
+                            onChange={(code) => setValue(`multiCurrencyPairs.${index}.from`, code, { shouldDirty: true })}
+                          />
+
+                          {/* Equals */}
+                          <span className="text-sm text-muted-foreground font-medium mt-2">=</span>
+
+                          {/* Rate input + To currency label */}
+                          <div className="space-y-1">
+                            <div className="relative flex items-center">
+                              <Input
+                                type="number"
+                                step="0.000001"
+                                min="0.000001"
+                                placeholder="0.00"
+                                {...register(`multiCurrencyPairs.${index}.rate`, { valueAsNumber: true })}
+                                className={`pr-14 ${errors.multiCurrencyPairs?.[index]?.rate ? "border-red-500" : ""}`}
+                              />
+                              <span className="absolute right-3 text-xs font-semibold text-muted-foreground pointer-events-none select-none">
+                                {toValue || "—"}
+                              </span>
+                            </div>
+                            <CurrencyCombobox
+                              value={toValue}
+                              onChange={(code) => setValue(`multiCurrencyPairs.${index}.to`, code, { shouldDirty: true })}
+                            />
+                          </div>
+
+                          {/* Fetch live rate */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={isFetching || !fromValue || !toValue}
+                            onClick={() => fetchLiveRate(fromValue, toValue, index)}
+                            title="Fetch live rate"
+                            className="shrink-0 mt-0.5"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+                          </Button>
+
+                          {/* Remove */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeCurrencyPair(index)}
+                            className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendCurrencyPair({ from: "", to: "", rate: 1 })}
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  Add conversion pair
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -6,6 +6,7 @@ import { MetafieldDefinition } from "../core/entities/metafield";
 import { Organization } from "../core/entities/organization";
 import { Product } from "../core/entities/product";
 import { ProductMetafield } from "../core/entities/product-metafield";
+import { slugifySegment as slugifySegmentUtil } from "./slug-utils";
 
 const HYBRID_QR_MAX_CHARS = 2200;
 const TEXT_QR_MAX_CHARS = 1800;
@@ -73,24 +74,7 @@ export type QrPayloadBuildResult = {
   plainText: string;
 };
 
-export function slugifySegment(value: unknown): string {
-  const input =
-    typeof value === "string"
-      ? value
-      : typeof value === "number" || typeof value === "boolean"
-        ? String(value)
-        : "";
-
-  const normalized = input
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-
-  return normalized || "item";
-}
+export const slugifySegment = slugifySegmentUtil;
 
 export function normalizeSlugAliases(
   aliases: string[] | undefined,

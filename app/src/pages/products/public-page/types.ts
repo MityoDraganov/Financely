@@ -24,12 +24,24 @@ export type PublicSeoPayload = {
   robots: string;
 };
 
+export type PublicMultiCurrencyPair = {
+  from: string;
+  to: string;
+  rate: number;
+};
+
+export type PublicMultiCurrencyConfig = {
+  enabled: boolean;
+  pairs: PublicMultiCurrencyPair[];
+};
+
 export type PublicOrganizationPayload = {
   id: string;
   name: string;
   orgSlug: string;
   logoUrl?: string;
   locale: string;
+  multiCurrency?: PublicMultiCurrencyConfig;
 };
 
 export type PublicProductFields = {
