@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2480 3508" width="2480" height="3508">
+  <defs>
+    <!-- Fonts -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900&amp;subset=cyrillic&amp;display=swap');
+      text { font-family: 'Montserrat', Arial, 'DejaVu Sans', sans-serif; }
+    </style>
+
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#061728"/>
+      <stop offset="55%"  stop-color="#0b2d46"/>
+      <stop offset="100%" stop-color="#092538"/>
+    </linearGradient>
+
+    <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#0e3352"/>
+      <stop offset="100%" stop-color="#0b2940"/>
+    </linearGradient>
+
+    <linearGradient id="footerGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#071f8a"/>
+      <stop offset="100%" stop-color="#0a2fb5"/>
+    </linearGradient>
+
+    <linearGradient id="btnGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#059669"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+
+    <linearGradient id="headlineUnderline" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Glow effects -->
+    <radialGradient id="glowGreen" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#10b981" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowBlue" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#3b82f6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#10b981" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Blur filter for glows -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+    <filter id="glowSoft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="30"/>
+    </filter>
+
+    <!-- Dot grid pattern -->
+    <pattern id="dotGrid" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <circle cx="40" cy="40" r="2" fill="#ffffff" fill-opacity="0.08"/>
+    </pattern>
+  </defs>
+
+  <!-- ================================================================ -->
+  <!-- BACKGROUND                                                        -->
+  <!-- ================================================================ -->
+  <rect width="2480" height="3508" fill="url(#bgGrad)"/>
+  <rect width="2480" height="3508" fill="url(#dotGrid)"/>
+
+  <!-- Ambient glow blobs -->
+  <ellipse cx="2150" cy="480" rx="700" ry="600" fill="url(#glowGreen)" filter="url(#glow)"/>
+  <ellipse cx="280"  cy="1150" rx="460" ry="400" fill="url(#glowBlue)"  filter="url(#glow)"/>
+  <ellipse cx="1900" cy="2350" rx="400" ry="350" fill="url(#glowGreen2)" filter="url(#glow)"/>
+
+  <!-- ================================================================ -->
+  <!-- TOP ACCENT BAR                                                    -->
+  <!-- ================================================================ -->
+  <rect x="0" y="0" width="2480" height="8" fill="#10b981"/>
+
+  <!-- ================================================================ -->
+  <!-- HERO SECTION  (y 0 – 1280)                                       -->
+  <!-- ================================================================ -->
+
+  <!-- Logo: Financely. -->
+  <text x="200" y="195"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="100" font-weight="900" letter-spacing="-2"
+    fill="#ffffff">Financely<tspan fill="#22c55e">.</tspan></text>
+
+  <!-- Badge pill -->
+  <rect x="200" y="240" width="840" height="72" rx="36"
+    fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="2"/>
+  <circle cx="248" cy="276" r="8" fill="#10b981"/>
+  <text x="272" y="288"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="34" font-weight="600" fill="#10b981">
+    Ново &#183; Одобрения &#8594; Фактура с един клик
+  </text>
+
+  <!-- Main headline -->
+  <text x="200" y="530"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="185" font-weight="900" letter-spacing="-6"
+    fill="#ffffff">&#1060;&#1072;&#1082;&#1090;&#1091;&#1088;&#1080;.</text>
+
+  <text x="200" y="740"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="185" font-weight="900" letter-spacing="-6"
+    fill="#ffffff">&#1054;&#1092;&#1077;&#1088;&#1090;&#1080;.</text>
+
+  <text x="200" y="950"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="185" font-weight="900" letter-spacing="-6"
+    fill="#10b981">&#1040;&#1074;&#1090;&#1086;&#1084;&#1072;&#1090;&#1080;&#1079;&#1072;&#1094;&#1080;&#1080;.</text>
+
+  <!-- Sub-headline -->
+  <text x="200" y="1065"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="64" font-weight="400" letter-spacing="-1"
+    fill="#94a3b8">&#1060;&#1080;&#1085;&#1072;&#1085;&#1089;&#1086;&#1074;&#1080;&#1103;&#1090; &#1093;&#1098;&#1073; &#1079;&#1072; &#1089;&#1098;&#1074;&#1088;&#1077;&#1084;&#1077;&#1085;&#1085;&#1080;&#1103; &#1073;&#1080;&#1079;&#1085;&#1077;&#1089;</text>
+
+  <!-- Underline accent -->
+  <rect x="200" y="1110" width="200" height="7" rx="3.5" fill="url(#headlineUnderline)"/>
+
+  <!-- Right side decorative UI mockup suggestion (abstract lines) -->
+  <rect x="1500" y="180" width="840" height="960" rx="32"
+    fill="#0e3352" fill-opacity="0.5" stroke="#1a4f7a" stroke-width="2"/>
+  <!-- Mock browser bar -->
+  <rect x="1500" y="180" width="840" height="64" rx="32" fill="#1a4f7a" fill-opacity="0.6"/>
+  <circle cx="1550" cy="212" r="12" fill="#ef4444" fill-opacity="0.7"/>
+  <circle cx="1592" cy="212" r="12" fill="#f59e0b" fill-opacity="0.7"/>
+  <circle cx="1634" cy="212" r="12" fill="#22c55e" fill-opacity="0.7"/>
+  <rect x="1660" y="200" width="560" height="24" rx="12" fill="#ffffff" fill-opacity="0.1"/>
+  <!-- Mock rows inside -->
+  <rect x="1540" y="290" width="360" height="28" rx="6" fill="#10b981" fill-opacity="0.3"/>
+  <rect x="1540" y="338" width="500" height="20" rx="5" fill="#ffffff" fill-opacity="0.1"/>
+  <rect x="1540" y="372" width="420" height="20" rx="5" fill="#ffffff" fill-opacity="0.07"/>
+  <rect x="1540" y="406" width="460" height="20" rx="5" fill="#ffffff" fill-opacity="0.07"/>
+  <rect x="1540" y="454" width="740" height="2" fill="#1a4f7a"/>
+  <!-- Mock invoice line -->
+  <rect x="1540" y="474" width="180" height="20" rx="5" fill="#ffffff" fill-opacity="0.12"/>
+  <rect x="1740" y="474" width="120" height="20" rx="5" fill="#10b981" fill-opacity="0.25"/>
+  <rect x="1880" y="474" width="140" height="20" rx="5" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="1540" y="510" width="180" height="20" rx="5" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="1740" y="510" width="120" height="20" rx="5" fill="#10b981" fill-opacity="0.15"/>
+  <rect x="1880" y="510" width="140" height="20" rx="5" fill="#ffffff" fill-opacity="0.05"/>
+  <rect x="1540" y="546" width="180" height="20" rx="5" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="1740" y="546" width="120" height="20" rx="5" fill="#10b981" fill-opacity="0.15"/>
+  <rect x="1880" y="546" width="140" height="20" rx="5" fill="#ffffff" fill-opacity="0.05"/>
+  <rect x="1540" y="594" width="740" height="2" fill="#1a4f7a"/>
+  <!-- Total row -->
+  <rect x="1540" y="614" width="180" height="28" rx="6" fill="#ffffff" fill-opacity="0.15"/>
+  <rect x="1880" y="614" width="140" height="28" rx="6" fill="#10b981" fill-opacity="0.4"/>
+  <!-- Action button -->
+  <rect x="1540" y="668" width="220" height="52" rx="26" fill="url(#btnGrad)"/>
+  <rect x="1780" y="668" width="180" height="52" rx="26" fill="#1a4f7a"/>
+  <!-- Status badge -->
+  <rect x="1540" y="760" width="160" height="44" rx="22" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="1.5"/>
+  <text x="1620" y="788"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="26" font-weight="600" fill="#10b981" text-anchor="middle">&#1055;&#1083;&#1072;&#1090;&#1077;&#1085;&#1086;</text>
+  <rect x="1720" y="760" width="180" height="44" rx="22" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="1810" y="788"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="26" font-weight="600" fill="#f59e0b" text-anchor="middle">&#1063;&#1072;&#1082;&#1072;&#1097;&#1086;</text>
+  <!-- Mini chart -->
+  <polyline points="1540,930 1600,900 1660,910 1740,870 1800,880 1880,840 1960,855 2060,820 2140,830 2220,800"
+    fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="1540,930 1600,900 1660,910 1740,870 1800,880 1880,840 1960,855 2060,820 2140,830 2220,800 2220,960 1540,960"
+    fill="#10b981" fill-opacity="0.08"/>
+
+  <!-- ================================================================ -->
+  <!-- SECTION DIVIDER + TITLE  (y 1280 – 1460)                        -->
+  <!-- ================================================================ -->
+  <rect x="0" y="1280" width="2480" height="180" fill="#0a2236" fill-opacity="0.6"/>
+  <rect x="0" y="1280" width="2480" height="2"   fill="#1a4f7a"/>
+  <rect x="0" y="1458" width="2480" height="2"   fill="#1a4f7a"/>
+
+  <text x="1240" y="1392"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="60" font-weight="700" fill="#ffffff" text-anchor="middle">
+    &#1042;&#1089;&#1080;&#1095;&#1082;&#1086;, &#1086;&#1090; &#1082;&#1086;&#1077;&#1090;&#1086; &#1089;&#1077; &#1085;&#1091;&#1078;&#1076;&#1072;&#1077; &#1074;&#1072;&#1096;&#1080;&#1103;&#1090; &#1073;&#1080;&#1079;&#1085;&#1077;&#1089;
+  </text>
+  <!-- Small green dots flanking section title -->
+  <circle cx="500"  cy="1369" r="6" fill="#10b981"/>
+  <circle cx="1980" cy="1369" r="6" fill="#10b981"/>
+  <rect x="524"  y="1366" width="420" height="3" fill="#10b981" fill-opacity="0.3"/>
+  <rect x="1536" y="1366" width="420" height="3" fill="#10b981" fill-opacity="0.3"/>
+
+  <!-- ================================================================ -->
+  <!-- FEATURE CARDS  3 × 3                                             -->
+  <!--   Card size: 720 × 460 px                                        -->
+  <!--   Gap: 45 px                                                      -->
+  <!--   Columns: x = 130, 895, 1660                                    -->
+  <!--   Rows:    y = 1480, 1985, 2490                                   -->
+  <!--   Grid ends: 2490 + 460 = 2950                                   -->
+  <!-- ================================================================ -->
+
+  <!-- ─── ROW 1 ─────────────────────────────────────────────────── -->
+
+  <!-- CARD 1 · Фактури -->
+  <rect x="130" y="1480" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <!-- Icon bg -->
+  <circle cx="228" cy="1576" r="52" fill="#10b981" fill-opacity="0.15"/>
+  <!-- Document icon -->
+  <rect x="204" y="1547" width="48" height="60" rx="5" fill="none" stroke="#10b981" stroke-width="3"/>
+  <rect x="204" y="1547" width="48" height="18" rx="5" fill="#10b981" fill-opacity="0.35"/>
+  <line x1="212" y1="1578" x2="244" y2="1578" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="212" y1="1592" x2="244" y2="1592" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="212" y1="1606" x2="232" y2="1606" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Title -->
+  <text x="298" y="1572"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1060;&#1072;&#1082;&#1090;&#1091;&#1088;&#1080;</text>
+  <rect x="158" y="1643" width="662" height="2" fill="#1a4f7a"/>
+  <!-- Description -->
+  <text x="158" y="1698" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1055;&#1088;&#1072;&#1074;&#1085;&#1086; &#1089;&#1098;&#1086;&#1090;&#1074;&#1077;&#1090;&#1089;&#1090;&#1074;&#1072;&#1097;&#1080; &#1092;&#1072;&#1082;&#1090;&#1091;&#1088;&#1080;</text>
+  <text x="158" y="1744" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1089; PDF &#1080;&#1079;&#1085;&#1086;&#1089;, &#1080;&#1079;&#1087;&#1088;&#1072;&#1097;&#1072;&#1085;&#1077; &#1087;&#1086;</text>
+  <text x="158" y="1790" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1080;&#1084;&#1077;&#1081;&#1083; &#1080; &#1089;&#1083;&#1077;&#1076;&#1077;&#1085;&#1077; &#1085;&#1072; &#1087;&#1083;&#1072;&#1097;&#1072;&#1085;&#1077;.</text>
+  <!-- Pills -->
+  <rect x="158" y="1836" width="190" height="46" rx="23" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="253" y="1867" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#10b981" text-anchor="middle">PDF</text>
+  <rect x="362" y="1836" width="210" height="46" rx="23" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="467" y="1867" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#10b981" text-anchor="middle">&#1054;&#1076;&#1086;&#1073;&#1088;&#1077;&#1085;&#1080;&#1103;</text>
+
+  <!-- CARD 2 · Оферти -->
+  <rect x="895" y="1480" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="993" cy="1576" r="52" fill="#3b82f6" fill-opacity="0.15"/>
+  <!-- Doc + check icon -->
+  <rect x="969" y="1547" width="48" height="60" rx="5" fill="none" stroke="#3b82f6" stroke-width="3"/>
+  <polyline points="977,1580 987,1592 1009,1566" fill="none" stroke="#3b82f6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1063" y="1572"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1054;&#1092;&#1077;&#1088;&#1090;&#1080;</text>
+  <rect x="923" y="1643" width="662" height="2" fill="#1a4f7a"/>
+  <text x="923" y="1698" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1055;&#1088;&#1086;&#1092;&#1077;&#1089;&#1080;&#1086;&#1085;&#1072;&#1083;&#1085;&#1080; &#1086;&#1092;&#1077;&#1088;&#1090;&#1080; &#1089; AI.</text>
+  <text x="923" y="1744" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1057;&#1083;&#1077;&#1076;&#1077;&#1090;&#1077; &#1086;&#1076;&#1086;&#1073;&#1088;&#1077;&#1085;&#1080;&#1103;&#1090;&#1072; &#1080;</text>
+  <text x="923" y="1790" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1074;&#1077;&#1076;&#1085;&#1072;&#1075;&#1072; &#1077;&#1084;&#1080;&#1090;&#1080;&#1088;&#1072;&#1081;&#1090;&#1077; &#1092;&#1072;&#1082;&#1090;&#1091;&#1088;&#1072;.</text>
+  <rect x="923" y="1836" width="260" height="46" rx="23" fill="#3b82f6" fill-opacity="0.12" stroke="#3b82f6" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1053" y="1867" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#3b82f6" text-anchor="middle">&#1055;&#1088;&#1086;&#1089;&#1083;&#1077;&#1076;&#1103;&#1074;&#1072;&#1085;&#1077;</text>
+
+  <!-- CARD 3 · Контакти -->
+  <rect x="1660" y="1480" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="1758" cy="1576" r="52" fill="#8b5cf6" fill-opacity="0.15"/>
+  <!-- Person icon -->
+  <circle cx="1758" cy="1558" r="15" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+  <path d="M1729,1614 Q1729,1587 1758,1587 Q1787,1587 1787,1614" fill="none" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round"/>
+  <text x="1828" y="1572"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1050;&#1086;&#1085;&#1090;&#1072;&#1082;&#1090;&#1080;</text>
+  <rect x="1688" y="1643" width="662" height="2" fill="#1a4f7a"/>
+  <text x="1688" y="1698" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1059;&#1087;&#1088;&#1072;&#1074;&#1083;&#1103;&#1074;&#1072;&#1081;&#1090;&#1077; &#1082;&#1083;&#1080;&#1077;&#1085;&#1090;&#1089;&#1082;&#1072;&#1090;&#1072;</text>
+  <text x="1688" y="1744" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1089;&#1080; &#1073;&#1072;&#1079;&#1072;, &#1080;&#1089;&#1090;&#1086;&#1088;&#1080;&#1103;&#1090;&#1072; &#1085;&#1072;</text>
+  <text x="1688" y="1790" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1090;&#1088;&#1072;&#1085;&#1079;&#1072;&#1082;&#1094;&#1080;&#1080; &#1080; CRM.</text>
+  <rect x="1688" y="1836" width="160" height="46" rx="23" fill="#8b5cf6" fill-opacity="0.12" stroke="#8b5cf6" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1768" y="1867" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#8b5cf6" text-anchor="middle">CRM</text>
+
+  <!-- ─── ROW 2 ─────────────────────────────────────────────────── -->
+
+  <!-- CARD 4 · Лийдове -->
+  <rect x="130" y="1985" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="228" cy="2081" r="52" fill="#f59e0b" fill-opacity="0.15"/>
+  <!-- Funnel icon -->
+  <polygon points="202,2054 254,2054 242,2078 214,2078" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="216" y="2078" width="26" height="28" rx="3" fill="none" stroke="#f59e0b" stroke-width="3"/>
+  <line x1="222" y1="2100" x2="236" y2="2100" stroke="#f59e0b" stroke-width="2" opacity="0.5"/>
+  <text x="298" y="2077"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1051;&#1080;&#1081;&#1076;&#1086;&#1074;&#1077;</text>
+  <rect x="158" y="2148" width="662" height="2" fill="#1a4f7a"/>
+  <text x="158" y="2203" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1059;&#1083;&#1072;&#1074;&#1103;&#1081;&#1090;&#1077; &#1087;&#1086;&#1090;&#1077;&#1085;&#1094;&#1080;&#1072;&#1083;&#1085;&#1080;</text>
+  <text x="158" y="2249" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1082;&#1083;&#1080;&#1077;&#1085;&#1090;&#1080;. &#1040;&#1074;&#1090;&#1086;&#1084;&#1072;&#1090;&#1080;&#1095;&#1085;&#1080;</text>
+  <text x="158" y="2295" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1085;&#1072;&#1087;&#1086;&#1084;&#1085;&#1103;&#1085;&#1080;&#1103; &#8212; &#1085;&#1080;&#1082;&#1086;&#1075;&#1072; &#1085;&#1077; &#1087;&#1091;&#1089;&#1082;&#1072;&#1081;&#1090;&#1077;.</text>
+  <rect x="158" y="2341" width="250" height="46" rx="23" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="283" y="2372" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#f59e0b" text-anchor="middle">&#1053;&#1072;&#1087;&#1086;&#1084;&#1085;&#1103;&#1085;&#1080;&#1103;</text>
+
+  <!-- CARD 5 · Продукти -->
+  <rect x="895" y="1985" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="993" cy="2081" r="52" fill="#ec4899" fill-opacity="0.15"/>
+  <!-- 2×2 grid icon -->
+  <rect x="967" y="2055" width="22" height="22" rx="4" fill="#ec4899" fill-opacity="0.9"/>
+  <rect x="995" y="2055" width="22" height="22" rx="4" fill="#ec4899" fill-opacity="0.7"/>
+  <rect x="967" y="2083" width="22" height="22" rx="4" fill="#ec4899" fill-opacity="0.7"/>
+  <rect x="995" y="2083" width="22" height="22" rx="4" fill="#ec4899" fill-opacity="0.5"/>
+  <text x="1063" y="2077"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1055;&#1088;&#1086;&#1076;&#1091;&#1082;&#1090;&#1080;</text>
+  <rect x="923" y="2148" width="662" height="2" fill="#1a4f7a"/>
+  <text x="923" y="2203" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1050;&#1072;&#1090;&#1072;&#1083;&#1086;&#1075; &#1089; &#1082;&#1086;&#1083;&#1077;&#1082;&#1094;&#1080;&#1080;,</text>
+  <text x="923" y="2249" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1094;&#1077;&#1085;&#1080; &#1080; &#1087;&#1091;&#1073;&#1083;&#1080;&#1095;&#1077;&#1085; &#1084;&#1072;&#1075;&#1072;&#1079;&#1080;&#1085;</text>
+  <text x="923" y="2295" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1089; QR &#1082;&#1086;&#1076; &#1079;&#1072; &#1089;&#1087;&#1086;&#1076;&#1077;&#1083;&#1103;&#1085;&#1077;.</text>
+  <rect x="923" y="2341" width="220" height="46" rx="23" fill="#ec4899" fill-opacity="0.12" stroke="#ec4899" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1033" y="2372" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#ec4899" text-anchor="middle">QR &#1050;&#1072;&#1090;&#1072;&#1083;&#1086;&#1075;</text>
+
+  <!-- CARD 6 · Шаблони -->
+  <rect x="1660" y="1985" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="1758" cy="2081" r="52" fill="#06b6d4" fill-opacity="0.15"/>
+  <!-- Layers icon -->
+  <rect x="1730" y="2053" width="56" height="13" rx="4" fill="#06b6d4" fill-opacity="0.6"/>
+  <rect x="1736" y="2071" width="44" height="13" rx="4" fill="#06b6d4" fill-opacity="0.8"/>
+  <rect x="1742" y="2089" width="32" height="13" rx="4" fill="#06b6d4" fill-opacity="1"/>
+  <text x="1828" y="2077"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1064;&#1072;&#1073;&#1083;&#1086;&#1085;&#1080;</text>
+  <rect x="1688" y="2148" width="662" height="2" fill="#1a4f7a"/>
+  <text x="1688" y="2203" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1052;&#1085;&#1086;&#1075;&#1086;&#1082;&#1088;&#1072;&#1090;&#1085;&#1086; &#1080;&#1079;&#1087;&#1086;&#1083;&#1079;&#1074;&#1072;&#1085;&#1080;</text>
+  <text x="1688" y="2249" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1096;&#1072;&#1073;&#1083;&#1086;&#1085;&#1080; &#1079;&#1072; &#1092;&#1072;&#1082;&#1090;&#1091;&#1088;&#1080;</text>
+  <text x="1688" y="2295" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1080; &#1076;&#1086;&#1082;&#1091;&#1084;&#1077;&#1085;&#1090;&#1080;. &#1055;&#1077;&#1089;&#1090;&#1077;&#1090;&#1077; &#1074;&#1088;&#1077;&#1084;&#1077;.</text>
+  <rect x="1688" y="2341" width="280" height="46" rx="23" fill="#06b6d4" fill-opacity="0.12" stroke="#06b6d4" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1828" y="2372" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#06b6d4" text-anchor="middle">&#1055;&#1077;&#1088;&#1089;&#1086;&#1085;&#1072;&#1083;&#1080;&#1079;&#1080;&#1088;&#1072;&#1085;&#1077;</text>
+
+  <!-- ─── ROW 3 ─────────────────────────────────────────────────── -->
+
+  <!-- CARD 7 · Работни потоци -->
+  <rect x="130" y="2490" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="228" cy="2586" r="52" fill="#10b981" fill-opacity="0.15"/>
+  <!-- Flow: 3 nodes + connectors -->
+  <circle cx="204" cy="2573" r="11" fill="#10b981"/>
+  <circle cx="228" cy="2605" r="11" fill="#10b981" fill-opacity="0.7"/>
+  <circle cx="252" cy="2573" r="11" fill="#10b981"/>
+  <line x1="204" y1="2573" x2="228" y2="2605" stroke="#10b981" stroke-width="2.5"/>
+  <line x1="228" y1="2605" x2="252" y2="2573" stroke="#10b981" stroke-width="2.5"/>
+  <!-- Title slightly smaller to fit -->
+  <text x="298" y="2578"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="48" font-weight="800" fill="#ffffff">&#1040;&#1074;&#1090;&#1086;&#1084;&#1072;&#1090;&#1080;&#1079;&#1072;&#1094;&#1080;&#1080;</text>
+  <rect x="158" y="2648" width="662" height="2" fill="#1a4f7a"/>
+  <text x="158" y="2703" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1040;&#1074;&#1090;&#1086;&#1084;&#1072;&#1090;&#1080;&#1079;&#1080;&#1088;&#1072;&#1081;&#1090;&#1077; &#1087;&#1086;&#1074;&#1090;&#1072;&#1088;&#1103;&#1097;&#1080;</text>
+  <text x="158" y="2749" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1089;&#1077; &#1079;&#1072;&#1076;&#1072;&#1095;&#1080; &#1089; &#1088;&#1072;&#1073;&#1086;&#1090;&#1085;&#1080;</text>
+  <text x="158" y="2795" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1087;&#1086;&#1090;&#1086;&#1094;&#1080; &#1073;&#1077;&#1079; &#1082;&#1086;&#1076;&#1080;&#1088;&#1072;&#1085;&#1077;.</text>
+  <rect x="158" y="2841" width="240" height="46" rx="23" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="278" y="2872" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#10b981" text-anchor="middle">&#1041;&#1077;&#1079; &#1082;&#1086;&#1076;&#1080;&#1088;&#1072;&#1085;&#1077;</text>
+
+  <!-- CARD 8 · Пазар -->
+  <rect x="895" y="2490" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="993" cy="2586" r="52" fill="#f59e0b" fill-opacity="0.15"/>
+  <!-- Shopping bag icon -->
+  <path d="M971,2603 L977,2562 L1009,2562 L1015,2603 Z" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M980,2565 Q980,2546 993,2546 Q1006,2546 1006,2565" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="1063" y="2582"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="58" font-weight="800" fill="#ffffff">&#1055;&#1072;&#1079;&#1072;&#1088;</text>
+  <rect x="923" y="2648" width="662" height="2" fill="#1a4f7a"/>
+  <text x="923" y="2703" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1043;&#1086;&#1090;&#1086;&#1074;&#1080; &#1096;&#1072;&#1073;&#1083;&#1086;&#1085;&#1080; &#1079;&#1072; &#1073;&#1098;&#1088;&#1079;</text>
+  <text x="923" y="2749" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1089;&#1090;&#1072;&#1088;&#1090;. &#1057;&#1087;&#1086;&#1076;&#1077;&#1083;&#1103;&#1081;&#1090;&#1077; &#1089;&#1074;&#1086;&#1080;</text>
+  <text x="923" y="2795" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1096;&#1072;&#1073;&#1083;&#1086;&#1085;&#1080; &#1089; &#1086;&#1073;&#1097;&#1085;&#1086;&#1089;&#1090;&#1090;&#1072;.</text>
+  <rect x="923" y="2841" width="240" height="46" rx="23" fill="#f59e0b" fill-opacity="0.12" stroke="#f59e0b" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1043" y="2872" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#f59e0b" text-anchor="middle">&#1043;&#1086;&#1090;&#1086;&#1074;&#1080; &#1096;&#1072;&#1073;&#1083;&#1086;&#1085;&#1080;</text>
+
+  <!-- CARD 9 · Интеграции -->
+  <rect x="1660" y="2490" width="720" height="460" rx="20" fill="url(#cardGrad)" stroke="#1c4e74" stroke-width="1.5"/>
+  <circle cx="1758" cy="2586" r="52" fill="#8b5cf6" fill-opacity="0.15"/>
+  <!-- Globe icon -->
+  <circle cx="1758" cy="2583" r="26" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+  <ellipse cx="1758" cy="2583" rx="11" ry="26" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="1732" y1="2583" x2="1784" y2="2583" stroke="#8b5cf6" stroke-width="2"/>
+  <line x1="1736" y1="2568" x2="1780" y2="2568" stroke="#8b5cf6" stroke-width="1.5" opacity="0.6"/>
+  <line x1="1736" y1="2598" x2="1780" y2="2598" stroke="#8b5cf6" stroke-width="1.5" opacity="0.6"/>
+  <text x="1828" y="2582"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="48" font-weight="800" fill="#ffffff">&#1048;&#1085;&#1090;&#1077;&#1075;&#1088;&#1072;&#1094;&#1080;&#1080;</text>
+  <rect x="1688" y="2648" width="662" height="2" fill="#1a4f7a"/>
+  <text x="1688" y="2703" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1042;&#1075;&#1088;&#1072;&#1078;&#1076;&#1072;&#1081;&#1090;&#1077; &#1074;&#1080;&#1076;&#1078;&#1077;&#1090;&#1080;</text>
+  <text x="1688" y="2749" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1085;&#1072; &#1074;&#1072;&#1096;&#1080;&#1103; &#1089;&#1072;&#1081;&#1090; &#8212; &#1092;&#1086;&#1088;&#1084;&#1091;&#1083;&#1103;&#1088;&#1080;,</text>
+  <text x="1688" y="2795" font-family="'Montserrat', Arial, sans-serif" font-size="38" fill="#94a3b8">&#1082;&#1072;&#1090;&#1072;&#1083;&#1086;&#1079;&#1080; &#1080; &#1087;&#1086;&#1074;&#1077;&#1095;&#1077;.</text>
+  <rect x="1688" y="2841" width="190" height="46" rx="23" fill="#8b5cf6" fill-opacity="0.12" stroke="#8b5cf6" stroke-opacity="0.5" stroke-width="1.5"/>
+  <text x="1783" y="2872" font-family="'Montserrat', Arial, sans-serif" font-size="28" font-weight="600" fill="#8b5cf6" text-anchor="middle">&#1042;&#1080;&#1076;&#1078;&#1077;&#1090;&#1080;</text>
+
+  <!-- ================================================================ -->
+  <!-- FOOTER  (y 2990 – 3508)                                          -->
+  <!-- ================================================================ -->
+  <rect x="0" y="2990" width="2480" height="518" fill="url(#footerGrad)"/>
+  <!-- Footer top accent line -->
+  <rect x="0" y="2990" width="2480" height="5" fill="#10b981"/>
+
+  <!-- CTA Button -->
+  <rect x="790" y="3060" width="900" height="115" rx="57" fill="url(#btnGrad)"/>
+  <!-- Button glow -->
+  <ellipse cx="1240" cy="3118" rx="400" ry="50" fill="#10b981" fill-opacity="0.2" filter="url(#glowSoft)"/>
+  <text x="1240" y="3134"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="52" font-weight="800" fill="#ffffff" text-anchor="middle">
+    &#1047;&#1072;&#1087;&#1086;&#1095;&#1085;&#1077;&#1090;&#1077; &#1073;&#1077;&#1079;&#1087;&#1083;&#1072;&#1090;&#1085;&#1086; &#8594;
+  </text>
+
+  <!-- Trust signals -->
+  <text x="1240" y="3252"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="36" fill="#94a3b8" text-anchor="middle">
+    &#10003; &#1041;&#1077;&#1079; &#1082;&#1088;&#1077;&#1076;&#1080;&#1090;&#1085;&#1072; &#1082;&#1072;&#1088;&#1090;&#1072;
+  </text>
+  <!-- 3 trust pills centered -->
+  <rect x="460"  y="3275" width="380" height="52" rx="26" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+  <text x="650"  y="3309" font-family="'Montserrat', Arial, sans-serif" font-size="28" fill="#94a3b8" text-anchor="middle">&#10003; &#1041;&#1077;&#1079; &#1082;&#1088;&#1077;&#1076;&#1080;&#1090;&#1085;&#1072; &#1082;&#1072;&#1088;&#1090;&#1072;</text>
+  <rect x="880"  y="3275" width="380" height="52" rx="26" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+  <text x="1070" y="3309" font-family="'Montserrat', Arial, sans-serif" font-size="28" fill="#94a3b8" text-anchor="middle">&#10003; &#1054;&#1090;&#1084;&#1077;&#1085;&#1077;&#1090;&#1077; &#1074;&#1080;&#1085;&#1072;&#1075;&#1080;</text>
+  <rect x="1300" y="3275" width="380" height="52" rx="26" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+  <text x="1490" y="3309" font-family="'Montserrat', Arial, sans-serif" font-size="28" fill="#94a3b8" text-anchor="middle">&#10003; Google Cloud &#1089;&#1080;&#1075;&#1091;&#1088;&#1085;&#1086;&#1089;&#1090;</text>
+  <rect x="1720" y="3275" width="300" height="52" rx="26" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+  <text x="1870" y="3309" font-family="'Montserrat', Arial, sans-serif" font-size="28" fill="#94a3b8" text-anchor="middle">&#10003; &#1040;&#1074;&#1090;&#1086;&#1089;&#1072;&#1074;&#1072;&#1085;&#1077;</text>
+
+  <!-- Bottom row: Logo left, URL right -->
+  <text x="240" y="3440"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="80" font-weight="900" letter-spacing="-2"
+    fill="#ffffff">Financely<tspan fill="#22c55e">.</tspan></text>
+
+  <text x="2240" y="3440"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="44" fill="#64748b" text-anchor="end">financely.app</text>
+
+  <!-- Thin divider -->
+  <rect x="240" y="3460" width="2000" height="1.5" fill="#1e3f60"/>
+
+  <!-- Copyright -->
+  <text x="1240" y="3496"
+    font-family="'Montserrat', Arial, sans-serif"
+    font-size="30" fill="#334155" text-anchor="middle">
+    &#1048;&#1079;&#1075;&#1088;&#1072;&#1076;&#1077;&#1085; &#1079;&#1072; &#1089;&#1082;&#1086;&#1088;&#1086;&#1089;&#1090;, &#1090;&#1086;&#1095;&#1085;&#1086;&#1089;&#1090; &#1080; &#1089;&#1098;&#1086;&#1090;&#1074;&#1077;&#1090;&#1089;&#1090;&#1074;&#1080;&#1077; &#183; &#169; 2025 Financely
+  </text>
+
+</svg>
