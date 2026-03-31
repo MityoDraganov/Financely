@@ -347,6 +347,23 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+    match /widgetDefinitions/{widgetId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() &&
+                     resource.data.orgId != null &&
+                     isOrgMember(resource.data.orgId);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.orgId != null &&
+                       isOrgMember(request.resource.data.orgId) &&
+                       isOwnerOrAdmin(request.resource.data.orgId);
+      allow update: if isAuthenticated() &&
+                       belongsToOrg(resource.data.orgId) &&
+                       request.resource.data.orgId == resource.data.orgId &&
+                       isOwnerOrAdmin(resource.data.orgId);
+      allow delete: if isAuthenticated() &&
+                       belongsToOrg(resource.data.orgId) &&
+                       isOwnerOrAdmin(resource.data.orgId);
+    }
     match /templateVersions/{versionId} {
       allow read, write: if isAdmin();
       // Allow queries for authenticated users (queries can't check resource.data for each doc)

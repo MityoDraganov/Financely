@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { Loader2, Sparkles, Plus, Layout, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useOrganizationContext } from "@/hooks/use-organization-context";
+import { useWidgetDefinitions } from "@/hooks/repository-hooks/use-widget-definitions";
 import { useDeleteWidgetDefinition } from "@/hooks/service-hooks/use-widget-definition-functions";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useWidgetDesigner } from "@/contexts/widget-designer-context";
@@ -48,8 +49,7 @@ function DesignAreaContent({
 	const isWideLayout = useMediaQuery("(min-width: 1600px)");
 	const noWidgetSelected = activeTab === "design" && !effectiveWidgetId;
 	const hasSelectedBlock = Boolean(ctx?.selectedBlockId);
-	const definitions = widgetDesigner?.definitions ?? [];
-	const isLoadingDefinitions = widgetDesigner?.isLoadingDefinitions ?? false;
+	const { data: definitions = [], isLoading: isLoadingDefinitions } = useWidgetDefinitions(organizationId);
 	const onWidgetChange = widgetDesigner?.onWidgetChange ?? (() => {});
 	const onCreateNewWidget = widgetDesigner?.onCreateNewWidget ?? (() => {});
 	const onCreateFromTemplate = widgetDesigner?.onCreateFromTemplate;
@@ -307,14 +307,7 @@ function DesignAreaContent({
 							<ShareEmbedSection
 								embedScript={getEmbedScript()}
 								organizationId={organizationId}
-								widgetDefinitions={
-									widgetDesigner?.definitions?.map(
-										(d) => ({
-											id: d.id,
-											name: d.name,
-										}),
-									) ?? []
-								}
+								widgetDefinitions={definitions.map((d) => ({ id: d.id, name: d.name }))}
 								selectedWidgetId={effectiveWidgetId}
 							/>
 						)}
@@ -334,12 +327,13 @@ function DesignAreaContent({
 export default function IntegrationsPage() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
-	const { data: organization, isLoading } = useCurrentOrganization();
+	const { currentOrganization: organization } = useOrganizationContext();
 	const deleteWidgetDefinition = useDeleteWidgetDefinition();
 
 	const [activeTab, setActiveTab] = useState<TabValue>("design");
 	const widgetDesigner = useWidgetDesigner();
 	const effectiveWidgetId = widgetDesigner?.currentWidgetId;
+	const { data: definitions = [], isLoading: isLoadingDefinitions } = useWidgetDefinitions(organization?.id ?? "");
 
 	const handleTabChange = useCallback(
 		(tab: TabValue) => {
@@ -362,7 +356,6 @@ export default function IntegrationsPage() {
 		}
 	}
 
-	const definitions = widgetDesigner?.definitions ?? [];
 	const widgetBelongsToOrg = definitions.some(
 		(d) => d.id === effectiveWidgetId,
 	);
@@ -409,14 +402,6 @@ export default function IntegrationsPage() {
 	const showBuilder = Boolean(effectiveWidgetId) && activeTab === "design";
 	const showPropertiesPanel = showBuilder;
 
-	if (isLoading) {
-		return (
-			<div className="h-[calc(100dvh-3.5rem)] md:h-screen bg-background flex items-center justify-center overflow-hidden">
-				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-			</div>
-		);
-	}
-
 	return (
 		<div className="h-[calc(100dvh-3.5rem)] md:h-screen bg-background flex flex-col overflow-hidden">
 			{!effectiveWidgetId && <IntegrationsHeader />}
@@ -428,11 +413,8 @@ export default function IntegrationsPage() {
 					hasWidgetSelected={Boolean(effectiveWidgetId)}
 					selectedWidgetId={effectiveWidgetId}
 					onWidgetChange={widgetDesigner?.onWidgetChange ?? (() => {})}
-					widgetDefinitions={definitions.map((d) => ({
-						id: d.id,
-						name: d.name,
-					}))}
-					loadingDefinitions={widgetDesigner?.isLoadingDefinitions ?? false}
+					widgetDefinitions={definitions.map((d) => ({ id: d.id, name: d.name }))}
+					loadingDefinitions={isLoadingDefinitions}
 				/>
 			)}
 

@@ -258,7 +258,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					<Button
 						variant="ghost"
 						size="icon"
-						className="h-9 w-9 shrink-0"
+						className="h-9 w-9 shrink-0 text-foreground hover:text-foreground"
 						onClick={toggleSidebar}
 					>
 						<Menu className="h-5 w-5" />
@@ -424,31 +424,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					<div>
 						<SidebarSeparator />
 						<SidebarGroup
-							className={`flex flex-col justify-between gap-3 ${state === "collapsed" ? "gap-1" : ""}`}
+							className={`flex flex-col justify-between ${isMobile ? "gap-6" : `gap-3 ${state === "collapsed" ? "gap-1" : ""}`}`}
 						>
 							<div
 								className={`flex items-center justify-between gap-1.5 ${state === "collapsed" ? "flex-col gap-1" : ""}`}
 							>
-								<LanguageSelector />
-								<ModeToggle />
+								<LanguageSelector
+									triggerClassName={isMobile ? "h-10" : undefined}
+								/>
+								<ModeToggle
+									buttonClassName={
+										isMobile ? "h-10 w-10" : undefined
+									}
+								/>
 							</div>
-							{/* UserButton only on desktop - on mobile it's in the header */}
-							{!isMobile && (
-								<SidebarMenuItem className="flex justify-center items-center w-full min-w-0 overflow-hidden">
-									<div className="min-w-0 overflow-hidden w-full">
-										<UserButton
-											showName={state === "expanded"}
-											appearance={{
-												elements: {
-													userButtonTrigger: "w-full max-w-full overflow-hidden",
-													userButtonBox: "min-w-0 overflow-hidden w-full",
-													userButtonOuterIdentifier: "truncate max-w-[10rem]",
-												},
-											}}
-										/>
-									</div>
-								</SidebarMenuItem>
-							)}
+							<SidebarMenuItem className="flex justify-center items-center w-full min-w-0 overflow-hidden">
+								<div className="min-w-0 overflow-hidden w-full">
+									<UserButton
+										showName={isMobile || state === "expanded"}
+										appearance={{
+											elements: {
+												userButtonTrigger: isMobile
+													? "h-10 w-full max-w-full overflow-hidden px-2"
+													: "w-full max-w-full overflow-hidden",
+												userButtonBox:
+													"min-w-0 overflow-hidden w-full",
+												userButtonOuterIdentifier: "truncate max-w-[10rem]",
+											},
+										}}
+									/>
+								</div>
+							</SidebarMenuItem>
 						</SidebarGroup>
 					</div>
 				</SidebarContent>

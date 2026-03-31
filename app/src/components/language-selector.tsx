@@ -8,8 +8,14 @@ import {
 } from '@/components/ui/select';
 import { Languages } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
 
-export function LanguageSelector() {
+type LanguageSelectorProps = {
+  fullWidth?: boolean;
+  triggerClassName?: string;
+};
+
+export function LanguageSelector({ fullWidth = false, triggerClassName }: LanguageSelectorProps = {}) {
   const { i18n } = useTranslation();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
@@ -28,7 +34,17 @@ export function LanguageSelector() {
 
   return (
     <Select value={i18n.language} onValueChange={handleLanguageChange}>
-      <SelectTrigger className={`h-9 ${isCollapsed ? 'w-9 px-0 justify-center [&>svg]:hidden' : 'w-fit'} rounded-sm`}>
+      <SelectTrigger
+        className={cn(
+          "h-9 rounded-sm",
+          isCollapsed
+            ? "w-9 px-0 justify-center [&>svg]:hidden"
+            : fullWidth
+              ? "w-full justify-between"
+              : "w-fit",
+          triggerClassName
+        )}
+      >
         {isCollapsed ? (
           <span className="text-lg leading-none flex items-center justify-center">{currentLanguage.flag}</span>
         ) : (
@@ -56,4 +72,3 @@ export function LanguageSelector() {
     </Select>
   );
 }
-

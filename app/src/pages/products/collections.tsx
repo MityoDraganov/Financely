@@ -1,60 +1,83 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { doc, getDoc } from "firebase/firestore";
-import { firebase } from "@/infrastructure/firebase";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
+import { useProductsByOrg } from "@/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Layers, ExternalLink, Package } from "lucide-react";
+import { Layers, ExternalLink, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { slugifyPublicSegment } from "@/utils/slug";
+import { formatCurrency as formatCurrencyUtil } from "@/utils/currencies";
+import type { Product } from "@/core";
 
 type CollectionSummary = {
 	slug: string;
 	label: string;
 	count: number;
+	products: Product[];
 };
 
-function parseCollectionSummaries(raw: unknown): CollectionSummary[] {
-	const arr = Array.isArray(raw) ? raw : [];
-	return arr
-		.map((entry) => {
-			const typed = entry as { slug?: unknown; label?: unknown; count?: unknown };
-			const slug = typeof typed.slug === "string" ? typed.slug : "";
-			const label = typeof typed.label === "string" ? typed.label : "";
-			const count =
-				typeof typed.count === "number" && Number.isFinite(typed.count) && typed.count >= 0
-					? Math.floor(typed.count)
-					: 0;
-			if (!slug || !label) return null;
-			return { slug, label, count };
-		})
-		.filter((e): e is CollectionSummary => e !== null);
+function normalizeCategoryValue(value: string | undefined): string {
+	return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function buildCollectionSummariesFromProducts(
+	products: Product[],
+): CollectionSummary[] {
+	const bySlug = new Map<string, { label: string; products: Product[] }>();
+
+	products.forEach((product) => {
+		const label = normalizeCategoryValue(product.category);
+		if (!label) return;
+
+		const slug = slugifyPublicSegment(label);
+		if (!slug) return;
+
+		const existing = bySlug.get(slug);
+		if (existing) {
+			existing.products.push(product);
+			if (!existing.label) {
+				existing.label = label;
+			}
+			return;
+		}
+
+		bySlug.set(slug, { label, products: [product] });
+	});
+
+	return Array.from(bySlug.entries())
+		.map(([slug, entry]) => ({
+			slug,
+			label: entry.label,
+			count: entry.products.length,
+			products: entry.products.sort((a, b) =>
+				(a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }),
+			),
+		}))
+		.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export default function CollectionsPage() {
 	const { t } = useTranslation();
 	const { currentOrganization } = useOrganizationContext();
+	const [expandedCollectionSlug, setExpandedCollectionSlug] = useState<string | null>(null);
 
 	const orgId = currentOrganization?.id;
 	const orgSlug = currentOrganization?.settings?.publicPages?.orgSlug;
 
-	const { data: collections = [], isLoading } = useQuery({
-		queryKey: ["publicCatalogs", orgId],
-		queryFn: async () => {
-			if (!orgId) return [];
-			const snap = await getDoc(doc(firebase.firestore, "publicCatalogs", orgId));
-			if (!snap.exists()) return [];
-			return parseCollectionSummaries(snap.data()?.collections);
-		},
-		enabled: !!orgId,
-	});
+	const { data: products = [], isLoading } = useProductsByOrg(orgId);
+	const collections = useMemo(
+		() => buildCollectionSummariesFromProducts(products),
+		[products],
+	);
 
 	const displayedCollections = useMemo(
 		() => collections.filter((c) => c.slug !== "uncategorized"),
 		[collections]
 	);
+	const formatCurrency = (amount: number, currency: string) =>
+		formatCurrencyUtil(amount, currency || "USD");
 
 	if (isLoading) {
 		return (
@@ -119,6 +142,7 @@ export default function CollectionsPage() {
 			) : (
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 					{displayedCollections.map((collection) => {
+						const isExpanded = expandedCollectionSlug === collection.slug;
 						const publicPath = orgSlug
 							? `/p/${orgSlug}/c/${collection.slug}`
 							: null;
@@ -156,7 +180,7 @@ export default function CollectionsPage() {
 									</code>
 								</CardHeader>
 								<CardContent>
-									<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+									<div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
 										<Package className="h-4 w-4 shrink-0" />
 										<span>
 											{collection.count}{" "}
@@ -165,6 +189,59 @@ export default function CollectionsPage() {
 												: t("collections.products")}
 										</span>
 									</div>
+
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="w-full h-11 justify-between"
+										onClick={() =>
+											setExpandedCollectionSlug((current) =>
+												current === collection.slug ? null : collection.slug,
+											)
+										}
+									>
+										<span className="truncate">
+											{isExpanded
+												? t("collections.hideCategoryProducts")
+												: t("collections.showCategoryProducts", {
+													count: collection.count,
+												})}
+										</span>
+										{isExpanded ? (
+											<ChevronUp className="h-4 w-4 shrink-0" />
+										) : (
+											<ChevronDown className="h-4 w-4 shrink-0" />
+										)}
+									</Button>
+
+									{isExpanded ? (
+										<div className="mt-3 space-y-2">
+											{collection.products.map((product) => (
+												<Link
+													key={product.id}
+													to={`/products/${product.id}`}
+													className="flex min-h-12 items-start justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 transition-colors hover:bg-accent/50"
+												>
+													<div className="min-w-0 space-y-1">
+														<p className="truncate text-sm font-medium text-foreground">
+															{product.name || t("products.table.product")}
+														</p>
+														<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+															<span>{formatCurrency(product.price || 0, product.currency || "USD")}</span>
+															{product.sku ? <span>SKU: {product.sku}</span> : null}
+														</div>
+													</div>
+													<Badge
+														variant="secondary"
+														className="h-6 shrink-0"
+													>
+														{t(`products.status.${product.status || "inactive"}`)}
+													</Badge>
+												</Link>
+											))}
+										</div>
+									) : null}
 								</CardContent>
 							</Card>
 						);

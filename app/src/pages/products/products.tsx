@@ -117,13 +117,13 @@ export default function ProductsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800";
+        return "border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
       case "inactive":
-        return "bg-gray-100 text-gray-800";
+        return "border border-border bg-muted text-muted-foreground";
       case "archived":
-        return "bg-red-100 text-red-800";
+        return "border border-destructive/30 bg-destructive/15 text-destructive";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "border border-border bg-muted text-muted-foreground";
     }
   };
 
@@ -326,7 +326,7 @@ export default function ProductsPage() {
                       <col className="w-[120px]" />
                     </colgroup>
                     <thead className="[&_tr]:border-b">
-                      <tr className="hover:bg-neutral-100/50 border-b transition-colors">
+                      <tr className="hover:bg-muted/50 border-b transition-colors">
                         <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.product')}</th>
                         <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.sku')}</th>
                         <th className="text-left align-top font-medium px-3 py-2 h-10">{t('products.table.price')}</th>
@@ -341,7 +341,7 @@ export default function ProductsPage() {
                       {filteredProducts.map((product) => (
                         <tr
                           key={product.id}
-                          className="hover:bg-neutral-100/50 border-b transition-colors cursor-pointer"
+                          className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
                           onClick={() => navigate(`/products/${product.id}`)}
                         >
                           <td className="p-3 align-top font-medium">
@@ -353,12 +353,12 @@ export default function ProductsPage() {
                                   className="h-10 w-10 rounded object-cover shrink-0"
                                 />
                               ) : (
-                                <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center shrink-0">
-                                  <ImageIcon className="h-5 w-5 text-gray-400" />
+                                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                                  <ImageIcon className="h-5 w-5 text-muted-foreground" />
                                 </div>
                               )}
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium break-words leading-snug">{product.name}</div>
+                                <div className="font-medium text-foreground break-words leading-snug">{product.name}</div>
                                 {product.description && (
                                   <div className="text-sm text-muted-foreground line-clamp-2 break-words mt-1">
                                     {product.description}
@@ -376,7 +376,7 @@ export default function ProductsPage() {
                           </td>
                           <td className="p-3 align-top">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-sm whitespace-nowrap">
+                              <span className="font-medium text-sm text-foreground whitespace-nowrap">
                                 {formatCurrency(product.price, product.currency)}
                               </span>
                             </div>
@@ -384,7 +384,7 @@ export default function ProductsPage() {
                           <td className="p-3 align-top">
                             {product.trackInventory ? (
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-sm">{product.stockQuantity ?? 0}</span>
+                                <span className="text-sm text-foreground">{product.stockQuantity ?? 0}</span>
                                 {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
                                   <Badge variant="destructive" className="text-xs shrink-0">{t('products.labels.low')}</Badge>
                                 )}
@@ -492,12 +492,12 @@ export default function ProductsPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center shrink-0">
-                              <ImageIcon className="h-6 w-6 text-gray-400" />
+                            <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-6 w-6 text-muted-foreground" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">{product.name}</h3>
+                            <h3 className="font-medium text-foreground truncate">{product.name}</h3>
                             {product.description && (
                               <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                                 {product.description}
@@ -510,7 +510,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <span className="text-muted-foreground">{t('products.mobile.price')}</span>
-                          <p className="font-medium">{formatCurrency(product.price, product.currency)}</p>
+                          <p className="font-medium text-foreground">{formatCurrency(product.price, product.currency)}</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">{t('products.mobile.status')}</span>
@@ -523,19 +523,19 @@ export default function ProductsPage() {
                         {product.sku && (
                           <div>
                             <span className="text-muted-foreground">{t('products.mobile.sku')}</span>
-                            <p className="font-medium">{product.sku}</p>
+                            <p className="font-medium text-foreground">{product.sku}</p>
                           </div>
                         )}
                         {product.category && (
                           <div>
                             <span className="text-muted-foreground">{t('products.mobile.category')}</span>
-                            <p className="font-medium">{product.category}</p>
+                            <p className="font-medium text-foreground">{product.category}</p>
                           </div>
                         )}
                         {product.trackInventory && (
                           <div>
                             <span className="text-muted-foreground">{t('products.mobile.stock')}</span>
-                            <p className="font-medium">
+                            <p className="font-medium text-foreground">
                               {product.stockQuantity ?? 0}
                               {product.stockQuantity !== undefined && product.lowStockThreshold && product.stockQuantity <= product.lowStockThreshold && (
                                 <Badge variant="destructive" className="ml-2">{t('products.labels.low')}</Badge>

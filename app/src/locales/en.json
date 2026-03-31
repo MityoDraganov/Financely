@@ -3712,6 +3712,8 @@
 		"product": "product",
 		"products": "products",
 		"viewProducts": "View products",
+		"showCategoryProducts": "Show {{count}} products",
+		"hideCategoryProducts": "Hide products",
 		"openPublic": "Open public page",
 		"infoText": "Collections are derived from the categories you assign to products. To create a new collection, add a category to a product — it will appear here automatically.",
 		"empty": {
