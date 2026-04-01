@@ -47,6 +47,15 @@ import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 20;
 
+type OfficialDraftQaState = "pass" | "warn" | "fail" | "unknown";
+
+function resolveOfficialDraftQaState(template: MarketplaceTemplate): OfficialDraftQaState {
+  const meta = template.officialGenerationMeta;
+  if (!meta) return "unknown";
+  if (!meta.hardPass) return "fail";
+  return meta.qaWarnings.length > 0 ? "warn" : "pass";
+}
+
 export function AdminMarketplacePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -109,10 +118,21 @@ export function AdminMarketplacePage() {
   const generatedTemplateIds = useMemo(
     () =>
       (lastGenerationResult?.results || [])
+        .filter((r) => r.status === "ok")
         .map((r) => r.templateId)
         .filter((id): id is string => typeof id === "string"),
     [lastGenerationResult]
   );
+  const officialDraftQaSummary = useMemo(() => {
+    return officialDraftTemplates.reduce(
+      (acc, template) => {
+        const state = resolveOfficialDraftQaState(template);
+        acc[state] += 1;
+        return acc;
+      },
+      { pass: 0, warn: 0, fail: 0, unknown: 0 } as Record<OfficialDraftQaState, number>
+    );
+  }, [officialDraftTemplates]);
 
   const startQAReview = (templates: MarketplaceTemplate[]) => {
     if (templates.length === 0) {
@@ -121,6 +141,21 @@ export function AdminMarketplacePage() {
     }
     setQaTemplateQueue(templates);
     setShowQADialog(true);
+  };
+
+  const handleQADialogOpenChange = (nextOpen: boolean) => {
+    setShowQADialog(nextOpen);
+    if (!nextOpen) {
+      // Clear reviewed draft queue once QA session is finished/closed.
+      setQaTemplateQueue([]);
+    }
+  };
+
+  const handleQAPublished = (result: PublishOfficialTemplatePackResult) => {
+    setLastPublishResult(result);
+    // Generated draft review list should reset after publish review flow completes.
+    setLastGenerationResult(null);
+    setQaTemplateQueue([]);
   };
 
   const parseBlueprintIds = () => {
@@ -310,6 +345,8 @@ export function AdminMarketplacePage() {
                         <TableHead>Blueprint</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>QA</TableHead>
+                        <TableHead>Profile</TableHead>
+                        <TableHead>Warnings</TableHead>
                         <TableHead>Template ID</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -326,10 +363,78 @@ export function AdminMarketplacePage() {
                             {typeof result.qaScore === "number" ? result.qaScore : "—"}
                           </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">
+                            {result.styleProfileId || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {result.qaWarnings && result.qaWarnings.length > 0 ? (
+                              <Badge variant="secondary">{result.qaWarnings.length} warning(s)</Badge>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
                             {result.templateId || "—"}
                           </TableCell>
                         </TableRow>
                       ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {officialDraftTemplates.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Official Draft QA State
+                  <span className="text-muted-foreground font-normal ml-2">
+                    pass {officialDraftQaSummary.pass} · warn {officialDraftQaSummary.warn} · fail{" "}
+                    {officialDraftQaSummary.fail} · unknown {officialDraftQaSummary.unknown}
+                  </span>
+                </p>
+                <div className="max-h-44 overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Draft</TableHead>
+                        <TableHead>QA State</TableHead>
+                        <TableHead>Score</TableHead>
+                        <TableHead>Profile</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {officialDraftTemplates.map((template) => {
+                        const state = resolveOfficialDraftQaState(template);
+                        return (
+                          <TableRow key={template.id}>
+                            <TableCell className="text-xs">
+                              <div className="font-medium">{template.title}</div>
+                              <div className="text-muted-foreground">{template.id}</div>
+                            </TableCell>
+                            <TableCell>
+                              {state === "pass" && (
+                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                  pass
+                                </Badge>
+                              )}
+                              {state === "warn" && <Badge variant="secondary">warn</Badge>}
+                              {state === "fail" && <Badge variant="destructive">fail</Badge>}
+                              {state === "unknown" && <Badge variant="outline">unknown</Badge>}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {typeof template.officialGenerationMeta?.qaScore === "number"
+                                ? template.officialGenerationMeta.qaScore
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {template.officialGenerationMeta?.styleProfileId || "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -747,9 +852,9 @@ export function AdminMarketplacePage() {
 
       <QAReviewDialog
         open={showQADialog}
-        onOpenChange={setShowQADialog}
+        onOpenChange={handleQADialogOpenChange}
         templateQueue={qaTemplateQueue}
-        onPublished={(result) => setLastPublishResult(result)}
+        onPublished={handleQAPublished}
       />
     </div>
   );

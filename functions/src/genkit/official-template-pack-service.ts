@@ -6,6 +6,7 @@ import {
 } from "../core/entities/email-template";
 import {
   marketplaceTemplateDataSchema,
+  type OfficialGenerationMeta,
   type MarketplaceTemplate,
 } from "../core/entities/marketplace-template";
 import { templateDataSchema } from "../core/entities/template";
@@ -27,6 +28,7 @@ export type UpsertOfficialTemplateDraftParams = {
   authorName: string;
   overwriteExisting: boolean;
   dryRun: boolean;
+  officialGenerationMeta?: OfficialGenerationMeta;
 };
 
 export type UpsertOfficialTemplateDraftResult = {
@@ -83,6 +85,7 @@ export async function upsertOfficialTemplateDraft(
     authorName,
     overwriteExisting,
     dryRun,
+    officialGenerationMeta,
   } = params;
 
   if (dryRun) {
@@ -154,6 +157,7 @@ export async function upsertOfficialTemplateDraft(
       approvedBy: undefined,
       approvedAt: undefined,
       rejectionReason: undefined,
+      officialGenerationMeta,
     });
 
     await templateRepo.update({
@@ -190,6 +194,7 @@ export async function upsertOfficialTemplateDraft(
     downloadCount: 0,
     version: 1,
     aiEnrichmentStatus: "done",
+    officialGenerationMeta,
   });
 
   const templateId = await templateRepo.create({ data: createData });

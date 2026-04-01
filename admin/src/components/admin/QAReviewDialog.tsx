@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Maximize2,
   RotateCcw,
   UploadCloud,
   XCircle,
@@ -33,6 +34,60 @@ interface QAReviewDialogProps {
   onPublished?: (result: PublishOfficialTemplatePackResult) => void;
 }
 
+type EmailPreviewTemplate = NonNullable<Parameters<typeof buildEmailPreviewHtml>[0]>;
+
+const INVOICE_PREVIEW_FIT_MARKER = "data-qa-invoice-fit";
+
+function withResponsiveInvoicePreview(html: string) {
+  if (!html || html.includes(INVOICE_PREVIEW_FIT_MARKER)) return html;
+
+  const fitSnippet = `
+<style ${INVOICE_PREVIEW_FIT_MARKER}>
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+  }
+  body {
+    transform-origin: top left;
+    width: fit-content;
+  }
+</style>
+<script ${INVOICE_PREVIEW_FIT_MARKER}>
+  (function () {
+    function fit() {
+      var doc = document.documentElement;
+      var body = document.body;
+      if (!doc || !body) return;
+
+      body.style.transform = "scale(1)";
+      var contentWidth = Math.max(body.scrollWidth, doc.scrollWidth, 1);
+      var viewportWidth = window.innerWidth || contentWidth;
+      var scale = Math.min(1, viewportWidth / contentWidth);
+
+      body.style.transform = "scale(" + scale + ")";
+      body.style.transformOrigin = "top left";
+      doc.style.overflowX = "hidden";
+    }
+
+    window.addEventListener("load", fit);
+    window.addEventListener("resize", fit);
+    setTimeout(fit, 0);
+  })();
+</script>
+`;
+
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${fitSnippet}</head>`);
+  }
+
+  if (/<body[^>]*>/i.test(html)) {
+    return html.replace(/<body([^>]*)>/i, `<body$1>${fitSnippet}`);
+  }
+
+  return `${fitSnippet}${html}`;
+}
+
 export function QAReviewDialog({
   open,
   onOpenChange,
@@ -41,8 +96,8 @@ export function QAReviewDialog({
 }: QAReviewDialogProps) {
   const [qaIndex, setQaIndex] = useState(0);
   const [qaDecisions, setQaDecisions] = useState<Record<string, "approved" | "discarded">>({});
-  const [requireQaPass, setRequireQaPass] = useState(true);
   const [previewHtmlCache, setPreviewHtmlCache] = useState<Record<string, string>>({});
+  const [isInvoicePreviewFullscreen, setIsInvoicePreviewFullscreen] = useState(false);
 
   const publishOfficialTemplatePack = useAdminPublishOfficialTemplatePack();
   const getPreviewHtml = useAdminGetTemplatePreviewHtml();
@@ -52,6 +107,7 @@ export function QAReviewDialog({
       setQaIndex(0);
       setQaDecisions({});
       setPreviewHtmlCache({});
+      setIsInvoicePreviewFullscreen(false);
     }
   }, [open]);
 
@@ -80,10 +136,18 @@ export function QAReviewDialog({
     return buildEmailPreviewHtml({
       htmlContent: typeof content.htmlContent === "string" ? content.htmlContent : undefined,
       placeholders: Array.isArray(content.placeholders)
-        ? (content.placeholders as Parameters<typeof buildEmailPreviewHtml>[0]["placeholders"])
+        ? (content.placeholders as EmailPreviewTemplate["placeholders"])
         : undefined,
     });
   }, [currentQaTemplate?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const invoicePreviewHtml =
+    currentQaTemplate?.type === "invoice" ? (previewHtmlCache[currentQaTemplate.id] ?? "") : "";
+
+  const invoicePreviewSrcDoc = useMemo(
+    () => (invoicePreviewHtml ? withResponsiveInvoicePreview(invoicePreviewHtml) : ""),
+    [invoicePreviewHtml]
+  );
 
   const handleDecision = (decision: "approved" | "discarded") => {
     if (!currentQaTemplate) return;
@@ -99,7 +163,8 @@ export function QAReviewDialog({
     try {
       const result = await publishOfficialTemplatePack.mutateAsync({
         templateIds: qaApprovedIds,
-        requireQaPass,
+        // Admin QA approval is authoritative in this review flow.
+        requireQaPass: false,
       });
       onPublished?.(result);
       onOpenChange(false);
@@ -112,8 +177,9 @@ export function QAReviewDialog({
     type === "invoice" ? ("default" as const) : ("secondary" as const);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:w-[80vw] sm:max-w-[80vw] max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:w-[80vw] sm:max-w-[80vw] max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-4 border-b flex items-center justify-between gap-6 shrink-0">
           <div>
@@ -319,9 +385,24 @@ export function QAReviewDialog({
 
             {/* Right: preview */}
             <div className="overflow-y-auto p-5 space-y-3 bg-muted/20">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                Preview
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  Preview
+                </p>
+                {currentQaTemplate.type === "invoice" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setIsInvoicePreviewFullscreen(true)}
+                    disabled={!invoicePreviewSrcDoc}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    Full screen
+                  </Button>
+                )}
+              </div>
               {currentQaTemplate.previewImages && currentQaTemplate.previewImages.length > 0 ? (
                 <div className="space-y-3">
                   {currentQaTemplate.previewImages.map((url, idx) => (
@@ -343,10 +424,10 @@ export function QAReviewDialog({
                   />
                 </div>
               ) : currentQaTemplate.type === "invoice" ? (
-                previewHtmlCache[currentQaTemplate.id] ? (
+                invoicePreviewSrcDoc ? (
                   <div className="rounded-lg border bg-background overflow-hidden">
                     <iframe
-                      srcDoc={previewHtmlCache[currentQaTemplate.id]}
+                      srcDoc={invoicePreviewSrcDoc}
                       className="w-full h-[700px]"
                       title="Invoice preview"
                     />
@@ -446,7 +527,35 @@ export function QAReviewDialog({
             </>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={open && isInvoicePreviewFullscreen}
+        onOpenChange={setIsInvoicePreviewFullscreen}
+      >
+        <DialogContent className="w-[96vw] max-w-[96vw] h-[94vh] max-h-[94vh] p-0 gap-0 overflow-hidden">
+          <div className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="text-sm font-semibold">Invoice preview</DialogTitle>
+            <DialogDescription className="text-xs mt-0.5">
+              {currentQaTemplate?.title || "Selected template"}
+            </DialogDescription>
+          </div>
+          <div className="flex-1 bg-muted/20 p-4 overflow-auto">
+            {invoicePreviewSrcDoc ? (
+              <div className="rounded-lg border bg-background overflow-hidden h-full">
+                <iframe
+                  srcDoc={invoicePreviewSrcDoc}
+                  className="w-full h-full min-h-[70vh]"
+                  title="Invoice preview full screen"
+                />
+              </div>
+            ) : (
+              <Skeleton className="h-full min-h-[70vh] w-full rounded-lg" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

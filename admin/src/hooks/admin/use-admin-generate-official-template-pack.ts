@@ -25,6 +25,8 @@ export type GenerateOfficialTemplatePackResult = {
     status: "ok" | "failed";
     qaScore?: number;
     checks?: Record<string, boolean>;
+    qaWarnings?: string[];
+    styleProfileId?: string;
     errors: string[];
     templateId?: string;
   }>;
@@ -68,4 +70,3 @@ export function useAdminGenerateOfficialTemplatePack() {
     },
   });
 }
-

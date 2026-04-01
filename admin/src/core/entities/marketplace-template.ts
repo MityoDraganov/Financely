@@ -1,6 +1,17 @@
 import z from "zod";
 import { baseEntitySchema } from "./base";
 
+export const officialGenerationMetaSchema = z.object({
+  runId: z.string().min(1),
+  qaScore: z.number().int().min(0).max(100),
+  qaChecks: z.record(z.string(), z.boolean()),
+  qaWarnings: z.array(z.string()).default([]),
+  hardPass: z.boolean(),
+  styleProfileId: z.string().min(1).optional(),
+  generatedAt: z.string().min(1),
+});
+export type OfficialGenerationMeta = z.infer<typeof officialGenerationMetaSchema>;
+
 export const marketplaceTemplateDataSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
@@ -29,6 +40,7 @@ export const marketplaceTemplateDataSchema = z.object({
   rejectionReason: z.string().optional(),
   approvedBy: z.string().optional(),
   approvedAt: z.string().optional(),
+  officialGenerationMeta: officialGenerationMetaSchema.optional(),
 });
 
 export type MarketplaceTemplateData = z.infer<typeof marketplaceTemplateDataSchema>;

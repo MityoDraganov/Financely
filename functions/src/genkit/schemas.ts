@@ -116,6 +116,8 @@ export const officialTemplatePackCallableResultSchema = z.object({
       status: officialTemplateStatusSchema,
       qaScore: z.number().int().min(0).max(100).optional(),
       checks: qaChecksSchema.optional(),
+      qaWarnings: z.array(z.string()).optional(),
+      styleProfileId: z.string().optional(),
       errors: z.array(z.string()).default([]),
       templateId: z.string().optional(),
     }),

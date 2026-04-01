@@ -5,6 +5,7 @@ import { verifyAdminAuth } from "../utils/admin-auth-utils";
 import { getOfficialTemplateBlueprints } from "../genkit/official-template-blueprints";
 import { genkitGeminiApiKeySecret, getOfficialTemplateGenkit } from "../genkit/runtime";
 import { buildOfficialTemplateFlows } from "../genkit/flows";
+import { getInvoiceStyleProfileByBlueprintId } from "../genkit/invoice-style-profiles";
 import {
   emailGenerationSchema,
   invoiceGenerationSchema,
@@ -74,6 +75,8 @@ export const generateOfficialTemplatePack = onCall(
         status: "ok" | "failed";
         qaScore?: number;
         checks?: Record<string, boolean>;
+        qaWarnings?: string[];
+        styleProfileId?: string;
         errors: string[];
         templateId?: string;
       }> = [];
@@ -104,9 +107,16 @@ export const generateOfficialTemplatePack = onCall(
 
         try {
           if (blueprint.type === "invoice") {
+            const generatedAt = new Date().toISOString();
+            const styleProfile = getInvoiceStyleProfileByBlueprintId(blueprint.id);
             const stageA = invoiceGenerationSchema.parse(result.templateContent);
             const canonicalTemplate = toCanonicalInvoiceTemplateData(stageA, OFFICIAL_ORG_PLACEHOLDER);
-            const qa = evaluateInvoiceTemplateQa(canonicalTemplate, blueprint.language);
+            const qa = evaluateInvoiceTemplateQa(
+              canonicalTemplate,
+              blueprint.language,
+              styleProfile?.id,
+            );
+            const hardPass = qa.errors.length === 0;
             const upsertResult = await upsertOfficialTemplateDraft({
               blueprint,
               templateContent: canonicalTemplate,
@@ -114,9 +124,18 @@ export const generateOfficialTemplatePack = onCall(
               authorName,
               overwriteExisting: input.overwriteExisting,
               dryRun: input.dryRun,
+              officialGenerationMeta: {
+                runId,
+                qaScore: qa.score,
+                qaChecks: qa.checks,
+                qaWarnings: qa.warnings,
+                hardPass,
+                styleProfileId: styleProfile?.id,
+                generatedAt,
+              },
             });
 
-            const qaPassed = qa.score >= QA_PASS_SCORE && qa.errors.length === 0;
+            const qaPassed = qa.score >= QA_PASS_SCORE && hardPass;
             const status = qaPassed ? "ok" : "failed";
             const errors = [...qa.errors];
             if (upsertResult.skippedReason) {
@@ -130,13 +149,17 @@ export const generateOfficialTemplatePack = onCall(
               status,
               qaScore: qa.score,
               checks: qa.checks,
+              qaWarnings: qa.warnings,
+              styleProfileId: styleProfile?.id,
               errors,
               templateId: upsertResult.templateId,
             });
           } else {
+            const generatedAt = new Date().toISOString();
             const stageA = emailGenerationSchema.parse(result.templateContent);
             const canonicalTemplate = toCanonicalEmailTemplateData(stageA, OFFICIAL_ORG_PLACEHOLDER);
             const qa = evaluateEmailTemplateQa(canonicalTemplate, blueprint.language);
+            const hardPass = qa.errors.length === 0;
             const upsertResult = await upsertOfficialTemplateDraft({
               blueprint,
               templateContent: canonicalTemplate,
@@ -144,9 +167,17 @@ export const generateOfficialTemplatePack = onCall(
               authorName,
               overwriteExisting: input.overwriteExisting,
               dryRun: input.dryRun,
+              officialGenerationMeta: {
+                runId,
+                qaScore: qa.score,
+                qaChecks: qa.checks,
+                qaWarnings: qa.warnings,
+                hardPass,
+                generatedAt,
+              },
             });
 
-            const qaPassed = qa.score >= QA_PASS_SCORE && qa.errors.length === 0;
+            const qaPassed = qa.score >= QA_PASS_SCORE && hardPass;
             const status = qaPassed ? "ok" : "failed";
             const errors = [...qa.errors];
             if (upsertResult.skippedReason) {
@@ -160,6 +191,7 @@ export const generateOfficialTemplatePack = onCall(
               status,
               qaScore: qa.score,
               checks: qa.checks,
+              qaWarnings: qa.warnings,
               errors,
               templateId: upsertResult.templateId,
             });

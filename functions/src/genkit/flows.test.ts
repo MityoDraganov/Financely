@@ -83,6 +83,36 @@ const emailBlueprint = officialTemplateBlueprintSchema.parse({
   style: "transactional",
 });
 
+const officialEnInvoiceBlueprint = officialTemplateBlueprintSchema.parse({
+  id: "official-eu-invoice-service-professional-en",
+  type: "invoice",
+  language: "en",
+  region: "EU",
+  archetype: "service",
+  title: "Official EU Service Invoice (EN)",
+  shortDescription: "Professional EU invoice for services and consulting.",
+  description: "Test blueprint",
+  category: "Invoicing",
+  tags: ["official", "invoice"],
+  country: "EU",
+  style: "professional",
+});
+
+const officialBgInvoiceBlueprint = officialTemplateBlueprintSchema.parse({
+  id: "official-eu-invoice-product-minimal-bg",
+  type: "invoice",
+  language: "bg",
+  region: "EU",
+  archetype: "product",
+  title: "Официална EU Фактура за Продажби (BG)",
+  shortDescription: "Минимална EU фактура, оптимизирана за продажби.",
+  description: "Test blueprint",
+  category: "Invoicing",
+  tags: ["official", "invoice"],
+  country: "EU",
+  style: "minimal",
+});
+
 function makeValidInvoiceOutput() {
   return invoiceGenerationSchema.parse({
     name: "Generated Invoice Template",
@@ -252,4 +282,90 @@ test("email flow normalizes block object output", async () => {
 
   assert.ok(Array.isArray(output.blocks));
   assert.ok(output.blocks.length >= 3);
+});
+
+test("invoice flow injects missing key-field label for existing bound input", async () => {
+  const runtime = new FakeGenkitRuntime([
+    {
+      output: {
+        name: "Official Invoice EN",
+        pageSize: "A4",
+        brand: {
+          fonts: ["Inter"],
+          colors: { primary: "#111827", secondary: "#6b7280", accent: "#2563eb" },
+          margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        },
+        elements: [
+          {
+            id: "invoice-number-field",
+            type: "input",
+            x: 40,
+            y: 80,
+            width: 240,
+            height: 24,
+            binding: "invoiceNumber",
+            variant: "text",
+          },
+        ],
+      },
+    },
+  ]);
+  const flows = buildOfficialTemplateFlows(runtime);
+  const output = await flows.generateOfficialInvoiceTemplateFlow({
+    blueprint: officialEnInvoiceBlueprint,
+  });
+
+  const invoiceNumberField = output.elements.find(
+    (element) => element.type === "input" && element.binding === "invoiceNumber",
+  );
+  assert.ok(invoiceNumberField, "Expected invoiceNumber field to exist");
+
+  const invoiceNumberLabel = output.elements.find(
+    (element) =>
+      element.type === "text" &&
+      typeof element.text === "string" &&
+      element.text.trim() === "Invoice Number" &&
+      Math.abs((element.x ?? 0) - (invoiceNumberField?.x ?? 0)) <= 12 &&
+      (element.y ?? 0) <= (invoiceNumberField?.y ?? 0),
+  );
+  assert.ok(invoiceNumberLabel, "Expected auto-injected Invoice Number label");
+});
+
+test("invoice flow uses localized BG fallback labels and table headers", async () => {
+  const runtime = new FakeGenkitRuntime([
+    {
+      output: {
+        name: "BG fallback invoice",
+        pageSize: "A4",
+        brand: {
+          fonts: ["Inter"],
+          colors: { primary: "#111827", secondary: "#6b7280", accent: "#2563eb" },
+          margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        },
+        elements: [],
+      },
+    },
+  ]);
+  const flows = buildOfficialTemplateFlows(runtime);
+  const output = await flows.generateOfficialInvoiceTemplateFlow({
+    blueprint: officialBgInvoiceBlueprint,
+  });
+
+  const hasBulgarianInvoiceNumberLabel = output.elements.some(
+    (element) =>
+      element.type === "text" &&
+      typeof element.text === "string" &&
+      element.text.includes("Номер на фактура"),
+  );
+  assert.ok(hasBulgarianInvoiceNumberLabel, "Expected Bulgarian key labels in fallback");
+
+  const itemsTable = output.elements.find(
+    (element) => element.type === "table" && element.itemsBinding === "items",
+  );
+  assert.ok(itemsTable && "columns" in itemsTable, "Expected fallback items table");
+  const tableHeaders = (itemsTable as { columns?: Array<{ header?: string }> }).columns?.map(
+    (column) => column.header || "",
+  ) || [];
+  assert.ok(tableHeaders.includes("Описание"), "Expected localized BG table headers");
+  assert.ok(!tableHeaders.includes("Description"), "Expected no hardcoded EN fallback headers");
 });

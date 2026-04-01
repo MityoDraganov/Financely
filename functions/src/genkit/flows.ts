@@ -13,6 +13,13 @@ import {
   type OfficialTemplatePackFlowInput,
   type OfficialTemplatePackFlowOutput,
 } from "./schemas";
+import {
+  LOCALIZED_TABLE_HEADERS,
+  getInvoiceStyleProfileByBlueprintId,
+  getLocalizedKeyBindingLabel,
+  isInvoiceKeyFieldBinding,
+  type OfficialInvoiceStyleProfile,
+} from "./invoice-style-profiles";
 
 const INVOICE_MODEL = "gemini-2.5-flash";
 const EMAIL_MODEL = "gemini-2.5-flash";
@@ -69,7 +76,26 @@ function getLanguageInstruction(language: "en" | "bg"): string {
     : "All visible template text must be in English.";
 }
 
-function buildInvoicePrompt(blueprint: OfficialTemplateBlueprint, previousErrors?: string): string {
+function buildStyleProfilePrompt(styleProfile: OfficialInvoiceStyleProfile | null): string {
+  if (!styleProfile) return "";
+  return [
+    `Style profile ID: ${styleProfile.id}`,
+    `Style profile name: ${styleProfile.name}`,
+    `Typography: primary ${styleProfile.typography.primaryFamily}, secondary ${styleProfile.typography.secondaryFamily}, title weight ${styleProfile.typography.titleWeight}.`,
+    `Color system: primary ${styleProfile.colors.primary}, secondary ${styleProfile.colors.secondary}, accent ${styleProfile.colors.accent}, surface ${styleProfile.colors.surface}, background ${styleProfile.colors.background}.`,
+    `Section layout pattern: ${styleProfile.sectionLayoutPattern}.`,
+    `Decorative layer strategy: ${styleProfile.decorativeLayerStrategy}.`,
+    `Totals block pattern: ${styleProfile.totalsBlockPattern}.`,
+    "Profile directives:",
+    ...styleProfile.promptDirectives.map((directive) => `- ${directive}`),
+  ].join("\n");
+}
+
+function buildInvoicePrompt(
+  blueprint: OfficialTemplateBlueprint,
+  styleProfile: OfficialInvoiceStyleProfile | null,
+  previousErrors?: string,
+): string {
   return [
     "Generate an official marketplace invoice template for Financely.",
     "Region must be EU and template must satisfy EU compliance field bindings.",
@@ -78,8 +104,12 @@ function buildInvoicePrompt(blueprint: OfficialTemplateBlueprint, previousErrors
     `Template title: ${blueprint.title}`,
     `Style: ${blueprint.style}`,
     getLanguageInstruction(blueprint.language),
+    "Visible labels are mandatory for key bound fields: invoiceNumber, invoiceDate, supplier.*, customer.*, currency, netAmount, vatTotal, grossTotal.",
+    "Render clear section hierarchy: issuer, customer, invoice metadata, items table, totals.",
+    "For field labels, use static text elements near their bound fields; do not rely on placeholders as labels.",
     "Template must fit A4 canvas 794x1123 and keep all elements within bounds.",
     "Use Currency elements for monetary values and include productTableConfig.",
+    buildStyleProfilePrompt(styleProfile),
     blueprint.customPrompt ? `Additional instructions: ${blueprint.customPrompt}` : "",
     previousErrors ? `Previous validation errors to fix: ${previousErrors}` : "",
   ]
@@ -150,9 +180,364 @@ function ensureObjectRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function toNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function getElementBounds(element: Record<string, unknown>) {
+  const x = toNumber(element.x, 0);
+  const y = toNumber(element.y, 0);
+  const width = toNumber(element.width, 0);
+  const height = toNumber(element.height, 0);
+  return { x, y, width, height };
+}
+
+function createLabelElement(
+  id: string,
+  x: number,
+  y: number,
+  text: string,
+  styleProfile: OfficialInvoiceStyleProfile | null,
+) {
+  return {
+    id,
+    type: "text",
+    x,
+    y,
+    width: 220,
+    height: 20,
+    text,
+    typography: {
+      fontFamily: styleProfile?.typography.primaryFamily ?? "Inter",
+      fontSize: 11,
+      fontWeight: "semibold",
+      lineHeight: 1.2,
+      letterSpacing: 0,
+      color: styleProfile?.colors.secondary ?? "#4b5563",
+      align: "left",
+      uppercase: false,
+      lowercase: false,
+    },
+    zIndex: 2,
+    visible: true,
+    rotation: 0,
+  };
+}
+
+function createBoundFieldElement(
+  id: string,
+  binding: string,
+  x: number,
+  y: number,
+  width: number,
+  styleProfile: OfficialInvoiceStyleProfile | null,
+): Record<string, unknown> {
+  const isCurrency =
+    binding === "currency" ||
+    binding === "netAmount" ||
+    binding === "vatTotal" ||
+    binding === "grossTotal";
+  if (isCurrency && binding !== "currency") {
+    const formula =
+      binding === "netAmount"
+        ? "=SUM(items[*].total)"
+        : binding === "vatTotal"
+        ? "=netAmount*0.2"
+        : "=netAmount+vatTotal";
+    return {
+      id,
+      type: "currency",
+      x,
+      y,
+      width,
+      height: 26,
+      binding,
+      currency: "EUR",
+      mode: "formula",
+      formula,
+      align: "right",
+      zIndex: 3,
+      visible: true,
+      rotation: 0,
+    };
+  }
+  if (binding === "currency") {
+    return {
+      id,
+      type: "input",
+      x,
+      y,
+      width,
+      height: 26,
+      binding,
+      placeholder: "EUR",
+      variant: "text",
+      align: "left",
+      fontFamily: styleProfile?.typography.secondaryFamily ?? "Inter",
+      zIndex: 3,
+      visible: true,
+      rotation: 0,
+    };
+  }
+  return {
+    id,
+    type: "input",
+    x,
+    y,
+    width,
+    height: 26,
+    binding,
+    placeholder: "",
+    variant: binding.toLowerCase().includes("date") ? "date" : "text",
+    align: "left",
+    fontFamily: styleProfile?.typography.secondaryFamily ?? "Inter",
+    zIndex: 3,
+    visible: true,
+    rotation: 0,
+  };
+}
+
+function createFallbackItemsTable(
+  language: "en" | "bg",
+  styleProfile: OfficialInvoiceStyleProfile | null,
+): Record<string, unknown> {
+  const headers = LOCALIZED_TABLE_HEADERS[language];
+  return {
+    id: "items-table-fallback",
+    type: "table",
+    x: 40,
+    y: 304,
+    width: 714,
+    height: 250,
+    itemsBinding: "items",
+    rowHeight: 30,
+    headerHeight: 32,
+    stripe: true,
+    headerBackground: styleProfile?.colors.surface ?? "#f8fafc",
+    borderColor: styleProfile?.colors.secondary ?? "#cbd5e1",
+    borderWidth: 1,
+    columns: [
+      {
+        id: "description",
+        header: headers.description,
+        binding: "description",
+        type: "text",
+        align: "left",
+        width: "3fr",
+      },
+      {
+        id: "quantity",
+        header: headers.quantity,
+        binding: "quantity",
+        type: "number",
+        align: "right",
+        width: "1fr",
+      },
+      {
+        id: "unitPrice",
+        header: headers.unitPrice,
+        binding: "unitPrice",
+        type: "currency",
+        align: "right",
+        width: "1fr",
+        currency: "EUR",
+      },
+      {
+        id: "total",
+        header: headers.total,
+        binding: "total",
+        type: "currency",
+        align: "right",
+        width: "1fr",
+        currency: "EUR",
+      },
+    ],
+    zIndex: 3,
+    visible: true,
+    rotation: 0,
+  };
+}
+
+function createProfileAwareInvoiceFallback(
+  blueprint: OfficialTemplateBlueprint,
+  styleProfile: OfficialInvoiceStyleProfile | null,
+): Record<string, unknown>[] {
+  const language = blueprint.language === "bg" ? "bg" : "en";
+
+  const titleText = language === "bg" ? "Фактура" : "Invoice";
+  const elements: Record<string, unknown>[] = [
+    {
+      id: "decorative-banner",
+      type: "box",
+      x: 40,
+      y: 40,
+      width: 714,
+      height: 64,
+      fill: styleProfile?.colors.surface ?? "#f8fafc",
+      stroke: styleProfile?.colors.accent ?? "#2563eb",
+      strokeWidth: 1,
+      radius: 12,
+      zIndex: 0,
+      visible: true,
+      rotation: 0,
+    },
+    {
+      id: "invoice-title",
+      type: "text",
+      x: 56,
+      y: 58,
+      width: 320,
+      height: 28,
+      text: titleText,
+      typography: {
+        fontFamily: styleProfile?.typography.primaryFamily ?? "Inter",
+        fontSize: 24,
+        fontWeight: styleProfile?.typography.titleWeight ?? "bold",
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        color: styleProfile?.colors.primary ?? "#111827",
+        align: "left",
+        uppercase: false,
+        lowercase: false,
+      },
+      zIndex: 2,
+      visible: true,
+      rotation: 0,
+    },
+    {
+      id: "decorative-rule",
+      type: "line",
+      x: 56,
+      y: 92,
+      width: 220,
+      height: 1,
+      x2: 276,
+      y2: 92,
+      stroke: styleProfile?.colors.accent ?? "#2563eb",
+      strokeWidth: 2,
+      zIndex: 1,
+      visible: true,
+      rotation: 0,
+    },
+  ];
+
+  const coreFields: Array<{ binding: string; x: number; y: number; width: number }> = [
+    { binding: "invoiceNumber", x: 56, y: 132, width: 280 },
+    { binding: "invoiceDate", x: 360, y: 132, width: 220 },
+    { binding: "supplier.name", x: 56, y: 190, width: 300 },
+    { binding: "supplier.address", x: 56, y: 246, width: 300 },
+    { binding: "supplier.vatId", x: 56, y: 274, width: 300 },
+    { binding: "customer.name", x: 420, y: 190, width: 300 },
+    { binding: "customer.address", x: 420, y: 246, width: 300 },
+  ];
+
+  coreFields.forEach((field) => {
+    const label = getLocalizedKeyBindingLabel(field.binding, language);
+    elements.push(
+      createLabelElement(`label-${field.binding}`, field.x, field.y, label, styleProfile),
+      createBoundFieldElement(
+        `field-${field.binding}`,
+        field.binding,
+        field.x,
+        field.y + 20,
+        field.width,
+        styleProfile,
+      ),
+    );
+  });
+
+  elements.push(createFallbackItemsTable(language, styleProfile));
+
+  const totalFields: Array<{ binding: string; x: number; y: number; width: number }> = [
+    { binding: "currency", x: 520, y: 582, width: 200 },
+    { binding: "netAmount", x: 520, y: 636, width: 200 },
+    { binding: "vatTotal", x: 520, y: 690, width: 200 },
+    { binding: "grossTotal", x: 520, y: 744, width: 200 },
+  ];
+
+  totalFields.forEach((field) => {
+    const label = getLocalizedKeyBindingLabel(field.binding, language);
+    elements.push(
+      createLabelElement(`label-${field.binding}`, field.x, field.y, label, styleProfile),
+      createBoundFieldElement(
+        `field-${field.binding}`,
+        field.binding,
+        field.x,
+        field.y + 20,
+        field.width,
+        styleProfile,
+      ),
+    );
+  });
+
+  return elements;
+}
+
+function hasNearbyLabel(
+  element: Record<string, unknown>,
+  textElements: Record<string, unknown>[],
+): boolean {
+  const bounds = getElementBounds(element);
+  return textElements.some((labelCandidate) => {
+    const text = typeof labelCandidate.text === "string" ? labelCandidate.text.trim() : "";
+    if (!text || text.length > 80) return false;
+    const labelBounds = getElementBounds(labelCandidate);
+    const aboveAndClose =
+      labelBounds.y <= bounds.y + 8 &&
+      bounds.y - labelBounds.y <= 76 &&
+      Math.abs(labelBounds.x - bounds.x) <= 220;
+    const leftAligned =
+      labelBounds.x <= bounds.x + 6 &&
+      bounds.x - labelBounds.x <= 180 &&
+      Math.abs(labelBounds.y - bounds.y) <= 24;
+    return aboveAndClose || leftAligned;
+  });
+}
+
+function ensureKeyFieldLabels(
+  elements: Record<string, unknown>[],
+  language: "en" | "bg",
+  styleProfile: OfficialInvoiceStyleProfile | null,
+): Record<string, unknown>[] {
+  const existing = [...elements];
+  const textElements = existing.filter(
+    (item) => item && item.type === "text" && typeof item.text === "string",
+  );
+  const bindingElements = existing.filter((item) => {
+    if (!item || typeof item !== "object") return false;
+    if (item.type !== "input" && item.type !== "currency" && item.type !== "text") return false;
+    return typeof item.binding === "string" && isInvoiceKeyFieldBinding(item.binding);
+  });
+
+  const additions: Record<string, unknown>[] = [];
+  const addedLabels = new Set<string>();
+
+  bindingElements.forEach((boundElement) => {
+    const binding = typeof boundElement.binding === "string" ? boundElement.binding : "";
+    if (!binding || addedLabels.has(binding)) return;
+    if (hasNearbyLabel(boundElement, textElements)) return;
+
+    const bounds = getElementBounds(boundElement);
+    const label = getLocalizedKeyBindingLabel(binding, language);
+    additions.push(
+      createLabelElement(
+        `auto-label-${binding.replace(/\W+/g, "-")}`,
+        bounds.x,
+        Math.max(40, bounds.y - 20),
+        label,
+        styleProfile,
+      ),
+    );
+    addedLabels.add(binding);
+  });
+
+  return additions.length > 0 ? [...existing, ...additions] : existing;
+}
+
 function normalizeInvoiceCandidate(
   rawOutput: unknown,
   blueprint: OfficialTemplateBlueprint,
+  styleProfile: OfficialInvoiceStyleProfile | null,
 ): unknown {
   const normalized = deepNormalizeJson(rawOutput);
   const objectValue = ensureObjectRecord(normalized);
@@ -175,21 +560,24 @@ function normalizeInvoiceCandidate(
   const brand = ensureObjectRecord(deepNormalizeJson(candidate.brand));
   const brandColors = ensureObjectRecord(brand?.colors);
   const brandMargins = ensureObjectRecord(brand?.margins);
+  const defaultFonts = styleProfile
+    ? [styleProfile.typography.primaryFamily, styleProfile.typography.secondaryFamily]
+    : DEFAULT_BRAND.fonts;
   candidate.brand = {
-    fonts: Array.isArray(brand?.fonts) ? brand?.fonts : DEFAULT_BRAND.fonts,
+    fonts: Array.isArray(brand?.fonts) && brand.fonts.length > 0 ? brand?.fonts : defaultFonts,
     colors: {
       primary:
         typeof brandColors?.primary === "string"
           ? brandColors.primary
-          : DEFAULT_BRAND.colors.primary,
+          : styleProfile?.colors.primary ?? DEFAULT_BRAND.colors.primary,
       secondary:
         typeof brandColors?.secondary === "string"
           ? brandColors.secondary
-          : DEFAULT_BRAND.colors.secondary,
+          : styleProfile?.colors.secondary ?? DEFAULT_BRAND.colors.secondary,
       accent:
         typeof brandColors?.accent === "string"
           ? brandColors.accent
-          : DEFAULT_BRAND.colors.accent,
+          : styleProfile?.colors.accent ?? DEFAULT_BRAND.colors.accent,
     },
     margins: {
       top:
@@ -212,10 +600,13 @@ function normalizeInvoiceCandidate(
   };
 
   const normalizedElements = deepNormalizeJson(candidate.elements);
-  const candidateElements = Array.isArray(normalizedElements)
+  const candidateElements: Record<string, unknown>[] = Array.isArray(normalizedElements)
     ? normalizedElements
         .map((item) => deepNormalizeJson(item))
-        .filter((item) => !!item && typeof item === "object" && !Array.isArray(item))
+        .filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === "object" && !Array.isArray(item),
+        )
     : [];
 
   const hasBinding = (binding: string) =>
@@ -231,112 +622,67 @@ function normalizeInvoiceCandidate(
     });
 
   if (candidateElements.length === 0) {
-    const isBg = blueprint.language === "bg";
-    candidate.elements = [
-      {
-        id: "invoice-title",
-        type: "text",
-        x: 40,
-        y: 40,
-        width: 320,
-        height: 28,
-        text: isBg ? "Фактура" : "Invoice",
-        typography: {
-          fontFamily: "Inter",
-          fontSize: 22,
-          fontWeight: "bold",
-          lineHeight: 1.2,
-          letterSpacing: 0,
-          color: "#111827",
-          align: "left",
-          uppercase: false,
-          lowercase: false,
-        },
-      },
-      { id: "invoice-number", type: "input", x: 40, y: 88, width: 260, height: 24, binding: "invoiceNumber" },
-      { id: "invoice-date", type: "input", x: 320, y: 88, width: 200, height: 24, binding: "invoiceDate" },
-      { id: "supplier-name", type: "input", x: 40, y: 132, width: 280, height: 24, binding: "supplier.name" },
-      { id: "supplier-address", type: "input", x: 40, y: 162, width: 340, height: 24, binding: "supplier.address" },
-      { id: "supplier-vat", type: "input", x: 40, y: 192, width: 260, height: 24, binding: "supplier.vatId" },
-      { id: "customer-name", type: "input", x: 420, y: 132, width: 280, height: 24, binding: "customer.name" },
-      { id: "customer-address", type: "input", x: 420, y: 162, width: 300, height: 24, binding: "customer.address" },
-      {
-        id: "items-table",
-        type: "table",
-        x: 40,
-        y: 250,
-        width: 714,
-        height: 260,
-        itemsBinding: "items",
-        columns: [
-          { id: "description", header: isBg ? "Описание" : "Description", binding: "description", type: "text", align: "left", width: "3fr" },
-          { id: "quantity", header: isBg ? "Количество" : "Quantity", binding: "quantity", type: "number", align: "right", width: "1fr" },
-          { id: "unitPrice", header: isBg ? "Ед. цена" : "Unit Price", binding: "unitPrice", type: "currency", align: "right", width: "1fr", currency: "EUR" },
-          { id: "total", header: isBg ? "Общо" : "Total", binding: "total", type: "currency", align: "right", width: "1fr", currency: "EUR" },
-        ],
-      },
-      { id: "currency-code", type: "input", x: 520, y: 532, width: 200, height: 24, binding: "currency" },
-      { id: "net-amount", type: "currency", x: 520, y: 564, width: 200, height: 24, binding: "netAmount", currency: "EUR", mode: "formula", formula: "=SUM(items[*].total)" },
-      { id: "vat-total", type: "currency", x: 520, y: 596, width: 200, height: 24, binding: "vatTotal", currency: "EUR", mode: "formula", formula: "=netAmount*0.2" },
-      { id: "gross-total", type: "currency", x: 520, y: 628, width: 200, height: 24, binding: "grossTotal", currency: "EUR", mode: "formula", formula: "=netAmount+vatTotal" },
-    ];
+    candidate.elements = createProfileAwareInvoiceFallback(blueprint, styleProfile);
   } else {
     const missingRequired = EU_REQUIRED_BINDINGS.filter((binding) => !hasBinding(binding));
     let cursorY = 680;
     const extraElements: Array<Record<string, unknown>> = [];
+    const language = blueprint.language === "bg" ? "bg" : "en";
     for (const binding of missingRequired) {
       if (binding === "items") {
-        extraElements.push({
-          id: "items-table-fallback",
-          type: "table",
-          x: 40,
-          y: 250,
-          width: 714,
-          height: 240,
-          itemsBinding: "items",
-          columns: [
-            { id: "description", header: "Description", binding: "description", type: "text", align: "left", width: "3fr" },
-            { id: "quantity", header: "Quantity", binding: "quantity", type: "number", align: "right", width: "1fr" },
-            { id: "unitPrice", header: "Unit Price", binding: "unitPrice", type: "currency", align: "right", width: "1fr", currency: "EUR" },
-            { id: "total", header: "Total", binding: "total", type: "currency", align: "right", width: "1fr", currency: "EUR" },
-          ],
-        });
+        extraElements.push(createFallbackItemsTable(language, styleProfile));
         continue;
       }
       if (binding === "netAmount" || binding === "vatTotal" || binding === "grossTotal") {
-        const formula =
-          binding === "netAmount"
-            ? "=SUM(items[*].total)"
-            : binding === "vatTotal"
-            ? "=netAmount*0.2"
-            : "=netAmount+vatTotal";
         extraElements.push({
-          id: `${binding}-fallback`,
-          type: "currency",
-          x: 520,
-          y: cursorY,
-          width: 200,
-          height: 24,
-          binding,
-          currency: "EUR",
-          mode: "formula",
-          formula,
+          ...createLabelElement(
+            `label-${binding}-fallback`,
+            520,
+            cursorY,
+            getLocalizedKeyBindingLabel(binding, language),
+            styleProfile,
+          ),
         });
+        extraElements.push(
+          createBoundFieldElement(
+            `${binding}-fallback`,
+            binding,
+            520,
+            cursorY + 20,
+            200,
+            styleProfile,
+          ),
+        );
         cursorY += 30;
         continue;
       }
-      extraElements.push({
-        id: `${binding.replace(/\W+/g, "-")}-fallback`,
-        type: "input",
-        x: 40,
-        y: cursorY,
-        width: 300,
-        height: 24,
-        binding,
-      });
-      cursorY += 30;
+      const isSupplier = binding.startsWith("supplier.");
+      const x = isSupplier ? 56 : 420;
+      const width = 300;
+      extraElements.push(
+        createLabelElement(
+          `label-${binding.replace(/\W+/g, "-")}-fallback`,
+          x,
+          cursorY,
+          getLocalizedKeyBindingLabel(binding, language),
+          styleProfile,
+        ),
+        createBoundFieldElement(
+          `${binding.replace(/\W+/g, "-")}-fallback`,
+          binding,
+          x,
+          cursorY + 20,
+          width,
+          styleProfile,
+        ),
+      );
+      cursorY += 46;
     }
-    candidate.elements = [...candidateElements, ...extraElements];
+    candidate.elements = ensureKeyFieldLabels(
+      [...candidateElements, ...extraElements],
+      language,
+      styleProfile,
+    );
   }
 
   const productTableConfig = deepNormalizeJson(candidate.productTableConfig);
@@ -484,13 +830,14 @@ async function generateInvoiceWithRetries(
 ): Promise<InvoiceGenerationData> {
   let validationErrors = "";
   let lastError: Error | null = null;
+  const styleProfile = getInvoiceStyleProfileByBlueprintId(blueprint.id);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     try {
       const { output } = await withTimeout(
         ai.generate({
           model: resolveModel(INVOICE_MODEL),
-          prompt: buildInvoicePrompt(blueprint, validationErrors),
+          prompt: buildInvoicePrompt(blueprint, styleProfile, validationErrors),
           output: { schema: invoiceGenerationSchema },
         }),
         GENERATION_TIMEOUT_MS,
@@ -498,7 +845,7 @@ async function generateInvoiceWithRetries(
       );
 
       const parsed = invoiceGenerationSchema.safeParse(
-        normalizeInvoiceCandidate(output, blueprint),
+        normalizeInvoiceCandidate(output, blueprint, styleProfile),
       );
       if (parsed.success) {
         return parsed.data;
