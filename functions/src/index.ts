@@ -218,3 +218,6 @@ export { featureMarketplaceTemplate, unfeatureMarketplaceTemplate } from "./func
 export { submitMarketplaceReview, getMarketplaceReviews } from "./functions/marketplace-reviews";
 export { registerAsContributor, getContributorStatus } from "./functions/manage-contributor";
 export { onMarketplaceTemplateCreated } from "./functions/on-marketplace-template-created";
+export { generateOfficialTemplatePack } from "./functions/generate-official-template-pack";
+export { publishOfficialTemplatePack } from "./functions/publish-official-template-pack";
+export { getTemplatePreviewHtml } from "./functions/get-template-preview-html";

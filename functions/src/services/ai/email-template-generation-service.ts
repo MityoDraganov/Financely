@@ -2,51 +2,8 @@ import { logger } from "firebase-functions";
 import { AIService } from "./ai-service";
 import { getAIService } from "./ai-service";
 import { Organization } from "../../core/entities/organization";
-
-/**
- * Email template data structure matching the frontend schema
- */
-export interface EmailTemplateData {
-  orgId: string;
-  brandId?: string;
-  name: string;
-  description?: string;
-  key?: string;
-  subject: string;
-  preheader?: string;
-  status: "draft" | "published";
-  version: number;
-  isSystemDefault: boolean;
-  isLocked: boolean;
-  allowedContexts: string[];
-  htmlContent: string;
-  blocks: Array<any>;
-  designTokens: {
-    background: string;
-    surface: string;
-    text: string;
-    primary: string;
-    fontFamily: string;
-    borderRadius: number;
-  };
-  placeholders?: Array<{
-    id: string;
-    key: string;
-    label?: string;
-    description?: string;
-    source?: {
-      type: "entity_field";
-      entity: "product" | "contact" | "invoice" | "proposal";
-      path: string;
-      valueType?: "string" | "number" | "boolean" | "date" | "array" | "object" | "unknown";
-    };
-  }>;
-  sections?: {
-    header: string[];
-    body: string[];
-    footer: string[];
-  };
-}
+import type { EmailTemplateData } from "../../core/entities/email-template";
+import type { EmailGenerationData } from "../../genkit/schemas";
 
 type DynamicSourceValueType =
   | "string"
@@ -86,6 +43,14 @@ type GenerateEmailTemplateOptions = {
   dynamicSources?: AIEmailDynamicSource[];
   generateCustomHtml?: boolean;
   targetSection?: "header" | "body" | "footer" | "full";
+};
+
+type EmailGenerationModelResult = Omit<EmailGenerationData, "blocks" | "sections"> & {
+  blocks: {
+    header: Array<any>;
+    body: Array<any>;
+    footer: Array<any>;
+  };
 };
 
 /**
@@ -189,38 +154,7 @@ export class EmailTemplateGenerationService {
     };
     
     try {
-      const result = await this.aiService.generateJSON<{
-        name: string;
-        description?: string;
-        subject: string;
-        preheader?: string;
-        htmlContent: string;
-        blocks: {
-          header: Array<any>;
-          body: Array<any>;
-          footer: Array<any>;
-        };
-        designTokens: {
-          background: string;
-          surface: string;
-          text: string;
-          primary: string;
-          fontFamily: string;
-          borderRadius: number;
-        };
-        placeholders?: Array<{
-          id?: string;
-          key: string;
-          label?: string;
-          description?: string;
-          source?: {
-            type: "entity_field";
-            entity: "product" | "contact" | "invoice" | "proposal";
-            path: string;
-            valueType?: DynamicSourceValueType;
-          };
-        }>;
-      }>(prompt, schema, {
+      const result = await this.aiService.generateJSON<EmailGenerationModelResult>(prompt, schema, {
         temperature: 0.7,
         maxTokens: 32768, // Large token limit for full HTML email content
       });

@@ -16,6 +16,7 @@ import { validateTemplateData, repairTemplateGenerationRaw } from "./template-ge
 import type { JSONSchema } from "./ai-service";
 import { clampTemplateElementsToPrintableArea } from "../../utils/template-printable-bounds";
 import { stabilizeTemplateLayout } from "../../utils/template-layout-stability";
+import type { InvoiceGenerationData } from "../../genkit/schemas";
 
 const STANDARD_PRINT_MARGINS_PX = { top: 96, right: 96, bottom: 96, left: 96 };
 
@@ -101,46 +102,10 @@ export class InvoiceTemplateGenerationService {
     };
 
     try {
-      const result = await this.aiService.generateJSON<{
-        name: string;
-        description?: string;
-        pageSize: "A4" | "Letter";
-        brand: {
-          fonts: string[];
-          colors: { primary: string; secondary: string; accent: string };
-          margins: { top: number; right: number; bottom: number; left: number };
-        };
-        elements: Array<{
-          id: string;
-          type: "text" | "image" | "table" | "box" | "line" | "input" | "currency" | "icon";
-          x: number;
-          y: number;
-          width: number;
-          height: number;
-          binding?: string;
-          text?: string;
-          typography?: any;
-          format?: any;
-          itemsBinding?: string;
-          columns?: any[];
-          iconName?: string;
-          color?: string;
-        }>;
-        productTableConfig?: {
-          itemsBinding: string;
-          columnMappings: Array<{
-            columnBinding: string;
-            productField: "name" | "description" | "price" | "currency" | "sku" | "barcode" | "category" | "taxRate" | "cost";
-            transform?: "none" | "currency_convert" | "format_number";
-            targetCurrency?: string;
-            lockOnProductSelect?: boolean;
-          }>;
-          autoQuantity?: boolean;
-          defaultQuantity?: number;
-          autoConvertCurrency?: boolean;
-          defaultCurrency?: string;
-        };
-      }>(prompt, schema as unknown as JSONSchema, {
+      const result = await this.aiService.generateJSON<InvoiceGenerationData>(
+        prompt,
+        schema as unknown as JSONSchema,
+        {
         temperature: 0.7,
         maxTokens: 16384, // Large token limit for complex template structures
       });
@@ -587,22 +552,7 @@ ${options?.customPrompt ? `Additional instructions: ${options.customPrompt}` : "
    * Enrich generated elements with proper defaults and ensure all required fields are present
    */
   private enrichElements(
-    elements: Array<{
-      id: string;
-      type: "text" | "image" | "table" | "box" | "line" | "input" | "currency" | "icon";
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      binding?: string;
-      text?: string;
-      typography?: any;
-      format?: any;
-      itemsBinding?: string;
-      columns?: any[];
-      iconName?: string;
-      color?: string;
-    }>,
+    elements: InvoiceGenerationData["elements"],
     requiredFields: Array<{ binding: string; label: string; format?: string }>,
     region: "US" | "EU" | "CA" | "AU" | "UK",
     organization: Organization

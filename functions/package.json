@@ -19,6 +19,8 @@
   "main": "lib/index.js",
   "dependencies": {
     "@clerk/backend": "^1.17.3",
+    "@genkit-ai/firebase": "^1.31.0",
+    "@genkit-ai/google-genai": "^1.31.0",
     "@google-cloud/vision": "^5.3.4",
     "@sendgrid/mail": "^8.1.6",
     "@sparticuz/chromium": "^140.0.0",
@@ -27,6 +29,7 @@
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^6.0.1",
     "form-data": "^4.0.4",
+    "genkit": "^1.31.0",
     "google-auth-library": "^9.0.0",
     "mailgun.js": "^12.1.1",
     "puppeteer": "^24.23.0",

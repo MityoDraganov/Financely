@@ -26,7 +26,7 @@ import {
  * @param {Organization | null} organization - Organization for branding
  * @return {string} The generated HTML
  */
-function generateInvoiceHTML(
+export function generateInvoiceHTML(
   template: TemplateData,
   invoice: Invoice,
   organization: {
