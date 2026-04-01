@@ -331,6 +331,70 @@ test("invoice flow injects missing key-field label for existing bound input", as
   assert.ok(invoiceNumberLabel, "Expected auto-injected Invoice Number label");
 });
 
+test("invoice flow resolves table overlap against metadata fields", async () => {
+  const runtime = new FakeGenkitRuntime([
+    {
+      output: {
+        name: "Official Invoice EN Overlap",
+        pageSize: "A4",
+        brand: {
+          fonts: ["Inter"],
+          colors: { primary: "#111827", secondary: "#6b7280", accent: "#2563eb" },
+          margins: { top: 40, right: 40, bottom: 40, left: 40 },
+        },
+        elements: [
+          {
+            id: "invoice-number-field",
+            type: "input",
+            x: 56,
+            y: 122,
+            width: 240,
+            height: 24,
+            binding: "invoiceNumber",
+            variant: "text",
+          },
+          {
+            id: "items-table-overlap",
+            type: "table",
+            x: 40,
+            y: 118,
+            width: 714,
+            height: 220,
+            itemsBinding: "items",
+            rowHeight: 28,
+            headerHeight: 32,
+            stripe: true,
+            columns: [
+              { id: "description", header: "Description", binding: "description", type: "text", align: "left", width: "3fr" },
+              { id: "quantity", header: "Quantity", binding: "quantity", type: "number", align: "right", width: "1fr" },
+              { id: "unitPrice", header: "Unit Price", binding: "unitPrice", type: "currency", align: "right", width: "1fr", currency: "EUR" },
+              { id: "total", header: "Total", binding: "total", type: "currency", align: "right", width: "1fr", currency: "EUR" },
+            ],
+          },
+        ],
+      },
+    },
+  ]);
+  const flows = buildOfficialTemplateFlows(runtime);
+  const output = await flows.generateOfficialInvoiceTemplateFlow({
+    blueprint: officialEnInvoiceBlueprint,
+  });
+
+  const invoiceField = output.elements.find(
+    (element) => element.type === "input" && element.binding === "invoiceNumber",
+  );
+  const itemsTable = output.elements.find(
+    (element) => element.type === "table" && element.id === "items-table-overlap",
+  );
+
+  assert.ok(invoiceField, "Expected invoice metadata input to exist");
+  assert.ok(itemsTable, "Expected table to exist");
+  assert.ok(
+    (itemsTable!.y ?? 0) >= (invoiceField!.y ?? 0) + (invoiceField!.height ?? 0) + 8,
+    "Expected table to be moved below invoice metadata field to avoid overlap",
+  );
+});
+
 test("invoice flow uses localized BG fallback labels and table headers", async () => {
   const runtime = new FakeGenkitRuntime([
     {

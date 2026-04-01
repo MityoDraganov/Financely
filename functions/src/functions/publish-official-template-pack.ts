@@ -95,6 +95,7 @@ export const publishOfficialTemplatePack = onCall(
               qa = evaluateInvoiceTemplateQa(
                 canonicalContent as TemplateData,
                 template.language === "bg" ? "bg" : "en",
+                template.officialGenerationMeta?.styleProfileId,
               );
             } else {
               qa = evaluateEmailTemplateQa(

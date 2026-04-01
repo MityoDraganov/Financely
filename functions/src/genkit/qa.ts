@@ -90,6 +90,46 @@ function hasValidProductTableConfig(template: TemplateData): boolean {
   return mappedFields.has("description") && mappedFields.has("price");
 }
 
+function getOverlapArea(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): number {
+  const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  if (overlapX <= 0 || overlapY <= 0) return 0;
+  return overlapX * overlapY;
+}
+
+function isDecorativeElementType(type: TemplateElement["type"]): boolean {
+  return type === "box" || type === "line" || type === "path" || type === "spacer" || type === "pageBreak";
+}
+
+function isLayoutOverlapCandidate(element: TemplateElement): boolean {
+  if (element.visible === false) return false;
+  if (isDecorativeElementType(element.type)) return false;
+  const bounds = getElementBounds(element);
+  return bounds.width > 1 && bounds.height > 1;
+}
+
+function findProblematicOverlaps(template: TemplateData): Array<{ firstId: string; secondId: string }> {
+  const candidates = template.elements.filter(isLayoutOverlapCandidate);
+  const minOverlapArea = 24;
+  const overlaps: Array<{ firstId: string; secondId: string }> = [];
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    for (let j = i + 1; j < candidates.length; j += 1) {
+      const first = candidates[i];
+      const second = candidates[j];
+      const overlapArea = getOverlapArea(getElementBounds(first), getElementBounds(second));
+      if (overlapArea < minOverlapArea) continue;
+      overlaps.push({ firstId: first.id, secondId: second.id });
+      if (overlaps.length >= 10) return overlaps;
+    }
+  }
+
+  return overlaps;
+}
+
 function getInvoiceLocalizationText(template: TemplateData): string {
   const elementText = template.elements
     .filter((element) => element.type === "text" && "text" in element)
@@ -307,6 +347,7 @@ export function evaluateInvoiceTemplateQa(
   const localization = evaluateInvoiceLocalization(template, language);
   const keyLabelsPresent = hasKeyFieldLabels(template);
   const profileMatch = matchesStyleProfile(template, profileId);
+  const layoutOverlaps = findProblematicOverlaps(template);
   const checks: Record<string, boolean> = {
     hasElements: template.elements.length > 0,
     validCanvasBounds: hasValidCanvasBounds(template.elements),
@@ -315,6 +356,7 @@ export function evaluateInvoiceTemplateQa(
     passesEuComplianceBindings: complianceMissing.length === 0,
     keyFieldsHaveLabels: keyLabelsPresent,
     matchesStyleProfile: profileMatch.pass,
+    nonOverlappingLayout: layoutOverlaps.length === 0,
     passesLocalization: localization.hardPass,
   };
 
@@ -325,6 +367,13 @@ export function evaluateInvoiceTemplateQa(
   }
   if (!profileMatch.pass) {
     errors.push(`Style profile mismatch: ${profileMatch.reasons.join(" | ")}`);
+  }
+  if (layoutOverlaps.length > 0) {
+    const overlapSummary = layoutOverlaps
+      .slice(0, 5)
+      .map((overlap) => `${overlap.firstId}↔${overlap.secondId}`)
+      .join(", ");
+    errors.push(`Overlapping content elements detected: ${overlapSummary}`);
   }
 
   Object.entries(checks).forEach(([checkName, passed]) => {

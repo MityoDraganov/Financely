@@ -26,6 +26,8 @@ const EMAIL_MODEL = "gemini-2.5-flash";
 const MAX_RETRIES = 3;
 const GENERATION_TIMEOUT_MS = 45_000;
 const PACK_CONCURRENCY = 4;
+const A4_CANVAS_WIDTH = 794;
+const A4_CANVAS_HEIGHT = 1123;
 const DEFAULT_BRAND = {
   fonts: ["Inter"],
   colors: {
@@ -534,6 +536,159 @@ function ensureKeyFieldLabels(
   return additions.length > 0 ? [...existing, ...additions] : existing;
 }
 
+function getOverlapArea(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): number {
+  const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  if (overlapX <= 0 || overlapY <= 0) return 0;
+  return overlapX * overlapY;
+}
+
+function isDecorativeElementType(type: unknown): boolean {
+  return type === "box" || type === "line" || type === "path" || type === "spacer" || type === "pageBreak";
+}
+
+function isBoundFieldElement(element: Record<string, unknown>): boolean {
+  return (
+    (element.type === "input" || element.type === "currency" || element.type === "text") &&
+    typeof element.binding === "string" &&
+    element.binding.length > 0
+  );
+}
+
+function isLabelElement(element: Record<string, unknown>): boolean {
+  return (
+    element.type === "text" &&
+    typeof element.text === "string" &&
+    element.text.trim().length > 0 &&
+    typeof element.binding !== "string"
+  );
+}
+
+function getLayoutRole(element: Record<string, unknown>): number {
+  if (element.type === "table") return 2;
+  if (isBoundFieldElement(element)) {
+    const binding = typeof element.binding === "string" ? element.binding : "";
+    if (binding === "currency" || binding === "netAmount" || binding === "vatTotal" || binding === "grossTotal") {
+      return 3;
+    }
+    return 1;
+  }
+  return 1;
+}
+
+function findCompanionIndices(
+  elements: Record<string, unknown>[],
+  currentIndex: number,
+): number[] {
+  const current = elements[currentIndex];
+  if (!current || typeof current !== "object") return [currentIndex];
+  const currentBounds = getElementBounds(current);
+  const companions = new Set<number>([currentIndex]);
+
+  if (isBoundFieldElement(current)) {
+    elements.forEach((candidate, index) => {
+      if (index === currentIndex || !isLabelElement(candidate)) return;
+      const candidateBounds = getElementBounds(candidate);
+      const aboveAndNear =
+        candidateBounds.y <= currentBounds.y + 8 &&
+        currentBounds.y - candidateBounds.y <= 76 &&
+        Math.abs(candidateBounds.x - currentBounds.x) <= 220;
+      const leftAndNear =
+        candidateBounds.x <= currentBounds.x + 6 &&
+        currentBounds.x - candidateBounds.x <= 180 &&
+        Math.abs(candidateBounds.y - currentBounds.y) <= 24;
+      if (aboveAndNear || leftAndNear) companions.add(index);
+    });
+  } else if (isLabelElement(current)) {
+    elements.forEach((candidate, index) => {
+      if (index === currentIndex || !isBoundFieldElement(candidate)) return;
+      const candidateBounds = getElementBounds(candidate);
+      const belowAndNear =
+        candidateBounds.y >= currentBounds.y - 8 &&
+        candidateBounds.y - currentBounds.y <= 76 &&
+        Math.abs(candidateBounds.x - currentBounds.x) <= 220;
+      if (belowAndNear) companions.add(index);
+    });
+  }
+
+  return [...companions];
+}
+
+function clampElementToCanvas(element: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...element };
+  const width = Math.max(0, toNumber(next.width, 0));
+  const height = Math.max(0, toNumber(next.height, 0));
+  const maxX = Math.max(0, A4_CANVAS_WIDTH - width);
+  const maxY = Math.max(0, A4_CANVAS_HEIGHT - height);
+  next.x = Math.min(maxX, Math.max(0, toNumber(next.x, 0)));
+  next.y = Math.min(maxY, Math.max(0, toNumber(next.y, 0)));
+  return next;
+}
+
+function resolveInvoiceContentOverlaps(elements: Record<string, unknown>[]): Record<string, unknown>[] {
+  const normalizedElements = elements.map((element) => clampElementToCanvas(element));
+  const gap = 10;
+  const minOverlapArea = 24;
+  const maxPasses = 10;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let movedSomething = false;
+
+    const candidates = normalizedElements
+      .map((element, index) => ({ index, element }))
+      .filter(({ element }) => {
+        if (!element || typeof element !== "object") return false;
+        if (element.visible === false) return false;
+        if (isDecorativeElementType(element.type)) return false;
+        const bounds = getElementBounds(element);
+        return bounds.width > 1 && bounds.height > 1;
+      })
+      .sort((a, b) => {
+        const aRole = getLayoutRole(a.element);
+        const bRole = getLayoutRole(b.element);
+        if (aRole !== bRole) return aRole - bRole;
+        const aBounds = getElementBounds(a.element);
+        const bBounds = getElementBounds(b.element);
+        if (aBounds.y !== bBounds.y) return aBounds.y - bBounds.y;
+        return aBounds.x - bBounds.x;
+      });
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const currentIndex = candidates[i].index;
+      const currentElement = normalizedElements[currentIndex];
+      const currentBounds = getElementBounds(currentElement);
+
+      for (let j = 0; j < i; j += 1) {
+        const previousIndex = candidates[j].index;
+        const previousElement = normalizedElements[previousIndex];
+        const previousBounds = getElementBounds(previousElement);
+        const overlapArea = getOverlapArea(currentBounds, previousBounds);
+        if (overlapArea < minOverlapArea) continue;
+
+        const shiftY = previousBounds.y + previousBounds.height + gap - currentBounds.y;
+        if (shiftY <= 0) continue;
+
+        const companionIndices = findCompanionIndices(normalizedElements, currentIndex);
+        companionIndices.forEach((companionIndex) => {
+          const target = normalizedElements[companionIndex];
+          if (!target || typeof target !== "object") return;
+          target.y = toNumber(target.y, 0) + shiftY;
+          normalizedElements[companionIndex] = clampElementToCanvas(target);
+        });
+
+        movedSomething = true;
+      }
+    }
+
+    if (!movedSomething) break;
+  }
+
+  return normalizedElements.map((element) => clampElementToCanvas(element));
+}
+
 function normalizeInvoiceCandidate(
   rawOutput: unknown,
   blueprint: OfficialTemplateBlueprint,
@@ -684,6 +839,15 @@ function normalizeInvoiceCandidate(
       styleProfile,
     );
   }
+
+  candidate.elements = resolveInvoiceContentOverlaps(
+    Array.isArray(candidate.elements)
+      ? candidate.elements.filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === "object" && !Array.isArray(item),
+        )
+      : [],
+  );
 
   const productTableConfig = deepNormalizeJson(candidate.productTableConfig);
   if (productTableConfig && typeof productTableConfig === "object") {

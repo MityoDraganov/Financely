@@ -517,6 +517,26 @@ test("invoice QA hard fails when key binding fields do not have labels", () => {
   assert.ok(qa.errors.some((error) => error.includes("keyFieldsHaveLabels")));
 });
 
+test("invoice QA hard fails when content elements overlap", () => {
+  const template = makeCompliantInvoiceTemplate({ language: "en" });
+  const mutated = templateDataSchema.parse({
+    ...template,
+    elements: template.elements.map((element) => {
+      if (element.type === "table" && element.id === "items-table") {
+        return {
+          ...element,
+          y: 180,
+        };
+      }
+      return element;
+    }),
+  });
+
+  const qa = evaluateInvoiceTemplateQa(mutated, "en");
+  assert.strictEqual(qa.checks.nonOverlappingLayout, false);
+  assert.ok(qa.errors.some((error) => error.includes("Overlapping content elements")));
+});
+
 test("invoice QA validates style profile conformity", () => {
   const template = makeCompliantInvoiceTemplate({
     language: "en",
