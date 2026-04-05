@@ -128,7 +128,11 @@ export const generateProposalSuggestion = onCall<GenerateProposalSuggestionPaylo
       const proposalData = await proposalGenerationService.generateProposalSuggestion(
         lead as Lead,
         organization.name,
-        productsForContext
+        productsForContext,
+        {
+          targetCurrency: organization.settings?.defaultCurrency || "USD",
+          conversionPairs: organization.settings?.multiCurrency?.pairs || [],
+        },
       );
 
       logger.info("Proposal suggestion generated successfully", {
@@ -155,5 +159,4 @@ export const generateProposalSuggestion = onCall<GenerateProposalSuggestionPaylo
     }
   },
 );
-
 

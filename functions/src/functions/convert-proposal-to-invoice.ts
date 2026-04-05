@@ -13,7 +13,8 @@ import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-service";
-import { invoiceDataSchema } from "../core/entities/invoice";
+import { invoiceDataSchema, INVOICE_STATUSES } from "../core/entities/invoice";
+import { PROPOSAL_STATUSES } from "../core/entities/proposal";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
 import { toTemplateSnapshot } from "../services/invoice-template-snapshot-service";
@@ -174,7 +175,7 @@ export const convertProposalToInvoice = onCall<
         templateId,
         templateSnapshot: toTemplateSnapshot(template),
         data: conversionResult.invoiceData,
-        status: "draft",
+        status: INVOICE_STATUSES.UNSENT,
       });
 
       // Create invoice
@@ -189,7 +190,10 @@ export const convertProposalToInvoice = onCall<
       try {
         await proposalRepository.update({
           id: proposalId,
-          data: { invoiceId },
+          data: {
+            invoiceId,
+            status: PROPOSAL_STATUSES.INVOICED,
+          },
         });
       } catch (error) {
         loggerService.warn("Failed to update proposal with invoice ID", {

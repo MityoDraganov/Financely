@@ -93,7 +93,7 @@ export class ProposalGenerationService {
         leadId: lead.id,
         title: result.title,
         description: result.description,
-        status: PROPOSAL_STATUSES.DRAFT,
+        status: PROPOSAL_STATUSES.CREATED,
         items,
         subtotal,
         taxTotal,
@@ -212,4 +212,3 @@ export function getProposalGenerationService(): ProposalGenerationService {
   }
   return proposalGenerationServiceInstance;
 }
-

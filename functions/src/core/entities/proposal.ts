@@ -2,14 +2,32 @@ import z from "zod";
 import { baseEntitySchema } from "./base";
 
 export const PROPOSAL_STATUSES = {
-  DRAFT: "DRAFT",
+  CREATED: "CREATED",
   SENT: "SENT",
   ACCEPTED: "ACCEPTED",
+  INVOICED: "INVOICED",
   REJECTED: "REJECTED",
   EXPIRED: "EXPIRED",
 } as const;
 
-export type ProposalStatus = typeof PROPOSAL_STATUSES[keyof typeof PROPOSAL_STATUSES];
+export const LEGACY_PROPOSAL_STATUSES = {
+  DRAFT: "DRAFT",
+} as const;
+
+export type ProposalCanonicalStatus = typeof PROPOSAL_STATUSES[keyof typeof PROPOSAL_STATUSES];
+export type ProposalStatus = ProposalCanonicalStatus | typeof LEGACY_PROPOSAL_STATUSES.DRAFT;
+
+export const normalizeProposalStatus = (status: string | undefined | null): ProposalCanonicalStatus => {
+  if (status === LEGACY_PROPOSAL_STATUSES.DRAFT) {
+    return PROPOSAL_STATUSES.CREATED;
+  }
+
+  if (status && Object.values(PROPOSAL_STATUSES).includes(status as ProposalCanonicalStatus)) {
+    return status as ProposalCanonicalStatus;
+  }
+
+  return PROPOSAL_STATUSES.CREATED;
+};
 
 export const proposalItemSchema = z.object({
   description: z.string().min(1),
@@ -26,6 +44,15 @@ export const proposalApprovalSchema = z.object({
   rejectedAt: z.string().optional(),
 });
 
+export const proposalDeliveryEventSchema = z.object({
+  method: z.enum(["email", "manual", "other"]).default("email"),
+  channel: z.string().optional(),
+  recipient: z.string().optional(),
+  sentAt: z.string(),
+  sentByUserId: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const proposalDataSchema = z.object({
   // Organization and relationship tracking
   organizationId: z.string().min(1, "Organization ID is required"),
@@ -35,7 +62,12 @@ export const proposalDataSchema = z.object({
   // Proposal content
   title: z.string().min(1),
   description: z.string().optional(),
-  status: z.nativeEnum(PROPOSAL_STATUSES),
+  status: z
+    .union([
+      z.nativeEnum(PROPOSAL_STATUSES),
+      z.literal(LEGACY_PROPOSAL_STATUSES.DRAFT),
+    ])
+    .default(PROPOSAL_STATUSES.CREATED),
   items: z.array(proposalItemSchema),
   subtotal: z.number().min(0),
   taxTotal: z.number().min(0),
@@ -44,6 +76,7 @@ export const proposalDataSchema = z.object({
   terms: z.string().optional(),
   notes: z.string().optional(),
   approval: proposalApprovalSchema.optional(),
+  deliveryHistory: z.array(proposalDeliveryEventSchema).optional(),
   
   // AI generation metadata
   aiGenerated: z.boolean().default(false),
@@ -58,6 +91,7 @@ export const proposalDataSchema = z.object({
 
 export type ProposalItem = z.infer<typeof proposalItemSchema>;
 export type ProposalApproval = z.infer<typeof proposalApprovalSchema>;
+export type ProposalDeliveryEvent = z.infer<typeof proposalDeliveryEventSchema>;
 export type ProposalData = z.infer<typeof proposalDataSchema>;
 export const proposalSchema = baseEntitySchema.merge(proposalDataSchema);
 export type Proposal = z.infer<typeof proposalSchema>;

@@ -75,7 +75,7 @@ export function useInvoiceComplianceValidation({
       orgId: currentOrganization.id,
       templateId: selectedTemplate.id,
       data: formData,
-      status: "draft" as const,
+      status: "unsent" as const,
     };
 
     const validation = invoiceComplianceService.validateInvoice(invoiceData, region);

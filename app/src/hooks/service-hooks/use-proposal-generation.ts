@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { ProposalData, PROPOSAL_STATUSES } from "@/core";
+import { ProposalData, normalizeProposalStatus } from "@/core";
 import { functionsService } from "@/services/functions/functions-service";
 
 /**
@@ -21,12 +21,9 @@ export const useGenerateProposalSuggestion = () => {
       // Ensure status is a valid ProposalStatus enum value
       return {
         ...result,
-        status: (result.status === "DRAFT" || result.status === "SENT" || result.status === "ACCEPTED" || result.status === "REJECTED" || result.status === "EXPIRED")
-          ? result.status as typeof PROPOSAL_STATUSES[keyof typeof PROPOSAL_STATUSES]
-          : PROPOSAL_STATUSES.DRAFT,
+        status: normalizeProposalStatus(result.status),
         isIncomplete: ("isIncomplete" in result && typeof result.isIncomplete === "boolean") ? result.isIncomplete : false,
       };
     },
   });
 };
-

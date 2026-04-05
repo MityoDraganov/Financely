@@ -2,6 +2,21 @@ import { logger } from "firebase-functions";
 import { AIService } from "./ai-service";
 import { Lead, ProposalData, ProposalItem, PROPOSAL_STATUSES } from "../../core";
 import { getAIService } from "./ai-service";
+import { convertCurrencyAmount, type CurrencyConversionPair } from "../../utils/currency-conversion";
+
+interface ProductCatalogItem {
+  id?: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  category?: string;
+}
+
+interface ProposalGenerationOptions {
+  targetCurrency?: string;
+  conversionPairs?: CurrencyConversionPair[];
+}
 
 /**
  * Service for generating proposal suggestions using AI
@@ -21,15 +36,20 @@ export class ProposalGenerationService {
   async generateProposalSuggestion(
     lead: Lead,
     organizationName?: string,
-    products?: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>
+    products?: ProductCatalogItem[],
+    options: ProposalGenerationOptions = {},
   ): Promise<ProposalData> {
     const leadData = lead.data || lead;
+    const targetCurrency = this.resolveTargetCurrency(
+      options.targetCurrency,
+      products,
+    );
     
     // Build context from lead data
     const context = this.buildLeadContext(leadData, organizationName, products);
     
     // Create prompt for AI (with products for strict validation)
-    const prompt = this.buildProposalPrompt(context, products);
+    const prompt = this.buildProposalPrompt(context, products, targetCurrency);
     
     // Define the expected JSON schema for proposal data
     const schema = {
@@ -76,25 +96,29 @@ export class ProposalGenerationService {
       });
       
       // Validate items against existing products
-      const { validatedItems, incompleteItems, isIncomplete } = this.validateItemsAgainstProducts(
+      const { validatedItems, incompleteItems, isIncomplete } = await this.validateItemsAgainstProducts(
         result.items,
-        products || []
+        products || [],
+        targetCurrency,
+        options.conversionPairs || [],
       );
       
       // Calculate totals
       const items: ProposalItem[] = validatedItems.map((item) => ({
         description: item.description,
         qty: item.qty,
-        unitPrice: item.unitPrice,
+        unitPrice: this.roundMoney(item.unitPrice),
         taxPct: item.taxPct || 0,
       }));
       
-      const subtotal = items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
-      const taxTotal = items.reduce(
+      const subtotalRaw = items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+      const taxTotalRaw = items.reduce(
         (sum, item) => sum + (item.qty * item.unitPrice * (item.taxPct || 0)) / 100,
         0
       );
-      const total = subtotal + taxTotal;
+      const subtotal = this.roundMoney(subtotalRaw);
+      const taxTotal = this.roundMoney(taxTotalRaw);
+      const total = this.roundMoney(subtotal + taxTotal);
       
       // Build proposal data
       const proposalData: ProposalData = {
@@ -102,12 +126,12 @@ export class ProposalGenerationService {
         leadId: lead.id,
         title: result.title,
         description: result.description,
-        status: PROPOSAL_STATUSES.DRAFT,
+        status: PROPOSAL_STATUSES.CREATED,
         items,
         subtotal,
         taxTotal,
         total,
-        currency: result.currency || "USD",
+        currency: targetCurrency,
         terms: result.terms,
         notes: result.notes,
         aiGenerated: true,
@@ -131,14 +155,16 @@ export class ProposalGenerationService {
    * Validate AI-generated items against existing products
    * Returns validated items, incomplete items, and completion status
    */
-  private validateItemsAgainstProducts(
+  private async validateItemsAgainstProducts(
     aiItems: Array<{ description: string; qty: number; unitPrice: number; taxPct?: number }>,
-    products: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>
-  ): {
+    products: ProductCatalogItem[],
+    targetCurrency: string,
+    conversionPairs: CurrencyConversionPair[],
+  ): Promise<{
     validatedItems: Array<{ description: string; qty: number; unitPrice: number; taxPct?: number }>;
     incompleteItems: Array<{ description: string; reason: string; suggestedProductId?: string }>;
     isIncomplete: boolean;
-  } {
+  }> {
     if (!products || products.length === 0) {
       // No products available - mark all items as incomplete
       return {
@@ -159,12 +185,32 @@ export class ProposalGenerationService {
       const matchedProduct = this.findMatchingProduct(aiItem.description, products);
       
       if (matchedProduct) {
-        // Item matches a product - use product's exact price
+        let convertedUnitPrice: number;
+        try {
+          convertedUnitPrice = await convertCurrencyAmount(
+            matchedProduct.price,
+            matchedProduct.currency,
+            targetCurrency,
+            { manualPairs: conversionPairs },
+          );
+        } catch {
+          incompleteItems.push({
+            description: matchedProduct.name,
+            reason: `Unable to convert "${matchedProduct.name}" from ${matchedProduct.currency} to ${targetCurrency}.`,
+            suggestedProductId: matchedProduct.id,
+          });
+          continue;
+        }
+
+        const quantity = Number.isFinite(aiItem.qty) && aiItem.qty > 0 ? aiItem.qty : 1;
+        const rawTaxPct = Number.isFinite(aiItem.taxPct) ? Number(aiItem.taxPct) : 0;
+        const taxPct = Math.max(0, Math.min(100, rawTaxPct));
+
         validatedItems.push({
           description: matchedProduct.name, // Use product name, not AI description
-          qty: aiItem.qty,
-          unitPrice: matchedProduct.price, // Use product price, not AI price
-          taxPct: aiItem.taxPct || 0,
+          qty: quantity,
+          unitPrice: this.roundMoney(convertedUnitPrice),
+          taxPct,
         });
       } else {
         // Item doesn't match any product - mark as incomplete
@@ -190,8 +236,8 @@ export class ProposalGenerationService {
    */
   private findMatchingProduct(
     itemDescription: string,
-    products: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>
-  ): { id?: string; name: string; description?: string; price: number; currency: string; category?: string } | null {
+    products: ProductCatalogItem[],
+  ): ProductCatalogItem | null {
     if (!itemDescription || !products || products.length === 0) {
       return null;
     }
@@ -232,8 +278,8 @@ export class ProposalGenerationService {
    */
   private findSimilarProduct(
     itemDescription: string,
-    products: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>
-  ): { id?: string; name: string; description?: string; price: number; currency: string; category?: string } | null {
+    products: ProductCatalogItem[],
+  ): ProductCatalogItem | null {
     // Use the same matching logic but return the first partial match
     return this.findMatchingProduct(itemDescription, products);
   }
@@ -244,7 +290,7 @@ export class ProposalGenerationService {
   private buildLeadContext(
     leadData: Lead["data"],
     organizationName?: string,
-    products?: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>
+    products?: ProductCatalogItem[],
   ): string {
     const parts: string[] = [];
     
@@ -288,7 +334,11 @@ export class ProposalGenerationService {
   /**
    * Build the prompt for AI proposal generation
    */
-  private buildProposalPrompt(context: string, products?: Array<{ id?: string; name: string; description?: string; price: number; currency: string; category?: string }>): string {
+  private buildProposalPrompt(
+    context: string,
+    products?: ProductCatalogItem[],
+    targetCurrency?: string,
+  ): string {
     const hasProducts = products && products.length > 0;
     const productsSection = hasProducts 
       ? `\n\nCRITICAL: Available Products/Services (YOU MUST ONLY USE THESE):
@@ -299,6 +349,7 @@ STRICT RULES:
 - Use the EXACT product name from the list above
 - Use the EXACT price from the product list
 - Use the EXACT currency from the product list
+- Use a SINGLE proposal currency for the whole proposal
 - DO NOT create items for products that are NOT in the list above
 - DO NOT invent or hallucinate products that don't exist
 - If the lead's request doesn't match any available products, you may still create a proposal but ONLY use products from the list that are closest to their needs
@@ -321,9 +372,30 @@ Please generate a professional proposal that includes:
 4. Appropriate payment terms
 5. Any relevant notes
 
+${targetCurrency ? `CRITICAL: The proposal currency MUST be "${targetCurrency}".` : ""}
 ${hasProducts ? "CRITICAL: You MUST only use products from the available products list. Do not invent or create items for products that don't exist. If the lead's needs don't match available products exactly, use the closest matching products." : "Since no products are available, create generic proposal items that will need to be completed manually with actual products."}
 
 Respond with a JSON object containing the proposal data.`;
+  }
+
+  private resolveTargetCurrency(
+    preferredCurrency: string | undefined,
+    products?: ProductCatalogItem[],
+  ): string {
+    if (typeof preferredCurrency === "string" && preferredCurrency.trim().length > 0) {
+      return preferredCurrency.trim().toUpperCase();
+    }
+
+    const firstProductCurrency = products?.find((product) => typeof product.currency === "string" && product.currency.trim().length > 0)?.currency;
+    if (firstProductCurrency) {
+      return firstProductCurrency.trim().toUpperCase();
+    }
+
+    return "USD";
+  }
+
+  private roundMoney(amount: number): number {
+    return Math.round((amount + Number.EPSILON) * 100) / 100;
   }
 }
 
@@ -339,4 +411,3 @@ export function getProposalGenerationService(): ProposalGenerationService {
   }
   return proposalGenerationServiceInstance;
 }
-

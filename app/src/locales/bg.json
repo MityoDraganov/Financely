@@ -17,9 +17,9 @@
 			"outstanding": "Неплатени",
 			"unpaidInvoice": "{{count}} неплатена фактура",
 			"unpaidInvoices": "{{count}} неплатени фактури",
-			"draftInvoices": "Чернови фактури",
-			"draftAmount": "${{amount}} в чернови",
-			"noDrafts": "Все още няма чернови",
+			"unsentInvoices": "Неизпратени фактури",
+			"unsentAmount": "${{amount}} неизпратени",
+			"noUnsent": "Няма неизпратени фактури",
 			"totalAmount": "Обща сума",
 			"acrossAllInvoices": "От всички фактури",
 			"templates": "Шаблони",
@@ -50,7 +50,7 @@
 			"description": "Разбивка по статус",
 			"paid": "Платена",
 			"sent": "Изпратена",
-			"draft": "Чернова",
+			"unsent": "Неизпратена",
 			"cancelled": "Отменена",
 			"noInvoices": "Все още няма фактури"
 		},
@@ -58,6 +58,7 @@
 			"paid": "платена",
 			"sent": "изпратена",
 			"cancelled": "отменена",
+			"unsent": "неизпратена",
 			"draft": "чернова"
 		}
 	},
@@ -216,7 +217,7 @@
 			"searchPlaceholder": "Търсене на фактури по номер или клиент...",
 			"statusFilter": "Филтриране по статус",
 			"allStatus": "Всички статуси",
-			"draft": "Чернова",
+			"unsent": "Неизпратена",
 			"sent": "Изпратена",
 			"paid": "Платена",
 			"cancelled": "Отменена"
@@ -275,6 +276,23 @@
 		},
 		"messages": {
 			"previewFailed": "Неуспешно генериране на преглед: {{error}}"
+		},
+		"status": {
+			"title": "Статус на фактура",
+			"label": "Статус",
+			"unsent": "Неизпратена",
+			"sent": "Изпратена",
+			"paid": "Платена",
+			"cancelled": "Отменена",
+			"save": "Запази статус",
+			"saving": "Запазване...",
+			"saved": "Статусът на фактурата е обновен",
+			"saveFailed": "Неуспешно обновяване на статуса: {{error}}",
+			"deliveryHistory": "История на изпращанията",
+			"methodEmail": "Имейл",
+			"methodManual": "Ръчно",
+			"noRecipient": "Няма получател",
+			"noDeliveryHistory": "Все още няма история на изпращания."
 		}
 	},
 	"contacts": {
@@ -373,7 +391,8 @@
 		"widgetType": {
 			"contactForm": "Формуляр за контакт",
 			"invoiceRequest": "Заявка за фактура",
-			"quoteRequest": "Заявка за оферта"
+			"quoteRequest": "Заявка за оферта",
+			"modular": "Модулна джаджа"
 		},
 		"table": {
 			"title": "Всички потенциални клиенти",
@@ -470,9 +489,10 @@
 			"proposal": "оферти"
 		},
 		"status": {
-			"DRAFT": "Чернова",
+			"CREATED": "Създадена",
 			"SENT": "Изпратена",
 			"ACCEPTED": "Приета",
+			"INVOICED": "Фактурирана",
 			"REJECTED": "Отхвърлена",
 			"EXPIRED": "Изтекла"
 		},
@@ -571,7 +591,18 @@
 			"send": "Изпрати имейл",
 			"sending": "Изпращане…",
 			"sentTo": "Имейл за офертата е изпратен до {{email}}",
-			"sendFailed": "Неуспешно изпращане на имейл за офертата: {{error}}"
+			"sendFailed": "Неуспешно изпращане на имейл за офертата: {{error}}",
+			"markSentManually": "Маркирай като изпратена (ръчно)",
+			"manualMarkedSent": "Офертата е маркирана като изпратена",
+			"manualMarkSentFailed": "Неуспешно маркиране като изпратена: {{error}}",
+			"markAccepted": "Маркирай като приета",
+			"markedAccepted": "Офертата е маркирана като приета",
+			"markAcceptedFailed": "Неуспешно маркиране като приета: {{error}}",
+			"deliveryHistory": "История на изпращанията",
+			"methodEmail": "Имейл",
+			"methodManual": "Ръчно",
+			"noRecipient": "Няма получател",
+			"noDeliveryHistory": "Все още няма история на изпращания."
 		},
 		"review": {
 			"title": "Преглед и редактиране на фактура",

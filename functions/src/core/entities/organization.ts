@@ -414,6 +414,23 @@ export const organizationDataSchema = z.object({
             .optional(),
         })
         .optional(),
+      multiCurrency: z
+        .object({
+          enabled: z.boolean().default(false),
+          pairs: z
+            .array(
+              z.object({
+                from: z.string().min(1),
+                to: z.string().min(1),
+                rate: z.number().positive(),
+              }),
+            )
+            .default([]),
+        })
+        .default({
+          enabled: false,
+          pairs: [],
+        }),
     })
     .default({
       brandColors: {
@@ -455,6 +472,10 @@ export const organizationDataSchema = z.object({
             model: "auto",
           },
         },
+      },
+      multiCurrency: {
+        enabled: false,
+        pairs: [],
       },
     }),
   

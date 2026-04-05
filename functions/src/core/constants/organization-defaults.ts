@@ -42,4 +42,8 @@ export const DEFAULT_ORGANIZATION_SETTINGS = {
       },
     },
   },
+  multiCurrency: {
+    enabled: false,
+    pairs: [],
+  },
 } as const;

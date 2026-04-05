@@ -10,6 +10,7 @@ import { ProposalData, ProposalItem } from "@/core";
 import { useGenerateProposalSuggestion } from "@/hooks/service-hooks/use-proposal-generation";
 import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
 import { toast } from "sonner";
+import { formatProposalCurrency } from "@/utils/proposal-currency";
 
 interface ProposalSuggestionDialogProps {
   open: boolean;
@@ -109,10 +110,7 @@ export function ProposalSuggestionDialog({
   };
 
   const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-    }).format(amount);
+    return formatProposalCurrency(amount, currency);
   };
 
   return (
@@ -422,4 +420,3 @@ export function ProposalSuggestionDialog({
     </Dialog>
   );
 }
-

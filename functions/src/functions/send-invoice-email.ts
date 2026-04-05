@@ -17,7 +17,12 @@ import { formatInvoiceAmount } from "../utils/invoice-helpers";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { getGenericRepository } from "../repositories/generic-repository";
 import { DatabaseCollection } from "../repositories/config";
-import type { InvoiceDataValue } from "../core";
+import {
+  type InvoiceDataValue,
+  type InvoiceDeliveryEvent,
+  INVOICE_STATUSES,
+  normalizeInvoiceStatus,
+} from "../core";
 import type { QueryConstraint } from "../core/ports/services/database-service";
 import { extractUserContextFromRequest } from "../utils/request-context";
 import {
@@ -200,6 +205,19 @@ const extractPdfPathFromUrl = (pdfUrl: string, bucketName: string): string => {
     return parts[1].split("?")[0];
   }
   throw new Error(`Could not extract PDF path from URL: ${pdfUrl}`);
+};
+
+const toInvoiceDeliveryHistory = (value: unknown): InvoiceDeliveryEvent[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is InvoiceDeliveryEvent => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return false;
+    }
+    const candidate = entry as Record<string, unknown>;
+    return typeof candidate.sentAt === "string";
+  });
 };
 
 
@@ -649,6 +667,45 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         messageId: result.messageId,
         success: result.success,
       });
+
+      if (result.success) {
+        try {
+          const sentAt = new Date().toISOString();
+          const previousHistory = toInvoiceDeliveryHistory((invoice as any).deliveryHistory);
+          const deliveryEvent: InvoiceDeliveryEvent = {
+            method: "email",
+            channel: "email",
+            recipient: toEmail,
+            sentAt,
+            sentByUserId: request.auth?.uid,
+            details: {
+              emailTemplateId: resolvedEmailTemplateId ?? null,
+              messageId: result.messageId ?? null,
+              source: "sendInvoiceEmail",
+            },
+          };
+
+          const updateData: Record<string, unknown> = {
+            deliveryHistory: [...previousHistory, deliveryEvent],
+          };
+
+          const currentStatus = normalizeInvoiceStatus(invoice.status);
+          if (currentStatus !== INVOICE_STATUSES.PAID && currentStatus !== INVOICE_STATUSES.CANCELLED) {
+            updateData.status = INVOICE_STATUSES.SENT;
+          }
+
+          await invoiceRepository.update({
+            id: invoiceId,
+            data: updateData as any,
+          });
+        } catch (updateError) {
+          logger.warn("Failed to update invoice delivery history after email send", {
+            invoiceId,
+            toEmail,
+            error: updateError instanceof Error ? updateError.message : String(updateError),
+          });
+        }
+      }
 
       // Record usage event
       try {

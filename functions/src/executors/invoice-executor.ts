@@ -20,7 +20,7 @@ export interface CreateInvoiceConfig {
 
 export interface UpdateInvoiceStatusConfig {
   invoiceId: string;
-  status: "draft" | "sent" | "paid" | "cancelled";
+  status: "unsent" | "draft" | "sent" | "paid" | "cancelled";
 }
 
 export class InvoiceExecutor implements ActionExecutor {
@@ -95,7 +95,7 @@ export class InvoiceExecutor implements ActionExecutor {
         currency: resolvedCurrency,
         ...(resolvedDueDate && { dueDate: resolvedDueDate }),
       },
-      status: "draft",
+      status: "unsent",
     };
 
     // Validate and create invoice
@@ -166,4 +166,3 @@ export class InvoiceExecutor implements ActionExecutor {
     }, obj);
   }
 }
-

@@ -32,9 +32,17 @@ export const useRenderInvoicePdf = () => {
  * Hook to send an invoice via email
  */
 export const useSendInvoiceEmail = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationKey: ["invoices", "sendEmail"],
     mutationFn: functionsService.sendInvoiceEmail,
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      if (variables?.invoiceId) {
+        queryClient.invalidateQueries({ queryKey: ["invoices", variables.invoiceId] });
+      }
+    },
   });
 };
 

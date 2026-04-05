@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Calendar, FileText, User, Mail, Phone, Building2,
   MessageSquare, Sparkles, Loader2, AlertTriangle, MapPin, Tag,
-  ChevronRight, Send, Receipt, Globe, Linkedin, Twitter
+  ChevronRight, Send, Receipt, Globe, Linkedin, Twitter, CheckCircle2, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,11 +14,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useProposal } from "@/hooks/repository-hooks/use-proposals";
 import { useLead } from "@/hooks/repository-hooks/use-leads";
 import { useContact } from "@/hooks/repository-hooks/use-contacts";
-import { PROPOSAL_STATUSES } from "@/core";
+import {
+  PROPOSAL_STATUSES,
+  normalizeProposalStatus,
+  type ProposalDeliveryEvent,
+  type LeadData,
+  type ContactData,
+} from "@/core";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
@@ -33,6 +40,97 @@ import { getBindingValue, setBindingValue } from "@/core/entities/invoice";
 import { useUpdateProposal } from "@/hooks/repository-hooks/use-proposals";
 import { extractTemplateBindings } from "@/utils/invoice-compliance";
 import { isTemplateCompatibleWithContext } from "@/utils/email-template-compatibility";
+import { cn } from "@/lib/utils";
+import { formatProposalCurrency } from "@/utils/proposal-currency";
+
+const normalizeFieldKey = (key: string): string =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const readStringValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const fromEntry = readStringValue(entry);
+      if (fromEntry) return fromEntry;
+    }
+  }
+  return undefined;
+};
+
+const flattenDataForDisplay = (
+  input: unknown,
+  parentKey = "",
+): Array<{ key: string; value: string }> => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return [];
+  }
+
+  const rows: Array<{ key: string; value: string }> = [];
+  const objectValue = input as Record<string, unknown>;
+
+  Object.entries(objectValue).forEach(([rawKey, rawValue]) => {
+    const key = parentKey ? `${parentKey}.${rawKey}` : rawKey;
+    if (rawValue === null || rawValue === undefined || rawValue === "") {
+      return;
+    }
+
+    if (Array.isArray(rawValue)) {
+      const primitiveValues = rawValue
+        .map((entry) => (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean" ? String(entry) : ""))
+        .filter(Boolean);
+      rows.push({
+        key,
+        value:
+          primitiveValues.length > 0
+            ? primitiveValues.join(", ")
+            : JSON.stringify(rawValue),
+      });
+      return;
+    }
+
+    if (typeof rawValue === "object") {
+      rows.push(...flattenDataForDisplay(rawValue, key));
+      return;
+    }
+
+    rows.push({ key, value: String(rawValue) });
+  });
+
+  return rows;
+};
+
+const formatFieldPath = (path: string): string =>
+  path
+    .split(".")
+    .map((part) =>
+      part
+        .replace(/([A-Z])/g, " $1")
+        .replace(/[_-]+/g, " ")
+        .trim()
+        .replace(/^./, (char) => char.toUpperCase()),
+    )
+    .join(" > ");
+
+const isLikelyEmail = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const extractEntityData = (entity: unknown): Record<string, unknown> | undefined => {
+  if (!entity || typeof entity !== "object" || Array.isArray(entity)) {
+    return undefined;
+  }
+
+  const raw = entity as Record<string, unknown>;
+  const nested = raw.data;
+
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>;
+  }
+
+  return raw;
+};
 
 export default function ProposalDetailPage() {
   const { t } = useTranslation();
@@ -41,10 +139,16 @@ export default function ProposalDetailPage() {
   const navigate = useNavigate();
   const { data: proposal, isLoading } = useProposal(id);
   const { data: lead, isLoading: isLeadLoading } = useLead(proposal?.leadId);
-
-  const { data: contact, isLoading: isContactLoading } = useContact(lead?.data?.contactId);
-  const leadData = lead?.data;
-  const contactData = contact?.data;
+  const leadData = extractEntityData(lead) as Partial<LeadData> | undefined;
+  const leadContactId = typeof leadData?.contactId === "string" ? leadData.contactId : undefined;
+  const { data: contactFromLead, isLoading: isLeadContactLoading } = useContact(leadContactId);
+  const shouldTryProposalLeadIdAsContactId = Boolean(proposal?.leadId && !leadContactId);
+  const { data: contactFromProposalLeadId, isLoading: isFallbackContactLoading } = useContact(
+    shouldTryProposalLeadIdAsContactId ? proposal?.leadId : undefined,
+  );
+  const contact = contactFromLead || contactFromProposalLeadId;
+  const contactData = extractEntityData(contact) as Partial<ContactData> | undefined;
+  const isClientInfoLoading = isLeadLoading || isLeadContactLoading || isFallbackContactLoading;
   const { data: currentOrganization } = useCurrentOrganization();
   const { data: templates, isLoading: isTemplatesLoading } = useTemplates(currentOrganization?.id);
   const { data: emailTemplates = [], isLoading: isEmailTemplatesLoading } = useEmailTemplates(currentOrganization?.id || "");
@@ -58,28 +162,12 @@ export default function ProposalDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [proposalRecipientEmail, setProposalRecipientEmail] = useState<string>("");
   const [selectedProposalEmailTemplateId, setSelectedProposalEmailTemplateId] = useState<string>("__none__");
+  const [isCapturedClientDataOpen, setIsCapturedClientDataOpen] = useState(false);
   const [generatedInvoiceData, setGeneratedInvoiceData] = useState<{
     invoiceData: Record<string, InvoiceDataValue>;
     invoiceNumber?: string;
     templateId: string;
   } | null>(null);
-
-  const defaultProposalRecipientEmail = useMemo(() => {
-    const formData =
-      leadData?.formData &&
-      typeof leadData.formData === "object" &&
-      leadData.formData !== null
-        ? (leadData.formData as Record<string, unknown>)
-        : {};
-    const emailCandidate = leadData?.email || formData.email || contactData?.email;
-    return typeof emailCandidate === "string" ? emailCandidate : "";
-  }, [leadData, contactData]);
-
-  useEffect(() => {
-    if (!proposalRecipientEmail && defaultProposalRecipientEmail) {
-      setProposalRecipientEmail(defaultProposalRecipientEmail);
-    }
-  }, [defaultProposalRecipientEmail, proposalRecipientEmail]);
 
   const compatibleProposalEmailTemplates = useMemo(
     () =>
@@ -100,21 +188,20 @@ export default function ProposalDetailPage() {
     }
   }, [compatibleProposalEmailTemplates, selectedProposalEmailTemplateId]);
 
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-    }).format(amount);
+  const formatCurrency = (amount: unknown, currency: string) => {
+    return formatProposalCurrency(amount, currency);
   };
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case PROPOSAL_STATUSES.DRAFT:
+      case PROPOSAL_STATUSES.CREATED:
         return { className: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-400" };
       case PROPOSAL_STATUSES.SENT:
         return { className: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" };
       case PROPOSAL_STATUSES.ACCEPTED:
         return { className: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" };
+      case PROPOSAL_STATUSES.INVOICED:
+        return { className: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500" };
       case PROPOSAL_STATUSES.REJECTED:
         return { className: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" };
       case PROPOSAL_STATUSES.EXPIRED:
@@ -159,6 +246,19 @@ export default function ProposalDetailPage() {
     );
   };
 
+  const toDeliveryHistory = (value: unknown): ProposalDeliveryEvent[] => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.filter((entry): entry is ProposalDeliveryEvent => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return false;
+      }
+      const candidate = entry as Record<string, unknown>;
+      return typeof candidate.sentAt === "string";
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="py-6 pr-6 space-y-6">
@@ -185,26 +285,111 @@ export default function ProposalDetailPage() {
     );
   }
 
-  const statusConfig = getStatusConfig(proposal.status);
+  const proposalStatus = normalizeProposalStatus(proposal.status);
+  const statusConfig = getStatusConfig(proposalStatus);
+  const deliveryHistory = toDeliveryHistory(proposal.deliveryHistory);
+  const canMarkAsSentManually =
+    proposalStatus !== PROPOSAL_STATUSES.ACCEPTED &&
+    proposalStatus !== PROPOSAL_STATUSES.INVOICED;
+  const canMarkAsAccepted =
+    proposalStatus === PROPOSAL_STATUSES.CREATED ||
+    proposalStatus === PROPOSAL_STATUSES.SENT;
 
   // Extract client information
   const clientFormData =
     leadData?.formData &&
     typeof leadData.formData === "object" &&
     leadData.formData !== null
-    ? (leadData.formData as Record<string, unknown>)
-    : {};
+      ? (leadData.formData as Record<string, unknown>)
+      : {};
 
-  const clientFirstName = contactData?.firstName || leadData?.firstName || clientFormData.firstName;
-  const clientLastName = contactData?.lastName || leadData?.lastName || clientFormData.lastName;
+  const formDataEntries = Object.entries(clientFormData);
+
+  const findFormFieldString = (aliases: string[]): string => {
+    const normalizedAliases = aliases.map(normalizeFieldKey);
+    for (const [key, value] of formDataEntries) {
+      if (!normalizedAliases.includes(normalizeFieldKey(key))) continue;
+      const extracted = readStringValue(value);
+      if (extracted) return extracted;
+    }
+    return "";
+  };
+
+  const clientFirstName =
+    contactData?.firstName ||
+    leadData?.firstName ||
+    findFormFieldString(["firstName", "firstname", "first_name", "givenName", "given_name"]);
+  const clientLastName =
+    contactData?.lastName ||
+    leadData?.lastName ||
+    findFormFieldString(["lastName", "lastname", "last_name", "surname", "familyName", "family_name"]);
   // Also support formData.name as a combined full-name fallback (e.g. "Test Finalov")
-  const clientFullName = [clientFirstName, clientLastName].filter(Boolean).join(" ")
-    || (typeof clientFormData.name === 'string' ? clientFormData.name : "");
-  const clientEmail = contactData?.email || leadData?.email || (typeof clientFormData.email === 'string' ? clientFormData.email : "");
-  const clientPhone = contactData?.phone?.[0] || leadData?.phone || (typeof clientFormData.phone === 'string' ? clientFormData.phone : "");
-  const clientCompany = contactData?.company || leadData?.company || (typeof clientFormData.company === 'string' ? clientFormData.company : "");
-  const clientJobTitle = contactData?.jobTitle || leadData?.jobTitle || (typeof clientFormData.jobTitle === 'string' ? clientFormData.jobTitle : "");
+  const clientFullName =
+    [clientFirstName, clientLastName].filter(Boolean).join(" ") ||
+    findFormFieldString(["name", "fullName", "fullname", "full_name", "clientName", "contactName"]);
+  const clientEmail =
+    contactData?.email ||
+    leadData?.email ||
+    findFormFieldString(["email", "emailAddress", "email_address", "contactEmail", "customerEmail", "workEmail"]);
+  const clientPhone =
+    contactData?.phone?.[0] ||
+    leadData?.phone ||
+    findFormFieldString(["phone", "phoneNumber", "phone_number", "mobile", "mobilePhone", "cellPhone"]);
+  const clientCompany =
+    contactData?.company ||
+    leadData?.company ||
+    findFormFieldString(["company", "companyName", "company_name", "business", "businessName"]);
+  const clientJobTitle =
+    contactData?.jobTitle ||
+    leadData?.jobTitle ||
+    findFormFieldString(["jobTitle", "job_title", "title", "position", "role"]);
   const clientAddress = contactData?.address;
+
+  const seenSuggestedEmails = new Set<string>();
+  const suggestedRecipientEmails: string[] = [];
+  const addSuggestedRecipientEmail = (value: unknown) => {
+    const stringValue = readStringValue(value);
+    if (!stringValue || !isLikelyEmail(stringValue)) return;
+    const normalized = stringValue.toLowerCase();
+    if (seenSuggestedEmails.has(normalized)) return;
+    seenSuggestedEmails.add(normalized);
+    suggestedRecipientEmails.push(stringValue);
+  };
+
+  addSuggestedRecipientEmail(contactData?.email);
+  addSuggestedRecipientEmail(leadData?.email);
+
+  formDataEntries.forEach(([key, value]) => {
+    if (normalizeFieldKey(key).includes("email")) {
+      addSuggestedRecipientEmail(value);
+    }
+  });
+  formDataEntries.forEach(([, value]) => {
+    addSuggestedRecipientEmail(value);
+  });
+
+  const leadDataRows = flattenDataForDisplay(leadData)
+    .filter((row) => !row.key.startsWith("formData") && row.key !== "organizationId")
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const contactDataRows = flattenDataForDisplay(contactData)
+    .filter((row) => row.key !== "organizationId")
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const formDataRows = flattenDataForDisplay(clientFormData)
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const hasClientSummaryData = Boolean(
+    clientFullName ||
+      clientEmail ||
+      clientPhone ||
+      clientCompany ||
+      clientJobTitle ||
+      (clientAddress && (clientAddress.street || clientAddress.city || clientAddress.state || clientAddress.zipCode || clientAddress.country)),
+  );
+  const hasClientAnyData =
+    hasClientSummaryData ||
+    Boolean(leadData?.message) ||
+    contactDataRows.length > 0 ||
+    leadDataRows.length > 0 ||
+    formDataRows.length > 0;
 
   return (
     <div className="py-6 pr-6 space-y-6">
@@ -221,7 +406,7 @@ export default function ProposalDetailPage() {
             <div className="flex items-center gap-3 mt-2">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusConfig.className}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
-                {t(`proposals.status.${proposal.status}`)}
+                {t(`proposals.status.${proposalStatus}`)}
               </span>
               {proposal.createdAt && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -308,24 +493,30 @@ export default function ProposalDetailPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
-                {proposal.items.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.description}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.qty} × {formatCurrency(item.unitPrice, proposal.currency)}
-                        {item.taxPct && item.taxPct > 0 && (
-                          <span className="ml-2 text-muted-foreground/70">{t('proposalDetail.labels.tax', { tax: item.taxPct })}</span>
-                        )}
-                      </p>
+                {proposal.items.map((item, index) => {
+                  const unitPriceDisplay = formatCurrency(item.unitPrice, proposal.currency);
+                  const lineTotal = item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100);
+                  const lineTotalDisplay = formatCurrency(lineTotal, proposal.currency);
+                  console.log(typeof unitPriceDisplay)
+                  return (
+                    <div key={index} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{item.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {item.qty} × {unitPriceDisplay}
+                          {(item.taxPct ?? 0) > 0 && (
+                            <span className="ml-2 text-muted-foreground/70">{t('proposalDetail.labels.tax', { tax: item.taxPct })}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right ml-4 shrink-0">
+                        <p className="font-semibold text-sm">
+                          {lineTotalDisplay}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right ml-4 shrink-0">
-                      <p className="font-semibold text-sm">
-                        {formatCurrency(item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100), proposal.currency)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Totals */}
@@ -410,7 +601,7 @@ export default function ProposalDetailPage() {
           </Card>
 
           {/* Client Information */}
-          {proposal.leadId && lead && (
+          {proposal.leadId && (
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -419,25 +610,32 @@ export default function ProposalDetailPage() {
                     {t('proposalDetail.sections.clientInfo')}
                   </CardTitle>
                   <div className="flex items-center gap-1">
-                    <Badge variant="outline" className="text-xs py-0 h-5">
-                      {t(`leads.status.${leadData?.status || "new"}`)}
-                    </Badge>
+                    {leadData?.status && (
+                      <Badge variant="outline" className="text-xs py-0 h-5">
+                        {String(t(`leads.status.${leadData.status}`))}
+                      </Badge>
+                    )}
                     {leadData?.widgetType && (
                       <Badge variant="secondary" className="text-xs py-0 h-5 capitalize">
-                        {t(`leads.widgetType.${leadData.widgetType}`)}
+                        {String(t(`leads.widgetType.${leadData.widgetType}`))}
+                      </Badge>
+                    )}
+                    {!leadData && contactData && (
+                      <Badge variant="secondary" className="text-xs py-0 h-5">
+                        {t("proposalDetail.sections.contactFallbackBadge", "Contact linked")}
                       </Badge>
                     )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {(isLeadLoading || isContactLoading) ? (
+                {isClientInfoLoading ? (
                   <div className="space-y-3">
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                     <Skeleton className="h-4 w-2/3" />
                   </div>
-                ) : lead ? (
+                ) : hasClientAnyData ? (
                   <div className="space-y-3">
 
                     {/* Name + job */}
@@ -574,62 +772,73 @@ export default function ProposalDetailPage() {
                       ) : null;
                     })()}
 
-                    {/* Additional form fields not already shown */}
-                    {(() => {
-                      const shownKeys = [
-                        "name",
-                        "fullname",
-                        "firstname",
-                        "lastname",
-                        "email",
-                        "phone",
-                        "company",
-                        "jobtitle",
-                        "message",
-                        "address",
-                        "street",
-                        "city",
-                        "state",
-                        "zipcode",
-                        "country",
-                      ];
-                      const extraFields = Object.entries(clientFormData).filter(([key, value]) => {
-                        const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-                        return !shownKeys.includes(normalizedKey)
-                          && !['_id', 'id', 'createdat', 'updatedat'].includes(normalizedKey)
-                          && value !== null && value !== undefined && value !== ''
-                          && (typeof value !== 'object' || (Array.isArray(value) && (value as unknown[]).length > 0));
-                      });
+                    {(contactDataRows.length > 0 || leadDataRows.length > 0 || formDataRows.length > 0) && (
+                      <Collapsible
+                        open={isCapturedClientDataOpen}
+                        onOpenChange={setIsCapturedClientDataOpen}
+                        className="pt-3 border-t"
+                      >
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-between px-0 h-7 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                          >
+                            <span>{t("proposalDetail.sections.allCapturedData", "All Captured Client Data")}</span>
+                            <ChevronRight
+                              className={cn(
+                                "h-3.5 w-3.5 transition-transform duration-200",
+                                isCapturedClientDataOpen && "rotate-90",
+                              )}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-3 pt-2">
+                          {contactDataRows.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                                {t("proposalDetail.sections.contactRecordData", "Contact record")}
+                              </p>
+                              {contactDataRows.map((row) => (
+                                <div key={`contact-${row.key}`} className="flex items-start justify-between gap-2 text-xs">
+                                  <span className="text-muted-foreground shrink-0">{formatFieldPath(row.key)}</span>
+                                  <span className="font-medium text-right break-all">{row.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
-                      if (extraFields.length === 0) return null;
+                          {leadDataRows.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                                {t("proposalDetail.sections.leadRecordData", "Lead record")}
+                              </p>
+                              {leadDataRows.map((row) => (
+                                <div key={`lead-${row.key}`} className="flex items-start justify-between gap-2 text-xs">
+                                  <span className="text-muted-foreground shrink-0">{formatFieldPath(row.key)}</span>
+                                  <span className="font-medium text-right break-all">{row.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
-                      return (
-                        <div className="pt-3 border-t space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            {t("proposalDetail.sections.additionalInfo")}
-                          </p>
-                          {extraFields.map(([key, value]) => {
-                            let displayValue: string;
-                            if (Array.isArray(value)) {
-                              displayValue = value.join(", ");
-                            } else if (typeof value === 'object' && value !== null) {
-                              displayValue = JSON.stringify(value);
-                            } else {
-                              displayValue = String(value);
-                            }
-                            if (!displayValue) return null;
-                            return (
-                              <div key={key} className="flex items-start justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground capitalize shrink-0">
-                                  {key.replace(/([A-Z])/g, " $1").trim()}
-                                </span>
-                                <span className="font-medium text-right break-all">{displayValue}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
+                          {formDataRows.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                                {t("proposalDetail.sections.submissionData", "Submission form fields")}
+                              </p>
+                              {formDataRows.map((row) => (
+                                <div key={`form-${row.key}`} className="flex items-start justify-between gap-2 text-xs">
+                                  <span className="text-muted-foreground shrink-0">{formatFieldPath(row.key)}</span>
+                                  <span className="font-medium text-right break-all">{row.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t('proposalDetail.sections.leadInfoNotAvailable')}</p>
@@ -658,6 +867,47 @@ export default function ProposalDetailPage() {
                   placeholder={t("proposalDetail.email.recipientPlaceholder")}
                   className="h-9"
                 />
+                {suggestedRecipientEmails.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        "proposalDetail.email.suggestedRecipientHint",
+                        "Suggested from lead/widget submission. Click to use:",
+                      )}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestedRecipientEmails.map((email) => {
+                        const isActive =
+                          proposalRecipientEmail.trim().toLowerCase() === email.toLowerCase();
+
+                        return (
+                          <Button
+                            key={email}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-7 px-2 text-xs border transition-colors",
+                              isActive
+                                ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                                : "bg-primary/5 text-black border-primary/25 hover:bg-primary/10",
+                            )}
+                            onClick={() => {
+                              if (isActive) {
+                                setProposalRecipientEmail("");
+                                return;
+                              }
+                              setProposalRecipientEmail(email);
+                            }}
+                          >
+                            <span className="truncate max-w-[220px]">{email}</span>
+                            {isActive && <X className="h-3 w-3 ml-1 shrink-0" />}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -709,6 +959,98 @@ export default function ProposalDetailPage() {
                   </>
                 )}
               </Button>
+
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-9"
+                  disabled={!canMarkAsSentManually || updateProposal.isPending}
+                  onClick={async () => {
+                    if (!proposal) return;
+                    try {
+                      const manualEvent: ProposalDeliveryEvent = {
+                        method: "manual",
+                        channel: "manual",
+                        recipient: proposalRecipientEmail.trim() || undefined,
+                        sentAt: new Date().toISOString(),
+                        details: {
+                          source: "manual_mark_sent",
+                        },
+                      };
+                      await updateProposal.mutateAsync({
+                        id: proposal.id,
+                        data: {
+                          status: PROPOSAL_STATUSES.SENT,
+                          deliveryHistory: [...deliveryHistory, manualEvent],
+                        },
+                      });
+                      toast.success(t("proposalDetail.email.manualMarkedSent"));
+                    } catch (error) {
+                      toast.error(
+                        t("proposalDetail.email.manualMarkSentFailed", {
+                          error: error instanceof Error ? error.message : t("proposalDetail.review.unknownError"),
+                        }),
+                      );
+                    }
+                  }}
+                >
+                  {t("proposalDetail.email.markSentManually")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-9"
+                  disabled={!canMarkAsAccepted || updateProposal.isPending}
+                  onClick={async () => {
+                    if (!proposal) return;
+                    try {
+                      await updateProposal.mutateAsync({
+                        id: proposal.id,
+                        data: {
+                          status: PROPOSAL_STATUSES.ACCEPTED,
+                        },
+                      });
+                      toast.success(t("proposalDetail.email.markedAccepted"));
+                    } catch (error) {
+                      toast.error(
+                        t("proposalDetail.email.markAcceptedFailed", {
+                          error: error instanceof Error ? error.message : t("proposalDetail.review.unknownError"),
+                        }),
+                      );
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  {t("proposalDetail.email.markAccepted")}
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {t("proposalDetail.email.deliveryHistory")}
+                </Label>
+                {deliveryHistory.length > 0 ? (
+                  <div className="space-y-1.5 rounded-md border p-2 max-h-36 overflow-y-auto">
+                    {deliveryHistory
+                      .slice()
+                      .reverse()
+                      .map((event, index) => (
+                        <div key={`${event.sentAt}-${index}`} className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {event.method === "manual" ? t("proposalDetail.email.methodManual") : t("proposalDetail.email.methodEmail")}
+                          </span>
+                          {" · "}
+                          {event.recipient || t("proposalDetail.email.noRecipient")}
+                          {" · "}
+                          {formatDateTable(event.sentAt)}
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t("proposalDetail.email.noDeliveryHistory")}</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1169,14 +1511,31 @@ export default function ProposalDetailPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(generatedInvoiceData.invoiceData.items as Array<Record<string, unknown>>).map((item, idx) => (
-                              <tr key={idx} className="border-t">
-                                <td className="p-2">{String(item.description || "")}</td>
-                                <td className="p-2 text-right">{String(item.qty || item.quantity || "")}</td>
-                                <td className="p-2 text-right">{String(item.unitPrice || item.price || "")}</td>
-                                <td className="p-2 text-right">{String(item.total || item.amount || "")}</td>
-                              </tr>
-                            ))}
+                            {(generatedInvoiceData.invoiceData.items as Array<Record<string, unknown>>).map((item, idx) => {
+                              const quantityRaw = item.qty ?? item.quantity ?? 0;
+                              const unitPriceRaw = item.unitPrice ?? item.price ?? 0;
+                              const quantity = Number(quantityRaw);
+                              const unitPrice = Number(unitPriceRaw);
+                              const lineTotalRaw =
+                                item.total ??
+                                item.amount ??
+                                (Number.isFinite(quantity) && Number.isFinite(unitPrice)
+                                  ? quantity * unitPrice
+                                  : 0);
+                              const reviewCurrency =
+                                typeof generatedInvoiceData.invoiceData.currency === "string"
+                                  ? generatedInvoiceData.invoiceData.currency
+                                  : proposal.currency;
+
+                              return (
+                                <tr key={idx} className="border-t">
+                                  <td className="p-2">{String(item.description || "")}</td>
+                                  <td className="p-2 text-right">{Number.isFinite(quantity) ? quantity : String(quantityRaw || "")}</td>
+                                  <td className="p-2 text-right">{formatCurrency(unitPriceRaw, reviewCurrency)}</td>
+                                  <td className="p-2 text-right">{formatCurrency(lineTotalRaw, reviewCurrency)}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1247,7 +1606,7 @@ export default function ProposalDetailPage() {
                     orgId: currentOrganization.id,
                     templateId: generatedInvoiceData.templateId,
                     data: generatedInvoiceData.invoiceData,
-                    status: "draft",
+                    status: "unsent",
                   });
                   toast.success(t('proposalDetail.review.createSuccess'));
                   setReviewDialogOpen(false);
@@ -1256,7 +1615,10 @@ export default function ProposalDetailPage() {
                     try {
                       await updateProposal.mutateAsync({
                         id: proposal.id,
-                        data: { invoiceId: result.id },
+                        data: {
+                          invoiceId: result.id,
+                          status: PROPOSAL_STATUSES.INVOICED,
+                        },
                       });
                     } catch (error) {
                       console.warn("Failed to link proposal to invoice:", error);

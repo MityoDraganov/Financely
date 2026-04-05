@@ -846,7 +846,7 @@ export default function CreateInvoicePage() {
 				orgId: currentOrganization.id,
 				templateId: selectedTemplate.id,
 				data: formData,
-				status: "draft" as const,
+				status: "unsent" as const,
 			};
 			const validation = invoiceComplianceService.validateInvoice(
 				invoiceData,
@@ -897,7 +897,7 @@ export default function CreateInvoicePage() {
 				orgId: currentOrganization.id,
 				templateId: selectedTemplate.id,
 				data: invoiceDataWithRates,
-				status: "draft" as const,
+				status: "unsent" as const,
 				productIds, // Include product IDs for quantity deduction
 			};
 

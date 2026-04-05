@@ -8,7 +8,12 @@ import { getLeadRepository } from "../repositories/lead-repository";
 import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-service";
-import { invoiceDataSchema } from "../core/entities/invoice";
+import { invoiceDataSchema, INVOICE_STATUSES } from "../core/entities/invoice";
+import {
+  PROPOSAL_STATUSES,
+  normalizeProposalStatus,
+  type ProposalDeliveryEvent,
+} from "../core/entities/proposal";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
 import { toTemplateSnapshot } from "../services/invoice-template-snapshot-service";
@@ -121,7 +126,7 @@ export class ProposalExecutor implements ActionExecutor {
       organizationId: orgId,
       ...(resolvedClientId && { leadId: resolvedClientId }), // Using leadId field if clientId is provided
       title: `Proposal for ${resolvedClientId}`,
-      status: "DRAFT" as const,
+      status: PROPOSAL_STATUSES.CREATED,
       items: proposalItems,
       subtotal,
       taxTotal,
@@ -212,6 +217,47 @@ export class ProposalExecutor implements ActionExecutor {
     };
 
     const emailResult = await this.emailService.sendEmail(emailOptions);
+
+    if (emailResult.success) {
+      try {
+        const existingHistory = Array.isArray((proposal as any).deliveryHistory)
+          ? ((proposal as any).deliveryHistory as ProposalDeliveryEvent[])
+          : [];
+        const deliveryEvent: ProposalDeliveryEvent = {
+          method: "email",
+          channel: "email",
+          recipient: resolvedEmail,
+          sentAt: new Date().toISOString(),
+          details: {
+            source: "workflow.send.proposal",
+            runId,
+            actionId: action.id,
+            messageId: emailResult.messageId ?? null,
+          },
+        };
+
+        const updateData: Record<string, unknown> = {
+          deliveryHistory: [...existingHistory, deliveryEvent],
+        };
+
+        const normalizedStatus = normalizeProposalStatus((proposal as any).status);
+        if (normalizedStatus !== PROPOSAL_STATUSES.ACCEPTED && normalizedStatus !== PROPOSAL_STATUSES.INVOICED) {
+          updateData.status = PROPOSAL_STATUSES.SENT;
+        }
+
+        await proposalRepository.update({
+          id: resolvedProposalId,
+          data: updateData as any,
+        });
+      } catch (updateError) {
+        logger.warn("Failed to update proposal after workflow email send", {
+          proposalId: resolvedProposalId,
+          runId,
+          actionId: action.id,
+          error: updateError instanceof Error ? updateError.message : String(updateError),
+        });
+      }
+    }
 
     logger.info("Proposal sent successfully", { 
       runId, 
@@ -348,7 +394,7 @@ export class ProposalExecutor implements ActionExecutor {
       templateId,
       templateSnapshot: toTemplateSnapshot(template),
       data: conversionResult.invoiceData,
-      status: "draft",
+      status: INVOICE_STATUSES.UNSENT,
     });
 
     const invoiceId = await invoiceRepository.create({ data: validatedData });
@@ -360,7 +406,10 @@ export class ProposalExecutor implements ActionExecutor {
     try {
       await proposalRepository.update({
         id: resolvedProposalId,
-        data: { invoiceId },
+        data: {
+          invoiceId,
+          status: PROPOSAL_STATUSES.INVOICED,
+        },
       });
     } catch (error) {
       logger.warn("Failed to update proposal with invoice ID", {

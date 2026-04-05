@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useCreateOrganization, useAddOrganizationMember, useUpdateUserRole, useUserByClerkId } from "@/hooks";
 import { useUser } from "@clerk/clerk-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ORGANIZATION_ROLES } from "@/core/roles";
 import {
@@ -33,11 +34,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getOrganizationLogo } from "@/utils/branding";
+import { getPostOrganizationSwitchRedirect } from "@/utils/organization-switch-navigation";
 import { cn } from "@/lib/utils";
 
 export function OrganizationSwitcher() {
   const { currentOrganization, organizations, isLoading, switchOrganization } = useOrganizationContext();
   const { user } = useUser();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data: dbUser } = useUserByClerkId(user?.id);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createOrgName, setCreateOrgName] = useState("");
@@ -46,6 +50,14 @@ export function OrganizationSwitcher() {
   const createOrganization = useCreateOrganization();
   const addMember = useAddOrganizationMember();
   const updateUserRole = useUpdateUserRole();
+
+  const handleOrganizationSwitch = (organizationId: string) => {
+    switchOrganization(organizationId);
+    const redirectPath = getPostOrganizationSwitchRedirect(location.pathname);
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
+    }
+  };
 
   const handleCreateOrganization = async () => {
     if (!createOrgName.trim()) {
@@ -136,7 +148,7 @@ export function OrganizationSwitcher() {
       setCreateOrgName("");
       setCreateOrgDescription("");
       
-      switchOrganization(orgId);
+      handleOrganizationSwitch(orgId);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to create organization";
       toast.error(errorMessage);
@@ -205,7 +217,7 @@ export function OrganizationSwitcher() {
               return (
                 <DropdownMenuItem
                   key={org.id}
-                  onClick={() => switchOrganization(org.id)}
+                  onClick={() => handleOrganizationSwitch(org.id)}
                   className={cn(
                     "flex items-center gap-2 px-2 py-2 cursor-pointer",
                     isSelected && "bg-accent"

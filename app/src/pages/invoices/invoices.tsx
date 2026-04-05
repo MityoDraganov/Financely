@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import type { Invoice } from "@/core/entities/invoice";
+import { INVOICE_STATUSES, normalizeInvoiceStatus, type Invoice } from "@/core/entities/invoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ExportDialog } from "@/components/export-import/export-dialog";
@@ -90,6 +90,7 @@ function getBuyerName(invoice: Invoice, unknownLabel: string): string {
 
 // ── Status config ──────────────────────────────────────────────────────────
 const STATUS_CFG = {
+  unsent:    { dot: "bg-zinc-400",    bg: "bg-zinc-100 dark:bg-zinc-800",      text: "text-zinc-600 dark:text-zinc-300",      border: "border-zinc-300 dark:border-zinc-600",     bar: "bg-zinc-300 dark:bg-zinc-600" },
   draft:     { dot: "bg-zinc-400",    bg: "bg-zinc-100 dark:bg-zinc-800",      text: "text-zinc-600 dark:text-zinc-300",      border: "border-zinc-300 dark:border-zinc-600",     bar: "bg-zinc-300 dark:bg-zinc-600" },
   sent:      { dot: "bg-blue-500",    bg: "bg-blue-50 dark:bg-blue-950",       text: "text-blue-700 dark:text-blue-300",      border: "border-blue-200 dark:border-blue-800",     bar: "bg-blue-400" },
   paid:      { dot: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950", text: "text-emerald-700 dark:text-emerald-300",border: "border-emerald-200 dark:border-emerald-800",bar: "bg-emerald-500" },
@@ -145,7 +146,7 @@ export default function InvoicesPage() {
         buyerName:     getBuyerName(inv, unknown),
         date:          display,
         dateSortKey:   epoch,
-        status:        inv.status || "draft",
+        status:        normalizeInvoiceStatus(inv.status),
         amount:        formatInvoiceAmount(inv),
         amountSortKey: amount,
         raw:           inv,
@@ -200,8 +201,8 @@ export default function InvoicesPage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }: { row: Row<InvoiceRow> }) => {
-        const s   = (row.original.status || "draft") as StatusKey;
-        const cfg = STATUS_CFG[s] ?? STATUS_CFG.draft;
+        const s   = normalizeInvoiceStatus(row.original.status) as StatusKey;
+        const cfg = STATUS_CFG[s] ?? STATUS_CFG.unsent;
         return (
           <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
             <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
@@ -342,10 +343,10 @@ export default function InvoicesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('invoices.filters.allStatus')}</SelectItem>
-              <SelectItem value="draft">{t('invoices.filters.draft')}</SelectItem>
-              <SelectItem value="sent">{t('invoices.filters.sent')}</SelectItem>
-              <SelectItem value="paid">{t('invoices.filters.paid')}</SelectItem>
-              <SelectItem value="cancelled">{t('invoices.filters.cancelled')}</SelectItem>
+              <SelectItem value={INVOICE_STATUSES.UNSENT}>{t('invoices.filters.unsent')}</SelectItem>
+              <SelectItem value={INVOICE_STATUSES.SENT}>{t('invoices.filters.sent')}</SelectItem>
+              <SelectItem value={INVOICE_STATUSES.PAID}>{t('invoices.filters.paid')}</SelectItem>
+              <SelectItem value={INVOICE_STATUSES.CANCELLED}>{t('invoices.filters.cancelled')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -459,8 +460,8 @@ export default function InvoicesPage() {
               {/* ── Rows ── */}
               <div className="divide-y divide-border">
                 {table.getRowModel().rows.map((row) => {
-                  const s   = (row.original.status || "draft") as StatusKey;
-                  const bar = STATUS_CFG[s]?.bar ?? STATUS_CFG.draft.bar;
+                  const s   = normalizeInvoiceStatus(row.original.status) as StatusKey;
+                  const bar = STATUS_CFG[s]?.bar ?? STATUS_CFG.unsent.bar;
                   return (
                     <div
                       key={row.id}

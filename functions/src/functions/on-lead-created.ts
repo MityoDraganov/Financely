@@ -240,7 +240,11 @@ export const onLeadCreated = onDocumentCreated(
       const proposalData = await proposalGenerationService.generateProposalSuggestion(
         lead,
         organization.name,
-        productsForContext
+        productsForContext,
+        {
+          targetCurrency: organization.settings?.defaultCurrency || "USD",
+          conversionPairs: organization.settings?.multiCurrency?.pairs || [],
+        },
       );
 
       // Create the proposal
@@ -297,4 +301,3 @@ export const onLeadCreated = onDocumentCreated(
     }
   },
 );
-

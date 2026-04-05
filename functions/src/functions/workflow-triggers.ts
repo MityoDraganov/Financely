@@ -8,6 +8,7 @@ import { WorkflowEvent } from "../core/entities/workflow-execution";
 import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { firestore } from "../infrastructure/firebase";
+import { PROPOSAL_STATUSES, normalizeProposalStatus } from "../core/entities/proposal";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -336,19 +337,22 @@ export const onProposalStatusChanged = onDocumentUpdated({
   
   if (!beforeData || !afterData) return;
 
-  const beforeStatus = beforeData.status;
-  const afterStatus = afterData.status;
+  const beforeStatus = normalizeProposalStatus(beforeData.status);
+  const afterStatus = normalizeProposalStatus(afterData.status);
 
   // Determine event type based on status change
   let eventType: string | null = null;
   
-  if (beforeStatus !== "SENT" && afterStatus === "SENT") {
+  if (beforeStatus !== PROPOSAL_STATUSES.SENT && afterStatus === PROPOSAL_STATUSES.SENT) {
     eventType = "proposal.sent";
-  } else if (beforeStatus !== "ACCEPTED" && afterStatus === "ACCEPTED") {
+  } else if (beforeStatus !== PROPOSAL_STATUSES.ACCEPTED && afterStatus === PROPOSAL_STATUSES.ACCEPTED) {
     eventType = "proposal.approved";
-  } else if (beforeStatus !== "REJECTED" && afterStatus === "REJECTED") {
+  } else if (beforeStatus !== PROPOSAL_STATUSES.REJECTED && afterStatus === PROPOSAL_STATUSES.REJECTED) {
     eventType = "proposal.rejected";
-  } else if (beforeStatus !== "ACCEPTED" && afterStatus === "ACCEPTED" && afterData.invoiceId) {
+  } else if (
+    (beforeStatus !== PROPOSAL_STATUSES.INVOICED && afterStatus === PROPOSAL_STATUSES.INVOICED) ||
+    (!beforeData.invoiceId && !!afterData.invoiceId)
+  ) {
     eventType = "proposal.converted_to_invoice";
   }
 
@@ -689,7 +693,7 @@ export const checkOverdueInvoices = onSchedule({
     // Note: This is a simplified query - you may need to adjust based on your invoice structure
     const invoicesSnapshot = await firestore()
       .collection("invoices")
-      .where("status", "in", ["draft", "sent"])
+      .where("status", "in", ["draft", "unsent", "sent"])
       .get();
 
     for (const invoiceDoc of invoicesSnapshot.docs) {

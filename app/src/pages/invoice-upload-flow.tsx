@@ -419,7 +419,7 @@ export default function InvoiceUploadFlowPage() {
         orgId: currentOrganization.id,
         templateId,
         data: invoiceData,
-        status: "draft",
+        status: "unsent",
       });
 
       toast.success(t("invoiceUploadFlow.toasts.invoiceCreated"));

@@ -17,9 +17,9 @@
 			"outstanding": "Outstanding",
 			"unpaidInvoice": "{{count}} unpaid invoice",
 			"unpaidInvoices": "{{count}} unpaid invoices",
-			"draftInvoices": "Draft Invoices",
-			"draftAmount": "${{amount}} in drafts",
-			"noDrafts": "No drafts yet",
+			"unsentInvoices": "Unsent Invoices",
+			"unsentAmount": "${{amount}} unsent",
+			"noUnsent": "No unsent invoices",
 			"totalAmount": "Total Amount",
 			"acrossAllInvoices": "Across all invoices",
 			"templates": "Templates",
@@ -50,7 +50,7 @@
 			"description": "Breakdown by status",
 			"paid": "Paid",
 			"sent": "Sent",
-			"draft": "Draft",
+			"unsent": "Unsent",
 			"cancelled": "Cancelled",
 			"noInvoices": "No invoices yet"
 		},
@@ -58,6 +58,7 @@
 			"paid": "paid",
 			"sent": "sent",
 			"cancelled": "cancelled",
+			"unsent": "unsent",
 			"draft": "draft"
 		}
 	},
@@ -216,7 +217,7 @@
 			"searchPlaceholder": "Search invoices by number or customer...",
 			"statusFilter": "Filter by status",
 			"allStatus": "All Status",
-			"draft": "Draft",
+			"unsent": "Unsent",
 			"sent": "Sent",
 			"paid": "Paid",
 			"cancelled": "Cancelled"
@@ -290,6 +291,23 @@
 		},
 		"messages": {
 			"previewFailed": "Failed to generate preview: {{error}}"
+		},
+		"status": {
+			"title": "Invoice status",
+			"label": "Status",
+			"unsent": "Unsent",
+			"sent": "Sent",
+			"paid": "Paid",
+			"cancelled": "Cancelled",
+			"save": "Save status",
+			"saving": "Saving...",
+			"saved": "Invoice status updated",
+			"saveFailed": "Failed to update invoice status: {{error}}",
+			"deliveryHistory": "Delivery history",
+			"methodEmail": "Email",
+			"methodManual": "Manual",
+			"noRecipient": "No recipient",
+			"noDeliveryHistory": "No delivery history yet."
 		}
 	},
 	"contacts": {
@@ -388,7 +406,8 @@
 		"widgetType": {
 			"contactForm": "Contact Form",
 			"invoiceRequest": "Invoice Request",
-			"quoteRequest": "Quote Request"
+			"quoteRequest": "Quote Request",
+			"modular": "Modular Widget"
 		},
 		"table": {
 			"title": "All Leads",
@@ -485,9 +504,10 @@
 			"proposal": "proposals"
 		},
 		"status": {
-			"DRAFT": "Draft",
+			"CREATED": "Created",
 			"SENT": "Sent",
 			"ACCEPTED": "Accepted",
+			"INVOICED": "Invoiced",
 			"REJECTED": "Rejected",
 			"EXPIRED": "Expired"
 		},
@@ -587,7 +607,18 @@
 			"send": "Send Email",
 			"sending": "Sending…",
 			"sentTo": "Proposal email sent to {{email}}",
-			"sendFailed": "Failed to send proposal email: {{error}}"
+			"sendFailed": "Failed to send proposal email: {{error}}",
+			"markSentManually": "Mark As Sent (Manual)",
+			"manualMarkedSent": "Proposal marked as sent",
+			"manualMarkSentFailed": "Failed to mark as sent: {{error}}",
+			"markAccepted": "Mark As Accepted",
+			"markedAccepted": "Proposal marked as accepted",
+			"markAcceptedFailed": "Failed to mark as accepted: {{error}}",
+			"deliveryHistory": "Delivery history",
+			"methodEmail": "Email",
+			"methodManual": "Manual",
+			"noRecipient": "No recipient",
+			"noDeliveryHistory": "No delivery history yet."
 		},
 		"review": {
 			"title": "Review & Edit Invoice",

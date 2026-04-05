@@ -204,7 +204,7 @@ export const workflowActionSchema = z.object({
     // Update invoice status configuration (for update.invoice.status)
     z.object({
       invoiceId: z.string(),
-      status: z.enum(["draft", "sent", "paid", "cancelled"]),
+      status: z.enum(["unsent", "draft", "sent", "paid", "cancelled"]),
     }),
     // Create proposal configuration (for create.proposal)
     z.object({

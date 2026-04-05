@@ -44,15 +44,16 @@ const defaultFields = [
 // Map of field names to their possible values (for fields with predefined options)
 const fieldValueOptions: Record<string, Array<{ value: string; label: string }>> = {
   "invoice.status": [
-    { value: "draft", label: "Draft" },
+    { value: "unsent", label: "Unsent" },
     { value: "sent", label: "Sent" },
     { value: "paid", label: "Paid" },
     { value: "cancelled", label: "Cancelled" },
   ],
   "proposal.status": [
-    { value: "DRAFT", label: "Draft" },
+    { value: "CREATED", label: "Created" },
     { value: "SENT", label: "Sent" },
     { value: "ACCEPTED", label: "Accepted" },
+    { value: "INVOICED", label: "Invoiced" },
     { value: "REJECTED", label: "Rejected" },
     { value: "EXPIRED", label: "Expired" },
   ],
@@ -279,4 +280,3 @@ export function ConditionalBranchEditor({
     </Card>
   );
 }
-

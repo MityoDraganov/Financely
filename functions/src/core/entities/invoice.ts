@@ -38,6 +38,39 @@ export type InvoiceDataValue =
   | { [key: string]: InvoiceDataValue }
   | Array<{ [key: string]: InvoiceDataValue }>;
 
+export const INVOICE_STATUSES = {
+  UNSENT: "unsent",
+  SENT: "sent",
+  PAID: "paid",
+  CANCELLED: "cancelled",
+} as const;
+
+export const LEGACY_INVOICE_STATUSES = {
+  DRAFT: "draft",
+} as const;
+
+export type InvoiceCanonicalStatus = typeof INVOICE_STATUSES[keyof typeof INVOICE_STATUSES];
+export type InvoiceStatus = InvoiceCanonicalStatus | typeof LEGACY_INVOICE_STATUSES.DRAFT;
+
+export const normalizeInvoiceStatus = (status: string | undefined | null): InvoiceCanonicalStatus => {
+  if (!status || status === LEGACY_INVOICE_STATUSES.DRAFT) {
+    return INVOICE_STATUSES.UNSENT;
+  }
+  if (Object.values(INVOICE_STATUSES).includes(status as InvoiceCanonicalStatus)) {
+    return status as InvoiceCanonicalStatus;
+  }
+  return INVOICE_STATUSES.UNSENT;
+};
+
+export const invoiceDeliveryEventSchema = z.object({
+  method: z.enum(["email", "manual", "other"]).default("email"),
+  channel: z.string().optional(),
+  recipient: z.string().optional(),
+  sentAt: z.string(),
+  sentByUserId: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const invoiceDataSchema = z.object({
   // Organization ID for multi-tenancy
   orgId: z.string().min(1),
@@ -73,7 +106,13 @@ export const invoiceDataSchema = z.object({
   data: z.record(z.string(), invoiceDataValueSchema),
 
   // Invoice status
-  status: z.enum(["draft", "sent", "paid", "cancelled"]).default("draft"),
+  status: z
+    .union([
+      z.nativeEnum(INVOICE_STATUSES),
+      z.literal(LEGACY_INVOICE_STATUSES.DRAFT),
+    ])
+    .default(INVOICE_STATUSES.UNSENT),
+  deliveryHistory: z.array(invoiceDeliveryEventSchema).optional(),
 
   // Optional metadata
   notes: z.string().optional(),
@@ -81,6 +120,7 @@ export const invoiceDataSchema = z.object({
 });
 
 export type InvoiceData = z.infer<typeof invoiceDataSchema>;
+export type InvoiceDeliveryEvent = z.infer<typeof invoiceDeliveryEventSchema>;
 
 export const invoiceSchema = baseEntitySchema.merge(invoiceDataSchema);
 export type Invoice = z.infer<typeof invoiceSchema>;

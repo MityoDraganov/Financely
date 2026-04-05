@@ -71,7 +71,7 @@ export interface FunctionsService {
    * @param payload.templateId - Template ID this invoice is based on
    * @param payload.templateVersionId - Optional specific version of the template
    * @param payload.data - Dynamic data matching the template's bindings
-   * @param payload.status - Invoice status (draft, sent, paid, cancelled)
+   * @param payload.status - Invoice status (unsent, sent, paid, cancelled; draft supported for legacy payloads)
    * @param payload.notes - Optional notes
    * @returns Promise with the created invoice ID
    * 
@@ -100,7 +100,7 @@ export interface FunctionsService {
     templateId: string;
     templateVersionId?: string;
     data: Record<string, unknown>;
-    status?: "draft" | "sent" | "paid" | "cancelled";
+    status?: "unsent" | "draft" | "sent" | "paid" | "cancelled";
     notes?: string;
     productIds?: string[]; // Product IDs for quantity deduction (one per item)
   }): Promise<{ id: string }>;

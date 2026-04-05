@@ -1,6 +1,7 @@
 import { repositoryHost } from "@/repositories";
 import { serviceHost } from "@/services";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { InvoiceData } from "@/core/entities/invoice";
 
 const databaseService = serviceHost.getDatabaseService();
 const invoiceRepository = repositoryHost.getInvoicesReposity(databaseService);
@@ -25,6 +26,19 @@ export const useInvoices = (orgId?: string) => {
     });
 };
 
+export const useUpdateInvoice = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<InvoiceData> }) => {
+            return invoiceRepository.update({ id, data });
+        },
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["invoices", id] });
+        },
+    });
+};
 
 
 

@@ -10,6 +10,7 @@ import { projectId } from "@/infrastructure/firebase";
 import { functionsService } from "@/services/functions/functions-service";
 import type { WidgetMultiStepOptions } from "@/core/entities/widget-version";
 import { WidgetPage } from "@/core/entities/widget-block-schema";
+import { sanitizeWidgetHeadlineHtml } from "@/utils/html-sink-sanitizers";
 import type {
 	WidgetPageBlock,
 	WidgetPageConfig,
@@ -558,7 +559,7 @@ function NotPublishedPage({
 
 					<h1 className="np-headline">
 						{headline ? (
-							<span dangerouslySetInnerHTML={{ __html: headline }} />
+							<span dangerouslySetInnerHTML={{ __html: sanitizeWidgetHeadlineHtml(headline) }} />
 						) : (
 							<>Almost <em>ready</em> for you</>
 						)}

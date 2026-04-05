@@ -12,6 +12,13 @@ import { serviceHost } from "@/services";
 import { Link as LinkIcon, Send, Loader2, Copy, Check, Eye } from "lucide-react";
 import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink, usePreviewInvoiceEmail } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useUpdateInvoice } from "@/hooks/repository-hooks/use-invoices";
+import {
+    INVOICE_STATUSES,
+    normalizeInvoiceStatus,
+    type InvoiceDeliveryEvent,
+} from "@/core/entities/invoice";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { EmailTemplateSelector } from "@/components/email-template/email-template-selector";
 
@@ -38,8 +45,10 @@ export default function InvoiceDetailPage() {
     const [selectedEmailTemplateId, setSelectedEmailTemplateId] = useState<string | undefined>(undefined);
     const [emailPreview, setEmailPreview] = useState<InvoiceEmailPreview | null>(null);
     const [isEmailPreviewDialogOpen, setIsEmailPreviewDialogOpen] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState<string>(INVOICE_STATUSES.UNSENT);
 
     const { data: currentOrg } = useCurrentOrganization();
+    const updateInvoice = useUpdateInvoice();
 
     const { data: invoice } = useQuery({
         queryKey: ["invoices", id],
@@ -51,6 +60,11 @@ export default function InvoiceDetailPage() {
     const sendEmail = useSendInvoiceEmail();
     const generateShareLink = useGenerateInvoiceShareLink();
     const previewEmail = usePreviewInvoiceEmail();
+
+    useEffect(() => {
+        if (!invoice) return;
+        setSelectedStatus(normalizeInvoiceStatus(invoice.status));
+    }, [invoice?.id, invoice?.status]);
 
     // Automatically load preview when invoice is available
     useEffect(() => {
@@ -169,6 +183,22 @@ export default function InvoiceDetailPage() {
             }
         );
     };
+
+    const toDeliveryHistory = (value: unknown): InvoiceDeliveryEvent[] => {
+        if (!Array.isArray(value)) return [];
+        return value.filter((entry): entry is InvoiceDeliveryEvent => {
+            if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+                return false;
+            }
+            const candidate = entry as Record<string, unknown>;
+            return typeof candidate.sentAt === "string";
+        });
+    };
+
+    const deliveryHistory = useMemo(
+        () => toDeliveryHistory((invoice as unknown as { deliveryHistory?: unknown })?.deliveryHistory),
+        [invoice],
+    );
 
     const handleGenerateShareLink = () => {
         if (!invoice) return;
@@ -296,6 +326,100 @@ export default function InvoiceDetailPage() {
                 </div>
 
                 <div className="lg:col-span-1">
+                    <Card className="card-large mb-4">
+                        <CardHeader>
+                            <CardTitle>{t("invoiceDetail.status.title", "Invoice status")}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="space-y-2">
+                                <Label>{t("invoiceDetail.status.label", "Status")}</Label>
+                                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={INVOICE_STATUSES.UNSENT}>{t("invoiceDetail.status.unsent", "Unsent")}</SelectItem>
+                                        <SelectItem value={INVOICE_STATUSES.SENT}>{t("invoiceDetail.status.sent", "Sent")}</SelectItem>
+                                        <SelectItem value={INVOICE_STATUSES.PAID}>{t("invoiceDetail.status.paid", "Paid")}</SelectItem>
+                                        <SelectItem value={INVOICE_STATUSES.CANCELLED}>{t("invoiceDetail.status.cancelled", "Cancelled")}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                disabled={!invoice || updateInvoice.isPending || selectedStatus === normalizeInvoiceStatus(invoice.status)}
+                                onClick={async () => {
+                                    if (!invoice) return;
+                                    try {
+                                        const currentStatus = normalizeInvoiceStatus(invoice.status);
+                                        const shouldAppendManualSendEvent =
+                                            selectedStatus === INVOICE_STATUSES.SENT &&
+                                            currentStatus !== INVOICE_STATUSES.SENT;
+                                        const updateData: {
+                                            status: "unsent" | "sent" | "paid" | "cancelled";
+                                            deliveryHistory?: InvoiceDeliveryEvent[];
+                                        } = {
+                                            status: selectedStatus as "unsent" | "sent" | "paid" | "cancelled",
+                                        };
+
+                                        if (shouldAppendManualSendEvent) {
+                                            const manualEvent: InvoiceDeliveryEvent = {
+                                                method: "manual",
+                                                channel: "manual",
+                                                recipient: email.trim() || undefined,
+                                                sentAt: new Date().toISOString(),
+                                                details: {
+                                                    source: "manual_mark_sent",
+                                                },
+                                            };
+                                            updateData.deliveryHistory = [...deliveryHistory, manualEvent];
+                                        }
+
+                                        await updateInvoice.mutateAsync({
+                                            id: invoice.id,
+                                            data: updateData,
+                                        });
+                                        toast.success(t("invoiceDetail.status.saved", "Invoice status updated"));
+                                    } catch (error) {
+                                        toast.error(
+                                            t("invoiceDetail.status.saveFailed", "Failed to update invoice status: {{error}}", {
+                                                error: error instanceof Error ? error.message : "Unknown error",
+                                            }),
+                                        );
+                                    }
+                                }}
+                            >
+                                {updateInvoice.isPending ? t("invoiceDetail.status.saving", "Saving...") : t("invoiceDetail.status.save", "Save status")}
+                            </Button>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">{t("invoiceDetail.status.deliveryHistory", "Delivery history")}</Label>
+                                {deliveryHistory.length > 0 ? (
+                                    <div className="space-y-1.5 rounded-md border p-2 max-h-32 overflow-y-auto">
+                                        {deliveryHistory
+                                            .slice()
+                                            .reverse()
+                                            .map((event, index) => (
+                                                <div key={`${event.sentAt}-${index}`} className="text-xs text-muted-foreground">
+                                                    <span className="font-medium text-foreground">
+                                                        {event.method === "manual"
+                                                            ? t("invoiceDetail.status.methodManual", "Manual")
+                                                            : t("invoiceDetail.status.methodEmail", "Email")}
+                                                    </span>
+                                                    {" · "}
+                                                    {event.recipient || t("invoiceDetail.status.noRecipient", "No recipient")}
+                                                    {" · "}
+                                                    {new Date(event.sentAt).toLocaleString()}
+                                                </div>
+                                            ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">{t("invoiceDetail.status.noDeliveryHistory", "No delivery history yet.")}</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card className="card-large">
                         <CardHeader>
                             <CardTitle>{t('invoiceDetail.email.title')}</CardTitle>

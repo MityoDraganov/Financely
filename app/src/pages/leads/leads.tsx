@@ -71,6 +71,7 @@ import { getAllCurrencyCodes } from "@/utils/currencies";
 import { ExportDialog } from "@/components/export-import/export-dialog";
 import { extractUrls, getFileLabelFromUrl } from "@/utils/file-links";
 import { cn } from "@/lib/utils";
+import { formatProposalCurrency } from "@/utils/proposal-currency";
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 
@@ -987,9 +988,7 @@ function ManualProposalDialog({
   };
 
   const fmt = (amount: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-      amount
-    );
+    formatProposalCurrency(amount, currency);
 
   const handleCreate = async () => {
     if (!proposalTitle.trim()) {
@@ -1014,7 +1013,7 @@ function ManualProposalDialog({
       leadId: lead.id,
       title: proposalTitle,
       description: proposalDescription || undefined,
-      status: "DRAFT",
+      status: "CREATED",
       items: proposalItems,
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,

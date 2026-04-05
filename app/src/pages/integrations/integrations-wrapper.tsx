@@ -15,31 +15,45 @@ export default function IntegrationsWrapper() {
 	const { data: currentOrg } = useCurrentOrganization();
 	const orgId = currentOrg?.id ?? "";
 	const { data: definitions = [], isLoading: isLoadingDefinitions, invalidate, refetch } = useWidgetDefinitions(orgId);
-	const [currentWidgetId, setCurrentWidgetId] = useState<string | undefined>(widgetIdFromUrl);
+	const currentWidgetId = widgetIdFromUrl;
 	const [isCreatingNewWidget, setIsCreatingNewWidget] = useState(false);
 	const creatingRef = useRef(false);
+	const previousOrgIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
-		if (widgetIdFromUrl !== currentWidgetId) {
-			setCurrentWidgetId(widgetIdFromUrl);
+		if (!orgId) return;
+		const previousOrgId = previousOrgIdRef.current;
+		if (previousOrgId && previousOrgId !== orgId && widgetIdFromUrl) {
+			navigate("/integrations", { replace: true });
 		}
-	}, [widgetIdFromUrl, currentWidgetId]);
+		previousOrgIdRef.current = orgId;
+	}, [orgId, widgetIdFromUrl, navigate]);
 
 	// Clear URL widget if it doesn't belong to current org (e.g. after org switch or stale link)
 	useEffect(() => {
 		if (isLoadingDefinitions || !orgId) return;
-		if (!currentWidgetId) return;
-		const belongsToOrg = definitions.some((d) => d.id === currentWidgetId);
+		if (!widgetIdFromUrl) return;
+		const belongsToOrg = definitions.some((d) => d.id === widgetIdFromUrl);
 		if (!belongsToOrg) {
-			setCurrentWidgetId(undefined);
 			navigate("/integrations", { replace: true });
 		}
-	}, [orgId, currentWidgetId, definitions, isLoadingDefinitions, navigate]);
+	}, [orgId, widgetIdFromUrl, definitions, isLoadingDefinitions, navigate]);
 
 	const currentDefinition = useMemo(() => {
 		if (!currentWidgetId) return undefined;
 		return definitions.find((d) => d.id === currentWidgetId);
 	}, [definitions, currentWidgetId]);
+
+	const setCurrentWidgetId = useCallback(
+		(id: string | undefined) => {
+			if (!id) {
+				navigate("/integrations", { replace: true });
+				return;
+			}
+			navigate(`/integrations/${id}`, { replace: true });
+		},
+		[navigate]
+	);
 
 	const handleCreateNewWidget = useCallback(async () => {
 		if (!orgId || creatingRef.current) return;
@@ -64,7 +78,6 @@ export default function IntegrationsWrapper() {
 			}
 			invalidate();
 			await refetch();
-			setCurrentWidgetId(r.widgetId);
 			navigate(`/integrations/${r.widgetId}`, { replace: true });
 		} catch {
 			creatingRef.current = false;
@@ -80,7 +93,6 @@ export default function IntegrationsWrapper() {
 				void handleCreateNewWidget();
 				return;
 			}
-			setCurrentWidgetId(id);
 			navigate(`/integrations/${id}`, { replace: true });
 		},
 		[handleCreateNewWidget, navigate]
@@ -114,7 +126,6 @@ export default function IntegrationsWrapper() {
 				});
 				invalidate();
 				await refetch();
-				setCurrentWidgetId(r.widgetId);
 				navigate(`/integrations/${r.widgetId}`, { replace: true });
 			} finally {
 				creatingRef.current = false;

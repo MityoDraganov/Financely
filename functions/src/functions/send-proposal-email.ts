@@ -7,6 +7,11 @@ import { getProposalRepository } from "../repositories/proposal-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { getContactRepository } from "../repositories/contact-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
+import {
+  PROPOSAL_STATUSES,
+  normalizeProposalStatus,
+  type ProposalDeliveryEvent,
+} from "../core/entities/proposal";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
 import { ORGANIZATION_ROLES } from "../core/roles";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
@@ -97,6 +102,19 @@ const formatCurrency = (value: number | undefined, currency: string | undefined)
   } catch {
     return `${amount} ${normalizedCurrency}`;
   }
+};
+
+const toProposalDeliveryHistory = (value: unknown): ProposalDeliveryEvent[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is ProposalDeliveryEvent => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return false;
+    }
+    const candidate = entry as Record<string, unknown>;
+    return typeof candidate.sentAt === "string";
+  });
 };
 
 export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent: boolean }>>(
@@ -197,7 +215,7 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
 
       const proposalTitle = toStringValue(proposalRecord.title) || proposalId;
       auditProposalTitle = proposalTitle;
-      const proposalStatus = toStringValue(proposalRecord.status) || "DRAFT";
+      const proposalStatus = normalizeProposalStatus(toStringValue(proposalRecord.status));
       const proposalCurrency = toStringValue(proposalRecord.currency) || "USD";
       const proposalTotal =
         typeof proposalRecord.total === "number" ? proposalRecord.total : undefined;
@@ -384,6 +402,44 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
         success: result.success,
         messageId: result.messageId,
       });
+
+      if (result.success) {
+        try {
+          const sentAt = new Date().toISOString();
+          const previousHistory = toProposalDeliveryHistory(proposalRecord.deliveryHistory);
+          const deliveryEvent: ProposalDeliveryEvent = {
+            method: "email",
+            channel: "email",
+            recipient: toEmail,
+            sentAt,
+            sentByUserId: request.auth?.uid,
+            details: {
+              emailTemplateId: emailTemplateId ?? null,
+              messageId: result.messageId ?? null,
+              source: "sendProposalEmail",
+            },
+          };
+
+          const updateData: Record<string, unknown> = {
+            deliveryHistory: [...previousHistory, deliveryEvent],
+          };
+
+          if (proposalStatus !== PROPOSAL_STATUSES.ACCEPTED && proposalStatus !== PROPOSAL_STATUSES.INVOICED) {
+            updateData.status = PROPOSAL_STATUSES.SENT;
+          }
+
+          await proposalRepository.update({
+            id: proposalId,
+            data: updateData as any,
+          });
+        } catch (updateError) {
+          logger.warn("Failed to update proposal delivery history after email send", {
+            proposalId,
+            toEmail,
+            error: updateError instanceof Error ? updateError.message : String(updateError),
+          });
+        }
+      }
 
       try {
         const userContext = await extractUserContextFromRequest(request);

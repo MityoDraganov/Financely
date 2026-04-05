@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProposalsByOrg } from "@/hooks/repository-hooks/use-proposals";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
-import { PROPOSAL_STATUSES } from "@/core";
+import { PROPOSAL_STATUSES, normalizeProposalStatus } from "@/core";
 import { ExportDialog } from "@/components/export-import/export-dialog";
+import { formatProposalCurrency } from "@/utils/proposal-currency";
 
 export default function ProposalsPage() {
   const { t } = useTranslation();
@@ -27,8 +28,10 @@ export default function ProposalsPage() {
 
   // Filter proposals
   const filteredProposals = proposals.filter((proposal) => {
+    const normalizedStatus = normalizeProposalStatus(proposal.status);
+
     // Status filter
-    if (statusFilter !== "all" && proposal.status !== statusFilter) {
+    if (statusFilter !== "all" && normalizedStatus !== statusFilter) {
       return false;
     }
 
@@ -45,13 +48,15 @@ export default function ProposalsPage() {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case PROPOSAL_STATUSES.DRAFT:
+    switch (normalizeProposalStatus(status)) {
+      case PROPOSAL_STATUSES.CREATED:
         return "bg-gray-100 text-gray-800";
       case PROPOSAL_STATUSES.SENT:
         return "bg-blue-100 text-blue-800";
       case PROPOSAL_STATUSES.ACCEPTED:
         return "bg-green-100 text-green-800";
+      case PROPOSAL_STATUSES.INVOICED:
+        return "bg-purple-100 text-purple-800";
       case PROPOSAL_STATUSES.REJECTED:
         return "bg-red-100 text-red-800";
       case PROPOSAL_STATUSES.EXPIRED:
@@ -62,10 +67,7 @@ export default function ProposalsPage() {
   };
 
   const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-    }).format(amount);
+    return formatProposalCurrency(amount, currency);
   };
 
   if (isLoading) {
@@ -121,9 +123,10 @@ export default function ProposalsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('proposals.filters.allStatuses')}</SelectItem>
-            <SelectItem value={PROPOSAL_STATUSES.DRAFT}>{t('proposals.status.DRAFT')}</SelectItem>
+            <SelectItem value={PROPOSAL_STATUSES.CREATED}>{t('proposals.status.CREATED')}</SelectItem>
             <SelectItem value={PROPOSAL_STATUSES.SENT}>{t('proposals.status.SENT')}</SelectItem>
             <SelectItem value={PROPOSAL_STATUSES.ACCEPTED}>{t('proposals.status.ACCEPTED')}</SelectItem>
+            <SelectItem value={PROPOSAL_STATUSES.INVOICED}>{t('proposals.status.INVOICED')}</SelectItem>
             <SelectItem value={PROPOSAL_STATUSES.REJECTED}>{t('proposals.status.REJECTED')}</SelectItem>
             <SelectItem value={PROPOSAL_STATUSES.EXPIRED}>{t('proposals.status.EXPIRED')}</SelectItem>
           </SelectContent>
@@ -172,7 +175,9 @@ export default function ProposalsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProposals.map((proposal) => (
+                {filteredProposals.map((proposal) => {
+                  const normalizedStatus = normalizeProposalStatus(proposal.status);
+                  return (
                   <TableRow key={proposal.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center space-x-2">
@@ -195,8 +200,8 @@ export default function ProposalsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(proposal.status)}>
-                        {t(`proposals.status.${proposal.status}`)}
+                      <Badge className={getStatusColor(normalizedStatus)}>
+                        {t(`proposals.status.${normalizedStatus}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -225,7 +230,8 @@ export default function ProposalsPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

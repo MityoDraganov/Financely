@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getInvoiceAmount, getInvoiceValue } from "@/utils/invoice-helpers";
+import { INVOICE_STATUSES, normalizeInvoiceStatus } from "@/core/entities/invoice";
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -34,9 +35,9 @@ export default function DashboardPage() {
   const totalTemplates = templates?.length || 0;
   
   // Calculate invoice metrics by status
-  const paidInvoices = invoices?.filter(inv => inv.status === 'paid') || [];
-  const unpaidInvoices = invoices?.filter(inv => inv.status === 'sent') || [];
-  const draftInvoices = invoices?.filter(inv => inv.status === 'draft') || [];
+  const paidInvoices = invoices?.filter((inv) => normalizeInvoiceStatus(inv.status) === INVOICE_STATUSES.PAID) || [];
+  const unpaidInvoices = invoices?.filter((inv) => normalizeInvoiceStatus(inv.status) === INVOICE_STATUSES.SENT) || [];
+  const unsentInvoices = invoices?.filter((inv) => normalizeInvoiceStatus(inv.status) === INVOICE_STATUSES.UNSENT) || [];
   
   // Calculate revenue - only from paid invoices
   const paidRevenue = paidInvoices.reduce((sum, invoice) => {
@@ -49,7 +50,7 @@ export default function DashboardPage() {
   }, 0);
   
   // Calculate draft invoices total amount
-  const draftAmount = draftInvoices.reduce((sum, invoice) => {
+  const unsentAmount = unsentInvoices.reduce((sum, invoice) => {
     return sum + getInvoiceAmount(invoice);
   }, 0);
   
@@ -164,12 +165,12 @@ export default function DashboardPage() {
         ) : (
           <>
             <MetricCard
-              title={t('dashboard.metrics.draftInvoices')}
-              value={draftInvoices.length}
+              title={t('dashboard.metrics.unsentInvoices')}
+              value={unsentInvoices.length}
               description={
-                draftAmount > 0 
-                  ? t('dashboard.metrics.draftAmount', { amount: draftAmount.toLocaleString() })
-                  : t('dashboard.metrics.noDrafts')
+                unsentAmount > 0
+                  ? t('dashboard.metrics.unsentAmount', { amount: unsentAmount.toLocaleString() })
+                  : t('dashboard.metrics.noUnsent')
               }
               icon={FileText}
               isLoading={isInvoicesLoading}
@@ -177,7 +178,7 @@ export default function DashboardPage() {
 
             <MetricCard
               title={t('dashboard.metrics.totalAmount')}
-              value={`$${(paidRevenue + outstandingAmount + draftAmount).toLocaleString()}`}
+              value={`$${(paidRevenue + outstandingAmount + unsentAmount).toLocaleString()}`}
               description={t('dashboard.metrics.acrossAllInvoices')}
               icon={DollarSign}
               isLoading={isInvoicesLoading}
@@ -233,7 +234,9 @@ export default function DashboardPage() {
               </div>
             ) : recentInvoices.length > 0 ? (
               <div className="space-y-2.5">
-                {recentInvoices.map((invoice) => (
+                {recentInvoices.map((invoice) => {
+                  const normalizedStatus = normalizeInvoiceStatus(invoice.status);
+                  return (
                   <div key={invoice.id} className="flex items-center space-x-3 min-w-0">
                     <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10 shrink-0">
                       <FileText className="h-5 w-5 text-primary" />
@@ -245,14 +248,14 @@ export default function DashboardPage() {
                         </p>
                         <Badge 
                           variant={
-                            invoice.status === 'paid' ? 'default' :
-                            invoice.status === 'sent' ? 'secondary' :
-                            invoice.status === 'cancelled' ? 'destructive' :
+                            normalizedStatus === INVOICE_STATUSES.PAID ? 'default' :
+                            normalizedStatus === INVOICE_STATUSES.SENT ? 'secondary' :
+                            normalizedStatus === INVOICE_STATUSES.CANCELLED ? 'destructive' :
                             'outline'
                           }
                           className="text-xs shrink-0"
                         >
-                          {invoice.status ? t(`dashboard.status.${invoice.status}`) : t('dashboard.status.draft')}
+                          {t(`dashboard.status.${normalizedStatus}`)}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
@@ -272,7 +275,8 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-4">
@@ -404,19 +408,19 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between py-0.5">
                     <div className="flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
-                      <span className="text-sm">{t('dashboard.invoiceStatus.draft')}</span>
+                      <span className="text-sm">{t('dashboard.invoiceStatus.unsent')}</span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium">{draftInvoices.length}</p>
-                      {draftAmount > 0 && (
+                      <p className="text-sm font-medium">{unsentInvoices.length}</p>
+                      {unsentAmount > 0 && (
                         <p className="text-xs text-muted-foreground">
-                          ${draftAmount.toLocaleString()}
+                          ${unsentAmount.toLocaleString()}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {invoices && invoices.some(inv => inv.status === 'cancelled') && (
+                  {invoices && invoices.some(inv => normalizeInvoiceStatus(inv.status) === INVOICE_STATUSES.CANCELLED) && (
                     <div className="flex items-center justify-between py-0.5">
                       <div className="flex items-center gap-1.5">
                         <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
@@ -424,7 +428,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">
-                          {invoices.filter(inv => inv.status === 'cancelled').length}
+                          {invoices.filter(inv => normalizeInvoiceStatus(inv.status) === INVOICE_STATUSES.CANCELLED).length}
                         </p>
                       </div>
                     </div>

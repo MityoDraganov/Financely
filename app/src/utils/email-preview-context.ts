@@ -1,4 +1,10 @@
 import type { Contact, EmailTemplatePlaceholder, Invoice, Product, Proposal } from "@/core";
+import {
+	normalizeInvoiceStatus,
+	normalizeProposalStatus,
+	INVOICE_STATUSES,
+	PROPOSAL_STATUSES,
+} from "@/core";
 import type { DynamicSourceEntity, DynamicSourceField } from "@/utils/dynamic-sources";
 
 type DynamicPlaceholderSource = {
@@ -396,9 +402,10 @@ const scoreInvoice = (invoice: Invoice, requiredPaths: string[]) => {
 		score += isPopulated(getInvoiceValueByPath(invoice, path)) ? 2 : 0;
 	});
 
-	if (invoice.status === "paid") {
+	const normalizedStatus = normalizeInvoiceStatus(invoice.status);
+	if (normalizedStatus === INVOICE_STATUSES.PAID) {
 		score += 4;
-	} else if (invoice.status === "sent") {
+	} else if (normalizedStatus === INVOICE_STATUSES.SENT) {
 		score += 2;
 	}
 
@@ -419,9 +426,12 @@ const scoreProposal = (proposal: Proposal, requiredPaths: string[]) => {
 		score += isPopulated(getNestedValue(proposal, path)) ? 2 : 0;
 	});
 
-	if (proposal.status === "ACCEPTED") {
+	const normalizedStatus = normalizeProposalStatus(proposal.status);
+	if (normalizedStatus === PROPOSAL_STATUSES.ACCEPTED) {
 		score += 4;
-	} else if (proposal.status === "SENT") {
+	} else if (normalizedStatus === PROPOSAL_STATUSES.SENT) {
+		score += 2;
+	} else if (normalizedStatus === PROPOSAL_STATUSES.INVOICED) {
 		score += 2;
 	}
 
@@ -631,9 +641,7 @@ export const formatInvoicePreviewLabel = (invoice: Invoice) => {
 	if (amount !== undefined) {
 		parts.push(formatCurrencyAmount(amount, currency));
 	}
-	if (invoice.status) {
-		parts.push(toSentenceCase(invoice.status));
-	}
+	parts.push(toSentenceCase(normalizeInvoiceStatus(invoice.status)));
 
 	return parts.filter(Boolean).join(" • ") || invoice.id;
 };
@@ -646,8 +654,6 @@ export const formatProposalPreviewLabel = (proposal: Proposal) => {
 	if (typeof proposal.total === "number") {
 		parts.push(formatCurrencyAmount(proposal.total, proposal.currency));
 	}
-	if (proposal.status) {
-		parts.push(toSentenceCase(proposal.status));
-	}
+	parts.push(toSentenceCase(normalizeProposalStatus(proposal.status)));
 	return parts.filter(Boolean).join(" • ") || proposal.id;
 };

@@ -153,6 +153,10 @@ export const createOrganization = onCall<
           invoiceNumberStart: DEFAULT_ORGANIZATION_SETTINGS.invoiceNumberStart,
           features: { ...DEFAULT_ORGANIZATION_SETTINGS.features },
           ai: { ...DEFAULT_ORGANIZATION_SETTINGS.ai },
+          multiCurrency: {
+            enabled: DEFAULT_ORGANIZATION_SETTINGS.multiCurrency.enabled,
+            pairs: [...DEFAULT_ORGANIZATION_SETTINGS.multiCurrency.pairs],
+          },
           // Whitelist onboarding-collected fields
           ...(payload.settings?.country && { country: payload.settings.country }),
           ...(payload.settings?.currency && { currency: payload.settings.currency }),
