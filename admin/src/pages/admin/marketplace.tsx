@@ -30,8 +30,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Search, FileText, Mail, Eye, Star, StarOff, Sparkles, Rocket } from "lucide-react";
+import { Search, FileText, Mail, Eye, Star, StarOff, Sparkles, Rocket, Pencil, Palette } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAdminMarketplaceTemplates } from "@/hooks/admin/use-admin-marketplace-templates";
 import { useAdminFeatureMarketplaceTemplate } from "@/hooks/admin/use-admin-approve-marketplace-template";
 import { useAdminUnfeatureMarketplaceTemplate } from "@/hooks/admin/use-admin-reject-marketplace-template";
@@ -43,6 +44,7 @@ import { type PublishOfficialTemplatePackResult } from "@/hooks/admin/use-admin-
 import { MarketplaceTemplate } from "@/core";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { QAReviewDialog } from "@/components/admin/QAReviewDialog";
+import { MarketplaceTemplateEditDialog } from "@/components/admin/MarketplaceTemplateEditDialog";
 import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 20;
@@ -57,6 +59,7 @@ function resolveOfficialDraftQaState(template: MarketplaceTemplate): OfficialDra
 }
 
 export function AdminMarketplacePage() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<MarketplaceTemplate | null>(null);
@@ -69,6 +72,7 @@ export function AdminMarketplacePage() {
     useState<GenerateOfficialTemplatePackResult | null>(null);
   const [lastPublishResult, setLastPublishResult] =
     useState<PublishOfficialTemplatePackResult | null>(null);
+  const [templateToEdit, setTemplateToEdit] = useState<MarketplaceTemplate | null>(null);
 
   // QA Review state
   const [showQADialog, setShowQADialog] = useState(false);
@@ -207,6 +211,38 @@ export function AdminMarketplacePage() {
   const openDetailDialog = (template: MarketplaceTemplate) => {
     setSelectedTemplate(template);
     setShowDetailDialog(true);
+  };
+
+  const canEditPublishedOfficialTemplate = (template: MarketplaceTemplate) =>
+    template.isOfficial && template.status === "published";
+
+  const openPublishedTemplateEditor = (template: MarketplaceTemplate) => {
+    if (!canEditPublishedOfficialTemplate(template)) {
+      toast.info("Only published official templates are editable here.");
+      return;
+    }
+    navigate(`/marketplace/${template.id}/designer`);
+  };
+
+  const openPublishedTemplateMetadataEditor = (template: MarketplaceTemplate) => {
+    if (!canEditPublishedOfficialTemplate(template)) {
+      toast.info("Only published official templates are editable here.");
+      return;
+    }
+    setTemplateToEdit(template);
+  };
+
+  const handleEditDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setTemplateToEdit(null);
+    }
+  };
+
+  const handleTemplateUpdated = (updatedTemplate: MarketplaceTemplate) => {
+    setTemplateToEdit(updatedTemplate);
+    setSelectedTemplate((current) =>
+      current?.id === updatedTemplate.id ? updatedTemplate : current,
+    );
   };
 
   const getTypeIcon = (type: string) => (type === "invoice" ? FileText : Mail);
@@ -601,6 +637,26 @@ export function AdminMarketplacePage() {
                                 <Eye className="h-4 w-4" />
                                 View
                               </Button>
+                              {canEditPublishedOfficialTemplate(template) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openPublishedTemplateMetadataEditor(template)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                  Edit
+                                </Button>
+                              )}
+                              {canEditPublishedOfficialTemplate(template) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openPublishedTemplateEditor(template)}
+                                >
+                                  <Palette className="h-4 w-4" />
+                                  Designer
+                                </Button>
+                              )}
                               {template.isFeatured ? (
                                 <Button
                                   variant="ghost"
@@ -806,6 +862,24 @@ export function AdminMarketplacePage() {
             >
               Close
             </Button>
+            {selectedTemplate && canEditPublishedOfficialTemplate(selectedTemplate) && (
+              <Button
+                variant="outline"
+                onClick={() => openPublishedTemplateMetadataEditor(selectedTemplate)}
+              >
+                <Pencil className="h-4 w-4" />
+                Edit Template
+              </Button>
+            )}
+            {selectedTemplate && canEditPublishedOfficialTemplate(selectedTemplate) && (
+              <Button
+                variant="outline"
+                onClick={() => openPublishedTemplateEditor(selectedTemplate)}
+              >
+                <Palette className="h-4 w-4" />
+                Open Designer
+              </Button>
+            )}
             {selectedTemplate?.isFeatured ? (
               <Button
                 variant="outline"
@@ -856,6 +930,15 @@ export function AdminMarketplacePage() {
         templateQueue={qaTemplateQueue}
         onPublished={handleQAPublished}
       />
+
+      <MarketplaceTemplateEditDialog
+        open={templateToEdit !== null}
+        onOpenChange={handleEditDialogOpenChange}
+        template={templateToEdit}
+        mode="published"
+        onTemplateUpdated={handleTemplateUpdated}
+      />
+
     </div>
   );
 }

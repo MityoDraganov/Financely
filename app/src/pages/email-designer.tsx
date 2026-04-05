@@ -84,6 +84,7 @@ import {
 	useEmailTemplateVersions,
 	useRestoreEmailTemplateVersion,
 } from "@/hooks/repository-hooks/use-email-template-versions";
+import type { EmailDesignerPageNavigationProps } from "@shared/designer-entities";
 
 type BrandAssets = {
 	logo?: string;
@@ -221,10 +222,25 @@ const buildTemplateSavePayload = (
 	};
 };
 
-export default function EmailDesignerPage() {
+export default function EmailDesignerPage({
+	onMissingTemplateRedirect,
+	onTemplateCreatedNavigate,
+	resolveRoutePath,
+}: EmailDesignerPageNavigationProps = {}) {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const navigate = useNavigate();
+	const resolvedRoutePath = useMemo(
+		() =>
+			resolveRoutePath ??
+			((key: "templates" | "emailDesigner", id?: string) =>
+				key === "templates"
+					? "/templates"
+					: id
+						? `/email-designer/${id}`
+						: "/email-designer"),
+		[resolveRoutePath],
+	);
 	const location = useLocation();
 	const queryClient = useQueryClient();
 	const locationState = (location.state as { templateId?: string; action?: "create" } | null) || null;
@@ -701,8 +717,8 @@ export default function EmailDesignerPage() {
 			if (templateExists && safeContextCurrentTemplateId !== templateIdFromUrl) {
 				safeSetContextCurrentTemplateId(templateIdFromUrl);
 			} else if (!templateExists && safeTemplates.length > 0) {
-				// Template not found, redirect to templates list
-				// navigate("/templates");
+				// Host-controlled missing-template behavior (default keeps prior no-op behavior)
+				onMissingTemplateRedirect?.();
 			}
 		} else if (
 			!safeContextCurrentTemplateId && 
@@ -735,7 +751,7 @@ export default function EmailDesignerPage() {
 			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess]);
+	}, [safeTemplates, safeContextCurrentTemplateId, templateIdFromUrl, createTemplate.isPending, createTemplate.isSuccess, onMissingTemplateRedirect]);
 
 	const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 	// Track the last saved payload signature to prevent unnecessary saves
@@ -2401,8 +2417,11 @@ export default function EmailDesignerPage() {
 			onTemplateCreated={(templateId) => {
 				safeSetContextCurrentTemplateId(templateId);
 				setAiBuilderOpen(false);
-				// Navigate to the newly created template
-				navigate(`/email-designer/${templateId}`, { replace: true });
+				if (onTemplateCreatedNavigate) {
+					onTemplateCreatedNavigate(templateId, { replace: true });
+					return;
+				}
+				navigate(resolvedRoutePath("emailDesigner", templateId), { replace: true });
 			}}
 			products={products.map((p) => ({
 				name: p.name,

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Eye,
   Maximize2,
+  Pencil,
   RotateCcw,
   UploadCloud,
   XCircle,
@@ -26,6 +27,7 @@ import {
 } from "@/hooks/admin/use-admin-publish-official-template-pack";
 import { useAdminGetTemplatePreviewHtml } from "@/hooks/admin/use-admin-get-template-preview-html";
 import { buildEmailPreviewHtml } from "@/utils/email-preview";
+import { MarketplaceTemplateEditDialog } from "@/components/admin/MarketplaceTemplateEditDialog";
 
 interface QAReviewDialogProps {
   open: boolean;
@@ -95,9 +97,12 @@ export function QAReviewDialog({
   onPublished,
 }: QAReviewDialogProps) {
   const [qaIndex, setQaIndex] = useState(0);
+  const [qaTemplates, setQaTemplates] = useState<MarketplaceTemplate[]>([]);
   const [qaDecisions, setQaDecisions] = useState<Record<string, "approved" | "discarded">>({});
   const [previewHtmlCache, setPreviewHtmlCache] = useState<Record<string, string>>({});
+  const [previewHtmlLoadingIds, setPreviewHtmlLoadingIds] = useState<Set<string>>(new Set());
   const [isInvoicePreviewFullscreen, setIsInvoicePreviewFullscreen] = useState(false);
+  const [templateToEdit, setTemplateToEdit] = useState<MarketplaceTemplate | null>(null);
 
   const publishOfficialTemplatePack = useAdminPublishOfficialTemplatePack();
   const getPreviewHtml = useAdminGetTemplatePreviewHtml();
@@ -105,26 +110,50 @@ export function QAReviewDialog({
   useEffect(() => {
     if (open) {
       setQaIndex(0);
+      setQaTemplates(templateQueue);
       setQaDecisions({});
       setPreviewHtmlCache({});
+      setPreviewHtmlLoadingIds(new Set());
       setIsInvoicePreviewFullscreen(false);
+      setTemplateToEdit(null);
     }
+  // templateQueue should be snapshotted only when a QA session opens.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const currentQaTemplate = templateQueue[qaIndex];
-  const isQaComplete = qaIndex >= templateQueue.length && templateQueue.length > 0;
+  const currentQaTemplate = qaTemplates[qaIndex];
+  const isQaComplete = qaIndex >= qaTemplates.length && qaTemplates.length > 0;
 
   // Fetch invoice preview HTML from server when navigating to an invoice template.
   useEffect(() => {
     if (!currentQaTemplate || currentQaTemplate.type !== "invoice") return;
     if (previewHtmlCache[currentQaTemplate.id] !== undefined) return;
+    if (previewHtmlLoadingIds.has(currentQaTemplate.id)) return;
     const id = currentQaTemplate.id;
-    getPreviewHtml.mutate(id, {
-      onSuccess: (data) => setPreviewHtmlCache((prev) => ({ ...prev, [id]: data.html })),
-      onError: () => setPreviewHtmlCache((prev) => ({ ...prev, [id]: "" })),
+    setPreviewHtmlLoadingIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQaTemplate?.id]);
+    getPreviewHtml.mutate(id, {
+      onSuccess: (data) => {
+        setPreviewHtmlCache((prev) => ({ ...prev, [id]: data.html }));
+        setPreviewHtmlLoadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      },
+      onError: () => {
+        setPreviewHtmlCache((prev) => ({ ...prev, [id]: "" }));
+        setPreviewHtmlLoadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      },
+    });
+  }, [currentQaTemplate, getPreviewHtml, previewHtmlCache, previewHtmlLoadingIds]);
   const qaApprovedIds = Object.entries(qaDecisions)
     .filter(([, d]) => d === "approved")
     .map(([id]) => id);
@@ -139,7 +168,7 @@ export function QAReviewDialog({
         ? (content.placeholders as EmailPreviewTemplate["placeholders"])
         : undefined,
     });
-  }, [currentQaTemplate?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentQaTemplate]);
 
   const invoicePreviewHtml =
     currentQaTemplate?.type === "invoice" ? (previewHtmlCache[currentQaTemplate.id] ?? "") : "";
@@ -156,7 +185,33 @@ export function QAReviewDialog({
   };
 
   const handlePrev = () => setQaIndex((i) => Math.max(0, i - 1));
-  const handleNext = () => setQaIndex((i) => Math.min(templateQueue.length - 1, i + 1));
+  const handleNext = () => setQaIndex((i) => Math.min(qaTemplates.length - 1, i + 1));
+
+  const handleTemplateUpdated = (updatedTemplate: MarketplaceTemplate) => {
+    setQaTemplates((prev) =>
+      prev.map((template) => (template.id === updatedTemplate.id ? updatedTemplate : template)),
+    );
+    setPreviewHtmlCache((prev) => {
+      if (updatedTemplate.type !== "invoice") return prev;
+      const next = { ...prev };
+      delete next[updatedTemplate.id];
+      return next;
+    });
+    setPreviewHtmlLoadingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(updatedTemplate.id);
+      return next;
+    });
+    setTemplateToEdit((current) =>
+      current?.id === updatedTemplate.id ? updatedTemplate : current,
+    );
+  };
+
+  const handleEditDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setTemplateToEdit(null);
+    }
+  };
 
   const handlePublishApproved = async () => {
     if (qaApprovedIds.length === 0) return;
@@ -186,7 +241,7 @@ export function QAReviewDialog({
             <DialogTitle className="text-sm font-semibold">
               {isQaComplete
                 ? "Review complete"
-                : `Reviewing ${qaIndex + 1} of ${templateQueue.length}`}
+                : `Reviewing ${qaIndex + 1} of ${qaTemplates.length}`}
             </DialogTitle>
             <DialogDescription className="text-xs mt-0.5">
               {isQaComplete
@@ -194,7 +249,7 @@ export function QAReviewDialog({
                 : "Approve or discard each template before publishing"}
             </DialogDescription>
           </div>
-          {!isQaComplete && templateQueue.length > 0 && (
+          {!isQaComplete && qaTemplates.length > 0 && (
             <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="ghost"
@@ -206,7 +261,7 @@ export function QAReviewDialog({
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-1">
-                {templateQueue.map((t, i) => (
+                {qaTemplates.map((t, i) => (
                   <button
                     key={t.id}
                     onClick={() => setQaIndex(i)}
@@ -214,7 +269,7 @@ export function QAReviewDialog({
                     style={{
                       background:
                         i < qaIndex
-                          ? qaDecisions[templateQueue[i].id] === "approved"
+                          ? qaDecisions[qaTemplates[i].id] === "approved"
                             ? "hsl(142, 71%, 35%)"
                             : "hsl(0, 84%, 60%)"
                           : i === qaIndex
@@ -229,7 +284,7 @@ export function QAReviewDialog({
                 size="icon"
                 className="h-7 w-7"
                 onClick={handleNext}
-                disabled={qaIndex >= templateQueue.length - 1}
+                disabled={qaIndex >= qaTemplates.length - 1}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -267,7 +322,7 @@ export function QAReviewDialog({
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-auto max-h-72 divide-y">
-                  {templateQueue.map((t) => (
+                  {qaTemplates.map((t) => (
                     <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{t.title}</p>
@@ -482,7 +537,7 @@ export function QAReviewDialog({
             <>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>
-                  {Object.keys(qaDecisions).length} of {templateQueue.length} reviewed
+                  {Object.keys(qaDecisions).length} of {qaTemplates.length} reviewed
                 </span>
                 <span className="h-1 w-1 rounded-full bg-border" />
                 <span className="text-green-700 font-medium">{qaApprovedIds.length} approved</span>
@@ -504,11 +559,21 @@ export function QAReviewDialog({
                   size="icon"
                   className="h-8 w-8"
                   onClick={handleNext}
-                  disabled={qaIndex >= templateQueue.length - 1}
+                  disabled={qaIndex >= qaTemplates.length - 1}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <div className="w-px h-5 bg-border mx-1" />
+                {currentQaTemplate?.isOfficial && currentQaTemplate.status !== "published" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTemplateToEdit(currentQaTemplate)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -556,6 +621,14 @@ export function QAReviewDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <MarketplaceTemplateEditDialog
+        open={open && templateToEdit !== null}
+        onOpenChange={handleEditDialogOpenChange}
+        template={templateToEdit}
+        mode="qa"
+        onTemplateUpdated={handleTemplateUpdated}
+      />
     </>
   );
 }

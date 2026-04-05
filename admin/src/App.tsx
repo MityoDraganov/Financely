@@ -17,10 +17,12 @@ import { AdminSettingsPage } from "@/pages/admin/settings";
 import { AdminLogsPage } from "@/pages/admin/logs";
 import { AdminUserDetailPage } from "@/pages/admin/user-detail";
 import { AdminMarketplacePage } from "@/pages/admin/marketplace";
+import { AdminMarketplaceDesignerPage } from "@/pages/admin/marketplace-designer";
 import { AdminTemplatePreviewPastePage } from "@/pages/admin/template-preview-paste";
 import { AdminSignInPage } from "@/pages/sign-in";
 import { AdminAuthProvider } from "@/components/AdminAuthProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OrganizationProvider } from "@app/contexts/organization-context";
 
 const queryClient = new QueryClient();
 
@@ -164,6 +166,18 @@ function App() {
                   }
                 />
                 <Route
+                  path="/marketplace/:id/designer"
+                  element={
+                    <AdminProtectedRoute>
+                      <OrganizationProvider>
+                        <AdminLayout>
+                          <AdminMarketplaceDesignerPage />
+                        </AdminLayout>
+                      </OrganizationProvider>
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
                   path="/template-preview"
                   element={
                     <AdminProtectedRoute>
@@ -187,4 +201,3 @@ function App() {
 }
 
 export default App;
-

@@ -325,6 +325,19 @@
   }
 }
 
+/* Prevent mobile auth code inputs from being scrolled past the visible area
+   when iOS auto-focus + keyboard viewport adjustments run together. */
+.auth-viewport-shell {
+  overflow-anchor: none;
+}
+
+.auth-viewport-shell input,
+.auth-viewport-shell textarea,
+.auth-viewport-shell [contenteditable="true"] {
+  scroll-margin-top: max(env(safe-area-inset-top), 7rem);
+  scroll-margin-bottom: max(env(safe-area-inset-bottom), 14rem);
+}
+
 /* Base styles */
 @layer base {
   * {

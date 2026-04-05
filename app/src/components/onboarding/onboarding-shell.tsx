@@ -87,7 +87,7 @@ export function OnboardingShell({ children }: OnboardingShellProps) {
         </div>
 
         {/* Card — natural height; grid row stretches both columns to match the taller side */}
-        <div className="rounded-3xl shadow-2xl overflow-hidden">
+        <div className="rounded-3xl shadow-2xl">
           <div className={`grid ${showPreview ? "lg:grid-cols-[1fr_400px]" : "grid-cols-1"}`}>
 
             {/* Left panel */}

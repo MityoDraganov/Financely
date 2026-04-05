@@ -25,9 +25,10 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*", "../app/src/*"],
+      "@app/*": ["../app/src/*"],
+      "@shared/*": ["../app/src/shared/*"]
     }
   },
   "include": ["src"]
 }
-

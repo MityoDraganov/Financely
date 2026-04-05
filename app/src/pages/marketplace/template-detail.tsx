@@ -2,6 +2,8 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMarketplaceTemplate } from "@/hooks/repository-hooks/use-marketplace-templates";
 import { useMarketplaceTemplateVersions } from "@/hooks/repository-hooks/use-marketplace-template-versions";
 import { useAddMarketplaceTemplate } from "@/hooks/use-add-marketplace-template";
+import { useTemplates } from "@/hooks/repository-hooks/use-templates";
+import { useEmailTemplates } from "@/hooks/repository-hooks/use-email-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useIsMarketplaceTemplateAdded } from "@/hooks/use-is-marketplace-template-added";
 import { useFirebaseAuthUser } from "@/hooks/service-hooks/auth/use-auth";
@@ -23,7 +25,7 @@ import {
 	Calendar,
 	Hash,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { EmailTemplateData, TemplateData } from "@/core";
 import { getDefaultPrintMarginsPx } from "@/utils/print-margins";
@@ -46,13 +48,108 @@ export default function TemplateDetailPage() {
 	const addTemplate = useAddMarketplaceTemplate();
 	const publishTemplateVersion = usePublishMarketplaceTemplateVersion();
 	const [isAdding, setIsAdding] = useState(false);
+	const [isOpeningCanvas, setIsOpeningCanvas] = useState(false);
 	const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [changelog, setChangelog] = useState("");
+	const autoOpenCanvasInFlightRef = useRef(false);
 	const isAdded = useIsMarketplaceTemplateAdded(
 		template,
 		currentOrganization?.id,
 	);
+	const { data: orgInvoiceTemplates = [] } = useTemplates(
+		currentOrganization?.id,
+	);
+	const { data: orgEmailTemplates = [] } = useEmailTemplates(
+		currentOrganization?.id,
+	);
+
+	const importedTemplateId = useMemo(() => {
+		if (!template) return null;
+		if (template.type === "invoice") {
+			return (
+				orgInvoiceTemplates.find(
+					(entry) => entry.marketplaceTemplateId === template.id,
+				)?.id ?? null
+			);
+		}
+		return (
+			orgEmailTemplates.find(
+				(entry) => entry.marketplaceTemplateId === template.id,
+			)?.id ?? null
+		);
+	}, [template, orgInvoiceTemplates, orgEmailTemplates]);
+
+	const navigateToCanvas = useCallback(
+		(templateId: string) => {
+			if (!template) return;
+			if (template.type === "invoice") {
+				navigate(`/designer/${templateId}`, { replace: true });
+				return;
+			}
+			navigate(`/email-designer/${templateId}`, { replace: true });
+		},
+		[navigate, template],
+	);
+
+	const ensureTemplateInOrgAndOpenCanvas = useCallback(async () => {
+		if (!template) return;
+		if (!currentOrganization?.id) {
+			toast.error("Select an organization before opening the canvas editor.");
+			return;
+		}
+
+		if (importedTemplateId) {
+			navigateToCanvas(importedTemplateId);
+			return;
+		}
+
+		setIsOpeningCanvas(true);
+		try {
+			const result = await addTemplate.mutateAsync({
+				templateId: template.id,
+				orgId: currentOrganization.id,
+				templateType: template.type,
+			});
+			navigateToCanvas(result.templateId);
+		} finally {
+			setIsOpeningCanvas(false);
+		}
+	}, [
+		addTemplate,
+		currentOrganization?.id,
+		importedTemplateId,
+		navigateToCanvas,
+		template,
+	]);
+
+	useEffect(() => {
+		const shouldAutoOpenCanvas = searchParams.get("openCanvas") === "1";
+		if (!shouldAutoOpenCanvas) return;
+		if (!template || !currentOrganization?.id) return;
+		if (autoOpenCanvasInFlightRef.current) return;
+
+		autoOpenCanvasInFlightRef.current = true;
+		ensureTemplateInOrgAndOpenCanvas()
+			.catch((error) => {
+				toast.error("Failed to open canvas editor", {
+					description:
+						error instanceof Error ? error.message : "Unknown error",
+				});
+			})
+			.finally(() => {
+				autoOpenCanvasInFlightRef.current = false;
+				const next = new URLSearchParams(searchParams);
+				next.delete("openCanvas");
+				setSearchParams(next, { replace: true });
+			});
+	}, [
+		currentOrganization?.id,
+		ensureTemplateInOrgAndOpenCanvas,
+		searchParams,
+		setSearchParams,
+		template,
+	]);
 
 	const handleAddTemplate = async () => {
 		if (!currentOrganization?.id || !id || !template) return;
@@ -868,6 +965,23 @@ export default function TemplateDetailPage() {
 										</div>
 									) : (
 										<>
+											<button
+												onClick={ensureTemplateInOrgAndOpenCanvas}
+												disabled={isOpeningCanvas || !currentOrganization?.id}
+												className={cn(
+													"w-full h-11 rounded-xl text-sm font-semibold border transition-colors flex items-center justify-center gap-2",
+													!currentOrganization?.id
+														? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+														: "border-emerald-200 text-emerald-700 hover:bg-emerald-50",
+												)}
+											>
+												{isOpeningCanvas
+													? "Opening canvas…"
+													: importedTemplateId
+														? "Open Canvas Editor"
+														: "Add and Open Canvas"}
+											</button>
+
 											{/* Action button */}
 											<button
 												onClick={handleAddTemplate}

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { SignUp, useAuth } from "@clerk/clerk-react";
+import { useEffect, useRef, useState } from "react";
 import { Shield, Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/hooks/use-onboarding-store";
@@ -11,6 +12,8 @@ interface SignUpStepProps {
 
 export function SignUpStep({ onBack }: SignUpStepProps) {
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const [isVerificationStep, setIsVerificationStep] = useState(false);
+  const clerkShellRef = useRef<HTMLDivElement | null>(null);
   const { brandingData, formData } = useOnboardingStore(
     useShallow((state) => ({
       brandingData: state.brandingData,
@@ -24,6 +27,50 @@ export function SignUpStep({ onBack }: SignUpStepProps) {
     afterSignUpUrl = `/onboarding?inviteCode=${store.inviteCode}`;
   }
   const signInUrl = `/sign-in?redirect_url=${encodeURIComponent(afterSignUpUrl)}`;
+
+  useEffect(() => {
+    const root = clerkShellRef.current;
+    if (!root) return;
+
+    let frameId: number | null = null;
+    const detectVerificationStep = () => {
+      const hasOtpAutocomplete =
+        root.querySelector("input[autocomplete='one-time-code']") !== null;
+      const singleCharInputs = root.querySelectorAll("input[maxlength='1']").length;
+      const hasVerificationLikeInput =
+        root.querySelector("input[name*='code' i], input[id*='code' i]") !== null;
+      const next = hasOtpAutocomplete || singleCharInputs >= 4 || hasVerificationLikeInput;
+      setIsVerificationStep((prev) => (prev === next ? prev : next));
+    };
+
+    const scheduleDetect = () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        detectVerificationStep();
+      });
+    };
+
+    detectVerificationStep();
+    const observer = new MutationObserver(scheduleDetect);
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    });
+    window.addEventListener("focusin", scheduleDetect);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("focusin", scheduleDetect);
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+    };
+  }, [isVerificationStep]);
 
   // Signed in — show loading state immediately; org creation is either imminent or in progress.
   // Never return null here: there is a brief window between Clerk completing and isCreating
@@ -54,9 +101,40 @@ export function SignUpStep({ onBack }: SignUpStepProps) {
 
   const orgName = formData.name.trim();
 
+  if (isVerificationStep) {
+    return (
+      <div
+        ref={clerkShellRef}
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-none p-4"
+        style={{
+          height: "100dvh",
+          minHeight: "100dvh",
+          paddingTop: "max(env(safe-area-inset-top), 1rem)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 1rem)",
+        }}
+      >
+        <div className="w-full max-w-md">
+          <SignUp
+            afterSignUpUrl={afterSignUpUrl}
+            signInUrl={signInUrl}
+            routing="virtual"
+            appearance={{
+              variables: {
+                colorPrimary: brandingData.primaryColor || "#166534",
+                borderRadius: "0.75rem",
+                fontFamily: "inherit",
+                fontSize: "14px",
+              },
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
-      className="flex justify-between gap-5"
+      className="flex flex-col gap-6 lg:flex-row lg:justify-between"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
@@ -116,7 +194,7 @@ export function SignUpStep({ onBack }: SignUpStepProps) {
       </div>
 
     
-      <div className="w-full max-w-md">
+      <div ref={clerkShellRef} className="w-full max-w-md">
         <SignUp
           afterSignUpUrl={afterSignUpUrl}
           signInUrl={signInUrl}

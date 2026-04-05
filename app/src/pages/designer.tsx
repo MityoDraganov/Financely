@@ -72,6 +72,7 @@ import {
 	type PathEditorTool,
 } from "@/components/designer/path-editor/path-editing-context";
 import { useTemplateCompliance } from "@/hooks/use-template-compliance";
+import type { InvoiceDesignerPageNavigationProps } from "@shared/designer-entities";
 
 const DEBUG_DESIGNER = false;
 const debugLog = (...args: unknown[]) => {
@@ -151,10 +152,20 @@ function sanitizeForRealtimeValue<T>(value: T, fallback?: unknown): T {
 	return value;
 }
 
-export default function TemplateDesignerPage() {
+export default function TemplateDesignerPage({
+	onMissingTemplateRedirect,
+	resolveRoutePath,
+}: InvoiceDesignerPageNavigationProps = {}) {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
 	const navigate = useNavigate();
+	const resolvedRoutePath = useMemo(
+		() =>
+			resolveRoutePath ??
+			((key: "templates" | "designer", id?: string) =>
+				key === "templates" ? "/templates" : id ? `/designer/${id}` : "/designer"),
+		[resolveRoutePath],
+	);
 	const queryClient = useQueryClient();
 	const [state, setState] = useState<DesignerState>({
 		zoom: 1,
@@ -832,7 +843,11 @@ export default function TemplateDesignerPage() {
 				}));
 			} else if (!templateExists && templates.length > 0) {
 				// Template not found, redirect to templates list
-				navigate("/templates");
+				if (onMissingTemplateRedirect) {
+					onMissingTemplateRedirect();
+				} else {
+					navigate(resolvedRoutePath("templates"));
+				}
 			}
 		} else if (
 			!contextCurrentTemplateId && 
@@ -864,7 +879,7 @@ export default function TemplateDesignerPage() {
 			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [templates, contextCurrentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess]);
+	}, [templates, contextCurrentTemplateId, templateIdFromUrl, navigate, createTemplate.isPending, createTemplate.isSuccess, onMissingTemplateRedirect, resolvedRoutePath]);
 	
 	// Sync state.currentTemplateId with context
 	useEffect(() => {
