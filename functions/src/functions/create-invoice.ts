@@ -38,7 +38,7 @@ import {
  *     total: 240,
  *     ...any other fields from template
  *   },
- *   status?: "draft" | "sent" | "paid" | "cancelled",
+ *   status?: "unsent" | "sent" | "paid" | "cancelled", // "draft" supported for legacy payloads
  *   notes?: string
  * }
  *

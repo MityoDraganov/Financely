@@ -26,11 +26,40 @@ export const functionsService: FunctionsService = {
 
   async createInvoice(payload) {
     type CreateInvoicePayload = Parameters<FunctionsService["createInvoice"]>[0];
-    const result = await httpsCallable<CreateInvoicePayload, { id: string }>(
+    const createInvoiceCallable = httpsCallable<CreateInvoicePayload, { id: string }>(
       firebase.functions,
       "createInvoice",
-    )(payload);
-    return result.data;
+    );
+
+    try {
+      const result = await createInvoiceCallable(payload);
+      return result.data;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      // Backward compatibility: some deployed backends still validate
+      // status as draft|sent|paid|cancelled and reject "unsent".
+      const shouldRetryWithLegacyDraft =
+        payload.status === "unsent" &&
+        /invoice validation failed/i.test(message) &&
+        /"path"\s*:\s*"status"/i.test(message) &&
+        /draft/i.test(message) &&
+        /sent/i.test(message) &&
+        /paid/i.test(message) &&
+        /cancelled/i.test(message);
+
+      if (!shouldRetryWithLegacyDraft) {
+        throw error;
+      }
+
+      const retryPayload: CreateInvoicePayload = {
+        ...payload,
+        status: "draft",
+      };
+
+      const retryResult = await createInvoiceCallable(retryPayload);
+      return retryResult.data;
+    }
   },
 
   async mapProductToInvoiceFields(payload) {
