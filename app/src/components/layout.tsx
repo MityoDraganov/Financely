@@ -20,9 +20,7 @@ import {
 	Sparkles,
 	MessageSquare,
 	Package,
-	//BarChart3,
 	Menu,
-	//Database,
 	Store,
 	FolderOpen,
 	CornerDownRight,
@@ -226,16 +224,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				href: "/integrations",
 				icon: Sparkles,
 			},
-			// {
-			// 	title: t("layout.navigation.analytics"),
-			// 	href: "/analytics",
-			// 	icon: BarChart3,
-			// },
-			// {
-			// 	title: "Data Sources",
-			// 	href: "/data-sources",
-			// 	icon: Database,
-			// },
 			{
 				title: t("layout.navigation.content"),
 				href: "/content/metaobjects",

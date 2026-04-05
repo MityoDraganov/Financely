@@ -39,7 +39,6 @@ import DataManagementPage from "./pages/settings/data-management";
 import UsersListPage from "./pages/settings/users/list";
 import InvitesPage from "./pages/settings/invites";
 import AuditLogPage from "./pages/settings/security/audit-log";
-import DataSourcesPage from "./pages/data-sources";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
 import CheckoutSuccessPage from "./pages/stripe/checkout-success";
@@ -60,7 +59,6 @@ function RedirectWidgetBuilderToIntegrations() {
 	return <Navigate to={widgetId ? `/integrations/${widgetId}` : "/integrations"} replace />;
 }
 import ModularWidgetPage from "./pages/widget/modular-widget-page";
-import AnalyticsPage from "./pages/analytics/analytics-page";
 import EmailDesignerWrapper from "./pages/email-designer-wrapper";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
@@ -69,7 +67,6 @@ import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { useOrganizationBranding } from "./hooks/use-organization-branding";
 import { RevokedAccessAlert } from "./components/revoked-access-alert";
-import PaywallPreview from "./pages/PaywallPreview";
 import ContentLayout from "./pages/content/layout";
 import MetaobjectsPage from "./pages/content/metaobjects";
 import FilesPage from "./pages/content/files";
@@ -457,26 +454,6 @@ function App() {
 												element={<RedirectWidgetBuilderToIntegrations />}
 											/>
 											<Route
-												path="/analytics"
-												element={
-													<ProtectedRoute>
-														<AppLayout>
-															<AnalyticsPage />
-														</AppLayout>
-													</ProtectedRoute>
-												}
-											/>
-											<Route
-												path="/data-sources"
-												element={
-													<ProtectedRoute>
-														<AppLayout>
-															<DataSourcesPage />
-														</AppLayout>
-													</ProtectedRoute>
-												}
-											/>
-											<Route
 												path="/content"
 												element={
 													<ProtectedRoute>
@@ -544,7 +521,6 @@ function App() {
 													element={<AuditLogPage />}
 												/>
 											</Route>
-											<Route path="/paywall-preview" element={<PaywallPreview />} />
 										</Routes>
 										<Toaster />
 									</Router>
