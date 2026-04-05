@@ -28,7 +28,7 @@ import {
   extractEmailTemplateRequirements,
 } from "../utils/email-template-requirements";
 import {
-  generateBrandedEmailHTML,
+  generateProposalEmailHTML,
   getEmailBrandingConfig,
 } from "../utils/branding-email";
 import { extractUserContextFromRequest } from "../utils/request-context";
@@ -172,6 +172,17 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
 
       const organization = await organizationRepository.get({ id: orgId });
       const brandingConfig = organization ? getEmailBrandingConfig(organization) : null;
+      const orgRecord = organization ? (organization as unknown as Record<string, unknown>) : null;
+      const orgSettings =
+        orgRecord?.settings && typeof orgRecord.settings === "object"
+          ? (orgRecord.settings as Record<string, unknown>)
+          : null;
+      const orgContactEmail = toStringValue(orgSettings?.email) || null;
+      const replyToEmail =
+        orgContactEmail ||
+        (brandingConfig?.emailFromAddress && !brandingConfig.emailFromAddress.includes("noreply")
+          ? brandingConfig.emailFromAddress
+          : null);
 
       let leadRecord: Record<string, unknown> | undefined;
       const leadId = toStringValue(proposalRecord.leadId);
@@ -221,15 +232,42 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
         typeof proposalRecord.total === "number" ? proposalRecord.total : undefined;
       const formattedTotal = formatCurrency(proposalTotal, proposalCurrency);
 
+      const proposalNumber = toStringValue(proposalRecord.number ?? proposalRecord.proposalNumber);
+      const proposalDescription = toStringValue(proposalRecord.description);
+      const proposalNotes = toStringValue(proposalRecord.notes);
+      const proposalTerms = toStringValue(proposalRecord.terms);
+      const proposalValidUntil = toStringValue(proposalRecord.validUntil ?? proposalRecord.expiresAt);
+      const proposalViewUrl = toStringValue(proposalRecord.publicUrl ?? proposalRecord.viewUrl);
+      const proposalApproveUrl = toStringValue(
+        (toRecord(proposalRecord.approval) ?? {}).url ?? proposalRecord.approveUrl
+      );
+      const proposalPdfUrl = toStringValue(proposalRecord.pdfUrl);
+      const customerCompany = toStringValue(
+        customerRecord?.company ?? customerRecord?.organizationName
+      );
+      const proposalItems = Array.isArray(proposalRecord.items)
+        ? (proposalRecord.items as Array<Record<string, unknown>>).map((item) => ({
+            description: toStringValue(item.description),
+            qty: typeof item.qty === "number" ? item.qty : Number(item.qty) || 1,
+            unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : Number(item.unitPrice) || 0,
+            taxPct: typeof item.taxPct === "number" ? item.taxPct : undefined,
+          }))
+        : undefined;
+
+      const orgName = brandingConfig?.companyName || "Us";
+      const titleHasProposal = /proposal/i.test(proposalTitle);
+
       const emailService = new ResendEmailService({
         apiKey: resendApiKey.value(),
         defaultFromEmail: resendFromEmail.value(),
         defaultFromName: resendFromName.value(),
       });
 
-      let subject = `Proposal: ${proposalTitle}`;
+      let subject = titleHasProposal
+        ? `${orgName}: ${proposalTitle}`
+        : `${orgName}: Proposal – ${proposalTitle}`;
       let html = "";
-      let text = `${proposalTitle} (${proposalStatus}) - ${formattedTotal}`;
+      let text = `${proposalTitle} – ${formattedTotal}${proposalValidUntil ? ` (valid until ${proposalValidUntil})` : ""}`;
 
       if (emailTemplateId) {
         const emailTemplate = await realtimeDatabaseService.get<EmailTemplate>(
@@ -355,33 +393,37 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
           );
         }
 
-        const content = `
-          <div style="color: #111827;">
-            <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">
-              Proposal: ${proposalTitle}
-            </h1>
-            <p style="margin: 0 0 12px 0; font-size: 16px; line-height: 1.5;">
-              Hello ${customerName},
-            </p>
-            <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.5;">
-              We prepared a proposal for you.
-            </p>
-            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0 0 8px 0;"><strong>Status:</strong> ${proposalStatus}</p>
-              <p style="margin: 0;"><strong>Total:</strong> ${formattedTotal}</p>
-            </div>
-          </div>
-        `;
-
-        html = brandingConfig
-          ? generateBrandedEmailHTML(content, brandingConfig)
-          : `
-              <h1>Proposal: ${proposalTitle}</h1>
-              <p>Hello ${customerName},</p>
-              <p>We prepared a proposal for you.</p>
-              <p><strong>Status:</strong> ${proposalStatus}</p>
-              <p><strong>Total:</strong> ${formattedTotal}</p>
-            `;
+        if (brandingConfig) {
+          html = generateProposalEmailHTML(
+            {
+              proposalTitle,
+              customerName,
+              customerCompany: customerCompany || undefined,
+              formattedTotal,
+              proposalNumber: proposalNumber || undefined,
+              validUntil: proposalValidUntil || undefined,
+              description: proposalDescription || undefined,
+              notes: proposalNotes || undefined,
+              terms: proposalTerms || undefined,
+              items: proposalItems,
+              viewUrl: proposalViewUrl || undefined,
+              approveUrl: proposalApproveUrl || undefined,
+              pdfUrl: proposalPdfUrl || undefined,
+              replyToEmail: replyToEmail || undefined,
+            },
+            brandingConfig,
+          );
+        } else {
+          html = `
+            <h1>${proposalTitle}</h1>
+            <p>Hello ${customerName},</p>
+            <p>${orgName} has prepared a proposal for you.</p>
+            ${proposalNumber ? `<p><strong>Reference:</strong> #${proposalNumber}</p>` : ""}
+            ${proposalValidUntil ? `<p><strong>Valid Until:</strong> ${proposalValidUntil}</p>` : ""}
+            <p><strong>Total:</strong> ${formattedTotal}</p>
+            ${proposalViewUrl ? `<p><a href="${proposalViewUrl}">Review Proposal</a></p>` : ""}
+          `;
+        }
       }
 
       const result = await emailService.sendEmail({
@@ -390,6 +432,7 @@ export const sendProposalEmail = onCall<SendProposalEmailPayload, Promise<{ sent
           email: resendFromEmail.value(),
           name: brandingConfig?.emailFromName || resendFromName.value(),
         },
+        ...(replyToEmail ? { replyTo: { email: replyToEmail, name: orgName } } : {}),
         subject,
         html,
         text,

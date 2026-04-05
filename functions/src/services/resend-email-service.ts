@@ -59,7 +59,9 @@ function validateEmailOptions(options: EmailSendOptions): void {
   }
 
 function formatRecipient(recipient: EmailRecipient): string {
-  return recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email;
+  const email = recipient.email.trim();
+  const name = recipient.name?.trim();
+  return name ? `${name} <${email}>` : email;
 }
 
 function prepareResendData(options: EmailSendOptions): any {
@@ -73,7 +75,7 @@ function prepareResendData(options: EmailSendOptions): any {
       text: options.text,
     cc: options.cc ? (Array.isArray(options.cc) ? options.cc.map(r => formatRecipient(r)) : [formatRecipient(options.cc)]) : undefined,
     bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc.map(r => formatRecipient(r)) : [formatRecipient(options.bcc)]) : undefined,
-    reply_to: options.replyTo ? formatRecipient(options.replyTo) : undefined,
+    replyTo: options.replyTo ? formatRecipient(options.replyTo) : undefined,
       attachments: options.attachments?.map(att => ({
         filename: att.filename,
         content: typeof att.content === 'string' ? att.content : att.content.toString('base64'),

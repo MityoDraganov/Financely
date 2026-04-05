@@ -129,6 +129,182 @@ export function generateBrandedEmailHTML(
 }
 
 /**
+ * Generate complete branded proposal email HTML
+ */
+export function generateProposalEmailHTML(
+  proposalData: {
+    proposalTitle: string;
+    customerName: string;
+    customerCompany?: string;
+    formattedTotal: string;
+    proposalNumber?: string;
+    validUntil?: string;
+    description?: string;
+    notes?: string;
+    terms?: string;
+    items?: Array<{ description: string; qty: number; unitPrice: number; taxPct?: number }>;
+    viewUrl?: string;
+    approveUrl?: string;
+    pdfUrl?: string;
+    replyToEmail?: string;
+  },
+  branding: EmailBrandingConfig,
+): string {
+  const primaryColor = branding.primaryColor;
+  const companyName = branding.companyName;
+
+  // --- Greeting ---
+  const companyLine = proposalData.customerCompany
+    ? `<p style="margin: 0 0 4px 0; font-size: 13px; color: #9ca3af;">${proposalData.customerCompany}</p>`
+    : "";
+
+  // --- Details rows ---
+  const detailRows: string[] = [];
+  if (proposalData.proposalNumber) {
+    detailRows.push(`
+      <tr>
+        <td style="padding: 10px 0; font-size: 14px; color: #6b7280; width: 140px; border-bottom: 1px solid #f3f4f6;">Reference</td>
+        <td style="padding: 10px 0; font-size: 14px; font-weight: 600; color: #111827; border-bottom: 1px solid #f3f4f6;">#${proposalData.proposalNumber}</td>
+      </tr>`);
+  }
+  if (proposalData.validUntil) {
+    detailRows.push(`
+      <tr>
+        <td style="padding: 10px 0; font-size: 14px; color: #6b7280; width: 140px; border-bottom: 1px solid #f3f4f6;">Valid Until</td>
+        <td style="padding: 10px 0; font-size: 14px; font-weight: 600; color: #d97706; border-bottom: 1px solid #f3f4f6;">&#128197;&nbsp; ${proposalData.validUntil}</td>
+      </tr>`);
+  }
+  detailRows.push(`
+    <tr>
+      <td style="padding: 10px 0; font-size: 14px; color: #6b7280; width: 140px;">Total Amount</td>
+      <td style="padding: 10px 0; font-size: 18px; font-weight: 700; color: ${primaryColor};">${proposalData.formattedTotal}</td>
+    </tr>`);
+
+  // --- Line items table ---
+  let itemsSection = "";
+  if (proposalData.items && proposalData.items.length > 0) {
+    const itemRows = proposalData.items.map((item) => {
+      const lineTotal = item.qty * item.unitPrice * (1 + (item.taxPct || 0) / 100);
+      const formatAmt = (n: number) =>
+        new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+      return `
+        <tr>
+          <td style="padding: 10px 0; font-size: 14px; color: #374151; border-bottom: 1px solid #f3f4f6;">${item.description}</td>
+          <td style="padding: 10px 0; font-size: 14px; color: #6b7280; text-align: center; border-bottom: 1px solid #f3f4f6;">${item.qty}</td>
+          <td style="padding: 10px 0; font-size: 14px; color: #6b7280; text-align: right; border-bottom: 1px solid #f3f4f6;">${formatAmt(item.unitPrice)}</td>
+          <td style="padding: 10px 0; font-size: 14px; font-weight: 600; color: #111827; text-align: right; border-bottom: 1px solid #f3f4f6;">${formatAmt(lineTotal)}</td>
+        </tr>`;
+    }).join("");
+
+    itemsSection = `
+      <div style="margin: 28px 0 0 0;">
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.06em;">Items</p>
+        <table cellspacing="0" cellpadding="0" border="0" width="100%">
+          <thead>
+            <tr style="background-color: #f9fafb;">
+              <th style="padding: 8px 0; font-size: 12px; font-weight: 600; color: #9ca3af; text-align: left; text-transform: uppercase; letter-spacing: 0.05em;">Description</th>
+              <th style="padding: 8px 0; font-size: 12px; font-weight: 600; color: #9ca3af; text-align: center; text-transform: uppercase; letter-spacing: 0.05em;">Qty</th>
+              <th style="padding: 8px 0; font-size: 12px; font-weight: 600; color: #9ca3af; text-align: right; text-transform: uppercase; letter-spacing: 0.05em;">Unit Price</th>
+              <th style="padding: 8px 0; font-size: 12px; font-weight: 600; color: #9ca3af; text-align: right; text-transform: uppercase; letter-spacing: 0.05em;">Total</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 8px;">
+          <tr>
+            <td></td>
+            <td style="text-align: right; padding: 10px 0;">
+              <span style="font-size: 15px; font-weight: 700; color: ${primaryColor};">Total: ${proposalData.formattedTotal}</span>
+            </td>
+          </tr>
+        </table>
+      </div>`;
+  }
+
+  // --- Description / Notes ---
+  const descriptionSection = proposalData.description
+    ? `<div style="margin: 24px 0 0 0; padding: 16px 20px; background-color: #f9fafb; border-left: 3px solid ${primaryColor}; border-radius: 0 6px 6px 0;">
+         <p style="margin: 0; font-size: 14px; color: #374151; line-height: 1.6;">${proposalData.description}</p>
+       </div>`
+    : "";
+
+  const notesSection = proposalData.notes
+    ? `<div style="margin: 20px 0 0 0;">
+         <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em;">Notes</p>
+         <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.6;">${proposalData.notes}</p>
+       </div>`
+    : "";
+
+  // --- CTAs ---
+  const primaryCtaUrl = proposalData.approveUrl || proposalData.viewUrl;
+  const ctaSection = primaryCtaUrl
+    ? `<div style="margin: 32px 0 0 0; text-align: center;">
+         <a href="${primaryCtaUrl}"
+            style="display: inline-block; padding: 14px 36px; background-color: ${primaryColor};
+                   color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;
+                   font-size: 16px; letter-spacing: 0.01em;">
+           Review &amp; Approve Proposal
+         </a>
+         ${proposalData.pdfUrl ? `<p style="margin: 16px 0 0 0;"><a href="${proposalData.pdfUrl}" style="font-size: 14px; color: ${primaryColor}; text-decoration: underline;">&#128196;&nbsp; Download PDF</a></p>` : ""}
+       </div>`
+    : proposalData.pdfUrl
+      ? `<div style="margin: 32px 0 0 0; text-align: center;">
+           <a href="${proposalData.pdfUrl}" style="display: inline-block; padding: 14px 36px; background-color: ${primaryColor}; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px;">
+             &#128196;&nbsp; View Proposal PDF
+           </a>
+         </div>`
+      : "";
+
+  // --- Questions section ---
+  const questionsBody = proposalData.replyToEmail
+    ? `Reply to this email or reach us directly at <a href="mailto:${proposalData.replyToEmail}" style="color: ${primaryColor}; text-decoration: none; font-weight: 600;">${proposalData.replyToEmail}</a> and we'll get back to you as soon as possible.`
+    : `Get in touch with <strong>${companyName}</strong> and we'll be happy to help.`;
+
+  const questionsSection = `
+    <div style="margin: 32px 0 0 0; padding: 20px; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+      <p style="margin: 0 0 6px 0; font-size: 14px; font-weight: 600; color: #111827;">Questions or changes?</p>
+      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
+        ${questionsBody}
+      </p>
+    </div>`;
+
+  const content = `
+    <div style="color: #111827;">
+      <!-- Header -->
+      <h1 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: ${primaryColor}; line-height: 1.3;">
+        ${proposalData.proposalTitle}
+      </h1>
+      <p style="margin: 0 0 24px 0; font-size: 14px; color: #9ca3af;">Proposal from ${companyName}</p>
+
+      <!-- Greeting -->
+      <p style="margin: 0 0 4px 0; font-size: 16px; color: #374151;">
+        Hello <strong>${proposalData.customerName}</strong>,
+      </p>
+      ${companyLine}
+      <p style="margin: 12px 0 0 0; font-size: 15px; line-height: 1.6; color: #374151;">
+        ${companyName} has prepared a proposal for you. Please review the details below and let us know if you have any questions.
+      </p>
+
+      ${descriptionSection}
+
+      <!-- Details card -->
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 24px; margin: 28px 0 0 0;">
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.06em;">Proposal Details</p>
+        <table cellspacing="0" cellpadding="0" border="0" width="100%">
+          ${detailRows.join("")}
+        </table>
+      </div>
+
+      ${itemsSection}
+      ${notesSection}
+      ${ctaSection}
+      ${questionsSection}
+    </div>`;
+
+  return generateBrandedEmailHTML(content, branding);
+}
+
+/**
  * Generate styled button with brand colors
  */
 export function generateBrandedButton(
