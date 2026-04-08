@@ -113,6 +113,21 @@ Tailwind CSS v4 with Vite plugin (no `tailwind.config.js` needed for v4). Radix 
 - **Brand Sites**: publish to Cloudflare KV/R2
 - **Widgets**: public catalog, versioned definitions
 
+## Architecture
+
+This project follows the hex-arch pattern documented in [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+When adding new features:
+- Entities go in `app/src/core/entities/` (mirrored in `functions/src/core/entities/`)
+- Repository ports in `app/src/core/ports/repositories/`
+- Repository adapters in `app/src/repositories/` (frontend) and `functions/src/repositories/` (backend)
+- React Query hooks in `app/src/hooks/repository-hooks/`
+- Firebase callable function entry points in `functions/src/functions/{domain}/`
+- All Firestore collection names via `DatabaseCollection` enum in `repositories/config.ts`
+- All core types re-exported from `@/core` (never deep imports)
+
+Use the `/hex-arch` skill (mode B) to scaffold new features in this style.
+
 ## Important Conventions
 
 ### Firestore Collections
