@@ -2,11 +2,46 @@
 	"dashboard": {
 		"welcome": "Welcome back, {{name}}",
 		"welcomeFallback": "Welcome back, User",
-		"subtitle": "Here's what's happening with your invoices and templates today.",
+		"subtitle": "Track your deals from first contact to payment.",
 		"quickActions": {
-			"createInvoice": "Create Invoice",
+			"createInvoice": "New Invoice",
 			"designTemplate": "Design Template",
-			"organizationSettings": "Organization Settings"
+			"organizationSettings": "Organization Settings",
+			"addLead": "Add Lead"
+		},
+		"pipeline": {
+			"title": "Pipeline Overview",
+			"leads": "Leads",
+			"opportunities": "Opportunities",
+			"proposals": "Proposals",
+			"invoices": "Invoices",
+			"newCount": "{{count}} new",
+			"active": "Active",
+			"open": "Open",
+			"unpaid": "Awaiting payment"
+		},
+		"focus": {
+			"title": "Focus On",
+			"description": "Items that need your attention right now",
+			"newLeads": "{{count}} new {{count, plural, one {lead} other {leads}}} to follow up",
+			"overdueOpportunities": "{{count}} {{count, plural, one {opportunity} other {opportunities}}} past close date",
+			"unpaidInvoices": "{{count}} {{count, plural, one {invoice} other {invoices}}} awaiting payment",
+			"allClear": "You're all caught up!",
+			"allClearDescription": "No urgent items at the moment."
+		},
+		"pipelineValue": {
+			"title": "Pipeline Value",
+			"description": "Active opportunities by close date",
+			"viewAll": "View all",
+			"activeCount_one": "{{count}} active opportunity",
+			"activeCount_other": "{{count}} active opportunities",
+			"activeCount": "{{count}} active opportunities",
+			"closesIn": "Closes in {{count}}d",
+			"closesToday": "Closes today",
+			"daysOverdue": "{{count}}d overdue",
+			"noCloseDates": "No close dates set on active opportunities.",
+			"empty": "No active opportunities yet.",
+			"convertLeads": "Convert a lead"
 		},
 		"metrics": {
 			"totalInvoices": "Total Invoices",
@@ -488,6 +523,34 @@
 			"orgNotFound": "Organization not found",
 			"proposalCreated": "Proposal created successfully",
 			"proposalFailed": "Failed to create proposal: {{error}}"
+		}
+	},
+	"opportunities": {
+		"title": "Opportunities",
+		"subtitle": "Track active deals from qualification to close",
+		"back": "Opportunities",
+		"notFound": "Opportunity not found.",
+		"total": "total",
+		"pipelineValue": "Pipeline value",
+		"convertHint": "Convert leads to create opportunities",
+		"stageUpdated": "Stage updated",
+		"sourceLead": "Source Lead",
+		"notes": "Notes",
+		"notesPlaceholder": "Add internal notes about this opportunity...",
+		"proposals": "Proposals",
+		"noProposals": "No proposals yet. Create one to begin scoping this deal.",
+		"createProposal": "New Proposal",
+		"newProposalTitle": "New Proposal",
+		"newProposalDesc": "Create a proposal for this opportunity. You can add line items after creation.",
+		"proposalTitlePlaceholder": "e.g. Website Redesign Proposal",
+		"closeBy": "Close by",
+		"stages": {
+			"prospecting": "Prospecting",
+			"qualification": "Qualification",
+			"proposal": "Proposal",
+			"negotiation": "Negotiation",
+			"won": "Won",
+			"lost": "Lost"
 		}
 	},
 	"proposals": {
@@ -3710,12 +3773,18 @@
 	},
 	"layout": {
 		"navigation": {
+			"group": {
+				"pipeline": "Pipeline",
+				"catalog": "Catalog",
+				"tools": "Tools"
+			},
 			"dashboard": "Dashboard",
 			"products": "Products",
 			"collections": "Collections",
 			"invoices": "Invoices",
 			"contacts": "Contacts",
 			"leads": "Leads",
+			"opportunities": "Opportunities",
 			"proposals": "Proposals",
 			"templates": "Templates",
 			"marketplace": "Marketplace",

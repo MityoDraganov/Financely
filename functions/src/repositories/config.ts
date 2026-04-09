@@ -32,4 +32,5 @@ export enum DatabaseCollection {
   WIDGET_DEFINITIONS = "widgetDefinitions",
   WIDGET_VERSIONS = "widgetVersions",
   WIDGET_SUBMISSIONS = "widgetSubmissions",
+  OPPORTUNITIES = "opportunities",
 }

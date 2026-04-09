@@ -55,6 +55,25 @@ export const useProposalsByLead = (leadId: string | undefined) => {
 };
 
 /**
+ * Hook to fetch proposals by opportunity ID
+ */
+export const useProposalsByOpportunity = (opportunityId: string | undefined) => {
+  return useQuery({
+    queryKey: ["proposals", "opportunity", opportunityId],
+    queryFn: async () => {
+      if (!opportunityId) return [];
+      return proposalRepository.getAll({
+        queryConstraints: [
+          { field: "opportunityId", operator: "==", value: opportunityId },
+        ],
+        orderBy: { field: "createdAt", direction: "desc" },
+      });
+    },
+    enabled: !!opportunityId,
+  });
+};
+
+/**
  * Hook to fetch a single proposal by ID
  */
 export const useProposal = (proposalId: string | undefined) => {

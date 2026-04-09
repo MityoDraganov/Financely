@@ -149,6 +149,7 @@ export { getAnalyticsConfig } from "./functions/get-analytics-config";
 
 // Lead functions
 export { onLeadCreated } from "./functions/on-lead-created";
+export { convertLeadToOpportunity } from "./functions/convert-lead-to-opportunity";
 export { generateProposalSuggestion } from "./functions/generate-proposal-suggestion";
 export { generateInvoiceTemplate } from "./functions/generate-invoice-template";
 export { generateEmailTemplate } from "./functions/generate-email-template";

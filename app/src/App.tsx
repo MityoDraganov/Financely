@@ -21,6 +21,8 @@ import InvoiceUploadFlowPage from "./pages/invoice-upload-flow";
 import ContactsPage from "./pages/contacts/contacts";
 import ContactDetailPage from "./pages/contacts/contact-detail";
 import LeadsPage from "./pages/leads/leads";
+import OpportunitiesPage from "./pages/opportunities/opportunities-page";
+import OpportunityDetailPage from "./pages/opportunities/opportunity-detail-page";
 import ProposalsPage from "./pages/proposals/proposals";
 import ProposalDetailPage from "./pages/proposals/proposal-detail";
 import ProductsPage from "./pages/products/products";
@@ -261,6 +263,26 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<LeadsPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/opportunities"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<OpportunitiesPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/opportunities/:id"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<OpportunityDetailPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

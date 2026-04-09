@@ -214,6 +214,24 @@ service cloud.firestore {
                        belongsToOrg(resource.data.organizationId) &&
                        isOwnerOrAdmin(resource.data.organizationId);
     }
+    match /opportunities/{opportunityId} {
+      allow read, write: if isAdmin();
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() &&
+                    resource.data.organizationId != null &&
+                    isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.organizationId != null &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       hasRole(request.resource.data.organizationId, 'member');
+      allow update: if isAuthenticated() &&
+                       belongsToOrg(resource.data.organizationId) &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+      allow delete: if isAuthenticated() &&
+                       belongsToOrg(resource.data.organizationId) &&
+                       isOwnerOrAdmin(resource.data.organizationId);
+    }
     match /leads/{leadId} {
       allow read, write: if isAdmin();
       allow list: if isAuthenticated();

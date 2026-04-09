@@ -2,11 +2,44 @@
 	"dashboard": {
 		"welcome": "Добре дошли отново, {{name}}",
 		"welcomeFallback": "Добре дошли отново, Потребител",
-		"subtitle": "Ето какво се случва с вашите фактури и шаблони днес.",
+		"subtitle": "Проследете сделките си от първия контакт до плащането.",
 		"quickActions": {
-			"createInvoice": "Създай фактура",
+			"createInvoice": "Нова фактура",
 			"designTemplate": "Дизайн на шаблон",
-			"organizationSettings": "Настройки на организацията"
+			"organizationSettings": "Настройки на организацията",
+			"addLead": "Добави лийд"
+		},
+		"pipeline": {
+			"title": "Преглед на тръбопровода",
+			"leads": "Лийдове",
+			"opportunities": "Възможности",
+			"proposals": "Оферти",
+			"invoices": "Фактури",
+			"newCount": "{{count}} нови",
+			"active": "Активни",
+			"open": "Отворени",
+			"unpaid": "Очакват плащане"
+		},
+		"focus": {
+			"title": "Фокусирай се",
+			"description": "Елементи, изискващи вашето внимание",
+			"newLeads": "{{count}} нови лийдове за проследяване",
+			"overdueOpportunities": "{{count}} просрочени възможности",
+			"unpaidInvoices": "{{count}} фактури, очакващи плащане",
+			"allClear": "Всичко е наред!",
+			"allClearDescription": "Няма спешни елементи в момента."
+		},
+		"pipelineValue": {
+			"title": "Стойност на тръбопровода",
+			"description": "Активни възможности по дата на приключване",
+			"viewAll": "Виж всички",
+			"activeCount": "{{count}} активни възможности",
+			"closesIn": "Приключва след {{count}}д",
+			"closesToday": "Приключва днес",
+			"daysOverdue": "{{count}}д закъснение",
+			"noCloseDates": "Няма зададени дати на приключване.",
+			"empty": "Все още няма активни възможности.",
+			"convertLeads": "Конвертирай лийд"
 		},
 		"metrics": {
 			"totalInvoices": "Общо фактури",
@@ -473,6 +506,34 @@
 			"orgNotFound": "Организацията не е намерена",
 			"proposalCreated": "Офертата е създадена успешно",
 			"proposalFailed": "Неуспешно създаване на оферта: {{error}}"
+		}
+	},
+	"opportunities": {
+		"title": "Възможности",
+		"subtitle": "Проследявайте активни сделки от квалификация до приключване",
+		"back": "Възможности",
+		"notFound": "Възможността не е намерена.",
+		"total": "общо",
+		"pipelineValue": "Стойност на тръбопровода",
+		"convertHint": "Конвертирайте потенциални клиенти в възможности",
+		"stageUpdated": "Етапът е обновен",
+		"sourceLead": "Изходен лийд",
+		"notes": "Бележки",
+		"notesPlaceholder": "Добавете вътрешни бележки за тази възможност...",
+		"proposals": "Оферти",
+		"noProposals": "Няма оферти. Създайте такава, за да започнете.",
+		"createProposal": "Нова оферта",
+		"newProposalTitle": "Нова оферта",
+		"newProposalDesc": "Създайте оферта за тази възможност.",
+		"proposalTitlePlaceholder": "напр. Предложение за редизайн на уебсайт",
+		"closeBy": "Затваряне до",
+		"stages": {
+			"prospecting": "Проспектиране",
+			"qualification": "Квалификация",
+			"proposal": "Оферта",
+			"negotiation": "Преговори",
+			"won": "Спечелена",
+			"lost": "Загубена"
 		}
 	},
 	"proposals": {
@@ -3680,12 +3741,18 @@
 	},
 	"layout": {
 		"navigation": {
+			"group": {
+				"pipeline": "Тръбопровод",
+				"catalog": "Каталог",
+				"tools": "Инструменти"
+			},
 			"dashboard": "Табло",
 			"products": "Продукти",
 			"collections": "Колекции",
 			"invoices": "Фактури",
 			"contacts": "Контакти",
 			"leads": "Лийдове",
+			"opportunities": "Възможности",
 			"proposals": "Оферти",
 			"templates": "Шаблони",
 			"marketplace": "Пазар",

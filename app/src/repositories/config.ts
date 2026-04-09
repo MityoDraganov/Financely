@@ -31,4 +31,5 @@ export enum DatabaseCollection {
   CONTACT_METAFIELDS = "contactMetafields",
   ONBOARDING_PROGRESS = "onboardingProgress",
   WIDGET_DEFINITIONS = "widgetDefinitions",
+  OPPORTUNITIES = "opportunities",
 }

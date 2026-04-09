@@ -15,6 +15,8 @@ import {
   Trash2,
   Tag,
   ExternalLink,
+  TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +71,8 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes } from "@/utils/currencies";
 import { ExportDialog } from "@/components/export-import/export-dialog";
+import { useConvertLeadToOpportunity } from "@/hooks/service-hooks/use-convert-lead-to-opportunity";
+import { CurrencyCombobox } from "@/components/ui/currency-combobox";
 import { extractUrls, getFileLabelFromUrl } from "@/utils/file-links";
 import { cn } from "@/lib/utils";
 import { formatProposalCurrency } from "@/utils/proposal-currency";
@@ -266,6 +270,7 @@ function LeadDetailPanel({
   onStatusChange,
   onAIProposal,
   onManualProposal,
+  onConvertToOpportunity,
   isUpdating,
   t,
   formatDateTime,
@@ -274,6 +279,7 @@ function LeadDetailPanel({
   onStatusChange: (status: string) => void;
   onAIProposal: () => void;
   onManualProposal: () => void;
+  onConvertToOpportunity: () => void;
   isUpdating: boolean;
   t: (key: string) => string;
   formatDateTime: (date: Date | string | number) => string;
@@ -361,24 +367,37 @@ function LeadDetailPanel({
         <Separator />
 
         {/* ── Actions ── */}
-        <div className="px-6 py-4 flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-1.5 text-sm"
-            onClick={onAIProposal}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-            AI Proposal
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 gap-1.5 text-sm"
-            onClick={onManualProposal}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Create Proposal
-          </Button>
+        <div className="px-6 py-4 space-y-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-sm"
+              onClick={onAIProposal}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              AI Proposal
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5 text-sm"
+              onClick={onManualProposal}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Create Proposal
+            </Button>
+          </div>
+          {status !== "converted" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-sm text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+              onClick={onConvertToOpportunity}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Convert to Opportunity
+            </Button>
+          )}
         </div>
 
         <Separator />
@@ -528,6 +547,8 @@ export default function LeadsPage() {
   const [leadForSuggestion, setLeadForSuggestion] = useState<Lead | null>(null);
   const [isManualProposalDialogOpen, setIsManualProposalDialogOpen] = useState(false);
   const [leadForManualProposal, setLeadForManualProposal] = useState<Lead | null>(null);
+  const [isConvertOpportunityDialogOpen, setIsConvertOpportunityDialogOpen] = useState(false);
+  const [leadForConvert, setLeadForConvert] = useState<Lead | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [widgetTypeFilter, setWidgetTypeFilter] = useState("all");
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -879,6 +900,10 @@ export default function LeadsPage() {
                 setLeadForManualProposal(selectedLead);
                 setIsManualProposalDialogOpen(true);
               }}
+              onConvertToOpportunity={() => {
+                setLeadForConvert(selectedLead);
+                setIsConvertOpportunityDialogOpen(true);
+              }}
               isUpdating={updateLeadMutation.isPending}
               t={t}
               formatDateTime={formatDateTime}
@@ -905,6 +930,15 @@ export default function LeadsPage() {
           onOpenChange={setIsManualProposalDialogOpen}
           lead={leadForManualProposal}
           organization={organization}
+        />
+      )}
+
+      {leadForConvert && (
+        <ConvertToOpportunityDialog
+          open={isConvertOpportunityDialogOpen}
+          onOpenChange={setIsConvertOpportunityDialogOpen}
+          lead={leadForConvert}
+          organizationId={currentOrganization?.id ?? ""}
         />
       )}
 
@@ -1290,6 +1324,121 @@ function ManualProposalDialog({
             {createProposalMutation.isPending
               ? t("leads.proposal.creating")
               : t("leads.proposal.create")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Convert to Opportunity Dialog ────────────────────────────────────────────
+
+function ConvertToOpportunityDialog({
+  open,
+  onOpenChange,
+  lead,
+  organizationId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  lead: Lead;
+  organizationId: string;
+}) {
+  const navigate = useNavigate();
+  const { data: currentOrganization } = useCurrentOrganization();
+  const d = lead.data || lead;
+  const convertMutation = useConvertLeadToOpportunity();
+
+  const defaultTitle = `${d.company || [d.firstName, d.lastName].filter(Boolean).join(" ") || "Lead"} opportunity`;
+
+  // Pre-fill close date 30 days from today
+  const defaultCloseDate = (() => {
+    const dt = new Date();
+    dt.setDate(dt.getDate() + 30);
+    return dt.toISOString().split("T")[0];
+  })();
+
+  const [title, setTitle] = useState(defaultTitle);
+  const [estimatedValue, setEstimatedValue] = useState<string>(
+    d.budget ? String(d.budget) : d.budgetMax ? String(d.budgetMax) : ""
+  );
+  const [currency, setCurrency] = useState(
+    d.budgetCurrency || currentOrganization?.settings?.defaultCurrency || "USD"
+  );
+  const [expectedCloseDate, setExpectedCloseDate] = useState(defaultCloseDate);
+
+  async function handleConvert() {
+    const result = await convertMutation.mutateAsync({
+      leadId: lead.id,
+      organizationId,
+      title: title.trim(),
+      estimatedValue: estimatedValue ? Number(estimatedValue) : undefined,
+      currency: currency || undefined,
+      expectedCloseDate: expectedCloseDate || undefined,
+    });
+    onOpenChange(false);
+    navigate(`/opportunities/${result.opportunityId}`);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Convert to Opportunity</DialogTitle>
+          <DialogDescription>
+            Create an opportunity from this lead to track it through your commercial pipeline.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="opp-title">Title</Label>
+            <Input
+              id="opp-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Website Redesign"
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="opp-value">Estimated Value</Label>
+              <Input
+                id="opp-value"
+                type="number"
+                min={0}
+                value={estimatedValue}
+                onChange={(e) => setEstimatedValue(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="w-44 space-y-1.5">
+              <Label>Currency</Label>
+              <CurrencyCombobox
+                value={currency}
+                onChange={setCurrency}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="opp-close-date">Expected Close Date</Label>
+            <Input
+              id="opp-close-date"
+              type="date"
+              value={expectedCloseDate}
+              onChange={(e) => setExpectedCloseDate(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConvert}
+            disabled={!title.trim() || convertMutation.isPending}
+          >
+            {convertMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Convert to Opportunity
           </Button>
         </DialogFooter>
       </DialogContent>

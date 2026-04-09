@@ -13,6 +13,7 @@ import { getTaskRepository } from "./task-repository";
 import { getNotificationRepository } from "./notification-repository";
 import { getContactRepository } from "./contact-repository";
 import { getLeadRepository } from "./lead-repository";
+import { getOpportunityRepository } from "./opportunity-repository";
 import { getProductRepository } from "./product-repository";
 import { getAnalyticsConfigRepository } from "./analytics-config-repository";
 import { getExtractionJobRepository } from "./extraction-job-repository";
@@ -44,6 +45,8 @@ export const repositoryHost: RepositoryHost = {
       getContactRepository(databaseService),
     getLeadsRepository: (databaseService: DatabaseService) =>
       getLeadRepository(databaseService),
+    getOpportunitiesRepository: (databaseService: DatabaseService) =>
+      getOpportunityRepository(databaseService),
     getProductsRepository: (databaseService: DatabaseService) =>
       getProductRepository(databaseService),
     getAnalyticsConfigRepository: (databaseService: DatabaseService) =>

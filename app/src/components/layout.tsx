@@ -2,6 +2,7 @@ import {
 	Sidebar,
 	SidebarContent,
 	SidebarGroup,
+	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -24,6 +25,7 @@ import {
 	Store,
 	FolderOpen,
 	CornerDownRight,
+	TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -165,74 +167,104 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const designerTemplate = useDesignerTemplate();
 	const emailDesignerTemplate = useEmailDesignerTemplate();
 
-	// Navigation items with translations
-	const navItems = useMemo(
+	// Navigation groups with translations
+	const navGroups = useMemo(
 		() => [
 			{
-				title: t("layout.navigation.dashboard"),
-				href: "/dashboard",
-				icon: LayoutDashboard,
-			},
-			{
-				title: t("layout.navigation.products"),
-				href: "/products",
-				icon: Package,
-				children: [
+				label: null, // no label — top-level single item
+				items: [
 					{
-						href: "/products/collections",
-						title: t("layout.navigation.collections"),
+						title: t("layout.navigation.dashboard"),
+						href: "/dashboard",
+						icon: LayoutDashboard,
 					},
 				],
 			},
 			{
-				title: t("layout.navigation.templates"),
-				href: "/templates",
-				icon: Brush,
+				label: t("layout.navigation.group.pipeline"),
+				items: [
+					{
+						title: t("layout.navigation.leads"),
+						href: "/leads",
+						icon: MessageSquare,
+					},
+					{
+						title: t("layout.navigation.opportunities"),
+						href: "/opportunities",
+						icon: TrendingUp,
+					},
+					{
+						title: t("layout.navigation.proposals"),
+						href: "/proposals",
+						icon: FileText,
+					},
+					{
+						title: t("layout.navigation.invoices"),
+						href: "/invoices",
+						icon: FileText,
+					},
+				],
 			},
 			{
-				title: t("layout.navigation.invoices"),
-				href: "/invoices",
-				icon: FileText,
+				label: t("layout.navigation.group.catalog"),
+				items: [
+					{
+						title: t("layout.navigation.contacts"),
+						href: "/contacts",
+						icon: Users,
+					},
+					{
+						title: t("layout.navigation.products"),
+						href: "/products",
+						icon: Package,
+						children: [
+							{
+								href: "/products/collections",
+								title: t("layout.navigation.collections"),
+							},
+						],
+					},
+					{
+						title: t("layout.navigation.templates"),
+						href: "/templates",
+						icon: Brush,
+					},
+				],
 			},
 			{
-				title: t("layout.navigation.contacts"),
-				href: "/contacts",
-				icon: Users,
+				label: t("layout.navigation.group.tools"),
+				items: [
+					{
+						title: t("layout.navigation.workflows"),
+						href: "/workflows",
+						icon: Zap,
+					},
+					{
+						title: t("layout.navigation.siteBuilder"),
+						href: "/integrations",
+						icon: Sparkles,
+					},
+					{
+						title: t("layout.navigation.marketplace"),
+						href: "/marketplace",
+						icon: Store,
+					},
+					{
+						title: t("layout.navigation.content"),
+						href: "/content/metaobjects",
+						icon: FolderOpen,
+					},
+				],
 			},
 			{
-				title: t("layout.navigation.leads"),
-				href: "/leads",
-				icon: MessageSquare,
-			},
-			{
-				title: t("layout.navigation.proposals"),
-				href: "/proposals",
-				icon: FileText,
-			},
-			{
-				title: t("layout.navigation.marketplace"),
-				href: "/marketplace",
-				icon: Store,
-			},
-			{
-				title: t("layout.navigation.workflows"),
-				href: "/workflows",
-				icon: Zap,
-			},
-			{
-				title: t("layout.navigation.siteBuilder"),
-				href: "/integrations",
-				icon: Sparkles,
-			},
-			{
-				title: t("layout.navigation.content"),
-				href: "/content/metaobjects",
-				icon: FolderOpen,
-			},
-			{
-				title: t("layout.navigation.settings"),
-				href: "/settings/organization/general",
-				icon: Settings,
+				label: null,
+				items: [
+					{
+						title: t("layout.navigation.settings"),
+						href: "/settings/organization/general",
+						icon: Settings,
+					},
+				],
 			},
 		],
 		[t]
@@ -397,17 +429,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					</div>
 				</SidebarHeader>
 				<SidebarContent className="justify-between">
-					<SidebarGroup>
-						{navItems.map((item) => (
-							<NavItem
-								key={item.href}
-								item={item}
-								isMobile={isMobile}
-								toggleSidebar={toggleSidebar}
-								title={item.title}
-							/>
+					<div>
+						{navGroups.map((group, gi) => (
+							<SidebarGroup key={gi} className={gi > 0 ? "pt-1" : undefined}>
+								{group.label && (
+									<SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/60 px-2 mb-0.5">
+										{group.label}
+									</SidebarGroupLabel>
+								)}
+								{group.items.map((item) => (
+									<NavItem
+										key={item.href}
+										item={item}
+										isMobile={isMobile}
+										toggleSidebar={toggleSidebar}
+										title={item.title}
+									/>
+								))}
+							</SidebarGroup>
 						))}
-					</SidebarGroup>
+					</div>
 
 					<div>
 						<SidebarSeparator />
