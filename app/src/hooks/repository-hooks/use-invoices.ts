@@ -26,6 +26,14 @@ export const useInvoices = (orgId?: string) => {
     });
 };
 
+export const useInvoice = (id: string | undefined) => {
+    return useQuery({
+        queryKey: ["invoices", id],
+        queryFn: () => invoiceRepository.get({ id: id! }),
+        enabled: !!id,
+    });
+};
+
 export const useUpdateInvoice = () => {
     const queryClient = useQueryClient();
 

@@ -8,6 +8,7 @@ export enum DatabaseCollection {
   BRAND_SITES = "brandSites",
   CONTACTS = "contacts",
   LEADS = "leads",
+  OPPORTUNITIES = "opportunities",
   PRODUCTS = "products",
   EMAIL_TEMPLATE_MAPPINGS = "emailTemplateMappings",
   EMAIL_PREVIEW_SNAPSHOTS = "emailPreviewSnapshots",

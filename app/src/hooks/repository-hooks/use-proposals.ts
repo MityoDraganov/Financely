@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const databaseService = serviceHost.getDatabaseService();
 const proposalRepository = repositoryHost.getProposalsRepository(databaseService);
+const opportunityRepository = repositoryHost.getOpportunitiesRepository(databaseService);
 
 /**
  * Hook to fetch all proposals (optionally filtered by constraints)
@@ -55,6 +56,25 @@ export const useProposalsByLead = (leadId: string | undefined) => {
 };
 
 /**
+ * Hook to fetch proposals by opportunity ID
+ */
+export const useProposalsByOpportunity = (opportunityId: string | undefined) => {
+  return useQuery({
+    queryKey: ["proposals", "opportunity", opportunityId],
+    queryFn: async () => {
+      if (!opportunityId) return [];
+      return proposalRepository.getAll({
+        queryConstraints: [
+          { field: "opportunityId", operator: "==", value: opportunityId },
+        ],
+        orderBy: { field: "createdAt", direction: "desc" },
+      });
+    },
+    enabled: !!opportunityId,
+  });
+};
+
+/**
  * Hook to fetch a single proposal by ID
  */
 export const useProposal = (proposalId: string | undefined) => {
@@ -76,19 +96,31 @@ export const useCreateProposal = () => {
 
   return useMutation({
     mutationFn: async (data: ProposalData) => {
-      return proposalRepository.create({ data });
+      const proposalId = await proposalRepository.create({ data });
+      if (data.opportunityId) {
+        await opportunityRepository.addToSet({
+          id: data.opportunityId,
+          fieldName: "proposalIds",
+          value: proposalId as unknown as string[],
+        });
+      }
+      return proposalId;
     },
-    onSuccess: (_proposalId, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
       if (variables.organizationId) {
-        queryClient.invalidateQueries({ 
-          queryKey: ["proposals", "org", variables.organizationId] 
+        queryClient.invalidateQueries({
+          queryKey: ["proposals", "org", variables.organizationId]
         });
       }
       if (variables.leadId) {
-        queryClient.invalidateQueries({ 
-          queryKey: ["proposals", "lead", variables.leadId] 
+        queryClient.invalidateQueries({
+          queryKey: ["proposals", "lead", variables.leadId]
         });
+      }
+      if (variables.opportunityId) {
+        queryClient.invalidateQueries({ queryKey: ["opportunities", variables.opportunityId] });
+        queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       }
     },
   });

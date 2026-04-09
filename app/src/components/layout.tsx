@@ -19,6 +19,7 @@ import {
 	Users,
 	Sparkles,
 	MessageSquare,
+	TrendingUp,
 	Package,
 	Menu,
 	Store,
@@ -203,6 +204,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				title: t("layout.navigation.leads"),
 				href: "/leads",
 				icon: MessageSquare,
+			},
+			{
+				title: t("layout.navigation.opportunities"),
+				href: "/opportunities",
+				icon: TrendingUp,
 			},
 			{
 				title: t("layout.navigation.proposals"),

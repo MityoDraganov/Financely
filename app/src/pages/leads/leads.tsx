@@ -15,6 +15,7 @@ import {
   Trash2,
   Tag,
   ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,9 +63,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLeadsByOrg, useUpdateLead } from "@/hooks/repository-hooks/use-leads";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { Lead, ProposalData, ProposalItem } from "@/core";
+import { Lead, OpportunityData, ProposalData, ProposalItem } from "@/core";
 import { ProposalSuggestionDialog } from "@/components/proposal-suggestion-dialog";
 import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
+import { useCreateOpportunity } from "@/hooks/repository-hooks/use-opportunities";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes } from "@/utils/currencies";
@@ -266,7 +268,9 @@ function LeadDetailPanel({
   onStatusChange,
   onAIProposal,
   onManualProposal,
+  onConvertToOpportunity,
   isUpdating,
+  isConverting,
   t,
   formatDateTime,
 }: {
@@ -274,7 +278,9 @@ function LeadDetailPanel({
   onStatusChange: (status: string) => void;
   onAIProposal: () => void;
   onManualProposal: () => void;
+  onConvertToOpportunity: () => void;
   isUpdating: boolean;
+  isConverting: boolean;
   t: (key: string) => string;
   formatDateTime: (date: Date | string | number) => string;
 }) {
@@ -361,24 +367,38 @@ function LeadDetailPanel({
         <Separator />
 
         {/* ── Actions ── */}
-        <div className="px-6 py-4 flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-1.5 text-sm"
-            onClick={onAIProposal}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-            AI Proposal
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 gap-1.5 text-sm"
-            onClick={onManualProposal}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Create Proposal
-          </Button>
+        <div className="px-6 py-4 space-y-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-sm"
+              onClick={onAIProposal}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              AI Proposal
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5 text-sm"
+              onClick={onManualProposal}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Create Proposal
+            </Button>
+          </div>
+          {(lead.data || lead).status !== "converted" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-sm border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
+              onClick={onConvertToOpportunity}
+              disabled={isConverting}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              {isConverting ? "Converting…" : "Convert to Opportunity"}
+            </Button>
+          )}
         </div>
 
         <Separator />
@@ -520,6 +540,7 @@ export default function LeadsPage() {
   const { formatDateTable, formatDateTime } = useDateFormatting();
   const { currentOrganization } = useOrganizationContext();
   const { data: organization } = useCurrentOrganization();
+  const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -534,6 +555,7 @@ export default function LeadsPage() {
 
   const { data: leads = [], isLoading } = useLeadsByOrg(currentOrganization?.id);
   const updateLeadMutation = useUpdateLead();
+  const createOpportunityMutation = useCreateOpportunity();
 
   // Always use live data for the selected lead so status updates reflect immediately
   const selectedLead = selectedLeadId
@@ -562,6 +584,42 @@ export default function LeadsPage() {
       id: leadId,
       data: { status: newStatus as Lead["data"]["status"] },
     });
+  };
+
+  const handleConvertToOpportunity = async (lead: Lead) => {
+    if (!currentOrganization?.id) return;
+    const d = lead.data || lead;
+    const title =
+      d.company ||
+      [d.firstName, d.lastName].filter(Boolean).join(" ") ||
+      "New Opportunity";
+
+    const opportunityData: OpportunityData = {
+      organizationId: currentOrganization.id,
+      title,
+      leadId: lead.id,
+      contactId: d.contactId,
+      companyName: d.company,
+      source: "lead",
+      stage: "NEW_QUALIFIED",
+      status: "open",
+      currency: organization?.settings?.defaultCurrency || "USD",
+      proposalIds: [],
+      invoiceIds: [],
+      tags: d.tags || [],
+    };
+
+    try {
+      const opportunityId = await createOpportunityMutation.mutateAsync(opportunityData);
+      await updateLeadMutation.mutateAsync({
+        id: lead.id,
+        data: { status: "converted" },
+      });
+      toast.success("Lead converted to opportunity");
+      navigate(`/opportunities/${opportunityId}`);
+    } catch {
+      toast.error("Failed to convert lead to opportunity");
+    }
   };
 
   const openDetailSheet = (lead: Lead) => {
@@ -851,6 +909,17 @@ export default function LeadsPage() {
                             <FileText className="mr-2 h-3.5 w-3.5 text-blue-500" />
                             Create Proposal
                           </DropdownMenuItem>
+                          {(lead.data || lead).status !== "converted" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleConvertToOpportunity(lead)}
+                              >
+                                <TrendingUp className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                                Convert to Opportunity
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -879,7 +948,9 @@ export default function LeadsPage() {
                 setLeadForManualProposal(selectedLead);
                 setIsManualProposalDialogOpen(true);
               }}
+              onConvertToOpportunity={() => handleConvertToOpportunity(selectedLead)}
               isUpdating={updateLeadMutation.isPending}
+              isConverting={createOpportunityMutation.isPending}
               t={t}
               formatDateTime={formatDateTime}
             />

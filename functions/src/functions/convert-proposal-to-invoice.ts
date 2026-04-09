@@ -10,6 +10,7 @@ import { getProposalRepository } from "../repositories/proposal-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
+import { getOpportunityRepository } from "../repositories/opportunity-repository";
 import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-service";
@@ -83,6 +84,7 @@ export const convertProposalToInvoice = onCall<
       const organizationRepository = getOrganizationRepository(databaseService);
       const leadRepository = getLeadRepository(databaseService);
       const invoiceRepository = getInvoiceRepository(databaseService);
+      const opportunityRepository = getOpportunityRepository(databaseService);
 
       // Fetch proposal
       const proposal = await proposalRepository.get({ id: proposalId });
@@ -202,6 +204,23 @@ export const convertProposalToInvoice = onCall<
           error: error instanceof Error ? error.message : "Unknown error",
         });
         // Don't fail the whole operation if this update fails
+      }
+
+      // If the proposal belongs to an opportunity, append the new invoice to its invoiceIds
+      if (proposal.opportunityId) {
+        try {
+          await opportunityRepository.addToSet({
+            id: proposal.opportunityId,
+            fieldName: "invoiceIds",
+            value: invoiceId as unknown as string[],
+          });
+        } catch (error) {
+          loggerService.warn("Failed to update opportunity invoiceIds", {
+            opportunityId: proposal.opportunityId,
+            invoiceId,
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
       }
 
       loggerService.info("Proposal converted to invoice successfully", {

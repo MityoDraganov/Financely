@@ -57,6 +57,7 @@ export const proposalDataSchema = z.object({
   // Organization and relationship tracking
   organizationId: z.string().min(1, "Organization ID is required"),
   leadId: z.string().optional(), // Reference to the lead this proposal is based on
+  opportunityId: z.string().optional(), // Reference to the opportunity this proposal belongs to
   invoiceId: z.string().optional(), // Reference to the invoice created from this proposal
   
   // Proposal content

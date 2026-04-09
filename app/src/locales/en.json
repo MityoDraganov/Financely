@@ -490,6 +490,115 @@
 			"proposalFailed": "Failed to create proposal: {{error}}"
 		}
 	},
+	"opportunities": {
+		"title": "Opportunities",
+		"subtitle": "Track qualified sales pursuits through your pipeline",
+		"loading": "Loading opportunities...",
+		"newOpportunity": "New Opportunity",
+		"filters": {
+			"searchPlaceholder": "Search by title or company...",
+			"allStages": "All Stages",
+			"allStatuses": "All Statuses",
+			"count": "opportunities"
+		},
+		"stage": {
+			"NEW_QUALIFIED": "New Qualified",
+			"DISCOVERY": "Discovery",
+			"PROPOSAL_SENT": "Proposal Sent",
+			"NEGOTIATION": "Negotiation",
+			"WON": "Won",
+			"LOST": "Lost"
+		},
+		"status": {
+			"open": "Open",
+			"won": "Won",
+			"lost": "Lost"
+		},
+		"table": {
+			"title": "All Opportunities",
+			"titleHeader": "Title",
+			"company": "Company",
+			"stage": "Stage",
+			"status": "Status",
+			"amount": "Amount",
+			"probability": "Probability",
+			"closeDate": "Close Date",
+			"actions": "Actions",
+			"showing": "Showing {{count}} of {{total}} opportunities",
+			"showingAll": "Showing all {{count}} opportunities"
+		},
+		"empty": {
+			"title": "No opportunities found",
+			"noMatch": "No opportunities match your current filters.",
+			"getStarted": "Create your first opportunity to start tracking your pipeline."
+		},
+		"fields": {
+			"title": "Title",
+			"titlePlaceholder": "e.g. Acme Corp - New Website",
+			"companyName": "Company",
+			"companyNamePlaceholder": "Company name",
+			"summary": "Summary",
+			"amount": "Amount",
+			"currency": "Currency",
+			"probability": "Probability (%)",
+			"expectedCloseDate": "Expected Close Date",
+			"nextStep": "Next Step",
+			"nextStepPlaceholder": "What needs to happen next?",
+			"nextStepDueAt": "Next Step Due",
+			"notes": "Notes",
+			"notesPlaceholder": "Internal notes...",
+			"lostReason": "Lost Reason",
+			"lostReasonPlaceholder": "Why was this opportunity lost?"
+		},
+		"create": {
+			"title": "Create Opportunity",
+			"description": "Add a new qualified sales opportunity to your pipeline.",
+			"submit": "Create Opportunity",
+			"creating": "Creating...",
+			"success": "Opportunity created",
+			"error": "Failed to create opportunity",
+			"titleRequired": "Title is required"
+		},
+		"delete": {
+			"success": "Opportunity deleted",
+			"error": "Failed to delete opportunity"
+		},
+		"actions": {
+			"view": "View",
+			"edit": "Edit",
+			"save": "Save",
+			"cancel": "Cancel",
+			"delete": "Delete",
+			"markWon": "Mark Won",
+			"markLost": "Mark Lost"
+		},
+		"detail": {
+			"back": "Back to Opportunities",
+			"notFound": "Opportunity not found.",
+			"pipeline": "Pipeline Stage",
+			"details": "Details",
+			"commercial": "Commercial",
+			"linkedRecords": "Linked Records",
+			"metadata": "Info",
+			"weightedValue": "Weighted Value",
+			"wonAt": "Won",
+			"lostAt": "Lost",
+			"proposals": "Proposals",
+			"invoices": "Invoices",
+			"sourceLead": "Source Lead",
+			"viewLead": "View Lead",
+			"created": "Created",
+			"updated": "Updated",
+			"source": "Source",
+			"noDetails": "No details added yet.",
+			"dueDate": "Due:",
+			"stageUpdated": "Stage updated",
+			"markedWon": "Opportunity marked as won",
+			"markedLost": "Opportunity marked as lost",
+			"saveSuccess": "Opportunity saved",
+			"saveError": "Failed to save opportunity"
+		}
+	},
 	"proposals": {
 		"title": "Proposals",
 		"subtitle": "Create and manage proposals for your leads",
@@ -3716,6 +3825,7 @@
 			"invoices": "Invoices",
 			"contacts": "Contacts",
 			"leads": "Leads",
+			"opportunities": "Opportunities",
 			"proposals": "Proposals",
 			"templates": "Templates",
 			"marketplace": "Marketplace",
