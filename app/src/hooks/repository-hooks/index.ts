@@ -6,3 +6,4 @@ export * from "./use-users";
 export * from "./use-marketplace-templates";
 export * from "./use-marketplace-reviews";
 export * from "./use-public-catalog-page";
+export * from "./use-commercial-cases";

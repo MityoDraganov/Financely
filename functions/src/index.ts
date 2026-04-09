@@ -34,6 +34,8 @@ export {
   onContactUpdated,
   onProposalCreated,
   onProposalStatusChanged,
+  onCommercialCaseCreated,
+  onCommercialCaseStageChanged,
   onProductCreated,
   onProductLowStock,
   checkCronWorkflows,
@@ -155,6 +157,12 @@ export { generateEmailTemplate } from "./functions/generate-email-template";
 export { listAiModels } from "./functions/list-ai-models";
 export { convertProposalToInvoice } from "./functions/convert-proposal-to-invoice";
 export { generateInvoiceFromProposal } from "./functions/generate-invoice-from-proposal";
+export { createCommercialCase } from "./functions/create-commercial-case";
+export { advanceCommercialCaseStage } from "./functions/advance-commercial-case-stage";
+export { overrideCommercialCaseStage } from "./functions/override-commercial-case-stage";
+export { createProposalForCase } from "./functions/create-proposal-for-case";
+export { createInvoiceForCase } from "./functions/create-invoice-for-case";
+export { convertProposalToInvoiceForCase } from "./functions/convert-proposal-to-invoice-for-case";
 export { generateWidget } from "./functions/generate-widget";
 export { generateConsentBanner } from "./functions/generate-consent-banner";
 

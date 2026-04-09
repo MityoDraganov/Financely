@@ -11,6 +11,8 @@ export enum DatabaseCollection {
   CONTACTS = "contacts",
   LEADS = "leads",
   OPPORTUNITIES = "opportunities",
+  COMMERCIAL_CASES = "commercialCases",
+  COMMERCIAL_CASE_EVENTS = "commercialCaseEvents",
   NOTIFICATIONS = "notifications",
   TASKS = "tasks",
   PRODUCTS = "products",

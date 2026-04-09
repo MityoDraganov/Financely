@@ -11,6 +11,7 @@ import { NotificationRepository } from "./notification-repository";
 import { ContactRepository } from "./contact-repository";
 import { LeadRepository } from "./lead-repository";
 import { OpportunityRepository } from "./opportunity-repository";
+import { CommercialCaseRepository, CommercialCaseEventRepository } from "./commercial-case-repository";
 import { ProductRepository } from "./product-repository";
 import { AnalyticsConfigRepository } from "./analytics-config-repository";
 import type { ExtractionJobRepository } from "@/repositories/extraction-job-repository";
@@ -31,6 +32,8 @@ export interface RepositoryHost {
     getContactsRepository(databaseService: DatabaseService): ContactRepository;
     getLeadsRepository(databaseService: DatabaseService): LeadRepository;
     getOpportunitiesRepository(databaseService: DatabaseService): OpportunityRepository;
+    getCommercialCasesRepository(databaseService: DatabaseService): CommercialCaseRepository;
+    getCommercialCaseEventsRepository(databaseService: DatabaseService): CommercialCaseEventRepository;
     getProductsRepository(databaseService: DatabaseService): ProductRepository;
     getAnalyticsConfigRepository(databaseService: DatabaseService): AnalyticsConfigRepository;
     getExtractionJobRepository(databaseService: DatabaseService): ExtractionJobRepository;

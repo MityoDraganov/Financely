@@ -67,7 +67,7 @@ export function ActivationGuide({
       icon: FileText,
       title: "Create your first invoice",
       description: "Send a professional invoice in minutes",
-      href: "/create-invoice",
+      href: "/cases",
       isDone: invoiceCount > 0,
     },
   ];

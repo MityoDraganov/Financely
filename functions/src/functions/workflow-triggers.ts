@@ -9,6 +9,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { firestore } from "../infrastructure/firebase";
 import { PROPOSAL_STATUSES, normalizeProposalStatus } from "../core/entities/proposal";
+import { COMMERCIAL_CASE_STAGES } from "../core/entities/commercial-case";
 
 // Define secrets
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -27,6 +28,10 @@ import { SlackExecutor } from "../executors/slack-executor";
 import { PdfExecutor } from "../executors/pdf-executor";
 import { ProductExecutor } from "../executors/product-executor";
 import { StripeExecutor } from "../executors/stripe-executor";
+import {
+  emitInvoicePaidCaseEvent,
+  transitionCommercialCaseStage,
+} from "../services/commercial-case-lifecycle-service";
 
 function getExecutionEngine(): WorkflowExecutionEngine {
   const executionEngine = new WorkflowExecutionEngine();
@@ -95,6 +100,7 @@ export const onInvoiceCreated = onDocumentCreated({
     type: "invoice.created",
     payload: {
       invoiceId: event.params.invoiceId,
+      commercialCaseId: invoiceData.commercialCaseId,
       ...invoiceData,
     },
     timestamp: FieldValue.serverTimestamp() as any,
@@ -132,12 +138,38 @@ export const onInvoicePaid = onDocumentUpdated({
       type: "invoice.paid",
       payload: {
         invoiceId: event.params.invoiceId,
+        commercialCaseId: afterData.commercialCaseId,
         ...afterData,
       },
       timestamp: FieldValue.serverTimestamp() as any,
     };
 
     try {
+      if (afterData.commercialCaseId && afterData.orgId) {
+        try {
+          await transitionCommercialCaseStage({
+            organizationId: afterData.orgId,
+            commercialCaseId: afterData.commercialCaseId,
+            toStage: COMMERCIAL_CASE_STAGES.PAID,
+            reason: "Invoice marked as paid",
+          });
+          await emitInvoicePaidCaseEvent({
+            organizationId: afterData.orgId,
+            commercialCaseId: afterData.commercialCaseId,
+            invoiceId: event.params.invoiceId,
+          });
+        } catch (caseUpdateError) {
+          logger.error("Failed to update case stage on invoice paid", {
+            invoiceId: event.params.invoiceId,
+            commercialCaseId: afterData.commercialCaseId,
+            error:
+              caseUpdateError instanceof Error
+                ? caseUpdateError.message
+                : "Unknown error",
+          });
+        }
+      }
+
       const executionEngine = getExecutionEngine();
       await executionEngine.processEvent(workflowEvent);
     } catch (error) {
@@ -308,6 +340,7 @@ export const onProposalCreated = onDocumentCreated({
     type: "proposal.created",
     payload: {
       proposalId: event.params.proposalId,
+      commercialCaseId: proposalData.commercialCaseId,
       ...proposalData,
     },
     timestamp: FieldValue.serverTimestamp() as any,
@@ -364,6 +397,7 @@ export const onProposalStatusChanged = onDocumentUpdated({
     type: eventType,
     payload: {
       proposalId: event.params.proposalId,
+      commercialCaseId: afterData.commercialCaseId,
       ...afterData,
     },
     timestamp: FieldValue.serverTimestamp() as any,
@@ -376,6 +410,113 @@ export const onProposalStatusChanged = onDocumentUpdated({
     logger.error(`Error processing ${eventType} event`, { 
       proposalId: event.params.proposalId,
       error: error instanceof Error ? error.message : "Unknown error" 
+    });
+  }
+});
+
+/**
+ * Handle commercial case created events
+ */
+export const onCommercialCaseCreated = onDocumentCreated({
+  document: "commercialCases/{commercialCaseId}",
+  region: "us-central1",
+  secrets: [resendApiKey, resendFromEmail, resendFromName],
+}, async (event) => {
+  const caseData = event.data?.data();
+  if (!caseData) return;
+
+  const workflowEvent: WorkflowEvent = {
+    eventId: uuidv4(),
+    tenantId: caseData.organizationId,
+    type: "case.created",
+    payload: {
+      commercialCaseId: event.params.commercialCaseId,
+      ...caseData,
+    },
+    timestamp: FieldValue.serverTimestamp() as any,
+  };
+
+  try {
+    const executionEngine = getExecutionEngine();
+    await executionEngine.processEvent(workflowEvent);
+  } catch (error) {
+    logger.error("Error processing case.created event", {
+      commercialCaseId: event.params.commercialCaseId,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
+ * Handle commercial case stage changes
+ */
+export const onCommercialCaseStageChanged = onDocumentUpdated({
+  document: "commercialCases/{commercialCaseId}",
+  region: "us-central1",
+  secrets: [resendApiKey, resendFromEmail, resendFromName],
+}, async (event) => {
+  const beforeData = event.data?.before.data();
+  const afterData = event.data?.after.data();
+
+  if (!beforeData || !afterData) return;
+  if (beforeData.stage === afterData.stage) return;
+
+  const basePayload = {
+    commercialCaseId: event.params.commercialCaseId,
+    fromStage: beforeData.stage,
+    toStage: afterData.stage,
+    ...afterData,
+  };
+  const executionEngine = getExecutionEngine();
+
+  const events: WorkflowEvent[] = [
+    {
+      eventId: uuidv4(),
+      tenantId: afterData.organizationId,
+      type: "case.stage_changed",
+      payload: basePayload,
+      timestamp: FieldValue.serverTimestamp() as any,
+    },
+  ];
+
+  if (afterData.stage === COMMERCIAL_CASE_STAGES.WON) {
+    events.push({
+      eventId: uuidv4(),
+      tenantId: afterData.organizationId,
+      type: "case.won",
+      payload: basePayload,
+      timestamp: FieldValue.serverTimestamp() as any,
+    });
+  }
+
+  if (afterData.stage === COMMERCIAL_CASE_STAGES.LOST) {
+    events.push({
+      eventId: uuidv4(),
+      tenantId: afterData.organizationId,
+      type: "case.lost",
+      payload: basePayload,
+      timestamp: FieldValue.serverTimestamp() as any,
+    });
+  }
+
+  if (afterData.stage === COMMERCIAL_CASE_STAGES.PAID) {
+    events.push({
+      eventId: uuidv4(),
+      tenantId: afterData.organizationId,
+      type: "case.paid",
+      payload: basePayload,
+      timestamp: FieldValue.serverTimestamp() as any,
+    });
+  }
+
+  try {
+    for (const eventPayload of events) {
+      await executionEngine.processEvent(eventPayload);
+    }
+  } catch (error) {
+    logger.error("Error processing case stage events", {
+      commercialCaseId: event.params.commercialCaseId,
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });

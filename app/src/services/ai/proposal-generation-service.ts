@@ -90,6 +90,9 @@ export class ProposalGenerationService {
       // Build proposal data
       const proposalData: ProposalData = {
         organizationId: leadData.organizationId,
+        commercialCaseId:
+          (leadData as { commercialCaseId?: string }).commercialCaseId ||
+          "CASE_REQUIRED",
         leadId: lead.id,
         title: result.title,
         description: result.description,

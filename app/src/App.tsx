@@ -21,10 +21,10 @@ import InvoiceUploadFlowPage from "./pages/invoice-upload-flow";
 import ContactsPage from "./pages/contacts/contacts";
 import ContactDetailPage from "./pages/contacts/contact-detail";
 import LeadsPage from "./pages/leads/leads";
-import OpportunitiesPage from "./pages/opportunities/opportunities";
-import OpportunityDetailPage from "./pages/opportunities/opportunity-detail";
 import ProposalsPage from "./pages/proposals/proposals";
 import ProposalDetailPage from "./pages/proposals/proposal-detail";
+import CasesPage from "./pages/cases/cases";
+import CaseDetailPage from "./pages/cases/case-detail";
 import ProductsPage from "./pages/products/products";
 import ProductDetailPage from "./pages/products/product-detail";
 import ProductMetafieldsPage from "./pages/products/products-metafields";
@@ -258,6 +258,26 @@ function App() {
 												}
 											/>
 											<Route
+												path="/cases"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<CasesPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/cases/:id"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<CaseDetailPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
 												path="/leads"
 												element={
 													<ProtectedRoute>
@@ -269,23 +289,11 @@ function App() {
 											/>
 											<Route
 												path="/opportunities"
-												element={
-													<ProtectedRoute>
-														<AppLayout>
-															<OpportunitiesPage />
-														</AppLayout>
-													</ProtectedRoute>
-												}
+												element={<Navigate to="/cases" replace />}
 											/>
 											<Route
 												path="/opportunities/:id"
-												element={
-													<ProtectedRoute>
-														<AppLayout>
-															<OpportunityDetailPage />
-														</AppLayout>
-													</ProtectedRoute>
-												}
+												element={<Navigate to="/cases" replace />}
 											/>
 											<Route
 												path="/proposals"

@@ -122,6 +122,7 @@ export const getTemplatePreviewHtml = onCall<
   const sampleInvoice: Invoice = {
     id: "preview_sample",
     orgId: "official_preview",
+    commercialCaseId: "preview_case",
     templateId: template.id,
     data: SAMPLE_DATA,
     status: "sent",

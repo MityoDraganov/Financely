@@ -1604,6 +1604,7 @@ export default function ProposalDetailPage() {
                 try {
                   const result = await createInvoice.mutateAsync({
                     orgId: currentOrganization.id,
+                    commercialCaseId: proposal.commercialCaseId,
                     templateId: generatedInvoiceData.templateId,
                     data: generatedInvoiceData.invoiceData,
                     status: "unsent",

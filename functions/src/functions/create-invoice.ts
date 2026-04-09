@@ -103,6 +103,13 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
         );
       }
 
+      if (!payload.commercialCaseId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Commercial case ID (commercialCaseId) is required"
+        );
+      }
+
       if (!payload.data || typeof payload.data !== "object") {
         throw new HttpsError(
           "invalid-argument",

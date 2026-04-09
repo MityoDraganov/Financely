@@ -214,6 +214,12 @@ export default function InvoiceUploadFlowPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const commercialCaseId = useMemo(() => {
+    const fromState = location.state?.commercialCaseId as string | undefined;
+    if (fromState) return fromState;
+    const params = new URLSearchParams(location.search);
+    return params.get("commercialCaseId") || undefined;
+  }, [location.search, location.state]);
   
   // Determine flow type from location state or default to "template"
   const flowType: FlowType = (location.state?.flowType as FlowType) || "template";
@@ -413,10 +419,18 @@ export default function InvoiceUploadFlowPage() {
   const handleCreateInvoiceFromExtraction = async (templateId: string, data?: Record<string, InvoiceDataValue>) => {
     const invoiceData = data || updatedExtractedData || job?.extractedData;
     if (!invoiceData || !currentOrganization) return;
+    if (!commercialCaseId) {
+      toast.error(t("invoiceUploadFlow.toasts.createInvoiceFailed"), {
+        description: "Commercial case context is required. Start from a case workspace.",
+      });
+      navigate("/cases");
+      return;
+    }
 
     try {
       const result = await createInvoice.mutateAsync({
         orgId: currentOrganization.id,
+        commercialCaseId,
         templateId,
         data: invoiceData,
         status: "unsent",

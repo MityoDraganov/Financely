@@ -7,6 +7,8 @@ import { getDatabaseService } from "../services/database-service";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getProductRepository } from "../repositories/product-repository";
 import { getProposalRepository } from "../repositories/proposal-repository";
+import { getLeadRepository } from "../repositories/lead-repository";
+import { getCommercialCaseRepository } from "../repositories/commercial-case-repository";
 import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { getProposalGenerationService } from "../services/ai/proposal-generation-service";
@@ -24,6 +26,8 @@ import { SlackExecutor } from "../executors/slack-executor";
 import { PdfExecutor } from "../executors/pdf-executor";
 import { ProductExecutor } from "../executors/product-executor";
 import { StripeExecutor } from "../executors/stripe-executor";
+import { COMMERCIAL_CASE_STAGES } from "../core/entities/commercial-case";
+import { appendCommercialCaseEvent } from "../services/commercial-case-lifecycle-service";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -246,6 +250,52 @@ export const onLeadCreated = onDocumentCreated(
           conversionPairs: organization.settings?.multiCurrency?.pairs || [],
         },
       );
+
+      const leadRepository = getLeadRepository(databaseService);
+      const commercialCaseRepository = getCommercialCaseRepository(databaseService);
+      if (
+        !proposalData.commercialCaseId ||
+        proposalData.commercialCaseId === "CASE_REQUIRED"
+      ) {
+        const commercialCaseId = await commercialCaseRepository.create({
+          data: {
+            organizationId,
+            title:
+              leadData.company ||
+              [leadData.firstName, leadData.lastName].filter(Boolean).join(" ") ||
+              "Auto-created Case",
+            summary: leadData.message,
+            leadId,
+            contactId: leadData.contactId,
+            companyName: leadData.company,
+            source: "lead",
+            stage: COMMERCIAL_CASE_STAGES.QUALIFIED,
+            currency: organization.settings?.defaultCurrency || "USD",
+            nextAction: "Review generated proposal",
+            tags: leadData.tags || [],
+          },
+        });
+
+        proposalData.commercialCaseId = commercialCaseId;
+
+        await leadRepository.update({
+          id: leadId,
+          data: {
+            commercialCaseId,
+          },
+        });
+
+        await appendCommercialCaseEvent({
+          organizationId,
+          commercialCaseId,
+          type: "case.created",
+          toStage: COMMERCIAL_CASE_STAGES.QUALIFIED,
+          metadata: {
+            source: "lead.auto_proposal",
+            leadId,
+          },
+        });
+      }
 
       // Create the proposal
       const proposalId = await proposalRepository.create({ data: proposalData });

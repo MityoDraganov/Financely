@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const databaseService = serviceHost.getDatabaseService();
 const proposalRepository = repositoryHost.getProposalsRepository(databaseService);
-const opportunityRepository = repositoryHost.getOpportunitiesRepository(databaseService);
 
 /**
  * Hook to fetch all proposals (optionally filtered by constraints)
@@ -56,23 +55,34 @@ export const useProposalsByLead = (leadId: string | undefined) => {
 };
 
 /**
- * Hook to fetch proposals by opportunity ID
+ * Hook to fetch proposals by commercial case ID
  */
-export const useProposalsByOpportunity = (opportunityId: string | undefined) => {
+export const useProposalsByCommercialCase = (
+  commercialCaseId: string | undefined,
+) => {
   return useQuery({
-    queryKey: ["proposals", "opportunity", opportunityId],
+    queryKey: ["proposals", "commercialCase", commercialCaseId],
     queryFn: async () => {
-      if (!opportunityId) return [];
+      if (!commercialCaseId) return [];
       return proposalRepository.getAll({
         queryConstraints: [
-          { field: "opportunityId", operator: "==", value: opportunityId },
+          {
+            field: "commercialCaseId",
+            operator: "==",
+            value: commercialCaseId,
+          },
         ],
         orderBy: { field: "createdAt", direction: "desc" },
       });
     },
-    enabled: !!opportunityId,
+    enabled: !!commercialCaseId,
   });
 };
+
+// Temporary compatibility alias for legacy screens that still pass an opportunity ID.
+export const useProposalsByOpportunity = (
+  opportunityId: string | undefined,
+) => useProposalsByCommercialCase(opportunityId);
 
 /**
  * Hook to fetch a single proposal by ID
@@ -95,17 +105,7 @@ export const useCreateProposal = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: ProposalData) => {
-      const proposalId = await proposalRepository.create({ data });
-      if (data.opportunityId) {
-        await opportunityRepository.addToSet({
-          id: data.opportunityId,
-          fieldName: "proposalIds",
-          value: proposalId as unknown as string[],
-        });
-      }
-      return proposalId;
-    },
+    mutationFn: async (data: ProposalData) => proposalRepository.create({ data }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
       if (variables.organizationId) {
@@ -118,10 +118,12 @@ export const useCreateProposal = () => {
           queryKey: ["proposals", "lead", variables.leadId]
         });
       }
-      if (variables.opportunityId) {
-        queryClient.invalidateQueries({ queryKey: ["opportunities", variables.opportunityId] });
-        queryClient.invalidateQueries({ queryKey: ["opportunities"] });
-      }
+      queryClient.invalidateQueries({
+        queryKey: ["proposals", "commercialCase", variables.commercialCaseId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["commercialCases", variables.commercialCaseId],
+      });
     },
   });
 };
@@ -169,4 +171,3 @@ export const useDeleteProposal = () => {
     },
   });
 };
-

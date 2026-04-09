@@ -63,10 +63,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLeadsByOrg, useUpdateLead } from "@/hooks/repository-hooks/use-leads";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { Lead, OpportunityData, ProposalData, ProposalItem } from "@/core";
+import { COMMERCIAL_CASE_STAGES, Lead, ProposalData, ProposalItem } from "@/core";
 import { ProposalSuggestionDialog } from "@/components/proposal-suggestion-dialog";
 import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
-import { useCreateOpportunity } from "@/hooks/repository-hooks/use-opportunities";
+import { useCreateCommercialCaseFn } from "@/hooks/service-hooks/use-commercial-case-functions";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getAllCurrencyCodes } from "@/utils/currencies";
@@ -555,7 +555,7 @@ export default function LeadsPage() {
 
   const { data: leads = [], isLoading } = useLeadsByOrg(currentOrganization?.id);
   const updateLeadMutation = useUpdateLead();
-  const createOpportunityMutation = useCreateOpportunity();
+  const createCommercialCaseMutation = useCreateCommercialCaseFn();
 
   // Always use live data for the selected lead so status updates reflect immediately
   const selectedLead = selectedLeadId
@@ -592,33 +592,35 @@ export default function LeadsPage() {
     const title =
       d.company ||
       [d.firstName, d.lastName].filter(Boolean).join(" ") ||
-      "New Opportunity";
+      "New Commercial Case";
 
-    const opportunityData: OpportunityData = {
+    const caseData = {
       organizationId: currentOrganization.id,
       title,
       leadId: lead.id,
       contactId: d.contactId,
       companyName: d.company,
-      source: "lead",
-      stage: "NEW_QUALIFIED",
-      status: "open",
+      source: "lead" as const,
+      stage: COMMERCIAL_CASE_STAGES.QUALIFIED,
       currency: organization?.settings?.defaultCurrency || "USD",
-      proposalIds: [],
-      invoiceIds: [],
       tags: d.tags || [],
+      nextAction: "Qualify lead and define scope",
     };
 
     try {
-      const opportunityId = await createOpportunityMutation.mutateAsync(opportunityData);
+      const { id: commercialCaseId } =
+        await createCommercialCaseMutation.mutateAsync(caseData);
       await updateLeadMutation.mutateAsync({
         id: lead.id,
-        data: { status: "converted" },
+        data: {
+          status: "converted",
+          commercialCaseId,
+        },
       });
-      toast.success("Lead converted to opportunity");
-      navigate(`/opportunities/${opportunityId}`);
+      toast.success("Lead converted to commercial case");
+      navigate(`/cases/${commercialCaseId}`);
     } catch {
-      toast.error("Failed to convert lead to opportunity");
+      toast.error("Failed to convert lead to commercial case");
     }
   };
 
@@ -916,7 +918,7 @@ export default function LeadsPage() {
                                 onClick={() => handleConvertToOpportunity(lead)}
                               >
                                 <TrendingUp className="mr-2 h-3.5 w-3.5 text-emerald-600" />
-                                Convert to Opportunity
+                                Convert to Case
                               </DropdownMenuItem>
                             </>
                           )}
@@ -950,7 +952,7 @@ export default function LeadsPage() {
               }}
               onConvertToOpportunity={() => handleConvertToOpportunity(selectedLead)}
               isUpdating={updateLeadMutation.isPending}
-              isConverting={createOpportunityMutation.isPending}
+              isConverting={createCommercialCaseMutation.isPending}
               t={t}
               formatDateTime={formatDateTime}
             />
@@ -1021,6 +1023,7 @@ function ManualProposalDialog({
   const [notes, setNotes] = useState("");
 
   const createProposalMutation = useCreateProposal();
+  const createCommercialCaseMutation = useCreateCommercialCaseFn();
 
   const handleAddItem = () => {
     setProposalItems([
@@ -1079,8 +1082,39 @@ function ManualProposalDialog({
     }
 
     const totals = calculateTotals();
+    let commercialCaseId =
+      typeof d.commercialCaseId === "string" ? d.commercialCaseId : undefined;
+
+    if (!commercialCaseId) {
+      try {
+        const createdCase = await createCommercialCaseMutation.mutateAsync({
+          organizationId: organization.id,
+          title:
+            d.company ||
+            [d.firstName, d.lastName].filter(Boolean).join(" ") ||
+            proposalTitle,
+          summary: proposalDescription || undefined,
+          leadId: lead.id,
+          contactId: d.contactId,
+          companyName: d.company,
+          source: "lead",
+          currency,
+          nextAction: "Draft and review proposal",
+        });
+        commercialCaseId = createdCase.id;
+      } catch (error) {
+        toast.error("Failed to create commercial case for this lead");
+        return;
+      }
+    }
+    if (!commercialCaseId) {
+      toast.error("Commercial case is required");
+      return;
+    }
+
     const proposalData: ProposalData = {
       organizationId: organization.id,
+      commercialCaseId,
       leadId: lead.id,
       title: proposalTitle,
       description: proposalDescription || undefined,

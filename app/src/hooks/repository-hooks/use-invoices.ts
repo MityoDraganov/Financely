@@ -34,6 +34,24 @@ export const useInvoice = (id: string | undefined) => {
     });
 };
 
+export const useInvoicesByCommercialCase = (
+    commercialCaseId: string | undefined,
+) => {
+    return useQuery({
+        queryKey: ["invoices", "commercialCase", commercialCaseId],
+        queryFn: () => {
+            if (!commercialCaseId) return [];
+            return invoiceRepository.getAll({
+                queryConstraints: [
+                    { field: "commercialCaseId", operator: "==", value: commercialCaseId },
+                ],
+                orderBy: { field: "updatedAt", direction: "desc" },
+            });
+        },
+        enabled: !!commercialCaseId,
+    });
+};
+
 export const useUpdateInvoice = () => {
     const queryClient = useQueryClient();
 
@@ -47,6 +65,5 @@ export const useUpdateInvoice = () => {
         },
     });
 };
-
 
 

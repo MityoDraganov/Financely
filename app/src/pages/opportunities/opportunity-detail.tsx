@@ -327,7 +327,7 @@ function FunnelPanel({ opportunity }: { opportunity: Opportunity }) {
             variant="outline"
             size="sm"
             className="h-7 text-xs gap-1"
-            onClick={() => navigate(`/proposals/new?opportunityId=${opportunity.id}`)}
+            onClick={() => navigate(`/cases/${opportunity.id}`)}
           >
             <Plus className="h-3 w-3" />
             New proposal

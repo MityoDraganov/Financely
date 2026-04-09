@@ -23,6 +23,12 @@ export const workflowTriggerTypeSchema = z.enum([
   "lead.created",
   "lead.converted",
   "lead.qualified",
+  // Commercial case triggers
+  "case.created",
+  "case.stage_changed",
+  "case.won",
+  "case.lost",
+  "case.paid",
   // Contact triggers
   "contact.created",
   "contact.updated",
@@ -208,6 +214,7 @@ export const workflowActionSchema = z.object({
     }),
     // Create proposal configuration (for create.proposal)
     z.object({
+      commercialCaseId: z.string(),
       clientId: z.string(),
       items: z.array(z.object({
         description: z.string(),

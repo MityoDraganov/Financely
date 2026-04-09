@@ -26,40 +26,11 @@ export const functionsService: FunctionsService = {
 
   async createInvoice(payload) {
     type CreateInvoicePayload = Parameters<FunctionsService["createInvoice"]>[0];
-    const createInvoiceCallable = httpsCallable<CreateInvoicePayload, { id: string }>(
+    const result = await httpsCallable<CreateInvoicePayload, { id: string }>(
       firebase.functions,
       "createInvoice",
-    );
-
-    try {
-      const result = await createInvoiceCallable(payload);
-      return result.data;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      // Backward compatibility: some deployed backends still validate
-      // status as draft|sent|paid|cancelled and reject "unsent".
-      const shouldRetryWithLegacyDraft =
-        payload.status === "unsent" &&
-        /invoice validation failed/i.test(message) &&
-        /"path"\s*:\s*"status"/i.test(message) &&
-        /draft/i.test(message) &&
-        /sent/i.test(message) &&
-        /paid/i.test(message) &&
-        /cancelled/i.test(message);
-
-      if (!shouldRetryWithLegacyDraft) {
-        throw error;
-      }
-
-      const retryPayload: CreateInvoicePayload = {
-        ...payload,
-        status: "draft",
-      };
-
-      const retryResult = await createInvoiceCallable(retryPayload);
-      return retryResult.data;
-    }
+    )(payload);
+    return result.data;
   },
 
   async mapProductToInvoiceFields(payload) {
@@ -323,6 +294,7 @@ export const functionsService: FunctionsService = {
     terms?: string;
     notes?: string;
     organizationId: string;
+    commercialCaseId?: string;
     leadId: string;
     status: string;
     subtotal: number;
@@ -348,6 +320,7 @@ export const functionsService: FunctionsService = {
         terms?: string;
         notes?: string;
         organizationId: string;
+        commercialCaseId?: string;
         leadId: string;
         status: string;
         subtotal: number;
@@ -554,6 +527,60 @@ export const functionsService: FunctionsService = {
       ConvertProposalToInvoicePayload,
       { invoiceId: string; invoiceNumber?: string }
     >(firebase.functions, "convertProposalToInvoice")(payload);
+    return result.data;
+  },
+
+  async createCommercialCase(payload) {
+    type P = Parameters<FunctionsService["createCommercialCase"]>[0];
+    const result = await httpsCallable<P, { id: string }>(
+      firebase.functions,
+      "createCommercialCase",
+    )(payload);
+    return result.data;
+  },
+
+  async advanceCommercialCaseStage(payload) {
+    type P = Parameters<FunctionsService["advanceCommercialCaseStage"]>[0];
+    const result = await httpsCallable<P, { id: string; fromStage: string; toStage: string }>(
+      firebase.functions,
+      "advanceCommercialCaseStage",
+    )(payload);
+    return result.data;
+  },
+
+  async overrideCommercialCaseStage(payload) {
+    type P = Parameters<FunctionsService["overrideCommercialCaseStage"]>[0];
+    const result = await httpsCallable<P, { id: string; fromStage: string; toStage: string }>(
+      firebase.functions,
+      "overrideCommercialCaseStage",
+    )(payload);
+    return result.data;
+  },
+
+  async createProposalForCase(payload) {
+    type P = Parameters<FunctionsService["createProposalForCase"]>[0];
+    const result = await httpsCallable<P, { id: string }>(
+      firebase.functions,
+      "createProposalForCase",
+    )(payload);
+    return result.data;
+  },
+
+  async createInvoiceForCase(payload) {
+    type P = Parameters<FunctionsService["createInvoiceForCase"]>[0];
+    const result = await httpsCallable<P, { id: string }>(
+      firebase.functions,
+      "createInvoiceForCase",
+    )(payload);
+    return result.data;
+  },
+
+  async convertProposalToInvoiceForCase(payload) {
+    type P = Parameters<FunctionsService["convertProposalToInvoiceForCase"]>[0];
+    const result = await httpsCallable<P, { invoiceId: string; invoiceNumber?: string }>(
+      firebase.functions,
+      "convertProposalToInvoiceForCase",
+    )(payload);
     return result.data;
   },
 

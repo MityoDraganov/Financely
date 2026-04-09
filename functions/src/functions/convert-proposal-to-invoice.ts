@@ -10,15 +10,24 @@ import { getProposalRepository } from "../repositories/proposal-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
-import { getOpportunityRepository } from "../repositories/opportunity-repository";
 import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { ProposalToInvoiceService } from "../services/ai/proposal-to-invoice-service";
 import { invoiceDataSchema, INVOICE_STATUSES } from "../core/entities/invoice";
 import { PROPOSAL_STATUSES } from "../core/entities/proposal";
+import {
+  canTransitionCommercialCaseStage,
+  COMMERCIAL_CASE_STAGES,
+} from "../core/entities/commercial-case";
 import { realtimeDatabaseService } from "../infrastructure/realtime-database-service";
 import { Template } from "../core/entities/template";
 import { toTemplateSnapshot } from "../services/invoice-template-snapshot-service";
+import {
+  emitInvoiceLinkedToCaseEvent,
+  emitProposalLinkedToCaseEvent,
+  getCommercialCaseOrThrow,
+  transitionCommercialCaseStage,
+} from "../services/commercial-case-lifecycle-service";
 import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
@@ -84,12 +93,34 @@ export const convertProposalToInvoice = onCall<
       const organizationRepository = getOrganizationRepository(databaseService);
       const leadRepository = getLeadRepository(databaseService);
       const invoiceRepository = getInvoiceRepository(databaseService);
-      const opportunityRepository = getOpportunityRepository(databaseService);
 
       // Fetch proposal
       const proposal = await proposalRepository.get({ id: proposalId });
       if (!proposal) {
         throw new HttpsError("not-found", "Proposal not found");
+      }
+      if (!proposal.commercialCaseId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Proposal is missing commercialCaseId. Use case-scoped flows only.",
+        );
+      }
+      const commercialCase = await getCommercialCaseOrThrow(
+        proposal.commercialCaseId,
+        organizationId,
+      );
+      const canMoveToInvoiced =
+        commercialCase.stage === COMMERCIAL_CASE_STAGES.INVOICED ||
+        commercialCase.stage === COMMERCIAL_CASE_STAGES.PAID ||
+        canTransitionCommercialCaseStage(
+          commercialCase.stage,
+          COMMERCIAL_CASE_STAGES.INVOICED,
+        );
+      if (!canMoveToInvoiced) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Case stage ${commercialCase.stage} must reach WON before invoicing`,
+        );
       }
 
       // Fetch template from Realtime Database (templates are stored in RTDB, not Firestore)
@@ -174,6 +205,7 @@ export const convertProposalToInvoice = onCall<
       // Validate invoice data
       const validatedData = invoiceDataSchema.parse({
         orgId: organizationId, // Use orgId (not organizationId) as per invoice schema
+        commercialCaseId: proposal.commercialCaseId,
         templateId,
         templateSnapshot: toTemplateSnapshot(template),
         data: conversionResult.invoiceData,
@@ -187,6 +219,28 @@ export const convertProposalToInvoice = onCall<
       if (!invoiceId) {
         throw new HttpsError("internal", "Failed to create invoice");
       }
+
+      if (
+        commercialCase.stage !== COMMERCIAL_CASE_STAGES.INVOICED &&
+        commercialCase.stage !== COMMERCIAL_CASE_STAGES.PAID
+      ) {
+        await transitionCommercialCaseStage({
+          organizationId,
+          commercialCaseId: proposal.commercialCaseId,
+          toStage: COMMERCIAL_CASE_STAGES.INVOICED,
+        });
+      }
+
+      await emitProposalLinkedToCaseEvent({
+        organizationId,
+        commercialCaseId: proposal.commercialCaseId,
+        proposalId,
+      });
+      await emitInvoiceLinkedToCaseEvent({
+        organizationId,
+        commercialCaseId: proposal.commercialCaseId,
+        invoiceId,
+      });
 
       // Update proposal to link to invoice
       try {
@@ -204,23 +258,6 @@ export const convertProposalToInvoice = onCall<
           error: error instanceof Error ? error.message : "Unknown error",
         });
         // Don't fail the whole operation if this update fails
-      }
-
-      // If the proposal belongs to an opportunity, append the new invoice to its invoiceIds
-      if (proposal.opportunityId) {
-        try {
-          await opportunityRepository.addToSet({
-            id: proposal.opportunityId,
-            fieldName: "invoiceIds",
-            value: invoiceId as unknown as string[],
-          });
-        } catch (error) {
-          loggerService.warn("Failed to update opportunity invoiceIds", {
-            opportunityId: proposal.opportunityId,
-            invoiceId,
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
       }
 
       loggerService.info("Proposal converted to invoice successfully", {

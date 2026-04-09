@@ -121,7 +121,7 @@ export default function InvoicesPage() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const renderPdf = useRenderInvoicePdf();
-  const handleCreate        = useCallback(() => navigate("/create-invoice"), [navigate]);
+  const handleCreate        = useCallback(() => navigate("/cases"), [navigate]);
   const handleUploadInvoice = useCallback(() => navigate("/invoice-upload-flow", { state: { flowType: "invoice", returnTo: "/invoices" } }), [navigate]);
 
   // Stable ref so columns memo doesn't need to re-run when renderPdf/t change

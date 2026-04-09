@@ -14,6 +14,7 @@ import { useOrganizationContext } from "@/hooks/use-organization-context";
 import { PROPOSAL_STATUSES, normalizeProposalStatus } from "@/core";
 import { ExportDialog } from "@/components/export-import/export-dialog";
 import { formatProposalCurrency } from "@/utils/proposal-currency";
+import { toast } from "sonner";
 
 export default function ProposalsPage() {
   const { t } = useTranslation();
@@ -99,7 +100,12 @@ export default function ProposalsPage() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button onClick={() => navigate("/proposals/new")}>
+          <Button
+            onClick={() => {
+              toast.info("Create proposals from a case workspace.");
+              navigate("/cases");
+            }}
+          >
             <Plus className="h-4 w-4 mr-2" />
             {t('proposals.newProposal')}
           </Button>

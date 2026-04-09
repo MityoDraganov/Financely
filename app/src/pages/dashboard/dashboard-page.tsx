@@ -107,7 +107,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3 min-w-0">
         <Button asChild>
-          <Link to="/create-invoice">
+          <Link to="/cases">
             <Plus className="mr-2 h-4 w-4" />
             {t('dashboard.quickActions.createInvoice')}
           </Link>
@@ -287,7 +287,7 @@ export default function DashboardPage() {
                 </p>
                 <div className="mt-4">
                   <Button asChild>
-                    <Link to="/create-invoice">
+                    <Link to="/cases">
                       <Plus className="mr-2 h-4 w-4" />
                       {t('dashboard.quickActions.createInvoice')}
                     </Link>

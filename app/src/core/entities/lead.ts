@@ -8,6 +8,7 @@ import { budgetValueSchema } from "./budget";
  */
 export const leadDataSchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),
+  commercialCaseId: z.string().optional(), // Attached case once lead is converted/triaged
   contactId: z.string().optional(), // Reference to the contact if one exists
   widgetType: z.enum(["contactForm", "invoiceRequest", "quoteRequest", "modular"]),
   source: z.enum(["widget", "manual", "import"]).default("widget"),

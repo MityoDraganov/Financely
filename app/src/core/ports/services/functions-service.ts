@@ -48,6 +48,7 @@ export interface FunctionsService {
 
   createProposal(payload: {
     orgId: string;
+    commercialCaseId: string;
     customerId: string;
     title: string;
     description?: string;
@@ -97,6 +98,7 @@ export interface FunctionsService {
    */
   createInvoice(payload: {
     orgId: string;
+    commercialCaseId: string;
     templateId: string;
     templateVersionId?: string;
     data: Record<string, unknown>;
@@ -247,7 +249,7 @@ export interface FunctionsService {
     name: string;
     description?: string;
     trigger: {
-      type: "invoice.created" | "invoice.sent" | "invoice.paid" | "invoice.overdue" | "proposal.created" | "proposal.approved" | "proposal.rejected" | "contract.expiring" | "contract.expired" | "user.joined" | "schedule.cron" | "webhook.external" | "manual.trigger";
+      type: "invoice.created" | "invoice.sent" | "invoice.paid" | "invoice.overdue" | "proposal.created" | "proposal.approved" | "proposal.rejected" | "case.created" | "case.stage_changed" | "case.won" | "case.lost" | "case.paid" | "contract.expiring" | "contract.expired" | "user.joined" | "schedule.cron" | "webhook.external" | "manual.trigger";
       config?: Record<string, unknown>;
       cronExpression?: string;
       webhookUrl?: string;
@@ -435,6 +437,7 @@ export interface FunctionsService {
     terms?: string;
     notes?: string;
     organizationId: string;
+    commercialCaseId?: string;
     leadId: string;
     status: string;
     subtotal: number;
@@ -730,6 +733,76 @@ export interface FunctionsService {
     proposalId: string;
     templateId: string;
     organizationId: string;
+  }): Promise<{ invoiceId: string; invoiceNumber?: string }>;
+
+  createCommercialCase(payload: {
+    organizationId: string;
+    title: string;
+    summary?: string;
+    leadId?: string;
+    contactId?: string;
+    ownerUserId?: string;
+    companyName?: string;
+    amount?: number;
+    currency?: string;
+    probability?: number;
+    source?: "lead" | "manual" | "import";
+    expectedCloseDate?: string;
+    nextAction: string;
+    nextActionDueAt?: string;
+    notes?: string;
+    tags?: string[];
+  }): Promise<{ id: string }>;
+
+  advanceCommercialCaseStage(payload: {
+    organizationId: string;
+    commercialCaseId: string;
+    toStage: string;
+    reason?: string;
+  }): Promise<{ id: string; fromStage: string; toStage: string }>;
+
+  overrideCommercialCaseStage(payload: {
+    organizationId: string;
+    commercialCaseId: string;
+    toStage: string;
+    overrideReason: string;
+  }): Promise<{ id: string; fromStage: string; toStage: string }>;
+
+  createProposalForCase(payload: {
+    organizationId: string;
+    commercialCaseId: string;
+    leadId?: string;
+    title: string;
+    description?: string;
+    items: Array<{
+      description: string;
+      qty: number;
+      unitPrice: number;
+      taxPct?: number;
+    }>;
+    currency: string;
+    terms?: string;
+    notes?: string;
+    aiGenerated?: boolean;
+    vatRatePct?: number;
+  }): Promise<{ id: string }>;
+
+  createInvoiceForCase(payload: {
+    orgId: string;
+    commercialCaseId: string;
+    templateId: string;
+    templateVersionId?: string;
+    data: Record<string, unknown>;
+    status?: "unsent" | "draft" | "sent" | "paid" | "cancelled";
+    notes?: string;
+    productIds?: string[];
+  }): Promise<{ id: string }>;
+
+  convertProposalToInvoiceForCase(payload: {
+    proposalId: string;
+    templateId: string;
+    organizationId: string;
+    commercialCaseId: string;
   }): Promise<{ invoiceId: string; invoiceNumber?: string }>;
 
   generateInvoiceFromProposal(payload: {

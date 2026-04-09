@@ -12,6 +12,7 @@ export * from "./entities/workflow";
 export * from "./entities/contact";
 export * from "./entities/lead";
 export * from "./entities/opportunity";
+export * from "./entities/commercial-case";
 export * from "./entities/budget";
 export * from "./entities/product";
 export * from "./entities/analytics-config";
@@ -31,6 +32,7 @@ export * from "./ports/services/database-service";
 
 // Repository ports
 export * from "./ports/repositories/opportunity-repository";
+export * from "./ports/repositories/commercial-case-repository";
 export * from "./ports/repositories/proposal-repository";
 export * from "./ports/repositories/invoice-repository";
 export * from "./ports/repositories/product-repository";

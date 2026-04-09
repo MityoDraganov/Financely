@@ -8,6 +8,16 @@ import {
   loadTemplateSnapshotFromVersionId,
 } from "../services/invoice-template-snapshot-service";
 import { ZodError } from "zod";
+import {
+  canTransitionCommercialCaseStage,
+  COMMERCIAL_CASE_STAGES,
+} from "../core/entities/commercial-case";
+import {
+  emitInvoiceLinkedToCaseEvent,
+  emitInvoicePaidCaseEvent,
+  getCommercialCaseOrThrow,
+  transitionCommercialCaseStage,
+} from "../services/commercial-case-lifecycle-service";
 
 /**
  * Application handler for creating an invoice.
@@ -32,6 +42,22 @@ export async function handleCreateInvoice(
     // Get database service and repository
     const databaseService = getDatabaseService();
     const invoiceRepository = getInvoiceRepository(databaseService);
+    const commercialCase = await getCommercialCaseOrThrow(
+      validatedData.commercialCaseId,
+      validatedData.orgId,
+    );
+    const canMoveToInvoiced =
+      commercialCase.stage === COMMERCIAL_CASE_STAGES.INVOICED ||
+      commercialCase.stage === COMMERCIAL_CASE_STAGES.PAID ||
+      canTransitionCommercialCaseStage(
+        commercialCase.stage,
+        COMMERCIAL_CASE_STAGES.INVOICED,
+      );
+    if (!canMoveToInvoiced) {
+      throw new Error(
+        `Cannot create invoice for case in stage ${commercialCase.stage}. Move case to WON first.`,
+      );
+    }
 
     // Freeze template at creation-time so future template edits/deletes do not affect this invoice.
     let templateSnapshot;
@@ -68,6 +94,33 @@ export async function handleCreateInvoice(
 
     if (!invoiceId) {
       throw new Error("Failed to create invoice: No ID returned");
+    }
+
+    await emitInvoiceLinkedToCaseEvent({
+      organizationId: validatedData.orgId,
+      commercialCaseId: validatedData.commercialCaseId,
+      invoiceId,
+    });
+
+    if (commercialCase.stage !== COMMERCIAL_CASE_STAGES.INVOICED && commercialCase.stage !== COMMERCIAL_CASE_STAGES.PAID) {
+      await transitionCommercialCaseStage({
+        organizationId: validatedData.orgId,
+        commercialCaseId: validatedData.commercialCaseId,
+        toStage: COMMERCIAL_CASE_STAGES.INVOICED,
+      });
+    }
+
+    if (validatedData.status === "paid" && commercialCase.stage !== COMMERCIAL_CASE_STAGES.PAID) {
+      await transitionCommercialCaseStage({
+        organizationId: validatedData.orgId,
+        commercialCaseId: validatedData.commercialCaseId,
+        toStage: COMMERCIAL_CASE_STAGES.PAID,
+      });
+      await emitInvoicePaidCaseEvent({
+        organizationId: validatedData.orgId,
+        commercialCaseId: validatedData.commercialCaseId,
+        invoiceId,
+      });
     }
 
     // Deduct product quantities if productIds are provided

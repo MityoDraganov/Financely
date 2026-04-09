@@ -74,6 +74,7 @@ export const invoiceDeliveryEventSchema = z.object({
 export const invoiceDataSchema = z.object({
   // Organization ID for multi-tenancy
   orgId: z.string().min(1),
+  commercialCaseId: z.string().min(1, "Commercial case ID is required"),
 
   // Reference to the template this invoice is based on
   templateId: z.string().min(1),

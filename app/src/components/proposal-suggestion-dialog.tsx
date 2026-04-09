@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ProposalData, ProposalItem } from "@/core";
 import { useGenerateProposalSuggestion } from "@/hooks/service-hooks/use-proposal-generation";
 import { useCreateProposal } from "@/hooks/repository-hooks/use-proposals";
+import { useCreateCommercialCaseFn } from "@/hooks/service-hooks/use-commercial-case-functions";
 import { toast } from "sonner";
 import { formatProposalCurrency } from "@/utils/proposal-currency";
 
@@ -24,6 +25,7 @@ interface ProposalSuggestionDialogProps {
     message?: string;
     formData?: Record<string, unknown>;
     organizationId: string;
+    commercialCaseId?: string;
   };
   organizationName?: string;
 }
@@ -39,6 +41,7 @@ export function ProposalSuggestionDialog({
   
   const generateMutation = useGenerateProposalSuggestion();
   const createMutation = useCreateProposal();
+  const createCommercialCase = useCreateCommercialCaseFn();
 
   // Generate suggestion when dialog opens
   useEffect(() => {
@@ -71,7 +74,30 @@ export function ProposalSuggestionDialog({
     if (!editedProposal) return;
 
     try {
-      await createMutation.mutateAsync(editedProposal);
+      let commercialCaseId =
+        editedProposal.commercialCaseId || leadData.commercialCaseId;
+
+      if (!commercialCaseId) {
+        const createdCase = await createCommercialCase.mutateAsync({
+          organizationId: leadData.organizationId,
+          title:
+            leadData.company ||
+            [leadData.firstName, leadData.lastName].filter(Boolean).join(" ") ||
+            editedProposal.title,
+          summary: leadData.message,
+          leadId,
+          companyName: leadData.company,
+          source: "lead",
+          currency: editedProposal.currency || "USD",
+          nextAction: "Review AI-generated proposal",
+        });
+        commercialCaseId = createdCase.id;
+      }
+
+      await createMutation.mutateAsync({
+        ...editedProposal,
+        commercialCaseId,
+      });
       toast.success("Proposal created successfully");
       onOpenChange(false);
       setEditedProposal(null);

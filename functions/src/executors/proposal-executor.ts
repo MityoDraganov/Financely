@@ -20,10 +20,21 @@ import { toTemplateSnapshot } from "../services/invoice-template-snapshot-servic
 import { ResendEmailService } from "../services/resend-email-service";
 import { EmailSendOptions } from "../services/email-service-types";
 import { defineSecret } from "firebase-functions/params";
+import {
+  canTransitionCommercialCaseStage,
+  COMMERCIAL_CASE_STAGES,
+} from "../core/entities/commercial-case";
+import {
+  emitInvoiceLinkedToCaseEvent,
+  emitProposalLinkedToCaseEvent,
+  getCommercialCaseOrThrow,
+  transitionCommercialCaseStage,
+} from "../services/commercial-case-lifecycle-service";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 export interface CreateProposalConfig {
+  commercialCaseId: string;
   clientId: string;
   items: Array<{
     description: string;
@@ -102,11 +113,18 @@ export class ProposalExecutor implements ActionExecutor {
     
     // Resolve template variables
     const resolvedClientId = this.resolveTemplate(config.clientId, context);
+    const resolvedCommercialCaseId = this.resolveTemplate(
+      config.commercialCaseId,
+      context,
+    );
     
     // Get orgId from context
     const orgId = context.orgId as string || context.tenantId as string;
     if (!orgId) {
       throw new Error("orgId or tenantId is required in context");
+    }
+    if (!resolvedCommercialCaseId) {
+      throw new Error("commercialCaseId is required in create.proposal action");
     }
 
     // Build proposal items
@@ -124,6 +142,7 @@ export class ProposalExecutor implements ActionExecutor {
     // Build proposal data according to ProposalData schema
     const proposalData = {
       organizationId: orgId,
+      commercialCaseId: resolvedCommercialCaseId,
       ...(resolvedClientId && { leadId: resolvedClientId }), // Using leadId field if clientId is provided
       title: `Proposal for ${resolvedClientId}`,
       status: PROPOSAL_STATUSES.CREATED,
@@ -140,6 +159,11 @@ export class ProposalExecutor implements ActionExecutor {
     const databaseService = getDatabaseService();
     const proposalRepository = getProposalRepository(databaseService);
     const proposalId = await proposalRepository.create({ data: proposalData });
+    await emitProposalLinkedToCaseEvent({
+      organizationId: orgId,
+      commercialCaseId: resolvedCommercialCaseId,
+      proposalId,
+    });
 
     logger.info("Proposal created successfully", { 
       runId, 
@@ -203,7 +227,6 @@ export class ProposalExecutor implements ActionExecutor {
     if (!proposal) {
       throw new Error(`Proposal not found: ${resolvedProposalId}`);
     }
-
     // Send email
     const emailOptions: EmailSendOptions = {
       to: [{ email: resolvedEmail }],
@@ -324,6 +347,25 @@ export class ProposalExecutor implements ActionExecutor {
     if (!proposal) {
       throw new Error(`Proposal not found: ${resolvedProposalId}`);
     }
+    if (!proposal.commercialCaseId) {
+      throw new Error("Proposal is missing commercialCaseId");
+    }
+    const commercialCase = await getCommercialCaseOrThrow(
+      proposal.commercialCaseId,
+      orgId,
+    );
+    const canMoveToInvoiced =
+      commercialCase.stage === COMMERCIAL_CASE_STAGES.INVOICED ||
+      commercialCase.stage === COMMERCIAL_CASE_STAGES.PAID ||
+      canTransitionCommercialCaseStage(
+        commercialCase.stage,
+        COMMERCIAL_CASE_STAGES.INVOICED,
+      );
+    if (!canMoveToInvoiced) {
+      throw new Error(
+        `Case stage ${commercialCase.stage} must reach WON before invoicing`,
+      );
+    }
 
     // Get template ID from proposal or use default
     const templateId = (proposal as any).templateId || "";
@@ -391,6 +433,7 @@ export class ProposalExecutor implements ActionExecutor {
     // Validate and create invoice
     const validatedData = invoiceDataSchema.parse({
       orgId,
+      commercialCaseId: proposal.commercialCaseId,
       templateId,
       templateSnapshot: toTemplateSnapshot(template),
       data: conversionResult.invoiceData,
@@ -418,6 +461,27 @@ export class ProposalExecutor implements ActionExecutor {
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
+
+    if (
+      commercialCase.stage !== COMMERCIAL_CASE_STAGES.INVOICED &&
+      commercialCase.stage !== COMMERCIAL_CASE_STAGES.PAID
+    ) {
+      await transitionCommercialCaseStage({
+        organizationId: orgId,
+        commercialCaseId: proposal.commercialCaseId,
+        toStage: COMMERCIAL_CASE_STAGES.INVOICED,
+      });
+    }
+    await emitProposalLinkedToCaseEvent({
+      organizationId: orgId,
+      commercialCaseId: proposal.commercialCaseId,
+      proposalId: resolvedProposalId,
+    });
+    await emitInvoiceLinkedToCaseEvent({
+      organizationId: orgId,
+      commercialCaseId: proposal.commercialCaseId,
+      invoiceId,
+    });
 
     logger.info("Proposal converted to invoice successfully", { 
       runId, 

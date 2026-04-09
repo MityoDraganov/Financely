@@ -6,6 +6,7 @@ import { handleCreateInvoice } from "../app/handle-create-invoice";
 import { invoiceDataSchema } from "../core/entities/invoice";
 
 export interface CreateInvoiceConfig {
+  commercialCaseId: string;
   fromProposalId?: string;
   clientId: string;
   amount: number;
@@ -64,6 +65,10 @@ export class InvoiceExecutor implements ActionExecutor {
     
     // Resolve template variables
     const resolvedClientId = this.resolveTemplate(config.clientId, context);
+    const resolvedCommercialCaseId = this.resolveTemplate(
+      config.commercialCaseId,
+      context,
+    );
     const resolvedCurrency = this.resolveTemplate(config.currency || "USD", context);
     const resolvedDueDate = config.dueDate ? this.resolveTemplate(config.dueDate, context) : undefined;
     
@@ -71,6 +76,9 @@ export class InvoiceExecutor implements ActionExecutor {
     const orgId = context.orgId as string || context.tenantId as string;
     if (!orgId) {
       throw new Error("orgId or tenantId is required in context");
+    }
+    if (!resolvedCommercialCaseId) {
+      throw new Error("commercialCaseId is required in context");
     }
 
     // Build invoice data structure
@@ -82,6 +90,7 @@ export class InvoiceExecutor implements ActionExecutor {
 
     const invoiceData: Record<string, unknown> = {
       orgId,
+      commercialCaseId: resolvedCommercialCaseId,
       templateId: "", // Will need to be set if using templates
       data: {
         items: items.map(item => ({

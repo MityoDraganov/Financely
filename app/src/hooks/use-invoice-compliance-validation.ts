@@ -73,6 +73,7 @@ export function useInvoiceComplianceValidation({
       invoiceComplianceService.detectRegion(currentOrganization);
     const invoiceData = {
       orgId: currentOrganization.id,
+      commercialCaseId: "VALIDATION_CASE",
       templateId: selectedTemplate.id,
       data: formData,
       status: "unsent" as const,

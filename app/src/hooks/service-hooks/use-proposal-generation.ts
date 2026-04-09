@@ -21,6 +21,9 @@ export const useGenerateProposalSuggestion = () => {
       // Ensure status is a valid ProposalStatus enum value
       return {
         ...result,
+        commercialCaseId:
+          (result as { commercialCaseId?: string }).commercialCaseId ||
+          "CASE_REQUIRED",
         status: normalizeProposalStatus(result.status),
         isIncomplete: ("isIncomplete" in result && typeof result.isIncomplete === "boolean") ? result.isIncomplete : false,
       };

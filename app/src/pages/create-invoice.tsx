@@ -14,7 +14,7 @@ import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { useInvoices } from "@/hooks/repository-hooks/use-invoices";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Eye, EyeOff, FileText, Loader2, Plus, X } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
@@ -70,6 +70,11 @@ function roundCurrency(value: InvoiceDataValue): InvoiceDataValue {
 
 export default function CreateInvoicePage() {
 	const navigate = useNavigate();
+	const location = useLocation();
+	const commercialCaseId = useMemo(() => {
+		const params = new URLSearchParams(location.search);
+		return params.get("commercialCaseId") || undefined;
+	}, [location.search]);
 	const createInvoice = useCreateInvoice();
 	const { data: currentOrganization, isLoading: isOrgLoading } =
 		useCurrentOrganization();
@@ -844,6 +849,7 @@ export default function CreateInvoicePage() {
 				invoiceComplianceService.detectRegion(currentOrganization);
 			const invoiceData = {
 				orgId: currentOrganization.id,
+				commercialCaseId: commercialCaseId || "VALIDATION_CASE",
 				templateId: selectedTemplate.id,
 				data: formData,
 				status: "unsent" as const,
@@ -869,6 +875,12 @@ export default function CreateInvoicePage() {
 		setSubmitError(null);
 
 		try {
+			if (!commercialCaseId) {
+				toast.error("Commercial case context is required. Start invoice creation from a case.");
+				navigate("/cases");
+				return;
+			}
+
 			// Store default currency in invoice data
 			const invoiceDataWithRates = {
 			...formData,
@@ -895,6 +907,7 @@ export default function CreateInvoicePage() {
 
 			const invoicePayload = {
 				orgId: currentOrganization.id,
+				commercialCaseId,
 				templateId: selectedTemplate.id,
 				data: invoiceDataWithRates,
 				status: "unsent" as const,

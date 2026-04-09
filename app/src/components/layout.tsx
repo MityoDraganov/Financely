@@ -18,7 +18,6 @@ import {
 	Zap,
 	Users,
 	Sparkles,
-	MessageSquare,
 	TrendingUp,
 	Package,
 	Menu,
@@ -191,29 +190,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				icon: Brush,
 			},
 			{
-				title: t("layout.navigation.invoices"),
-				href: "/invoices",
-				icon: FileText,
-			},
-			{
 				title: t("layout.navigation.contacts"),
 				href: "/contacts",
 				icon: Users,
 			},
 			{
-				title: t("layout.navigation.leads"),
-				href: "/leads",
-				icon: MessageSquare,
-			},
-			{
-				title: t("layout.navigation.opportunities"),
-				href: "/opportunities",
+				title: t("layout.navigation.cases"),
+				href: "/cases",
 				icon: TrendingUp,
-			},
-			{
-				title: t("layout.navigation.proposals"),
-				href: "/proposals",
-				icon: FileText,
 			},
 			{
 				title: t("layout.navigation.marketplace"),
