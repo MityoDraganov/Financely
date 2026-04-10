@@ -179,6 +179,8 @@ export { proxyStorageImage } from "./functions/proxy-storage-image";
 export { getAnalyticsMetrics } from "./functions/get-analytics-metrics";
 export { storeAnalyticsEvent } from "./functions/store-analytics-event";
 export { updateAnalyticsScript } from "./functions/update-analytics-script";
+export { getBusinessAnalyticsSummary } from "./functions/get-business-analytics-summary";
+export { getBusinessAnalyticsRecords } from "./functions/get-business-analytics-records";
 
 // Audit log functions
 export { createAuditLog } from "./functions/create-audit-log";

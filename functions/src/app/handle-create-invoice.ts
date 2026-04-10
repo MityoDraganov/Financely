@@ -28,6 +28,10 @@ export async function handleCreateInvoice(
   try {
     // Validate the payload
     const validatedData = invoiceDataSchema.parse(payload);
+    const normalizedPaidAt =
+      validatedData.status === "paid"
+        ? validatedData.paidAt || new Date().toISOString()
+        : undefined;
 
     // Get database service and repository
     const databaseService = getDatabaseService();
@@ -62,6 +66,7 @@ export async function handleCreateInvoice(
     const invoiceId = await invoiceRepository.create({
       data: {
         ...validatedData,
+        paidAt: normalizedPaidAt,
         templateSnapshot,
       },
     });

@@ -15,11 +15,15 @@ export const useInvoices = (orgId?: string) => {
                     queryConstraints: [
                         { field: "orgId", operator: "==", value: orgId }
                     ],
-                    orderBy: { field: "updatedAt", direction: "desc" }
+                    // Keep list stable by creation time; background maintenance updates
+                    // (e.g., PDF URL refresh) should not reorder invoices.
+                    orderBy: { field: "createdAt", direction: "desc" }
                 });
             }
             return invoiceRepository.getAll({
-                orderBy: { field: "updatedAt", direction: "desc" }
+                // Keep list stable by creation time; background maintenance updates
+                // (e.g., PDF URL refresh) should not reorder invoices.
+                orderBy: { field: "createdAt", direction: "desc" }
             });
         },
         enabled: !!orgId, // Only fetch if orgId is provided
@@ -39,6 +43,5 @@ export const useUpdateInvoice = () => {
         },
     });
 };
-
 
 

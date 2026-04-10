@@ -24,6 +24,8 @@ export * from "./entities/lead";
 export * from "./entities/opportunity";
 export * from "./entities/budget";
 export * from "./entities/analytics-config";
+export * from "./entities/business-analytics";
+export * from "./entities/analytics-view";
 export * from "./entities/audit-log";
 export * from "./entities/marketplace-template";
 export * from "./entities/marketplace-review";

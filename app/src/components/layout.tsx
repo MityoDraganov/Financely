@@ -26,6 +26,7 @@ import {
 	FolderOpen,
 	CornerDownRight,
 	TrendingUp,
+	BarChart3,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -202,6 +203,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 						title: t("layout.navigation.invoices"),
 						href: "/invoices",
 						icon: FileText,
+					},
+					{
+						title: t("layout.navigation.analytics"),
+						href: "/analytics",
+						icon: BarChart3,
 					},
 				],
 			},

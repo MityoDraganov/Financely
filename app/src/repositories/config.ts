@@ -32,4 +32,5 @@ export enum DatabaseCollection {
   ONBOARDING_PROGRESS = "onboardingProgress",
   WIDGET_DEFINITIONS = "widgetDefinitions",
   OPPORTUNITIES = "opportunities",
+  ANALYTICS_VIEWS = "analyticsViews",
 }

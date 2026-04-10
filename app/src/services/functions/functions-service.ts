@@ -746,6 +746,30 @@ export const functionsService: FunctionsService = {
     };
   },
 
+  async getBusinessAnalyticsSummary(payload) {
+    type GetBusinessAnalyticsSummaryPayload =
+      Parameters<FunctionsService["getBusinessAnalyticsSummary"]>[0];
+    type GetBusinessAnalyticsSummaryResponse =
+      Awaited<ReturnType<FunctionsService["getBusinessAnalyticsSummary"]>>;
+    const result = await httpsCallable<
+      GetBusinessAnalyticsSummaryPayload,
+      GetBusinessAnalyticsSummaryResponse
+    >(firebase.functions, "getBusinessAnalyticsSummary")(payload);
+    return result.data;
+  },
+
+  async getBusinessAnalyticsRecords(payload) {
+    type GetBusinessAnalyticsRecordsPayload =
+      Parameters<FunctionsService["getBusinessAnalyticsRecords"]>[0];
+    type GetBusinessAnalyticsRecordsResponse =
+      Awaited<ReturnType<FunctionsService["getBusinessAnalyticsRecords"]>>;
+    const result = await httpsCallable<
+      GetBusinessAnalyticsRecordsPayload,
+      GetBusinessAnalyticsRecordsResponse
+    >(firebase.functions, "getBusinessAnalyticsRecords")(payload);
+    return result.data;
+  },
+
   async generateConsentBanner(payload) {
     type GenerateConsentBannerPayload = Parameters<FunctionsService["generateConsentBanner"]>[0];
     const result = await httpsCallable<

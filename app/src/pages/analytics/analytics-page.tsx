@@ -1,1892 +1,1278 @@
+import { Link } from "react-router-dom";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useOrganizations } from "@/hooks/repository-hooks/use-organizations";
 import {
-	useAnalyticsConfig,
-	useUpdateAnalyticsConfig,
-} from "@/hooks/repository-hooks/use-analytics-config";
-import { useBrandSitesByOrganization } from "@/hooks/repository-hooks/use-brand-site";
-import { useUpdateAnalyticsScript } from "@/hooks/service-hooks/use-brand-site";
-import { useAnalyticsMetrics } from "@/hooks/service-hooks/use-analytics-metrics";
+  useAnalyticsViews,
+  useCreateAnalyticsView,
+  useDeleteAnalyticsView,
+  useUpdateAnalyticsView,
+} from "@/hooks/repository-hooks/use-analytics-views";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+  useBusinessAnalyticsRecords,
+  useBusinessAnalyticsSummary,
+} from "@/hooks/service-hooks/use-business-analytics";
+import {
+  BusinessAnalyticsBreakdownRow,
+  BusinessAnalyticsCurrencyKpi,
+  BusinessAnalyticsScalarKpi,
+  BusinessAnalyticsSummaryPayload,
+  CurrencyTotals,
+} from "@/core";
+import {
+  analyticsReducer,
+  buildAnalyticsExportPayload,
+  buildAnalyticsRecordsPayload,
+  buildAnalyticsViewPayload,
+  buildFilterPills,
+  DEFAULT_ANALYTICS_STATE,
+} from "@/pages/analytics/analytics-state";
+import { useDateFormatting } from "@/hooks/use-date-formatting";
+import {
+  BarChart3,
+  Calendar,
+  Download,
+  Filter,
+  Loader2,
+  Save,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import {
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
-	ChartLegend,
-	ChartLegendContent,
-} from "@/components/ui/chart";
-import {
-	Loader2,
-	BarChart3,
-	Settings,
-	ExternalLink,
-	CheckCircle2,
-	XCircle,
-	Monitor,
-	Globe,
-	TrendingUp,
-} from "lucide-react";
-import { toast } from "sonner";
-import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 
-// Hook to detect window width
-function useWindowWidth() {
-	const [width, setWidth] = useState<number | undefined>(undefined);
+type TrendPoint = { period: string; [key: string]: string | number };
 
-	useEffect(() => {
-		if (typeof window === "undefined") return;
-
-		const handleResize = () => {
-			setWidth(window.innerWidth);
-		};
-
-		// Set initial width
-		handleResize();
-
-		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
-	}, []);
-
-	return width;
+function getTodayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
-import { useDateFormatting } from "@/hooks/use-date-formatting";
-import { ConsentBannerCustomizer } from "@/components/analytics/consent-banner-customizer";
-import {
-	ConsentBannerStyling,
-	consentBannerStylingSchema,
-} from "@/core/entities/analytics-config";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+
+function getDefaultRange(): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 29);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  };
+}
+
+function formatCurrencyMap(
+  totals: CurrencyTotals,
+  opts: {
+    empty?: string;
+  } = {},
+): string {
+  const entries = Object.entries(totals || {});
+  if (entries.length === 0) {
+    return opts.empty || "-";
+  }
+  return entries
+    .map(([currency, amount]) => {
+      try {
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency,
+          maximumFractionDigits: 0,
+        }).format(amount);
+      } catch {
+        return `${currency} ${amount.toLocaleString("en-US")}`;
+      }
+    })
+    .join(" · ");
+}
+
+function statusTone(status: string): string {
+  const value = status.toLowerCase();
+  if (value.includes("paid") || value.includes("collected") || value.includes("accepted")) {
+    return "bg-emerald-100 text-emerald-800 border-emerald-200";
+  }
+  if (value.includes("overdue") || value.includes("rejected") || value.includes("cancel")) {
+    return "bg-rose-100 text-rose-800 border-rose-200";
+  }
+  if (value.includes("sent") || value.includes("outstanding") || value.includes("invoiced")) {
+    return "bg-amber-100 text-amber-800 border-amber-200";
+  }
+  return "bg-slate-100 text-slate-700 border-slate-200";
+}
+
+function sparklinePath(points: number[], width = 90, height = 28): string {
+  if (!points.length) return "";
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = Math.max(1, max - min);
+  return points
+    .map((point, index) => {
+      const x = (index / Math.max(1, points.length - 1)) * width;
+      const y = height - ((point - min) / range) * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function KpiCurrencyCard({
+  title,
+  kpi,
+  tone,
+  onClick,
+}: {
+  title: string;
+  kpi: BusinessAnalyticsCurrencyKpi;
+  tone: "healthy" | "warning" | "risk" | "neutral";
+  onClick: () => void;
+}) {
+  const toneClass =
+    tone === "healthy"
+      ? "border-emerald-200"
+      : tone === "warning"
+        ? "border-amber-200"
+        : tone === "risk"
+          ? "border-rose-200"
+          : "border-slate-200";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-xl border bg-white p-4 text-left transition hover:shadow-sm ${toneClass}`}
+    >
+      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
+        {title}
+      </div>
+      <div className="mt-2 text-lg font-semibold text-slate-900">
+        {formatCurrencyMap(kpi.totalsByCurrency)}
+      </div>
+      <div className="mt-1 text-xs text-slate-500">
+        {formatCurrencyMap(kpi.previousTotalsByCurrency, { empty: "No previous period data" })}
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <div className="text-xs text-slate-600">Δ {formatDeltaMap(kpi.deltaPctByCurrency)}</div>
+        <svg viewBox="0 0 90 28" className="h-7 w-[90px]">
+          <path d={sparklinePath(kpi.sparkline || [])} fill="none" stroke="currentColor" strokeWidth="1.8" className="text-slate-700" />
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+function KpiScalarCard({
+  title,
+  value,
+  delta,
+  suffix,
+  sample,
+  onClick,
+}: {
+  title: string;
+  value: number | null;
+  delta: number | null;
+  suffix?: string;
+  sample?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:shadow-sm"
+    >
+      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">{title}</div>
+      <div className="mt-2 text-lg font-semibold text-slate-900">
+        {value === null ? "-" : `${value.toFixed(1)}${suffix || ""}`}
+      </div>
+      <div className="mt-1 text-xs text-slate-600">Δ {formatDelta(delta)}</div>
+      {sample ? <div className="mt-2 text-xs text-slate-500">{sample}</div> : null}
+    </button>
+  );
+}
+
+function formatDelta(delta: number | null): string {
+  if (delta === null || Number.isNaN(delta)) return "n/a";
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1)}%`;
+}
+
+function formatDeltaMap(deltaMap: Record<string, number | null>): string {
+  const entries = Object.entries(deltaMap || {});
+  if (entries.length === 0) return "n/a";
+  return entries
+    .map(([currency, delta]) => `${currency}: ${formatDelta(delta)}`)
+    .join(" · ");
+}
+
+function toCsv(records: Array<Record<string, unknown>>): string {
+  if (!records.length) return "";
+  const headers = [...new Set(records.flatMap((row) => Object.keys(row)))];
+  const escape = (value: unknown) => {
+    const text = value === null || value === undefined ? "" : String(value);
+    if (text.includes(",") || text.includes("\n") || text.includes('"')) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+  const lines = [headers.join(",")];
+  for (const row of records) {
+    lines.push(headers.map((header) => escape(row[header])).join(","));
+  }
+  return lines.join("\n");
+}
+
+function downloadFile(fileName: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+function mapBreakdownLabel(kind: string): string {
+  if (kind === "customers") return "Customer";
+  if (kind === "owners") return "Owner";
+  if (kind === "statuses") return "Status";
+  if (kind === "currencies") return "Currency";
+  if (kind === "markets") return "Market";
+  return "Template";
+}
+
+function buildTrendData(
+  selectedCurrency: string,
+  summary: ReturnType<typeof useBusinessAnalyticsSummary>["data"],
+): {
+  invoicedCollected: TrendPoint[];
+  receivables: TrendPoint[];
+  proposalFlow: TrendPoint[];
+} {
+  if (!summary) {
+    return {
+      invoicedCollected: [],
+      receivables: [],
+      proposalFlow: [],
+    };
+  }
+
+  return {
+    invoicedCollected: summary.trends.invoicedCollected.map((point) => ({
+      period: point.period,
+      invoiced: point.invoicedByCurrency[selectedCurrency] || 0,
+      collected: point.collectedByCurrency[selectedCurrency] || 0,
+    })),
+    receivables: summary.trends.receivables.map((point) => ({
+      period: point.period,
+      outstanding: point.outstandingByCurrency[selectedCurrency] || 0,
+      overdue: point.overdueByCurrency[selectedCurrency] || 0,
+    })),
+    proposalFlow: summary.trends.proposalFlow.map((point) => ({
+      period: point.period,
+      acceptedValue: point.acceptedValueByCurrency[selectedCurrency] || 0,
+      invoicedValue: point.invoicedValueByCurrency[selectedCurrency] || 0,
+      acceptedCount: point.acceptedCount,
+      invoicedCount: point.invoicedCount,
+    })),
+  };
+}
+
+function breakdownRows(rows: BusinessAnalyticsBreakdownRow[], maxRows = 8): BusinessAnalyticsBreakdownRow[] {
+  return rows.slice(0, maxRows);
+}
 
 export default function AnalyticsPage() {
-	const { t } = useTranslation();
-	const { formatDateShort } = useDateFormatting();
-	const windowWidth = useWindowWidth();
-	const { data: organization, isLoading: orgLoading } =
-		useCurrentOrganization();
-	const { data: analyticsConfig, isLoading: configLoading } =
-		useAnalyticsConfig(organization?.id);
-	const { data: brandSites, isLoading: sitesLoading } =
-		useBrandSitesByOrganization(organization?.id);
-	const updateAnalyticsConfig = useUpdateAnalyticsConfig();
-	const updateAnalyticsScript = useUpdateAnalyticsScript();
+  const { data: currentOrg, isLoading: currentOrgLoading } = useCurrentOrganization();
+  const { data: organizations = [] } = useOrganizations();
+  const { formatDateShort } = useDateFormatting();
 
-	// Date range state
-	const [dateRange, setDateRange] = useState<{ start: string; end: string }>(
-		() => {
-			const end = new Date();
-			const start = new Date();
-			start.setDate(start.getDate() - 30);
-			return {
-				start: start.toISOString().split("T")[0],
-				end: end.toISOString().split("T")[0],
-			};
-		}
-	);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>("");
+  const [dateRange, setDateRange] = useState(getDefaultRange());
+  const [comparePrevious, setComparePrevious] = useState(true);
+  const [viewName, setViewName] = useState("");
+  const [selectedViewId, setSelectedViewId] = useState<string>("none");
 
-	const { data: metrics, isLoading: metricsLoading } = useAnalyticsMetrics(
-		organization?.id,
-		dateRange.start,
-		dateRange.end
-	);
+  const [state, dispatch] = useReducer(analyticsReducer, DEFAULT_ANALYTICS_STATE);
 
-	console.log("Analytics metrics", metrics);
+  useEffect(() => {
+    if (currentOrg?.id && !selectedOrgId) {
+      setSelectedOrgId(currentOrg.id);
+    }
+  }, [currentOrg?.id, selectedOrgId]);
 
-	const [isSaving, setIsSaving] = useState(false);
-	const [localConfig, setLocalConfig] = useState<{
-		enabled: boolean;
-		enableGA4: boolean;
-		enablePlausible: boolean;
-		enableUmami: boolean;
-		enableClarity: boolean;
-		ga4MeasurementId: string;
-		clarityProjectId: string;
-		plausibleDomain: string;
-		umamiScriptUrl: string;
-		umamiWebsiteId: string;
-		consentDefault: "denied" | "granted";
-		bannerProvider: "custom" | "cookiebot" | "iubenda" | "klaro";
-		enableBigQueryServerLogs: boolean;
-		consentBannerStyling?: ConsentBannerStyling;
-	}>({
-		enabled: false,
-		enableGA4: false,
-		enablePlausible: false,
-		enableUmami: false,
-		enableClarity: false,
-		ga4MeasurementId: "",
-		clarityProjectId: "",
-		plausibleDomain: "",
-		umamiScriptUrl: "",
-		umamiWebsiteId: "",
-		consentDefault: "denied",
-		bannerProvider: "custom",
-		enableBigQueryServerLogs: false,
-	});
+  const summaryPayload: BusinessAnalyticsSummaryPayload | null = selectedOrgId
+    ? {
+        orgId: selectedOrgId,
+        dateRange,
+        comparePrevious,
+        filters: state.filters,
+      }
+    : null;
 
-	// Update local config when analyticsConfig changes
-	useEffect(() => {
-		if (analyticsConfig) {
-			// Handle migration from old strategy-based config to new multi-provider config
-			const legacyStrategy = analyticsConfig.strategy;
-			let enableGA4 = analyticsConfig.enableGA4 ?? false;
-			let enablePlausible = analyticsConfig.enablePlausible ?? false;
-			let enableUmami = analyticsConfig.enableUmami ?? false;
+  const summaryQuery = useBusinessAnalyticsSummary(summaryPayload);
+  const recordsPayload = summaryPayload
+    ? buildAnalyticsRecordsPayload(summaryPayload, state)
+    : null;
+  const recordsQuery = useBusinessAnalyticsRecords(recordsPayload);
 
-			// Migrate from legacy strategy field if new fields are not set
-			if (
-				!analyticsConfig.enableGA4 &&
-				!analyticsConfig.enablePlausible &&
-				!analyticsConfig.enableUmami
-			) {
-				if (legacyStrategy === "gtag_only") {
-					enableGA4 = true;
-				} else if (legacyStrategy === "plausible") {
-					enablePlausible = true;
-				} else if (legacyStrategy === "umami") {
-					enableUmami = true;
-				}
-			}
+  const analyticsViewsQuery = useAnalyticsViews(selectedOrgId || undefined);
+  const createView = useCreateAnalyticsView(selectedOrgId || undefined);
+  const updateView = useUpdateAnalyticsView(selectedOrgId || undefined);
+  const deleteView = useDeleteAnalyticsView(selectedOrgId || undefined);
 
-			// Parse consent banner styling if it exists, otherwise use defaults
-			let consentBannerStyling: ConsentBannerStyling | undefined;
-			if (analyticsConfig.consentBannerStyling) {
-				// Validate and parse existing styling
-				const parsed = consentBannerStylingSchema.safeParse(
-					analyticsConfig.consentBannerStyling
-				);
-				if (parsed.success) {
-					consentBannerStyling = parsed.data;
-				} else {
-					// Use defaults if parsing fails
-					consentBannerStyling = consentBannerStylingSchema.parse({});
-				}
-			}
+  const summary = summaryQuery.data;
+  const records = recordsQuery.data;
+  const views = analyticsViewsQuery.data || [];
 
-			setLocalConfig({
-				enabled: analyticsConfig.enabled ?? false,
-				enableGA4,
-				enablePlausible,
-				enableUmami,
-				enableClarity: analyticsConfig.enableClarity ?? false,
-				ga4MeasurementId: analyticsConfig.ga4MeasurementId ?? "",
-				clarityProjectId: analyticsConfig.clarityProjectId ?? "",
-				plausibleDomain: analyticsConfig.plausibleDomain ?? "",
-				umamiScriptUrl: analyticsConfig.umamiScriptUrl ?? "",
-				umamiWebsiteId: analyticsConfig.umamiWebsiteId ?? "",
-				consentDefault: analyticsConfig.consentDefault ?? "denied",
-				bannerProvider: "custom", // Always use custom banner provider
-				enableBigQueryServerLogs:
-					analyticsConfig.enableBigQueryServerLogs ?? false,
-				consentBannerStyling,
-			});
-		}
-	}, [analyticsConfig]);
+  const selectedCurrency = useMemo(() => {
+    const explicit = state.filters.currencies?.[0];
+    if (explicit) return explicit;
 
-	const handleSave = async () => {
-		if (!organization?.id) return;
+    const kpiCurrencies = Object.keys(summary?.kpis.totalInvoiced.totalsByCurrency || {});
+    return kpiCurrencies[0] || "USD";
+  }, [state.filters.currencies, summary?.kpis.totalInvoiced.totalsByCurrency]);
 
-		setIsSaving(true);
-		try {
-			// Clean up undefined values and prepare data
-			const configData: {
-				enabled: boolean;
-				enableGA4: boolean;
-				enablePlausible: boolean;
-				enableUmami: boolean;
-				enableClarity: boolean;
-				consentDefault: "denied" | "granted";
-				bannerProvider: "custom";
-				enableBigQueryServerLogs: boolean;
-				orgId: string;
-				siteId?: string;
-				brandName?: string;
-				ga4MeasurementId?: string;
-				clarityProjectId?: string;
-				plausibleDomain?: string;
-				umamiScriptUrl?: string;
-				umamiWebsiteId?: string;
-				consentBannerStyling?: ConsentBannerStyling;
-			} = {
-				enabled: localConfig.enabled,
-				enableGA4: localConfig.enableGA4,
-				enablePlausible: localConfig.enablePlausible,
-				enableUmami: localConfig.enableUmami,
-				enableClarity: localConfig.enableClarity,
-				consentDefault: localConfig.consentDefault,
-				bannerProvider: "custom", // Always use custom banner provider
-				enableBigQueryServerLogs: localConfig.enableBigQueryServerLogs,
-				orgId: organization.id,
-				// Use prefixed format to match what's used in analytics script generation
-				siteId: brandSites?.[0]?.id
-					? `brand-${brandSites[0].id}`
-					: undefined,
-				brandName:
-					organization.settings?.branding?.companyName ||
-					organization.name ||
-					undefined,
-			};
+  const trendData = useMemo(
+    () => buildTrendData(selectedCurrency, summary),
+    [selectedCurrency, summary],
+  );
 
-			// Include consent banner styling if it exists
-			if (localConfig.consentBannerStyling) {
-				configData.consentBannerStyling =
-					localConfig.consentBannerStyling;
-			}
+  const pills = useMemo(() => buildFilterPills(state.filters), [state.filters]);
 
-			// Only include provider-specific fields if they have values
-			if (localConfig.ga4MeasurementId) {
-				configData.ga4MeasurementId = localConfig.ga4MeasurementId;
-			}
-			if (localConfig.clarityProjectId) {
-				configData.clarityProjectId = localConfig.clarityProjectId;
-			}
-			if (localConfig.plausibleDomain) {
-				configData.plausibleDomain = localConfig.plausibleDomain;
-			}
-			if (localConfig.umamiScriptUrl) {
-				configData.umamiScriptUrl = localConfig.umamiScriptUrl;
-			}
-			if (localConfig.umamiWebsiteId) {
-				configData.umamiWebsiteId = localConfig.umamiWebsiteId;
-			}
+  const isLoading =
+    currentOrgLoading ||
+    (summaryPayload !== null && (summaryQuery.isLoading || recordsQuery.isLoading));
 
-			await updateAnalyticsConfig.mutateAsync({
-				orgId: organization.id,
-				data: configData,
-			});
+  const hasLowData = Boolean(summary) && records?.totalCount !== undefined && records.totalCount < 5;
 
-			// If there's an active site, update analytics script without full regeneration
-			const activeSite = brandSites?.find(
-				(site) => site.status === "success"
-			);
-			if (activeSite) {
-				// Update analytics script in existing HTML (lightweight, no AI regeneration)
-				updateAnalyticsScript.mutate({
-					brandSiteId: activeSite.id,
-				});
-				toast.success(t("analytics.toasts.configurationSaved"));
-			} else {
-				toast.success(t("analytics.toasts.configurationSaved"));
-			}
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
-			toast.error(
-				t("analytics.toasts.saveFailed", { message: errorMessage })
-			);
-			console.error("Analytics config save error:", error);
-		} finally {
-			setIsSaving(false);
-		}
-	};
+  const filterOptions = useMemo(() => {
+    const fromRows = (rows: BusinessAnalyticsBreakdownRow[]) =>
+      rows.map((row) => ({ value: row.key, label: row.label }));
 
-	if (orgLoading || configLoading || sitesLoading) {
-		return (
-			<div className="flex items-center justify-center h-64">
-				<Loader2 className="h-8 w-8 animate-spin" />
-			</div>
-		);
-	}
+    return {
+      statuses: fromRows(summary?.breakdowns.statuses || []),
+      customers: fromRows(summary?.breakdowns.customers || []),
+      owners: fromRows(summary?.breakdowns.owners || []),
+      currencies: fromRows(summary?.breakdowns.currencies || []),
+      markets: fromRows(summary?.breakdowns.markets || []),
+      paymentStates: [
+        { value: "paid", label: "Paid" },
+        { value: "outstanding", label: "Outstanding" },
+        { value: "overdue", label: "Overdue" },
+      ],
+      documentTypes: [
+        { value: "invoice", label: "Invoice" },
+        { value: "proposal", label: "Proposal" },
+        { value: "opportunity", label: "Opportunity" },
+      ],
+    };
+  }, [summary]);
 
-	const activeSite = brandSites?.find((site) => site.status === "success");
-	const isConfigured =
-		analyticsConfig?.enabled &&
-		((analyticsConfig.enableGA4 && analyticsConfig.ga4MeasurementId) ||
-			(analyticsConfig.enablePlausible &&
-				analyticsConfig.plausibleDomain) ||
-			(analyticsConfig.enableUmami &&
-				analyticsConfig.umamiScriptUrl &&
-				analyticsConfig.umamiWebsiteId) ||
-			(analyticsConfig.enableClarity &&
-				analyticsConfig.clarityProjectId));
+  const handleQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - (days - 1));
+    setDateRange({
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    });
+  };
 
-	return (
-		<div className="py-4 sm:py-6 pr-4 sm:pr-6 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold text-foreground">
-						{t("analytics.title")}
-					</h1>
-					<p className="text-muted-foreground mt-2">
-						{t("analytics.subtitle")}
-					</p>
-				</div>
-				{activeSite && (
-					<Button variant="outline" asChild>
-						<a
-							href={activeSite.deployedUrl}
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							<ExternalLink className="h-4 w-4 mr-2" />
-							{t("analytics.viewSite")}
-						</a>
-					</Button>
-				)}
-			</div>
+  const handlePillRemove = (pillKey: string, value: string) => {
+    if (pillKey === "overdueOnly") {
+      dispatch({ type: "set_overdue_only", value: false });
+      return;
+    }
 
-			<Tabs defaultValue="overview" className="space-y-6">
-				<TabsList>
-					<TabsTrigger value="overview">
-						{t("analytics.tabs.overview")}
-					</TabsTrigger>
-					<TabsTrigger value="settings">
-						{t("analytics.tabs.settings")}
-					</TabsTrigger>
-				</TabsList>
+    dispatch({
+      type: "remove_filter_value",
+      key: pillKey as
+        | "documentTypes"
+        | "statuses"
+        | "customerKeys"
+        | "ownerIds"
+        | "currencies"
+        | "markets"
+        | "paymentStates",
+      value,
+    });
+  };
 
-				<TabsContent value="overview" className="space-y-6">
-					{/* Date Range Selector */}
-					<Card>
-						<CardHeader className="pb-3">
-							<CardTitle className="text-base font-semibold">
-								{t("analytics.dateRange.title")}
-							</CardTitle>
-							<CardDescription className="text-sm">
-								{t("analytics.dateRange.description")}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-								<div className="flex-1 space-y-2 min-w-0">
-									<Label
-										htmlFor="startDate"
-										className="text-sm"
-									>
-										{t("analytics.dateRange.startDate")}
-									</Label>
-									<Input
-										id="startDate"
-										type="date"
-										value={dateRange.start}
-										onChange={(e) =>
-											setDateRange({
-												...dateRange,
-												start: e.target.value,
-											})
-										}
-										max={dateRange.end}
-										className="h-9"
-									/>
-								</div>
-								<div className="flex-1 space-y-2 min-w-0">
-									<Label
-										htmlFor="endDate"
-										className="text-sm"
-									>
-										{t("analytics.dateRange.endDate")}
-									</Label>
-									<Input
-										id="endDate"
-										type="date"
-										value={dateRange.end}
-										onChange={(e) =>
-											setDateRange({
-												...dateRange,
-												end: e.target.value,
-											})
-										}
-										min={dateRange.start}
-										max={
-											new Date()
-												.toISOString()
-												.split("T")[0]
-										}
-										className="h-9"
-									/>
-								</div>
-								<div className="flex gap-2 shrink-0">
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											const end = new Date();
-											const start = new Date();
-											start.setDate(start.getDate() - 7);
-											setDateRange({
-												start: start
-													.toISOString()
-													.split("T")[0],
-												end: end
-													.toISOString()
-													.split("T")[0],
-											});
-										}}
-										className="h-9"
-									>
-										{t("analytics.dateRange.days7")}
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											const end = new Date();
-											const start = new Date();
-											start.setDate(start.getDate() - 30);
-											setDateRange({
-												start: start
-													.toISOString()
-													.split("T")[0],
-												end: end
-													.toISOString()
-													.split("T")[0],
-											});
-										}}
-										className="h-9"
-									>
-										{t("analytics.dateRange.days30")}
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											const end = new Date();
-											const start = new Date();
-											start.setDate(start.getDate() - 90);
-											setDateRange({
-												start: start
-													.toISOString()
-													.split("T")[0],
-												end: end
-													.toISOString()
-													.split("T")[0],
-											});
-										}}
-										className="h-9"
-									>
-										{t("analytics.dateRange.days90")}
-									</Button>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
+  const handleExportRows = () => {
+    if (!records?.records?.length) {
+      toast.error("No records available to export");
+      return;
+    }
+    const csv = toCsv(records.records);
+    downloadFile(
+      `analytics-${state.table.tab}-${dateRange.start}-to-${dateRange.end}.csv`,
+      csv,
+      "text/csv;charset=utf-8",
+    );
+    toast.success("Current records exported");
+  };
 
-					{/* Status Card */}
-					<Card>
-						<CardHeader>
-							<CardTitle>{t("analytics.status.title")}</CardTitle>
-							<CardDescription>
-								{t("analytics.status.description")}
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<span className="font-medium">
-										{t("analytics.status.status")}
-									</span>
-									{isConfigured ? (
-										<Badge
-											variant="default"
-											className="gap-2"
-										>
-											<CheckCircle2 className="h-3 w-3" />
-											{t("analytics.status.active")}
-										</Badge>
-									) : (
-										<Badge
-											variant="secondary"
-											className="gap-2"
-										>
-											<XCircle className="h-3 w-3" />
-											{t(
-												"analytics.status.notConfigured"
-											)}
-										</Badge>
-									)}
-								</div>
-								{analyticsConfig && (
-									<div className="text-sm text-muted-foreground">
-										{t("analytics.status.activeProviders")}{" "}
-										<span className="font-medium">
-											{[
-												analyticsConfig.enableGA4 &&
-													"GA4",
-												analyticsConfig.enablePlausible &&
-													"Plausible",
-												analyticsConfig.enableUmami &&
-													"Umami",
-												analyticsConfig.enableClarity &&
-													"Clarity",
-											]
-												.filter(Boolean)
-												.join(", ") ||
-												t("analytics.status.none")}
-										</span>
-									</div>
-								)}
-							</div>
+  const handleExportConfig = () => {
+    if (!summaryPayload) return;
+    const payload = buildAnalyticsExportPayload(summaryPayload, state);
+    downloadFile(
+      `analytics-view-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8",
+    );
+    toast.success("Filter and table config exported");
+  };
 
-							{!isConfigured && (
-								<div className="p-4 bg-muted rounded-lg">
-									<p className="text-sm">
-										{t(
-											"analytics.status.notFullyConfigured"
-										)}
-									</p>
-								</div>
-							)}
+  const handleSaveView = async () => {
+    const trimmed = viewName.trim();
+    if (!trimmed) {
+      toast.error("Enter a view name");
+      return;
+    }
 
-							{activeSite && isConfigured && (
-								<div className="p-4 bg-muted rounded-lg">
-									<p className="text-sm font-medium mb-2">
-										{t("analytics.status.trackingActiveOn")}
-									</p>
-									<a
-										href={activeSite.deployedUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-sm text-primary hover:underline"
-									>
-										{activeSite.deployedUrl}
-									</a>
-								</div>
-							)}
-						</CardContent>
-					</Card>
+    const payload = buildAnalyticsViewPayload(state);
 
-					{/* Metrics Placeholder */}
-					<Card>
-						<CardHeader>
-							<div className="flex items-center justify-between">
-								<div>
-									<CardTitle className="flex items-center gap-2">
-										<BarChart3 className="h-5 w-5" />
-										{t("analytics.metrics.title")}
-									</CardTitle>
-									<CardDescription>
-										{t("analytics.metrics.description")}
-									</CardDescription>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent>
-							{metricsLoading ? (
-								<div className="flex items-center justify-center h-64">
-									<Loader2 className="h-8 w-8 animate-spin" />
-								</div>
-							) : metrics ? (
-								<>
-									{metrics &&
-										"indexError" in metrics &&
-										metrics.indexError && (
-											<div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-												<div className="flex items-start gap-3">
-													<div className="shrink-0">
-														<XCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-													</div>
-													<div className="flex-1">
-														<p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-															{"warning" in
-																metrics &&
-															metrics.warning
-																? metrics.warning
-																: t(
-																		"analytics.metrics.indexWarning"
-																	)}
-														</p>
-														<p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-															{
-																metrics
-																	.indexError
-																	.message
-															}
-														</p>
-														{"indexError" in
-															metrics &&
-															metrics.indexError
-																?.indexUrl && (
-																<a
-																	href={
-																		metrics
-																			.indexError
-																			.indexUrl
-																	}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-sm text-yellow-600 dark:text-yellow-400 hover:underline mt-2 inline-block"
-																>
-																	{t(
-																		"analytics.metrics.createIndex"
-																	)}
-																</a>
-															)}
-													</div>
-												</div>
-											</div>
-										)}
+    try {
+      await createView.mutateAsync({
+        name: trimmed,
+        filters: {
+          ...payload.filters,
+          dateRange,
+          comparePrevious,
+        },
+        tableConfig: payload.tableConfig,
+      });
+      setViewName("");
+      toast.success("Saved view created");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save view");
+    }
+  };
 
-									{/* Main Metrics Cards */}
-									<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-										<div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
-											<div className="text-3xl font-bold mb-1">
-												{metrics.pageViews.toLocaleString()}
-											</div>
-											<div className="text-sm font-medium text-muted-foreground">
-												{t(
-													"analytics.metrics.pageViews"
-												)}
-											</div>
-											<div className="text-xs text-muted-foreground mt-2">
-												{formatDateShort(
-													new Date(dateRange.start)
-												)}{" "}
-												-{" "}
-												{formatDateShort(
-													new Date(dateRange.end)
-												)}
-											</div>
-										</div>
-										<div className="p-6 border rounded-lg bg-card hover:shadow-md transition-shadow">
-											<div className="text-3xl font-bold mb-1">
-												{metrics.visitors.toLocaleString()}
-											</div>
-											<div className="text-sm font-medium text-muted-foreground">
-												{t(
-													"analytics.metrics.uniqueVisitors"
-												)}
-											</div>
-											<div className="text-xs text-muted-foreground mt-2">
-												{t(
-													"analytics.metrics.basedOnClientIds"
-												)}
-											</div>
-										</div>
-									</div>
+  const handleUpdateView = async () => {
+    if (!selectedViewId || selectedViewId === "none") {
+      toast.error("Select a saved view first");
+      return;
+    }
+    const payload = buildAnalyticsViewPayload(state);
+    try {
+      await updateView.mutateAsync({
+        id: selectedViewId,
+        data: {
+          filters: {
+            ...payload.filters,
+            dateRange,
+            comparePrevious,
+          },
+          tableConfig: payload.tableConfig,
+        },
+      });
+      toast.success("Saved view updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update view");
+    }
+  };
 
-									{/* Top Pages */}
-									<div className="mb-8">
-										<h3 className="text-lg font-semibold mb-4">
-											{t("analytics.metrics.topPages")}
-										</h3>
-										{metrics.topPages.length > 0 ? (
-											<div className="space-y-2">
-												{metrics.topPages
-													.slice(0, 10)
-													.map((page, index) => (
-														<div
-															key={index}
-															className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-														>
-															<span className="text-sm font-medium truncate flex-1">
-																{page.path ||
-																	"/"}
-															</span>
-															<span className="text-sm font-semibold ml-4 text-muted-foreground">
-																{page.views.toLocaleString()}{" "}
-																{page.views ===
-																1
-																	? t(
-																			"analytics.metrics.view"
-																		)
-																	: t(
-																			"analytics.metrics.views"
-																		)}
-															</span>
-														</div>
-													))}
-											</div>
-										) : (
-											<div className="p-8 border rounded-lg bg-muted/30 text-center">
-												<p className="text-sm text-muted-foreground">
-													{t(
-														"analytics.metrics.noPageViews"
-													)}
-												</p>
-											</div>
-										)}
-									</div>
+  const handleDeleteView = async () => {
+    if (!selectedViewId || selectedViewId === "none") {
+      toast.error("Select a saved view first");
+      return;
+    }
+    try {
+      await deleteView.mutateAsync(selectedViewId);
+      setSelectedViewId("none");
+      toast.success("Saved view deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete view");
+    }
+  };
 
-									{/* Traffic Sources */}
-									<div className="mb-8">
-										<h3 className="text-lg font-semibold mb-4">
-											{t(
-												"analytics.metrics.trafficSources"
-											)}
-										</h3>
-										{metrics.trafficSources.length > 0 ? (
-											<div className="space-y-2">
-												{metrics.trafficSources
-													.slice(0, 10)
-													.map((source, index) => (
-														<div
-															key={index}
-															className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-														>
-															<span className="text-sm font-medium">
-																{source.source ||
-																	t(
-																		"analytics.metrics.direct"
-																	)}
-															</span>
-															<span className="text-sm font-semibold ml-4 text-muted-foreground">
-																{source.visitors.toLocaleString()}{" "}
-																{source.visitors ===
-																1
-																	? t(
-																			"analytics.metrics.visitor"
-																		)
-																	: t(
-																			"analytics.metrics.visitors"
-																		)}
-															</span>
-														</div>
-													))}
-											</div>
-										) : (
-											<div className="p-8 border rounded-lg bg-muted/30 text-center">
-												<p className="text-sm text-muted-foreground">
-													{t(
-														"analytics.metrics.noTrafficSources"
-													)}
-												</p>
-											</div>
-										)}
-									</div>
+  const handleApplySavedView = (viewId: string) => {
+    setSelectedViewId(viewId);
+    if (viewId === "none") return;
 
-									{/* Devices & Browsers */}
-									<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-										<div>
-											<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-												<Monitor className="h-5 w-5" />
-												{t("analytics.metrics.devices")}
-											</h3>
-											{"devices" in metrics &&
-											metrics.devices &&
-											metrics.devices.length > 0 ? (
-												<div className="space-y-2">
-													{metrics.devices.map(
-														(
-															device: {
-																device: string;
-																visitors: number;
-															},
-															index: number
-														) => (
-															<div
-																key={index}
-																className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-															>
-																<span className="text-sm font-medium">
-																	{
-																		device.device
-																	}
-																</span>
-																<span className="text-sm font-semibold ml-4 text-muted-foreground">
-																	{device.visitors.toLocaleString()}{" "}
-																	{device.visitors ===
-																	1
-																		? t(
-																				"analytics.metrics.visitor"
-																			)
-																		: t(
-																				"analytics.metrics.visitors"
-																			)}
-																</span>
-															</div>
-														)
-													)}
-												</div>
-											) : (
-												<div className="p-6 border rounded-lg bg-muted/30 text-center">
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.metrics.noDeviceData"
-														)}
-													</p>
-												</div>
-											)}
-										</div>
+    const view = views.find((item) => item.id === viewId);
+    if (!view) return;
 
-										<div>
-											<h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-												<Globe className="h-5 w-5" />
-												{t(
-													"analytics.metrics.browsers"
-												)}
-											</h3>
-											{"browsers" in metrics &&
-											metrics.browsers &&
-											metrics.browsers.length > 0 ? (
-												<div className="space-y-2">
-													{metrics.browsers.map(
-														(
-															browser: {
-																browser: string;
-																visitors: number;
-															},
-															index: number
-														) => (
-															<div
-																key={index}
-																className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-															>
-																<span className="text-sm font-medium">
-																	{
-																		browser.browser
-																	}
-																</span>
-																<span className="text-sm font-semibold ml-4 text-muted-foreground">
-																	{browser.visitors.toLocaleString()}{" "}
-																	{browser.visitors ===
-																	1
-																		? t(
-																				"analytics.metrics.visitor"
-																			)
-																		: t(
-																				"analytics.metrics.visitors"
-																			)}
-																</span>
-															</div>
-														)
-													)}
-												</div>
-											) : (
-												<div className="p-6 border rounded-lg bg-muted/30 text-center">
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.metrics.noBrowserData"
-														)}
-													</p>
-												</div>
-											)}
-										</div>
-									</div>
+    dispatch({
+      type: "apply_saved_view",
+      filters: view.filters,
+      tableConfig: view.tableConfig,
+    });
 
-									{/* Referrers */}
-									<div className="mb-8">
-										<h3 className="text-lg font-semibold mb-4">
-											{t(
-												"analytics.metrics.topReferrers"
-											)}
-										</h3>
-										{"referrers" in metrics &&
-										metrics.referrers &&
-										metrics.referrers.length > 0 ? (
-											<div className="space-y-2">
-												{metrics.referrers
-													.slice(0, 10)
-													.map(
-														(
-															referrer: {
-																referrer: string;
-																visitors: number;
-															},
-															index: number
-														) => (
-															<div
-																key={index}
-																className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-															>
-																<span className="text-sm font-medium truncate flex-1">
-																	{
-																		referrer.referrer
-																	}
-																</span>
-																<span className="text-sm font-semibold ml-4 text-muted-foreground">
-																	{referrer.visitors.toLocaleString()}{" "}
-																	{referrer.visitors ===
-																	1
-																		? t(
-																				"analytics.metrics.visitor"
-																			)
-																		: t(
-																				"analytics.metrics.visitors"
-																			)}
-																</span>
-															</div>
-														)
-													)}
-											</div>
-										) : (
-											<div className="p-8 border rounded-lg bg-muted/30 text-center">
-												<p className="text-sm text-muted-foreground">
-													{t(
-														"analytics.metrics.noReferrers"
-													)}
-												</p>
-											</div>
-										)}
-									</div>
+    if (view.filters.dateRange) {
+      setDateRange(view.filters.dateRange);
+    }
+    if (typeof view.filters.comparePrevious === "boolean") {
+      setComparePrevious(view.filters.comparePrevious);
+    }
 
-									{/* Page Views Over Time */}
-									<div className="mb-8">
-										<div className="flex items-center justify-between mb-4">
-											<h3 className="text-lg font-semibold flex items-center gap-2">
-												<TrendingUp className="h-5 w-5" />
-												{t(
-													"analytics.metrics.pageViewsOverTime"
-												)}
-											</h3>
-											{metrics &&
-												"pageViewsOverTime" in
-													metrics &&
-												metrics.pageViewsOverTime &&
-												metrics.pageViewsOverTime
-													.length > 0 &&
-												(() => {
-													const totalViews =
-														metrics.pageViewsOverTime.reduce(
-															(
-																sum: number,
-																d: {
-																	date: string;
-																	views: number;
-																}
-															) => sum + d.views,
-															0
-														);
-													const avgViews = (
-														totalViews /
-														metrics
-															.pageViewsOverTime
-															.length
-													).toFixed(1);
-													const maxViews = Math.max(
-														...metrics.pageViewsOverTime.map(
-															(d: {
-																date: string;
-																views: number;
-															}) => d.views
-														),
-														0
-													);
-													return (
-														<div className="flex items-center gap-4 text-sm text-muted-foreground">
-															<span className="hidden sm:inline">
-																Avg:{" "}
-																<span className="font-semibold text-foreground">
-																	{avgViews}
-																</span>
-															</span>
-															<span>
-																Peak:{" "}
-																<span className="font-semibold text-foreground">
-																	{maxViews}
-																</span>
-															</span>
-														</div>
-													);
-												})()}
-										</div>
-										{"pageViewsOverTime" in metrics &&
-										metrics.pageViewsOverTime &&
-										metrics.pageViewsOverTime.length > 0 ? (
-											<>
-												{(() => {
-													// Prepare chart data
-													const chartData =
-														metrics.pageViewsOverTime.map(
-															(day: {
-																date: string;
-																views: number;
-																desktop?: number;
-																mobile?: number;
-																tablet?: number;
-															}) => {
-																const date =
-																	new Date(
-																		day.date
-																	);
-																const isToday =
-																	day.date ===
-																	new Date()
-																		.toISOString()
-																		.split(
-																			"T"
-																		)[0];
+    toast.success(`Applied view: ${view.name}`);
+  };
 
-																// Format date label based on range length
-																let dateLabel: string;
-																if (
-																	metrics
-																		.pageViewsOverTime
-																		.length <=
-																	7
-																) {
-																	dateLabel =
-																		date.toLocaleDateString(
-																			"en-US",
-																			{
-																				month: "short",
-																				day: "numeric",
-																			}
-																		);
-																} else if (
-																	metrics
-																		.pageViewsOverTime
-																		.length <=
-																	14
-																) {
-																	dateLabel =
-																		date
-																			.getDate()
-																			.toString();
-																} else {
-																	dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
-																}
+  const tableColumns = useMemo(() => {
+    const first = records?.records?.[0];
+    return first ? Object.keys(first) : [];
+  }, [records?.records]);
 
-																const dayOfWeek =
-																	date.toLocaleDateString(
-																		"en-US",
-																		{
-																			weekday:
-																				"long",
-																		}
-																	);
-																const monthName =
-																	date.toLocaleDateString(
-																		"en-US",
-																		{
-																			month: "long",
-																		}
-																	);
-																const dayNumber =
-																	date.getDate();
-																const year =
-																	date.getFullYear();
+  const activeTab = state.table.tab;
+  const totalPages = records ? Math.max(1, Math.ceil(records.totalCount / records.pageSize)) : 1;
 
-																return {
-																	date: day.date,
-																	views: day.views,
-																	desktop:
-																		day.desktop ||
-																		0,
-																	mobile:
-																		day.mobile ||
-																		0,
-																	tablet:
-																		day.tablet ||
-																		0,
-																	label: dateLabel,
-																	fullDate:
-																		formatDateShort(
-																			date
-																		),
-																	isToday,
-																	dayOfWeek,
-																	monthName,
-																	dayNumber,
-																	year,
-																	fullDateString: `${dayOfWeek}, ${monthName} ${dayNumber}, ${year}`,
-																};
-															}
-														);
+  return (
+    <div className="min-h-full bg-[#f7f9fc] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5">
+        <header className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Business Analytics</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Commercial-to-cash control surface: proposals, invoicing, receivables, and collection performance.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportConfig}>
+                <Download className="mr-2 h-4 w-4" />
+                Export config
+              </Button>
+              <Button size="sm" onClick={handleExportRows}>
+                <Download className="mr-2 h-4 w-4" />
+                Export rows
+              </Button>
+            </div>
+          </div>
+        </header>
 
-													const maxViews = Math.max(
-														...chartData.map(
-															(d) => d.views
-														),
-														1
-													);
+        <section className="sticky top-0 z-20 rounded-xl border border-slate-200 bg-white/95 p-4 backdrop-blur">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="space-y-1 xl:col-span-2">
+              <Label>Organization</Label>
+              <Select value={selectedOrgId || ""} onValueChange={setSelectedOrgId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-													// Smart scaling: Use "nice" numbers for better UX with small data
-													// This ensures bars are more visible even with small numbers
-													const getNiceMax = (
-														max: number
-													): number => {
-														if (max <= 0) return 5;
-														if (max <= 2) return 2;
-														if (max <= 5) return 5;
-														if (max <= 10)
-															return 10;
-														if (max <= 20)
-															return 20;
-														if (max <= 50)
-															return (
-																Math.ceil(
-																	max / 10
-																) * 10
-															);
-														if (max <= 100)
-															return (
-																Math.ceil(
-																	max / 20
-																) * 20
-															);
-														if (max <= 500)
-															return (
-																Math.ceil(
-																	max / 50
-																) * 50
-															);
-														if (max <= 1000)
-															return (
-																Math.ceil(
-																	max / 100
-																) * 100
-															);
-														return (
-															Math.ceil(
-																max / 200
-															) * 200
-														);
-													};
+            <div className="space-y-1">
+              <Label>Date start</Label>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={(event) => setDateRange((prev) => ({ ...prev, start: event.target.value }))}
+                max={dateRange.end}
+              />
+            </div>
 
-													const niceMax =
-														getNiceMax(maxViews);
+            <div className="space-y-1">
+              <Label>Date end</Label>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={(event) => setDateRange((prev) => ({ ...prev, end: event.target.value }))}
+                min={dateRange.start}
+                max={getTodayIso()}
+              />
+            </div>
 
-													// Calculate rotation angle based on data density and screen size
-													// More data points = more rotation needed (max 45 degrees)
-													// On smaller screens, rotate more aggressively to prevent overlap
-													const calculateRotation = () => {
-														const isSmallScreen = windowWidth !== undefined && windowWidth < 768;
-														const dataPoints = chartData.length;
-														
-														// On small screens, rotate more aggressively
-														if (isSmallScreen) {
-															if (dataPoints <= 7) return -15;
-															if (dataPoints <= 14) return -30;
-															return -45; // max 45 degrees
-														}
-														
-														// On larger screens, rotate based on data density
-														if (dataPoints <= 7) return 0;
-														if (dataPoints <= 14) return -15;
-														if (dataPoints <= 30) return -30;
-														return -45; // max 45 degrees
-													};
+            <div className="space-y-1">
+              <Label>Saved views</Label>
+              <Select value={selectedViewId} onValueChange={handleApplySavedView}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select view" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No saved view</SelectItem>
+                  {views.map((view) => (
+                    <SelectItem key={view.id} value={view.id}>
+                      {view.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-													const tickAngle = calculateRotation();
-													// Chart configuration
-													const chartConfig = {
-														desktop: {
-															label: "Desktop",
-															color: "hsl(var(--primary))",
-														},
-														mobile: {
-															label: "Mobile",
-															color: "hsl(var(--primary))",
-														},
-													};
+            <div className="flex items-end gap-2">
+              <div className="flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3">
+                <Switch checked={comparePrevious} onCheckedChange={setComparePrevious} id="comparePrevious" />
+                <Label htmlFor="comparePrevious" className="cursor-pointer text-xs">Compare previous</Label>
+              </div>
+            </div>
+          </div>
 
-													return (
-														<ChartContainer
-															config={chartConfig}
-															className="min-h-[400px] h-[400px] sm:h-[400px] md:h-[450px] lg:h-[520px] w-full"
-														>
-															<AreaChart
-																data={chartData}
-																margin={{
-																	top: 10,
-																	right: 0,
-																	left: 0,
-																	bottom: 10,
-																}}
-															>
-																<defs>
-																	<linearGradient
-																		id="fillDesktop"
-																		x1="0"
-																		y1="0"
-																		x2="0"
-																		y2="1"
-																	>
-																		<stop
-																			offset="5%"
-																			stopColor="hsl(var(--primary))"
-																			stopOpacity={
-																				0.8
-																			}
-																		/>
-																		<stop
-																			offset="95%"
-																			stopColor="hsl(var(--primary))"
-																			stopOpacity={
-																				0.1
-																			}
-																		/>
-																	</linearGradient>
-																	<linearGradient
-																		id="fillMobile"
-																		x1="0"
-																		y1="0"
-																		x2="0"
-																		y2="1"
-																	>
-																		<stop
-																			offset="5%"
-																			stopColor="hsl(var(--primary))"
-																			stopOpacity={
-																				0.5
-																			}
-																		/>
-																		<stop
-																			offset="95%"
-																			stopColor="hsl(var(--primary))"
-																			stopOpacity={
-																				0.05
-																			}
-																		/>
-																	</linearGradient>
-																</defs>
-																<CartesianGrid
-																	vertical={
-																		false
-																	}
-																/>
-																<XAxis
-																	dataKey="date"
-																	tickLine={
-																		false
-																	}
-																	axisLine={
-																		false
-																	}
-																	tickMargin={
-																		8
-																	}
-																	minTickGap={
-																		32
-																	}
-																	angle={tickAngle}
-																	textAnchor={tickAngle < 0 ? "end" : "start"}
-																	className="text-xs text-muted-foreground"
-																	interval={Math.max(
-																		0,
-																		Math.floor(
-																			chartData.length /
-																				10
-																		)
-																	)}
-																	tickFormatter={(
-																		value
-																	) => {
-																		const date =
-																			new Date(
-																				value
-																			);
-																		if (
-																			chartData.length <=
-																			7
-																		) {
-																			return date.toLocaleDateString(
-																				"en-US",
-																				{
-																					month: "short",
-																					day: "numeric",
-																				}
-																			);
-																		} else if (
-																			chartData.length <=
-																			14
-																		) {
-																			return date
-																				.getDate()
-																				.toString();
-																		} else {
-																			return `${date.getMonth() + 1}/${date.getDate()}`;
-																		}
-																	}}
-																/>
-																<YAxis
-																	tickLine={
-																		false
-																	}
-																	axisLine={
-																		false
-																	}
-																	tickMargin={
-																		8
-																	}
-																	domain={[
-																		0,
-																		niceMax,
-																	]}
-																	allowDataOverflow={
-																		false
-																	}
-																	tickCount={
-																		6
-																	}
-																	className="text-xs text-muted-foreground"
-																	tickFormatter={(
-																		value
-																	) =>
-																		value.toString()
-																	}
-																/>
-																<ChartTooltip
-																	cursor={
-																		false
-																	}
-																	content={
-																		<ChartTooltipContent
-																			labelFormatter={(
-																				value
-																			) => {
-																				const date =
-																					new Date(
-																						value
-																					);
-																				const dataPoint =
-																					chartData.find(
-																						(
-																							d
-																						) =>
-																							d.date ===
-																							value
-																					);
-																				const formattedDate =
-																					date.toLocaleDateString(
-																						"en-US",
-																						{
-																							month: "short",
-																							day: "numeric",
-																						}
-																					);
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleQuickRange(7)}>
+              <Calendar className="mr-2 h-4 w-4" />7D
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleQuickRange(30)}>
+              <Calendar className="mr-2 h-4 w-4" />30D
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleQuickRange(90)}>
+              <Calendar className="mr-2 h-4 w-4" />90D
+            </Button>
+            <Separator orientation="vertical" className="mx-1 h-6" />
+            <Input
+              className="h-9 w-[220px]"
+              placeholder="Save current view as..."
+              value={viewName}
+              onChange={(event) => setViewName(event.target.value)}
+            />
+            <Button size="sm" variant="outline" onClick={handleSaveView}>
+              <Save className="mr-2 h-4 w-4" />Save view
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleUpdateView}>
+              Update selected
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDeleteView}>
+              <Trash2 className="mr-2 h-4 w-4" />Delete
+            </Button>
 
-																				if (
-																					dataPoint?.isToday
-																				) {
-																					return (
-																						<div className="space-y-1">
-																							<p className="font-semibold">
-																								{
-																									formattedDate
-																								}
-																							</p>
-																							<p className="text-xs text-primary font-medium">
-																								Today
-																							</p>
-																						</div>
-																					);
-																				}
+            <div className="ml-auto text-xs text-slate-500">
+              Last updated: {summary?.trust.lastUpdatedAt ? formatDateShort(new Date(summary.trust.lastUpdatedAt)) : "-"}
+            </div>
+          </div>
 
-																				return formattedDate;
-																			}}
-																			indicator="dot"
-																		/>
-																	}
-																/>
-																<Area
-																	dataKey="mobile"
-																	type="monotone"
-																	fill="url(#fillMobile)"
-																	stroke="hsl(var(--primary))"
-																	strokeOpacity={
-																		0.6
-																	}
-																	stackId="a"
-																	isAnimationActive={
-																		false
-																	}
-																/>
-																<Area
-																	dataKey="desktop"
-																	type="monotone"
-																	fill="url(#fillDesktop)"
-																	stroke="hsl(var(--primary))"
-																	stackId="a"
-																	isAnimationActive={
-																		false
-																	}
-																/>
-																<ChartLegend
-																	content={
-																		<ChartLegendContent />
-																	}
-																/>
-															</AreaChart>
-														</ChartContainer>
-													);
-												})()}
-											</>
-										) : (
-											<div className="p-12 border rounded-lg bg-muted/30 text-center">
-												<TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-												<p className="text-sm text-muted-foreground">
-													{t(
-														"analytics.metrics.noPageViewData"
-													)}
-													<br />
-													{t(
-														"analytics.metrics.dataWillAppear"
-													)}
-												</p>
-											</div>
-										)}
-									</div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="space-y-1">
+              <Label>Document type</Label>
+              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "documentTypes", value })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  {filterOptions.documentTypes.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "statuses", value })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  {filterOptions.statuses.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Customer</Label>
+              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "customerKeys", value })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  {filterOptions.customers.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Owner</Label>
+              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "ownerIds", value })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  {filterOptions.owners.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Currency / market</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "currencies", value })}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Currency" /></SelectTrigger>
+                  <SelectContent>
+                    {filterOptions.currencies.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "markets", value })}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Market" /></SelectTrigger>
+                  <SelectContent>
+                    {filterOptions.markets.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Payment state</Label>
+              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "paymentStates", value })}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  {filterOptions.paymentStates.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <div className="flex h-9 w-full items-center justify-between rounded-md border border-slate-200 px-3">
+                <span className="text-xs text-slate-600">Overdue only</span>
+                <Switch
+                  checked={Boolean(state.filters.overdueOnly)}
+                  onCheckedChange={(checked) => dispatch({ type: "set_overdue_only", value: checked })}
+                />
+              </div>
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                className="h-9 w-full"
+                onClick={() => dispatch({ type: "clear_filters" })}
+              >
+                <Filter className="mr-2 h-4 w-4" />Clear filters
+              </Button>
+            </div>
+          </div>
 
-									{/* Overall Empty State */}
-									{metrics.pageViews === 0 &&
-										metrics.visitors === 0 && (
-											<div className="mt-8 p-8 border-2 border-dashed rounded-lg bg-muted/50 text-center">
-												<BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-												<h3 className="text-lg font-semibold mb-2">
-													{t(
-														"analytics.metrics.noAnalyticsData"
-													)}
-												</h3>
-												<p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-													{t(
-														"analytics.metrics.analyticsReady"
-													)}
-												</p>
-												{activeSite && (
-													<Button
-														variant="outline"
-														asChild
-													>
-														<a
-															href={
-																activeSite.deployedUrl
-															}
-															target="_blank"
-															rel="noopener noreferrer"
-														>
-															<ExternalLink className="h-4 w-4 mr-2" />
-															{t(
-																"analytics.metrics.visitYourSite"
-															)}
-														</a>
-													</Button>
-												)}
-											</div>
-										)}
-								</>
-							) : (
-								<div className="p-4 bg-muted rounded-lg">
-									<p className="text-sm text-muted-foreground">
-										{t("analytics.metrics.unableToLoad")}
-									</p>
-								</div>
-							)}
-						</CardContent>
-					</Card>
-				</TabsContent>
+          {pills.length > 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {pills.map((pill) => (
+                <Badge
+                  key={`${pill.key}:${pill.value}`}
+                  variant="outline"
+                  className="cursor-pointer border-slate-300 bg-slate-50 text-slate-700"
+                  onClick={() => handlePillRemove(pill.key, pill.value)}
+                >
+                  {pill.label} ×
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </section>
 
-				<TabsContent value="settings" className="space-y-6">
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<Settings className="h-5 w-5" />
-								{t("analytics.settings.title")}
-							</CardTitle>
-							<CardDescription>
-								{t("analytics.settings.description")}
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-6">
-							{/* Enable Analytics */}
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label htmlFor="enabled">
-										{t(
-											"analytics.settings.enableAnalytics"
-										)}
-									</Label>
-									<p className="text-sm text-muted-foreground">
-										{t(
-											"analytics.settings.enableAnalyticsDescription"
-										)}
-									</p>
-								</div>
-								<Switch
-									id="enabled"
-									checked={localConfig.enabled}
-									onCheckedChange={(checked) =>
-										setLocalConfig({
-											...localConfig,
-											enabled: checked,
-										})
-									}
-								/>
-							</div>
+        {isLoading ? (
+          <div className="flex h-56 items-center justify-center rounded-xl border border-slate-200 bg-white">
+            <Loader2 className="h-7 w-7 animate-spin text-slate-600" />
+          </div>
+        ) : null}
 
-							{localConfig.enabled && (
-								<>
-									<div className="space-y-4">
-										<div>
-											<h3 className="text-lg font-semibold mb-4">
-												{t(
-													"analytics.settings.analyticsProviders"
-												)}
-											</h3>
-											<p className="text-sm text-muted-foreground mb-4">
-												{t(
-													"analytics.settings.analyticsProvidersDescription"
-												)}
-											</p>
-										</div>
+        {!isLoading && summary && (
+          <>
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCurrencyCard
+                title="Total invoiced"
+                kpi={summary.kpis.totalInvoiced}
+                tone="neutral"
+                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["sent", "paid"] })}
+              />
+              <KpiCurrencyCard
+                title="Collected"
+                kpi={summary.kpis.collectedAmount}
+                tone="healthy"
+                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["paid"] })}
+              />
+              <KpiCurrencyCard
+                title="Outstanding"
+                kpi={summary.kpis.outstandingAmount}
+                tone="warning"
+                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] })}
+              />
+              <KpiCurrencyCard
+                title="Overdue"
+                kpi={summary.kpis.overdueAmount}
+                tone="risk"
+                onClick={() => {
+                  dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] });
+                  dispatch({ type: "set_overdue_only", value: true });
+                }}
+              />
+              <KpiCurrencyCard
+                title="Proposal accepted value"
+                kpi={summary.kpis.proposalAcceptedValue}
+                tone="neutral"
+                onClick={() => dispatch({ type: "set_filter_array", key: "documentTypes", values: ["proposal"] })}
+              />
+              <KpiScalarCard
+                title="Proposal → invoice conversion"
+                value={summary.kpis.proposalToInvoiceConversionRate.value}
+                delta={summary.kpis.proposalToInvoiceConversionRate.deltaPct}
+                suffix="%"
+                onClick={() => dispatch({ type: "set_tab", tab: "proposals" })}
+              />
+              <KpiScalarCard
+                title="Average collection days"
+                value={summary.kpis.averageCollectionDays.value}
+                delta={summary.kpis.averageCollectionDays.deltaPct}
+                suffix=" d"
+                sample={`Sample ${summary.kpis.averageCollectionDays.sampleSize}`}
+                onClick={() => dispatch({ type: "set_tab", tab: "collections" })}
+              />
+            </section>
 
-										{/* Google Analytics 4 */}
-										<div className="p-4 border rounded-lg space-y-3">
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
-													<Label htmlFor="enableGA4">
-														{t(
-															"analytics.settings.ga4.label"
-														)}
-													</Label>
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.settings.ga4.description"
-														)}
-													</p>
-												</div>
-												<Switch
-													id="enableGA4"
-													checked={
-														localConfig.enableGA4
-													}
-													onCheckedChange={(
-														checked
-													) =>
-														setLocalConfig({
-															...localConfig,
-															enableGA4: checked,
-														})
-													}
-												/>
-											</div>
-											{localConfig.enableGA4 && (
-												<div className="space-y-2 pt-2 border-t">
-													<Label htmlFor="ga4MeasurementId">
-														{t(
-															"analytics.settings.ga4.measurementId"
-														)}
-													</Label>
-													<Input
-														id="ga4MeasurementId"
-														placeholder={t(
-															"analytics.settings.ga4.measurementIdPlaceholder"
-														)}
-														value={
-															localConfig.ga4MeasurementId
-														}
-														onChange={(e) =>
-															setLocalConfig({
-																...localConfig,
-																ga4MeasurementId:
-																	e.target
-																		.value,
-															})
-														}
-													/>
-												</div>
-											)}
-										</div>
+            <section className="grid gap-4 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 xl:col-span-2">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Trend section ({selectedCurrency})</h2>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="h-56 rounded-lg border border-slate-200 p-3">
+                    <div className="mb-2 text-sm font-medium text-slate-700">Invoiced vs collected</div>
+                    <ResponsiveContainer width="100%" height="88%">
+                      <LineChart data={trendData.invoicedCollected}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Line dataKey="invoiced" type="monotone" stroke="#0f172a" dot={false} strokeWidth={2} />
+                        <Line dataKey="collected" type="monotone" stroke="#16a34a" dot={false} strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-56 rounded-lg border border-slate-200 p-3">
+                    <div className="mb-2 text-sm font-medium text-slate-700">Outstanding vs overdue</div>
+                    <ResponsiveContainer width="100%" height="88%">
+                      <LineChart data={trendData.receivables}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Line dataKey="outstanding" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} />
+                        <Line dataKey="overdue" type="monotone" stroke="#e11d48" dot={false} strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-56 rounded-lg border border-slate-200 p-3 lg:col-span-2">
+                    <div className="mb-2 text-sm font-medium text-slate-700">Proposal flow value</div>
+                    <ResponsiveContainer width="100%" height="88%">
+                      <LineChart data={trendData.proposalFlow}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Line dataKey="acceptedValue" type="monotone" stroke="#1d4ed8" dot={false} strokeWidth={2} />
+                        <Line dataKey="invoicedValue" type="monotone" stroke="#16a34a" dot={false} strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
 
-										{/* Plausible */}
-										<div className="p-4 border rounded-lg space-y-3">
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
-													<Label htmlFor="enablePlausible">
-														{t(
-															"analytics.settings.plausible.label"
-														)}
-													</Label>
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.settings.plausible.description"
-														)}
-													</p>
-												</div>
-												<Switch
-													id="enablePlausible"
-													checked={
-														localConfig.enablePlausible
-													}
-													onCheckedChange={(
-														checked
-													) =>
-														setLocalConfig({
-															...localConfig,
-															enablePlausible:
-																checked,
-														})
-													}
-												/>
-											</div>
-											{localConfig.enablePlausible && (
-												<div className="space-y-2 pt-2 border-t">
-													<Label htmlFor="plausibleDomain">
-														{t(
-															"analytics.settings.plausible.domain"
-														)}
-													</Label>
-													<Input
-														id="plausibleDomain"
-														placeholder={t(
-															"analytics.settings.plausible.domainPlaceholder"
-														)}
-														value={
-															localConfig.plausibleDomain
-														}
-														onChange={(e) =>
-															setLocalConfig({
-																...localConfig,
-																plausibleDomain:
-																	e.target
-																		.value,
-															})
-														}
-													/>
-												</div>
-											)}
-										</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Breakdowns</h2>
+                <div className="mt-3 space-y-3">
+                  {([
+                    ["customers", summary.breakdowns.customers],
+                    ["owners", summary.breakdowns.owners],
+                    ["statuses", summary.breakdowns.statuses],
+                    ["currencies", summary.breakdowns.currencies],
+                    ["markets", summary.breakdowns.markets],
+                    ["templates", summary.breakdowns.templates],
+                  ] as const).map(([kind, rows]) => (
+                    <div key={kind} className="rounded-lg border border-slate-200 p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        {mapBreakdownLabel(kind)}
+                      </div>
+                      <div className="space-y-1">
+                        {breakdownRows(rows, 4).map((row) => (
+                          <button
+                            type="button"
+                            key={`${kind}:${row.key}`}
+                            className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-slate-50"
+                            onClick={() => {
+                              if (kind === "customers") {
+                                dispatch({ type: "add_filter_value", key: "customerKeys", value: row.key });
+                              } else if (kind === "owners") {
+                                dispatch({ type: "add_filter_value", key: "ownerIds", value: row.key });
+                              } else if (kind === "statuses") {
+                                dispatch({ type: "add_filter_value", key: "statuses", value: row.key });
+                              } else if (kind === "currencies") {
+                                dispatch({ type: "add_filter_value", key: "currencies", value: row.key });
+                              } else if (kind === "markets") {
+                                dispatch({ type: "add_filter_value", key: "markets", value: row.key });
+                              }
+                            }}
+                          >
+                            <span className="truncate text-xs text-slate-700">{row.label}</span>
+                            <span className="ml-2 text-xs text-slate-500">{formatCurrencyMap(row.totalsByCurrency)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
 
-										{/* Umami */}
-										<div className="p-4 border rounded-lg space-y-3">
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
-													<Label htmlFor="enableUmami">
-														{t(
-															"analytics.settings.umami.label"
-														)}
-													</Label>
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.settings.umami.description"
-														)}
-													</p>
-												</div>
-												<Switch
-													id="enableUmami"
-													checked={
-														localConfig.enableUmami
-													}
-													onCheckedChange={(
-														checked
-													) =>
-														setLocalConfig({
-															...localConfig,
-															enableUmami:
-																checked,
-														})
-													}
-												/>
-											</div>
-											{localConfig.enableUmami && (
-												<div className="space-y-4 pt-2 border-t">
-													<div className="space-y-2">
-														<Label htmlFor="umamiScriptUrl">
-															{t(
-																"analytics.settings.umami.scriptUrl"
-															)}
-														</Label>
-														<Input
-															id="umamiScriptUrl"
-															placeholder={t(
-																"analytics.settings.umami.scriptUrlPlaceholder"
-															)}
-															value={
-																localConfig.umamiScriptUrl
-															}
-															onChange={(e) =>
-																setLocalConfig({
-																	...localConfig,
-																	umamiScriptUrl:
-																		e.target
-																			.value,
-																})
-															}
-														/>
-														<p className="text-sm text-muted-foreground">
-															{t(
-																"analytics.settings.umami.scriptUrlDescription"
-															)}
-														</p>
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="umamiWebsiteId">
-															{t(
-																"analytics.settings.umami.websiteId"
-															)}
-														</Label>
-														<Input
-															id="umamiWebsiteId"
-															placeholder={t(
-																"analytics.settings.umami.websiteIdPlaceholder"
-															)}
-															value={
-																localConfig.umamiWebsiteId
-															}
-															onChange={(e) =>
-																setLocalConfig({
-																	...localConfig,
-																	umamiWebsiteId:
-																		e.target
-																			.value,
-																})
-															}
-														/>
-														<p className="text-sm text-muted-foreground">
-															{t(
-																"analytics.settings.umami.websiteIdDescription"
-															)}
-														</p>
-													</div>
-												</div>
-											)}
-										</div>
+            <section className="grid gap-4 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Aging buckets</h2>
+                <div className="mt-3 space-y-2">
+                  {summary.risk.agingBuckets.map((bucket) => (
+                    <button
+                      type="button"
+                      key={bucket.bucket}
+                      className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                      onClick={() => {
+                        dispatch({ type: "set_overdue_only", value: true });
+                        dispatch({ type: "set_tab", tab: "documents" });
+                      }}
+                    >
+                      <span className="text-sm text-slate-700">{bucket.label}</span>
+                      <span className="text-xs text-slate-500">
+                        {bucket.invoiceCount} · {formatCurrencyMap(bucket.totalsByCurrency)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-										{/* Microsoft Clarity */}
-										<div className="p-4 border rounded-lg space-y-3">
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
-													<Label htmlFor="enableClarity">
-														{t(
-															"analytics.settings.clarity.label"
-														)}
-													</Label>
-													<p className="text-sm text-muted-foreground">
-														{t(
-															"analytics.settings.clarity.description"
-														)}
-													</p>
-												</div>
-												<Switch
-													id="enableClarity"
-													checked={
-														localConfig.enableClarity
-													}
-													onCheckedChange={(
-														checked
-													) =>
-														setLocalConfig({
-															...localConfig,
-															enableClarity:
-																checked,
-														})
-													}
-												/>
-											</div>
-											{localConfig.enableClarity && (
-												<div className="space-y-2 pt-2 border-t">
-													<Label htmlFor="clarityProjectId">
-														{t(
-															"analytics.settings.clarity.projectId"
-														)}
-													</Label>
-													<Input
-														id="clarityProjectId"
-														placeholder={t(
-															"analytics.settings.clarity.projectIdPlaceholder"
-														)}
-														value={
-															localConfig.clarityProjectId
-														}
-														onChange={(e) =>
-															setLocalConfig({
-																...localConfig,
-																clarityProjectId:
-																	e.target
-																		.value,
-															})
-														}
-													/>
-												</div>
-											)}
-										</div>
-									</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Top overdue customers</h2>
+                <div className="mt-3 space-y-2">
+                  {summary.risk.topOverdueCustomers.slice(0, 6).map((row) => (
+                    <button
+                      type="button"
+                      key={row.customerKey}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                      onClick={() => {
+                        dispatch({ type: "add_filter_value", key: "customerKeys", value: row.customerKey });
+                        dispatch({ type: "set_overdue_only", value: true });
+                      }}
+                    >
+                      <div className="text-sm font-medium text-slate-800">{row.customerLabel}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {row.invoiceCount} invoices · max {row.maxDaysOverdue}d · {formatCurrencyMap(row.totalsByCurrency)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-									{/* Consent Settings */}
-									<div className="space-y-2">
-										<Label htmlFor="consentDefault">
-											{t(
-												"analytics.settings.consent.default"
-											)}
-										</Label>
-										<Select
-											value={localConfig.consentDefault}
-											onValueChange={(
-												value: "denied" | "granted"
-											) =>
-												setLocalConfig({
-													...localConfig,
-													consentDefault: value,
-												})
-											}
-										>
-											<SelectTrigger id="consentDefault">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="denied">
-													{t(
-														"analytics.settings.consent.denied"
-													)}
-												</SelectItem>
-												<SelectItem value="granted">
-													{t(
-														"analytics.settings.consent.granted"
-													)}
-												</SelectItem>
-											</SelectContent>
-										</Select>
-										<p className="text-sm text-muted-foreground">
-											{t(
-												"analytics.settings.consent.defaultDescription"
-											)}
-										</p>
-									</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Top overdue invoices</h2>
+                <div className="mt-3 space-y-2">
+                  {summary.risk.topOverdueInvoices.slice(0, 6).map((invoice) => (
+                    <div key={invoice.invoiceId} className="rounded-md border border-slate-200 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-medium text-slate-800">{invoice.invoiceNumber}</div>
+                        <Badge className="border-rose-200 bg-rose-100 text-rose-800">{invoice.daysOverdue}d</Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {invoice.customerLabel} · {formatCurrencyMap({ [invoice.currency]: invoice.amount })}
+                      </div>
+                      <div className="mt-2">
+                        <Link to={`/invoices/${invoice.invoiceId}`} className="text-xs text-blue-700 hover:underline">
+                          Open invoice
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
 
-									{/* Consent Banner Customizer - Only show when consent is denied */}
-									{localConfig.consentDefault ===
-										"denied" && (
-										<div className="pt-4 border-t">
-											<ConsentBannerCustomizer
-												styling={
-													localConfig.consentBannerStyling ||
-													consentBannerStylingSchema.parse(
-														{}
-													)
-												}
-												onStylingChange={(styling) =>
-													setLocalConfig({
-														...localConfig,
-														consentBannerStyling:
-															styling,
-													})
-												}
-											/>
-										</div>
-									)}
-								</>
-							)}
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Detailed table</h2>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span>Total {records?.totalCount || 0}</span>
+                  <span>·</span>
+                  <span>{formatCurrencyMap(records?.totalsByCurrency || {})}</span>
+                </div>
+              </div>
 
-							{/* Save Button */}
-							<div className="flex justify-end pt-4">
-								<Button
-									onClick={handleSave}
-									disabled={isSaving || !organization?.id}
-								>
-									{isSaving ? (
-										<>
-											<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-											{t("analytics.settings.saving")}
-										</>
-									) : (
-										t(
-											"analytics.settings.saveConfiguration"
-										)
-									)}
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</TabsContent>
-			</Tabs>
-		</div>
-	);
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) => dispatch({ type: "set_tab", tab: value as typeof activeTab })}
+              >
+                <TabsList>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="customers">Customers</TabsTrigger>
+                  <TabsTrigger value="proposals">Proposals</TabsTrigger>
+                  <TabsTrigger value="collections">Collections</TabsTrigger>
+                </TabsList>
+
+                {(["documents", "customers", "proposals", "collections"] as const).map((tab) => (
+                  <TabsContent key={tab} value={tab} className="mt-4 space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label>Sort field</Label>
+                        <Select
+                          value={state.table.sort.field}
+                          onValueChange={(value) =>
+                            dispatch({
+                              type: "set_sort",
+                              sort: {
+                                ...state.table.sort,
+                                field: value,
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {tableColumns.length ? (
+                              tableColumns.map((column) => (
+                                <SelectItem key={column} value={column}>{column}</SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="date">date</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Sort direction</Label>
+                        <Select
+                          value={state.table.sort.direction}
+                          onValueChange={(value) =>
+                            dispatch({
+                              type: "set_sort",
+                              sort: {
+                                ...state.table.sort,
+                                direction: value as "asc" | "desc",
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="desc">desc</SelectItem>
+                            <SelectItem value="asc">asc</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Group by</Label>
+                        <Select
+                          value={state.table.groupBy || "none"}
+                          onValueChange={(value) => dispatch({ type: "set_group_by", groupBy: value === "none" ? null : value })}
+                        >
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">none</SelectItem>
+                            {tableColumns.map((column) => (
+                              <SelectItem key={`group:${column}`} value={column}>{column}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Page size</Label>
+                        <Select
+                          value={String(state.table.pageSize)}
+                          onValueChange={(value) => dispatch({ type: "set_page_size", pageSize: Number(value) })}
+                        >
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {[25, 50, 100, 200].map((size) => (
+                              <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {records?.groups?.length ? (
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+                        {records.groups.slice(0, 6).map((group) => (
+                          <span key={group.key} className="mr-3 inline-block">
+                            {group.key}: {group.count} ({formatCurrencyMap(group.totalsByCurrency)})
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {records?.records?.length ? (
+                      <div className="overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              {tableColumns.map((column) => (
+                                <th key={column} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                  {column}
+                                </th>
+                              ))}
+                              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">open</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {records.records.map((row, index) => {
+                              const recordId = String(row.id || "");
+                              const linkedInvoiceId = String(row.linkedInvoiceId || "");
+                              const customerKey = String(row.customerKey || "");
+
+                              const targetUrl =
+                                tab === "documents" || tab === "collections"
+                                  ? `/invoices/${recordId}`
+                                  : tab === "proposals"
+                                    ? linkedInvoiceId
+                                      ? `/invoices/${linkedInvoiceId}`
+                                      : `/proposals/${recordId}`
+                                    : customerKey
+                                      ? `/contacts/${customerKey}`
+                                      : undefined;
+
+                              return (
+                                <tr key={`${recordId || "row"}-${index}`} className="hover:bg-slate-50/60">
+                                  {tableColumns.map((column) => {
+                                    const value = row[column];
+                                    const isDateColumn = column.toLowerCase().includes("date") || column.toLowerCase().includes("at");
+                                    const isStatusColumn = column === "status";
+                                    const display =
+                                      value === null || value === undefined || value === ""
+                                        ? "-"
+                                        : isDateColumn && typeof value === "string"
+                                          ? formatDateShort(new Date(value))
+                                          : String(value);
+
+                                    return (
+                                      <td key={`${recordId}-${column}`} className="whitespace-nowrap px-3 py-2 text-slate-700">
+                                        {isStatusColumn && typeof value === "string" ? (
+                                          <span className={`inline-flex rounded border px-2 py-0.5 text-xs ${statusTone(value)}`}>{value}</span>
+                                        ) : (
+                                          display
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-3 py-2 text-slate-700">
+                                    {targetUrl ? (
+                                      <Link to={targetUrl} className="text-xs text-blue-700 hover:underline">
+                                        Open
+                                      </Link>
+                                    ) : (
+                                      "-"
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600">
+                        No records match the current filter set.
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <div>
+                        Page {records?.page || 1} / {totalPages}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(records?.page || 1) <= 1}
+                          onClick={() => dispatch({ type: "set_page", page: Math.max(1, (records?.page || 1) - 1) })}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(records?.page || 1) >= totalPages}
+                          onClick={() => dispatch({ type: "set_page", page: (records?.page || 1) + 1 })}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Data trust</h2>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  <div className="font-semibold text-slate-800">Coverage</div>
+                  <div className="mt-1">Owner derivation: {summary.trust.ownerDerivationCoveragePct.toFixed(1)}%</div>
+                  <div>Market derivation: {summary.trust.marketDerivationCoveragePct.toFixed(1)}%</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  <div className="font-semibold text-slate-800">Metric definitions</div>
+                  <div className="mt-1">Each KPI includes inclusion/exclusion scope, formula, time basis, currency basis, and last update timestamp.</div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {Object.entries(summary.trust.metricDefinitions).map(([metric, definition]) => (
+                  <div key={metric} className="rounded-lg border border-slate-200 p-3 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-800">{metric}</div>
+                    <div className="mt-1"><span className="font-medium">Includes:</span> {definition.includes}</div>
+                    <div className="mt-1"><span className="font-medium">Excludes:</span> {definition.excludes}</div>
+                    <div className="mt-1"><span className="font-medium">Formula:</span> {definition.formula}</div>
+                    <div className="mt-1"><span className="font-medium">Time basis:</span> {definition.timeBasis}</div>
+                    <div className="mt-1"><span className="font-medium">Currency basis:</span> {definition.currencyBasis}</div>
+                  </div>
+                ))}
+              </div>
+
+              {summary.trust.caveats.length > 0 ? (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <div className="mb-2 flex items-center gap-2 font-semibold">
+                    <TriangleAlert className="h-4 w-4" />
+                    Caveats
+                  </div>
+                  <ul className="list-disc space-y-1 pl-4">
+                    {summary.trust.caveats.map((caveat, index) => (
+                      <li key={`${caveat}-${index}`}>{caveat}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          </>
+        )}
+
+        {!isLoading && summary && records && records.totalCount === 0 ? (
+          <section className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <BarChart3 className="mx-auto h-10 w-10 text-slate-400" />
+            <h2 className="mt-3 text-lg font-semibold text-slate-900">No analytics data yet</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              As proposals, invoices, and payment statuses start flowing, this page will surface KPI trends, receivables risk, and operational priorities.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Suggested first actions: create a proposal, issue invoices, and update payment statuses to unlock collection metrics.
+            </p>
+          </section>
+        ) : null}
+
+        {!isLoading && summary && hasLowData ? (
+          <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            Low-data mode: totals are shown, while advanced ratios may be unstable until more records are captured for this period.
+          </section>
+        ) : null}
+      </div>
+    </div>
+  );
 }

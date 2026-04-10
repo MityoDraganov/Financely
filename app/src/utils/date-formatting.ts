@@ -28,6 +28,12 @@ export function formatDateLocale(
   const dateObj = typeof date === 'string' || typeof date === 'number' 
     ? new Date(date) 
     : date;
+
+  if (Number.isNaN(dateObj.getTime())) {
+    if (typeof date === 'string') return date;
+    if (typeof date === 'number') return String(date);
+    return '-';
+  }
   
   const locale = getDateLocale(language);
   return format(dateObj, formatStr, { locale });
@@ -77,4 +83,3 @@ export function formatDateTable(
   // English format: MMM d, yyyy
   return formatDateLocale(date, 'MMM d, yyyy', language);
 }
-

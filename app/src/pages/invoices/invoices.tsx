@@ -111,7 +111,10 @@ export default function InvoicesPage() {
   const { formatDateShort } = useDateFormatting();
   const navigate = useNavigate();
   const { data: currentOrganization } = useCurrentOrganization();
-  const { data: invoices, isLoading, isError } = useInvoices(currentOrganization?.id);
+  const { data: invoices, isLoading, isError, error } = useInvoices(currentOrganization?.id);
+  if(error){
+    console.error(error)
+  }
 
   const [previewUrl, setPreviewUrl]             = useState<string | null>(null);
   const [searchTerm, setSearchTerm]             = useState("");
@@ -271,7 +274,7 @@ export default function InvoicesPage() {
   const totalInvoices = invoices?.length || 0;
   const totalRevenue  = invoices?.reduce((s, inv) => s + getInvoiceAmountAndCurrency(inv).amount, 0) || 0;
   const monthCount    = invoices?.filter((inv) => {
-    const d = new Date(inv.updatedAt || inv.createdAt || "");
+    const d = new Date(inv.createdAt || inv.updatedAt || "");
     return Math.ceil(Math.abs(Date.now() - d.getTime()) / 86_400_000) <= 30;
   }).length || 0;
 

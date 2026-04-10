@@ -2,6 +2,7 @@ import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getStorage } from "firebase-admin/storage";
+import { randomUUID } from "node:crypto";
 import { TemplateData, TemplateElement } from "../core/entities/template";
 import { Invoice } from "../core/entities/invoice";
 import puppeteer from "puppeteer";
@@ -1008,11 +1009,76 @@ export async function handleRenderInvoicePdf(
   const databaseService = getDatabaseService();
   const invoiceRepository = getInvoiceRepository(databaseService);
   const organizationRepository = getOrganizationRepository(databaseService);
+  const storage = getStorage();
+  const bucket = storage.bucket();
 
   // Fetch invoice
   const invoice = await invoiceRepository.get({ id: invoiceId });
   if (!invoice) {
     throw new Error(`Invoice not found: ${invoiceId}`);
+  }
+
+  const fileName = `invoices/${invoice.orgId}/${invoiceId}.pdf`;
+  const file = bucket.file(fileName);
+  const encodedPath = encodeURIComponent(fileName);
+  const buildDownloadUrl = (token: string): string =>
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+  const getOrCreateDownloadToken = async (): Promise<string> => {
+    const [metadata] = await file.getMetadata();
+    const existingTokensRaw = metadata.metadata?.firebaseStorageDownloadTokens;
+    const existingTokens = typeof existingTokensRaw === "string" ? existingTokensRaw : "";
+    const firstToken = existingTokens
+      .split(",")
+      .map((token: string) => token.trim())
+      .find((token: string) => token.length > 0);
+
+    if (firstToken) {
+      return firstToken;
+    }
+
+    const newToken = randomUUID();
+    await file.setMetadata({
+      metadata: {
+        ...(metadata.metadata ?? {}),
+        firebaseStorageDownloadTokens: newToken,
+      },
+    });
+
+    return newToken;
+  };
+
+  // Fast path for existing PDFs:
+  // - reuse current file when it is newer than the invoice record
+  // - ensure a stable Firebase download token exists
+  const [fileExists] = await file.exists();
+  if (fileExists) {
+    let fileGeneratedAtMs = Number.NaN;
+    try {
+      const [metadata] = await file.getMetadata();
+      const generatedAt = metadata.metadata?.generatedAt ?? metadata.updated;
+      const generatedAtString = typeof generatedAt === "string" ? generatedAt : "";
+      fileGeneratedAtMs = Date.parse(generatedAtString);
+    } catch {
+      // Continue with fallback behavior below.
+    }
+
+    const invoiceUpdatedAtMs = Date.parse(invoice.updatedAt || invoice.createdAt || "");
+    const hasTimestamps = Number.isFinite(fileGeneratedAtMs) && Number.isFinite(invoiceUpdatedAtMs);
+    const shouldReuseExistingPdf = hasTimestamps ? fileGeneratedAtMs >= invoiceUpdatedAtMs : true;
+
+    if (shouldReuseExistingPdf) {
+      const token = await getOrCreateDownloadToken();
+      const downloadUrl = buildDownloadUrl(token);
+
+      if (invoice.pdfUrl !== downloadUrl) {
+        await invoiceRepository.update({
+          id: invoiceId,
+          data: { pdfUrl: downloadUrl } as Partial<Invoice>,
+        });
+      }
+
+      return downloadUrl;
+    }
   }
 
   // Resolve frozen template snapshot, with fallbacks for legacy invoices.
@@ -1090,16 +1156,13 @@ export async function handleRenderInvoicePdf(
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const browser = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
+      // chromium.args already includes the required headless-shell and sandbox flags.
+      args: [...chromium.args],
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       executablePath,
-      headless: true,
+      // Avoid Puppeteer adding a second headless mode flag that conflicts with
+      // @sparticuz/chromium's shell-only headless runtime configuration.
+      headless: false,
     });
 
     // Use exact pixel dimensions to match designer (96 DPI)
@@ -1161,11 +1224,8 @@ export async function handleRenderInvoicePdf(
   }
 
   // Upload to Firebase Storage
-  const storage = getStorage();
-  const bucket = storage.bucket();
-  const fileName = `invoices/${invoice.orgId}/${invoiceId}.pdf`;
-  const file = bucket.file(fileName);
 
+  const downloadToken = randomUUID();
   await file.save(pdfBuffer, {
     metadata: {
       contentType: "application/pdf",
@@ -1173,21 +1233,17 @@ export async function handleRenderInvoicePdf(
         invoiceId,
         templateId: invoice.templateId,
         generatedAt: new Date().toISOString(),
+        firebaseStorageDownloadTokens: downloadToken,
       },
     },
   });
-
-  // Make file publicly accessible
-  await file.makePublic();
-
-  // Get public URL
-  const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+  const downloadUrl = buildDownloadUrl(downloadToken);
 
   // Update invoice with PDF URL
   await invoiceRepository.update({
     id: invoiceId,
-    data: { pdfUrl: publicUrl } as Partial<Invoice>,
+    data: { pdfUrl: downloadUrl } as Partial<Invoice>,
   });
 
-  return publicUrl;
+  return downloadUrl;
 }

@@ -1,4 +1,10 @@
 import type { ProductTableConfig } from "@/core/entities/template";
+import type {
+  BusinessAnalyticsRecordsPayload,
+  BusinessAnalyticsRecordsResponse,
+  BusinessAnalyticsSummaryPayload,
+  BusinessAnalyticsSummaryResponse,
+} from "@/core/entities/business-analytics";
 
 export interface DeleteResponse {
   deleted: boolean;
@@ -716,6 +722,14 @@ export interface FunctionsService {
     };
     dataSources?: Array<"firestore" | "ga4" | "plausible" | "umami" | "clarity">;
   }>;
+
+  getBusinessAnalyticsSummary(
+    payload: BusinessAnalyticsSummaryPayload,
+  ): Promise<BusinessAnalyticsSummaryResponse>;
+
+  getBusinessAnalyticsRecords(
+    payload: BusinessAnalyticsRecordsPayload,
+  ): Promise<BusinessAnalyticsRecordsResponse>;
 
   /**
    * Convert a proposal to an invoice using AI

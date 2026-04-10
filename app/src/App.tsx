@@ -12,6 +12,7 @@ import LandingPage from "./pages/landing";
 import SignInPage from "./pages/sign-in";
 import SignUpPage from "./pages/sign-up";
 import DashboardPage from "./pages/dashboard/dashboard-page";
+import AnalyticsPage from "./pages/analytics/analytics-page";
 import AppLayout from "./components/layout";
 import { SidebarProvider } from "./components/ui/sidebar";
 import InvoicesPage from "./pages/invoices/invoices";
@@ -196,6 +197,16 @@ function App() {
 													<ProtectedRoute>
 														<AppLayout>
 															<DashboardPage />
+														</AppLayout>
+													</ProtectedRoute>
+												}
+											/>
+											<Route
+												path="/analytics"
+												element={
+													<ProtectedRoute>
+														<AppLayout>
+															<AnalyticsPage />
 														</AppLayout>
 													</ProtectedRoute>
 												}

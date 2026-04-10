@@ -71,43 +71,14 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
       }
       auditOrganizationId = invoice.orgId;
 
-      // Check if invoice already has a PDF URL stored
+      // Keep for audit metadata only; handleRenderInvoicePdf decides whether to reuse or regenerate.
       const invoiceData = invoice.data as Record<string, unknown>;
       const existingPdfUrl = invoiceData.pdfUrl as string | undefined;
       auditInvoiceName = (invoiceData.invoiceNumber as string | undefined) || invoiceId;
-
-      if (existingPdfUrl) {
-        loggerService.info("Using existing PDF URL for share link", {
-          invoiceId,
-          url: existingPdfUrl,
-        });
-
-        await logAuditSuccessForRequest({
-          request,
-          operationName: "generateInvoiceShareLink",
-          organizationId: invoice.orgId,
-          action: "access.granted",
-          resource: {
-            type: "invoice",
-            id: invoiceId,
-            name: auditInvoiceName,
-          },
-          durationMs: Date.now() - startTime,
-          metadata: {
-            source: "api",
-            sourceDetails: "generateInvoiceShareLink",
-            customFields: {
-              usedExistingPdf: true,
-              url: existingPdfUrl,
-            },
-          },
-        });
-
-        return { url: existingPdfUrl };
-      }
-
-      // Generate PDF if it doesn't exist
-      loggerService.info("PDF not found, generating new PDF", { invoiceId });
+      loggerService.info("Resolving invoice PDF for share link", {
+        invoiceId,
+        hasStoredPdfUrl: Boolean(existingPdfUrl),
+      });
       const pdfUrl = await handleRenderInvoicePdf(invoiceId);
 
       loggerService.info("Share link generated successfully", {
@@ -130,7 +101,7 @@ export const generateInvoiceShareLink = onCall<GenerateInvoiceShareLinkPayload, 
           source: "api",
           sourceDetails: "generateInvoiceShareLink",
           customFields: {
-            usedExistingPdf: false,
+            hadStoredPdfUrl: Boolean(existingPdfUrl),
             url: pdfUrl,
           },
         },

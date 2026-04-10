@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +46,9 @@ export default function InvoiceDetailPage() {
     const [emailPreview, setEmailPreview] = useState<InvoiceEmailPreview | null>(null);
     const [isEmailPreviewDialogOpen, setIsEmailPreviewDialogOpen] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<string>(INVOICE_STATUSES.UNSENT);
+    const attemptedPreviewInvoiceIdRef = useRef<string | null>(null);
+    const attemptedCachedPreviewRecoveryRef = useRef<string | null>(null);
+    const previewSourceRef = useRef<"cached" | "rendered">("rendered");
 
     const { data: currentOrg } = useCurrentOrganization();
     const updateInvoice = useUpdateInvoice();
@@ -61,28 +64,73 @@ export default function InvoiceDetailPage() {
     const generateShareLink = useGenerateInvoiceShareLink();
     const previewEmail = usePreviewInvoiceEmail();
 
+    const isLegacyPublicStorageUrl = useCallback((url: string): boolean => {
+        const normalizedUrl = url.trim().toLowerCase();
+        if (!normalizedUrl) return false;
+        return normalizedUrl.includes("storage.googleapis.com/");
+    }, []);
+
+    const renderInvoicePreview = useCallback(
+        (invoiceId: string, options?: { suppressErrorToast?: boolean }) => {
+            renderPdf.mutate(
+                { invoiceId },
+                {
+                    onSuccess: (result) => {
+                        previewSourceRef.current = "rendered";
+                        setPreviewUrl(result.url);
+                    },
+                    onError: (error) => {
+                        if (!options?.suppressErrorToast) {
+                            toast.error(t("invoiceDetail.messages.previewFailed", { error: error.message }));
+                        }
+                    },
+                },
+            );
+        },
+        [renderPdf, t],
+    );
+
     useEffect(() => {
         if (!invoice) return;
         setSelectedStatus(normalizeInvoiceStatus(invoice.status));
     }, [invoice?.id, invoice?.status]);
 
-    // Automatically load preview when invoice is available
     useEffect(() => {
-        if (invoice && !previewUrl && !renderPdf.isPending) {
-        renderPdf.mutate(
-            { invoiceId: invoice.id },
-            {
-                onSuccess: (result) => {
-                    setPreviewUrl(result.url);
-                },
-                onError: (error) => {
-                    toast.error(t('invoiceDetail.messages.previewFailed', { error: error.message }));
-                },
+        setPreviewUrl(null);
+        attemptedPreviewInvoiceIdRef.current = null;
+        attemptedCachedPreviewRecoveryRef.current = null;
+        previewSourceRef.current = "rendered";
+    }, [invoice?.id]);
+
+    // Fast path: use stored PDF URL immediately for existing invoices.
+    // Fallback to render function only when there is no stored URL.
+    useEffect(() => {
+        if (!invoice) return;
+
+        if (!previewUrl) {
+            const cachedPdfUrl = typeof invoice.pdfUrl === "string" ? invoice.pdfUrl.trim() : "";
+            if (cachedPdfUrl) {
+                // Silent migration path for old public-object URLs that can 403
+                // when bucket public access is disabled.
+                if (isLegacyPublicStorageUrl(cachedPdfUrl) && attemptedPreviewInvoiceIdRef.current !== invoice.id) {
+                    attemptedPreviewInvoiceIdRef.current = invoice.id;
+                    renderInvoicePreview(invoice.id, { suppressErrorToast: true });
+                    return;
+                }
+
+                previewSourceRef.current = "cached";
+                setPreviewUrl(cachedPdfUrl);
+                return;
             }
-        );
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [invoice?.id, t]);
+
+        if (previewUrl || renderPdf.isPending || attemptedPreviewInvoiceIdRef.current === invoice.id) {
+            return;
+        }
+
+        attemptedPreviewInvoiceIdRef.current = invoice.id;
+        renderInvoicePreview(invoice.id);
+    }, [invoice, isLegacyPublicStorageUrl, previewUrl, renderPdf.isPending, renderInvoicePreview]);
 
     useEffect(() => {
         if (!invoice || email.trim()) return;
@@ -293,7 +341,19 @@ export default function InvoiceDetailPage() {
                                     <iframe 
                                         title="invoice-preview" 
                                         src={previewUrl} 
-                                        className="h-full w-full border-0" 
+                                        className="h-full w-full border-0"
+                                        onError={() => {
+                                            // Silent recovery path for stale/private legacy URLs:
+                                            // try re-rendering once without showing an error toast.
+                                            if (!invoice) return;
+                                            if (previewSourceRef.current !== "cached") return;
+                                            if (attemptedCachedPreviewRecoveryRef.current === invoice.id) return;
+                                            if (renderPdf.isPending) return;
+
+                                            attemptedCachedPreviewRecoveryRef.current = invoice.id;
+                                            setPreviewUrl(null);
+                                            renderInvoicePreview(invoice.id, { suppressErrorToast: true });
+                                        }}
                                     />
                                 </div>
                             ) : (
@@ -303,17 +363,8 @@ export default function InvoiceDetailPage() {
                                         className="btn-primary mt-4" 
                                         onClick={() => {
                                             if (invoice) {
-                                                renderPdf.mutate(
-                                                    { invoiceId: invoice.id },
-                                                    {
-                                                        onSuccess: (result) => {
-                                                            setPreviewUrl(result.url);
-                                                        },
-                                                        onError: (error) => {
-                                                            toast.error(t('invoiceDetail.messages.previewFailed', { error: error.message }));
-                                                        },
-                                                    }
-                                                );
+                                                attemptedPreviewInvoiceIdRef.current = null;
+                                                renderInvoicePreview(invoice.id);
                                             }
                                         }}
                                     >
@@ -359,9 +410,22 @@ export default function InvoiceDetailPage() {
                                         const updateData: {
                                             status: "unsent" | "sent" | "paid" | "cancelled";
                                             deliveryHistory?: InvoiceDeliveryEvent[];
+                                            paidAt?: string;
                                         } = {
                                             status: selectedStatus as "unsent" | "sent" | "paid" | "cancelled",
                                         };
+
+                                        if (
+                                            selectedStatus === INVOICE_STATUSES.PAID &&
+                                            currentStatus !== INVOICE_STATUSES.PAID
+                                        ) {
+                                            updateData.paidAt = new Date().toISOString();
+                                        } else if (
+                                            selectedStatus !== INVOICE_STATUSES.PAID &&
+                                            currentStatus === INVOICE_STATUSES.PAID
+                                        ) {
+                                            updateData.paidAt = "";
+                                        }
 
                                         if (shouldAppendManualSendEvent) {
                                             const manualEvent: InvoiceDeliveryEvent = {

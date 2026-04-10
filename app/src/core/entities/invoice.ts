@@ -114,6 +114,7 @@ export const invoiceDataSchema = z.object({
     ])
     .default(INVOICE_STATUSES.UNSENT),
   deliveryHistory: z.array(invoiceDeliveryEventSchema).optional(),
+  paidAt: z.string().optional(),
   
   // Optional metadata
   notes: z.string().optional(),

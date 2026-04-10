@@ -451,6 +451,34 @@ service cloud.firestore {
                        isOwnerOrAdmin(orgId);
       allow delete: if false;
     }
+
+    match /analyticsViews/{viewId} {
+      allow read, write: if isAdmin();
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() &&
+                    resource.data.organizationId != null &&
+                    isOrgMember(resource.data.organizationId);
+      allow create: if isAuthenticated() &&
+                       request.resource.data.organizationId != null &&
+                       request.resource.data.createdByUserId == request.auth.uid &&
+                       isOrgMember(request.resource.data.organizationId) &&
+                       hasRole(request.resource.data.organizationId, 'member');
+      allow update: if isAuthenticated() &&
+                       resource.data.organizationId != null &&
+                       request.resource.data.organizationId == resource.data.organizationId &&
+                       isOrgMember(resource.data.organizationId) &&
+                       (
+                         isOwnerOrAdmin(resource.data.organizationId) ||
+                         resource.data.createdByUserId == request.auth.uid
+                       );
+      allow delete: if isAuthenticated() &&
+                       resource.data.organizationId != null &&
+                       isOrgMember(resource.data.organizationId) &&
+                       (
+                         isOwnerOrAdmin(resource.data.organizationId) ||
+                         resource.data.createdByUserId == request.auth.uid
+                       );
+    }
     
     
     match /marketplaceTemplates/{templateId} {

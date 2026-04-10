@@ -1,4 +1,5 @@
 export * from "./use-invoices";
+export * from "./use-analytics-views";
 export * from "./use-templates";
 export * from "./use-create-template";
 export * from "./use-organizations";

@@ -16,6 +16,8 @@ export * from "./entities/budget";
 export * from "./entities/product";
 export * from "./entities/analytics-config";
 export * from "./entities/analytics-event";
+export * from "./entities/analytics-view";
+export * from "./entities/business-analytics";
 export * from "./entities/audit-log";
 export * from "./entities/marketplace-template";
 export * from "./entities/marketplace-review";
