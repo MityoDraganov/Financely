@@ -38,8 +38,8 @@ export default function DashboardPage() {
   const orgId = currentOrganization?.id;
 
   const { data: invoices, isLoading: isInvoicesLoading } = useInvoices(orgId);
-  const { data: templates } = useTemplates(orgId);
-  const { data: contacts } = useContactsByOrg(orgId);
+  const { data: templates, isLoading: isTemplatesLoading } = useTemplates(orgId);
+  const { data: contacts, isLoading: isContactsLoading } = useContactsByOrg(orgId);
   const { data: leads, isLoading: isLeadsLoading } = useLeadsByOrg(orgId);
   const { data: opportunities, isLoading: isOppsLoading } = useOpportunitiesByOrg(orgId);
   const { data: proposals, isLoading: isProposalsLoading } = useProposalsByOrg(orgId);
@@ -115,6 +115,7 @@ export default function DashboardPage() {
   ].filter(Boolean) as FocusItem[];
 
   const isPipelineLoading = isLeadsLoading || isOppsLoading || isProposalsLoading || isInvoicesLoading;
+  const isActivationGuideLoading = isInvoicesLoading || isTemplatesLoading || isContactsLoading;
   const [checkAnimKey, setCheckAnimKey] = useState(0);
   const checkAnimatingRef = useRef(false);
 
@@ -188,8 +189,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Activation guide */}
-      {currentOrganization?.id && (
+      {currentOrganization?.id && !isActivationGuideLoading && (
         <ActivationGuide
+          key={currentOrganization.id}
           orgId={currentOrganization.id}
           invoiceCount={invoices?.length ?? 0}
           templateCount={templates?.length ?? 0}

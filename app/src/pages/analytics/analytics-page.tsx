@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
-import { useOrganizations } from "@/hooks/repository-hooks/use-organizations";
 import {
   useAnalyticsViews,
   useCreateAnalyticsView,
@@ -12,8 +11,10 @@ import {
   useBusinessAnalyticsRecords,
   useBusinessAnalyticsSummary,
 } from "@/hooks/service-hooks/use-business-analytics";
+import { useAuthReady } from "@/hooks/use-auth-ready";
 import {
   BusinessAnalyticsBreakdownRow,
+  BusinessAnalyticsRecordsPayload,
   BusinessAnalyticsSummaryPayload,
   CurrencyTotals,
 } from "@/core";
@@ -66,6 +67,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQueryClient } from "@tanstack/react-query";
+import { serviceHost } from "@/services";
+
+const functionsService = serviceHost.getFunctionsService();
 
 type TrendPoint = { period: string; [key: string]: string | number };
 
@@ -73,14 +78,18 @@ function getTodayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getDefaultRange(): { start: string; end: string } {
+function getQuickRange(days: number): { start: string; end: string } {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 29);
+  start.setDate(start.getDate() - (days - 1));
   return {
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
   };
+}
+
+function getDefaultRange(): { start: string; end: string } {
+  return getQuickRange(30);
 }
 
 function formatCurrencyMap(
@@ -133,6 +142,78 @@ function formatDelta(delta: number | null): string {
   if (delta === null || Number.isNaN(delta)) return "—";
   const sign = delta > 0 ? "+" : "";
   return `${sign}${delta.toFixed(1)}%`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNumericMap(value: Record<string, unknown>): value is CurrencyTotals {
+  const entries = Object.entries(value);
+  return entries.length > 0 && entries.every(([, nestedValue]) => typeof nestedValue === "number");
+}
+
+function formatObjectValue(value: Record<string, unknown>): string {
+  if (isNumericMap(value)) {
+    return formatCurrencyMap(value);
+  }
+  const entries = Object.entries(value);
+  if (!entries.length) return "—";
+  const preview = entries.slice(0, 3).map(([key, nestedValue]) => {
+    if (nestedValue === null || nestedValue === undefined || nestedValue === "") {
+      return `${key}: —`;
+    }
+    if (
+      typeof nestedValue === "string" ||
+      typeof nestedValue === "number" ||
+      typeof nestedValue === "boolean"
+    ) {
+      return `${key}: ${nestedValue}`;
+    }
+    return `${key}: …`;
+  });
+  return `${preview.join(" · ")}${entries.length > 3 ? " …" : ""}`;
+}
+
+function formatRecordCellValue(
+  column: string,
+  value: unknown,
+  formatDate: (value: Date) => string,
+): string {
+  if (value === null || value === undefined || value === "") return "—";
+
+  const isDateColumn =
+    column.toLowerCase().includes("date") || column.toLowerCase().includes("at");
+
+  if (isDateColumn && typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDate(parsed);
+    }
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value.toLocaleString("en-US") : "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (Array.isArray(value)) {
+    if (!value.length) return "—";
+    const preview = value
+      .slice(0, 3)
+      .map((item) => (typeof item === "object" ? "…" : String(item)))
+      .join(", ");
+    return `${preview}${value.length > 3 ? " …" : ""}`;
+  }
+
+  if (isPlainObject(value)) {
+    return formatObjectValue(value);
+  }
+
+  return String(value);
 }
 
 function toCsv(records: Array<Record<string, unknown>>): string {
@@ -311,10 +392,11 @@ function RankedList({
 
 export default function AnalyticsPage() {
   const { data: currentOrg, isLoading: currentOrgLoading } = useCurrentOrganization();
-  const { data: organizations = [] } = useOrganizations();
+  const { isAuthReady } = useAuthReady();
+  const queryClient = useQueryClient();
   const { formatDateShort } = useDateFormatting();
+  const orgId = currentOrg?.id;
 
-  const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [dateRange, setDateRange] = useState(getDefaultRange());
   const [comparePrevious, setComparePrevious] = useState(true);
   const [viewName, setViewName] = useState("");
@@ -323,26 +405,25 @@ export default function AnalyticsPage() {
 
   const [state, dispatch] = useReducer(analyticsReducer, DEFAULT_ANALYTICS_STATE);
 
-  useEffect(() => {
-    if (currentOrg?.id && !selectedOrgId) {
-      setSelectedOrgId(currentOrg.id);
-    }
-  }, [currentOrg?.id, selectedOrgId]);
-
-  const summaryPayload: BusinessAnalyticsSummaryPayload | null = selectedOrgId
-    ? { orgId: selectedOrgId, dateRange, comparePrevious, filters: state.filters }
-    : null;
+  const summaryPayload = useMemo<BusinessAnalyticsSummaryPayload | null>(
+    () =>
+      orgId
+        ? { orgId, dateRange, comparePrevious, filters: state.filters }
+        : null,
+    [comparePrevious, dateRange, orgId, state.filters],
+  );
 
   const summaryQuery = useBusinessAnalyticsSummary(summaryPayload);
-  const recordsPayload = summaryPayload
-    ? buildAnalyticsRecordsPayload(summaryPayload, state)
-    : null;
+  const recordsPayload = useMemo(
+    () => (summaryPayload ? buildAnalyticsRecordsPayload(summaryPayload, state) : null),
+    [state, summaryPayload],
+  );
   const recordsQuery = useBusinessAnalyticsRecords(recordsPayload);
 
-  const analyticsViewsQuery = useAnalyticsViews(selectedOrgId || undefined);
-  const createView = useCreateAnalyticsView(selectedOrgId || undefined);
-  const updateView = useUpdateAnalyticsView(selectedOrgId || undefined);
-  const deleteView = useDeleteAnalyticsView(selectedOrgId || undefined);
+  const analyticsViewsQuery = useAnalyticsViews(orgId);
+  const createView = useCreateAnalyticsView(orgId);
+  const updateView = useUpdateAnalyticsView(orgId);
+  const deleteView = useDeleteAnalyticsView(orgId);
 
   const summary = summaryQuery.data;
   const records = recordsQuery.data;
@@ -364,7 +445,9 @@ export default function AnalyticsPage() {
 
   const isLoading =
     currentOrgLoading ||
-    (summaryPayload !== null && (summaryQuery.isLoading || recordsQuery.isLoading));
+    (summaryPayload !== null &&
+      (!summary || !records) &&
+      (summaryQuery.isLoading || recordsQuery.isLoading));
 
   const hasLowData =
     Boolean(summary) && records?.totalCount !== undefined && records.totalCount < 5;
@@ -391,14 +474,44 @@ export default function AnalyticsPage() {
     };
   }, [summary]);
 
-  const handleQuickRange = (days: number) => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - (days - 1));
-    setDateRange({
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
+  useEffect(() => {
+    if (!isAuthReady || !recordsPayload) return;
+
+    const tabs: Array<BusinessAnalyticsRecordsPayload["tab"]> = [
+      "documents",
+      "customers",
+      "proposals",
+      "collections",
+    ];
+
+    const nextPayloads = tabs
+      .filter((tab) => tab !== recordsPayload.tab)
+      .map((tab) => ({
+        ...recordsPayload,
+        tab,
+      }));
+
+    nextPayloads.forEach((payload) => {
+      void queryClient.prefetchQuery({
+        queryKey: ["businessAnalytics", "records", payload],
+        queryFn: () => functionsService.getBusinessAnalyticsRecords(payload),
+        staleTime: 30_000,
+      });
     });
+  }, [isAuthReady, queryClient, recordsPayload]);
+
+  const activeQuickRange = useMemo(() => {
+    const presets = [7, 30, 90] as const;
+    return (
+      presets.find((days) => {
+        const range = getQuickRange(days);
+        return dateRange.start === range.start && dateRange.end === range.end;
+      }) ?? null
+    );
+  }, [dateRange.end, dateRange.start]);
+
+  const handleQuickRange = (days: number) => {
+    setDateRange(getQuickRange(days));
   };
 
   const handlePillRemove = (pillKey: string, value: string) => {
@@ -537,19 +650,6 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {organizations.length > 1 && (
-              <Select value={selectedOrgId || ""} onValueChange={setSelectedOrgId}>
-                <SelectTrigger className="h-8 w-[160px] text-xs">
-                  <SelectValue placeholder="Organization" />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
             <Input
               type="date"
               className="h-8 w-[130px] text-xs"
@@ -570,10 +670,11 @@ export default function AnalyticsPage() {
             {[7, 30, 90].map((d) => (
               <Button
                 key={d}
-                variant="outline"
+                variant={activeQuickRange === d ? "default" : "outline"}
                 size="sm"
                 className="h-8 px-2.5 text-xs"
                 onClick={() => handleQuickRange(d)}
+                aria-pressed={activeQuickRange === d}
               >
                 {d}D
               </Button>
@@ -1340,148 +1441,142 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
 
-                  {(["documents", "customers", "proposals", "collections"] as const).map((tab) => (
-                    <TabsContent key={tab} value={tab} className="mt-4">
-                      {records?.groups?.length ? (
-                        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                          {records.groups.slice(0, 6).map((group) => (
-                            <span key={group.key} className="text-xs text-slate-600">
-                              <span className="font-medium">{group.key}</span>
-                              {" — "}
-                              {group.count}
-                              {" ("}
-                              {formatCurrencyMap(group.totalsByCurrency)}
-                              {")"}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {records?.records?.length ? (
-                        <div className="overflow-x-auto rounded-md border border-slate-200">
-                          <table className="min-w-full divide-y divide-slate-100 text-xs">
-                            <thead className="bg-slate-50">
-                              <tr>
-                                {tableColumns.map((col) => (
-                                  <th
-                                    key={col}
-                                    className="whitespace-nowrap px-3 py-2 text-left font-medium text-slate-500"
-                                  >
-                                    {col}
-                                  </th>
-                                ))}
-                                <th className="px-3 py-2" />
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 bg-white">
-                              {records.records.map((row, index) => {
-                                const recordId = String(row.id || "");
-                                const linkedInvoiceId = String(row.linkedInvoiceId || "");
-                                const customerKey = String(row.customerKey || "");
-                                const targetUrl =
-                                  tab === "documents" || tab === "collections"
-                                    ? `/invoices/${recordId}`
-                                    : tab === "proposals"
-                                      ? linkedInvoiceId
-                                        ? `/invoices/${linkedInvoiceId}`
-                                        : `/proposals/${recordId}`
-                                      : customerKey
-                                        ? `/contacts/${customerKey}`
-                                        : undefined;
-
-                                return (
-                                  <tr
-                                    key={`${recordId || "row"}-${index}`}
-                                    className="hover:bg-slate-50/60"
-                                  >
-                                    {tableColumns.map((col) => {
-                                      const value = row[col];
-                                      const isDate =
-                                        col.toLowerCase().includes("date") ||
-                                        col.toLowerCase().includes("at");
-                                      const isStatus = col === "status";
-                                      const display =
-                                        value === null || value === undefined || value === ""
-                                          ? "—"
-                                          : isDate && typeof value === "string"
-                                            ? formatDateShort(new Date(value))
-                                            : String(value);
-
-                                      return (
-                                        <td
-                                          key={`${recordId}-${col}`}
-                                          className="whitespace-nowrap px-3 py-2 text-slate-700"
-                                        >
-                                          {isStatus && typeof value === "string" ? (
-                                            <span
-                                              className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] ${statusTone(value)}`}
-                                            >
-                                              {value}
-                                            </span>
-                                          ) : (
-                                            display
-                                          )}
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="px-3 py-2 text-right">
-                                      {targetUrl ? (
-                                        <Link
-                                          to={targetUrl}
-                                          className="text-blue-600 hover:underline"
-                                        >
-                                          Open
-                                        </Link>
-                                      ) : (
-                                        "—"
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-xs text-slate-400">
-                          No records match the current filter set.
-                        </div>
-                      )}
-
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="text-xs text-slate-400">
-                          Page {records?.page || 1} of {totalPages}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={(records?.page || 1) <= 1}
-                            onClick={() =>
-                              dispatch({
-                                type: "set_page",
-                                page: Math.max(1, (records?.page || 1) - 1),
-                              })
-                            }
-                          >
-                            Prev
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={(records?.page || 1) >= totalPages}
-                            onClick={() =>
-                              dispatch({ type: "set_page", page: (records?.page || 1) + 1 })
-                            }
-                          >
-                            Next
-                          </Button>
-                        </div>
+                  <TabsContent value={activeTab} className="mt-4">
+                    {records?.groups?.length ? (
+                      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                        {records.groups.slice(0, 6).map((group) => (
+                          <span key={group.key} className="text-xs text-slate-600">
+                            <span className="font-medium">{group.key}</span>
+                            {" — "}
+                            {group.count}
+                            {" ("}
+                            {formatCurrencyMap(group.totalsByCurrency)}
+                            {")"}
+                          </span>
+                        ))}
                       </div>
-                    </TabsContent>
-                  ))}
+                    ) : null}
+
+                    {records?.records?.length ? (
+                      <div className="overflow-x-auto rounded-md border border-slate-200">
+                        <table className="min-w-full divide-y divide-slate-100 text-xs">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              {tableColumns.map((col) => (
+                                <th
+                                  key={col}
+                                  className="whitespace-nowrap px-3 py-2 text-left font-medium text-slate-500"
+                                >
+                                  {col}
+                                </th>
+                              ))}
+                              <th className="px-3 py-2" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50 bg-white">
+                            {records.records.map((row, index) => {
+                              const recordId = String(row.id || "");
+                              const linkedInvoiceId = String(row.linkedInvoiceId || "");
+                              const customerKey = String(row.customerKey || "");
+                              const targetUrl =
+                                activeTab === "documents" || activeTab === "collections"
+                                  ? `/invoices/${recordId}`
+                                  : activeTab === "proposals"
+                                    ? linkedInvoiceId
+                                      ? `/invoices/${linkedInvoiceId}`
+                                      : `/proposals/${recordId}`
+                                    : customerKey
+                                      ? `/contacts/${customerKey}`
+                                      : undefined;
+
+                              return (
+                                <tr
+                                  key={`${recordId || "row"}-${index}`}
+                                  className="hover:bg-slate-50/60"
+                                >
+                                  {tableColumns.map((col) => {
+                                    const value = row[col];
+                                    const isStatus = col === "status";
+                                    const display = formatRecordCellValue(
+                                      col,
+                                      value,
+                                      formatDateShort,
+                                    );
+
+                                    return (
+                                      <td
+                                        key={`${recordId}-${col}`}
+                                        className="whitespace-nowrap px-3 py-2 text-slate-700"
+                                      >
+                                        {isStatus && typeof value === "string" ? (
+                                          <span
+                                            className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] ${statusTone(value)}`}
+                                          >
+                                            {value}
+                                          </span>
+                                        ) : (
+                                          display
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-3 py-2 text-right">
+                                    {targetUrl ? (
+                                      <Link
+                                        to={targetUrl}
+                                        className="text-blue-600 hover:underline"
+                                      >
+                                        Open
+                                      </Link>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-xs text-slate-400">
+                        No records match the current filter set.
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-slate-400">
+                        Page {records?.page || 1} of {totalPages}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={(records?.page || 1) <= 1}
+                          onClick={() =>
+                            dispatch({
+                              type: "set_page",
+                              page: Math.max(1, (records?.page || 1) - 1),
+                            })
+                          }
+                        >
+                          Prev
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={(records?.page || 1) >= totalPages}
+                          onClick={() =>
+                            dispatch({ type: "set_page", page: (records?.page || 1) + 1 })
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
                 </Tabs>
               </div>
             </div>

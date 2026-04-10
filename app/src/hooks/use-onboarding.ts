@@ -1,6 +1,7 @@
-import { useUser } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
 import { useUserByClerkId } from "./repository-hooks/use-users";
 import { useOrganizationsByIds } from "./repository-hooks/use-organizations";
+import { useAuthReady } from "./use-auth-ready";
 import { useMemo, useEffect } from "react";
 
 const ONBOARDING_COMPLETE_KEY = "financely_onboarding_complete";
@@ -17,25 +18,39 @@ const ONBOARDING_COMPLETE_KEY = "financely_onboarding_complete";
  *   4. Onboarding hasn't been marked as complete in localStorage
  */
 export function useOnboardingStatus() {
-  const { user, isLoaded: isClerkLoaded } = useUser();
-  const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(user?.id);
+  const { isLoaded: isClerkLoaded, isSignedIn, userId } = useAuth();
+  const { isAuthReady } = useAuthReady();
+  const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(userId);
   
   // Get organizations by organizationRoles (memberIds query doesn't work with Firestore rules)
   const organizationIds = dbUser?.organizationRoles ? Object.keys(dbUser.organizationRoles) : [];
   const { 
-    data: organizationsByIds = [], 
-    isLoading: isOrganizationsByIdsLoading 
+    data: organizationsByIds,
+    isLoading: isOrganizationsByIdsLoading,
+    error: organizationsError,
   } = useOrganizationsByIds(
     organizationIds.length > 0 ? organizationIds : undefined
   );
   
   // Use organizations from organizationRoles
-  const organizations = organizationsByIds;
+  const organizations = organizationsByIds ?? [];
+
+  // Keep loading while signed-in auth is still being bridged to Firebase/queries,
+  // or while dependent query data is still unresolved (undefined).
+  const waitingForSignedInAuth = isSignedIn && (!userId || !isAuthReady);
+  const waitingForUser = isSignedIn && !!userId && dbUser === undefined && !userError;
+  const waitingForOrganizations =
+    organizationIds.length > 0 &&
+    organizationsByIds === undefined &&
+    !organizationsError;
 
   // Calculate loading state - include all loading states
   const isLoading = 
     !isClerkLoaded || 
+    waitingForSignedInAuth ||
+    waitingForUser ||
     isUserLoading || 
+    waitingForOrganizations ||
     (organizationIds.length > 0 && isOrganizationsByIdsLoading);
 
   // Check if onboarding was previously completed (stored in localStorage)
@@ -110,4 +125,3 @@ export function useOnboardingStatus() {
     completeOnboarding,
   };
 }
-

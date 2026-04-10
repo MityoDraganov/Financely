@@ -4,7 +4,7 @@ import {
 } from "@/core/entities/business-analytics";
 import { useAuthReady } from "@/hooks/use-auth-ready";
 import { serviceHost } from "@/services";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 const functionsService = serviceHost.getFunctionsService();
 
@@ -23,6 +23,8 @@ export const useBusinessAnalyticsSummary = (
     },
     enabled: Boolean(payload?.orgId) && isAuthReady,
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 };
 
@@ -41,5 +43,7 @@ export const useBusinessAnalyticsRecords = (
     },
     enabled: Boolean(payload?.orgId && payload?.tab) && isAuthReady,
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 };
