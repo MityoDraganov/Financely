@@ -5,7 +5,21 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@clerk/clerk-react";
-import { Globe, Mail, Phone, Copy, ChevronsUpDown, Check, Plus, Trash2, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Globe,
+  Mail,
+  Phone,
+  Copy,
+  ChevronsUpDown,
+  Check,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Crown,
+  AlertTriangle,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -27,11 +41,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
+import { useOrganizationMembers } from "@/hooks/use-organization-members";
 import { DuplicateOrganizationDialog } from "@/components/organization/duplicate-organization-dialog";
-import { isAdminOrOwner } from "@/core/roles";
+import { isAdminOrOwner, ORGANIZATION_ROLES } from "@/core/roles";
+import { functionsService } from "@/services/functions/functions-service";
 
 type OrganizationGeneralForm = z.infer<ReturnType<typeof getOrganizationGeneralSchema>>;
 const PUBLIC_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -131,14 +164,26 @@ function CurrencyCombobox({ value, onChange }: { value: string; onChange: (code:
 
 export default function OrganizationGeneralPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user: clerkUser } = useUser();
   const { data: dbUser } = useUserByClerkId(clerkUser?.id);
   const { data: organization, isLoading } = useCurrentOrganization();
+  const {
+    data: organizationMembers = [],
+    isLoading: isOrganizationMembersLoading,
+  } = useOrganizationMembers(organization?.id);
   const updateOrganization = useUpdateOrganization();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false);
   const [fetchingRates, setFetchingRates] = useState<Set<string>>(new Set());
+  const [selectedTransferMemberId, setSelectedTransferMemberId] = useState<string>("");
+  const [transferTargetEmail, setTransferTargetEmail] = useState("");
+  const [isConfirmMemberTransferOpen, setIsConfirmMemberTransferOpen] = useState(false);
+  const [isConfirmEmailTransferOpen, setIsConfirmEmailTransferOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   
   const organizationGeneralSchema = getOrganizationGeneralSchema();
 
@@ -149,6 +194,116 @@ export default function OrganizationGeneralPage() {
     if (!userRole) return false;
     return isAdminOrOwner(userRole);
   }, [dbUser, organization]);
+
+  const isOwner = useMemo(() => {
+    if (!dbUser || !organization) return false;
+    const userRole = dbUser.organizationRoles?.[organization.id];
+    return userRole === ORGANIZATION_ROLES.OWNER;
+  }, [dbUser, organization]);
+
+  const transferCandidates = useMemo(
+    () =>
+      organizationMembers.filter(
+        (member) =>
+          member.id !== dbUser?.id &&
+          member.role !== ORGANIZATION_ROLES.OWNER &&
+          member.status === "active",
+      ),
+    [dbUser?.id, organizationMembers],
+  );
+
+  const selectedTransferMember = useMemo(
+    () => transferCandidates.find((member) => member.id === selectedTransferMemberId) || null,
+    [selectedTransferMemberId, transferCandidates],
+  );
+
+  const invalidateOrganizationQueries = async () => {
+    queryClient.invalidateQueries({ queryKey: ["users"] });
+    queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+    queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
+    queryClient.invalidateQueries({ queryKey: ["current-organization"] });
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ["users"] }),
+      queryClient.refetchQueries({ queryKey: ["organizations"] }),
+      queryClient.refetchQueries({ queryKey: ["organization-members", organization?.id] }),
+      queryClient.refetchQueries({ queryKey: ["user-organizations"] }),
+    ]);
+  };
+
+  const transferOwnershipMutation = useMutation({
+    mutationFn: async ({
+      organizationId,
+      newOwnerId,
+    }: {
+      organizationId: string;
+      newOwnerId: string;
+    }) =>
+      functionsService.transferOrganizationOwnership({
+        organizationId,
+        newOwnerId,
+      }),
+    onSuccess: async () => {
+      toast.success("Ownership transferred successfully.");
+      setIsConfirmMemberTransferOpen(false);
+      setSelectedTransferMemberId("");
+      await invalidateOrganizationQueries();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to transfer ownership.");
+    },
+  });
+
+  const requestOwnershipTransferMutation = useMutation({
+    mutationFn: async ({
+      organizationId,
+      targetEmail,
+    }: {
+      organizationId: string;
+      targetEmail: string;
+    }) =>
+      functionsService.requestOrganizationOwnershipTransfer({
+        organizationId,
+        targetEmail,
+      }),
+    onSuccess: async (result) => {
+      if (result.mode === "direct") {
+        toast.success("Ownership transferred to existing member.");
+      } else {
+        toast.success("Transfer email sent.");
+      }
+      setIsConfirmEmailTransferOpen(false);
+      setTransferTargetEmail("");
+      await invalidateOrganizationQueries();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to request ownership transfer.");
+    },
+  });
+
+  const deleteOrganizationMutation = useMutation({
+    mutationFn: async ({
+      organizationId,
+      confirmName,
+    }: {
+      organizationId: string;
+      confirmName: string;
+    }) =>
+      functionsService.deleteOrganization({
+        organizationId,
+        confirmName,
+      }),
+    onSuccess: async () => {
+      toast.success("Organization deleted.");
+      setIsDeleteDialogOpen(false);
+      setDeleteConfirmName("");
+      await invalidateOrganizationQueries();
+      navigate("/onboarding", { replace: true });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete organization.");
+    },
+  });
 
   const {
     register,
@@ -724,6 +879,123 @@ export default function OrganizationGeneralPage() {
           </Card>
         )}
 
+        {/* Danger Zone */}
+        {isOwner && (
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-destructive">
+                Danger Zone
+              </CardTitle>
+              <CardDescription className="text-sm">
+                High-impact organization actions. These actions can change access permanently.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Transfer organization ownership</p>
+                  <p className="text-xs text-muted-foreground">
+                    Transfer to an existing member instantly, or send an ownership transfer email.
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Select
+                    value={selectedTransferMemberId || undefined}
+                    onValueChange={setSelectedTransferMemberId}
+                    disabled={isOrganizationMembersLoading || transferCandidates.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          isOrganizationMembersLoading
+                            ? "Loading members..."
+                            : transferCandidates.length === 0
+                              ? "No eligible members found"
+                              : "Select existing member"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {transferCandidates.length > 0 ? (
+                        transferCandidates.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name} ({member.email})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          {isOrganizationMembersLoading
+                            ? "Loading members..."
+                            : "No active non-owner members available for direct transfer."}
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      !selectedTransferMemberId ||
+                      transferOwnershipMutation.isPending ||
+                      transferCandidates.length === 0
+                    }
+                    onClick={() => setIsConfirmMemberTransferOpen(true)}
+                  >
+                    <Crown className="mr-2 h-4 w-4" />
+                    Transfer to member
+                  </Button>
+                </div>
+                {transferCandidates.length === 0 && !isOrganizationMembersLoading && (
+                  <p className="text-xs text-muted-foreground">
+                    No eligible existing members were found. Use the email transfer flow below.
+                  </p>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Input
+                    type="email"
+                    value={transferTargetEmail}
+                    placeholder="new-owner@company.com"
+                    onChange={(event) => setTransferTargetEmail(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      requestOwnershipTransferMutation.isPending ||
+                      transferTargetEmail.trim().length === 0
+                    }
+                    onClick={() => setIsConfirmEmailTransferOpen(true)}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    Send transfer email
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border-t pt-5 space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">
+                    Delete organization
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Deletes organization access for all members and attempts to cancel any active Stripe subscription first.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete organization
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Save Button */}
         {hasUnsavedChanges && (
           <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t p-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 sm:mt-6">
@@ -758,6 +1030,124 @@ export default function OrganizationGeneralPage() {
           </div>
         )}
       </form>
+
+      <AlertDialog
+        open={isConfirmMemberTransferOpen}
+        onOpenChange={setIsConfirmMemberTransferOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer organization ownership</AlertDialogTitle>
+            <AlertDialogDescription>
+              Transfer ownership to{" "}
+              <span className="font-medium">{selectedTransferMember?.name || "selected member"}</span>
+              ? You will become a member.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={transferOwnershipMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={transferOwnershipMutation.isPending || !organization || !selectedTransferMember}
+              onClick={() => {
+                if (!organization || !selectedTransferMember) return;
+                transferOwnershipMutation.mutate({
+                  organizationId: organization.id,
+                  newOwnerId: selectedTransferMember.id,
+                });
+              }}
+            >
+              {transferOwnershipMutation.isPending ? "Transferring..." : "Confirm transfer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={isConfirmEmailTransferOpen}
+        onOpenChange={setIsConfirmEmailTransferOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send ownership transfer request</AlertDialogTitle>
+            <AlertDialogDescription>
+              Send transfer request to{" "}
+              <span className="font-medium">{transferTargetEmail.trim()}</span>.
+              If this email already belongs to an existing member in this organization,
+              ownership will be transferred directly.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={requestOwnershipTransferMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                requestOwnershipTransferMutation.isPending ||
+                !organization ||
+                transferTargetEmail.trim().length === 0
+              }
+              onClick={() => {
+                if (!organization || transferTargetEmail.trim().length === 0) return;
+                requestOwnershipTransferMutation.mutate({
+                  organizationId: organization.id,
+                  targetEmail: transferTargetEmail.trim(),
+                });
+              }}
+            >
+              {requestOwnershipTransferMutation.isPending ? "Sending..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="border-destructive/30">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Delete organization
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Type{" "}
+              <span className="font-semibold">{organization?.name}</span> to confirm.
+              Stripe subscription cancellation will be attempted before deletion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="confirmOrganizationDelete">Organization name</Label>
+            <Input
+              id="confirmOrganizationDelete"
+              value={deleteConfirmName}
+              onChange={(event) => setDeleteConfirmName(event.target.value)}
+              placeholder={organization?.name || "Organization name"}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteOrganizationMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={
+                deleteOrganizationMutation.isPending ||
+                !organization ||
+                deleteConfirmName !== organization.name
+              }
+              onClick={() => {
+                if (!organization) return;
+                deleteOrganizationMutation.mutate({
+                  organizationId: organization.id,
+                  confirmName: deleteConfirmName,
+                });
+              }}
+            >
+              {deleteOrganizationMutation.isPending ? "Deleting..." : "Delete organization"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Duplicate Organization Dialog */}
       <DuplicateOrganizationDialog

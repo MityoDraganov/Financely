@@ -26,6 +26,7 @@ export * from "./entities/file";
 export * from "./entities/metafield";
 export * from "./entities/product-metafield";
 export * from "./entities/contact-metafield";
+export * from "./entities/organization-ownership-transfer";
 
 // Service ports
 export * from "./ports/services/logger-service";

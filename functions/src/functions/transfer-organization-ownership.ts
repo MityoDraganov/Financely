@@ -144,7 +144,11 @@ export const transferOrganizationOwnership = onCall<
           );
         }
 
-        if (newOwnerData.status !== "active") {
+        const newOwnerStatus =
+          newOwnerData.status === "suspended" || newOwnerData.status === "deleted"
+            ? newOwnerData.status
+            : "active";
+        if (newOwnerStatus !== "active") {
           throw new HttpsError(
             "failed-precondition",
             "Only active members can become owners"
@@ -157,7 +161,7 @@ export const transferOrganizationOwnership = onCall<
         transaction.update(requestingUserRef, {
           organizationRoles: {
             ...requestingUserData.organizationRoles,
-            [organizationId]: ORGANIZATION_ROLES.ADMIN,
+            [organizationId]: ORGANIZATION_ROLES.MEMBER,
           },
           updatedAt: now,
         });
@@ -205,7 +209,7 @@ export const transferOrganizationOwnership = onCall<
           customFields: {
             previousOwnerId: auth.uid,
             newOwnerId,
-            previousOwnerNewRole: ORGANIZATION_ROLES.ADMIN,
+            previousOwnerNewRole: ORGANIZATION_ROLES.MEMBER,
             newOwnerNewRole: ORGANIZATION_ROLES.OWNER,
             newOwnerPreviousRole: auditNewOwnerPreviousRole,
           },

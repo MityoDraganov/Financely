@@ -200,6 +200,42 @@ export interface FunctionsService {
     newOwnerId: string;
   }): Promise<{ success: boolean; message: string }>;
 
+  requestOrganizationOwnershipTransfer(payload: {
+    organizationId: string;
+    targetEmail: string;
+  }): Promise<{
+    success: boolean;
+    mode: "email" | "direct";
+    message: string;
+    transferRequestId?: string;
+    newOwnerId?: string;
+  }>;
+
+  getOrganizationOwnershipTransferDetails(payload: {
+    token: string;
+  }): Promise<{
+    success: boolean;
+    transfer: {
+      id: string;
+      organizationId: string;
+      organizationName: string;
+      targetEmail: string;
+      requestedByName: string;
+      status: "pending" | "accepted" | "cancelled" | "expired";
+      expiresAt: string;
+      isExpired: boolean;
+    };
+  }>;
+
+  acceptOrganizationOwnershipTransfer(payload: {
+    token: string;
+  }): Promise<{ success: boolean; message: string; organizationId: string }>;
+
+  deleteOrganization(payload: {
+    organizationId: string;
+    confirmName: string;
+  }): Promise<{ success: boolean; message: string }>;
+
   /**
    * Create a workflow with the specified configuration.
    * 

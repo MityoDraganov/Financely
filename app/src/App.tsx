@@ -44,6 +44,7 @@ import InvitesPage from "./pages/settings/invites";
 import AuditLogPage from "./pages/settings/security/audit-log";
 import OnboardingPage from "./pages/onboarding/page";
 import AcceptInvitePage from "./pages/accept-invite";
+import AcceptOrganizationTransferPage from "./pages/accept-organization-transfer";
 import CheckoutSuccessPage from "./pages/stripe/checkout-success";
 import MarketplaceListPage from "./pages/marketplace/marketplace-list";
 import TemplateDetailPage from "./pages/marketplace/template-detail";
@@ -165,6 +166,10 @@ function App() {
 											<Route
 												path="/accept-invite"
 												element={<AcceptInvitePage />}
+											/>
+											<Route
+												path="/accept-organization-transfer"
+												element={<AcceptOrganizationTransferPage />}
 											/>
 											<Route
 												path="/stripe/checkout-success"

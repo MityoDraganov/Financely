@@ -65,6 +65,10 @@ export function useOrganizationMembers(organizationId?: string) {
           const role: OrganizationRole = (roleValue && isValidRole(roleValue))
             ? roleValue
             : ORGANIZATION_ROLES.MEMBER;
+          // Legacy user documents may not have an explicit status yet.
+          const status = user.status === "suspended" || user.status === "deleted"
+            ? user.status
+            : "active";
 
           return {
             id: user.id,
@@ -72,7 +76,7 @@ export function useOrganizationMembers(organizationId?: string) {
             email: user.email,
             avatarUrl: user.avatarUrl,
             role,
-            status: user.status,
+            status,
             createdAt: user.createdAt
               ? new Date(user.createdAt).toISOString()
               : new Date().toISOString(),

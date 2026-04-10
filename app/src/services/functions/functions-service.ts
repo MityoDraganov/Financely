@@ -179,6 +179,84 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async requestOrganizationOwnershipTransfer(payload: {
+    organizationId: string;
+    targetEmail: string;
+  }): Promise<{
+    success: boolean;
+    mode: "email" | "direct";
+    message: string;
+    transferRequestId?: string;
+    newOwnerId?: string;
+  }> {
+    const result = await httpsCallable<
+      { organizationId: string; targetEmail: string },
+      {
+        success: boolean;
+        mode: "email" | "direct";
+        message: string;
+        transferRequestId?: string;
+        newOwnerId?: string;
+      }
+    >(firebase.functions, "requestOrganizationOwnershipTransfer")(payload);
+    return result.data;
+  },
+
+  async getOrganizationOwnershipTransferDetails(payload: {
+    token: string;
+  }): Promise<{
+    success: boolean;
+    transfer: {
+      id: string;
+      organizationId: string;
+      organizationName: string;
+      targetEmail: string;
+      requestedByName: string;
+      status: "pending" | "accepted" | "cancelled" | "expired";
+      expiresAt: string;
+      isExpired: boolean;
+    };
+  }> {
+    const result = await httpsCallable<
+      { token: string },
+      {
+        success: boolean;
+        transfer: {
+          id: string;
+          organizationId: string;
+          organizationName: string;
+          targetEmail: string;
+          requestedByName: string;
+          status: "pending" | "accepted" | "cancelled" | "expired";
+          expiresAt: string;
+          isExpired: boolean;
+        };
+      }
+    >(firebase.functions, "getOrganizationOwnershipTransferDetails")(payload);
+    return result.data;
+  },
+
+  async acceptOrganizationOwnershipTransfer(payload: {
+    token: string;
+  }): Promise<{ success: boolean; message: string; organizationId: string }> {
+    const result = await httpsCallable<
+      { token: string },
+      { success: boolean; message: string; organizationId: string }
+    >(firebase.functions, "acceptOrganizationOwnershipTransfer")(payload);
+    return result.data;
+  },
+
+  async deleteOrganization(payload: {
+    organizationId: string;
+    confirmName: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const result = await httpsCallable<
+      { organizationId: string; confirmName: string },
+      { success: boolean; message: string }
+    >(firebase.functions, "deleteOrganization")(payload);
+    return result.data;
+  },
+
   async createWorkflow(payload) {
     type CreateWorkflowPayload = Parameters<FunctionsService["createWorkflow"]>[0];
     const result = await httpsCallable<CreateWorkflowPayload, { id: string }>(

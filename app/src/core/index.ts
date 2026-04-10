@@ -38,6 +38,7 @@ export * from "./entities/onboarding-progress";
 export * from "./entities/widget-block-schema";
 export * from "./entities/widget-definition";
 export * from "./entities/widget-version";
+export * from "./entities/organization-ownership-transfer";
 
 // Ports - Repositories
 export * from "./ports/repositories/utilities";

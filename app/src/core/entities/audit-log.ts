@@ -24,6 +24,10 @@ export const auditLogActionTypeSchema = z.enum([
   "organization.branding.updated",
   "organization.billing.updated",
   "organization.subscription.changed",
+  "organization.transfer.requested",
+  "organization.transfer.accepted",
+  "organization.transfer.cancelled",
+  "organization.transfer.expired",
   
   // Member & Invite Management
   "member.added",
@@ -178,6 +182,10 @@ export const AUDIT_LOG_ACTION_GROUPS = {
       "organization.branding.updated",
       "organization.billing.updated",
       "organization.subscription.changed",
+      "organization.transfer.requested",
+      "organization.transfer.accepted",
+      "organization.transfer.cancelled",
+      "organization.transfer.expired",
     ] as AuditLogActionType[],
   },
   members: {

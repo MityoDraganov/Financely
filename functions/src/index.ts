@@ -65,6 +65,10 @@ export { generateResumeLink } from "./functions/generate-resume-link";
 export { revokeInvite } from "./functions/revoke-invite";
 export { revokeMember } from "./functions/revoke-member";
 export { transferOrganizationOwnership } from "./functions/transfer-organization-ownership";
+export { requestOrganizationOwnershipTransfer } from "./functions/request-organization-ownership-transfer";
+export { getOrganizationOwnershipTransferDetails } from "./functions/get-organization-ownership-transfer-details";
+export { acceptOrganizationOwnershipTransfer } from "./functions/accept-organization-ownership-transfer";
+export { deleteOrganization } from "./functions/delete-organization";
 
 // Email functions
 export { sendInviteEmail } from "./functions/send-invite-email";
