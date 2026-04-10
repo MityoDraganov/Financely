@@ -81,6 +81,9 @@ export { onStripeWebhook } from "./functions/stripe/on-stripe-webhook";
 export { createCheckoutSession } from "./functions/stripe/create-checkout-session";
 export { createPortalSession } from "./functions/stripe/create-portal-session";
 export { getStripeBilling } from "./functions/stripe/get-stripe-billing";
+export { createConnectOnboardingLink } from "./functions/stripe/create-connect-onboarding-link";
+export { getConnectAccountStatus } from "./functions/stripe/get-connect-account-status";
+export { retryInvoicePaymentSync } from "./functions/stripe/retry-invoice-payment-sync";
 
 // Clerk authentication functions
 export { verifyClerkToken } from "./functions/clerk/verify-clerk-token";

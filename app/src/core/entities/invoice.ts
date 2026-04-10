@@ -53,6 +53,15 @@ export const LEGACY_INVOICE_STATUSES = {
 export type InvoiceCanonicalStatus = typeof INVOICE_STATUSES[keyof typeof INVOICE_STATUSES];
 export type InvoiceStatus = InvoiceCanonicalStatus | typeof LEGACY_INVOICE_STATUSES.DRAFT;
 
+export const INVOICE_PAYMENT_SYNC_STATUSES = {
+  PENDING: "pending",
+  SYNCED: "synced",
+  SYNC_FAILED: "sync_failed",
+} as const;
+
+export type InvoicePaymentSyncStatus =
+  typeof INVOICE_PAYMENT_SYNC_STATUSES[keyof typeof INVOICE_PAYMENT_SYNC_STATUSES];
+
 export const normalizeInvoiceStatus = (status: string | undefined | null): InvoiceCanonicalStatus => {
   if (!status || status === LEGACY_INVOICE_STATUSES.DRAFT) {
     return INVOICE_STATUSES.UNSENT;
@@ -70,6 +79,23 @@ export const invoiceDeliveryEventSchema = z.object({
   sentAt: z.string(),
   sentByUserId: z.string().optional(),
   details: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const invoicePaymentSchema = z.object({
+  provider: z.literal("stripe").default("stripe"),
+  connectAccountId: z.string().optional(),
+  stripeInvoiceId: z.string().optional(),
+  stripeCustomerId: z.string().optional(),
+  hostedInvoiceUrl: z.string().optional(),
+  syncStatus: z
+    .nativeEnum(INVOICE_PAYMENT_SYNC_STATUSES)
+    .default(INVOICE_PAYMENT_SYNC_STATUSES.PENDING),
+  lastSyncError: z.string().optional(),
+  lastSyncedAt: z.string().optional(),
+  lastStripeEventId: z.string().optional(),
+  lastStripeEventType: z.string().optional(),
+  lastStripeEventAt: z.string().optional(),
+  stripeInvoiceStatus: z.string().optional(),
 });
 
 export const invoiceDataSchema = z.object({
@@ -119,10 +145,12 @@ export const invoiceDataSchema = z.object({
   // Optional metadata
   notes: z.string().optional(),
   pdfUrl: z.string().optional(),
+  payment: invoicePaymentSchema.optional(),
 });
 
 export type InvoiceData = z.infer<typeof invoiceDataSchema>;
 export type InvoiceDeliveryEvent = z.infer<typeof invoiceDeliveryEventSchema>;
+export type InvoicePayment = z.infer<typeof invoicePaymentSchema>;
 
 export const invoiceSchema = baseEntitySchema.merge(invoiceDataSchema);
 export type Invoice = z.infer<typeof invoiceSchema>;

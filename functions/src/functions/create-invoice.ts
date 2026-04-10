@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { handleCreateInvoice } from "../app/handle-create-invoice";
 import { CreateInvoiceInput } from "../core/entities/invoice";
 import { loggerService } from "../services/logger-service";
@@ -9,6 +10,9 @@ import {
   logAuditFailureForRequest,
   logAuditSuccessForRequest,
 } from "../utils/audit-log-helper";
+import { syncStripeInvoiceForInternalInvoice } from "../services/stripe-invoice-payment-sync";
+
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 
 /**
  * Firebase Cloud Function for creating an invoice.
@@ -70,6 +74,7 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
   {
     region: "us-central1",
     cors: true,
+    secrets: [stripeSecretKey],
   },
   async (request) => {
     try {
@@ -122,6 +127,28 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
       const invoiceId = await handleCreateInvoice(payload);
 
       loggerService.info("Invoice created successfully", { invoiceId });
+
+      // Best effort Stripe payment sync for Connect-ready organizations.
+      // Creation must never fail because Stripe sync can be retried later.
+      try {
+        const syncResult = await syncStripeInvoiceForInternalInvoice({
+          stripeSecretKey: stripeSecretKey.value(),
+          invoiceId,
+        });
+        if (syncResult.status === "sync_failed") {
+          loggerService.warn("Invoice Stripe payment sync failed after create", {
+            invoiceId,
+            orgId: payload.orgId,
+            error: syncResult.error,
+          });
+        }
+      } catch (syncError) {
+        loggerService.warn("Invoice Stripe payment sync threw after create", {
+          invoiceId,
+          orgId: payload.orgId,
+          error: syncError instanceof Error ? syncError.message : String(syncError),
+        });
+      }
 
       // Record usage event
       try {

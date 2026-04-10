@@ -4,6 +4,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import Stripe from "stripe";
 import { serviceHost } from "../../services";
 import { BillingStatus } from "../../core/entities/organization";
+import { INVOICE_STATUSES, normalizeInvoiceStatus } from "../../core/entities/invoice";
+import { INVOICE_PAYMENT_SYNC_STATUSES } from "../../core";
 
 const loggerService = serviceHost.getLoggerService();
 
@@ -281,6 +283,165 @@ function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
 }
 
 /**
+ * Finds a local invoice for a Stripe invoice from a connected account.
+ * Primary lookup is metadata.internalInvoiceId, fallback is payment.stripeInvoiceId.
+ */
+async function getInternalInvoiceDocForConnectedInvoice(
+  invoice: Stripe.Invoice
+): Promise<FirebaseFirestore.DocumentSnapshot | null> {
+  const db = getFirestore();
+  const internalInvoiceId = invoice.metadata?.internalInvoiceId;
+
+  if (internalInvoiceId) {
+    const directDoc = await db.collection("invoices").doc(internalInvoiceId).get();
+    if (directDoc.exists) {
+      return directDoc;
+    }
+  }
+
+  const byStripeInvoice = await db
+    .collection("invoices")
+    .where("payment.stripeInvoiceId", "==", invoice.id)
+    .limit(1)
+    .get();
+
+  if (!byStripeInvoice.empty) {
+    return byStripeInvoice.docs[0];
+  }
+
+  return null;
+}
+
+/**
+ * Handles invoice lifecycle events from Stripe connected accounts.
+ * Returns true when an internal invoice was matched and processed.
+ */
+async function handleConnectedAccountInvoiceEvent(
+  event: Stripe.Event,
+  invoice: Stripe.Invoice
+): Promise<boolean> {
+  if (!event.account) {
+    return false;
+  }
+
+  const internalInvoiceDoc = await getInternalInvoiceDocForConnectedInvoice(invoice);
+  if (!internalInvoiceDoc) {
+    loggerService.info("Connected account invoice event has no internal invoice mapping", {
+      stripeInvoiceId: invoice.id,
+      eventId: event.id,
+      eventType: event.type,
+      account: event.account,
+    });
+    return false;
+  }
+
+  const db = getFirestore();
+  const invoiceRef = internalInvoiceDoc.ref;
+  await db.runTransaction(async (transaction) => {
+    const currentSnap = await transaction.get(invoiceRef);
+    if (!currentSnap.exists) {
+      return;
+    }
+
+    const currentData = currentSnap.data() as Record<string, unknown>;
+    const currentPayment = (currentData.payment || {}) as Record<string, unknown>;
+    if (shouldSkipConnectedInvoiceEvent(currentPayment, event.id)) {
+      return;
+    }
+    const updateData = buildConnectedInvoiceUpdateData({
+      currentData,
+      invoice,
+      eventType: event.type,
+      eventId: event.id,
+      eventAccount: event.account!,
+      eventCreated: event.created,
+    });
+    transaction.update(invoiceRef, updateData);
+  });
+
+  loggerService.info("Processed connected account invoice event", {
+    invoiceId: internalInvoiceDoc.id,
+    stripeInvoiceId: invoice.id,
+    eventType: event.type,
+    eventId: event.id,
+    account: event.account,
+  });
+  return true;
+}
+
+export function shouldSkipConnectedInvoiceEvent(
+  currentPayment: Record<string, unknown>,
+  eventId: string
+): boolean {
+  return currentPayment.lastStripeEventId === eventId;
+}
+
+export function buildConnectedInvoiceUpdateData(params: {
+  currentData: Record<string, unknown>;
+  invoice: Stripe.Invoice;
+  eventType: string;
+  eventId: string;
+  eventAccount: string;
+  eventCreated: number;
+}): Record<string, unknown> {
+  const {
+    currentData,
+    invoice,
+    eventType,
+    eventId,
+    eventAccount,
+    eventCreated,
+  } = params;
+
+  const currentPayment = (currentData.payment || {}) as Record<string, unknown>;
+  const stripeCustomerId =
+    typeof invoice.customer === "string"
+      ? invoice.customer
+      : invoice.customer?.id;
+
+  const nextPayment: Record<string, unknown> = {
+    ...currentPayment,
+    provider: "stripe",
+    connectAccountId: eventAccount,
+    stripeInvoiceId: invoice.id,
+    stripeCustomerId: stripeCustomerId || currentPayment.stripeCustomerId,
+    hostedInvoiceUrl: invoice.hosted_invoice_url || currentPayment.hostedInvoiceUrl,
+    syncStatus: INVOICE_PAYMENT_SYNC_STATUSES.SYNCED,
+    lastSyncedAt: new Date().toISOString(),
+    stripeInvoiceStatus: invoice.status || currentPayment.stripeInvoiceStatus,
+    lastStripeEventId: eventId,
+    lastStripeEventType: eventType,
+    lastStripeEventAt: new Date(eventCreated * 1000).toISOString(),
+  };
+
+  if (eventType === "invoice.payment_failed") {
+    nextPayment.lastSyncError = "payment_failed";
+  }
+
+  const updateData: Record<string, unknown> = {
+    payment: nextPayment,
+  };
+
+  const currentStatus = normalizeInvoiceStatus(currentData.status as string | undefined);
+  if (eventType === "invoice.paid") {
+    const paidAtUnix = invoice.status_transitions?.paid_at;
+    updateData.status = INVOICE_STATUSES.PAID;
+    updateData.paidAt = paidAtUnix
+      ? new Date(paidAtUnix * 1000).toISOString()
+      : new Date().toISOString();
+  } else if (eventType === "invoice.payment_failed") {
+    if (currentStatus !== INVOICE_STATUSES.PAID && currentStatus !== INVOICE_STATUSES.CANCELLED) {
+      updateData.status = INVOICE_STATUSES.SENT;
+    }
+    if (currentStatus !== INVOICE_STATUSES.PAID) {
+      updateData.paidAt = "";
+    }
+  }
+
+  return updateData;
+}
+
+/**
  * Handles invoice.paid event - confirms active access
  */
 async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
@@ -418,6 +579,13 @@ export const onStripeWebhook = onRequest(
     try {
       switch (event.type) {
         case "checkout.session.completed": {
+          if (event.account) {
+            loggerService.info("Ignoring connected-account checkout.session.completed for platform billing sync", {
+              eventId: event.id,
+              account: event.account,
+            });
+            break;
+          }
           const session = event.data.object as Stripe.Checkout.Session;
           await handleCheckoutCompleted(stripe, session);
           break;
@@ -426,6 +594,14 @@ export const onStripeWebhook = onRequest(
         case "customer.subscription.created":
         case "customer.subscription.updated":
         case "customer.subscription.deleted": {
+          if (event.account) {
+            loggerService.info("Ignoring connected-account subscription event for platform billing sync", {
+              type: event.type,
+              eventId: event.id,
+              account: event.account,
+            });
+            break;
+          }
           const subscription = event.data.object as Stripe.Subscription;
           await handleSubscriptionEvent(stripe, subscription, event.type);
           break;
@@ -433,13 +609,30 @@ export const onStripeWebhook = onRequest(
         
         case "invoice.paid": {
           const invoice = event.data.object as Stripe.Invoice;
+          const handledConnected = await handleConnectedAccountInvoiceEvent(event, invoice);
+          if (handledConnected) {
+            break;
+          }
           await handleInvoicePaid(invoice);
           break;
         }
         
         case "invoice.payment_failed": {
           const invoice = event.data.object as Stripe.Invoice;
+          const handledConnected = await handleConnectedAccountInvoiceEvent(event, invoice);
+          if (handledConnected) {
+            break;
+          }
           await handleInvoicePaymentFailed(invoice);
+          break;
+        }
+
+        case "invoice.updated":
+        case "invoice.finalized": {
+          const invoice = event.data.object as Stripe.Invoice;
+          if (event.account) {
+            await handleConnectedAccountInvoiceEvent(event, invoice);
+          }
           break;
         }
         

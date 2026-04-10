@@ -13,7 +13,9 @@ import { Link as LinkIcon, Send, Loader2, Copy, Check, Eye } from "lucide-react"
 import { useRenderInvoicePdf, useSendInvoiceEmail, useGenerateInvoiceShareLink, usePreviewInvoiceEmail } from "@/hooks";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateInvoice } from "@/hooks/repository-hooks/use-invoices";
+import { useRetryInvoicePaymentSync } from "@/hooks/use-stripe-connect";
 import {
+    INVOICE_PAYMENT_SYNC_STATUSES,
     INVOICE_STATUSES,
     normalizeInvoiceStatus,
     type InvoiceDeliveryEvent,
@@ -52,6 +54,7 @@ export default function InvoiceDetailPage() {
 
     const { data: currentOrg } = useCurrentOrganization();
     const updateInvoice = useUpdateInvoice();
+    const retryPaymentSync = useRetryInvoicePaymentSync();
 
     const { data: invoice } = useQuery({
         queryKey: ["invoices", id],
@@ -208,6 +211,16 @@ export default function InvoiceDetailPage() {
             !previewIsExpired &&
             !sendEmail.isPending,
     );
+
+    const currentStatus = invoice ? normalizeInvoiceStatus(invoice.status) : INVOICE_STATUSES.UNSENT;
+    const stripePayment = invoice?.payment?.provider === "stripe" ? invoice.payment : undefined;
+    const isStripeLinkedInvoice = !!stripePayment;
+    const shouldPreventManualPaidTransition =
+        isStripeLinkedInvoice &&
+        selectedStatus === INVOICE_STATUSES.PAID &&
+        currentStatus !== INVOICE_STATUSES.PAID;
+    const isStripeSyncFailed =
+        stripePayment?.syncStatus === INVOICE_PAYMENT_SYNC_STATUSES.SYNC_FAILED;
 
     const handleSendEmail = () => {
         if (!invoice || !email || !selectedEmailTemplateId || !emailPreview) return;
@@ -391,19 +404,88 @@ export default function InvoiceDetailPage() {
                                     <SelectContent>
                                         <SelectItem value={INVOICE_STATUSES.UNSENT}>{t("invoiceDetail.status.unsent", "Unsent")}</SelectItem>
                                         <SelectItem value={INVOICE_STATUSES.SENT}>{t("invoiceDetail.status.sent", "Sent")}</SelectItem>
-                                        <SelectItem value={INVOICE_STATUSES.PAID}>{t("invoiceDetail.status.paid", "Paid")}</SelectItem>
+                                        <SelectItem
+                                            value={INVOICE_STATUSES.PAID}
+                                            disabled={isStripeLinkedInvoice && currentStatus !== INVOICE_STATUSES.PAID}
+                                        >
+                                            {t("invoiceDetail.status.paid", "Paid")}
+                                        </SelectItem>
                                         <SelectItem value={INVOICE_STATUSES.CANCELLED}>{t("invoiceDetail.status.cancelled", "Cancelled")}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {isStripeLinkedInvoice && (
+                                <p className="text-xs text-muted-foreground">
+                                    {t(
+                                        "invoiceDetail.status.stripeWebhookOnly",
+                                        "For Stripe-linked invoices, paid status is updated only by Stripe webhooks.",
+                                    )}
+                                </p>
+                            )}
+                            {isStripeSyncFailed && (
+                                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                                    <p className="mb-2">
+                                        {t(
+                                            "invoiceDetail.status.stripeSyncFailed",
+                                            "Stripe payment sync failed. Retry sync before sending this invoice.",
+                                        )}
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!invoice || retryPaymentSync.isPending}
+                                        onClick={async () => {
+                                            if (!invoice) return;
+                                            try {
+                                                await retryPaymentSync.mutateAsync({
+                                                    orgId: invoice.orgId,
+                                                    invoiceId: invoice.id,
+                                                });
+                                                toast.success(
+                                                    t("invoiceDetail.status.stripeSyncRetried", "Invoice payment sync retried successfully"),
+                                                );
+                                            } catch (error) {
+                                                toast.error(
+                                                    t("invoiceDetail.status.stripeSyncRetryFailed", "Failed to retry payment sync: {{error}}", {
+                                                        error: error instanceof Error ? error.message : "Unknown error",
+                                                    }),
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        {retryPaymentSync.isPending
+                                            ? t("invoiceDetail.status.saving", "Saving...")
+                                            : t("invoiceDetail.status.retryStripeSync", "Retry payment sync")}
+                                    </Button>
+                                </div>
+                            )}
                             <Button
                                 variant="outline"
                                 className="w-full"
-                                disabled={!invoice || updateInvoice.isPending || selectedStatus === normalizeInvoiceStatus(invoice.status)}
+                                disabled={
+                                    !invoice ||
+                                    updateInvoice.isPending ||
+                                    selectedStatus === currentStatus ||
+                                    shouldPreventManualPaidTransition
+                                }
                                 onClick={async () => {
                                     if (!invoice) return;
                                     try {
                                         const currentStatus = normalizeInvoiceStatus(invoice.status);
+                                        if (
+                                            invoice.payment?.provider === "stripe" &&
+                                            selectedStatus === INVOICE_STATUSES.PAID &&
+                                            currentStatus !== INVOICE_STATUSES.PAID
+                                        ) {
+                                            toast.error(
+                                                t(
+                                                    "invoiceDetail.status.stripeWebhookOnly",
+                                                    "For Stripe-linked invoices, paid status is updated only by Stripe webhooks.",
+                                                ),
+                                            );
+                                            return;
+                                        }
                                         const shouldAppendManualSendEvent =
                                             selectedStatus === INVOICE_STATUSES.SENT &&
                                             currentStatus !== INVOICE_STATUSES.SENT;

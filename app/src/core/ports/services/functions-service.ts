@@ -1422,4 +1422,56 @@ export interface FunctionsService {
     planCurrency?: string;
     planInterval?: string;
   } | null>;
+
+  /**
+   * Create/reuse Stripe Connect Express onboarding link for invoice payments.
+   */
+  createConnectOnboardingLink(payload: {
+    orgId: string;
+    returnUrl: string;
+    refreshUrl: string;
+  }): Promise<{
+    url: string;
+    accountId: string;
+    payments: {
+      provider: "stripe";
+      connectAccountId?: string;
+      detailsSubmitted: boolean;
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      onboardingComplete: boolean;
+      status: "not_connected" | "pending" | "ready";
+      lastOnboardingLinkCreatedAt?: string;
+      lastStatusRefreshAt?: string;
+    };
+  }>;
+
+  /**
+   * Refresh Stripe Connect account readiness state.
+   */
+  getConnectAccountStatus(payload: { orgId: string }): Promise<{
+    payments: {
+      provider: "stripe";
+      connectAccountId?: string;
+      detailsSubmitted: boolean;
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      onboardingComplete: boolean;
+      status: "not_connected" | "pending" | "ready";
+      lastOnboardingLinkCreatedAt?: string;
+      lastStatusRefreshAt?: string;
+    } | null;
+  }>;
+
+  /**
+   * Retry Stripe invoice payment sync for a specific invoice.
+   */
+  retryInvoicePaymentSync(payload: {
+    orgId: string;
+    invoiceId: string;
+  }): Promise<{
+    status: "already_synced" | "synced" | "sync_failed";
+    payment?: Record<string, unknown>;
+    error?: string;
+  }>;
 }

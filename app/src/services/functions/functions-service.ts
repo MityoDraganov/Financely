@@ -1032,4 +1032,40 @@ export const functionsService: FunctionsService = {
     >(firebase.functions, "getStripeBilling")(payload);
     return result.data;
   },
+
+  async createConnectOnboardingLink(payload) {
+    type CreateConnectOnboardingLinkPayload =
+      Parameters<FunctionsService["createConnectOnboardingLink"]>[0];
+    type CreateConnectOnboardingLinkResponse =
+      Awaited<ReturnType<FunctionsService["createConnectOnboardingLink"]>>;
+    const result = await httpsCallable<
+      CreateConnectOnboardingLinkPayload,
+      CreateConnectOnboardingLinkResponse
+    >(firebase.functions, "createConnectOnboardingLink")(payload);
+    return result.data;
+  },
+
+  async getConnectAccountStatus(payload) {
+    type GetConnectAccountStatusPayload =
+      Parameters<FunctionsService["getConnectAccountStatus"]>[0];
+    type GetConnectAccountStatusResponse =
+      Awaited<ReturnType<FunctionsService["getConnectAccountStatus"]>>;
+    const result = await httpsCallable<
+      GetConnectAccountStatusPayload,
+      GetConnectAccountStatusResponse
+    >(firebase.functions, "getConnectAccountStatus")(payload);
+    return result.data;
+  },
+
+  async retryInvoicePaymentSync(payload) {
+    type RetryInvoicePaymentSyncPayload =
+      Parameters<FunctionsService["retryInvoicePaymentSync"]>[0];
+    type RetryInvoicePaymentSyncResponse =
+      Awaited<ReturnType<FunctionsService["retryInvoicePaymentSync"]>>;
+    const result = await httpsCallable<
+      RetryInvoicePaymentSyncPayload,
+      RetryInvoicePaymentSyncResponse
+    >(firebase.functions, "retryInvoicePaymentSync")(payload);
+    return result.data;
+  },
 };

@@ -54,6 +54,12 @@ service cloud.firestore {
       return resource.data.orgId == orgId || 
              resource.data.organizationId == orgId;
     }
+    function blocksManualPaidTransitionForStripeInvoice() {
+      return resource.data.payment != null &&
+             resource.data.payment.provider == 'stripe' &&
+             request.resource.data.status == 'paid' &&
+             resource.data.status != 'paid';
+    }
     function hasPublicOrganizationSlugData(data) {
       return data != null &&
              data.settings != null &&
@@ -135,7 +141,8 @@ service cloud.firestore {
       allow update: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        request.resource.data.orgId == resource.data.orgId &&
-                       isOwnerOrAdmin(resource.data.orgId);
+                       isOwnerOrAdmin(resource.data.orgId) &&
+                       !blocksManualPaidTransitionForStripeInvoice();
       allow delete: if isAuthenticated() && 
                        belongsToOrg(resource.data.orgId) &&
                        isOwnerOrAdmin(resource.data.orgId);

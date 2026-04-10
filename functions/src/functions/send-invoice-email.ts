@@ -20,6 +20,7 @@ import { DatabaseCollection } from "../repositories/config";
 import {
   type InvoiceDataValue,
   type InvoiceDeliveryEvent,
+  INVOICE_PAYMENT_SYNC_STATUSES,
   INVOICE_STATUSES,
   normalizeInvoiceStatus,
 } from "../core";
@@ -41,6 +42,8 @@ import {
   evaluateTemplateRequirements,
   extractEmailTemplateRequirements,
 } from "../utils/email-template-requirements";
+import { isOrganizationConnectReady } from "../services/stripe-connect-payments";
+import { getStripeInvoicePaymentMetadata } from "../utils/invoice-payment";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -303,6 +306,21 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         }
       }
 
+      if (!organization || !isOrganizationConnectReady((organization as any).payments)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Stripe Connect onboarding is required before sending invoices. Complete onboarding in Settings > Organization > Billing."
+        );
+      }
+
+      const stripePayment = getStripeInvoicePaymentMetadata(invoice as unknown as { payment?: unknown });
+      if (stripePayment?.syncStatus === INVOICE_PAYMENT_SYNC_STATUSES.SYNC_FAILED) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Invoice payment link sync failed. Retry invoice payment sync before sending."
+        );
+      }
+
       const previewSnapshotRepository = getGenericRepository<
         EmailPreviewSnapshot,
         Omit<EmailPreviewSnapshot, "id">
@@ -375,8 +393,15 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         ? new Date(dueDate).toLocaleDateString()
         : "N/A";
 
-      // Generate share link (if needed, you can implement generateInvoiceShareLink separately)
-      const invoiceUrl = pdfUrl; // Use PDF URL as invoice link for now
+      const stripeHostedInvoiceUrl = stripePayment?.hostedInvoiceUrl?.trim();
+      if (stripePayment && !stripeHostedInvoiceUrl) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Stripe payment link is missing for this invoice. Retry invoice payment sync before sending."
+        );
+      }
+
+      const invoiceUrl = stripeHostedInvoiceUrl || pdfUrl;
 
       // Initialize email service with secrets
       const emailService = new ResendEmailService({

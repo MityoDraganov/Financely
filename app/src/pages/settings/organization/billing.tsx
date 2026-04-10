@@ -21,6 +21,7 @@ import { useUsageHistory } from "@/hooks/service-hooks/use-usage-history";
 import { useUpdateBillingSettings } from "@/hooks/service-hooks/use-billing-settings";
 import { useCreateCheckoutSession, useCreatePortalSession } from "@/hooks/use-stripe-checkout";
 import { useStripeBilling } from "@/hooks/use-stripe-billing";
+import { useConnectAccountStatus, useCreateConnectOnboardingLink } from "@/hooks/use-stripe-connect";
 
 const PLAN = {
   name: "Pro Plan",
@@ -42,6 +43,7 @@ export default function OrganizationBillingPage() {
   const { formatDateShort } = useDateFormatting();
   const { data: organization, isLoading: isOrgLoading } = useCurrentOrganization();
   const { data: stripeBilling, isLoading: isStripeBillingLoading } = useStripeBilling(organization?.id);
+  const { data: connectStatusResponse, isLoading: isConnectStatusLoading } = useConnectAccountStatus(organization?.id);
   const { data: usageHistoryData, isLoading: isUsageLoading, error: usageError } = useUsageHistory(
     organization?.id,
     { periodType: "current" }
@@ -49,6 +51,7 @@ export default function OrganizationBillingPage() {
   const updateBillingSettings = useUpdateBillingSettings();
   const checkoutMutation = useCreateCheckoutSession();
   const portalMutation = useCreatePortalSession();
+  const connectOnboardingMutation = useCreateConnectOnboardingLink();
 
   const [usageAlerts, setUsageAlerts] = useState(organization?.settings?.billing?.usageAlerts ?? true);
 
@@ -94,6 +97,25 @@ export default function OrganizationBillingPage() {
     }
   };
 
+  const handleConnectOnboarding = async () => {
+    if (!organization?.id) {
+      toast.error(t("settings.organization.billing.noOrganization", { defaultValue: "Organization not found" }));
+      return;
+    }
+
+    try {
+      const result = await connectOnboardingMutation.mutateAsync({
+        orgId: organization.id,
+        returnUrl: `${window.location.origin}/settings/organization/billing?connect=return`,
+        refreshUrl: `${window.location.origin}/settings/organization/billing?connect=refresh`,
+      });
+      window.location.href = result.url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(t("settings.organization.billing.connectOnboardingFailed", { defaultValue: `Connect onboarding failed: ${message}` }));
+    }
+  };
+
   const formatDate = (dateString?: string) =>
     dateString ? formatDateShort(new Date(dateString)) : "N/A";
 
@@ -133,6 +155,15 @@ export default function OrganizationBillingPage() {
   const storageGB = (usage.storageBytes / (1024 * 1024 * 1024)).toFixed(2);
   const isStripeLoading = checkoutMutation.isPending || portalMutation.isPending;
   const isBillingLoading = isStripeBillingLoading && organization?.id != null;
+  const payments = connectStatusResponse?.payments ?? organization.payments;
+  const connectReady = !!payments && (payments.status === "ready" || (payments.chargesEnabled && payments.payoutsEnabled));
+  const hasConnectAccount = !!payments?.connectAccountId;
+  const connectStatusLabel = connectReady
+    ? t("settings.organization.billing.connectReady", { defaultValue: "Ready" })
+    : hasConnectAccount
+      ? t("settings.organization.billing.connectPending", { defaultValue: "Pending" })
+      : t("settings.organization.billing.connectNotConnected", { defaultValue: "Not connected" });
+  const connectLoading = isConnectStatusLoading || connectOnboardingMutation.isPending;
 
   return (
     <div className="space-y-6 pb-8">
@@ -354,6 +385,59 @@ export default function OrganizationBillingPage() {
             </div>
 
             <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("settings.organization.billing.invoicePayments", { defaultValue: "Invoice payments (Stripe Connect)" })}</CardTitle>
+                  <CardDescription>
+                    {t("settings.organization.billing.invoicePaymentsDescription", {
+                      defaultValue: "Enable card and bank transfer payments for invoice links.",
+                    })}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {t("settings.organization.billing.connectStatus", { defaultValue: "Connect status" })}
+                    </span>
+                    <Badge variant={connectReady ? "default" : "outline"}>
+                      {connectLoading
+                        ? t("settings.organization.billing.loading", { defaultValue: "Loading..." })
+                        : connectStatusLabel}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <p>
+                      {t("settings.organization.billing.connectCard", { defaultValue: "Card payments" })}:{" "}
+                      {payments?.chargesEnabled
+                        ? t("common.enabled", { defaultValue: "Enabled" })
+                        : t("common.disabled", { defaultValue: "Disabled" })}
+                    </p>
+                    <p>
+                      {t("settings.organization.billing.connectPayouts", { defaultValue: "Bank transfer readiness" })}:{" "}
+                      {payments?.payoutsEnabled
+                        ? t("common.enabled", { defaultValue: "Enabled" })
+                        : t("common.disabled", { defaultValue: "Disabled" })}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleConnectOnboarding}
+                    disabled={connectOnboardingMutation.isPending}
+                    className="w-full"
+                  >
+                    {connectOnboardingMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("settings.organization.billing.loading", { defaultValue: "Loading..." })}
+                      </>
+                    ) : connectReady ? (
+                      t("settings.organization.billing.updateConnect", { defaultValue: "Update Connect details" })
+                    ) : (
+                      t("settings.organization.billing.completeConnect", { defaultValue: "Complete Stripe Connect onboarding" })
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle>{t("settings.organization.billing.alerts", { defaultValue: "Usage alerts" })}</CardTitle>

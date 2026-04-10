@@ -24,6 +24,7 @@ import {
   extractEmailTemplateRequirements,
 } from "../utils/email-template-requirements";
 import { formatInvoiceAmount } from "../utils/invoice-helpers";
+import { getStripeInvoicePaymentMetadata } from "../utils/invoice-payment";
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
@@ -209,6 +210,8 @@ export const previewInvoiceEmail = onCall<
     const organization = await organizationRepository.get({ id: invoice.orgId });
     const pdfUrl = await handleRenderInvoicePdf(invoiceId);
     const invoiceAfterPdfRender = (await invoiceRepository.get({ id: invoiceId })) ?? invoice;
+    const stripePayment = getStripeInvoicePaymentMetadata(invoice as unknown as { payment?: unknown });
+    const invoiceUrl = stripePayment?.hostedInvoiceUrl?.trim() || pdfUrl;
 
     const invoiceData = invoice.data as Record<string, InvoiceDataValue>;
     const buyer = (invoiceData.buyer || invoiceData.customer) as
@@ -292,8 +295,8 @@ export const previewInvoiceEmail = onCall<
           company: recipientCompanyName,
         },
         links: {
-          viewUrl: pdfUrl,
-          payUrl: pdfUrl,
+          viewUrl: invoiceUrl,
+          payUrl: invoiceUrl,
           pdfUrl,
         },
       });

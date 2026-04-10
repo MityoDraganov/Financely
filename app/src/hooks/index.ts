@@ -27,5 +27,6 @@ export * from "./service-hooks/use-widget-definition-functions";
 // Utility hooks
 export * from "./use-onboarding";
 export * from "./use-auto-proposal-suggestions";
+export * from "./use-stripe-connect";
 
 export * from "./service-hooks/auth/use-auth";

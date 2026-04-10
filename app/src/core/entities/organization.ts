@@ -13,6 +13,25 @@ export const billingStatusSchema = z.enum([
 ]);
 export type BillingStatus = z.infer<typeof billingStatusSchema>;
 
+export const organizationPaymentsStatusSchema = z.enum([
+  "not_connected",
+  "pending",
+  "ready",
+]);
+export type OrganizationPaymentsStatus = z.infer<typeof organizationPaymentsStatusSchema>;
+
+export const organizationPaymentsSchema = z.object({
+  provider: z.literal("stripe").default("stripe"),
+  connectAccountId: z.string().optional(),
+  detailsSubmitted: z.boolean().default(false),
+  chargesEnabled: z.boolean().default(false),
+  payoutsEnabled: z.boolean().default(false),
+  onboardingComplete: z.boolean().default(false),
+  status: organizationPaymentsStatusSchema.default("not_connected"),
+  lastOnboardingLinkCreatedAt: z.string().optional(),
+  lastStatusRefreshAt: z.string().optional(),
+});
+
 export const organizationDataSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -42,6 +61,8 @@ export const organizationDataSchema = z.object({
       cancelAtPeriodEnd: false,
       entitlements: {},
     }),
+  /** Stripe Connect Express state for invoice payments */
+  payments: organizationPaymentsSchema.optional(),
   
   // Organization settings
   settings: z
@@ -555,6 +576,7 @@ export const organizationDataSchema = z.object({
 });
 
 export type OrganizationData = z.infer<typeof organizationDataSchema>;
+export type OrganizationPayments = z.infer<typeof organizationPaymentsSchema>;
 
 export const organizationSchema = baseEntitySchema.merge(organizationDataSchema);
 export type Organization = z.infer<typeof organizationSchema>;
